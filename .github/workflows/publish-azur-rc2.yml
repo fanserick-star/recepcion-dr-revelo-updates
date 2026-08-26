@@ -1,0 +1,48 @@
+name: Publish AZUR RC2 hotfix
+
+on:
+  push:
+    branches: [auto-updater-bootstrap]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout package branch
+        uses: actions/checkout@v4
+
+      - name: Build update ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f /tmp/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
+          zip -qr /tmp/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip package
+          SHA=$(sha256sum /tmp/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip | awk '{print $1}')
+          echo "UPDATE_SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Publish package and latest manifest to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch main
+          mkdir -p updates
+          cp /tmp/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip updates/
+          cat > latest.json <<EOF
+          {
+            "product": "recepcion-pacientes",
+            "version": "4.3.17-RC2",
+            "mandatory": true,
+            "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip",
+            "sha256": "$UPDATE_SHA",
+            "message": "Corrección automática de conexión AZUR RC2."
+          }
+          EOF
+          git config user.name "recepcion-auto-updater"
+          git config user.email "actions@users.noreply.github.com"
+          git add latest.json updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
+          git commit -m "Publicar actualización automática AZUR RC2" || exit 0
+          git push origin main
