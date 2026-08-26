@@ -2,6 +2,7 @@
   "product": "recepcion-pacientes",
   "version": "4.3.17-RC2",
   "app_version": "4.3.17-RC1",
+  "compatible_app_versions": ["4.3.17-RC1", "4.3.16.1"],
   "copy": [
     "azur_client.py",
     "ABRIR_RECEPCION.py",
