@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.17-RC3",
+  "version": "4.3.17-RC6",
   "mandatory": true,
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip",
-  "sha256": "8dfccac064df3b940d659866b7d02550b795e651cd00de828bbbf3cd7b3acf00",
-  "message": "Corrección RC3: backend AZUR y actualizador siempre activo."
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip",
+  "sha256": "e0176a9a6d53e0fc193f5aca77a0bb996918f4f80f3dfc2fbdb6301add2dfbc1",
+  "message": "RC6: conexión AZUR con transporte nativo de Windows e inicio sin PowerShell visible."
 }
