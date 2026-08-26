@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import time
 import urllib.request
 import webbrowser
@@ -12,6 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 URL = "http://127.0.0.1:8000"
 VERSION_URL = URL + "/api/version"
+
+
 def package_version() -> str:
     try:
         manifest = json.loads((ROOT / "update_manifest.json").read_text(encoding="utf-8"))
@@ -23,20 +24,28 @@ def package_version() -> str:
     return "4.3.16.1"
 
 
-def expected_server_version() -> str:
-    """Versión que debe reportar app.py tras una actualización.
+def expected_server_versions() -> set[str]:
+    """Versiones de app.py válidas para el paquete instalado.
 
-    Los hotfixes pueden actualizar componentes sin reemplazar app.py; en esos
-    casos update_manifest.json declara app_version para evitar reinicios dobles.
+    Los hotfixes pueden corregir componentes sin reemplazar app.py. En esos
+    casos el manifiesto declara compatible_app_versions para que Recepción no
+    reinicie el servidor innecesariamente.
     """
     try:
         manifest = json.loads((ROOT / "update_manifest.json").read_text(encoding="utf-8"))
-        value = str(manifest.get("app_version") or manifest.get("version") or "").strip()
-        if value:
-            return value
+        values = manifest.get("compatible_app_versions") or []
+        result = {str(v).strip() for v in values if str(v).strip()}
+        app_version = str(manifest.get("app_version") or "").strip()
+        if app_version:
+            result.add(app_version)
+        if result:
+            return result
+        version = str(manifest.get("version") or "").strip()
+        if version:
+            return {version}
     except Exception:
         pass
-    return package_version()
+    return {package_version()}
 
 
 TITLE = "Recepción Dr. Armando Revelo"
@@ -153,9 +162,9 @@ def start_server() -> None:
 
 def wait_for_expected_version(seconds: float = 24.0) -> bool:
     deadline = time.time() + seconds
-    expected = expected_server_version()
+    expected = expected_server_versions()
     while time.time() < deadline:
-        if running_version(timeout=1.0) == expected:
+        if running_version(timeout=1.0) in expected:
             return True
         time.sleep(0.35)
     return False
@@ -184,16 +193,8 @@ def open_edge_app() -> bool:
         return False
     try:
         subprocess.Popen(
-            [
-                str(edge),
-                f"--app={URL}",
-                "--start-maximized",
-                "--disable-background-mode",
-                "--no-first-run",
-            ],
-            cwd=str(ROOT),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            [str(edge), f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"],
+            cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
         return True
     except Exception:
@@ -226,29 +227,14 @@ def open_webview2() -> bool:
             ready = bool(result.get("webview2") and result.get("pywebview"))
         if not ready:
             return False
-
         import webview
-
         try:
             webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
         except Exception:
             pass
         icon = ROOT / "static" / "doctor_icon.ico"
-        webview.create_window(
-            TITLE,
-            URL,
-            width=1180,
-            height=760,
-            min_size=(760, 560),
-            resizable=True,
-            text_select=True,
-        )
-        kwargs = {
-            "gui": "edgechromium",
-            "debug": False,
-            "private_mode": False,
-            "storage_path": str(_data_dir() / "webview_profile"),
-        }
+        webview.create_window(TITLE, URL, width=1180, height=760, min_size=(760, 560), resizable=True, text_select=True)
+        kwargs = {"gui": "edgechromium", "debug": False, "private_mode": False, "storage_path": str(_data_dir() / "webview_profile")}
         if icon.exists():
             kwargs["icon"] = str(icon)
         webview.start(**kwargs)
@@ -264,7 +250,6 @@ def open_ui() -> None:
             return
         webbrowser.open(URL, new=2)
         return
-
     if open_webview2():
         return
     if open_edge_app():
@@ -282,7 +267,7 @@ def main() -> None:
                 stop_server_on_port()
             start_server()
             wait_for_expected_version(seconds=18.0)
-    elif version != expected_server_version():
+    elif version not in expected_server_versions():
         stop_server_on_port()
         run_automatic_update()
         start_server()
