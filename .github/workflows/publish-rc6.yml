@@ -1,0 +1,49 @@
+name: Publish RC6 AZUR Windows transport
+
+on:
+  push:
+    branches: [rc6-publish]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RC6 branch
+        uses: actions/checkout@v4
+
+      - name: Validate and build update ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile package/APP_ENTRY.py package/azur_windows_patch.py package/ABRIR_RECEPCION.py
+          rm -f /tmp/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip
+          zip -qr /tmp/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip package
+          SHA=$(sha256sum /tmp/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip | awk '{print $1}')
+          echo "UPDATE_SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Publish package and latest manifest to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch main
+          mkdir -p updates
+          cp /tmp/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip updates/
+          cat > latest.json <<EOF
+          {
+            "product": "recepcion-pacientes",
+            "version": "4.3.17-RC6",
+            "mandatory": true,
+            "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip",
+            "sha256": "$UPDATE_SHA",
+            "message": "RC6: conexión AZUR con transporte nativo de Windows e inicio sin PowerShell visible."
+          }
+          EOF
+          git config user.name "recepcion-auto-updater"
+          git config user.email "actions@users.noreply.github.com"
+          git add latest.json updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip
+          git commit -m "Publicar actualización automática RC6" || exit 0
+          git push origin main
