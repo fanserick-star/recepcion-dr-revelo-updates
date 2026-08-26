@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.17-RC3",
+  "app_version": "4.3.17-RC3",
+  "copy": [
+    "APP_ENTRY.py",
+    "azur_patch.py",
+    "azur_client.py",
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json",
+    "REPORTE_v4_3_17_RC3.txt"
+  ]
+}
