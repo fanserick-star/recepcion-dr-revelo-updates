@@ -1,0 +1,49 @@
+name: Publish RC3 automatic fix
+
+on:
+  push:
+    branches: [rc3-publish]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout RC3 branch
+        uses: actions/checkout@v4
+
+      - name: Validate and build update ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile package/APP_ENTRY.py package/azur_patch.py package/azur_client.py package/ABRIR_RECEPCION.py
+          rm -f /tmp/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
+          zip -qr /tmp/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip package
+          SHA=$(sha256sum /tmp/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip | awk '{print $1}')
+          echo "UPDATE_SHA=$SHA" >> "$GITHUB_ENV"
+
+      - name: Publish package and latest manifest to main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch main
+          mkdir -p updates
+          cp /tmp/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip updates/
+          cat > latest.json <<EOF
+          {
+            "product": "recepcion-pacientes",
+            "version": "4.3.17-RC3",
+            "mandatory": true,
+            "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip",
+            "sha256": "$UPDATE_SHA",
+            "message": "Corrección RC3: backend AZUR y actualizador siempre activo."
+          }
+          EOF
+          git config user.name "recepcion-auto-updater"
+          git config user.email "actions@users.noreply.github.com"
+          git add latest.json updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
+          git commit -m "Publicar actualización automática RC3" || exit 0
+          git push origin main
