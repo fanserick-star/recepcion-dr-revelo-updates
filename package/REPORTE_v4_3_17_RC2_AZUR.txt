@@ -1,0 +1,9 @@
+Recepción Dr. Armando Revelo — v4.3.17-RC2
+
+Hotfix automático de conexión AZUR:
+- Mantiene https://azur.com.ec como dirección válida.
+- Prueba variantes oficiales de la API REST v2 publicadas por AZUR.
+- Compatibilidad con api_key en el JSON y en el encabezado api-key.
+- Primero intenta una consulta de clave inexistente; si esa ruta no está disponible, usa un payload deliberadamente inválido que no puede emitir una factura.
+- La emisión real continúa bloqueada en esta RC.
+- La API key permanece únicamente en .env y nunca se incluye en GitHub ni en el paquete de actualización.
