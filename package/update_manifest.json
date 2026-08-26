@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.17-RC6",
+  "app_version": "4.3.17-RC4",
+  "runtime_version": "4.3.17-RC6",
+  "copy": [
+    "APP_ENTRY.py",
+    "azur_windows_patch.py",
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json",
+    "REPORTE_v4_3_17_RC6.txt"
+  ]
+}
