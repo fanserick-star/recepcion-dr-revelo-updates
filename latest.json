@@ -3,6 +3,6 @@
   "version": "4.3.17-RC2",
   "mandatory": true,
   "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip",
-  "sha256": "b79b3329dadfa4cae91745336920bc81071e46155536f4ef06c20243c63044b0",
+  "sha256": "77b299385c84156252f21924e5ac8d95071ac9b7978302a1b59bfa875d22e88b",
   "message": "Corrección automática de conexión AZUR RC2."
 }
