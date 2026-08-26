@@ -1,0 +1,9 @@
+Recepción Dr. Armando Revelo — v4.3.17-RC3
+
+- Corrige el estado híbrido donde la interfaz AZUR estaba nueva pero el backend seguía en 4.3.16.1.
+- Añade las rutas AZUR mediante APP_ENTRY.py + azur_patch.py sin reemplazar app.py ni tocar datos clínicos.
+- La versión visible pasa a 4.3.17-RC3.
+- Corrige el lanzador para comprobar actualizaciones SIEMPRE al abrir, incluso si el servidor local quedó ejecutándose.
+- Conserva .env, data/, .venv y BASE DE DATOS 2026.xlsx.
+- La API key sigue únicamente en .env local.
+- La prueba de conexión no emite comprobantes reales.
