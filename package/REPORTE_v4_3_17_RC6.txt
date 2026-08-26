@@ -1,0 +1,5 @@
+Recepción Dr. Armando Revelo — v4.3.17-RC6
+- Prueba AZUR mediante curl.exe nativo de Windows, invisible, para evitar fallos TLS del Python local.
+- Usa la ruta oficial /plataforma/api/v2/consulta/comprobante y una clave de acceso imposible; no emite documentos.
+- PowerShell interno queda oculto.
+- El backend base RC4 permanece intacto; la versión de ejecución se identifica como RC6.
