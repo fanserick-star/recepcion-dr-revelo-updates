@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.17-RC2",
+  "version": "4.3.17-RC3",
   "mandatory": true,
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip",
-  "sha256": "77b299385c84156252f21924e5ac8d95071ac9b7978302a1b59bfa875d22e88b",
-  "message": "Corrección automática de conexión AZUR RC2."
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip",
+  "sha256": "8dfccac064df3b940d659866b7d02550b795e651cd00de828bbbf3cd7b3acf00",
+  "message": "Corrección RC3: backend AZUR y actualizador siempre activo."
 }
