@@ -1,0 +1,8 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.16.1",
+  "mandatory": true,
+  "url": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/v4.3.16.1/ACTUALIZACION_v4_3_16_1_ACTUALIZADOR_AUTOMATICO.zip",
+  "sha256": "d24b9effca118972f8e4d0318a5919f579c3957cfffc54f06e9e721826cfb1bb",
+  "message": "Actualizaciones automáticas activadas."
+}
