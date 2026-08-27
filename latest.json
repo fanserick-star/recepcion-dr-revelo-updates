@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.17-RC6",
+  "version": "4.3.39",
   "mandatory": true,
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip",
-  "sha256": "e0176a9a6d53e0fc193f5aca77a0bb996918f4f80f3dfc2fbdb6301add2dfbc1",
-  "message": "RC6: conexión AZUR con transporte nativo de Windows e inicio sin PowerShell visible."
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip",
+  "sha256": "3afdbf62639d2374ddeb3428288355a893f2bdec61abee1c2c2d968996aabf75",
+  "message": "v4.3.39 Debut Final: actualización recomendada para el debut; conserva .env, data, SQLite y BASE DE DATOS 2026.xlsx."
 }
