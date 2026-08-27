@@ -1,9 +1,21 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.39",
+  "version": "4.3.41",
   "mandatory": true,
-  "channel": "zip-v3",
-  "message": "v4.3.39 Debut Final acumulativa: salto directo desde RC6; WhatsApp Cloud 24/7, pruebas de mensajes, estados de entrega, reinicio corregido, Agenda Web unificada y optimización para PC antigua.",
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL_ACUMULATIVA.zip",
-  "sha256": "cb49a60ec77487e290e20ecc5d6b57d88d3c9042ff43038a228cc2339ea8dfce"
+  "channel": "files-v3",
+  "message": "v4.3.41: estados AZUR/SRI visibles y actualizables; emitidas/rechazadas muestran por defecto solo los últimos 7 días; limpieza de acciones antiguas de Facturación. Compatible con v4.3.39 y v4.3.40.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v441/bootstrap_app.py",
+      "sha256": "183b38ae2773e7ebf1471f7f37cc9b65a79a2fe9c950de96bf70191f0f70c3dc",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v441/update_manifest.json",
+      "sha256": "0e777473853d3fc7cbea1c5d2dc5ac613c1f072e231a91602abd753335479c66",
+      "encoding": "utf-8"
+    }
+  ]
 }
