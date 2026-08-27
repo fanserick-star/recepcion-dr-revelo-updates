@@ -2,7 +2,7 @@
   "product": "recepcion-pacientes",
   "version": "4.3.39",
   "mandatory": true,
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip",
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL_ACUMULATIVA.zip",
   "sha256": "cb49a60ec77487e290e20ecc5d6b57d88d3c9042ff43038a228cc2339ea8dfce",
-  "message": "v4.3.39 Debut Final acumulativa: salto directo desde v4.3.17-RC6; conserva .env, data, SQLite y BASE DE DATOS 2026.xlsx."
+  "message": "v4.3.39 Debut Final acumulativa: actualización directa desde RC6; conserva .env, data, SQLite y BASE DE DATOS 2026.xlsx."
 }

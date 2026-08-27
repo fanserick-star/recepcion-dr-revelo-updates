@@ -3,7 +3,7 @@
   "version": "4.3.39",
   "mandatory": true,
   "channel": "zip-v3",
-  "message": "v4.3.39 Debut Final acumulativa: salto directo desde RC6, WhatsApp Cloud 24/7, pruebas de mensajes, estados de entrega, reinicio corregido, Agenda Web unificada y optimización para PC antigua.",
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip",
+  "message": "v4.3.39 Debut Final acumulativa: salto directo desde RC6; WhatsApp Cloud 24/7, pruebas de mensajes, estados de entrega, reinicio corregido, Agenda Web unificada y optimización para PC antigua.",
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL_ACUMULATIVA.zip",
   "sha256": "cb49a60ec77487e290e20ecc5d6b57d88d3c9042ff43038a228cc2339ea8dfce"
 }
