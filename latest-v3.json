@@ -1,0 +1,7 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.30",
+  "mandatory": false,
+  "channel": "files-v3",
+  "message": "v4.3.30: versión de debut optimizada. WhatsApp permanece desactivado hasta la aprobación de Meta."
+}
