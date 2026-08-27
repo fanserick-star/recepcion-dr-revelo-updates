@@ -1,9 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.35",
-  "mandatory": false,
+  "version": "4.3.39",
+  "mandatory": true,
   "channel": "zip-v3",
-  "message": "v4.3.35: recordatorio_cita adaptado exactamente a la plantilla aprobada de Meta (2 variables; botones Sí / No). WhatsApp permanece desactivado hasta la prueba controlada.",
-  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip",
-  "sha256": "4bffa72a4eb243e4ebfd885ed613d44c166773cdf9aa4237151b2e1ff3908e51"
+  "message": "v4.3.39 Debut Final: WhatsApp Cloud 24/7, pruebas de mensajes, estados de entrega, reinicio corregido, Agenda Web unificada y optimización para PC antigua.",
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip",
+  "sha256": "3afdbf62639d2374ddeb3428288355a893f2bdec61abee1c2c2d968996aabf75"
 }
