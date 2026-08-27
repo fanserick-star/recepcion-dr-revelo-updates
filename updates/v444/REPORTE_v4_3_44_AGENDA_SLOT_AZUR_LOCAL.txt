@@ -1,0 +1,6 @@
+RECEPCIÓN DE PACIENTES · v4.3.44
+
+- Corrige el flujo REAL de Agenda del programa: si el paciente no tiene celular y se pulsa “Completar celular” desde un horario, al guardar vuelve a la misma fecha y hora seleccionadas.
+- Corrige la sincronización local-first de AZUR: el estado técnico AUTORIZADA/EN PROCESO/RECHAZADA ahora se refleja inmediatamente de Neon a SQLite local.
+- El refresco completo de caché también copia azur_emissions, evitando que el estado SRI vuelva a quedar desactualizado.
+- “Actualizar estados” muestra una notificación discreta con cuántas fueron consultadas, autorizadas, en proceso, rechazadas o con error. No usa cuadros nativos de Windows.
