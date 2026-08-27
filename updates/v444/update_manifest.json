@@ -1,0 +1,12 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.44",
+  "app_version": "4.3.44",
+  "runtime_version": "4.3.44",
+  "copy": [
+    "update_manifest.json",
+    "app.py",
+    "static/app.js",
+    "REPORTE_v4_3_44_AGENDA_SLOT_AZUR_LOCAL.txt"
+  ]
+}
