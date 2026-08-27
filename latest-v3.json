@@ -3,12 +3,12 @@
   "version": "4.3.44",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.44: corrige el regreso a la misma fecha/hora al completar celular desde Agenda; refleja inmediatamente el estado real AUTORIZADA/EN PROCESO/RECHAZADA de AZUR/SRI en la copia local; y muestra un resumen discreto al actualizar estados. Compatible con v4.3.39–v4.3.43.",
+  "message": "v4.3.44: corrige el regreso a la misma fecha/hora al completar celular desde Agenda; refleja inmediatamente el estado real AUTORIZADA/EN PROCESO/RECHAZADA de AZUR/SRI en la copia local; y muestra un resumen discreto al actualizar estados. Compatible con v4.3.42 y v4.3.43.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/7d428f0f779215ecfb4e72e2087cbd0ed9ac30c8/updates/v444/bootstrap_app.py",
-      "sha256": "fad05b8a9022d37de184f461a13a749b30cab779dd2d5bee9e70f5ddb0df8212",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/76b25fd125b8c3501b4d52f63d1c74f8109bbe17/updates/v444/bootstrap_app.py",
+      "sha256": "70f111fc52132ecf2216f92cfa83223771a75a1a21ccb0bec263e15a52df4966",
       "encoding": "utf-8"
     },
     {
