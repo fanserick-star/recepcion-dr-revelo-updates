@@ -1,25 +1,20 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.42",
+  "version": "4.3.46",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.42 estable. El canal automático de v4.3.44 fue retirado temporalmente por un error de integridad SHA. La corrección nueva se instalará manualmente mientras se rehace el empaquetado automático.",
+  "message": "v4.3.46: Agenda PC conserva las citas canceladas en rojo hasta terminar la semana; Inicio > Atender fuerza una agenda actualizada; la limpieza semanal retira las citas de semanas anteriores. Canal automático restaurado y verificado para v4.3.42 a v4.3.45.",
   "files": [
     {
       "path": "app.py",
-      "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part1.txt",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part2.txt",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3a.txt",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3b.txt"
-      ],
-      "sha256": "b737c3114c97043ba46306faf8d02214e767f2827fa18b332654d848f12e4774",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v446/bootstrap_app.py",
+      "sha256": "590001b7e05ce472f892684426e823a44de5bfeee9d02bebc3d1b17a140f963c",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/update_manifest.json",
-      "sha256": "61e76f85c7d5f5bb1ef95a2a3d7303fafdeb0460dc85aef1caaa0310a2afa23e",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v446/update_manifest.json",
+      "sha256": "e03930b853970f24f50a722aff2f3b4a945cf91f00342d322f258e3bd8cec2ea",
       "encoding": "utf-8"
     }
   ]
