@@ -1,20 +1,25 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.41",
+  "version": "4.3.42",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.41: estados AZUR/SRI visibles y actualizables; emitidas/rechazadas muestran por defecto solo los últimos 7 días; limpieza de acciones antiguas de Facturación. Compatible con v4.3.39 y v4.3.40.",
+  "message": "v4.3.42: Agenda móvil con semana completa y vista Día; Facturación con Aprobar todas, Emitir todas y Actualizar estados AZUR/SRI; al completar el celular desde Agenda vuelve a la misma fecha y hora. Compatible con v4.3.39, v4.3.40 y v4.3.41.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v441/bootstrap_app.py",
-      "sha256": "183b38ae2773e7ebf1471f7f37cc9b65a79a2fe9c950de96bf70191f0f70c3dc",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part1.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part2.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3a.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3b.txt"
+      ],
+      "sha256": "b737c3114c97043ba46306faf8d02214e767f2827fa18b332654d848f12e4774",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v441/update_manifest.json",
-      "sha256": "0e777473853d3fc7cbea1c5d2dc5ac613c1f072e231a91602abd753335479c66",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/update_manifest.json",
+      "sha256": "61e76f85c7d5f5bb1ef95a2a3d7303fafdeb0460dc85aef1caaa0310a2afa23e",
       "encoding": "utf-8"
     }
   ]
