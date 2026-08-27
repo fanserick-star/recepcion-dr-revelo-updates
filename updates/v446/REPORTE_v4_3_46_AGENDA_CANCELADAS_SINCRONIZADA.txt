@@ -1,0 +1,17 @@
+Recepción Dr. Armando Revelo — v4.3.46
+
+AGENDA PC
+- Cancelar una cita ya no la elimina de inmediato.
+- La cita queda visible en rojo con estado CANCELADO durante toda la semana.
+- Una cita cancelada no se puede atender desde la agenda de Nueva atención.
+- Desde una cita cancelada se puede abrir la ficha o agendar una nueva cita, conservando el registro cancelado.
+- Al comenzar una nueva semana, la limpieza normal elimina todas las citas de semanas anteriores sin tocar pacientes, atenciones ni facturación.
+
+INICIO > ATENDER
+- La agenda de Nueva atención fuerza una carga nueva cada vez que se abre.
+- Se elimina el desfase de hasta 60 segundos que podía mostrar una copia anterior.
+- Las cancelaciones se muestran también en rojo y sin acción de Atender.
+
+ACTUALIZACIÓN
+- v4.3.46 restaura el canal automático mediante archivos completos verificados por SHA-256 antes de modificar la instalación.
+- No modifica .env, data/, BASE DE DATOS 2026.xlsx ni la base local del consultorio.
