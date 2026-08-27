@@ -7,13 +7,13 @@
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v444/bootstrap_app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/7d428f0f779215ecfb4e72e2087cbd0ed9ac30c8/updates/v444/bootstrap_app.py",
       "sha256": "fad05b8a9022d37de184f461a13a749b30cab779dd2d5bee9e70f5ddb0df8212",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v444/update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/934fe4b28f8c1c0a1af05ec8fd9ded39ed94fe27/updates/v444/update_manifest.json",
       "sha256": "701155e80e07f6726e5f52dc909c27e94c7d8a2b41e34407274cc0880cacbe2f",
       "encoding": "utf-8"
     }
