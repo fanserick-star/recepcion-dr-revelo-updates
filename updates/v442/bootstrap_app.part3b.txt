@@ -1,0 +1,93 @@
+raise RuntimeError("El archivo base no coincide con su huella esperada")
+    lines = raw.decode("utf-8").splitlines(keepends=True)
+    for i1, i2, replacement in reversed(spec["ops"]):
+        lines[int(i1):int(i2)] = [replacement]
+    out = "".join(lines).encode("utf-8")
+    if _sha(out) != spec["final_sha256"]:
+        raise RuntimeError("La huella final no coincide")
+    return out
+
+def _restore(old_app: bytes | None, old_manifest: bytes | None, originals: dict[str, bytes]) -> None:
+    for rel, raw in originals.items():
+        try:
+            (ROOT / rel).write_bytes(raw)
+        except Exception:
+            pass
+    if old_app is not None:
+        try:
+            (ROOT / "app.py").write_bytes(old_app)
+        except Exception:
+            pass
+    if old_manifest is not None:
+        try:
+            (ROOT / "update_manifest.json").write_bytes(old_manifest)
+        except Exception:
+            pass
+
+def _apply_bridge() -> tuple[bytes | None, bytes | None]:
+    plans = _plans()
+    version, backup_path, old_app, old_manifest = _find_source(plans)
+    plan = plans[version]
+    originals: dict[str, bytes] = {}
+    patched: dict[str, bytes] = {}
+    try:
+        originals["app.py"] = old_app
+        patched["app.py"] = _patched_bytes(old_app, plan["app.py"])
+        for rel in TARGET_FILES[1:]:
+            raw = (ROOT / rel).read_bytes()
+            originals[rel] = raw
+            patched[rel] = _patched_bytes(raw, plan[rel])
+
+        # All hashes are validated before touching the installation.
+        staged: dict[str, Path] = {}
+        for rel, raw in patched.items():
+            dst = ROOT / rel
+            tmp = dst.with_name(dst.name + ".v442_tmp")
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_bytes(raw)
+            staged[rel] = tmp
+        written: list[str] = []
+        try:
+            # Static assets first; app.py last. The currently running bridge stays in memory.
+            for rel in TARGET_FILES[1:] + ("app.py",):
+                staged[rel].replace(ROOT / rel)
+                written.append(rel)
+        except Exception:
+            for rel in written:
+                try:
+                    (ROOT / rel).write_bytes(originals[rel])
+                except Exception:
+                    pass
+            raise
+        _state(ok=True, source=version, target=TARGET, backup=backup_path.name, files=list(TARGET_FILES))
+        return old_app, old_manifest
+    except Exception:
+        _restore(old_app, old_manifest, originals)
+        raise
+
+def _main() -> None:
+    old_app = old_manifest = None
+    try:
+        old_app, old_manifest = _apply_bridge()
+    except Exception as exc:
+        _state(ok=False, target=TARGET, error=str(exc)[:1200])
+        # Restore the exact previous app/manifest so Recepcion can still open.
+        try:
+            plans = _plans()
+            _, _, old_app, old_manifest = _find_source(plans)
+            _restore(old_app, old_manifest, {})
+        except Exception:
+            pass
+        if os.getenv("RP_V442_BOOTSTRAP_TEST") == "1":
+            raise
+        if old_app is not None:
+            os.execv(sys.executable, [sys.executable, str(ROOT / "app.py")])
+        raise
+
+    if os.getenv("RP_V442_BOOTSTRAP_TEST") == "1":
+        return
+    # Start the real v4.3.42 in the same windowless Python executable.
+    os.execv(sys.executable, [sys.executable, str(ROOT / "app.py")])
+
+if __name__ == "__main__":
+    _main()
