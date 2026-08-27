@@ -1,20 +1,25 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.44",
+  "version": "4.3.42",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.44: corrige el regreso a la misma fecha/hora al completar celular desde Agenda; refleja inmediatamente el estado real AUTORIZADA/EN PROCESO/RECHAZADA de AZUR/SRI en la copia local; y muestra un resumen discreto al actualizar estados. Compatible con v4.3.42 y v4.3.43.",
+  "message": "v4.3.42 estable. El canal automático de v4.3.44 fue retirado temporalmente por un error de integridad SHA. La corrección nueva se instalará manualmente mientras se rehace el empaquetado automático.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/76b25fd125b8c3501b4d52f63d1c74f8109bbe17/updates/v444/bootstrap_app.py",
-      "sha256": "70f111fc52132ecf2216f92cfa83223771a75a1a21ccb0bec263e15a52df4966",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part1.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part2.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3a.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/bootstrap_app.part3b.txt"
+      ],
+      "sha256": "b737c3114c97043ba46306faf8d02214e767f2827fa18b332654d848f12e4774",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/934fe4b28f8c1c0a1af05ec8fd9ded39ed94fe27/updates/v444/update_manifest.json",
-      "sha256": "701155e80e07f6726e5f52dc909c27e94c7d8a2b41e34407274cc0880cacbe2f",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v442/update_manifest.json",
+      "sha256": "61e76f85c7d5f5bb1ef95a2a3d7303fafdeb0460dc85aef1caaa0310a2afa23e",
       "encoding": "utf-8"
     }
   ]
