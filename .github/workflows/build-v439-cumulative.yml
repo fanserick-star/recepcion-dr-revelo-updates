@@ -1,0 +1,49 @@
+name: Construir paquete acumulativo v4.3.39
+
+on:
+  push:
+    paths:
+      - 'build/v439/READY'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar señal
+        id: ready
+        shell: bash
+        run: |
+          if [ -f build/v439/READY ]; then echo "go=1" >> "$GITHUB_OUTPUT"; else echo "go=0" >> "$GITHUB_OUTPUT"; fi
+      - name: Reconstruir ZIP y validar SHA
+        if: steps.ready.outputs.go == '1'
+        shell: bash
+        run: |
+          cat build/v439/chunks/*.b64 | tr -d '\r\n' | base64 -d > releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip
+          echo "6f5e1decd41ce5dd60b64eeaf59fdddbfbd52da11dd31e918e3d5a9a67dc98fa  releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip" | sha256sum -c -
+          python - <<'PY'
+          import json, pathlib
+          sha='6f5e1decd41ce5dd60b64eeaf59fdddbfbd52da11dd31e918e3d5a9a67dc98fa'
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip'
+          for name in ('latest.json','latest-v3.json'):
+              p=pathlib.Path(name)
+              j=json.loads(p.read_text(encoding='utf-8'))
+              j['version']='4.3.39'
+              j['mandatory']=True
+              j['url']=url
+              j['sha256']=sha
+              j['message']='v4.3.39 Debut Final acumulativa: salto directo desde v4.3.17-RC6; conserva .env, data y bases locales.'
+              p.write_text(json.dumps(j,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - name: Publicar paquete validado
+        if: steps.ready.outputs.go == '1'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip latest.json latest-v3.json
+          git diff --cached --quiet || git commit -m "Publicar paquete acumulativo validado v4.3.39"
+          git push
