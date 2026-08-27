@@ -40,6 +40,7 @@ def _backup_files():
  dirs=[BACKUP]
  d=_env_data_dir()
  if d:dirs.append(d/"update_backups")
+ # También revisa carpetas de datos vecinas por si el lanzador usó una ruta externa.
  dirs += [ROOT.parent/"data"/"update_backups"]
  seen=set(); out=[]
  for d in dirs:
