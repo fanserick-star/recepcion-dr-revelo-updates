@@ -1,0 +1,43 @@
+OlsBGMgBiaxvWAJvepXh2/iO74Hpa5AqQQO8nqqa30BVEvOHbtt6l1r3B0Ouz3dGpSoTe0dGOKL7DrvYwQ4WiuK2l9eArFOXYYuiC5uJ2gyTtHY3YUxFcNmmjpRyzosIOkyTUmCM4eWPRjXf4MSV/3MKD4b9cfmZLKLOyVAf6a2GD1rsKnLwml+g00Vxa2xMjgTRKOVj00+BHXdKYOcymXhmxjPYGfX015/sOsukxSaGcXky8BY4eqwCYyvUf2oMqdKJKlSIegpDCykVc2YcUiGrv+n8kjpqzsRg3Q8NVYiLiBIX5pG+t3Z00e6PbJNy7SsoTV0LHfijsfA7EEmD8Yu3ALfAqV34BruYGAYI083+qZvjNnI6088Yzz62bOnj0xz1KVLk/G6yXjdZLxuMl43Ga+bjNdNxusm43WT8brJeN1kvG4yXjcZr5uM138zGa8tE3NQWz9RBuQ+1iaXUv/WMyDzXNSDHznj9RC9HbhZjN+OcARGP9V4j7G2cTPelIDaMLpwGfx4Ga/7k0mXLk2O57/YHM+YaZSnGy0nkhw3OZ6bHM9Njucmx3OT4/lHyPFsgGAcmGaT47nJ8fw+OZ5NTLdr9gtZbQ7xweSj53jm0K0xQLcmFYPgbzPTMZoteGkyHTeZjptMx02m4ybTcZPpuMl03GQ6bjIdN5mOP2KmY933hhNzYJgjc+yN3SFz3aFl6iPXMwd6f2wxnTnm2B/0LY+ZlueP7cHAGJrWZGyaE5c1mY6bTMdNpuMm03GT6bjJdNxkOm4yHTeZjptMx02m4ybTcZPpuMl03GQ6viPTsUgtYjV5WT4oL0sfkTf4K8vLgjlT4DJqEqfclTgF430Zxn/IxCkYNtUYNYlTmsQp75k4xcQYj3z7TpM4pUmc0iROaRKnNIlTmsQpTeKUJnFKkzjlLy9xioVxo61+kzilSZzSJE75ORKnDNHRgpunmwQlTYKSJkFJk6DkJ05QwnNymE2CEkIGuj1H/SZByY+QoAQzsY+Gf50JStDRP9b/6hOUjFHZh0uToKRJUNIkKPl5EpQMMUHJqElQ0iQoaRKUNAlKmgQlTYKSJkFJk6CkSVDSJChpEpQ0CUr+gyUoMe5OUGJ4Fiizo3EfqFS32XigD8ZsoJum0x/aE8cFHdcaGN4QaNuxzEFft7yxb/WHzDP744k7bBKUNAlKmgQlTYKSJkFJk6CkSVDSJChpEpQ0CUqaBCVNgpImQUmToKRJUNIkKGkSlDQJSpoEJR+WoGSoj7t0aaI6N1Gdm6jOTVTnJqpzE9W5iercRHVuojo3UZ0/XlRn0/Qmo7HrDkeuP3ZMzxr4bMQcw3THrjGYeLbrDBzdnej+ZORaQ3Pk9R2DTTzm+MPRwHGaqM5NVOcmqnMT1bmJ6txEdW6iOjdRnZuozk1U5yaqcxPVuYnq3ER1bqI63xHVWUR+MtejOjeB6ppAdU2guiZQ3V9KoLqcY/WRY/VNNYTITxCprBK+pAnT1YTpasJ0NWG6fuowXRSCyGjCdBVxjKwmTNfHD9M17iNqB3+VYbrGY2z75K8+TNfE6NKlCdPVhOlqwnT95GG63jlwk+0wzxl4Y3dseb6BJ9NHA2esj3XfH+oTm9muP+mzPhuO+xPfsMcjw/LdgcFcNhwMTN/5UQM3/bxxdcwJG+hDfeBBoye6MXZ0W/csRx+Z/sj3RobJXJAyQ5tNvMEAujoYjZjDjL7fNy3XtIwfNa7OZNTF/7aaeB9NvI8m3sdHifex+v979DB+'
+
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+def _data_dir() -> Path:
+    return Path((os.getenv("RP_DATA_DIR") or "").strip() or (ROOT / "data"))
+
+def _state(**values) -> None:
+    try:
+        p = _data_dir() / "v442_bootstrap_state.json"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        values["updated_at"] = datetime.now(timezone.utc).isoformat()
+        t = p.with_suffix(".tmp")
+        t.write_text(json.dumps(values, ensure_ascii=False, indent=2), encoding="utf-8")
+        t.replace(p)
+    except Exception:
+        pass
+
+def _plans() -> dict:
+    return json.loads(zlib.decompress(base64.b64decode(PATCH_DATA_B64)).decode("utf-8"))
+
+def _find_source(plans: dict):
+    backup_dir = _data_dir() / "update_backups"
+    if not backup_dir.exists():
+        raise RuntimeError("No se encontró el respaldo previo de la actualización")
+    candidates = sorted(backup_dir.glob("auto_antes_actualizacion_*.zip"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for zp in candidates[:12]:
+        try:
+            with zipfile.ZipFile(zp) as zf:
+                old_app = zf.read("app.py")
+                old_manifest = zf.read("update_manifest.json") if "update_manifest.json" in zf.namelist() else None
+            app_hash = _sha(old_app)
+            for version, plan in plans.items():
+                if app_hash == plan["app.py"]["source_sha256"]:
+                    return version, zp, old_app, old_manifest
+        except Exception:
+            continue
+    raise RuntimeError("El respaldo no corresponde a v4.3.39, v4.3.40 ni v4.3.41")
+
+def _patched_bytes(raw: bytes, spec: dict) -> bytes:
+    if _sha(raw) != spec["source_sha256"]:
+        
