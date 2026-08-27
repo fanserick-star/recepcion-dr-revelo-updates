@@ -1,7 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.30",
+  "version": "4.3.35",
   "mandatory": false,
-  "channel": "files-v3",
-  "message": "v4.3.30: versión de debut optimizada. WhatsApp permanece desactivado hasta la aprobación de Meta."
+  "channel": "zip-v3",
+  "message": "v4.3.35: recordatorio_cita adaptado exactamente a la plantilla aprobada de Meta (2 variables; botones Sí / No). WhatsApp permanece desactivado hasta la prueba controlada.",
+  "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip",
+  "sha256": "4bffa72a4eb243e4ebfd885ed613d44c166773cdf9aa4237151b2e1ff3908e51"
 }
