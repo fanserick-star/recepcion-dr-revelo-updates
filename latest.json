@@ -3,12 +3,26 @@
   "version": "4.3.48",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.48: Agenda muestra también citas guardadas en horas fuera de la cuadrícula de 20 minutos (por ejemplo 2:30 PM). En Facturación, una factura AUTORIZADA deja solo Ver detalles de la factura, con una vista más profesional y sin botones de copiar ni volver a consultar AZUR/SRI. Conserva canceladas en rojo durante la semana y la Agenda de Inicio > Atender sincronizada.",
+  "message": "v4.3.48: Agenda muestra también citas guardadas en horarios reales como 2:30 PM aunque no coincidan con la cuadrícula de 20 minutos. En Facturación, una factura AUTORIZADA deja solo Ver detalles de la factura, con una vista más profesional y sin botones de copiar ni volver a consultar AZUR/SRI. Conserva canceladas en rojo durante la semana y la Agenda de Inicio > Atender sincronizada. Puente automático revalidado desde v4.3.42 hasta v4.3.47.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/bootstrap_app.py",
-      "sha256": "419460b9554ab980048f485344cab863b38108cad169036e09123614c7c02a1e",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part01.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part02.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part03.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part04.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part05.01.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part05.02.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part05.03.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part05.04.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part05.05.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part06.01.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part06.02.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part06.03.txt",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v448/safe/bootstrap_app.part06.04.txt"
+      ],
+      "sha256": "6f24ab029f627dff1019bd5a34f86100b569e48b28e13c6f00dfa8d45b49e43a",
       "encoding": "utf-8"
     },
     {
