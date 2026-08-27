@@ -1,20 +1,20 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.46",
+  "version": "4.3.47",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.46: Agenda PC conserva las citas canceladas en rojo hasta terminar la semana; Inicio > Atender fuerza una agenda actualizada; la limpieza semanal retira las citas de semanas anteriores. Canal automático restaurado y verificado para v4.3.42 a v4.3.45.",
+  "message": "v4.3.47: recuperación automática de instalaciones afectadas por el puente v4.3.46. Conserva las mejoras de Agenda: canceladas en rojo durante la semana, limpieza al terminar la semana y Agenda de Inicio > Atender siempre actualizada.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v446/bootstrap_app.py",
-      "sha256": "590001b7e05ce472f892684426e823a44de5bfeee9d02bebc3d1b17a140f963c",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v447/bootstrap_app.py",
+      "sha256": "26c6cf602631464b09881edc976db5c38b98bc68f9ea12fffec1de461d596f57",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v446/update_manifest.json",
-      "sha256": "e03930b853970f24f50a722aff2f3b4a945cf91f00342d322f258e3bd8cec2ea",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v447/update_manifest.json",
+      "sha256": "38a062219046446251e0d6210dc11403fc7e3c4b5aa0a8313118116b10603562",
       "encoding": "utf-8"
     }
   ]
