@@ -1,0 +1,61 @@
+name: Publicar Agenda móvil v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v442/agenda-mobile.READY'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Reconstruir Agenda móvil
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, zlib
+          parts = [
+              Path('build/v442/agenda_v3.part1.b64'),
+              Path('build/v442/agenda_v3.part2a.b64'),
+              Path('build/v442/agenda_v3.part2b.b64'),
+          ]
+          payload = ''.join(p.read_text(encoding='utf-8') for p in parts)
+          raw = zlib.decompress(base64.b64decode(payload))
+          expected = '995325b04ff1923c8176beac11fdc66591f5e792dd37deadd983a8e9e8f996a2'
+          actual = hashlib.sha256(raw).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'SHA Agenda incorrecto: {actual}')
+          Path('agenda/index.html').write_bytes(raw)
+          print('Agenda verificada:', actual)
+          PY
+      - name: Guardar fuente de Agenda
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add agenda/index.html
+          git diff --cached --quiet || git commit -m "Publicar Agenda móvil semanal v3"
+          git push
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: agenda
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
