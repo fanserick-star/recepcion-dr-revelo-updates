@@ -1,0 +1,92 @@
+name: Validar launcher standalone del canal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/**'
+      - 'latest.json'
+      - 'latest-v3.json'
+      - '.github/workflows/test-standalone-channel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  launcher-selftest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Reconstruir launcher publicado
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from urllib.parse import unquote, urlsplit
+
+          repo = 'fanserick-star/recepcion-dr-revelo-updates'
+          root = Path('.').resolve()
+          prefix = f'https://raw.githubusercontent.com/{repo}/main/'
+          data = json.loads(Path('latest-v3.json').read_text(encoding='utf-8-sig'))
+          item = next((x for x in data.get('files') or [] if x.get('path') == 'ABRIR_RECEPCION.py'), None)
+          if not item:
+              raise SystemExit('El canal no publica ABRIR_RECEPCION.py')
+          urls = item.get('parts') or ([item.get('url')] if item.get('url') else [])
+          chunks = []
+          for raw in urls:
+              if not str(raw).startswith(prefix):
+                  raise SystemExit(f'URL de launcher fuera del repositorio: {raw}')
+              path = urlsplit(str(raw)).path
+              marker = f'/{repo}/main/'
+              rel = unquote(path[len(marker):])
+              p = (root / rel).resolve()
+              if not p.is_file():
+                  raise SystemExit(f'Falta parte del launcher: {rel}')
+              chunks.append(p.read_bytes())
+          out = Path('_ci_ABRIR_RECEPCION.py')
+          out.write_bytes(b''.join(chunks))
+          print(f'Launcher reconstruido: {out.stat().st_size} bytes')
+          PY
+
+      - name: Compilar launcher publicado
+        shell: bash
+        run: python -m py_compile _ci_ABRIR_RECEPCION.py
+
+      - name: Ejecutar batería integrada
+        shell: bash
+        run: python _ci_ABRIR_RECEPCION.py --self-test-core
+
+      - name: Reglas de arquitectura
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          s = Path('_ci_ABRIR_RECEPCION.py').read_text(encoding='utf-8-sig')
+          tree = ast.parse(s)
+          imported = set()
+          for n in ast.walk(tree):
+              if isinstance(n, ast.Import):
+                  imported.update(a.name for a in n.names)
+              elif isinstance(n, ast.ImportFrom) and n.module:
+                  imported.add(n.module)
+          banned = {'AUTOACTUALIZAR', '_AUTOACTUALIZAR_31', '_ABRIR_RECEPCION_451'}
+          if banned & imported:
+              raise SystemExit(f'Dependencias auxiliares prohibidas: {banned & imported}')
+          required = ['MUTEX_NAME', '_acquire_mutex', 'check_and_apply_update', '_rollback', '_open_webview']
+          missing = [x for x in required if x not in s]
+          if missing:
+              raise SystemExit(f'Faltan defensas del launcher: {missing}')
+          print('Arquitectura standalone validada')
+          PY
