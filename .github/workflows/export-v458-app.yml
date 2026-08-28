@@ -1,0 +1,34 @@
+name: Exportar app v4.3.58 para mantenimiento
+
+on:
+  push:
+    paths:
+      - '.github/workflows/export-v458-app.yml'
+  workflow_dispatch:
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir app.py exacto
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          p = Path('updates/v458')
+          data = b''.join((p / f'app.part{i}').read_bytes() for i in range(1,7))
+          sha = hashlib.sha256(data).hexdigest()
+          assert sha == 'f6a95f3058afe93feb5b386d514d6ef79313595c37138c1189276e69f642781f', sha
+          Path('export').mkdir()
+          Path('export/app.py').write_bytes(data)
+          print('APP_SHA256=' + sha)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-v458-exacto
+          path: export/app.py
+          if-no-files-found: error
+          retention-days: 1
