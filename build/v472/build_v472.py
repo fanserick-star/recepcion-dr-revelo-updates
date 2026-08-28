@@ -32,6 +32,34 @@ def rewrite_js_assignment(name, transform):
     if s.count(old_assign)!=1: raise SystemExit(f'Asignación {name} inválida')
     s=s.replace(old_assign,new_assign,1)
 
+def rewrite_unique_literal_containing(old,new,label):
+    """Reescribe la única cadena top-level que contiene ``old``.
+
+    Algunos overlays heredados viven en asignaciones separadas. Buscar por el
+    contenido exacto evita asumir un nombre de variable y sigue siendo estricto:
+    si falta o aparece dos veces, la candidata falla antes de publicarse.
+    """
+    global s
+    tree=ast.parse(s);matches=[]
+    for n in tree.body:
+        if not (isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name)):
+            continue
+        try: value=ast.literal_eval(n.value)
+        except Exception: continue
+        if isinstance(value,str) and old in value:
+            matches.append((n,n.targets[0].id,value))
+    total=sum(value.count(old) for _n,_name,value in matches)
+    if len(matches)!=1 or total!=1:
+        raise SystemExit(f'{label}: se esperaba 1 cadena/1 coincidencia y hubo {len(matches)} cadena(s), {total} coincidencia(s)')
+    node,name,value=matches[0]
+    new_value=value.replace(old,new,1)
+    old_expr=ast.get_source_segment(s,node.value)
+    if old_expr is None: raise SystemExit(f'{label}: no se pudo extraer {name}')
+    old_assign=f'{name} = {old_expr}';new_assign=f'{name} = {new_value!r}'
+    if s.count(old_assign)!=1: raise SystemExit(f'{label}: asignación {name} inválida')
+    s=s.replace(old_assign,new_assign,1)
+    print(label,'->',name)
+
 one('APP_VERSION = "4.3.71"','APP_VERSION = "4.3.72"','APP_VERSION')
 one('/v460/overlay.css?v=4.3.71','/v460/overlay.css?v=4.3.72','overlay css cache')
 one('/v460/overlay.js?v=4.3.71','/v460/overlay.js?v=4.3.72','overlay js cache')
@@ -56,16 +84,15 @@ def patch_overlay(js):
     new_watch="let v472UiTimer=0;function scheduleV472UiRefresh(){if(v472UiTimer)return;v472UiTimer=setTimeout(()=>{v472UiTimer=0;paintVersion();hideResolvedAzurButtons();enhanceOtherBillingEmail()},140)}function watch(){paintVersion();installStyle();hideResolvedAzurButtons();enhanceOtherBillingEmail();const root=document.body;if(root&&!root.dataset.v463Watch){root.dataset.v463Watch='1';new MutationObserver(scheduleV472UiRefresh).observe(root,{childList:true,subtree:true})}}"
     if js.count(old_watch)!=1: raise SystemExit(f'Watcher legado UI: hubo {js.count(old_watch)} coincidencias')
     js=js.replace(old_watch,new_watch,1)
-
-    # 3) El selector de plantillas WhatsApp también reaccionaba inmediatamente a
-    # cualquier cambio del DOM completo. Se amortigua sin cambiar la funcionalidad.
-    old_picker="new MutationObserver(()=>installV464TemplatePicker()).observe(document.documentElement,{childList:true,subtree:true});"
-    new_picker="let v472PickerTimer=0;new MutationObserver(()=>{if(v472PickerTimer)return;v472PickerTimer=setTimeout(()=>{v472PickerTimer=0;installV464TemplatePicker()},160)}).observe(document.documentElement,{childList:true,subtree:true});"
-    if js.count(old_picker)!=1: raise SystemExit(f'Watcher picker WhatsApp: hubo {js.count(old_picker)} coincidencias')
-    js=js.replace(old_picker,new_picker,1)
-
     return js
 rewrite_js_assignment('V460_OVERLAY_JS',patch_overlay)
+
+# 3) El selector de plantillas WhatsApp vive en otro bloque heredado y también
+# reaccionaba inmediatamente a cualquier cambio del DOM. Se amortigua sin tocar
+# endpoints, plantillas, tokens ni reglas Cloud.
+old_picker="new MutationObserver(()=>installV464TemplatePicker()).observe(document.documentElement,{childList:true,subtree:true});"
+new_picker="let v472PickerTimer=0;new MutationObserver(()=>{if(v472PickerTimer)return;v472PickerTimer=setTimeout(()=>{v472PickerTimer=0;installV464TemplatePicker()},160)}).observe(document.documentElement,{childList:true,subtree:true});"
+rewrite_unique_literal_containing(old_picker,new_picker,'Watcher picker WhatsApp')
 
 out=ROOT/'updates'/'v472';out.mkdir(parents=True,exist_ok=True)
 raw=s.encode('utf-8');PART=70000
