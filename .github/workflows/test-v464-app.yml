@@ -1,0 +1,62 @@
+# Integridad: release_meta.json es la única fuente de SHA y tamaño de la candidata.
+name: Validar app v4.3.64
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v464/**'
+      - 'build/v464/test_v464.py'
+      - '.github/workflows/test-v464-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11','3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias mínimas
+        run: python -m pip install --disable-pip-version-check fastapi sqlalchemy python-dotenv python-multipart
+      - name: Verificar metadata, compilar y probar
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,ast
+          from pathlib import Path
+          root=Path('updates/v464')
+          meta=json.loads((root/'release_meta.json').read_text(encoding='utf-8'))
+          assert meta['version']=='4.3.64'
+          assert meta['base_version']=='4.3.63'
+          parts=sorted(root.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
+          assert len(parts)==int(meta['parts_count'])
+          raw=b''.join(p.read_bytes() for p in parts)
+          assert len(raw)==int(meta['app_size'])
+          assert hashlib.sha256(raw).hexdigest()==meta['app_sha256']
+          assert hashlib.sha256((root/'update_manifest.json').read_bytes()).hexdigest()==meta['manifest_sha256']
+          Path('_ci_app.py').write_bytes(raw)
+          source=raw.decode('utf-8'); t=ast.parse(source); found=set()
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name):
+                  if n.targets[0].id=='V459_SETTINGS_JS': Path('_ci_v459.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v459')
+                  if n.targets[0].id=='V460_OVERLAY_JS': Path('_ci_v460.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v460')
+          assert found=={'v459','v460'},found
+          print('V464_METADATA_OK',len(raw),meta['app_sha256'])
+          PY
+          python -m py_compile _ci_app.py
+          node --check _ci_v459.js
+          node --check _ci_v460.js
+          python build/v464/test_v464.py
