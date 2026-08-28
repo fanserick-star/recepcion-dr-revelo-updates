@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - name: Construir candidata exacta
-        run: python build/v461/build_v461.py
+        run: python build/v461/run_build_v461.py
       - name: Compilar y validar JavaScript
         run: |
           cat updates/v461/app.part* > _ci_app.py
