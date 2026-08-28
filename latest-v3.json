@@ -8,13 +8,13 @@
     {
       "path": "ABRIR_RECEPCION.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v456/ABRIR_RECEPCION.py",
-      "sha256": "PENDIENTE_WORKFLOW",
+      "sha256": "71c45e3cd5f7d2eb5194ab1b10a2a756878948776ab5388d217bb28ef70303be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v456/update_manifest.json",
-      "sha256": "PENDIENTE_WORKFLOW",
+      "sha256": "3185dfdab9b8455758b3c1b67e35bf4f413a2d88afd48b7529c137627c2dfd9f",
       "encoding": "utf-8"
     }
   ]
