@@ -1,0 +1,38 @@
+name: Inspeccionar paquetes bootstrap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-bootstrap-zips.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Listar contenido de ZIP históricos
+        shell: powershell
+        run: |
+          $zips = @(
+            'updates\ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip',
+            'updates\ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip',
+            'updates\ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip',
+            'releases\ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip',
+            'releases\ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip'
+          )
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($zipPath in $zips) {
+            Write-Host "===== $zipPath ====="
+            if (-not (Test-Path $zipPath)) { Write-Host 'NO EXISTE'; continue }
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath))
+            try {
+              foreach ($entry in $zip.Entries) {
+                Write-Host ("{0}`t{1}" -f $entry.FullName, $entry.Length)
+              }
+            } finally { $zip.Dispose() }
+          }
