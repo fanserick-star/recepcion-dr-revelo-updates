@@ -1,2 +1,2 @@
-# -recepcion-dr-revelo-updates
-    Actualizaciones automáticas de Recepción Dr. Armando Revelo
+# recepcion-dr-revelo-updates
+Actualizaciones automáticas de Recepción Dr. Armando Revelo.
