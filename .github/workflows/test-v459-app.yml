@@ -1,0 +1,67 @@
+name: Validar app v4.3.59
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v459/**'
+      - '.gitattributes'
+      - '.github/workflows/test-v459-app.yml'
+      - 'ci-trigger-v459.txt'
+      - 'latest.json'
+      - 'latest-v3.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11','3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias mínimas
+        run: python -m pip install --disable-pip-version-check fastapi sqlalchemy python-dotenv python-multipart
+      - name: Reconstruir, verificar SHA y compilar app candidata
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root=Path('updates/v459')
+          parts=sorted(root.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
+          if len(parts)!=7: raise SystemExit(f'Se esperaban 7 partes y hay {len(parts)}')
+          raw=b''.join(p.read_bytes() for p in parts)
+          if len(raw)!=454939: raise SystemExit(f'Tamaño inválido: {len(raw)}')
+          got=hashlib.sha256(raw).hexdigest();want='edb50022e37bc08e0ce2cfc23cc2e0c9d4be32fe7ea0353b4f47860549361321'
+          if got!=want: raise SystemExit(f'SHA inválido: {got} != {want}')
+          Path('_ci_app.py').write_bytes(raw)
+          print('v4.3.59 verificada',len(raw),got)
+          PY
+          python -m py_compile _ci_app.py
+      - name: Validar JavaScript v4.3.59
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          t=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='V459_SETTINGS_JS':
+                  Path('_ci_v459.js').write_text(ast.literal_eval(n.value),encoding='utf-8');break
+          else: raise SystemExit('No se encontró V459_SETTINGS_JS')
+          PY
+          node --check _ci_v459.js
+      - name: Pruebas funcionales aisladas
+        run: python updates/v459/test_v459.py
