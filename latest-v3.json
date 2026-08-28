@@ -3,7 +3,7 @@
   "version": "4.3.54",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.54: consolidación directa desde una copia v4.3.50 ya validada. Elimina definitivamente la cadena de puentes 46→47→48→49→50→51 que provocaba los bucles y ERR_CONNECTION_REFUSED. Construye y valida la versión final en temporal, sin descargas secundarias, y solo entonces reemplaza app.py/JavaScript/CSS. Mantiene el autoactualizador e iniciador seguros.",
+  "message": "v4.3.54: consolidación directa y actualización automática blindada. El updater 3.2 detecta bootstraps pendientes aunque el número de versión ya coincida; el launcher safe2 consulta la nube antes de reutilizar un backend local y hace handoff automático al iniciador nuevo. Mantiene SHA, staging, rollback y protección de datos.",
   "files": [
     {
       "path": "app.py",
@@ -20,15 +20,27 @@
       "encoding": "utf-8"
     },
     {
-      "path": "AUTOACTUALIZAR.py",
+      "path": "_AUTOACTUALIZAR_31.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/AUTOACTUALIZAR.py",
       "sha256": "93671c141af0facebbbce5f50e5701060909cd8ca7a0029a26dcca73466e08b8",
       "encoding": "utf-8"
     },
     {
-      "path": "ABRIR_RECEPCION.py",
+      "path": "AUTOACTUALIZAR.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/AUTOACTUALIZAR.py",
+      "sha256": "PENDING",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "_ABRIR_RECEPCION_451.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/ABRIR_RECEPCION.py",
       "sha256": "af58a88e6bf7409ea74c105be2064773eac31d9b41c149c1de86607a4c567657",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/ABRIR_RECEPCION.py",
+      "sha256": "PENDING",
       "encoding": "utf-8"
     },
     {
