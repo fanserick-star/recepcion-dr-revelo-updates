@@ -1,0 +1,11 @@
+{
+  "app_sha256": "18bdb05cff6b03c7c06da98f29888f5880af34df23578ddbe5fe3f1ee26a56c6",
+  "app_size": 487003,
+  "base_sha256": "5ff5107cc4776fa616b4b1e49a9f4d6e08ce0035daed26f9c2cdde17693364ad",
+  "base_version": "4.3.70",
+  "manifest_sha256": "07b9aea82632dc91f5bc16b122d59287577d8c936053006ce55819a6f3a61093",
+  "part_max_bytes": 70000,
+  "parts_count": 7,
+  "product": "recepcion-pacientes",
+  "version": "4.3.71"
+}
