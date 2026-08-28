@@ -1,10 +1,11 @@
-name: Reparar SHA v4.3.49
+name: Reparar SHA canal automático
 
 on:
   push:
     branches: [main]
     paths:
-      - 'updates/v449/bootstrap_app.py'
+      - 'updates/v451/bootstrap_app.py'
+      - 'updates/v451/update_manifest.json'
       - '.github/workflows/fix-v449-sha.yml'
   workflow_dispatch:
 
@@ -19,24 +20,26 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Calcular SHA y corregir manifests
+      - name: Calcular SHA reales y corregir manifests
         shell: bash
         run: |
-          SHA=$(sha256sum updates/v449/bootstrap_app.py | awk '{print $1}')
-          echo "SHA real: $SHA"
-          python - "$SHA" <<'PY'
+          APP_SHA=$(sha256sum updates/v451/bootstrap_app.py | awk '{print $1}')
+          MAN_SHA=$(sha256sum updates/v451/update_manifest.json | awk '{print $1}')
+          echo "APP_SHA=$APP_SHA"
+          echo "MAN_SHA=$MAN_SHA"
+          python - "$APP_SHA" "$MAN_SHA" <<'PY'
           import json, sys
-          sha = sys.argv[1]
+          app_sha, man_sha = sys.argv[1], sys.argv[2]
           for fn in ('latest-v3.json', 'latest.json'):
               with open(fn, 'r', encoding='utf-8') as f:
                   data = json.load(f)
-              found = False
               for item in data.get('files', []):
-                  if item.get('path') == 'app.py' and 'updates/v449/bootstrap_app.py' in item.get('url', ''):
-                      item['sha256'] = sha
-                      found = True
-              if not found:
-                  raise SystemExit(f'No se encontró app.py v449 en {fn}')
+                  if item.get('path') == 'app.py':
+                      parts = item.get('parts') or []
+                      if any('updates/v451/bootstrap_app.py' in p for p in parts):
+                          item['sha256'] = app_sha
+                  elif item.get('path') == 'update_manifest.json' and 'updates/v451/update_manifest.json' in item.get('url', ''):
+                      item['sha256'] = man_sha
               with open(fn, 'w', encoding='utf-8', newline='\n') as f:
                   json.dump(data, f, ensure_ascii=False, indent=2)
                   f.write('\n')
@@ -51,7 +54,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add latest-v3.json latest.json
-          git commit -m "fix: corregir SHA real del bootstrap v4.3.49"
+          git commit -m "fix: corregir SHA reales v4.3.51"
           git push
-
-# v2: disparo de reparación del SHA
