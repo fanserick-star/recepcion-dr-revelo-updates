@@ -1,0 +1,77 @@
+name: Construir instalador Windows de Recepción
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'installer/**'
+      - '.github/workflows/build-windows-installer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validar script de migración
+        shell: powershell
+        run: |
+          $text = Get-Content installer\migrate_install.ps1 -Raw
+          [void][scriptblock]::Create($text)
+          if ($text -notmatch 'ABRIR_RECEPCION\.py') { throw 'Falta validación del launcher' }
+          if ($text -notmatch '\.venv\\Scripts\\pythonw\.exe') { throw 'Falta validación del runtime' }
+          if ($text -notmatch 'Rewrite-DataDirIfNeeded') { throw 'Falta protección RP_DATA_DIR' }
+
+      - name: Preparar logo ICO
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force installer\build | Out-Null
+          if (-not (Get-Command magick.exe -ErrorAction SilentlyContinue)) {
+            choco install imagemagick.app -y --no-progress
+          }
+          magick.exe -background none -density 384 agenda\logo.svg -resize 256x256 installer\build\logo.png
+          magick.exe installer\build\logo.png -define icon:auto-resize=256,128,64,48,32,16 installer\build\recepcion.ico
+          if (-not (Test-Path installer\build\recepcion.ico)) { throw 'No se creó recepcion.ico' }
+
+      - name: Instalar Inno Setup
+        shell: powershell
+        run: |
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) {
+            choco install innosetup -y --no-progress
+          }
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { throw 'ISCC no disponible' }
+
+      - name: Compilar instalador
+        shell: powershell
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer\RecepcionDrRevelo.iss
+          $exe = 'installer\output\INSTALAR_RECEPCION_DR_REVELO.exe'
+          if (-not (Test-Path $exe)) { throw 'No se generó el instalador' }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  INSTALAR_RECEPCION_DR_REVELO.exe" | Set-Content installer\output\SHA256.txt -Encoding ascii
+          Write-Host "INSTALLER_SHA256=$hash"
+
+      - name: Verificar que el instalador no toca servicios cloud
+        shell: powershell
+        run: |
+          $all = (Get-Content installer\migrate_install.ps1 -Raw) + (Get-Content installer\RecepcionDrRevelo.iss -Raw)
+          foreach ($forbidden in @('cloudflare/whatsapp_worker','whatsapp_cloud.events','DELETE FROM','DROP TABLE','agenda/index.html')) {
+            if ($all.Contains($forbidden)) { throw "Referencia prohibida en instalador: $forbidden" }
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INSTALADOR_RECEPCION_DR_REVELO
+          path: |
+            installer/output/INSTALAR_RECEPCION_DR_REVELO.exe
+            installer/output/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
