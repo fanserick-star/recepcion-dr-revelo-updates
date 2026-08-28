@@ -14,7 +14,6 @@ assert hashlib.sha256(raw).hexdigest()==meta['app_sha256']
 assert hashlib.sha256((ROOT/'update_manifest.json').read_bytes()).hexdigest()==meta['manifest_sha256']
 source=raw.decode('utf-8')
 assert 'APP_VERSION = "4.3.64"' in source
-assert "const VERSION='4.3.64';" in source
 # Regresiones de facturación v4.3.63 deben permanecer.
 assert 'BillingRecord.estado != "EMITIDA"' in source
 assert '_azur_group_key_for_rows' in source
@@ -33,6 +32,7 @@ for n in tree.body:
         consts[n.targets[0].id]=ast.literal_eval(n.value)
 assert set(consts)=={'V459_SETTINGS_JS','V460_OVERLAY_JS'}
 settings=consts['V459_SETTINGS_JS'];overlay=consts['V460_OVERLAY_JS']
+assert "const VERSION='4.3.64';" in overlay
 assert "function testTemplate(){return window.__v464WaTemplateValue||q('#waTestTemplate')?.value||'recordatorio_cita'}" in settings
 assert "['recordatorio_cita','Confirmación']" in settings
 assert "['cita_agendada','Cita agendada']" in settings
