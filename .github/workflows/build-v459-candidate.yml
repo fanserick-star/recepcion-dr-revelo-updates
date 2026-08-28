@@ -1,0 +1,69 @@
+name: Construir candidata v4.3.59
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v459/v459.patch.gz.b64'
+      - '.github/workflows/build-v459-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir v4.3.58 y aplicar parche v4.3.59
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _build_v459 updates/v459
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('updates/v458')
+          parts=sorted(root.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
+          raw=b''.join(p.read_bytes() for p in parts)
+          assert len(raw)==423484, len(raw)
+          assert hashlib.sha256(raw).hexdigest()=='f6a95f3058afe93feb5b386d514d6ef79313595c37138c1189276e69f642781f'
+          Path('_build_v459/app.py').write_bytes(raw)
+          PY
+          base64 -d build/v459/v459.patch.gz.b64 | gzip -d > _build_v459/v459.patch
+          patch _build_v459/app.py < _build_v459/v459.patch
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          raw=Path('_build_v459/app.py').read_bytes()
+          want='edb50022e37bc08e0ce2cfc23cc2e0c9d4be32fe7ea0353b4f47860549361321'
+          got=hashlib.sha256(raw).hexdigest()
+          assert len(raw)==454939,(len(raw),got)
+          assert got==want,(got,want)
+          compile(raw.decode('utf-8'),'app.py','exec')
+          root=Path('updates/v459')
+          for old in root.glob('app.part*'): old.unlink()
+          for i,start in enumerate(range(0,len(raw),70000),1):
+              (root/f'app.part{i}').write_bytes(raw[start:start+70000])
+          manifest={
+            'product':'recepcion-pacientes','version':'4.3.59','app_version':'4.3.59','runtime_version':'4.3.59',
+            'launcher_version':'4.3.57-standalone-1','updater_version':'integrado-en-launcher',
+            'copy':['ABRIR_RECEPCION.py','app.py','update_manifest.json']
+          }
+          (root/'update_manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
+          print('v4.3.59',len(raw),got,'parts',len(list(root.glob('app.part*'))))
+          PY
+      - name: Publicar candidata sin activar canal
+        shell: bash
+        run: |
+          set -e
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v459/app.part* updates/v459/update_manifest.json
+          if git diff --cached --quiet; then
+            echo 'La candidata ya estaba publicada.'
+          else
+            git commit -m 'build: publicar candidata v4.3.59 verificada'
+            git push
+          fi
