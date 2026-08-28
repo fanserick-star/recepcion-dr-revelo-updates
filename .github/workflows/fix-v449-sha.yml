@@ -1,58 +1,207 @@
-name: Reparar SHA canal automático
+name: Verificar y reparar canal automático
 
 on:
   push:
     branches: [main]
     paths:
-      - 'updates/v451/bootstrap_app.py'
-      - 'updates/v451/update_manifest.json'
+      - 'updates/**'
+      - 'latest.json'
+      - 'latest-v3.json'
       - '.github/workflows/fix-v449-sha.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: recepcion-update-channel
+  cancel-in-progress: false
+
 jobs:
-  fix-sha:
+  verify-and-fix:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout del estado más reciente
         uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
-      - name: Calcular SHA reales y corregir manifests
+
+      - name: Calcular SHA reales, sincronizar manifests y validar publicación
         shell: bash
         run: |
-          APP_SHA=$(sha256sum updates/v451/bootstrap_app.py | awk '{print $1}')
-          MAN_SHA=$(sha256sum updates/v451/update_manifest.json | awk '{print $1}')
-          echo "APP_SHA=$APP_SHA"
-          echo "MAN_SHA=$MAN_SHA"
-          python - "$APP_SHA" "$MAN_SHA" <<'PY'
-          import json, sys
-          app_sha, man_sha = sys.argv[1], sys.argv[2]
-          for fn in ('latest-v3.json', 'latest.json'):
-              with open(fn, 'r', encoding='utf-8') as f:
+          python - <<'PY'
+          import copy
+          import hashlib
+          import json
+          import re
+          from pathlib import Path
+          from urllib.parse import unquote, urlsplit
+
+          ROOT = Path('.').resolve()
+          REPO = 'fanserick-star/recepcion-dr-revelo-updates'
+          RAW_PREFIX = f'https://raw.githubusercontent.com/{REPO}/main/'
+          MANIFESTS = (Path('latest-v3.json'), Path('latest.json'))
+
+          def vtuple(value):
+              out = []
+              for part in str(value or '0').split('.'):
+                  m = re.match(r'^(\d+)', part)
+                  out.append(int(m.group(1)) if m else 0)
+              return tuple((out + [0, 0, 0, 0])[:4])
+
+          def load(path):
+              with path.open('r', encoding='utf-8-sig') as f:
                   data = json.load(f)
-              for item in data.get('files', []):
-                  if item.get('path') == 'app.py':
-                      parts = item.get('parts') or []
-                      if any('updates/v451/bootstrap_app.py' in p for p in parts):
-                          item['sha256'] = app_sha
-                  elif item.get('path') == 'update_manifest.json' and 'updates/v451/update_manifest.json' in item.get('url', ''):
-                      item['sha256'] = man_sha
-              with open(fn, 'w', encoding='utf-8', newline='\n') as f:
-                  json.dump(data, f, ensure_ascii=False, indent=2)
-                  f.write('\n')
+              if not isinstance(data, dict):
+                  raise RuntimeError(f'{path}: JSON raíz inválido')
+              return data
+
+          def repo_bytes(url):
+              raw = str(url or '').strip()
+              if not raw.startswith(RAW_PREFIX):
+                  raise RuntimeError(f'URL fuera del repositorio oficial: {raw}')
+              clean = urlsplit(raw).path
+              prefix_path = f'/{REPO}/main/'
+              if not clean.startswith(prefix_path):
+                  raise RuntimeError(f'URL raw no reconocida: {raw}')
+              rel = unquote(clean[len(prefix_path):]).replace('\\', '/')
+              if not rel or '..' in rel.split('/'):
+                  raise RuntimeError(f'Ruta remota no válida: {rel}')
+              p = (ROOT / rel).resolve()
+              if ROOT not in p.parents and p != ROOT:
+                  raise RuntimeError(f'Ruta fuera del repositorio: {rel}')
+              if not p.is_file():
+                  raise RuntimeError(f'Archivo publicado no existe: {rel}')
+              return p.read_bytes(), rel
+
+          docs = {p: load(p) for p in MANIFESTS}
+          # Si por una publicación en varios commits los dos manifests difieren,
+          # toma como fuente la versión numéricamente más nueva. A igualdad,
+          # latest-v3.json es el canal canónico.
+          canonical_path = max(
+              MANIFESTS,
+              key=lambda p: (vtuple(docs[p].get('version')), 1 if p.name == 'latest-v3.json' else 0),
+          )
+          data = copy.deepcopy(docs[canonical_path])
+
+          if data.get('product') != 'recepcion-pacientes':
+              raise RuntimeError('Producto inválido en el manifest')
+          version = str(data.get('version') or '').strip()
+          if not version:
+              raise RuntimeError('El manifest no contiene version')
+          files = data.get('files')
+          if not isinstance(files, list) or not files:
+              raise RuntimeError('El manifest no contiene archivos de actualización')
+
+          seen_paths = set()
+          for item in files:
+              if not isinstance(item, dict):
+                  raise RuntimeError('Entrada de archivo inválida en el manifest')
+              target = str(item.get('path') or '').replace('\\', '/').lstrip('/')
+              if not target or '..' in target.split('/'):
+                  raise RuntimeError(f'Ruta destino inválida: {target!r}')
+              if target in seen_paths:
+                  raise RuntimeError(f'Ruta destino duplicada: {target}')
+              seen_paths.add(target)
+
+              urls = item.get('parts') or ([item.get('url')] if item.get('url') else [])
+              if not urls:
+                  raise RuntimeError(f'{target}: no tiene url ni parts')
+
+              chunks = []
+              source_paths = []
+              for url in urls:
+                  chunk, source_path = repo_bytes(url)
+                  chunks.append(chunk)
+                  source_paths.append(source_path)
+              payload = b''.join(chunks)
+              real_sha = hashlib.sha256(payload).hexdigest()
+              item['sha256'] = real_sha
+
+              if target == 'app.py':
+                  try:
+                      head = payload[:2500].decode('utf-8-sig', errors='ignore')
+                  except Exception:
+                      head = ''
+                  if not re.search(rf'APP_VERSION\s*=\s*["\']{re.escape(version)}["\']', head):
+                      raise RuntimeError(
+                          f'app.py publicado no declara APP_VERSION {version}; fuentes={source_paths}'
+                      )
+
+              if target == 'update_manifest.json':
+                  try:
+                      inner = json.loads(payload.decode('utf-8-sig'))
+                  except Exception as exc:
+                      raise RuntimeError(f'update_manifest.json inválido: {exc}') from exc
+                  for key in ('version', 'app_version', 'runtime_version'):
+                      val = str(inner.get(key) or '').strip()
+                      if val and val != version:
+                          raise RuntimeError(
+                              f'update_manifest.json: {key}={val} no coincide con {version}'
+                          )
+
+          rendered = json.dumps(data, ensure_ascii=False, indent=2) + '\n'
+          for path in MANIFESTS:
+              path.write_text(rendered, encoding='utf-8', newline='\n')
+
+          print(f'Canal {version}: {len(files)} archivos verificados.')
+          for item in files:
+              print(f"  {item['path']}: {item['sha256']}")
           PY
-      - name: Publicar corrección
+
+      - name: Verificación final estricta
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from urllib.parse import unquote, urlsplit
+
+          repo = 'fanserick-star/recepcion-dr-revelo-updates'
+          root = Path('.').resolve()
+          prefix = f'https://raw.githubusercontent.com/{repo}/main/'
+
+          def local_bytes(url):
+              raw = str(url)
+              if not raw.startswith(prefix):
+                  raise SystemExit(f'URL no oficial: {raw}')
+              path = urlsplit(raw).path
+              marker = f'/{repo}/main/'
+              rel = unquote(path[len(marker):])
+              p = (root / rel).resolve()
+              if not p.is_file():
+                  raise SystemExit(f'Falta archivo: {rel}')
+              return p.read_bytes()
+
+          a = json.loads(Path('latest-v3.json').read_text(encoding='utf-8-sig'))
+          b = json.loads(Path('latest.json').read_text(encoding='utf-8-sig'))
+          if a != b:
+              raise SystemExit('latest-v3.json y latest.json no quedaron idénticos')
+          for item in a.get('files') or []:
+              urls = item.get('parts') or ([item.get('url')] if item.get('url') else [])
+              if not item.get('sha256') or not urls:
+                  raise SystemExit(f"Entrada incompleta: {item.get('path')}")
+              payload = b''.join(local_bytes(u) for u in urls)
+              got = hashlib.sha256(payload).hexdigest()
+              if got != item['sha256']:
+                  raise SystemExit(
+                      f"SHA inválido para {item.get('path')}: {got} != {item['sha256']}"
+                  )
+          print('Canal validado al 100% antes de publicar.')
+          PY
+
+      - name: Publicar corrección si hizo falta
         shell: bash
         run: |
           if git diff --quiet -- latest-v3.json latest.json; then
-            echo "Los SHA ya eran correctos."
+            echo 'Canal consistente; no hay nada que corregir.'
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION=$(python -c "import json; print(json.load(open('latest-v3.json', encoding='utf-8'))['version'])")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add latest-v3.json latest.json
-          git commit -m "fix: corregir SHA reales v4.3.51"
-          git push
+          git commit -m "fix: sincronizar SHA reales v${VERSION}"
+          git push origin main
