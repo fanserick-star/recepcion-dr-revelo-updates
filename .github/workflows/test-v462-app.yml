@@ -1,0 +1,70 @@
+# Integridad: release_meta.json es la única fuente de SHA y tamaño de la candidata.
+name: Validar app v4.3.62
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v462/**'
+      - '.github/workflows/test-v462-app.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11','3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reconstruir, verificar metadata y compilar app candidata
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,json,ast
+          from pathlib import Path
+          root=Path('updates/v462')
+          meta=json.loads((root/'release_meta.json').read_text(encoding='utf-8'))
+          if meta.get('version')!='4.3.62': raise SystemExit(f"Versión metadata inválida: {meta.get('version')}")
+          if meta.get('base_version')!='4.3.61': raise SystemExit(f"Base inválida: {meta.get('base_version')}")
+          parts=sorted(root.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
+          if len(parts)!=int(meta['parts_count']): raise SystemExit('Cantidad de partes inválida')
+          raw=b''.join(p.read_bytes() for p in parts)
+          if len(raw)!=int(meta['app_size']): raise SystemExit('Tamaño inválido')
+          got=hashlib.sha256(raw).hexdigest()
+          if got!=meta['app_sha256']: raise SystemExit('SHA app inválido')
+          msha=hashlib.sha256((root/'update_manifest.json').read_bytes()).hexdigest()
+          if msha!=meta['manifest_sha256']: raise SystemExit('SHA manifest inválido')
+          source=raw.decode('utf-8')
+          assert 'APP_VERSION = "4.3.62"' in source
+          assert "const VERSION='4.3.62';" in source
+          assert 'token = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:19]' in source
+          assert 'token = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:22]' not in source
+          prefix='mobile:whatsapp-cloud-test:'
+          lengths={k:len(f'{prefix}{k}:'+('x'*19)) for k in ('recordatorio_cita','cita_agendada','recordatorio_hoy')}
+          assert max(lengths.values())<=64,lengths
+          print('SOURCE_HASH_LENGTHS',lengths)
+          Path('_ci_app.py').write_bytes(raw)
+          t=ast.parse(source)
+          found=set()
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name):
+                  if n.targets[0].id=='V459_SETTINGS_JS': Path('_ci_v459.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v459')
+                  if n.targets[0].id=='V460_OVERLAY_JS': Path('_ci_v460.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v460')
+          if found!={'v459','v460'}: raise SystemExit(f'JS faltante: {found}')
+          print('V462_METADATA_OK',len(raw),got)
+          PY
+          python -m py_compile _ci_app.py
+          node --check _ci_v459.js
+          node --check _ci_v460.js
