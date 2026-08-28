@@ -1,0 +1,1 @@
+Marca técnica para ejecutar las auditorías del canal público v4.3.61 después de su publicación. No forma parte del payload del actualizador.
