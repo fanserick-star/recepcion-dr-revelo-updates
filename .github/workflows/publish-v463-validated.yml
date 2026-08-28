@@ -42,5 +42,7 @@ jobs:
             echo 'El canal ya estaba en v4.3.63.'
           else
             git commit -m 'release: publicar v4.3.63 desde metadata verificada'
+            git fetch origin main
+            git rebase origin/main
             git push origin HEAD:main
           fi
