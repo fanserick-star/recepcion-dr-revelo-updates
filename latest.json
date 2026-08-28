@@ -3,7 +3,7 @@
   "version": "4.3.60",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.60: prueba WhatsApp por Cloud sin tokens locales, Estado de servicios en pestaña, línea de tiempo por cita, versión junto a Nube y estados de Agenda con mayor contraste. Integridad SHA automatizada.",
+  "message": "v4.3.60: prueba WhatsApp por Cloud sin tokens locales, Estado de servicios en pestaña, línea de tiempo por cita, versión junto a Nube y estados de Agenda con mayor contraste. Integridad SHA automatizada y canal final verificado.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
