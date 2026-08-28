@@ -66,11 +66,13 @@ rewrite_js_assignment('V459_SETTINGS_JS',patch_whatsapp)
 # El bridge deja la lógica original intacta: en el primer clic devuelve false y muestra
 # rpConfirm; si el usuario acepta, repite ese mismo clic una sola vez y confirm() devuelve
 # true solo para esa repetición. No se modifica ningún endpoint de facturación/AZUR.
+# Recordamos el clic hasta 10 s porque la emisión puede hacer una vista previa antes de confirmar.
 CONFIRM_BRIDGE=r'''
 ;(()=>{
   const v466BillingPrompt=/factur|azur|sri|comprobante/i;
   const v466NativeConfirm=window.confirm.bind(window);
   let v466ClickTarget=null;
+  let v466ClickAt=0;
   let v466AllowTarget=null;
   let v466Pending=false;
 
@@ -86,8 +88,11 @@ CONFIRM_BRIDGE=r'''
 
   document.addEventListener('click',e=>{
     const target=v466ActionTarget(e);
+    if(!target)return;
     v466ClickTarget=target;
-    queueMicrotask(()=>{if(v466ClickTarget===target)v466ClickTarget=null});
+    v466ClickAt=Date.now();
+    const stamp=v466ClickAt;
+    setTimeout(()=>{if(v466ClickAt===stamp&&Date.now()-stamp>=10000)v466ClickTarget=null},10050);
   },true);
 
   function v466InstallConfirmBridge(){
@@ -95,17 +100,21 @@ CONFIRM_BRIDGE=r'''
     const bridge=function(message){
       const text=String(message??'');
       if(!v466BillingPrompt.test(text))return v466NativeConfirm(text);
-      const target=v466ClickTarget;
+      const target=(v466ClickTarget&&Date.now()-v466ClickAt<10000)?v466ClickTarget:null;
       if(v466AllowTarget&&target===v466AllowTarget){v466AllowTarget=null;return true;}
       if(v466Pending)return false;
       if(!target||typeof window.rpConfirm!=='function')return v466NativeConfirm(text);
       v466Pending=true;
       const title=/azur|sri/i.test(text)?'Confirmar emisión en AZUR':'Confirmar facturación';
+      const originalClickAt=v466ClickAt;
       Promise.resolve(window.rpConfirm(text,title)).then(ok=>{
         v466Pending=false;
         if(!ok)return;
-        v466AllowTarget=target;
-        try{target.click()}finally{setTimeout(()=>{if(v466AllowTarget===target)v466AllowTarget=null},0)}
+        const wait=Math.max(0,720-(Date.now()-originalClickAt));
+        setTimeout(()=>{
+          v466AllowTarget=target;
+          try{target.click()}finally{setTimeout(()=>{if(v466AllowTarget===target)v466AllowTarget=null},0)}
+        },wait);
       }).catch(()=>{v466Pending=false});
       return false;
     };
