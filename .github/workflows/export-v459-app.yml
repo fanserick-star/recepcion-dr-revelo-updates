@@ -1,0 +1,33 @@
+name: Exportar app v4.3.59 para cierre v4.3.60
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-v459-app.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir app.py v4.3.59
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          root=Path('updates/v459')
+          parts=sorted(root.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
+          raw=b''.join(p.read_bytes() for p in parts)
+          want='edb50022e37bc08e0ce2cfc23cc2e0c9d4be32fe7ea0353b4f47860549361321'
+          got=hashlib.sha256(raw).hexdigest()
+          if got!=want: raise SystemExit(f'SHA {got} != {want}')
+          Path('app.py').write_bytes(raw)
+          print(len(raw),got)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-v459-exacto
+          path: app.py
+          retention-days: 1
