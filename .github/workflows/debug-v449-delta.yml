@@ -1,4 +1,4 @@
-name: Debug v449 delta
+name: Debug agenda deltas
 on:
   push:
     paths:
@@ -10,12 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Dump v449 app delta
+      - name: Dump v448 and v449 app deltas
         run: |
           python - <<'PY'
           import importlib.util, json
-          p='updates/v449/bootstrap_app.py'
-          spec=importlib.util.spec_from_file_location('v449',p)
-          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-          print(json.dumps(m.edits(m.APP_DELTA), ensure_ascii=False, indent=2))
+          for label,p,attr in [
+            ('v448','updates/v448/bootstrap_app.py','JS_DELTA'),
+            ('v449','updates/v449/bootstrap_app.py','APP_DELTA'),
+          ]:
+            spec=importlib.util.spec_from_file_location(label,p)
+            m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+            print('===',label,attr,'===')
+            print(json.dumps(m.edits(getattr(m,attr)), ensure_ascii=False, indent=2))
           PY
