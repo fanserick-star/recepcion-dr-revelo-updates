@@ -1,0 +1,241 @@
+name: Construir instalador limpio de Recepción
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'installer_clean/**'
+      - '.github/workflows/build-clean-installer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-clean-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Reconstruir versión publicada 4.3.72
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force installer_clean\buildroot | Out-Null
+          @'
+          from pathlib import Path
+          import hashlib, json, shutil, zipfile
+          root=Path('.')
+          out=root/'installer_clean'/'buildroot'
+          def join_parts(folder, prefix, target, expected):
+              parts=sorted((root/folder).glob(prefix+'*'), key=lambda p:int(p.name.split('part')[-1]))
+              if not parts: raise SystemExit(f'No hay partes para {target}')
+              raw=b''.join(p.read_bytes() for p in parts)
+              got=hashlib.sha256(raw).hexdigest()
+              if got != expected: raise SystemExit(f'SHA incorrecto {target}: {got}')
+              (out/target).write_bytes(raw)
+          join_parts('updates/v472','app.part','app.py','bd7de7b0486daa5257eaf8ec775fd868b1f55f44f0fd7be3ce16de832d3ae483')
+          join_parts('updates/v457','ABRIR_RECEPCION.part','ABRIR_RECEPCION.py','d5819a74e570c096d571971b244630d03342b258d32da93949d0bf1b5edb4d31')
+          shutil.copy2(root/'updates/v472/update_manifest.json',out/'update_manifest.json')
+          manifest=json.loads((out/'update_manifest.json').read_text(encoding='utf-8-sig'))
+          assert manifest['version']=='4.3.72'
+          print('PUBLICADA_OK', manifest['version'])
+          '@ | python -
+
+      - name: Recuperar componentes base oficiales
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+          import shutil, zipfile
+          root=Path('.')
+          out=root/'installer_clean'/'buildroot'
+          z=root/'updates'/'ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip'
+          temp=root/'installer_clean'/'_base_extract'
+          if temp.exists(): shutil.rmtree(temp)
+          with zipfile.ZipFile(z) as f: f.extractall(temp)
+          pkg=temp/'package'
+          for name in ['azur_client.py']:
+              src=pkg/name
+              if not src.is_file(): raise SystemExit(f'Falta {name} en paquete base')
+              shutil.copy2(src,out/name)
+          static=pkg/'static'
+          if not (static/'index.html').is_file(): raise SystemExit('El paquete base no contiene static/index.html')
+          shutil.copytree(static,out/'static',dirs_exist_ok=True)
+          print('BASE_STATIC_OK', sum(1 for _ in (out/'static').rglob('*')))
+          '@ | python -
+          Copy-Item installer_clean\helpers\whatsapp_client.py installer_clean\buildroot\whatsapp_client.py -Force
+          Copy-Item installer_clean\helpers\remote_agenda.py installer_clean\buildroot\remote_agenda.py -Force
+          Copy-Item installer_clean\env.example installer_clean\buildroot\.env.example -Force
+          New-Item -ItemType Directory -Force installer_clean\buildroot\tools | Out-Null
+          Copy-Item installer_clean\restore_config.ps1 installer_clean\buildroot\tools\restore_config.ps1 -Force
+          New-Item -ItemType Directory -Force installer_clean\buildroot\data | Out-Null
+
+      - name: Validar código y dependencias del programa
+        shell: powershell
+        run: |
+          @'
+          from pathlib import Path
+          import ast
+          root=Path('installer_clean/buildroot')
+          for name in ['app.py','ABRIR_RECEPCION.py','azur_client.py','whatsapp_client.py','remote_agenda.py']:
+              p=root/name
+              compile(p.read_text(encoding='utf-8-sig'),name,'exec')
+          tree=ast.parse((root/'app.py').read_text(encoding='utf-8-sig'))
+          third=set()
+          local={'azur_client','whatsapp_client','remote_agenda'}
+          std={'os','csv','io','hashlib','hmac','secrets','re','json','uuid','shutil','threading','sqlite3','zipfile','tempfile','subprocess','sys','time','socket','ipaddress','ctypes','webbrowser','unicodedata','difflib','datetime','typing','pathlib','urllib','xml'}
+          for n in ast.walk(tree):
+              mod=None
+              if isinstance(n,ast.Import):
+                  for a in n.names:
+                      top=a.name.split('.')[0]
+                      if top not in std|local: third.add(top)
+              elif isinstance(n,ast.ImportFrom) and n.module:
+                  top=n.module.split('.')[0]
+                  if top not in std|local: third.add(top)
+          print('APP_THIRD_PARTY',sorted(third))
+          expected={'fastapi','pydantic','sqlalchemy','dotenv','psycopg'}
+          if not expected.issubset(third): raise SystemExit('Cambió el conjunto esperado de dependencias')
+          '@ | python -
+
+      - name: Construir Python portátil autocontenido
+        shell: powershell
+        run: |
+          $root = 'installer_clean\buildroot'
+          $scripts = Join-Path $root '.venv\Scripts'
+          $lib = Join-Path $root '.venv\Lib'
+          $site = Join-Path $lib 'site-packages'
+          New-Item -ItemType Directory -Force $scripts,$site | Out-Null
+          $embed = Join-Path $env:RUNNER_TEMP 'python-embed.zip'
+          Invoke-WebRequest 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip' -OutFile $embed
+          Expand-Archive -LiteralPath $embed -DestinationPath $scripts -Force
+
+          python -m pip install --disable-pip-version-check --no-compile --target $site `
+            'fastapi==0.115.6' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'psycopg[binary]==3.2.3' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' `
+            'pywebview==5.3.2'
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudieron preparar las dependencias Python' }
+
+          # Tkinter para el splash liviano del launcher. El runtime embebible no lo trae.
+          Copy-Item "$env:pythonLocation\Lib\tkinter" (Join-Path $lib 'tkinter') -Recurse -Force
+          foreach ($f in @('_tkinter.pyd','tcl86t.dll','tk86t.dll')) {
+            $src = Join-Path $env:pythonLocation "DLLs\$f"
+            if (Test-Path $src) { Copy-Item $src $scripts -Force }
+          }
+          if (Test-Path "$env:pythonLocation\tcl") { Copy-Item "$env:pythonLocation\tcl" (Join-Path $scripts 'tcl') -Recurse -Force }
+
+          @'
+          python311.zip
+          .
+          ..\..
+          ..\Lib
+          ..\Lib\site-packages
+          import site
+          '@ | Set-Content (Join-Path $scripts 'python311._pth') -Encoding ascii
+          @'
+          home = Scripts
+          include-system-site-packages = false
+          version = 3.11.9
+          '@ | Set-Content (Join-Path $root '.venv\pyvenv.cfg') -Encoding ascii
+
+          & (Join-Path $scripts 'python.exe') -c "import fastapi,uvicorn,sqlalchemy,psycopg,dotenv,multipart,webview; import azur_client,whatsapp_client,remote_agenda; print('PORTABLE_RUNTIME_OK')"
+          if ($LASTEXITCODE -ne 0) { throw 'El Python portátil no pudo importar el programa' }
+
+      - name: Probar backend 4.3.72 sin nube
+        shell: powershell
+        run: |
+          $root = (Resolve-Path 'installer_clean\buildroot').Path
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $root 'data')
+          $py=Join-Path $root '.venv\Scripts\python.exe'
+          $app=Join-Path $root 'app.py'
+          $proc=Start-Process -FilePath $py -ArgumentList ('"'+$app+'"') -WorkingDirectory $root -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 80;$i++){
+              Start-Sleep -Milliseconds 250
+              try {
+                $v=Invoke-RestMethod 'http://127.0.0.1:8000/api/version' -TimeoutSec 1
+                if([string]$v.version -eq '4.3.72'){ $ok=$true; break }
+              } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){ throw 'El backend 4.3.72 no arrancó con el runtime portátil' }
+            $home=Invoke-WebRequest 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 3
+            if($home.StatusCode -ne 200){ throw 'La pantalla principal no respondió HTTP 200' }
+            Write-Host 'BACKEND_CLEAN_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Preparar icono
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force installer_clean\build | Out-Null
+          if (-not (Get-Command magick.exe -ErrorAction SilentlyContinue)) { choco install imagemagick.app -y --no-progress }
+          magick.exe -background none -density 384 agenda\logo.svg -resize 256x256 installer_clean\build\logo.png
+          magick.exe installer_clean\build\logo.png -define icon:auto-resize=256,128,64,48,32,16 installer_clean\build\recepcion.ico
+          Copy-Item installer_clean\build\recepcion.ico installer_clean\buildroot\recepcion.ico -Force
+
+      - name: Instalar Inno Setup y compilar
+        shell: powershell
+        run: |
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) { choco install innosetup -y --no-progress }
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installer_clean\RecepcionDrReveloClean.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Falló la compilación de Inno Setup' }
+          $exe='installer_clean\output\INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe'
+          if(-not (Test-Path $exe)){ throw 'No se generó el instalador limpio' }
+          $hash=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe" | Set-Content installer_clean\output\SHA256.txt -Encoding ascii
+          Write-Host "INSTALLER_SHA256=$hash"
+
+      - name: Simular instalación en Windows limpio
+        shell: powershell
+        run: |
+          $dest=Join-Path $env:RUNNER_TEMP 'Recepcion SSD Nuevo'
+          $exe=(Resolve-Path 'installer_clean\output\INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe').Path
+          $p=Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$dest+'"')) -Wait -PassThru
+          if($p.ExitCode -ne 0){ throw "El instalador devolvió $($p.ExitCode)" }
+          foreach($rel in @('app.py','ABRIR_RECEPCION.py','azur_client.py','whatsapp_client.py','remote_agenda.py','update_manifest.json','static\index.html','.venv\Scripts\python.exe','.venv\Scripts\pythonw.exe','.env')){
+            if(-not (Test-Path (Join-Path $dest $rel))){ throw "Falta tras instalar: $rel" }
+          }
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $dest 'data')
+          $py=Join-Path $dest '.venv\Scripts\python.exe'
+          & $py -c "import fastapi,uvicorn,sqlalchemy,psycopg,webview; import azur_client,whatsapp_client,remote_agenda; print('INSTALLED_IMPORTS_OK')"
+          if($LASTEXITCODE -ne 0){ throw 'El runtime instalado no funciona' }
+          $proc=Start-Process -FilePath $py -ArgumentList ('"'+(Join-Path $dest 'app.py')+'"') -WorkingDirectory $dest -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 80;$i++){
+              Start-Sleep -Milliseconds 250
+              try { $v=Invoke-RestMethod 'http://127.0.0.1:8000/api/version' -TimeoutSec 1; if([string]$v.version -eq '4.3.72'){ $ok=$true; break } } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){ throw 'La instalación limpia no pudo arrancar Recepción' }
+            Write-Host 'FULL_CLEAN_INSTALL_SMOKE_OK'
+          } finally { if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } }
+
+      - name: Verificar privacidad y límites del instalador
+        shell: powershell
+        run: |
+          if(Test-Path 'installer_clean\buildroot\.env') { throw 'Nunca se debe empaquetar un .env real' }
+          if(Test-Path 'installer_clean\buildroot\data\recepcion.db') { throw 'Nunca se debe empaquetar la base clínica local' }
+          if(Test-Path 'installer_clean\buildroot\data\offline_cache.db') { throw 'Nunca se debe empaquetar la cache clínica local' }
+          $all=(Get-Content installer_clean\RecepcionDrReveloClean.iss -Raw)+(Get-Content installer_clean\restore_config.ps1 -Raw)
+          foreach($forbidden in @('DROP TABLE','DELETE FROM whatsapp_cloud.events','WHATSAPP_ACCESS_TOKEN='+'EA')){ if($all.Contains($forbidden)){ throw "Contenido prohibido: $forbidden" } }
+          Write-Host 'PRIVACY_CHECK_OK'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INSTALADOR_RECEPCION_DESDE_CERO
+          path: |
+            installer_clean/output/INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe
+            installer_clean/output/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
