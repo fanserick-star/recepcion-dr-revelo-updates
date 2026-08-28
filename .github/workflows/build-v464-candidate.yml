@@ -1,0 +1,45 @@
+name: Construir candidata v4.3.64
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v464/**'
+      - '.github/workflows/build-v464-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Construir candidata exacta
+        run: python build/v464/build_v464.py
+      - name: Compilar y validar JavaScript
+        run: |
+          cat updates/v464/app.part* > _ci_app.py
+          python -m py_compile _ci_app.py
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          t=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          found=set()
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name):
+                  if n.targets[0].id=='V459_SETTINGS_JS': Path('_ci_v459.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v459')
+                  if n.targets[0].id=='V460_OVERLAY_JS': Path('_ci_v460.js').write_text(ast.literal_eval(n.value),encoding='utf-8');found.add('v460')
+          if found!={'v459','v460'}: raise SystemExit(f'JS faltante: {found}')
+          PY
+          node --check _ci_v459.js
+          node --check _ci_v460.js
+          python build/v464/test_v464.py
+      - name: Publicar candidata sin mover canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v464
+          if git diff --cached --quiet; then echo 'Sin cambios'; else git commit -m 'candidate: construir v4.3.64 verificada'; git pull --rebase origin main; git push; fi
