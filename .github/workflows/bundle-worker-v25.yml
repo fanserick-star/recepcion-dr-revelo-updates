@@ -1,4 +1,4 @@
-name: Bundle WhatsApp Worker v2.5.1
+name: Bundle WhatsApp Worker v2.5.2
 
 on:
   push:
@@ -21,7 +21,7 @@ jobs:
           node-version: '22'
       - name: Instalar bundler y dependencia
         run: npm install --no-save esbuild @neondatabase/serverless
-      - name: Aplicar correcciones v2.5.1
+      - name: Aplicar correcciones v2.5.2
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -55,11 +55,51 @@ jobs:
           if old_export in s:
               s = s.replace(old_export, new_export, 1)
 
+          # v2.5.2: las filas importadas de Confirmafy participan en confirmación
+          # del día anterior y recordatorio de 2 horas, pero nunca en cita_agendada.
+          old_staged_filter = """  FROM public.confirmafy_agenda_items c
+            WHERE c.source_hash LIKE 'mobile:%'"""
+          new_staged_filter = """  FROM public.confirmafy_agenda_items c
+            WHERE coalesce(c.source_hash,'') <> ''"""
+          if old_staged_filter in s:
+              s = s.replace(old_staged_filter, new_staged_filter, 1)
+
+          old_cita_scope = """  WHERE $3::boolean
+              AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
+              AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')"""
+          new_cita_scope = """  WHERE $3::boolean
+              AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
+              AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
+              AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')"""
+          if old_cita_scope in s:
+              s = s.replace(old_cita_scope, new_cita_scope, 1)
+
+          old_window = "  AND (is_test OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END)"
+          new_window = """  AND (
+              is_test
+              OR (
+                source_type='staged'
+                AND coalesce(source_hash,'') NOT LIKE 'mobile:%'
+                AND kind='recordatorio_cita'
+                AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)
+              )
+              OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END
+            )"""
+          if old_window in s:
+              s = s.replace(old_window, new_window, 1)
+
+          s = s.replace('Dr-Revelo-WhatsApp-Worker/2.5.1', 'Dr-Revelo-WhatsApp-Worker/2.5.2')
+          s = s.replace('worker_version:"2.5.1"', 'worker_version:"2.5.2"')
+
           assert 'r.is_test?"TEST_CONFIRMAR":"CONFIRMAR"' in s
           assert 'GREATEST(' in s and "b.created_at AT TIME ZONE 'UTC'" in s
           assert "b.created_at AT TIME ZONE 'America/Guayaquil'" not in s
           assert '!c.header_image_url&&!c.header_image_id' not in s
           assert 'materializeCandidate,buildTemplatePayload' in s
+          assert "WHERE coalesce(c.source_hash,'') <> ''" in s
+          assert "b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'" in s
+          assert "AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)" in s
+          assert 'worker_version:"2.5.2"' in s
           p.write_text(s, encoding='utf-8')
           PY
       - name: Probar payload de recordatorio_cita
@@ -86,15 +126,18 @@ jobs:
             --platform=browser \
             --target=es2022 \
             --outfile=cloudflare/whatsapp_worker_v2_5_STANDALONE.js \
-            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.5.1 — standalone bundle'
+            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.5.2 — standalone bundle'
           cp cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
       - name: Validar bundle
         run: |
           node --check cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'worker_version' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q 'worker_version:"2.5.2"' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'mobile:whatsapp-cloud-test:' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q "b.created_at AT TIME ZONE 'UTC'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q "WHERE coalesce(c.source_hash,'') <> ''" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q "b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           if grep -q "b.created_at AT TIME ZONE 'America/Guayaquil'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js; then
             echo 'ERROR: created_at todavía se interpreta directamente como America/Guayaquil'
             exit 1
@@ -112,7 +155,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'Worker y bundle ya estaban actualizados.'
           else
-            git commit -m 'Build standalone WhatsApp worker v2.5.1'
+            git commit -m 'Build standalone WhatsApp worker v2.5.2'
             git pull --rebase origin main
             git push
           fi
