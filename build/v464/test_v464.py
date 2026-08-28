@@ -1,4 +1,5 @@
 from __future__ import annotations
+# Trigger CI: la candidata v4.3.64 ya existe en updates/v464.
 import ast, hashlib, json
 from pathlib import Path
 
