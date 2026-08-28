@@ -1,9 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.57",
+  "version": "4.3.58",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.57: launcher autocontenido definitivo. Integra auto-update, SHA, staging, backup, rollback, modo offline seguro, WebView2 con icono propio y protección de una sola instancia. No depende de AUTOACTUALIZAR.py ni módulos auxiliares. El backend clínico permanece en v4.3.54.",
+  "message": "v4.3.58: Configuración profesional con Estado de servicios, mejoras de Agenda 24/7 y WhatsApp, limpieza de controles obsoletos. Mantiene el launcher standalone probado con auto-update, SHA, rollback y protección de una sola instancia.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -17,9 +17,22 @@
       "encoding": "utf-8"
     },
     {
+      "path": "app.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/app.part6"
+      ],
+      "sha256": "f6a95f3058afe93feb5b386d514d6ef79313595c37138c1189276e69f642781f",
+      "encoding": "utf-8"
+    },
+    {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/update_manifest.json",
-      "sha256": "1ba23c007e5f624e4c3846fa4f0bb50aa552edd8e133d9a0d596aefac0fa425f",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v458/update_manifest.json",
+      "sha256": "af22306993add31f18e0792793e0ed0824ae6e6c445d097d79f67cf3d9cacdc2",
       "encoding": "utf-8"
     }
   ]
