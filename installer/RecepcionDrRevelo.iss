@@ -99,7 +99,8 @@ begin
     'Ubicación actual de Recepción',
     'Selecciona la carpeta que hoy contiene el programa',
     'El instalador moverá la instalación completa a C:\Recepcion Dr Revelo y conservará configuración, datos y actualizaciones. Selecciona la carpeta que contiene ABRIR_RECEPCION.py.',
-    False
+    False,
+    ''
   );
   SourcePage.Add('');
   Detected := DetectExistingInstall();
