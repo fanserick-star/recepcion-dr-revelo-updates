@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Reconstruir v4.3.64 y localizar bloques
+      - name: Localizar UI exacta
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -23,35 +23,42 @@ jobs:
           root=Path('.')
           parts=sorted((root/'updates'/'v464').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
           s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
-          lines=s.splitlines()
-          print('APP_LINES',len(lines),'APP_BYTES',len(s.encode('utf-8')))
-
-          def show(a,b,title):
-            print('\n===',title,'===')
-            for j in range(a-1,min(len(lines),b)): print(f'{j+1}: {lines[j]}')
-          show(810,885,'HISTORICAL SUMMARY')
-          show(4815,4855,'PATIENT DETAIL / ATENDER')
-          show(6200,6275,'AGENDA RECENT + LIST')
-          show(6400,6615,'AGENDA DETAIL/WEEK/DASHBOARD/SLOTS')
-          show(7900,8160,'BILLING BACKEND')
-
-          print('\n=== STRING ASSIGNMENTS / UI SNIPPETS ===')
           tree=ast.parse(s)
-          terms=['cola de fact','facturaci','atender','última cita','ultima cita','última atención','ultima atencion','agenda','/api/agenda/week','/api/agenda/appointments']
+          values=[]
           for node in tree.body:
             if isinstance(node,ast.Assign) and len(node.targets)==1 and isinstance(node.targets[0],ast.Name):
               try: val=ast.literal_eval(node.value)
               except Exception: continue
-              if not isinstance(val,str): continue
-              low=val.lower()
-              hits=[]
-              for term in terms:
-                pos=low.find(term.lower())
-                if pos>=0: hits.append((term,pos))
-              if not hits: continue
-              print(f'ASSIGN {node.targets[0].id} LEN {len(val)}')
-              for term,pos in hits:
-                a=max(0,pos-900); b=min(len(val),pos+1800)
-                print(f'--- {term} @ {pos} ---')
-                print(val[a:b].replace('\r',''))
+              if isinstance(val,str) and len(val)>100:
+                values.append((node.targets[0].id,val))
+          print('STRING_VARS',[(n,len(v)) for n,v in values])
+          terms=[
+            '/api/billing','billing-next','billing/next','cola','facturación','facturacion',
+            'historical_last_visit_date','historical_last_year','ultima_atencion','última atención','ultima atención',
+            'searchPatient','searchPatients','patientResults','patient-results','patientSearch','patient-search',
+            '/api/patients?','/api/patients/search','openPatient','attendPatient','attendFromAgenda',
+            '/api/agenda/week','loadAgenda','renderAgenda','agenda-week','agendaWeek','showSection'
+          ]
+          for name,val in values:
+            low=val.lower()
+            matched=[]
+            for term in terms:
+              start=0
+              while True:
+                pos=low.find(term.lower(),start)
+                if pos<0: break
+                matched.append((term,pos)); start=pos+1
+            if not matched: continue
+            print('\n###',name,'LEN',len(val))
+            # Print non-overlapping context windows centered on each hit.
+            windows=[]
+            for term,pos in matched:
+              a=max(0,pos-650); b=min(len(val),pos+1400)
+              if windows and a <= windows[-1][1]+300:
+                windows[-1]=(windows[-1][0],max(windows[-1][1],b),windows[-1][2]+','+term)
+              else:
+                windows.append((a,b,term))
+            for a,b,label in windows:
+              print('\n---',label,a,b,'---')
+              print(val[a:b].replace('\r',''))
           PY
