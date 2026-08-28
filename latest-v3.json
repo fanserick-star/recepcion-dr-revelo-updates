@@ -1,20 +1,20 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.55",
+  "version": "4.3.56",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.55: primera prueba limpia del auto-update 3.2. Actualiza únicamente el iniciador: splash ligero con logo, etapas de arranque, indicador de progreso, tiempo transcurrido y aviso si el inicio tarda más de lo normal. El backend clínico permanece en v4.3.54 para no tocar datos ni funciones durante esta prueba.",
+  "message": "v4.3.56: hotfix de emergencia. Retira el launcher 4.3.55-safe3 y restaura el launcher estable safe2. El backend clínico permanece en v4.3.54; no toca bases, .env, pacientes ni funciones clínicas.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v455/ABRIR_RECEPCION.py",
-      "sha256": "d661c043868b8d06212794eb30bfdb6541185061fb5e4e669a362f156fe9c9a3",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v456/ABRIR_RECEPCION.py",
+      "sha256": "PENDIENTE_WORKFLOW",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v455/update_manifest.json",
-      "sha256": "9df9101b27924ac97dbf28f7accb3581cadecc84dec12374ca08d36ec65d7406",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v456/update_manifest.json",
+      "sha256": "PENDIENTE_WORKFLOW",
       "encoding": "utf-8"
     }
   ]
