@@ -94,7 +94,10 @@ WITH base AS (
   WHERE c.source_hash LIKE 'mobile:%'
 ), ev AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
-         ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil' due_at,
+         GREATEST(
+           ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil',
+           b.created_at AT TIME ZONE 'America/Guayaquil'
+         ) due_at,
          false::boolean is_test
   FROM base b
   WHERE $1::boolean AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
@@ -140,7 +143,7 @@ function materializeCandidate(r,env){
   const name=String(r.patient_name||"").trim().replace(/\s+/g," ").toUpperCase();
   const d=String(r.appointment_date).slice(0,10), t=String(r.appointment_time).slice(0,5);
   const header_image_url=String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL).trim();
-  if(r.kind==="recordatorio_cita") { const yes="CONFIRMAR",no="CANCELAR"; return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_CITA||"recordatorio_cita",language:env.LANG_RECORDATORIO_CITA||"es_ES",body_params:[name,recordatorioDateTimeLabel(d,t)],buttons:[`${yes}|${r.source_type}|${r.source_id}|${d}|${t}`,`${no}|${r.source_type}|${r.source_id}|${d}|${t}`],header_image_url}; }
+  if(r.kind==="recordatorio_cita") { const yes=r.is_test?"TEST_CONFIRMAR":"CONFIRMAR",no=r.is_test?"TEST_CANCELAR":"CANCELAR"; return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_CITA||"recordatorio_cita",language:env.LANG_RECORDATORIO_CITA||"es_ES",body_params:[name,recordatorioDateTimeLabel(d,t)],buttons:[`${yes}|${r.source_type}|${r.source_id}|${d}|${t}`,`${no}|${r.source_type}|${r.source_id}|${d}|${t}`]}; }
   if(r.kind==="recordatorio_hoy") return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_HOY||"recordatorio_hoy",language:env.LANG_RECORDATORIO_HOY||"es_EC",body_params:[name,timeLabel(t)],buttons:[],header_image_url};
   return {...r,phone,template_name:env.TEMPLATE_CITA_AGENDADA||"cita_agendada",language:env.LANG_CITA_AGENDADA||"es_EC",body_params:[name,dateLabel(d),timeLabel(t)],buttons:[],header_image_url};
 }
@@ -157,7 +160,7 @@ async function markSent(client,c,data){ const mid=String(data?.messages?.[0]?.id
 async function markError(client,c,e){ await client.query(`UPDATE whatsapp_cloud.events SET status='ERROR',error_code=$2,error_text=$3,updated_at=now() WHERE event_key=$1`,[c.event_key,String(e.code||""),String(e.message||e).slice(0,1500)]); }
 async function runScheduler(env){
   if(!env.DATABASE_URL||!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID)return {ok:false,reason:"missing_secrets"};
-  return withClient(env,async client=>{ const rows=await dueCandidates(client,env); let claimed=0,sent=0,errors=0,skipped=0; for(const r of rows){const c=materializeCandidate(r,env); if(!c){skipped++;continue;} if(!c.header_image_url&&!c.header_image_id){skipped++;continue;} if(!(await claim(client,c))){skipped++;continue;} claimed++; try{const data=await sendMeta(c,env); await markSent(client,c,data); sent++;}catch(e){await markError(client,c,e); errors++;}} return {ok:true,candidates:rows.length,claimed,sent,errors,skipped}; });
+  return withClient(env,async client=>{ const rows=await dueCandidates(client,env); let claimed=0,sent=0,errors=0,skipped=0; for(const r of rows){const c=materializeCandidate(r,env); if(!c){skipped++;continue;} if(!(await claim(client,c))){skipped++;continue;} claimed++; try{const data=await sendMeta(c,env); await markSent(client,c,data); sent++;}catch(e){await markError(client,c,e); errors++;}} return {ok:true,candidates:rows.length,claimed,sent,errors,skipped}; });
 }
 
 function extractPayload(message){ if(message?.type==="button")return String(message.button?.payload||""); if(message?.type==="interactive"&&message.interactive?.type==="button_reply")return String(message.interactive.button_reply?.id||""); return ""; }
@@ -173,4 +176,4 @@ export default {
   async scheduled(_controller,env,ctx){ctx.waitUntil(runScheduler(env));}
 };
 
-export { runScheduler,parseActionPayload,extractPayload,validMetaSignature,recordatorioDateTimeLabel,normalizePhone,acknowledgementText,responseWasApplied,sendTextMeta,testTemplateFromHash };
+export { runScheduler,parseActionPayload,extractPayload,validMetaSignature,recordatorioDateTimeLabel,normalizePhone,acknowledgementText,responseWasApplied,sendTextMeta,testTemplateFromHash,materializeCandidate,buildTemplatePayload };

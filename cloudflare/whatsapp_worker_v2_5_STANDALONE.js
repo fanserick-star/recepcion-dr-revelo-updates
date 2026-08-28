@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.5 — standalone bundle
+// Dr. Revelo WhatsApp Cloud Worker v2.5.1 — standalone bundle
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5326,7 +5326,8 @@ async function sendMeta(c, env) {
   ;
   if (!r.ok) {
     const err = data?.error || {};
-    const e = new Error(err.message || raw || `HTTP ${r.status}`);
+    const details = String(err?.error_data?.details || "").trim();
+    const e = new Error([err.message || raw || `HTTP ${r.status}`, details].filter(Boolean).join(" \xB7 "));
     e.code = String(err.code || r.status);
     throw e;
   }
@@ -5363,7 +5364,8 @@ async function sendTextMeta(phone, body, env, replyToMessageId = "") {
   ;
   if (!r.ok) {
     const err = data?.error || {};
-    const e = new Error(err.message || raw || `HTTP ${r.status}`);
+    const details = String(err?.error_data?.details || "").trim();
+    const e = new Error([err.message || raw || `HTTP ${r.status}`, details].filter(Boolean).join(" \xB7 "));
     e.code = String(err.code || r.status);
     throw e;
   }
@@ -5394,7 +5396,10 @@ WITH base AS (
   WHERE c.source_hash LIKE 'mobile:%'
 ), ev AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
-         ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil' due_at,
+         GREATEST(
+           ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil',
+           b.created_at AT TIME ZONE 'America/Guayaquil'
+         ) due_at,
          false::boolean is_test
   FROM base b
   WHERE $1::boolean AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
@@ -5444,7 +5449,7 @@ function materializeCandidate(r, env) {
   const header_image_url = String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
   if (r.kind === "recordatorio_cita") {
     const yes = r.is_test ? "TEST_CONFIRMAR" : "CONFIRMAR", no = r.is_test ? "TEST_CANCELAR" : "CANCELAR";
-    return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_CITA || "recordatorio_cita", language: env.LANG_RECORDATORIO_CITA || "es_ES", body_params: [name, recordatorioDateTimeLabel(d2, t)], buttons: [`${yes}|${r.source_type}|${r.source_id}|${d2}|${t}`, `${no}|${r.source_type}|${r.source_id}|${d2}|${t}`], header_image_url };
+    return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_CITA || "recordatorio_cita", language: env.LANG_RECORDATORIO_CITA || "es_ES", body_params: [name, recordatorioDateTimeLabel(d2, t)], buttons: [`${yes}|${r.source_type}|${r.source_id}|${d2}|${t}`, `${no}|${r.source_type}|${r.source_id}|${d2}|${t}`] };
   }
   if (r.kind === "recordatorio_hoy") return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_HOY || "recordatorio_hoy", language: env.LANG_RECORDATORIO_HOY || "es_EC", body_params: [name, timeLabel(t)], buttons: [], header_image_url };
   return { ...r, phone, template_name: env.TEMPLATE_CITA_AGENDADA || "cita_agendada", language: env.LANG_CITA_AGENDADA || "es_EC", body_params: [name, dateLabel(d2), timeLabel(t)], buttons: [], header_image_url };
@@ -5475,10 +5480,6 @@ async function runScheduler(env) {
     for (const r of rows) {
       const c = materializeCandidate(r, env);
       if (!c) {
-        skipped++;
-        continue;
-      }
-      if (!c.header_image_url && !c.header_image_id) {
         skipped++;
         continue;
       }
@@ -5581,7 +5582,8 @@ async function receiveWebhook(request, env) {
       continue;
     }
     if (responseWasApplied(result)) {
-      const ack = acknowledgementText(p2.action);
+      const ackAction = result === "TEST_CONFIRMED" ? "TEST_CONFIRMAR" : result === "TEST_CANCELLED" ? "TEST_CANCELAR" : p2.action;
+      const ack = acknowledgementText(ackAction);
       if (ack) {
         try {
           await sendTextMeta(phone, ack, env, messageId);
@@ -5598,11 +5600,11 @@ var whatsapp_worker_v2_5_reglas_y_pruebas_default = {
     const u = new URL(request.url);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.5" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.5.1" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.5", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.5.1", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
@@ -5619,8 +5621,10 @@ var whatsapp_worker_v2_5_reglas_y_pruebas_default = {
 };
 export {
   acknowledgementText,
+  buildTemplatePayload,
   whatsapp_worker_v2_5_reglas_y_pruebas_default as default,
   extractPayload,
+  materializeCandidate,
   normalizePhone,
   parseActionPayload,
   recordatorioDateTimeLabel,
