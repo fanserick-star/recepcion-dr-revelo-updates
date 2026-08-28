@@ -16,13 +16,13 @@
     {
       "path": "AUTOACTUALIZAR.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/AUTOACTUALIZAR.py",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "93671c141af0facebbbce5f50e5701060909cd8ca7a0029a26dcca73466e08b8",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/update_manifest.json",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "sha256": "315b3f7f0e40885010be969817f0252b8520fd845d0da8c31edcc8d09cee87e7",
       "encoding": "utf-8"
     }
   ]
