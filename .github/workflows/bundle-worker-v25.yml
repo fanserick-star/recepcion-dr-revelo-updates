@@ -34,7 +34,7 @@ jobs:
           new_due = """  SELECT b.*, 'recordatorio_cita'::text kind,
                    GREATEST(
                      ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil',
-                     b.created_at AT TIME ZONE 'America/Guayaquil'
+                     b.created_at AT TIME ZONE 'UTC'
                    ) due_at,
                    false::boolean is_test"""
           if old_due in s:
@@ -56,7 +56,8 @@ jobs:
               s = s.replace(old_export, new_export, 1)
 
           assert 'r.is_test?"TEST_CONFIRMAR":"CONFIRMAR"' in s
-          assert 'GREATEST(' in s and "b.created_at AT TIME ZONE 'America/Guayaquil'" in s
+          assert 'GREATEST(' in s and "b.created_at AT TIME ZONE 'UTC'" in s
+          assert "b.created_at AT TIME ZONE 'America/Guayaquil'" not in s
           assert '!c.header_image_url&&!c.header_image_id' not in s
           assert 'materializeCandidate,buildTemplatePayload' in s
           p.write_text(s, encoding='utf-8')
@@ -93,6 +94,11 @@ jobs:
           grep -q 'worker_version' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'mobile:whatsapp-cloud-test:' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q "b.created_at AT TIME ZONE 'UTC'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          if grep -q "b.created_at AT TIME ZONE 'America/Guayaquil'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js; then
+            echo 'ERROR: created_at todavía se interpreta directamente como America/Guayaquil'
+            exit 1
+          fi
           if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_5_STANDALONE.js; then
             echo 'ERROR: dependency import was not bundled'
             exit 1
