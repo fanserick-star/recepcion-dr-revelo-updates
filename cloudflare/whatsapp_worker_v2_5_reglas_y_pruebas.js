@@ -54,12 +54,13 @@ async function sendMeta(c,env){
   return data;
 }
 
-function acknowledgementText(action){
+function acknowledgementText(action,env={}){
   const a=String(action||"").toUpperCase();
-  if(a==="TEST_CONFIRMAR") return "✅ Prueba recibida: botón Sí funcionando correctamente. No se modificó ninguna cita real.";
-  if(a==="TEST_CANCELAR") return "✅ Prueba recibida: botón No funcionando correctamente. No se modificó ninguna cita real.";
-  if(a==="CONFIRMAR") return "✅ ¡Gracias por confirmar! Su cita con el Dr. Armando Revelo ha quedado confirmada. Lo esperamos en la fecha y hora indicadas. 😊";
-  if(a==="CANCELAR") return "✅ Gracias por avisarnos. Hemos registrado que no podrá asistir a su cita. Si desea reagendar, puede escribirnos por este mismo medio y con gusto le ayudaremos.";
+  const doctorPhone=String(env.DOCTOR_CONTACT_PHONE||"0968840690").trim()||"0968840690";
+  if(a==="TEST_CONFIRMAR") return "Prueba recibida: el botón Sí funciona correctamente. No se modificó ninguna cita real.";
+  if(a==="TEST_CANCELAR") return "Prueba recibida: el botón No funciona correctamente. No se modificó ninguna cita real.";
+  if(a==="CONFIRMAR") return "Gracias por confirmar su cita con el Dr. Armando Revelo. Su asistencia ha quedado registrada. Lo esperamos en la fecha y hora indicadas.";
+  if(a==="CANCELAR") return `Gracias por informarnos. Hemos registrado que no podrá asistir a su cita. Para reagendar, por favor comuníquese directamente con el consultorio del Dr. Armando Revelo al ${doctorPhone}.`;
   return "";
 }
 function responseWasApplied(result){
@@ -91,7 +92,7 @@ WITH base AS (
   UNION ALL
   SELECT 'staged'::text,c.id,c.nombre,c.celular,c.fecha,c.hora,c.created_at,'PENDIENTE'::text,'MOVIL'::text,c.source_hash::text
   FROM public.confirmafy_agenda_items c
-  WHERE c.source_hash LIKE 'mobile:%'
+  WHERE coalesce(c.source_hash,'') <> ''
 ), ev AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
          GREATEST(
@@ -114,6 +115,7 @@ WITH base AS (
   FROM base b
   WHERE $3::boolean
     AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
+    AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
     AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
           - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
     AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
@@ -133,7 +135,16 @@ SELECT source_type,source_id,patient_name,phone,fecha::text appointment_date,hor
 FROM ev
 WHERE ((fecha + hora::time) AT TIME ZONE 'America/Guayaquil') > now()
   AND due_at <= now()
-  AND (is_test OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END)
+  AND (
+    is_test
+    OR (
+      source_type='staged'
+      AND coalesce(source_hash,'') NOT LIKE 'mobile:%'
+      AND kind='recordatorio_cita'
+      AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)
+    )
+    OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END
+  )
 ORDER BY is_test DESC,due_at
 LIMIT 50`;
   const r=await client.query(q,params); return r.rows||[];
@@ -169,10 +180,10 @@ async function currentSlot(client,p){ const q=p.sourceType==="staged"?`SELECT fe
 async function applyResponse(env,p,messageId,phone){ return withClient(env,async client=>{const slot=await currentSlot(client,p); if(!slot)return "NOT_FOUND"; if(slot.date!==p.date||slot.time!==p.time)return "STALE"; if(slot.isTest){ if(["CONFIRMAR","TEST_CONFIRMAR"].includes(p.action))return "TEST_CONFIRMED"; if(["CANCELAR","TEST_CANCELAR"].includes(p.action))return "TEST_CANCELLED"; return "IGNORED_TEST_ACTION"; } if(p.action.startsWith("TEST_"))return "IGNORED_TEST_ACTION"; const r=await client.query(`SELECT public.whatsapp_apply_response($1,$2,$3,$4,$5) AS result`,[p.action,p.sourceType,p.sourceId,String(messageId||""),String(phone||"")]); return String(r.rows?.[0]?.result||"UNKNOWN");}); }
 async function updateStatuses(env,statuses){ if(!statuses?.length)return; await withClient(env,async client=>{for(const s of statuses){const mid=String(s.id||""); if(!mid)continue; const st=String(s.status||"").toLowerCase(); const err=s.errors?.[0]||{}; if(st==="delivered")await client.query(`UPDATE whatsapp_cloud.events SET status='DELIVERED',delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="read")await client.query(`UPDATE whatsapp_cloud.events SET status='READ',read_at=COALESCE(read_at,now()),delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="failed")await client.query(`UPDATE whatsapp_cloud.events SET status='FAILED',error_code=$2,error_text=$3,updated_at=now() WHERE message_id=$1`,[mid,String(err.code||""),String(err.title||err.message||"Meta reportó fallo").slice(0,1500)]); else if(st==="sent")await client.query(`UPDATE whatsapp_cloud.events SET status=CASE WHEN status='SENDING' THEN 'SENT' ELSE status END,sent_at=COALESCE(sent_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); }}); }
 async function verifyWebhook(request,env){const u=new URL(request.url);if(u.searchParams.get("hub.mode")==="subscribe"&&u.searchParams.get("hub.verify_token")===env.VERIFY_TOKEN)return text(u.searchParams.get("hub.challenge")||"",200);return text("Forbidden",403);}
-async function receiveWebhook(request,env){const raw=await request.arrayBuffer();if(!(await validMetaSignature(raw,request.headers.get("x-hub-signature-256")||"",env.META_APP_SECRET)))return text("Invalid signature",401);let body;try{body=JSON.parse(decoder.decode(raw));}catch{return text("Invalid JSON",400);}const messages=[],statuses=[];for(const e of body?.entry||[])for(const ch of e?.changes||[]){for(const m of ch?.value?.messages||[])messages.push(m);for(const s of ch?.value?.statuses||[])statuses.push(s);}if(statuses.length)await updateStatuses(env,statuses);for(const m of messages){const p=parseActionPayload(extractPayload(m));if(!p)continue;const messageId=String(m.id||"");const phone=String(m.from||"");let result="UNKNOWN";try{result=await applyResponse(env,p,messageId,phone);}catch(e){console.error("whatsapp_apply_response_failed",e);continue;}if(responseWasApplied(result)){const ackAction=result==="TEST_CONFIRMED"?"TEST_CONFIRMAR":result==="TEST_CANCELLED"?"TEST_CANCELAR":p.action;const ack=acknowledgementText(ackAction);if(ack){try{await sendTextMeta(phone,ack,env,messageId);}catch(e){console.error("whatsapp_ack_failed",e);}}}}return text("EVENT_RECEIVED",200);}
+async function receiveWebhook(request,env){const raw=await request.arrayBuffer();if(!(await validMetaSignature(raw,request.headers.get("x-hub-signature-256")||"",env.META_APP_SECRET)))return text("Invalid signature",401);let body;try{body=JSON.parse(decoder.decode(raw));}catch{return text("Invalid JSON",400);}const messages=[],statuses=[];for(const e of body?.entry||[])for(const ch of e?.changes||[]){for(const m of ch?.value?.messages||[])messages.push(m);for(const s of ch?.value?.statuses||[])statuses.push(s);}if(statuses.length)await updateStatuses(env,statuses);for(const m of messages){const p=parseActionPayload(extractPayload(m));if(!p)continue;const messageId=String(m.id||"");const phone=String(m.from||"");let result="UNKNOWN";try{result=await applyResponse(env,p,messageId,phone);}catch(e){console.error("whatsapp_apply_response_failed",e);continue;}if(responseWasApplied(result)){const ackAction=result==="TEST_CONFIRMED"?"TEST_CONFIRMAR":result==="TEST_CANCELLED"?"TEST_CANCELAR":p.action;const ack=acknowledgementText(ackAction,env);if(ack){try{await sendTextMeta(phone,ack,env,messageId);}catch(e){console.error("whatsapp_ack_failed",e);}}}}return text("EVENT_RECEIVED",200);}
 
 export default {
-  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.5.1"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.5.1",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
+  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.5.2"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.5.2",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
   async scheduled(_controller,env,ctx){ctx.waitUntil(runScheduler(env));}
 };
 

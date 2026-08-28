@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.5.1 — standalone bundle
+// Dr. Revelo WhatsApp Cloud Worker v2.5.2 — standalone bundle
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5333,12 +5333,13 @@ async function sendMeta(c, env) {
   }
   return data;
 }
-function acknowledgementText(action) {
+function acknowledgementText(action, env = {}) {
   const a2 = String(action || "").toUpperCase();
-  if (a2 === "TEST_CONFIRMAR") return "\u2705 Prueba recibida: bot\xF3n S\xED funcionando correctamente. No se modific\xF3 ninguna cita real.";
-  if (a2 === "TEST_CANCELAR") return "\u2705 Prueba recibida: bot\xF3n No funcionando correctamente. No se modific\xF3 ninguna cita real.";
-  if (a2 === "CONFIRMAR") return "\u2705 \xA1Gracias por confirmar! Su cita con el Dr. Armando Revelo ha quedado confirmada. Lo esperamos en la fecha y hora indicadas. \u{1F60A}";
-  if (a2 === "CANCELAR") return "\u2705 Gracias por avisarnos. Hemos registrado que no podr\xE1 asistir a su cita. Si desea reagendar, puede escribirnos por este mismo medio y con gusto le ayudaremos.";
+  const doctorPhone = String(env.DOCTOR_CONTACT_PHONE || "0968840690").trim() || "0968840690";
+  if (a2 === "TEST_CONFIRMAR") return "Prueba recibida: el bot\xF3n S\xED funciona correctamente. No se modific\xF3 ninguna cita real.";
+  if (a2 === "TEST_CANCELAR") return "Prueba recibida: el bot\xF3n No funciona correctamente. No se modific\xF3 ninguna cita real.";
+  if (a2 === "CONFIRMAR") return "Gracias por confirmar su cita con el Dr. Armando Revelo. Su asistencia ha quedado registrada. Lo esperamos en la fecha y hora indicadas.";
+  if (a2 === "CANCELAR") return `Gracias por informarnos. Hemos registrado que no podr\xE1 asistir a su cita. Para reagendar, por favor comun\xEDquese directamente con el consultorio del Dr. Armando Revelo al ${doctorPhone}.`;
   return "";
 }
 function responseWasApplied(result) {
@@ -5393,7 +5394,7 @@ WITH base AS (
   UNION ALL
   SELECT 'staged'::text,c.id,c.nombre,c.celular,c.fecha,c.hora,c.created_at,'PENDIENTE'::text,'MOVIL'::text,c.source_hash::text
   FROM public.confirmafy_agenda_items c
-  WHERE c.source_hash LIKE 'mobile:%'
+  WHERE coalesce(c.source_hash,'') <> ''
 ), ev AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
          GREATEST(
@@ -5416,6 +5417,7 @@ WITH base AS (
   FROM base b
   WHERE $3::boolean
     AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
+    AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
     AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
           - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
     AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
@@ -5435,7 +5437,16 @@ SELECT source_type,source_id,patient_name,phone,fecha::text appointment_date,hor
 FROM ev
 WHERE ((fecha + hora::time) AT TIME ZONE 'America/Guayaquil') > now()
   AND due_at <= now()
-  AND (is_test OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END)
+  AND (
+    is_test
+    OR (
+      source_type='staged'
+      AND coalesce(source_hash,'') NOT LIKE 'mobile:%'
+      AND kind='recordatorio_cita'
+      AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)
+    )
+    OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '1 hour' ELSE interval '4 hours' END
+  )
 ORDER BY is_test DESC,due_at
 LIMIT 50`;
   const r = await client.query(q, params);
@@ -5583,7 +5594,7 @@ async function receiveWebhook(request, env) {
     }
     if (responseWasApplied(result)) {
       const ackAction = result === "TEST_CONFIRMED" ? "TEST_CONFIRMAR" : result === "TEST_CANCELLED" ? "TEST_CANCELAR" : p2.action;
-      const ack = acknowledgementText(ackAction);
+      const ack = acknowledgementText(ackAction, env);
       if (ack) {
         try {
           await sendTextMeta(phone, ack, env, messageId);
@@ -5600,11 +5611,11 @@ var whatsapp_worker_v2_5_reglas_y_pruebas_default = {
     const u = new URL(request.url);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.5.1" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.5.2" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.5.1", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.5.2", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
