@@ -5398,7 +5398,7 @@ WITH base AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
          GREATEST(
            ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil',
-           b.created_at AT TIME ZONE 'America/Guayaquil'
+           b.created_at AT TIME ZONE 'UTC'
          ) due_at,
          false::boolean is_test
   FROM base b
@@ -5411,14 +5411,14 @@ WITH base AS (
   WHERE $2::boolean AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
   UNION ALL
   SELECT b.*, 'cita_agendada'::text,
-         b.created_at AT TIME ZONE 'America/Guayaquil',
+         b.created_at AT TIME ZONE 'UTC',
          false::boolean
   FROM base b
   WHERE $3::boolean
     AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
     AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
-          - (b.created_at AT TIME ZONE 'America/Guayaquil') >= interval '24 hours'
-    AND (b.created_at AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
+          - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
+    AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
   UNION ALL
   SELECT b.*,
          CASE
