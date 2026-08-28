@@ -60,7 +60,8 @@ for name,base_value in base_literals.items():
     assert candidate_literals[name]==expected, f'Cambio no autorizado en asignación {name}'
 
 # Además de comparar todos los literales, verificamos que ninguna función, clase,
-# llamada, endpoint o estructura Python fuera de ellos haya cambiado.
+# llamada, endpoint o estructura Python fuera de ellos haya cambiado. Los únicos
+# textos no literales permitidos son los dos querystrings de cache-busting del HTML.
 def scrub_literals(tree):
     tree=copy.deepcopy(tree)
     for n in tree.body:
@@ -69,9 +70,15 @@ def scrub_literals(tree):
         try: ast.literal_eval(n.value)
         except Exception: continue
         n.value=ast.Constant(value='__LITERAL__')
+    for n in ast.walk(tree):
+        if isinstance(n,ast.Constant) and isinstance(n.value,str):
+            n.value=n.value.replace('/v460/overlay.css?v=4.3.72','/v460/overlay.css?v=4.3.71')
+            n.value=n.value.replace('/v460/overlay.js?v=4.3.72','/v460/overlay.js?v=4.3.71')
     return ast.dump(tree,include_attributes=False)
 
-assert scrub_literals(base_tree)==scrub_literals(candidate_tree), 'Cambió código Python fuera de asignaciones literales'
+assert source.count('/v460/overlay.css?v=4.3.72')==1
+assert source.count('/v460/overlay.js?v=4.3.72')==1
+assert scrub_literals(base_tree)==scrub_literals(candidate_tree), 'Cambió código Python fuera de asignaciones literales/cache URLs'
 
 # Verifica presencia exacta de las optimizaciones y ausencia del timer permanente.
 assert new_alert in source and old_alert not in source
