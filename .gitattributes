@@ -1,0 +1,3 @@
+# Los fragmentos de payload deben conservar exactamente sus bytes en todos los SO.
+updates/**/app.part* -text
+updates/**/ABRIR_RECEPCION.part* -text
