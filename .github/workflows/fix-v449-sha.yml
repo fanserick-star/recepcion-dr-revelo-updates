@@ -1,0 +1,55 @@
+name: Reparar SHA v4.3.49
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v449/bootstrap_app.py'
+      - '.github/workflows/fix-v449-sha.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-sha:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Calcular SHA y corregir manifests
+        shell: bash
+        run: |
+          SHA=$(sha256sum updates/v449/bootstrap_app.py | awk '{print $1}')
+          echo "SHA real: $SHA"
+          python - "$SHA" <<'PY'
+          import json, sys
+          sha = sys.argv[1]
+          for fn in ('latest-v3.json', 'latest.json'):
+              with open(fn, 'r', encoding='utf-8') as f:
+                  data = json.load(f)
+              found = False
+              for item in data.get('files', []):
+                  if item.get('path') == 'app.py' and 'updates/v449/bootstrap_app.py' in item.get('url', ''):
+                      item['sha256'] = sha
+                      found = True
+              if not found:
+                  raise SystemExit(f'No se encontró app.py v449 en {fn}')
+              with open(fn, 'w', encoding='utf-8', newline='\n') as f:
+                  json.dump(data, f, ensure_ascii=False, indent=2)
+                  f.write('\n')
+          PY
+      - name: Publicar corrección
+        shell: bash
+        run: |
+          if git diff --quiet -- latest-v3.json latest.json; then
+            echo "Los SHA ya eran correctos."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest-v3.json latest.json
+          git commit -m "fix: corregir SHA real del bootstrap v4.3.49"
+          git push
