@@ -1,0 +1,60 @@
+name: Construir candidata v4.3.72
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v472/**'
+      - '.github/workflows/build-v472-candidate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Guardar huellas de servicios críticos
+        run: |
+          git rev-parse HEAD:agenda > _agenda_tree_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_tree_before.txt
+          git rev-parse HEAD:updates/v457 > _launcher_tree_before.txt
+      - name: Construir candidata exacta
+        run: python build/v472/build_v472.py
+      - name: Compilar Python y JavaScript críticos
+        run: |
+          cat updates/v472/app.part* > _ci_app.py
+          python -m py_compile _ci_app.py
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          t=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          wanted={'V460_OVERLAY_JS':'_ci_overlay.js','V459_SETTINGS_JS':'_ci_settings.js'}
+          found=set()
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name):
+                  name=n.targets[0].id
+                  if name in wanted:
+                      Path(wanted[name]).write_text(ast.literal_eval(n.value),encoding='utf-8')
+                      found.add(name)
+          missing=set(wanted)-found
+          if missing: raise SystemExit('JS faltante: '+', '.join(sorted(missing)))
+          PY
+          node --check _ci_overlay.js
+          node --check _ci_settings.js
+          python build/v472/test_v472.py
+      - name: Verificar que nube, teléfono y Agenda web quedaron intactos
+        run: |
+          test "$(cat _agenda_tree_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_tree_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          test "$(cat _launcher_tree_before.txt)" = "$(git rev-parse HEAD:updates/v457)"
+          git diff --exit-code -- agenda cloudflare updates/v457
+      - name: Publicar candidata sin mover canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v472
+          if git diff --cached --quiet; then echo 'Sin cambios'; else git commit -m 'candidate: construir v4.3.72 optimizada y verificada'; git pull --rebase origin main; git push; fi
