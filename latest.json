@@ -7,7 +7,9 @@
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v449/bootstrap_app.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v449/bootstrap_app.py"
+      ],
       "sha256": "699ac92435c02f826a9b2b40333c13e73a7fbb7cd85a769ca8503d42662168ed",
       "encoding": "utf-8"
     },
