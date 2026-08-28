@@ -80,17 +80,19 @@ assert source.count('/v460/overlay.css?v=4.3.72')==1
 assert source.count('/v460/overlay.js?v=4.3.72')==1
 assert scrub_literals(base_tree)==scrub_literals(candidate_tree), 'Cambió código Python fuera de asignaciones literales/cache URLs'
 
-# Verifica presencia exacta de las optimizaciones y ausencia del timer permanente.
-assert new_alert in source and old_alert not in source
-assert new_watch in source and old_watch not in source
-assert new_picker in source and old_picker not in source
-assert 'setInterval(v464BindAlert,5000)' not in source
-assert 'scheduleV472UiRefresh' in source and 'v472PickerTimer' in source
-
 # Extraer JS críticos e invariantes visuales.
 overlay=candidate_literals.get('V460_OVERLAY_JS')
 settings=candidate_literals.get('V459_SETTINGS_JS')
 assert isinstance(overlay,str) and isinstance(settings,str)
+
+# Verifica presencia exacta de optimizaciones SOBRE el JS real extraído.
+assert new_alert in overlay and old_alert not in overlay
+assert new_watch in overlay and old_watch not in overlay
+assert 'setInterval(v464BindAlert,5000)' not in overlay
+assert 'scheduleV472UiRefresh' in overlay
+assert new_picker in candidate_literals[picker_host] and old_picker not in candidate_literals[picker_host]
+assert 'v472PickerTimer' in candidate_literals[picker_host]
+
 assert "const VERSION='4.3.72';" in overlay
 assert 'width:min(520px,calc(100vw - 56px))' in overlay
 assert '.v471-agenda-outer{width:min(590px,calc(100vw - 40px))' in overlay
@@ -99,7 +101,6 @@ assert '__v469ModalGuard' in overlay
 assert settings.count("classList.add('v471-agenda-outer')")==2
 assert 'Tel. ${eh(p.celular)}' in settings
 assert 'Tel. ${eh(st.celular)}' in settings
-assert new_picker in candidate_literals[picker_host]
 
 # Servicios y datos sensibles siguen presentes. La comparación semántica anterior
 # garantiza que su implementación sea idéntica a v4.3.71.
