@@ -62,7 +62,7 @@ jobs:
           }
 
           $movedPy = Join-Path $dst '.venv\Scripts\python.exe'
-          & $movedPy -c 'import fastapi, sqlalchemy, psycopg, pydantic, dotenv; print("VENV_MOVED_OK")'
+          & $movedPy -c "import fastapi, sqlalchemy, psycopg, pydantic, dotenv"
           if ($LASTEXITCODE -ne 0) { throw 'La venv trasladada no funciona desde la nueva ubicación' }
           Write-Host 'MIGRATION_SMOKE_TEST_OK'
 
