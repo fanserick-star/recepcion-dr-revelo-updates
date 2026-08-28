@@ -11,27 +11,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspeccionar Agenda y Configuración
+      - name: Inspeccionar modal y configuración
         run: |
           python - <<'PY'
           from pathlib import Path
           import ast
           parts=sorted((Path('updates/v466')).glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
           s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
+          print('========== APP SOURCE =========')
+          for term in ['function openModal','openModal =','window.openModal','.modal-content','.modal-card','.modal{','.modal {','native-appointment-detail']:
+              start=0
+              while True:
+                  pos=s.find(term,start)
+                  if pos<0: break
+                  print('\n---',term,'@',pos,'---')
+                  print(s[max(0,pos-1800):min(len(s),pos+4200)])
+                  start=pos+len(term)
           t=ast.parse(s)
           vals={}
           for n in t.body:
               if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name):
                   name=n.targets[0].id
-                  if name in {'V458_SETTINGS_JS','V459_SETTINGS_JS','V460_OVERLAY_JS','V460_OVERLAY_CSS'}:
-                      try: vals[name]=ast.literal_eval(n.value)
-                      except: pass
-          for name in ('V459_SETTINGS_JS','V458_SETTINGS_JS','V460_OVERLAY_CSS','V460_OVERLAY_JS'):
-              v=vals.get(name,'')
+                  try: val=ast.literal_eval(n.value)
+                  except: continue
+                  if isinstance(val,str) and any(x in val for x in ['config-tabs','native-appointment-detail','v459-whatsapp-timeline']): vals[name]=val
+          for name,v in vals.items():
               print('\n==========',name,'==========')
-              for term in ['openLinkedAgendaDetail','openUnlinkedAgendaDetail','config-title-row','#config','.config-','v458-','settings','tab','native-appointment-detail','v459-whatsapp-timeline']:
+              for term in ['config-tabs','config-section','native-appointment-detail','v459-whatsapp-timeline','v459-wa-step']:
                   pos=v.find(term)
                   if pos>=0:
                       print('\n---',term,'@',pos,'---')
-                      print(v[max(0,pos-1800):min(len(v),pos+5000)])
+                      print(v[max(0,pos-1600):min(len(v),pos+4500)])
           PY
