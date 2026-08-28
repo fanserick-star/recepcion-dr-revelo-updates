@@ -51,7 +51,30 @@ one('        "ultima_atencion": None,\n        "historical_first_year": int(h.fi
 
 # 2) Agenda PC: la semana se dibuja inmediatamente desde SQLite y la actualización
 # de estados de Neon corre detrás, en una sesión local propia. No se toca agenda/ web.
-HELPER='''\n\n_agenda_status_kick_lock = threading.Lock()\n_agenda_status_kick_running: set[tuple[str, ...]] = set()\n\ndef _kick_agenda_status_sync(dates) -> None:\n    key = tuple(str(d) for d in dates)\n    with _agenda_status_kick_lock:\n        if key in _agenda_status_kick_running:\n            return\n        _agenda_status_kick_running.add(key)\n\n    def worker():\n        try:\n            with LocalSessionLocal() as ldb:\n                _sync_agenda_states_from_cloud(ldb, dates)\n        except Exception:\n            pass\n        finally:\n            with _agenda_status_kick_lock:\n                _agenda_status_kick_running.discard(key)\n\n    threading.Thread(target=worker, name="agenda-state-sync-bg", daemon=True).start()\n'''
+HELPER='''
+
+_agenda_status_kick_lock = threading.Lock()
+_agenda_status_kick_running: set[tuple[str, ...]] = set()
+
+def _kick_agenda_status_sync(dates) -> None:
+    key = tuple(str(d) for d in dates)
+    with _agenda_status_kick_lock:
+        if key in _agenda_status_kick_running:
+            return
+        _agenda_status_kick_running.add(key)
+
+    def worker():
+        try:
+            with LocalSessionLocal() as ldb:
+                _sync_agenda_states_from_cloud(ldb, dates)
+        except Exception:
+            pass
+        finally:
+            with _agenda_status_kick_lock:
+                _agenda_status_kick_running.discard(key)
+
+    threading.Thread(target=worker, name="agenda-state-sync-bg", daemon=True).start()
+'''
 marker='\n\n@app.get("/api/agenda/week")\ndef agenda_week(anchor: date, db: Session = Depends(get_db), user: User = Depends(current_user)):'
 if s.count(marker)!=1:
     raise SystemExit(f'agenda week marker: se esperaba 1 coincidencia y hubo {s.count(marker)}')
@@ -62,7 +85,39 @@ one('    _sync_agenda_states_from_cloud(db, dates)\n    linked_rows = db.execute
 
 # 3) Facturación: oculta únicamente el recuadro redundante titulado "Cola de facturación".
 # Se conserva en DOM la lógica inferior y no se interceptan endpoints ni acciones.
-BILLING_PATCH=r'''\n;(()=>{\n  const normV465=s=>String(s||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim().toLowerCase();\n  let v465BillingTimer=0;\n  function hideV465BillingQueue(){\n    const wanted='cola de facturacion';\n    const selectors='h1,h2,h3,h4,h5,h6,legend,.card-title,.panel-title,.section-title,strong,b';\n    let title=[...document.querySelectorAll(selectors)].find(el=>normV465(el.textContent).startsWith(wanted));\n    if(!title){\n      title=[...document.querySelectorAll('div,span')].find(el=>{const t=normV465(el.textContent);return t.startsWith(wanted)&&t.length<90&&el.children.length<=2});\n    }\n    if(!title)return false;\n    let box=title.closest('.billing-queue,.billing-next,.queue-card,.card,.panel,.box');\n    if(!box){\n      const p=title.parentElement;\n      if(p&&normV465(p.textContent).startsWith(wanted)&&normV465(p.textContent).length<1200)box=p;\n    }\n    if(!box||box.dataset.v465BillingQueueHidden==='1')return !!box;\n    box.dataset.v465BillingQueueHidden='1';\n    box.style.display='none';\n    box.setAttribute('aria-hidden','true');\n    return true;\n  }\n  function scheduleV465BillingCleanup(){\n    if(v465BillingTimer)return;\n    v465BillingTimer=setTimeout(()=>{v465BillingTimer=0;hideV465BillingQueue()},100);\n  }\n  function bootV465Billing(){hideV465BillingQueue();setTimeout(hideV465BillingQueue,250);setTimeout(hideV465BillingQueue,900)}\n  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootV465Billing,{once:true});else bootV465Billing();\n  const root=document.documentElement;\n  if(root)new MutationObserver(scheduleV465BillingCleanup).observe(root,{childList:true,subtree:true});\n})();\n'''
+BILLING_PATCH=r'''
+;(()=>{
+  const normV465=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  let v465BillingTimer=0;
+  function hideV465BillingQueue(){
+    const wanted='cola de facturacion';
+    const selectors='h1,h2,h3,h4,h5,h6,legend,.card-title,.panel-title,.section-title,strong,b';
+    let title=[...document.querySelectorAll(selectors)].find(el=>normV465(el.textContent).startsWith(wanted));
+    if(!title){
+      title=[...document.querySelectorAll('div,span')].find(el=>{const t=normV465(el.textContent);return t.startsWith(wanted)&&t.length<90&&el.children.length<=2});
+    }
+    if(!title)return false;
+    let box=title.closest('.billing-queue,.billing-next,.queue-card,.card,.panel,.box');
+    if(!box){
+      const p=title.parentElement;
+      if(p&&normV465(p.textContent).startsWith(wanted)&&normV465(p.textContent).length<1200)box=p;
+    }
+    if(!box||box.dataset.v465BillingQueueHidden==='1')return !!box;
+    box.dataset.v465BillingQueueHidden='1';
+    box.style.display='none';
+    box.setAttribute('aria-hidden','true');
+    return true;
+  }
+  function scheduleV465BillingCleanup(){
+    if(v465BillingTimer)return;
+    v465BillingTimer=setTimeout(()=>{v465BillingTimer=0;hideV465BillingQueue()},100);
+  }
+  function bootV465Billing(){hideV465BillingQueue();setTimeout(hideV465BillingQueue,250);setTimeout(hideV465BillingQueue,900)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootV465Billing,{once:true});else bootV465Billing();
+  const root=document.documentElement;
+  if(root)new MutationObserver(scheduleV465BillingCleanup).observe(root,{childList:true,subtree:true});
+})();
+'''
 
 def patch_overlay(js):
     if 'v465BillingQueueHidden' in js:
