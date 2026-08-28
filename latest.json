@@ -34,7 +34,7 @@
     {
       "path": "update_manifest.json",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/update_manifest.json",
-      "sha256": "308db2b173107bfb233dbb4741e4e1f2b4550617fe3ba48ee2fa749cf8c2c682",
+      "sha256": "ec00e4dfdafb8206ccff381482e76222732a2865bc2dacc874058179bad6c8dd",
       "encoding": "utf-8"
     }
   ]
