@@ -29,6 +29,42 @@ jobs:
           if ($text -notmatch 'ABRIR_RECEPCION\.py') { throw 'Falta validación del launcher' }
           if ($text -notmatch '\.venv\\Scripts\\pythonw\.exe') { throw 'Falta validación del runtime' }
           if ($text -notmatch 'Rewrite-DataDirIfNeeded') { throw 'Falta protección RP_DATA_DIR' }
+          if ($text -notmatch 'Test-VenvRuntime') { throw 'Falta prueba del entorno Python trasladado' }
+
+      - name: Simular migración completa en Windows
+        shell: powershell
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP 'Recepcion origen prueba'
+          $dst = Join-Path $env:RUNNER_TEMP 'Recepcion destino prueba'
+          New-Item -ItemType Directory -Force $src | Out-Null
+          python -m venv (Join-Path $src '.venv')
+          $py = Join-Path $src '.venv\Scripts\python.exe'
+          & $py -m pip install --disable-pip-version-check --quiet fastapi sqlalchemy 'psycopg[binary]' python-dotenv
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudieron preparar dependencias de la prueba' }
+
+          'print("launcher dummy")' | Set-Content (Join-Path $src 'ABRIR_RECEPCION.py') -Encoding utf8
+          'APP_VERSION = "4.3.72"' | Set-Content (Join-Path $src 'app.py') -Encoding utf8
+          '{"version":"4.3.72","app_version":"4.3.72","runtime_version":"4.3.72"}' | Set-Content (Join-Path $src 'update_manifest.json') -Encoding utf8
+          New-Item -ItemType Directory -Force (Join-Path $src 'data') | Out-Null
+          'NO_BORRAR' | Set-Content (Join-Path $src 'data\sentinel.txt') -Encoding utf8
+          "RP_DATA_DIR=$src\data" | Set-Content (Join-Path $src '.env') -Encoding utf8
+
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File installer\migrate_install.ps1 -Source $src -Destination $dst
+          if ($LASTEXITCODE -ne 0) { throw 'La migración aislada devolvió error' }
+          if (Test-Path -LiteralPath $src) { throw 'La carpeta de origen de prueba no fue movida' }
+          if (-not (Test-Path -LiteralPath (Join-Path $dst 'data\sentinel.txt'))) { throw 'Se perdió el archivo de datos de prueba' }
+          if (-not (Test-Path -LiteralPath (Join-Path $dst '.env'))) { throw 'Se perdió .env durante la migración' }
+
+          $envText = Get-Content (Join-Path $dst '.env') -Raw
+          $expectedData = Join-Path $dst 'data'
+          if ($envText.IndexOf($expectedData, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw 'RP_DATA_DIR no fue ajustado a la nueva ubicación'
+          }
+
+          $movedPy = Join-Path $dst '.venv\Scripts\python.exe'
+          & $movedPy -c 'import fastapi, sqlalchemy, psycopg, pydantic, dotenv; print("VENV_MOVED_OK")'
+          if ($LASTEXITCODE -ne 0) { throw 'La venv trasladada no funciona desde la nueva ubicación' }
+          Write-Host 'MIGRATION_SMOKE_TEST_OK'
 
       - name: Preparar logo ICO
         shell: powershell
