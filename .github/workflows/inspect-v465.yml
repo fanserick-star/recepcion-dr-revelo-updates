@@ -8,35 +8,63 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Inspeccionar UI facturación y shell
+      - name: Generar diagnóstico corto
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           root=Path('.')
           parts=sorted((root/'updates'/'v464').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
-          s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
-          low=s.lower()
-          terms=['/api/billing','facturación','facturacion','pending-count','billing/next','siguiente','cola','id="billing','id=\'billing','data-section="billing','htmlresponse','staticfiles','index.html','frontend','web/index']
-          for term in terms:
-            print('\n### TERM',term)
-            t=term.lower();start=0;count=0
-            while True:
-              pos=low.find(t,start)
-              if pos<0:break
-              count+=1
-              print(f'--- OCC {count} POS {pos} ---')
-              print(s[max(0,pos-1800):min(len(s),pos+4200)])
-              start=pos+max(1,len(t))
-            print('COUNT',count)
-          print('\n### FILE TREE LIKELY FRONTEND')
+          app=b''.join(p.read_bytes() for p in parts).decode('utf-8')
+          out=[]
+          def add(title,text):
+              out.append(f'## {title}\n{text}\n')
+          # Backend billing contexts.
+          for term in ['/api/billing/next','/api/billing','historical_last_visit_date','"ultima_atencion": None','_sync_agenda_states_from_cloud(db, dates)']:
+              pos=app.find(term)
+              add(term, app[max(0,pos-900):min(len(app),pos+1800)] if pos>=0 else 'NOT FOUND')
+          # Search all textual frontend/static files, excluding agenda web because it must remain untouched.
+          hits=[]
           for p in root.rglob('*'):
-            if p.is_file() and p.suffix.lower() in {'.html','.js','.css'}:
-              print(p.as_posix(),p.stat().st_size)
+              if not p.is_file() or '.git' in p.parts or (p.parts and p.parts[0]=='agenda'):
+                  continue
+              if p.suffix.lower() not in {'.html','.js','.css','.py','.txt'}:
+                  continue
+              try: text=p.read_text(encoding='utf-8')
+              except Exception: continue
+              low=text.lower()
+              terms=['cola de facturación','cola de facturacion','/api/billing/next','billing-next','billingnext','pending-count']
+              for term in terms:
+                  start=0
+                  while True:
+                      pos=low.find(term.lower(),start)
+                      if pos<0: break
+                      hits.append((p.as_posix(),term,pos,text[max(0,pos-700):min(len(text),pos+1600)]))
+                      start=pos+1
+          for i,(path,term,pos,ctx) in enumerate(hits[:40],1):
+              add(f'FRONTEND HIT {i}: {path} :: {term} @ {pos}',ctx)
+          # Tree of likely desktop frontend files.
+          files=[]
+          for p in root.rglob('*'):
+              if p.is_file() and (not p.parts or p.parts[0] != 'agenda') and p.suffix.lower() in {'.html','.js','.css'}:
+                  files.append(f'{p.as_posix()} {p.stat().st_size}')
+          add('DESKTOP FRONTEND FILES','\n'.join(files) or 'NONE')
+          dest=root/'diagnostics'/'v465_targets.txt'
+          dest.parent.mkdir(exist_ok=True)
+          dest.write_text('\n'.join(out),encoding='utf-8')
           PY
+      - name: Guardar diagnóstico
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add diagnostics/v465_targets.txt
+          git commit -m 'Diagnóstico v4.3.65 targets' || exit 0
+          git pull --rebase origin main
+          git push
