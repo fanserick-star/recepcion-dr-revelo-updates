@@ -87,60 +87,92 @@ function Assert-CriticalFiles([string]$Root) {
     }
 }
 
+function Test-VenvRuntime([string]$Root) {
+    $python = Join-Path $Root '.venv\Scripts\python.exe'
+    $check = 'import sys, fastapi, sqlalchemy, psycopg, pydantic, dotenv; print(sys.executable)'
+    $output = & $python -c $check 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "El entorno Python no funciona correctamente después de moverlo. Detalle: $($output -join ' ')"
+    }
+}
+
 $src = Normalize-Path $Source
 $dst = Normalize-Path $Destination
+$movedWhole = $false
 
 if (-not (Test-ReceptionInstall $src)) {
     throw "La carpeta seleccionada no parece ser una instalación válida de Recepción. Selecciona la carpeta que contiene ABRIR_RECEPCION.py, app.py y .venv."
 }
 
-Stop-ReceptionProcesses $src
+try {
+    Stop-ReceptionProcesses $src
 
-if ($src.Equals($dst, [System.StringComparison]::OrdinalIgnoreCase)) {
-    Assert-CriticalFiles $dst
-    Rewrite-DataDirIfNeeded (Join-Path $dst '.env') $src $dst
-} else {
-    $parent = Split-Path -Parent $dst
-    if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+    if ($src.Equals($dst, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Assert-CriticalFiles $dst
+        Rewrite-DataDirIfNeeded (Join-Path $dst '.env') $src $dst
+    } else {
+        $parent = Split-Path -Parent $dst
+        if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
 
-    if (Test-Path -LiteralPath $dst) {
-        $items = @(Get-ChildItem -LiteralPath $dst -Force -ErrorAction SilentlyContinue)
-        if ($items.Count -eq 0) {
-            Remove-Item -LiteralPath $dst -Force
+        if (Test-Path -LiteralPath $dst) {
+            $items = @(Get-ChildItem -LiteralPath $dst -Force -ErrorAction SilentlyContinue)
+            if ($items.Count -eq 0) {
+                Remove-Item -LiteralPath $dst -Force
+            }
+        }
+
+        if (-not (Test-Path -LiteralPath $dst)) {
+            # Caso normal: se mueve la instalación completa. En el mismo disco esto
+            # es una operación rápida y conserva exactamente .env, .venv y data.
+            Move-Item -LiteralPath $src -Destination $dst
+            $movedWhole = $true
+        } else {
+            # Modo reparación: si C: ya tiene una instalación, copiamos sin borrar
+            # el origen. Esto evita destruir una instalación previa por accidente.
+            & robocopy.exe $src $dst /E /COPY:DAT /DCOPY:T /R:2 /W:1 /XJ /XD '__pycache__' 'update_staging' | Out-Null
+            $rc = $LASTEXITCODE
+            if ($rc -ge 8) { throw "Robocopy no pudo completar la migración (código $rc)." }
+        }
+
+        Rewrite-DataDirIfNeeded (Join-Path $dst '.env') $src $dst
+        Assert-CriticalFiles $dst
+    }
+
+    # Prueba real del runtime ya desde la nueva ubicación. No inicia Recepción,
+    # no abre Neon y no modifica datos: solo importa dependencias locales.
+    Test-VenvRuntime $dst
+
+    # La actualización automática necesita escribir dentro de la carpeta del programa.
+    # Damos modificación solo al usuario que ejecuta el instalador.
+    try {
+        $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+        & icacls.exe $dst /grant "$($identity):(OI)(CI)M" /T /C /Q | Out-Null
+    } catch {}
+
+    $marker = @{
+        product = 'recepcion-pacientes'
+        installed_at = (Get-Date).ToString('s')
+        location = $dst
+        migrated_from = $src
+    } | ConvertTo-Json -Depth 3
+    [System.IO.File]::WriteAllText((Join-Path $dst 'installed_location.json'), $marker + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+
+    Write-Host "Recepción migrada correctamente a $dst"
+    exit 0
+} catch {
+    $originalError = $_
+
+    # Si esta era una migración limpia y algo falló DESPUÉS del Move-Item,
+    # intentamos devolver toda la carpeta a su ubicación original. Así un fallo
+    # del instalador no deja al usuario sin su instalación donde estaba.
+    if ($movedWhole -and (Test-Path -LiteralPath $dst) -and -not (Test-Path -LiteralPath $src)) {
+        try {
+            Rewrite-DataDirIfNeeded (Join-Path $dst '.env') $dst $src
+            Move-Item -LiteralPath $dst -Destination $src
+        } catch {
+            Write-Error "Falló la migración y también el rollback automático. La instalación sigue disponible en: $dst"
         }
     }
 
-    if (-not (Test-Path -LiteralPath $dst)) {
-        # En el caso normal (Escritorio -> C:) movemos la carpeta completa. Así se
-        # conserva exactamente .env, .venv, módulos, datos y cualquier archivo local.
-        Move-Item -LiteralPath $src -Destination $dst
-    } else {
-        # Modo reparación: si ya existe una instalación en C:, copiamos de forma
-        # conservadora y verificamos. No borramos la carpeta de origen en este caso.
-        & robocopy.exe $src $dst /E /COPY:DAT /DCOPY:T /R:2 /W:1 /XJ /XD '__pycache__' 'update_staging' | Out-Null
-        $rc = $LASTEXITCODE
-        if ($rc -ge 8) { throw "Robocopy no pudo completar la migración (código $rc)." }
-    }
-
-    Rewrite-DataDirIfNeeded (Join-Path $dst '.env') $src $dst
-    Assert-CriticalFiles $dst
+    throw $originalError
 }
-
-# La actualización automática necesita escribir dentro de la carpeta del programa.
-# Conservamos el propietario heredado y damos modificación al usuario que ejecuta
-# el instalador. No se conceden permisos globales ni se tocan credenciales.
-try {
-    $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-    & icacls.exe $dst /grant "$($identity):(OI)(CI)M" /T /C /Q | Out-Null
-} catch {}
-
-$marker = @{
-    product = 'recepcion-pacientes'
-    installed_at = (Get-Date).ToString('s')
-    location = $dst
-    migrated_from = $src
-} | ConvertTo-Json -Depth 3
-[System.IO.File]::WriteAllText((Join-Path $dst 'installed_location.json'), $marker + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
-
-Write-Host "Recepción migrada correctamente a $dst"
-exit 0
