@@ -1,0 +1,38 @@
+name: Diagnosticar modal v4.3.69
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-v469.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspeccionar estructura real del modal
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          parts=sorted(Path('updates/v468').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
+          s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
+          for term in ['function openModal','openModal(','id="modal"','class="modal','modal-content','modal-card','modal-box','modalBody','modal-body']:
+              start=0
+              while True:
+                  pos=s.find(term,start)
+                  if pos<0: break
+                  print('\n===',term,'@',pos,'===')
+                  print(s[max(0,pos-1800):min(len(s),pos+4200)])
+                  start=pos+len(term)
+          print('\n=== CSS RULES ===')
+          for term in ['.modal{','.modal {','.modal-content{','.modal-content {','.modal-card{','.modal-card {']:
+              start=0
+              while True:
+                  pos=s.find(term,start)
+                  if pos<0: break
+                  print('\n---',term,'@',pos,'---')
+                  print(s[max(0,pos-800):min(len(s),pos+2800)])
+                  start=pos+len(term)
+          PY
