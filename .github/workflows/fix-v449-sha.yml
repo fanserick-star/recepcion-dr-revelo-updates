@@ -53,3 +53,5 @@ jobs:
           git add latest-v3.json latest.json
           git commit -m "fix: corregir SHA real del bootstrap v4.3.49"
           git push
+
+# v2: disparo de reparación del SHA
