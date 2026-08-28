@@ -76,9 +76,6 @@ jobs:
               return p.read_bytes(), rel
 
           docs = {p: load(p) for p in MANIFESTS}
-          # Si por una publicación en varios commits los dos manifests difieren,
-          # toma como fuente la versión numéricamente más nueva. A igualdad,
-          # latest-v3.json es el canal canónico.
           canonical_path = max(
               MANIFESTS,
               key=lambda p: (vtuple(docs[p].get('version')), 1 if p.name == 'latest-v3.json' else 0),
@@ -134,12 +131,22 @@ jobs:
                       inner = json.loads(payload.decode('utf-8-sig'))
                   except Exception as exc:
                       raise RuntimeError(f'update_manifest.json inválido: {exc}') from exc
-                  for key in ('version', 'app_version', 'runtime_version'):
-                      val = str(inner.get(key) or '').strip()
-                      if val and val != version:
+                  inner_version = str(inner.get('version') or '').strip()
+                  if inner_version != version:
+                      raise RuntimeError(
+                          f'update_manifest.json: version={inner_version} no coincide con {version}'
+                      )
+                  app_version = str(inner.get('app_version') or '').strip()
+                  runtime_version = str(inner.get('runtime_version') or '').strip()
+                  for key, val in (('app_version', app_version), ('runtime_version', runtime_version)):
+                      if val and vtuple(val) > vtuple(version):
                           raise RuntimeError(
-                              f'update_manifest.json: {key}={val} no coincide con {version}'
+                              f'update_manifest.json: {key}={val} no puede superar la versión de paquete {version}'
                           )
+                  if app_version and runtime_version and app_version != runtime_version:
+                      raise RuntimeError(
+                          f'update_manifest.json: app_version={app_version} y runtime_version={runtime_version} difieren'
+                      )
 
           rendered = json.dumps(data, ensure_ascii=False, indent=2) + '\n'
           for path in MANIFESTS:
