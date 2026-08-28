@@ -75,7 +75,7 @@ jobs:
       - name: Publicar candidata reconstruida
         shell: bash
         run: |
-          if git diff --quiet -- updates/v458; then
+          if [ -z "$(git status --porcelain -- updates/v458)" ]; then
             echo 'La candidata ya coincide; no hay cambios.'
             exit 0
           fi
