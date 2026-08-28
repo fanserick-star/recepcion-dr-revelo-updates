@@ -45,6 +45,11 @@ jobs:
           if old_candidate in s:
               s = s.replace(old_candidate, new_candidate, 1)
 
+          old_today = 'if(r.kind==="recordatorio_hoy") return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_HOY||"recordatorio_hoy",language:env.LANG_RECORDATORIO_HOY||"es_EC",body_params:[name,timeLabel(t)],buttons:[],header_image_url};'
+          new_today = 'if(r.kind==="recordatorio_hoy") return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_HOY||"recordatorio_hoy",language:env.LANG_RECORDATORIO_HOY||"es_EC",body_params:[name,timeLabel(t)],buttons:[]};'
+          if old_today in s:
+              s = s.replace(old_today, new_today, 1)
+
           old_skip = 'if(!c){skipped++;continue;} if(!c.header_image_url&&!c.header_image_id){skipped++;continue;} if(!(await claim(client,c)))'
           new_skip = 'if(!c){skipped++;continue;} if(!(await claim(client,c)))'
           if old_skip in s:
@@ -55,8 +60,6 @@ jobs:
           if old_export in s:
               s = s.replace(old_export, new_export, 1)
 
-          # v2.5.2: las filas importadas de Confirmafy participan en confirmación
-          # del día anterior y recordatorio de 2 horas, pero nunca en cita_agendada.
           old_staged_filter = """  FROM public.confirmafy_agenda_items c
             WHERE c.source_hash LIKE 'mobile:%'"""
           new_staged_filter = """  FROM public.confirmafy_agenda_items c
@@ -129,6 +132,7 @@ jobs:
           assert 'Gracias por confirmar su cita con el Dr. Armando Revelo.' in s
           assert 'Para reagendar, por favor comuníquese directamente con el consultorio' in s
           assert 'acknowledgementText(ackAction,env)' in s
+          assert 'if(r.kind==="recordatorio_hoy") return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_HOY||"recordatorio_hoy",language:env.LANG_RECORDATORIO_HOY||"es_EC",body_params:[name,timeLabel(t)],buttons:[]};' in s
           p.write_text(s, encoding='utf-8')
           PY
       - name: Probar payload y respuestas
@@ -145,6 +149,9 @@ jobs:
           const realPayload = m.buildTemplatePayload(real,{});
           const realButtons = realPayload.template.components.filter(c => c.type === 'button').map(c => c.parameters?.[0]?.payload || '');
           if (!realButtons[0]?.startsWith('CONFIRMAR|') || !realButtons[1]?.startsWith('CANCELAR|')) throw new Error('botones reales incorrectos');
+          const today = m.materializeCandidate({...base,kind:'recordatorio_hoy',is_test:false},{});
+          const todayPayload = m.buildTemplatePayload(today,{});
+          if (todayPayload.template.components.some(c => c.type === 'header')) throw new Error('recordatorio_hoy no debe enviar header');
           const yes = m.acknowledgementText('CONFIRMAR',{});
           const no = m.acknowledgementText('CANCELAR',{});
           if (/[✅😊]/.test(yes+no)) throw new Error('las respuestas reales no deben llevar emojis');
