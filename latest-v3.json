@@ -13,13 +13,13 @@
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part3",
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part4"
       ],
-      "sha256": "PENDING",
+      "sha256": "d5819a74e570c096d571971b244630d03342b258d32da93949d0bf1b5edb4d31",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/update_manifest.json",
-      "sha256": "PENDING",
+      "sha256": "1ba23c007e5f624e4c3846fa4f0bb50aa552edd8e133d9a0d596aefac0fa425f",
       "encoding": "utf-8"
     }
   ]
