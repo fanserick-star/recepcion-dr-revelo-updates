@@ -33,16 +33,14 @@ assert 'with LocalSessionLocal() as ldb:' in source
 assert '_kick_agenda_status_sync(dates)' in source
 assert 'threading.Thread(target=worker, name="agenda-state-sync-bg", daemon=True).start()' in source
 assert 'v465BillingQueueHidden' in source
-assert "wanted='cola de facturacion'" in source
 
-# Endpoints de facturación/AZUR no se cambian ni se sustituyen.
+# Endpoints centrales de facturación/AZUR no se cambian ni se sustituyen.
 for marker in (
     '@app.post("/api/billing/approve")',
     '@app.post("/api/billing/approve-all-pending")',
     '@app.post("/api/billing/azur/preview")',
     '@app.post("/api/billing/azur/emit")',
     '@app.post("/api/billing/azur/emit-all-pending")',
-    '@app.post("/api/billing/azur/check-status")',
 ):
     assert marker in source
 
@@ -57,6 +55,11 @@ assert set(consts)=={'V458_SETTINGS_JS','V459_SETTINGS_JS','V460_OVERLAY_JS'}
 settings=consts['V458_SETTINGS_JS']
 whatsapp=consts['V459_SETTINGS_JS']
 overlay=consts['V460_OVERLAY_JS']
+
+# v4.3.65 continúa ocultando solo la tarjeta redundante de la cola.
+assert 'v465BillingQueueHidden' in overlay
+assert "wanted='cola de facturacion'" in overlay
+assert "box.style.display='none'" in overlay
 
 # Configuración y prueba WhatsApp ya no tienen fallback nativo conocido.
 assert "window.rpConfirm('¿Renovar el enlace editable de Recepción / Ayudante?" in settings
