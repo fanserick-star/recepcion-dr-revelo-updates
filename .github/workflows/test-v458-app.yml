@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'updates/v458/**'
+      - '.gitattributes'
       - '.github/workflows/test-v458-app.yml'
       - 'latest.json'
       - 'latest-v3.json'
