@@ -1,4 +1,4 @@
-name: Bundle WhatsApp Worker v2.5
+name: Bundle WhatsApp Worker v2.5.1
 
 on:
   push:
@@ -21,6 +21,62 @@ jobs:
           node-version: '22'
       - name: Instalar bundler y dependencia
         run: npm install --no-save esbuild @neondatabase/serverless
+      - name: Aplicar correcciones v2.5.1
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_due = """  SELECT b.*, 'recordatorio_cita'::text kind,
+                   ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil' due_at,
+                   false::boolean is_test"""
+          new_due = """  SELECT b.*, 'recordatorio_cita'::text kind,
+                   GREATEST(
+                     ((b.fecha - 1) + $4::time) AT TIME ZONE 'America/Guayaquil',
+                     b.created_at AT TIME ZONE 'America/Guayaquil'
+                   ) due_at,
+                   false::boolean is_test"""
+          if old_due in s:
+              s = s.replace(old_due, new_due, 1)
+
+          old_candidate = 'if(r.kind==="recordatorio_cita") { const yes="CONFIRMAR",no="CANCELAR"; return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_CITA||"recordatorio_cita",language:env.LANG_RECORDATORIO_CITA||"es_ES",body_params:[name,recordatorioDateTimeLabel(d,t)],buttons:[`${yes}|${r.source_type}|${r.source_id}|${d}|${t}`,`${no}|${r.source_type}|${r.source_id}|${d}|${t}`],header_image_url}; }'
+          new_candidate = 'if(r.kind==="recordatorio_cita") { const yes=r.is_test?"TEST_CONFIRMAR":"CONFIRMAR",no=r.is_test?"TEST_CANCELAR":"CANCELAR"; return {...r,phone,template_name:env.TEMPLATE_RECORDATORIO_CITA||"recordatorio_cita",language:env.LANG_RECORDATORIO_CITA||"es_ES",body_params:[name,recordatorioDateTimeLabel(d,t)],buttons:[`${yes}|${r.source_type}|${r.source_id}|${d}|${t}`,`${no}|${r.source_type}|${r.source_id}|${d}|${t}`]}; }'
+          if old_candidate in s:
+              s = s.replace(old_candidate, new_candidate, 1)
+
+          old_skip = 'if(!c){skipped++;continue;} if(!c.header_image_url&&!c.header_image_id){skipped++;continue;} if(!(await claim(client,c)))'
+          new_skip = 'if(!c){skipped++;continue;} if(!(await claim(client,c)))'
+          if old_skip in s:
+              s = s.replace(old_skip, new_skip, 1)
+
+          old_export = 'export { runScheduler,parseActionPayload,extractPayload,validMetaSignature,recordatorioDateTimeLabel,normalizePhone,acknowledgementText,responseWasApplied,sendTextMeta,testTemplateFromHash };'
+          new_export = 'export { runScheduler,parseActionPayload,extractPayload,validMetaSignature,recordatorioDateTimeLabel,normalizePhone,acknowledgementText,responseWasApplied,sendTextMeta,testTemplateFromHash,materializeCandidate,buildTemplatePayload };'
+          if old_export in s:
+              s = s.replace(old_export, new_export, 1)
+
+          assert 'r.is_test?"TEST_CONFIRMAR":"CONFIRMAR"' in s
+          assert 'GREATEST(' in s and "b.created_at AT TIME ZONE 'America/Guayaquil'" in s
+          assert '!c.header_image_url&&!c.header_image_id' not in s
+          assert 'materializeCandidate,buildTemplatePayload' in s
+          p.write_text(s, encoding='utf-8')
+          PY
+      - name: Probar payload de recordatorio_cita
+        run: |
+          node --input-type=module <<'NODE'
+          const m = await import('./cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js');
+          const base = {kind:'recordatorio_cita',phone:'593967841449',patient_name:'PRUEBA',appointment_date:'2026-08-29',appointment_time:'15:00',source_type:'staged',source_id:25};
+          const test = m.materializeCandidate({...base,is_test:true},{});
+          const testPayload = m.buildTemplatePayload(test,{});
+          if (testPayload.template.components.some(c => c.type === 'header')) throw new Error('recordatorio_cita no debe enviar header');
+          const testButtons = testPayload.template.components.filter(c => c.type === 'button').map(c => c.parameters?.[0]?.payload || '');
+          if (!testButtons[0]?.startsWith('TEST_CONFIRMAR|') || !testButtons[1]?.startsWith('TEST_CANCELAR|')) throw new Error('botones de prueba no estan aislados');
+          const real = m.materializeCandidate({...base,is_test:false},{});
+          const realPayload = m.buildTemplatePayload(real,{});
+          const realButtons = realPayload.template.components.filter(c => c.type === 'button').map(c => c.parameters?.[0]?.payload || '');
+          if (!realButtons[0]?.startsWith('CONFIRMAR|') || !realButtons[1]?.startsWith('CANCELAR|')) throw new Error('botones reales incorrectos');
+          console.log('payload recordatorio_cita OK');
+          NODE
       - name: Generar Worker standalone
         run: |
           npx esbuild cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js \
@@ -29,26 +85,28 @@ jobs:
             --platform=browser \
             --target=es2022 \
             --outfile=cloudflare/whatsapp_worker_v2_5_STANDALONE.js \
-            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.5 — standalone bundle'
+            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.5.1 — standalone bundle'
           cp cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
       - name: Validar bundle
         run: |
           node --check cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'worker_version' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'mobile:whatsapp-cloud-test:' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_5_STANDALONE.js; then
             echo 'ERROR: dependency import was not bundled'
             exit 1
           fi
           cmp cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
-      - name: Guardar bundle en el repositorio
+      - name: Guardar fuente y bundle en el repositorio
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
+          git add cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
           if git diff --cached --quiet; then
-            echo 'Bundle ya estaba actualizado.'
+            echo 'Worker y bundle ya estaban actualizados.'
           else
-            git commit -m 'Build standalone WhatsApp worker v2.5'
+            git commit -m 'Build standalone WhatsApp worker v2.5.1'
+            git pull --rebase origin main
             git push
           fi
