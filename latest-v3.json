@@ -1,22 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.49",
+  "version": "4.3.50",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.49: el enlace 24/7 del doctor queda permanente y ya no cambia al renovar el acceso editable. Al abrir Configuración > Agenda se revalida la misma llave con Neon sin generar otra. Además, la Agenda del programa sincroniza de forma liviana solo los estados de las citas visibles, para que una respuesta Sí/No de WhatsApp Cloud aparezca como Confirmada/No asistirá sin esperar la copia completa de una hora.",
+  "message": "v4.3.50: corrige el puente automático que podía dejar el programa en v4.3.47 mostrando “Listo” sin instalar. Recupera de forma segura la copia anterior y aplica la actualización. Incluye el enlace 24/7 permanente del doctor y la sincronización liviana de estados Sí/No de WhatsApp para que Confirmada/No asistirá aparezca en la agenda sin esperar la copia completa.",
   "files": [
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v449/bootstrap_app.py"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v450/bootstrap_app.py"
       ],
-      "sha256": "699ac92435c02f826a9b2b40333c13e73a7fbb7cd85a769ca8503d42662168ed",
+      "sha256": "b22bb2ba35b1f28754915a47d8d47ce3285cc7abf614b19de1c893863e2e681a",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v449/update_manifest.json",
-      "sha256": "5e2b768c30ef0598ba80596c4ee149dcc8c249f954e6a753667c7dc4af304119",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v450/update_manifest.json",
+      "sha256": "951b9456891cb7bf783e6cba49e594720c604a8494d08a775827b34ce0874a13",
       "encoding": "utf-8"
     }
   ]
