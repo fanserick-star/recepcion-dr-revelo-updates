@@ -1,0 +1,10 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.50",
+  "app_version": "4.3.50",
+  "runtime_version": "4.3.50",
+  "copy": [
+    "update_manifest.json",
+    "app.py"
+  ]
+}
