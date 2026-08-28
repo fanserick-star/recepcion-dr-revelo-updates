@@ -1,3 +1,4 @@
+# Integridad: release_meta.json es la única fuente de SHA y tamaño de la candidata.
 name: Validar app v4.3.60
 
 on:
