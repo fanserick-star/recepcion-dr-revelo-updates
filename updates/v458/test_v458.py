@@ -3,6 +3,7 @@ import ast, os, shutil, sys, tempfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
+START_CWD=Path.cwd()
 parts=sorted(ROOT.glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
 raw=b''.join(p.read_bytes() for p in parts)
 app_source=raw.decode('utf-8')
@@ -66,11 +67,14 @@ with tempfile.TemporaryDirectory() as td:
     assert ws['templates']['cita_agendada']['approved'] is False
     assert ws['templates']['recordatorio_hoy']['approved'] is False
 
-    # Windows no permite borrar SQLite mientras el engine conserva handles abiertos.
-    # Cerramos explícitamente los pools al terminar; esto solo afecta al entorno temporal de CI.
     for engine_name in ('local_engine','cloud_engine'):
         engine=getattr(app,engine_name,None)
         if engine is not None:
             engine.dispose()
+    os.chdir(START_CWD)
+    try:
+        sys.path.remove(str(d))
+    except ValueError:
+        pass
 
 print('V458_BEHAVIOR_OK')
