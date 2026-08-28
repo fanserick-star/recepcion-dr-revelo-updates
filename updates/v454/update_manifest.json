@@ -3,13 +3,15 @@
   "version": "4.3.54",
   "app_version": "4.3.54",
   "runtime_version": "4.3.54",
-  "updater_version": "3.1",
-  "launcher_version": "4.3.51-safe",
+  "updater_version": "3.2",
+  "launcher_version": "4.3.54-safe2",
   "copy": [
     "update_manifest.json",
     "app.py",
     "_v451_apply.py",
+    "_AUTOACTUALIZAR_31.py",
     "AUTOACTUALIZAR.py",
+    "_ABRIR_RECEPCION_451.py",
     "ABRIR_RECEPCION.py",
     "static/app.js",
     "static/style.css"
