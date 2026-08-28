@@ -31,16 +31,25 @@ jobs:
           node-version: '22'
       - name: Instalar dependencias mínimas para importar app.py
         run: python -m pip install --disable-pip-version-check fastapi sqlalchemy python-dotenv python-multipart
-      - name: Reconstruir y compilar app publicada
+      - name: Reconstruir, verificar SHA y compilar app publicada
         shell: bash
         run: |
           python - <<'PY'
+          import hashlib
           from pathlib import Path
           root=Path('updates/v458')
           parts=sorted(root.glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
+          if len(parts) != 6:
+              raise SystemExit(f'Se esperaban 6 partes de app.py y hay {len(parts)}')
           raw=b''.join(p.read_bytes() for p in parts)
+          if len(raw) != 423484:
+              raise SystemExit(f'Tamaño app.py inválido: {len(raw)}')
+          got=hashlib.sha256(raw).hexdigest()
+          want='f6a95f3058afe93feb5b386d514d6ef79313595c37138c1189276e69f642781f'
+          if got != want:
+              raise SystemExit(f'SHA app.py inválido: {got} != {want}')
           Path('_ci_app.py').write_bytes(raw)
-          print('app.py reconstruido:',len(raw),'bytes')
+          print('app.py reconstruido y verificado:',len(raw),'bytes',got)
           PY
           python -m py_compile _ci_app.py
       - name: Validar JavaScript incrustado
