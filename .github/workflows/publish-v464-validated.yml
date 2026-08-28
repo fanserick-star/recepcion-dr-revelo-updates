@@ -1,0 +1,48 @@
+name: Publicar v4.3.64 validada
+
+on:
+  workflow_run:
+    workflows: ['Validar app v4.3.64']
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Generar canal desde metadata única
+        run: >-
+          python tools/publish_release_from_meta.py
+          --release-dir updates/v464
+          --message "v4.3.64: reemplaza el selector nativo de pruebas WhatsApp por botones confiables y refuerza los avisos internos para evitar cuadros nativos de Windows."
+      - name: Verificar manifests idénticos
+        run: |
+          cmp latest-v3.json latest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))
+          assert a['version']=='4.3.64'
+          assert [x['path'] for x in a['files']]==['ABRIR_RECEPCION.py','app.py','update_manifest.json']
+          print('CHANNEL_V464_OK')
+          PY
+      - name: Publicar canal automático
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest-v3.json latest.json
+          if git diff --cached --quiet; then
+            echo 'El canal ya estaba en v4.3.64.'
+          else
+            git commit -m 'release: publicar v4.3.64 desde metadata verificada'
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
