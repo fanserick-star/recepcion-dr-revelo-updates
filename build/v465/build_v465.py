@@ -41,7 +41,6 @@ def rewrite_js_assignment(name, transform):
 
 # Versión y cache de recursos del escritorio.
 one('APP_VERSION = "4.3.64"','APP_VERSION = "4.3.65"','APP_VERSION')
-one("const VERSION='4.3.64';","const VERSION='4.3.65';",'badge version')
 one('/v460/overlay.css?v=4.3.64','/v460/overlay.css?v=4.3.65','overlay css cache')
 one('/v460/overlay.js?v=4.3.64','/v460/overlay.js?v=4.3.65','overlay js cache')
 
@@ -68,6 +67,10 @@ BILLING_PATCH=r'''\n;(()=>{\n  const normV465=s=>String(s||'').normalize('NFD').
 def patch_overlay(js):
     if 'v465BillingQueueHidden' in js:
         raise SystemExit('El overlay ya contiene el parche v4.3.65')
+    old="const VERSION='4.3.64';"
+    if js.count(old)!=1:
+        raise SystemExit(f'badge version overlay: se esperaba 1 coincidencia y hubo {js.count(old)}')
+    js=js.replace(old,"const VERSION='4.3.65';",1)
     return js+BILLING_PATCH
 
 rewrite_js_assignment('V460_OVERLAY_JS',patch_overlay)
