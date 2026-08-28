@@ -15,24 +15,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Extraer snippets finales
+      - name: Inspeccionar UI facturación y shell
         run: |
           python - <<'PY'
           from pathlib import Path
           root=Path('.')
           parts=sorted((root/'updates'/'v464').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
           s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
-          terms=['historical_last_visit_date','historical_last_year','ultima_atencion','Histórico 2020','Historial 2020','Cola de fact','cola de fact','/api/billing/next','/api/billing/queue','billingNext','loadBilling','renderBilling','/api/agenda/week','loadAgendaWeek','renderAgendaWeek','function loadAgenda','function renderAgenda']
+          low=s.lower()
+          terms=['/api/billing','facturación','facturacion','pending-count','billing/next','siguiente','cola','id="billing','id=\'billing','data-section="billing','htmlresponse','staticfiles','index.html','frontend','web/index']
           for term in terms:
             print('\n### TERM',term)
-            low=s.lower(); t=term.lower(); start=0; count=0
+            t=term.lower();start=0;count=0
             while True:
               pos=low.find(t,start)
-              if pos<0: break
+              if pos<0:break
               count+=1
-              a=max(0,pos-1200);b=min(len(s),pos+2600)
               print(f'--- OCC {count} POS {pos} ---')
-              print(s[a:b])
-              start=pos+len(t)
+              print(s[max(0,pos-1800):min(len(s),pos+4200)])
+              start=pos+max(1,len(t))
             print('COUNT',count)
+          print('\n### FILE TREE LIKELY FRONTEND')
+          for p in root.rglob('*'):
+            if p.is_file() and p.suffix.lower() in {'.html','.js','.css'}:
+              print(p.as_posix(),p.stat().st_size)
           PY
