@@ -30,6 +30,7 @@ jobs:
             --target=es2022 \
             --outfile=cloudflare/whatsapp_worker_v2_5_STANDALONE.js \
             --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.5 — standalone bundle'
+          cp cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
       - name: Validar bundle
         run: |
           node --check cloudflare/whatsapp_worker_v2_5_STANDALONE.js
@@ -39,11 +40,12 @@ jobs:
             echo 'ERROR: dependency import was not bundled'
             exit 1
           fi
+          cmp cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
       - name: Guardar bundle en el repositorio
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          git add cloudflare/whatsapp_worker_v2_5_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_5_STANDALONE.txt
           if git diff --cached --quiet; then
             echo 'Bundle ya estaba actualizado.'
           else
