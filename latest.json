@@ -1,9 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.64",
+  "version": "4.3.65",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.64: reemplaza el selector nativo de pruebas WhatsApp por botones confiables y refuerza los avisos internos para evitar cuadros nativos de Windows.",
+  "message": "v4.3.65: muestra la última cita del historial 2020–2025 al atender, acelera la Agenda de la PC cargando primero desde SQLite y elimina el recuadro redundante Cola de facturación. La Agenda web no se modifica.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -19,21 +19,21 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part7"
       ],
-      "sha256": "33ba932ef73ae28722c5f8f1a75d439a82cfb4a67adb78d837430522b786f9a8",
+      "sha256": "e9763acd0bbf7792a8b90a88093a5ce0749bcc9fddce2dd75e9495cf89d81958",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v464/update_manifest.json",
-      "sha256": "3a46d48e294b33fe5e77eec65b1224006f30b13adb5e1d173e1386113cf64a56",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/update_manifest.json",
+      "sha256": "8eae78539fc573bd1915f534234a2631016b237b9ea046c593a8272c1aa68ebe",
       "encoding": "utf-8"
     }
   ]
