@@ -88,6 +88,31 @@ jobs:
           if old_window in s:
               s = s.replace(old_window, new_window, 1)
 
+          old_ack = '''function acknowledgementText(action){
+            const a=String(action||"").toUpperCase();
+            if(a==="TEST_CONFIRMAR") return "✅ Prueba recibida: botón Sí funcionando correctamente. No se modificó ninguna cita real.";
+            if(a==="TEST_CANCELAR") return "✅ Prueba recibida: botón No funcionando correctamente. No se modificó ninguna cita real.";
+            if(a==="CONFIRMAR") return "✅ ¡Gracias por confirmar! Su cita con el Dr. Armando Revelo ha quedado confirmada. Lo esperamos en la fecha y hora indicadas. 😊";
+            if(a==="CANCELAR") return "✅ Gracias por avisarnos. Hemos registrado que no podrá asistir a su cita. Si desea reagendar, puede escribirnos por este mismo medio y con gusto le ayudaremos.";
+            return "";
+          }'''
+          new_ack = '''function acknowledgementText(action,env={}){
+            const a=String(action||"").toUpperCase();
+            const doctorPhone=String(env.DOCTOR_CONTACT_PHONE||"0968840690").trim()||"0968840690";
+            if(a==="TEST_CONFIRMAR") return "Prueba recibida: el botón Sí funciona correctamente. No se modificó ninguna cita real.";
+            if(a==="TEST_CANCELAR") return "Prueba recibida: el botón No funciona correctamente. No se modificó ninguna cita real.";
+            if(a==="CONFIRMAR") return "Gracias por confirmar su cita con el Dr. Armando Revelo. Su asistencia ha quedado registrada. Lo esperamos en la fecha y hora indicadas.";
+            if(a==="CANCELAR") return `Gracias por informarnos. Hemos registrado que no podrá asistir a su cita. Para reagendar, por favor comuníquese directamente con el consultorio del Dr. Armando Revelo al ${doctorPhone}.`;
+            return "";
+          }'''
+          if old_ack in s:
+              s = s.replace(old_ack, new_ack, 1)
+
+          old_ack_call = 'const ack=acknowledgementText(ackAction);'
+          new_ack_call = 'const ack=acknowledgementText(ackAction,env);'
+          if old_ack_call in s:
+              s = s.replace(old_ack_call, new_ack_call, 1)
+
           s = s.replace('Dr-Revelo-WhatsApp-Worker/2.5.1', 'Dr-Revelo-WhatsApp-Worker/2.5.2')
           s = s.replace('worker_version:"2.5.1"', 'worker_version:"2.5.2"')
 
@@ -100,9 +125,13 @@ jobs:
           assert "b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'" in s
           assert "AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)" in s
           assert 'worker_version:"2.5.2"' in s
+          assert 'DOCTOR_CONTACT_PHONE||"0968840690"' in s
+          assert 'Gracias por confirmar su cita con el Dr. Armando Revelo.' in s
+          assert 'Para reagendar, por favor comuníquese directamente con el consultorio' in s
+          assert 'acknowledgementText(ackAction,env)' in s
           p.write_text(s, encoding='utf-8')
           PY
-      - name: Probar payload de recordatorio_cita
+      - name: Probar payload y respuestas
         run: |
           node --input-type=module <<'NODE'
           const m = await import('./cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js');
@@ -116,7 +145,12 @@ jobs:
           const realPayload = m.buildTemplatePayload(real,{});
           const realButtons = realPayload.template.components.filter(c => c.type === 'button').map(c => c.parameters?.[0]?.payload || '');
           if (!realButtons[0]?.startsWith('CONFIRMAR|') || !realButtons[1]?.startsWith('CANCELAR|')) throw new Error('botones reales incorrectos');
-          console.log('payload recordatorio_cita OK');
+          const yes = m.acknowledgementText('CONFIRMAR',{});
+          const no = m.acknowledgementText('CANCELAR',{});
+          if (/[✅😊]/.test(yes+no)) throw new Error('las respuestas reales no deben llevar emojis');
+          if (!no.includes('0968840690')) throw new Error('falta número del doctor en respuesta No');
+          if (!yes.includes('Su asistencia ha quedado registrada')) throw new Error('respuesta Sí incorrecta');
+          console.log('payload y respuestas v2.5.2 OK');
           NODE
       - name: Generar Worker standalone
         run: |
@@ -132,12 +166,14 @@ jobs:
         run: |
           node --check cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'worker_version' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
-          grep -q 'worker_version:"2.5.2"' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.5\.2"' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'mobile:whatsapp-cloud-test:' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q "b.created_at AT TIME ZONE 'UTC'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q "WHERE coalesce(c.source_hash,'') <> ''" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           grep -q "b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q '0968840690' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
+          grep -q 'Su asistencia ha quedado registrada' cloudflare/whatsapp_worker_v2_5_STANDALONE.js
           if grep -q "b.created_at AT TIME ZONE 'America/Guayaquil'" cloudflare/whatsapp_worker_v2_5_STANDALONE.js; then
             echo 'ERROR: created_at todavía se interpreta directamente como America/Guayaquil'
             exit 1
