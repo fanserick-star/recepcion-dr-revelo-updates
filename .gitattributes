@@ -1,3 +1,5 @@
-# Los fragmentos de payload deben conservar exactamente sus bytes en todos los SO.
+# Payloads y metadata de integridad: conservar exactamente los bytes del repositorio en todos los SO.
 updates/**/app.part* -text
 updates/**/ABRIR_RECEPCION.part* -text
+updates/**/update_manifest.json -text
+updates/**/release_meta.json -text
