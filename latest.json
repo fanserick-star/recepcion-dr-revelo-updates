@@ -1,52 +1,20 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.54",
+  "version": "4.3.55",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.54: consolidación directa y actualización automática blindada. El updater 3.2 detecta bootstraps pendientes aunque el número de versión ya coincida; el launcher safe2 consulta la nube antes de reutilizar un backend local y hace handoff automático al iniciador nuevo. Mantiene SHA, staging, rollback y protección de datos.",
+  "message": "v4.3.55: primera prueba limpia del auto-update 3.2. Actualiza únicamente el iniciador: splash ligero con logo, etapas de arranque, indicador de progreso, tiempo transcurrido y aviso si el inicio tarda más de lo normal. El backend clínico permanece en v4.3.54 para no tocar datos ni funciones durante esta prueba.",
   "files": [
     {
-      "path": "app.py",
-      "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/bootstrap_app.py"
-      ],
-      "sha256": "9b974c08c3a0ce6265cf6e1db5bc2215590b0b90df135074f89ec466ac1e85cc",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "_v451_apply.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/bootstrap_app.py",
-      "sha256": "bc938668ae0a153e90bcd8c7f325de5f290c7b0bc422c58704ffe25f9ff236ca",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "_AUTOACTUALIZAR_31.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/AUTOACTUALIZAR.py",
-      "sha256": "93671c141af0facebbbce5f50e5701060909cd8ca7a0029a26dcca73466e08b8",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "AUTOACTUALIZAR.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/AUTOACTUALIZAR.py",
-      "sha256": "1c5904e87d00449c69abdbc7b3be158b85483d7d79e1444320bcc30cea897da6",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "_ABRIR_RECEPCION_451.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/ABRIR_RECEPCION.py",
-      "sha256": "af58a88e6bf7409ea74c105be2064773eac31d9b41c149c1de86607a4c567657",
-      "encoding": "utf-8"
-    },
-    {
       "path": "ABRIR_RECEPCION.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/ABRIR_RECEPCION.py",
-      "sha256": "c6b54c073fa0b1df0c97d81942c55d72736f762f87f49a9f3d94b6b8a7861ab7",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v455/ABRIR_RECEPCION.py",
+      "sha256": "d661c043868b8d06212794eb30bfdb6541185061fb5e4e669a362f156fe9c9a3",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/update_manifest.json",
-      "sha256": "ec00e4dfdafb8206ccff381482e76222732a2865bc2dacc874058179bad6c8dd",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v455/update_manifest.json",
+      "sha256": "9df9101b27924ac97dbf28f7accb3581cadecc84dec12374ca08d36ec65d7406",
       "encoding": "utf-8"
     }
   ]
