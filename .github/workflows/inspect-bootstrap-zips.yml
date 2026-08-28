@@ -15,29 +15,32 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Listar contenido de ZIP históricos
+      - name: Buscar componentes base en todos los ZIP
         shell: powershell
         run: |
-          $zips = @(
-            'updates\ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip',
-            'updates\ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip',
-            'updates\ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip',
-            'releases\ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip',
-            'releases\ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip',
-            'releases\ACTUALIZACION_v4_3_39_DEBUT_FINAL_ACUMULATIVA.zip'
-          )
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          foreach ($zipPath in $zips) {
-            Write-Host "===== $zipPath ====="
-            if (-not (Test-Path $zipPath)) { Write-Host 'NO EXISTE'; continue }
-            try {
-              $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath))
-              try {
-                foreach ($entry in $zip.Entries) {
-                  Write-Host ("{0}`t{1}" -f $entry.FullName, $entry.Length)
-                }
-              } finally { $zip.Dispose() }
-            } catch {
-              Write-Host ("ZIP NO LEGIBLE: " + $_.Exception.Message)
-            }
-          }
+          @'
+          from pathlib import Path
+          import zipfile
+          wanted=('static/index.html','mobile/index.html','azur_client.py','whatsapp_client.py','remote_agenda.py','HISTORICO_PACIENTES_2020_2025.csv')
+          roots=[Path('updates'),Path('releases')]
+          found=[]
+          for base in roots:
+              if not base.exists(): continue
+              for z in sorted(base.rglob('*.zip')):
+                  try:
+                      with zipfile.ZipFile(z) as f:
+                          names=f.namelist()
+                          hits=[]
+                          for n in names:
+                              low=n.replace('\\','/').lower()
+                              for w in wanted:
+                                  if low.endswith(w.lower()): hits.append((w,n,f.getinfo(n).file_size))
+                          if hits:
+                              print('===== '+str(z)+' =====')
+                              for h in hits: print(f'{h[0]} => {h[1]} ({h[2]} bytes)')
+                              found.extend((str(z),*h) for h in hits)
+                  except Exception:
+                      pass
+          print('TOTAL_HITS',len(found))
+          if not found: raise SystemExit('No se encontró ningún componente base')
+          '@ | python -
