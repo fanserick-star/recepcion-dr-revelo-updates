@@ -1,9 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.66",
+  "version": "4.3.67",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.66: reemplaza las confirmaciones nativas de Facturación y AZUR por avisos internos de Recepción, manteniendo intacta la lógica de facturación y la Agenda web.",
+  "message": "v4.3.67: compacta la ficha de Agenda y muestra allí el teléfono del paciente; además reduce el ancho y espacios de Configuración para una lectura más cómoda. La Agenda web no se modifica.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -19,21 +19,21 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/app.part7"
       ],
-      "sha256": "70a97679078eb9dfd549a03f7a10f880f7f2a2fc307c3e4f4ce969bade31b7fd",
+      "sha256": "35560b2bb6542f8a453d4d195576c2de914aa34b8f977f86d0720ae4944c348a",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/update_manifest.json",
-      "sha256": "46bacf140ee33f9221826ffeb48f93da2ba02e2cccf8e7a1b179b546b2c038db",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v467/update_manifest.json",
+      "sha256": "643c32a84457158188fa942df66b85400e04376bd762c4e00f12491cd1528490",
       "encoding": "utf-8"
     }
   ]
