@@ -1,0 +1,335 @@
+            top = tk.Frame(outer, bg="#13213c")
+            top.pack(fill="x")
+
+            c = tk.Canvas(top, width=54, height=54, bg="#ffffff", highlightthickness=0)
+            c.pack(side="left", padx=(0, 13))
+            c.create_oval(8, 8, 24, 34, fill="#70b957", outline="")
+            c.create_oval(30, 8, 46, 34, fill="#70b957", outline="")
+            c.create_arc(16, 22, 38, 48, start=200, extent=140, style="arc", width=3, outline="#0d6d88")
+            c.create_oval(18, 38, 36, 49, outline="#1683ad", width=2)
+
+            titles = tk.Frame(top, bg="#13213c")
+            titles.pack(side="left", fill="x", expand=True)
+            tk.Label(titles, text="RECEPCIÓN", font=("Segoe UI", 10, "bold"),
+                     fg="#8fb5ff", bg="#13213c").pack(anchor="w")
+            tk.Label(titles, text="Dr. Armando Revelo", font=("Segoe UI", 18, "bold"),
+                     fg="white", bg="#13213c").pack(anchor="w", pady=(1, 0))
+
+            body = tk.Frame(outer, bg="#13213c")
+            body.pack(fill="x", pady=(17, 0))
+            self.label = tk.Label(body, text="Abriendo Recepción…", font=("Segoe UI", 11, "bold"),
+                                  fg="white", bg="#13213c")
+            self.label.pack(anchor="w")
+            self.detail = tk.Label(body, text="Preparando sistema", font=("Segoe UI", 9),
+                                   fg="#b9c8df", bg="#13213c")
+            self.detail.pack(anchor="w", pady=(4, 0))
+            self.elapsed = tk.Label(body, text="", font=("Segoe UI", 8),
+                                    fg="#7f93b0", bg="#13213c")
+            self.elapsed.pack(anchor="w", pady=(5, 0))
+            self.canvas = tk.Canvas(outer, width=420, height=4, bg="#233653", highlightthickness=0)
+            self.canvas.pack(fill="x", pady=(12, 0))
+            root.update_idletasks()
+            root.update()
+            self.root = root
+        except Exception:
+            self.root = None
+
+    def set(self, text: str, detail: str = ""):
+        self.phase = time.monotonic()
+        self.warned = False
+        try:
+            if self.label:
+                self.label.config(text=text)
+            if self.detail:
+                self.detail.config(text=detail)
+        except Exception:
+            pass
+        self.pump()
+
+    def pump(self):
+        try:
+            now = time.monotonic()
+            if self.elapsed and now - self.started >= 2:
+                self.elapsed.config(text=f"{now - self.started:.0f} s")
+            if self.detail and now - self.phase >= 8 and not self.warned:
+                self.warned = True
+                self.detail.config(text="Está tardando más de lo normal; seguimos intentando…")
+            if self.canvas:
+                self.spin = (self.spin + 1) % 32
+                self.canvas.delete("progress")
+                full = max(1, int(self.canvas.winfo_width() or 420))
+                width = max(70, full // 4)
+                x = int((self.spin / 31.0) * (full + width)) - width
+                self.canvas.create_rectangle(x, 0, min(full, x + width), 4,
+                                             fill="#5f9cff", outline="", tags="progress")
+            if self.root:
+                self.root.update_idletasks()
+                self.root.update()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            if self.root:
+                self.root.destroy()
+        except Exception:
+            pass
+        self.root = None
+
+
+def _open_webview() -> bool:
+    try:
+        import webview
+    except Exception as exc:
+        _log("pywebview no disponible: " + repr(exc))
+        return False
+
+    kwargs = {
+        "gui": "edgechromium",
+        "debug": False,
+        "private_mode": False,
+        "storage_path": str(_data_dir(ROOT) / "webview_profile"),
+    }
+    icon = ROOT / "static" / "doctor_icon.ico"
+    if icon.exists():
+        kwargs["icon"] = str(icon)
+
+    try:
+        try:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True, maximized=True,
+            )
+            maximize_after = False
+        except TypeError:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True,
+            )
+            maximize_after = True
+
+        if maximize_after:
+            def on_start():
+                try:
+                    time.sleep(0.15)
+                    window.maximize()
+                except Exception:
+                    pass
+            webview.start(on_start, **kwargs)
+        else:
+            webview.start(**kwargs)
+        return True
+    except Exception as exc:
+        _log("WebView2 falló: " + repr(exc) + " | " + traceback.format_exc(limit=4).replace("\n", " | "))
+        return False
+
+
+def _edge_exe() -> Path | None:
+    if os.name != "nt":
+        return None
+    candidates = [
+        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+        Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+    ]
+    for p in candidates:
+        if str(p) and p.exists():
+            return p
+    return None
+
+
+def _open_fallback() -> None:
+    edge = _edge_exe()
+    if edge:
+        try:
+            subprocess.Popen(
+                [str(edge), f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"],
+                cwd=str(ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_hidden_flags(),
+            )
+            return
+        except Exception as exc:
+            _log("Fallback Edge falló: " + repr(exc))
+    webbrowser.open(URL, new=2)
+
+
+def _message(text: str) -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.user32.MessageBoxW(0, text, TITLE, 0x10)
+            return
+        except Exception:
+            pass
+    print(text, file=sys.stderr)
+
+
+def main() -> None:
+    _set_windows_identity()
+
+    # Protección doble: mutex mientras el launcher/WebView está vivo y detección
+    # de ventana para el caso excepcional de fallback Edge.
+    if _running_version(timeout=0.45) is not None and _focus_existing_window():
+        return
+
+    handle, already = _acquire_mutex()
+    if already:
+        _focus_existing_window()
+        _release_mutex(handle)
+        return
+
+    splash = Splash()
+    try:
+        splash.set("Verificando actualización…", "Comprobando el canal seguro")
+        result = check_and_apply_update(ROOT)
+
+        if result.get("blocked"):
+            splash.close()
+            _message(result.get("error") or "La instalación local necesita reparación.")
+            return
+
+        if result.get("updated"):
+            splash.set("Instalando actualización…", f"Versión {result.get('version') or ''}")
+            if "app.py" in {p.lower() for p in result.get("paths", [])}:
+                _stop_server()
+
+        expected = _expected_app_version(ROOT)
+        current = _running_version()
+        if current != expected:
+            splash.set("Iniciando sistema…", "Preparando datos locales")
+            if current is not None:
+                _stop_server()
+            _start_server()
+            splash.set("Cargando agenda…", "Esperando al servidor local")
+            if not _wait_server(expected, 20.0, splash):
+                _stop_server()
+                _start_server()
+                splash.set("Verificando conexión…", "Reintentando el inicio local")
+                if not _wait_server(expected, 16.0, splash):
+                    raise RuntimeError("El backend no respondió. Revisa data\\backend_startup.log.")
+
+        splash.set("Listo", "Abriendo Recepción")
+        time.sleep(0.08)
+        splash.close()
+
+        if not _open_webview():
+            _open_fallback()
+    except Exception as exc:
+        _log("Fallo general del launcher: " + repr(exc) + " | " + traceback.format_exc(limit=6).replace("\n", " | "))
+        splash.close()
+        _message("No se pudo iniciar Recepción.\n\nEl detalle quedó guardado en data\\launcher_errors.log.")
+    finally:
+        splash.close()
+        _release_mutex(handle)
+
+
+
+def _selftest_mutex_holder(name: str, ready_file: str) -> int:
+    handle, already = _acquire_mutex(name)
+    if already:
+        _release_mutex(handle)
+        return 31
+    try:
+        Path(ready_file).write_text("ready", encoding="utf-8")
+        time.sleep(4.0)
+        return 0
+    finally:
+        _release_mutex(handle)
+
+
+def _selftest_mutex_probe(name: str) -> int:
+    handle, already = _acquire_mutex(name)
+    try:
+        return 0 if already else 32
+    finally:
+        _release_mutex(handle)
+
+# -------------------- SELF TESTS --------------------
+
+class _TestHandler(BaseHTTPRequestHandler):
+    files = {}
+
+    def do_GET(self):
+        path = urllib.parse.urlsplit(self.path).path
+        if path in self.files:
+            body, ctype = self.files[path]
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, *_):
+        pass
+
+
+def _test_server(files: dict):
+    class H(_TestHandler):
+        pass
+    H.files = files
+    server = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+    return server, f"http://127.0.0.1:{server.server_address[1]}"
+
+
+def _write_test_install(root: Path, package="4.3.56", app="4.3.54"):
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "data").mkdir(exist_ok=True)
+    (root / "app.py").write_text(f'APP_VERSION = "{app}"\nprint("app")\n', encoding="utf-8")
+    (root / "ABRIR_RECEPCION.py").write_text('LAUNCHER_VERSION="old"\n', encoding="utf-8")
+    (root / "update_manifest.json").write_text(json.dumps({
+        "product": PRODUCT,
+        "version": package,
+        "app_version": app,
+        "runtime_version": app,
+        "copy": ["update_manifest.json", "ABRIR_RECEPCION.py"],
+    }), encoding="utf-8")
+
+
+def _remote_test_files(base: str, *, bad_sha=False, protected=False):
+    launcher = b'LAUNCHER_VERSION="new"\n'
+    inner = json.dumps({
+        "product": PRODUCT,
+        "version": "4.3.57",
+        "app_version": "4.3.54",
+        "runtime_version": "4.3.54",
+        "copy": ["update_manifest.json", "ABRIR_RECEPCION.py"],
+    }, ensure_ascii=False, indent=2).encode()
+    path = "data/evil.txt" if protected else "ABRIR_RECEPCION.py"
+    payload = b"evil" if protected else launcher
+    sha = hashlib.sha256(payload).hexdigest()
+    if bad_sha:
+        sha = "0" * 64
+    manifest = {
+        "product": PRODUCT,
+        "version": "4.3.57",
+        "files": [
+            {"path": path, "url": base + "/payload", "sha256": sha, "encoding": "utf-8"},
+            {"path": "update_manifest.json", "url": base + "/inner", "sha256": hashlib.sha256(inner).hexdigest(), "encoding": "utf-8"},
+        ],
+    }
+    return manifest, payload, inner
+
+
+def run_self_tests() -> int:
+    passed = []
+
+    def ok(name):
+        passed.append(name)
+        print("PASS", name)
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        server, base = _test_server({})
+        try:
+            manifest, payload, inner = _remote_test_files(base)
+            _TestHandler.files = {}
+            # handler class copied files at creation; update actual RequestHandlerClass
+            server.RequestHandlerClass.files = {
+                "/manifest": (json.dumps(manifest).encode(), "application/json"),
+                "/payload": (payload, "text/plain"),
