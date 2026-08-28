@@ -66,4 +66,11 @@ with tempfile.TemporaryDirectory() as td:
     assert ws['templates']['cita_agendada']['approved'] is False
     assert ws['templates']['recordatorio_hoy']['approved'] is False
 
+    # Windows no permite borrar SQLite mientras el engine conserva handles abiertos.
+    # Cerramos explícitamente los pools al terminar; esto solo afecta al entorno temporal de CI.
+    for engine_name in ('local_engine','cloud_engine'):
+        engine=getattr(app,engine_name,None)
+        if engine is not None:
+            engine.dispose()
+
 print('V458_BEHAVIOR_OK')
