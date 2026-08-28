@@ -1,0 +1,51 @@
+name: Inspect v4.3.65 targets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-v465.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruir v4.3.64 y localizar bloques
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('.')
+          parts=sorted((root/'updates'/'v464').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
+          s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
+          lines=s.splitlines()
+          print('APP_LINES',len(lines),'APP_BYTES',len(s.encode('utf-8')))
+          needles=[
+            'HISTORICAL_REGISTRY_FILE','historical','historico','Atender','ATENDER',
+            'Cola de facturación','Cola de facturacion','cola de facturación','cola de facturacion',
+            'billingQueue','billing-queue','facturacion','Facturación','Facturacion',
+            '/api/appointments','/appointments','loadAgenda','renderAgenda','agendaWeek','agenda-list',
+            'section === "agenda"',"section==='agenda'",'case "agenda"',"case 'agenda'",
+            'refreshAgenda','agendaData','agendaLoading'
+          ]
+          for i,line in enumerate(lines,1):
+            if any(n.lower() in line.lower() for n in needles):
+              print(f'MATCH {i}: {line[:500]}')
+          print('\n=== CONTEXT HISTORICAL ===')
+          for i,line in enumerate(lines):
+            if 'HISTORICAL_REGISTRY_FILE' in line and i>150:
+              for j in range(max(0,i-25),min(len(lines),i+80)): print(f'{j+1}: {lines[j]}')
+          print('\n=== CONTEXT BILLING QUEUE ===')
+          for i,line in enumerate(lines):
+            if 'Cola de facturación' in line or 'Cola de facturacion' in line:
+              for j in range(max(0,i-35),min(len(lines),i+90)): print(f'{j+1}: {lines[j]}')
+          print('\n=== AGENDA FUNCTIONS ===')
+          for i,line in enumerate(lines):
+            low=line.lower()
+            if ('def ' in low or 'function ' in low or 'async ' in low) and 'agenda' in low:
+              print(f'{i+1}: {line[:700]}')
+          PY
