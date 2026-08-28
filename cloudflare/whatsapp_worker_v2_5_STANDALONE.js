@@ -5462,7 +5462,7 @@ function materializeCandidate(r, env) {
     const yes = r.is_test ? "TEST_CONFIRMAR" : "CONFIRMAR", no = r.is_test ? "TEST_CANCELAR" : "CANCELAR";
     return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_CITA || "recordatorio_cita", language: env.LANG_RECORDATORIO_CITA || "es_ES", body_params: [name, recordatorioDateTimeLabel(d2, t)], buttons: [`${yes}|${r.source_type}|${r.source_id}|${d2}|${t}`, `${no}|${r.source_type}|${r.source_id}|${d2}|${t}`] };
   }
-  if (r.kind === "recordatorio_hoy") return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_HOY || "recordatorio_hoy", language: env.LANG_RECORDATORIO_HOY || "es_EC", body_params: [name, timeLabel(t)], buttons: [], header_image_url };
+  if (r.kind === "recordatorio_hoy") return { ...r, phone, template_name: env.TEMPLATE_RECORDATORIO_HOY || "recordatorio_hoy", language: env.LANG_RECORDATORIO_HOY || "es_EC", body_params: [name, timeLabel(t)], buttons: [] };
   return { ...r, phone, template_name: env.TEMPLATE_CITA_AGENDADA || "cita_agendada", language: env.LANG_CITA_AGENDADA || "es_EC", body_params: [name, dateLabel(d2), timeLabel(t)], buttons: [], header_image_url };
 }
 async function claim(client, c) {
