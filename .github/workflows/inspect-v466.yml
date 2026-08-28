@@ -1,0 +1,35 @@
+name: Diagnosticar confirmaciones v4.3.66
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-v466.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Localizar confirmaciones nativas de Facturación
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('.')
+          parts=sorted((root/'updates'/'v465').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
+          s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
+          terms=['confirm(', 'window.confirm', 'EMITIR ESTA FACTURA', 'emitir esta factura', 'APROBAR', 'aprobar', 'PRODUCCIÓN', 'producción']
+          low=s.lower()
+          for term in terms:
+              print('\n### TERM',term)
+              t=term.lower(); start=0; count=0
+              while True:
+                  pos=low.find(t,start)
+                  if pos<0: break
+                  count+=1
+                  print(f'--- OCC {count} POS {pos} ---')
+                  print(s[max(0,pos-900):min(len(s),pos+1800)])
+                  start=pos+max(1,len(t))
+              print('COUNT',count)
+          PY
