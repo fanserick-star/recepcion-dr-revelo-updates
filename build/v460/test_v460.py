@@ -3,8 +3,8 @@ import ast, os, sys, tempfile, hashlib
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent; START_CWD=Path.cwd()
 parts=sorted(ROOT.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]));raw=b''.join(p.read_bytes() for p in parts);source=raw.decode('utf-8')
-assert len(parts)==7 and len(raw)==459314
-assert hashlib.sha256(raw).hexdigest()=='27b2a199c3a1696a16849754f8e9426f1395cd8b5a30a3658e6011d6d823ae78'
+assert len(parts)==7 and len(raw)==459058
+assert hashlib.sha256(raw).hexdigest()=='63f5171cc66d04eb82d0b9e2b0dd4c13a4822be1a6cd391c4c75a7b2d5c088a3'
 assert 'APP_VERSION = "4.3.60"' in source and '/v460/overlay.js?v=4.3.60' in source
 assert '@app.post("/api/whatsapp/cloud-test")' in source and '@app.get("/api/agenda/appointments/{appointment_id}/whatsapp-timeline")' in source
 assert 'UPDATE_BACKUP_DIR = os.path.join(BASE_DIR, "_update_backups")' in source
