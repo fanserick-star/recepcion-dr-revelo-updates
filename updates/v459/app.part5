@@ -1,0 +1,1469 @@
+rrent_user)):
+    lim = max(1, min(int(limit or 50), 200))
+    with LocalSessionLocal() as db:
+        rows = list(db.scalars(select(WhatsAppOutbox).order_by(WhatsAppOutbox.id.desc()).limit(lim)))
+    return [{
+        "id": r.id, "template": r.template_name, "source_type": r.source_type, "source_id": r.source_id,
+        "phone": ("***" + r.phone[-4:]) if r.phone else "", "status": r.status,
+        "due_at": r.due_at, "attempts": r.attempts, "sent_at": r.sent_at, "last_error": r.last_error,
+    } for r in rows]
+
+
+@app.post("/api/whatsapp/process")
+def whatsapp_process(user: User = Depends(current_user)):
+    return process_whatsapp_outbox_once(limit=20)
+
+
+@app.get("/api/agenda/recent-patients")
+def agenda_recent_patients(
+    limit: int = 12, days: int = 1, anchor: Optional[date] = None,
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    """Pacientes atendidos en una ventana corta de días.
+
+    ``anchor`` permite que el selector de Agenda muestre primero a los pacientes
+    atendidos en el día de referencia. Si se intenta agendar una fecha futura,
+    el frontend usa hoy como referencia para que recepción tenga a mano a los
+    pacientes que acaba de atender. Todo se resuelve contra la copia local.
+    """
+    lim = min(max(int(limit or 12), 1), 30)
+    day_count = min(max(int(days or 1), 1), 30)
+    end = anchor or date.today()
+    start = end - timedelta(days=day_count - 1)
+    last_visit = (
+        select(Visit.patient_id, func.max(Visit.fecha).label("ultima_atencion"))
+        .where(Visit.fecha >= start, Visit.fecha <= end)
+        .group_by(Visit.patient_id)
+        .subquery()
+    )
+    rows = db.execute(
+        select(Patient, last_visit.c.ultima_atencion)
+        .join(last_visit, last_visit.c.patient_id == Patient.id)
+        .order_by(last_visit.c.ultima_atencion.desc(), Patient.id.desc())
+        .limit(lim)
+    ).all()
+    return [{**p_dict(p), "ultima_atencion": ultima} for p, ultima in rows]
+
+
+@app.get("/api/agenda/pending-count")
+def agenda_pending_count(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    n = db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0
+    return {"pending": int(n)}
+
+
+@app.get("/api/agenda/appointments")
+def agenda_appointments(estado: str = "TODAS", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    stmt = select(Appointment, Patient).join(Patient).where(Appointment.origen != CONFIRMAFY_ATTENDED_ORIGIN)
+    e = (estado or "TODAS").strip().upper()
+    if e != "TODAS":
+        if e not in {"PENDIENTE", "EXPORTADO", "CARGADO"}:
+            raise HTTPException(400, "Estado de agenda inválido")
+        stmt = stmt.where(Appointment.estado == e)
+    stmt = stmt.order_by(Appointment.fecha.asc(), Appointment.hora.asc(), Appointment.id.asc())
+    rows = db.execute(stmt).all()
+    return [{"appointment": appointment_dict(a), "patient": p_dict(p), "phone_confirmafy": confirmafy_phone(p.celular)} for a, p in rows]
+
+
+
+
+
+WHATSAPP_CLOUD_TEST_PREFIX = "mobile:whatsapp-cloud-test:"
+
+
+def _wa_event_display_status(raw: str) -> tuple[str, str]:
+    state = str(raw or "").upper()
+    return {
+        "READ": ("Leído", "success"),
+        "DELIVERED": ("Entregado", "success"),
+        "SENT": ("Enviado", "success"),
+        "SENDING": ("Enviando", "info"),
+        "FAILED": ("Error", "danger"),
+        "ERROR": ("Error", "danger"),
+    }.get(state, (state.replace("_", " ").title() or "Sin enviar", "muted"))
+
+
+def _wa_timeline_defs(fecha: date, hora: str, created_at: Optional[datetime] = None) -> list[dict]:
+    try:
+        hh, mm = [int(x) for x in str(hora or "00:00")[:5].split(":")]
+        appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
+    except Exception:
+        appointment_at = datetime.combine(fecha, datetime.min.time())
+    try:
+        ph, pm = [int(x) for x in WHATSAPP_PREVIOUS_DAY_TIME.split(":")]
+    except Exception:
+        ph, pm = 8, 0
+    previous = fecha - timedelta(days=1)
+    confirmation_due = datetime(previous.year, previous.month, previous.day, ph, pm)
+    return [
+        {
+            "key": "cita_agendada", "label": "Cita agendada", "template": WHATSAPP_TEMPLATE_CITA_AGENDADA,
+            "approved": bool(WHATSAPP_APPROVED_CITA_AGENDADA), "automatic": bool(WHATSAPP_AUTO_CITA_AGENDADA),
+            "due_at": (created_at or datetime.now()).isoformat(),
+            "planned": "Al guardar la cita",
+        },
+        {
+            "key": "recordatorio_cita", "label": "Confirmación", "template": whatsapp_recordatorio_template_name(),
+            "approved": bool(WHATSAPP_APPROVED_RECORDATORIO_CITA), "automatic": bool(WHATSAPP_AUTO_RECORDATORIO_CITA),
+            "due_at": confirmation_due.isoformat(),
+            "planned": f"{WHATSAPP_PREVIOUS_DAY_TIME} del día anterior",
+        },
+        {
+            "key": "recordatorio_hoy", "label": "Recordatorio", "template": WHATSAPP_TEMPLATE_RECORDATORIO_HOY,
+            "approved": bool(WHATSAPP_APPROVED_RECORDATORIO_HOY), "automatic": bool(WHATSAPP_AUTO_RECORDATORIO_HOY),
+            "due_at": (appointment_at - timedelta(hours=WHATSAPP_TODAY_HOURS_BEFORE)).isoformat(),
+            "planned": f"{WHATSAPP_TODAY_HOURS_BEFORE} h antes de la cita",
+        },
+    ]
+
+
+def _wa_timeline_for_source(*, source_type: str, source_id: int, fecha: date, hora: str,
+                            created_at: Optional[datetime] = None, appointment_state: str = "") -> dict:
+    nodes = _wa_timeline_defs(fecha, hora, created_at)
+    by_key: dict[str, dict] = {}
+    cloud_error = ""
+    if cloud_configured() and CloudSessionLocal and not FORCE_OFFLINE:
+        try:
+            with CloudSessionLocal() as cdb:
+                rows = cdb.execute(text("""
+                    SELECT template_name, status, created_at, sent_at, delivered_at, read_at, error_text, due_at
+                    FROM whatsapp_cloud.events
+                    WHERE source_type = :source_type
+                      AND source_id = :source_id
+                      AND appointment_date = :appointment_date
+                      AND left(appointment_time::text, 5) = :appointment_time
+                    ORDER BY created_at ASC
+                    LIMIT 30
+                """), {
+                    "source_type": source_type,
+                    "source_id": int(source_id),
+                    "appointment_date": fecha.isoformat(),
+                    "appointment_time": str(hora or "")[:5],
+                }).mappings().all()
+            for row in rows:
+                template = str(row.get("template_name") or "")
+                if template == WHATSAPP_TEMPLATE_CITA_AGENDADA:
+                    key = "cita_agendada"
+                elif template in {WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO, whatsapp_recordatorio_template_name()}:
+                    key = "recordatorio_cita"
+                elif template == WHATSAPP_TEMPLATE_RECORDATORIO_HOY:
+                    key = "recordatorio_hoy"
+                else:
+                    continue
+                by_key[key] = dict(row)
+        except Exception as exc:
+            cloud_error = str(exc)[:180]
+
+    now = datetime.now()
+    final = []
+    appointment_state = str(appointment_state or "").upper()
+    for node in nodes:
+        event = by_key.get(node["key"])
+        item = dict(node)
+        item["event_found"] = bool(event)
+        item["response"] = ""
+        if event:
+            raw_state = str(event.get("status") or "").upper()
+            label, tone = _wa_event_display_status(raw_state)
+            item.update({
+                "status": raw_state, "status_label": label, "tone": tone,
+                "timestamp": (
+                    event.get("read_at") or event.get("delivered_at") or event.get("sent_at") or event.get("created_at")
+                ).isoformat() if (event.get("read_at") or event.get("delivered_at") or event.get("sent_at") or event.get("created_at")) else None,
+                "error": str(event.get("error_text") or "")[:220],
+            })
+        elif not node["approved"]:
+            item.update({"status": "META_PENDING", "status_label": "Pendiente de Meta", "tone": "muted", "timestamp": None, "error": ""})
+        elif not node["automatic"]:
+            item.update({"status": "NOT_AUTOMATIC", "status_label": "No automático", "tone": "muted", "timestamp": None, "error": ""})
+        else:
+            try:
+                due = datetime.fromisoformat(str(node["due_at"]))
+                label = "Programado" if due > now else "Esperando worker"
+            except Exception:
+                label = "Programado"
+            item.update({"status": "SCHEDULED", "status_label": label, "tone": "info", "timestamp": None, "error": ""})
+        if node["key"] == "recordatorio_cita":
+            if appointment_state in {"CONFIRMADA", "CONFIRMADO"}:
+                item["response"] = "Paciente confirmó la cita"
+            elif appointment_state in {"NO_ASISTIRA", "CANCELADA", "CANCELADO"}:
+                item["response"] = "Paciente indicó que no asistirá"
+        final.append(item)
+    return {"available": not bool(cloud_error), "cloud_error": cloud_error, "items": final}
+
+
+@app.get("/api/agenda/appointments/{appointment_id}/whatsapp-timeline")
+def agenda_appointment_whatsapp_timeline(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    row = db.execute(select(Appointment, Patient).join(Patient).where(Appointment.id == appointment_id)).first()
+    if not row:
+        raise HTTPException(404, "Cita no encontrada")
+    a, _p = row
+    return _wa_timeline_for_source(
+        source_type="appointment", source_id=a.id, fecha=a.fecha, hora=a.hora,
+        created_at=a.created_at, appointment_state=a.estado,
+    )
+
+
+@app.get("/api/agenda/confirmafy-staged/{item_id}/whatsapp-timeline")
+def agenda_staged_whatsapp_timeline(item_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    item = db.get(ConfirmafyAgendaItem, item_id)
+    if not item or str(item.source_hash or "").startswith(WHATSAPP_CLOUD_TEST_PREFIX):
+        raise HTTPException(404, "Cita no encontrada")
+    return _wa_timeline_for_source(
+        source_type="staged", source_id=item.id, fecha=item.fecha, hora=item.hora,
+        created_at=item.created_at, appointment_state="PENDIENTE",
+    )
+
+
+@app.get("/api/agenda/appointments/{appointment_id}")
+def agenda_appointment_detail(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    row = db.execute(
+        select(Appointment, Patient).join(Patient).where(Appointment.id == appointment_id)
+    ).first()
+    if not row:
+        raise HTTPException(404, "Cita no encontrada")
+    a, p = row
+    return {"appointment": appointment_dict(a), "patient": p_dict(p), "phone_confirmafy": confirmafy_phone(p.celular)}
+
+
+
+def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 5.0) -> int:
+    """Trae solo el estado de las citas visibles desde Neon.
+
+    WhatsApp Cloud actualiza Neon aunque la PC del consultorio esté apagada. La
+    Agenda normal lee SQLite para ser rápida, así que sin este puente un "Sí" o
+    "No" podía tardar hasta la próxima copia completa en verse en pantalla.
+
+    Esta sincronización es deliberadamente pequeña: consulta únicamente id,
+    estado y updated_at de los tres días visibles y se limita a una vez cada
+    pocos segundos por semana. No descarga pacientes, atenciones ni facturación.
+    """
+    if not dates or not cloud_configured() or FORCE_OFFLINE or not CloudSessionLocal:
+        return 0
+    if queue_count() > 0:
+        # Si existen cambios locales pendientes, evitamos mezclar dos fuentes
+        # hasta que la cola termine de sincronizar.
+        return 0
+    key = ",".join(sorted(d.isoformat() for d in dates))
+    now = time.time()
+    with _state_lock:
+        last = float(_agenda_status_sync_at.get(key) or 0.0)
+    if now - last < float(min_interval):
+        return 0
+    if not check_cloud(force=False):
+        return 0
+    if not _agenda_status_sync_lock.acquire(blocking=False):
+        return 0
+    try:
+        # Revalidamos el límite después de obtener el lock para evitar dos
+        # consultas iguales disparadas casi al mismo tiempo por la interfaz.
+        now = time.time()
+        with _state_lock:
+            last = float(_agenda_status_sync_at.get(key) or 0.0)
+        if now - last < float(min_interval):
+            return 0
+        with CloudSessionLocal() as cdb:
+            rows = cdb.execute(
+                select(Appointment.id, Appointment.estado, Appointment.updated_at)
+                .where(Appointment.fecha.in_(dates))
+            ).all()
+        changed = 0
+        for appointment_id, cloud_state, cloud_updated_at in rows:
+            local_row = db.get(Appointment, int(appointment_id))
+            if not local_row:
+                continue
+            new_state = str(cloud_state or "PENDIENTE")
+            if str(local_row.estado or "PENDIENTE") != new_state:
+                local_row.estado = new_state
+                changed += 1
+            if cloud_updated_at is not None:
+                local_row.updated_at = cloud_updated_at
+        if changed:
+            db.commit()
+        with _state_lock:
+            _agenda_status_sync_at[key] = time.time()
+        return changed
+    except Exception as exc:
+        # La agenda local sigue funcionando aunque Neon no responda.
+        with _state_lock:
+            _state["last_error"] = f"No se pudo sincronizar estado de Agenda: {_cloud_error_hint(exc)}"[:300]
+        return 0
+    finally:
+        _agenda_status_sync_lock.release()
+
+
+@app.get("/api/agenda/week")
+def agenda_week(anchor: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Agenda semanal unificada.
+
+    Las citas de Confirmafy sin vincular viven en una tabla independiente y se
+    mezclan solo para visualizar la agenda. Esta lectura es local-first, de modo
+    que navegar entre semanas no toca Neon.
+    """
+    monday = anchor - timedelta(days=anchor.weekday())
+    day_defs = [
+        ("Jueves", monday + timedelta(days=3)),
+        ("Viernes", monday + timedelta(days=4)),
+        ("Sábado", monday + timedelta(days=5)),
+    ]
+    dates = [d for _, d in day_defs]
+    # Refresca únicamente CONFIRMADA / NO_ASISTIRA y demás estados cambiados
+    # desde WhatsApp Cloud antes de dibujar la semana.
+    _sync_agenda_states_from_cloud(db, dates)
+    linked_rows = db.execute(
+        select(Appointment, Patient).join(Patient)
+        .where(Appointment.fecha.in_(dates), Appointment.origen != CONFIRMAFY_ATTENDED_ORIGIN)
+        .order_by(Appointment.fecha.asc(), Appointment.hora.asc(), Appointment.id.asc())
+    ).all()
+    attended_hashes = active_confirmafy_attended_hashes(db, dates)
+    staged_rows = [a for a in db.scalars(
+        select(ConfirmafyAgendaItem)
+        .where(ConfirmafyAgendaItem.fecha.in_(dates))
+        .order_by(ConfirmafyAgendaItem.fecha.asc(), ConfirmafyAgendaItem.hora.asc(), ConfirmafyAgendaItem.id.asc())
+    ) if str(a.source_hash or "") not in attended_hashes
+       and not str(a.source_hash or "").startswith("mobile:whatsapp-cloud-test:")]
+
+    grouped = {d.isoformat(): [] for d in dates}
+    timeline: dict[date, list[tuple[int, int, str, str]]] = {}
+    for a, p in linked_rows:
+        try: start_m = hhmm_to_minutes(a.hora)
+        except Exception: continue
+        key = f"linked:{a.id}"
+        timeline.setdefault(a.fecha, []).append((start_m, start_m + int(a.duracion or 20), key, p.nombre if p else "Paciente"))
+    for a in staged_rows:
+        try: start_m = hhmm_to_minutes(a.hora)
+        except Exception: continue
+        key = f"staged:{a.id}"
+        timeline.setdefault(a.fecha, []).append((start_m, start_m + int(a.duracion or 20), key, a.nombre))
+
+    conflict_keys: set[str] = set()
+    for _, entries in timeline.items():
+        entries.sort(key=lambda x: (x[0], x[1], x[2]))
+        for i, (st, en, key, _) in enumerate(entries):
+            for bst, ben, bkey, _ in entries[i + 1:]:
+                if bst >= en: break
+                if st < ben and bst < en:
+                    conflict_keys.add(key); conflict_keys.add(bkey)
+
+    for a, p in linked_rows:
+        legacy_confirmafy = str(a.origen or "").upper() == "CONFIRMAFY_IMPORTADO"
+        grouped.setdefault(a.fecha.isoformat(), []).append({
+            # Las citas antiguas importadas con el flujo previo todavía pueden
+            # tener patient_id. Visualmente las tratamos igual que una cita
+            # externa sin vincular para que recepción vuelva a confirmar la
+            # identidad cara a cara antes de registrar la atención.
+            "source_type": "CONFIRMAFY_LEGACY" if legacy_confirmafy else "PATIENT_APPOINTMENT",
+            "appointment": appointment_dict(a), "patient": p_dict(p),
+            "phone_confirmafy": confirmafy_phone(p.celular),
+            "conflict": f"linked:{a.id}" in conflict_keys,
+        })
+    for a in staged_rows:
+        grouped.setdefault(a.fecha.isoformat(), []).append({
+            "source_type": "MOBILE_UNLINKED" if _mobile_unlinked(a) else "LEGACY_UNLINKED",
+            "staged": confirmafy_agenda_dict(a),
+            "appointment": {
+                "id": None, "patient_id": None, "fecha": a.fecha, "hora": a.hora,
+                "duracion": int(a.duracion or 20), "nota": None, "estado": "CARGADO",
+                "origen": "CONFIRMAFY_SIN_VINCULAR",
+            },
+            "patient": {"id": None, "cedula": None, "nombre": a.nombre, "celular": a.celular,
+                        "correo": None, "lugar": None, "notas": None},
+            "phone_confirmafy": confirmafy_phone(a.celular),
+            "conflict": f"staged:{a.id}" in conflict_keys,
+        })
+    for key in grouped:
+        grouped[key].sort(key=lambda row: (str((row.get("appointment") or {}).get("hora") or ""), str((row.get("patient") or {}).get("nombre") or "")))
+
+    return {
+        "anchor": anchor, "week_start": monday,
+        "days": [{"label": label, "date": d, "appointments": grouped.get(d.isoformat(), [])} for label, d in day_defs],
+        "conflicts": len(conflict_keys),
+    }
+
+
+@app.get("/api/agenda/dashboard")
+def agenda_dashboard(
+    estado: str = "PENDIENTE", limit: int = 12, recent_days: int = 1, anchor: Optional[date] = None,
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    """Carga Agenda con el mínimo de consultas.
+
+    v4.2.4: la agenda semanal se movió a Nueva atención. El parámetro ``anchor``
+    queda opcional solo para compatibilidad con un navegador que aún conserve
+    momentáneamente el JavaScript anterior durante una actualización.
+    """
+    appointments = agenda_appointments(estado=estado, db=db, user=user)
+    normalized = (estado or "PENDIENTE").strip().upper()
+    payload = {
+        "recent_patients": agenda_recent_patients(limit=limit, days=recent_days, db=db, user=user),
+        "appointments": appointments,
+        # Al abrir Agenda en Pendientes, la propia lista ya contiene el total.
+        # Así evitamos una consulta COUNT adicional a SQLite/Neon.
+        "pending": len(appointments) if normalized == "PENDIENTE" else agenda_pending_count(db=db, user=user)["pending"],
+    }
+    if anchor is not None:
+        payload["week"] = agenda_week(anchor=anchor, db=db, user=user)
+    return payload
+
+
+@app.get("/api/agenda/slots")
+def agenda_slots(
+    fecha: date,
+    exclude_id: Optional[int] = None,
+    user: User = Depends(current_user),
+):
+    """Horarios de reagenda calculados contra la copia SQLite local.
+
+    v4.3.11: abrir el selector de hora no necesita despertar Neon. La copia local
+    basta para pintar los bloques ocupados; al guardar, ``agenda_create`` /
+    ``agenda_update`` vuelven a validar el cruce contra la base activa, por lo que
+    una cita creada desde otra PC nunca puede sobrescribirse por accidente.
+
+    La ruta se mantiene deliberadamente autocontenida para evitar depender de
+    estados temporales del modal (y corregir el error de ``valid_selection`` que
+    podía aparecer al abrir Reagendar en algunas instalaciones actualizadas).
+    """
+    with LocalSessionLocal() as ldb:
+        stmt = (
+            select(Appointment, Patient.nombre)
+            .outerjoin(Patient, Patient.id == Appointment.patient_id)
+            .where(Appointment.fecha == fecha, Appointment.origen != CONFIRMAFY_ATTENDED_ORIGIN)
+        )
+        if exclude_id is not None:
+            stmt = stmt.where(Appointment.id != int(exclude_id))
+        day_rows = ldb.execute(stmt.order_by(Appointment.hora.asc(), Appointment.id.asc())).all()
+        attended_hashes = active_confirmafy_attended_hashes(ldb, [fecha])
+        staged_rows = [item for item in ldb.scalars(
+            select(ConfirmafyAgendaItem)
+            .where(ConfirmafyAgendaItem.fecha == fecha)
+            .order_by(ConfirmafyAgendaItem.hora.asc(), ConfirmafyAgendaItem.id.asc())
+        ) if str(item.source_hash or "") not in attended_hashes]
+
+    occupied: list[tuple[int, int, str]] = []
+    for appointment, patient_name in day_rows:
+        try:
+            start_minute = hhmm_to_minutes(appointment.hora)
+        except Exception:
+            continue
+        duration = max(1, int(appointment.duracion or 20))
+        occupied.append((start_minute, start_minute + duration, patient_name or "Cita ocupada"))
+    for item in staged_rows:
+        try:
+            start_minute = hhmm_to_minutes(item.hora)
+        except Exception:
+            continue
+        duration = max(1, int(item.duracion or 20))
+        occupied.append((start_minute, start_minute + duration, item.nombre or "Cita Confirmafy"))
+
+    slots = []
+    # Todas las citas son de 20 minutos. Se respeta el almuerzo 12:30–14:00
+    # (por eso 12:20 tampoco se ofrece, porque terminaría dentro del almuerzo)
+    # y la última cita comienza a las 17:00.
+    for minute in range(8 * 60, 17 * 60 + 1, 20):
+        end_minute = minute + 20
+        if minute < 14 * 60 and end_minute > 12 * 60 + 30:
+            continue
+        occupied_names = list(dict.fromkeys(
+            name for old_start, old_end, name in occupied
+            if minute < old_end and old_start < end_minute
+        ))
+        hora = f"{minute // 60:02d}:{minute % 60:02d}"
+        slots.append({
+            "time": hora,
+            "available": not occupied_names,
+            "occupied_by": occupied_names,
+        })
+    return {"date": fecha, "duration": 20, "slots": slots}
+
+
+@app.post("/api/agenda/appointments")
+def agenda_create(data: AppointmentIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    if not confirmafy_phone(p.celular):
+        raise HTTPException(400, "Completa el celular del paciente antes de reagendar")
+    values = normalize_appointment_payload(data)
+    conflicts = appointment_conflicts(db, values["fecha"], values["hora"], 20)
+    if conflicts:
+        raise HTTPException(409, occupied_message(values["fecha"], values["hora"], conflicts))
+    a = Appointment(
+        patient_id=data.patient_id, fecha=values["fecha"], hora=values["hora"], duracion=20,
+        nota=values["nota"], estado="PENDIENTE", origen="REAGENDADO",
+    )
+    db.add(a)
+    db.flush()
+    if is_offline_db(db):
+        payload = {"patient_id": a.patient_id, "fecha": a.fecha.isoformat(), "hora": a.hora, "nota": a.nota, "estado": a.estado, "origen": a.origen}
+        add_queue(db, "appointment.create", "appointment", payload, user.username, a.id)
+        audit(db, user, "crear_cita_offline", f"Cita local {a.id}, paciente {p.id}, {a.fecha} {a.hora}")
+        db.commit()
+        schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+        result = appointment_dict(a); result["offline"] = True
+        return result
+    audit(db, user, "crear_cita", f"Cita {a.id}, paciente {p.id}, {a.fecha} {a.hora}")
+    db.commit()
+    mirror_appointment_to_local(a)
+    schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+    result = appointment_dict(a); result["offline"] = False
+    return result
+
+
+@app.put("/api/agenda/appointments/{appointment_id}")
+def agenda_update(appointment_id: int, data: AppointmentUpdateIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    a = db.get(Appointment, appointment_id)
+    if not a:
+        raise HTTPException(404, "Cita no encontrada")
+    values = normalize_appointment_payload(data)
+    conflicts = appointment_conflicts(db, values["fecha"], values["hora"], 20, appointment_id)
+    if conflicts:
+        raise HTTPException(409, occupied_message(values["fecha"], values["hora"], conflicts))
+    a.fecha = values["fecha"]; a.hora = values["hora"]; a.duracion = 20; a.nota = values["nota"]
+    a.estado = "PENDIENTE"; a.exported_at = None; a.loaded_at = None; a.updated_at = datetime.utcnow()
+    if is_offline_db(db):
+        add_queue(db, "appointment.update", "appointment", {"appointment_id": appointment_id, "fecha": a.fecha.isoformat(), "hora": a.hora, "nota": a.nota}, user.username, appointment_id)
+        audit(db, user, "reagendar_cita_offline", f"Cita local {appointment_id}: {a.fecha} {a.hora}")
+        db.commit()
+        p = db.get(Patient, a.patient_id)
+        if p: schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+        result = appointment_dict(a); result["offline"] = True
+        return result
+    audit(db, user, "reagendar_cita", f"Cita {appointment_id}: {a.fecha} {a.hora}")
+    db.commit(); mirror_appointment_to_local(a)
+    p = db.get(Patient, a.patient_id)
+    if p: schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+    result = appointment_dict(a); result["offline"] = False
+    return result
+
+
+def set_appointment_state(appointment_id: int, state: str, db: Session, user: User):
+    a = db.get(Appointment, appointment_id)
+    if not a: raise HTTPException(404, "Cita no encontrada")
+    state = state.upper()
+    now = datetime.utcnow()
+    if state == "CARGADO":
+        a.estado = "CARGADO"; a.exported_at = a.exported_at or now; a.loaded_at = now; op = "appointment.loaded"
+    elif state == "PENDIENTE":
+        a.estado = "PENDIENTE"; a.exported_at = None; a.loaded_at = None; op = "appointment.pending"
+    else:
+        raise HTTPException(400, "Estado inválido")
+    a.updated_at = now
+    if is_offline_db(db):
+        add_queue(db, op, "appointment", {"appointment_id": appointment_id}, user.username, appointment_id)
+        audit(db, user, "estado_cita_offline", f"Cita local {appointment_id}: {a.estado}")
+        db.commit()
+        result=appointment_dict(a); result["offline"]=True
+        return result
+    audit(db, user, "estado_cita", f"Cita {appointment_id}: {a.estado}")
+    db.commit(); mirror_appointment_to_local(a)
+    result=appointment_dict(a); result["offline"]=False
+    return result
+
+
+@app.post("/api/agenda/appointments/{appointment_id}/loaded")
+def agenda_mark_loaded(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return set_appointment_state(appointment_id, "CARGADO", db, user)
+
+
+@app.post("/api/agenda/appointments/{appointment_id}/pending")
+def agenda_mark_pending(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return set_appointment_state(appointment_id, "PENDIENTE", db, user)
+
+
+@app.delete("/api/agenda/appointments/{appointment_id}")
+def agenda_delete(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Cancela una cita sin quitarla de la semana visible.
+
+    v4.3.46 conserva la fila con estado CANCELADA para que Agenda y Nueva
+    atención muestren claramente que el paciente canceló. La limpieza semanal
+    se encarga de retirarla cuando esa semana ya terminó.
+    """
+    a = db.get(Appointment, appointment_id)
+    if not a: raise HTTPException(404, "Cita no encontrada")
+    detail = f"Cita {appointment_id}, paciente {a.patient_id}, {a.fecha} {a.hora}"
+    a.estado = "CANCELADA"
+    a.updated_at = datetime.utcnow()
+    if is_offline_db(db):
+        add_queue(db, "appointment.cancel", "appointment", {"appointment_id": appointment_id}, user.username, appointment_id)
+        audit(db, user, "cancelar_cita_offline", detail)
+        db.commit(); _whatsapp_cancel_pending("appointment", appointment_id)
+        result = appointment_dict(a); result.update({"ok": True, "offline": True, "cancelled": True})
+        return result
+    audit(db, user, "cancelar_cita", detail)
+    db.commit(); mirror_appointment_to_local(a); _whatsapp_cancel_pending("appointment", appointment_id)
+    result = appointment_dict(a); result.update({"ok": True, "offline": False, "cancelled": True})
+    return result
+
+
+
+
+def _decode_confirmafy_csv(raw: bytes) -> list[dict]:
+    """Lee un CSV exportado por Confirmafy sin modificar datos."""
+    text_value = None
+    for enc in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            text_value = raw.decode(enc)
+            break
+        except Exception:
+            continue
+    if text_value is None:
+        raise HTTPException(400, "No se pudo leer el archivo CSV")
+    try:
+        reader = csv.DictReader(io.StringIO(text_value))
+        headers = {str(h or "").strip().lower(): h for h in (reader.fieldnames or [])}
+    except Exception:
+        raise HTTPException(400, "El archivo no parece ser un CSV válido")
+    aliases = {
+        "name": ["name", "nombre", "cliente", "patient", "paciente"],
+        "phone": ["phone", "telefono", "teléfono", "whatsapp", "celular"],
+        "date": ["date", "fecha"],
+        "time": ["time", "hora"],
+        "duration": ["duration", "duracion", "duración"],
+    }
+    resolved = {}
+    for key, options in aliases.items():
+        for opt in options:
+            if opt in headers:
+                resolved[key] = headers[opt]
+                break
+    missing = [x for x in ("name", "phone", "date", "time") if x not in resolved]
+    if missing:
+        raise HTTPException(400, "El CSV debe tener las columnas name, phone, date y time")
+    rows=[]
+    for line_no,row in enumerate(reader, start=2):
+        rows.append({
+            "line": line_no,
+            "name": " ".join(str(row.get(resolved["name"]) or "").replace("\t", " ").split()).upper(),
+            "phone": normalize_lookup_phone(str(row.get(resolved["phone"]) or "")),
+            "date": str(row.get(resolved["date"]) or "").strip(),
+            "time": str(row.get(resolved["time"]) or "").strip(),
+            "duration": str(row.get(resolved.get("duration", "")) or "20").strip(),
+        })
+    return rows
+
+
+def _parse_confirmafy_links(raw_links: Optional[str]) -> dict[int, int]:
+    if not raw_links:
+        return {}
+    try:
+        data = json.loads(raw_links)
+    except Exception:
+        raise HTTPException(400, "Los vínculos manuales de pacientes no son válidos")
+    if not isinstance(data, dict):
+        raise HTTPException(400, "Los vínculos manuales de pacientes no son válidos")
+    out: dict[int, int] = {}
+    for key, value in data.items():
+        try:
+            line = int(key); pid = int(value)
+        except Exception:
+            continue
+        if line > 0 and pid > 0:
+            out[line] = pid
+    return out
+
+
+def _analyze_confirmafy_import(db: Session, raw: bytes, apply_changes: bool, username: str = "admin", patient_links: Optional[dict[int, int]] = None) -> dict:
+    """Importa únicamente la agenda externa; no lee ni modifica patients.
+
+    v4.3.7: Confirmafy queda completamente desacoplado de la ficha clínica durante
+    la importación. Nombre y celular se guardan como datos de la cita. Recién al
+    pulsar Atender se busca/vincula/crea el paciente, con recepción frente a él.
+    """
+    source_rows = _decode_confirmafy_csv(raw)
+    candidates = []
+    duplicates = invalid = 0
+    invalid_examples = []
+    seen_file = set()
+    for row in source_rows:
+        name = row["name"]
+        phone = row["phone"]
+        if not name:
+            invalid += 1
+            if len(invalid_examples) < 8: invalid_examples.append({"line": row["line"], "reason": "Falta nombre"})
+            continue
+        raw_date = str(row["date"] or "").strip().lower()
+        fecha = None
+        try:
+            fecha = date.fromisoformat(raw_date[:10])
+        except Exception:
+            month_map = {"ene":1,"feb":2,"mar":3,"abr":4,"may":5,"jun":6,"jul":7,"ago":8,"sep":9,"sept":9,"oct":10,"nov":11,"dic":12}
+            parts = raw_date.replace("/", " ").replace("-", " ").split()
+            try:
+                if len(parts) >= 3 and parts[0].isdigit() and len(parts[0]) == 4 and parts[1][:4] in month_map:
+                    fecha = date(int(parts[0]), month_map[parts[1][:4]], int(parts[2]))
+                elif len(parts) >= 3 and parts[2].isdigit() and len(parts[2]) == 4:
+                    mon = int(parts[1]) if parts[1].isdigit() else month_map.get(parts[1][:4])
+                    fecha = date(int(parts[2]), int(mon), int(parts[0]))
+            except Exception:
+                fecha = None
+        if fecha is None:
+            invalid += 1
+            if len(invalid_examples) < 8: invalid_examples.append({"line": row["line"], "reason": "Fecha inválida"})
+            continue
+        raw_time = str(row["time"] or "").replace("\xa0", " ").lower().strip()
+        m = re.search(r"(\d{1,2}):(\d{2})", raw_time)
+        if not m:
+            invalid += 1
+            if len(invalid_examples) < 8: invalid_examples.append({"line": row["line"], "reason": "Hora inválida"})
+            continue
+        hh, mm = int(m.group(1)), int(m.group(2))
+        if re.search(r"(?:^|\s)p\s*\.?\s*m\.?", raw_time) and hh < 12: hh += 12
+        if re.search(r"(?:^|\s)a\s*\.?\s*m\.?", raw_time) and hh == 12: hh = 0
+        if hh > 23 or mm > 59:
+            invalid += 1
+            if len(invalid_examples) < 8: invalid_examples.append({"line": row["line"], "reason": "Hora inválida"})
+            continue
+        hora = f"{hh:02d}:{mm:02d}"
+        normalized_name = normalize_lookup_name(name)
+        source_hash = hashlib.sha1(f"{normalized_name}|{phone}|{fecha.isoformat()}|{hora}".encode("utf-8")).hexdigest()
+        if source_hash in seen_file:
+            duplicates += 1; continue
+        seen_file.add(source_hash)
+        candidates.append({"line": row["line"], "name": name, "phone": phone, "fecha": fecha, "hora": hora, "source_hash": source_hash})
+
+    dates = sorted({x["fecha"] for x in candidates})
+    existing_staged = list(db.scalars(select(ConfirmafyAgendaItem).where(ConfirmafyAgendaItem.fecha.in_(dates)))) if dates else []
+    existing_linked = db.execute(
+        select(Appointment, Patient).join(Patient).where(Appointment.fecha.in_(dates))
+    ).all() if dates else []
+    staged_hashes = {str(x.source_hash) for x in existing_staged}
+    schedule: dict[date, list[tuple[int, int, str]]] = {}
+    for a, p in existing_linked:
+        try: st = hhmm_to_minutes(a.hora)
+        except Exception: continue
+        schedule.setdefault(a.fecha, []).append((st, st + int(a.duracion or 20), p.nombre if p else "Paciente"))
+    for a in existing_staged:
+        try: st = hhmm_to_minutes(a.hora)
+        except Exception: continue
+        schedule.setdefault(a.fecha, []).append((st, st + int(a.duracion or 20), a.nombre))
+
+    imported = conflicts = 0
+    conflict_examples = []
+    created_items: list[ConfirmafyAgendaItem] = []
+    for item in candidates:
+        if item["source_hash"] in staged_hashes:
+            duplicates += 1; continue
+        start_m = hhmm_to_minutes(item["hora"]); end_m = start_m + 20
+        occupied = [nm for st, en, nm in schedule.get(item["fecha"], []) if start_m < en and st < end_m]
+        if occupied:
+            conflicts += 1
+            if len(conflict_examples) < 10:
+                conflict_examples.append({"line": item["line"], "name": item["name"], "date": item["fecha"].isoformat(), "time": item["hora"], "occupied_by": occupied[:3]})
+            continue
+        if apply_changes:
+            staged = ConfirmafyAgendaItem(
+                nombre=item["name"], celular=item["phone"] or None, fecha=item["fecha"], hora=item["hora"],
+                duracion=20, source_hash=item["source_hash"],
+            )
+            db.add(staged); db.flush(); created_items.append(staged)
+            if is_offline_db(db):
+                add_queue(db, "confirmafy_staged.create", "confirmafy_staged", {
+                    "nombre": staged.nombre, "celular": staged.celular, "fecha": staged.fecha.isoformat(),
+                    "hora": staged.hora, "source_hash": staged.source_hash,
+                }, username, staged.id)
+        staged_hashes.add(item["source_hash"])
+        schedule.setdefault(item["fecha"], []).append((start_m, end_m, item["name"]))
+        imported += 1
+
+    if apply_changes:
+        audit(db, username, "importar_agenda_confirmafy", f"{imported} citas externas; 0 pacientes creados o modificados; {duplicates} duplicadas; {conflicts} conflictos; {invalid} inválidas")
+        db.commit()
+        if not is_offline_db(db):
+            for item in created_items: mirror_confirmafy_agenda_local(item)
+
+    return {
+        "rows": len(source_rows), "importable": imported, "duplicates": duplicates,
+        "conflicts": conflicts, "invalid": invalid, "unmatched": 0, "new_patients": 0,
+        "manual_links_used": 0, "legacy_duplicates_detected": 0, "legacy_duplicates_cleaned": 0,
+        "legacy_appointments_moved": 0, "legacy_cleanup_deferred": False,
+        "conflict_examples": conflict_examples, "invalid_examples": invalid_examples,
+        "unmatched_examples": [], "offline": is_offline_db(db), "patients_touched": 0,
+    }
+
+
+@app.delete("/api/agenda/unlinked/{item_id}")
+def agenda_delete_unlinked(item_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    item = db.get(ConfirmafyAgendaItem, item_id)
+    if not item:
+        raise HTTPException(404, "La cita ya no existe")
+    if is_offline_db(db):
+        add_queue(db, "confirmafy_staged.delete", "confirmafy_staged", {"item_id": item_id}, user.username, item_id)
+    db.delete(item)
+    audit(db, user, "eliminar_cita_sin_vincular" + ("_offline" if is_offline_db(db) else ""), f"Cita {item_id}")
+    db.commit()
+    if not is_offline_db(db): mirror_delete_confirmafy_agenda_local(item_id)
+    return {"ok": True}
+
+
+@app.post("/api/agenda/confirmafy-legacy/{appointment_id}/stage")
+def agenda_confirmafy_legacy_stage(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Convierte una cita heredada de Confirmafy en cita externa sin paciente.
+
+    Versiones anteriores vinculaban la agenda importada a ``patients`` antes
+    de que la persona llegara. Desde v4.3.9, al pulsar una de esas citas se
+    desprende de la ficha antigua y pasa al mismo flujo seguro de
+    ``ConfirmafyAgendaItem``. No crea, fusiona ni modifica pacientes.
+    """
+    row = db.execute(
+        select(Appointment, Patient).join(Patient).where(Appointment.id == appointment_id)
+    ).first()
+    if not row:
+        raise HTTPException(404, "La cita ya no existe. Vuelve a abrir Nueva atención para refrescar la agenda.")
+    a, p = row
+    if str(a.origen or "").upper() != "CONFIRMAFY_IMPORTADO":
+        raise HTTPException(400, "Esta cita no pertenece a una importación de Confirmafy")
+
+    phone = normalize_lookup_phone(p.celular or "")
+    normalized_name = normalize_lookup_name(p.nombre or "PACIENTE")
+    source_hash = hashlib.sha1(
+        f"legacy|{normalized_name}|{phone}|{a.fecha.isoformat()}|{a.hora}".encode("utf-8")
+    ).hexdigest()
+    staged = db.scalar(select(ConfirmafyAgendaItem).where(ConfirmafyAgendaItem.source_hash == source_hash))
+    if not staged:
+        staged = ConfirmafyAgendaItem(
+            nombre=(p.nombre or "PACIENTE").strip().upper(),
+            celular=phone or None, fecha=a.fecha, hora=a.hora,
+            duracion=int(a.duracion or 20), source_hash=source_hash,
+        )
+        db.add(staged)
+        db.flush()
+        if is_offline_db(db):
+            add_queue(db, "confirmafy_staged.create", "confirmafy_staged", {
+                "nombre": staged.nombre, "celular": staged.celular, "fecha": staged.fecha.isoformat(),
+                "hora": staged.hora, "source_hash": staged.source_hash,
+            }, user.username, staged.id)
+
+    old_id = int(a.id)
+    if is_offline_db(db):
+        add_queue(db, "appointment.delete", "appointment", {"appointment_id": old_id}, user.username, old_id)
+    db.delete(a)
+    audit(db, user.username, "desvincular_cita_confirmafy_heredada",
+          f"Cita {old_id} preparada para confirmar identidad al atender; no se modificó ningún paciente")
+    db.commit()
+
+    if not is_offline_db(db):
+        mirror_confirmafy_agenda_local(staged)
+        mirror_delete_appointment_local(old_id)
+    invalidate = True
+    return {"ok": True, "staged": confirmafy_agenda_dict(staged), "patient_changed": False}
+
+
+@app.get("/api/agenda/confirmafy-staged/{item_id}")
+def agenda_confirmafy_staged_detail(item_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    item = db.get(ConfirmafyAgendaItem, item_id)
+    if not item: raise HTTPException(404, "La cita de Confirmafy ya no existe")
+    return {"staged": confirmafy_agenda_dict(item)}
+
+
+@app.post("/api/agenda/confirmafy-staged/{item_id}/attended")
+def agenda_confirmafy_staged_attended(
+    item_id: int, data: ConfirmafyAttendedIn,
+    db: Session = Depends(get_db), user: User = Depends(current_user),
+):
+    """Marca la cita externa como atendida sin destruirla.
+
+    v4.3.16 conserva la fila original de Confirmafy. Se crea una cita interna
+    oculta como marcador. Mientras exista una atención de ese paciente en la
+    fecha, la cita externa no se muestra. Si esa atención se borra por error o
+    por corrección, la cita vuelve a aparecer automáticamente en Nueva atención.
+    """
+    item = db.get(ConfirmafyAgendaItem, item_id)
+    if not item:
+        return {"ok": True, "already_removed": True}
+    patient = db.get(Patient, int(data.patient_id))
+    if not patient:
+        raise HTTPException(404, "Paciente no encontrado")
+    marker_note = confirmafy_marker_note(item.source_hash)
+    marker = db.scalar(select(Appointment).where(
+        Appointment.origen == CONFIRMAFY_ATTENDED_ORIGIN,
+        Appointment.nota == marker_note,
+    ))
+    created = marker is None
+    if marker is None:
+        marker = Appointment(
+            patient_id=patient.id, fecha=item.fecha, hora=item.hora, duracion=int(item.duracion or 20),
+            nota=marker_note, estado="ATENDIDO", origen=CONFIRMAFY_ATTENDED_ORIGIN,
+        )
+        db.add(marker); db.flush()
+    else:
+        marker.patient_id = patient.id
+        marker.fecha = item.fecha
+        marker.hora = item.hora
+        marker.duracion = int(item.duracion or 20)
+        marker.estado = "ATENDIDO"
+        marker.updated_at = datetime.utcnow()
+
+    if is_offline_db(db):
+        if created:
+            add_queue(db, "appointment.create", "appointment", {
+                "patient_id": marker.patient_id, "fecha": marker.fecha.isoformat(),
+                "hora": marker.hora, "nota": marker.nota, "estado": marker.estado,
+                "origen": marker.origen,
+            }, user.username, marker.id)
+        else:
+            add_queue(db, "appointment.update", "appointment", {
+                "appointment_id": marker.id, "fecha": marker.fecha.isoformat(),
+                "hora": marker.hora, "nota": marker.nota, "estado": marker.estado,
+                "origen": marker.origen, "patient_id": marker.patient_id,
+            }, user.username, marker.id)
+    label = f"{item.nombre} · {item.fecha} {item.hora} · paciente {patient.id}"
+    audit(db, user, "resolver_cita_confirmafy_al_atender" + ("_offline" if is_offline_db(db) else ""), label)
+    db.commit()
+    if not is_offline_db(db):
+        mirror_appointment_to_local(marker)
+    return {"ok": True, "staged_preserved": True, "marker_id": int(marker.id)}
+
+
+@app.post("/api/agenda/import-confirmafy/preview")
+async def agenda_import_confirmafy_preview(file: UploadFile = File(...), links: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    raw=await file.read()
+    if not raw or len(raw)>5_000_000:
+        raise HTTPException(400,"Selecciona un CSV válido de Confirmafy")
+    return _analyze_confirmafy_import(db,raw,False,user.username,_parse_confirmafy_links(links))
+
+
+@app.post("/api/agenda/import-confirmafy")
+async def agenda_import_confirmafy(file: UploadFile = File(...), links: str = Form(""), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    raw=await file.read()
+    if not raw or len(raw)>5_000_000:
+        raise HTTPException(400,"Selecciona un CSV válido de Confirmafy")
+    return _analyze_confirmafy_import(db,raw,True,user.username,_parse_confirmafy_links(links))
+
+
+@app.post("/api/agenda/export.csv")
+def agenda_export_csv(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.execute(
+        select(Appointment, Patient).join(Patient).where(Appointment.estado == "PENDIENTE").order_by(Appointment.fecha, Appointment.hora, Appointment.id)
+    ).all()
+    if not rows:
+        raise HTTPException(404, "No hay citas pendientes para exportar")
+    out = io.StringIO()
+    w = csv.writer(out, lineterminator="\n")
+    w.writerow(["name", "phone", "date", "time", "duration"])
+    exported = []
+    now = datetime.utcnow()
+    for a, p in rows:
+        phone = confirmafy_phone(p.celular)
+        if not phone:
+            continue
+        w.writerow([p.nombre, phone, a.fecha.isoformat(), a.hora, 20])
+        a.estado = "EXPORTADO"; a.exported_at = now; a.loaded_at = None; a.updated_at = now
+        exported.append(a)
+        if is_offline_db(db):
+            add_queue(db, "appointment.export", "appointment", {"appointment_id": a.id}, user.username, a.id)
+    if not exported:
+        raise HTTPException(400, "Las citas pendientes no tienen celular válido")
+    audit(db, user, "exportar_agenda_confirmafy" + ("_offline" if is_offline_db(db) else ""), f"{len(exported)} citas")
+    db.commit()
+    if not is_offline_db(db):
+        for a in exported: mirror_appointment_to_local(a)
+    data = "\ufeff" + out.getvalue()
+    filename = f"confirmafy_reagendados_{date.today().isoformat()}.csv"
+    return Response(content=data.encode("utf-8"), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _upsert_local_env(values: dict[str, str]) -> None:
+    """Actualiza claves concretas del .env sin tocar DATABASE_URL ni otros secretos."""
+    env_path = Path(BASE_DIR) / ".env"
+    try:
+        existing = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo leer .env: {exc}")
+    lines = existing.splitlines()
+    keys = set(values)
+    written = set()
+    output: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            output.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in keys:
+            output.append(f"{key}={values[key]}")
+            written.add(key)
+        else:
+            output.append(line)
+    for key, value in values.items():
+        if key not in written:
+            output.append(f"{key}={value}")
+    tmp = env_path.with_suffix(".env.tmp")
+    try:
+        tmp.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+        os.replace(tmp, env_path)
+    except Exception as exc:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+        raise HTTPException(500, f"No se pudo guardar la configuración de AZUR: {exc}")
+
+
+def _azur_config_payload() -> dict:
+    configured = bool(AZUR_BASE_URL and AZUR_API_KEY)
+    domain = ""
+    try:
+        domain = urlparse(AZUR_BASE_URL).hostname or "" if AZUR_BASE_URL else ""
+    except Exception:
+        domain = ""
+    return {
+        "configured": configured,
+        "base_url": AZUR_BASE_URL,
+        "domain": domain,
+        "api_key_saved": bool(AZUR_API_KEY),
+        "api_key_masked": azur_mask_api_key(AZUR_API_KEY),
+        "tipo_iva": AZUR_TIPO_IVA,
+        "forma_pago": AZUR_FORMA_PAGO,
+        "live_emission_enabled": bool(AZUR_LIVE_EMISSION),
+    }
+
+
+@app.get("/api/azur/status")
+def azur_status(user: User = Depends(current_user)):
+    return _azur_config_payload()
+
+
+@app.post("/api/azur/config")
+def azur_save_config(data: AzurConfigIn, user: User = Depends(current_user)):
+    global AZUR_BASE_URL, AZUR_API_KEY
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede configurar AZUR")
+    try:
+        base_url = azur_normalize_base_url(data.base_url)
+    except AzurError as exc:
+        raise HTTPException(400, str(exc))
+    new_key = (data.api_key or "").strip()
+    if not new_key and not AZUR_API_KEY:
+        raise HTTPException(400, "Ingresa la API key de AZUR")
+    values = {"AZUR_BASE_URL": base_url}
+    if new_key:
+        # Nunca registramos el valor en auditoría ni respuesta.
+        values["AZUR_API_KEY"] = new_key
+    _upsert_local_env(values)
+    AZUR_BASE_URL = base_url
+    if new_key:
+        AZUR_API_KEY = new_key
+    return {"ok": True, **_azur_config_payload()}
+
+
+@app.post("/api/azur/test")
+def azur_test(user: User = Depends(current_user)):
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "Configura primero la dirección de AZUR y la API key")
+    try:
+        result = azur_test_connection(AZUR_BASE_URL, AZUR_API_KEY, timeout=12)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    result["base_url"] = AZUR_BASE_URL
+    return result
+
+
+def _azur_invoice_number_from_access_key(access_key: Optional[str]) -> Optional[str]:
+    """Deriva establecimiento-punto-secuencial desde la clave SRI de 49 dígitos.
+
+    La clave de acceso ecuatoriana codifica estos campos de forma inequívoca y
+    es una fuente más fiable que campos genéricos como ``numero`` devueltos por
+    algunos tenants de AZUR. No altera el comprobante; solo corrige la etiqueta
+    mostrada/guardada en Recepción.
+    """
+    digits = re.sub(r"\D", "", str(access_key or ""))
+    if len(digits) != 49:
+        return None
+    establishment = digits[24:27]
+    point = digits[27:30]
+    sequential = digits[30:39]
+    if not (establishment.isdigit() and point.isdigit() and sequential.isdigit()):
+        return None
+    return f"{establishment}-{point}-{sequential}"
+
+
+def _azur_group_key(patient_id: int, fecha: date) -> str:
+    return f"{int(patient_id)}:{fecha.isoformat()}"
+
+
+def _azur_mass_unlocked(db: Session) -> bool:
+    """La emisión masiva se habilita solo después de validar 1 factura real.
+
+    Esto evita que una integración recién configurada pueda disparar un lote
+    antes de comprobar en producción el ciclo completo emisión -> autorización.
+    """
+    return bool(db.scalar(select(AzurEmission.id).where(AzurEmission.estado == "AUTORIZADA").limit(1)))
+
+
+def _billing_preference_for_patient(db: Session, patient_id: int) -> Optional[BillingPreference]:
+    return db.scalar(select(BillingPreference).where(BillingPreference.patient_id == int(patient_id), BillingPreference.enabled == 1))
+
+
+def _apply_billing_preference(data: BillingGroupIn, db: Session) -> BillingGroupIn:
+    if bool(data.factura_otro):
+        return data
+    pref = _billing_preference_for_patient(db, data.patient_id)
+    if not pref:
+        return data
+    return data.model_copy(update={
+        "factura_otro": True,
+        "factura_identificacion": pref.identificacion,
+        "factura_nombre": pref.nombre,
+        "factura_direccion": pref.direccion,
+        "factura_telefono": pref.telefono,
+        "factura_correo": pref.correo,
+    })
+
+
+def _azur_recipient(data: BillingGroupIn, p: Patient) -> dict:
+    if bool(data.factura_otro):
+        ident_raw = str(data.factura_identificacion or "").strip()
+        name = " ".join(str(data.factura_nombre or "").split()).upper()
+        address = " ".join(str(data.factura_direccion or "").split()).upper()
+        phone = re.sub(r"\D", "", str(data.factura_telefono or ""))
+        email = str(data.factura_correo or "").strip().lower()
+    else:
+        ident_raw = str(p.cedula or "").strip()
+        name = " ".join(str(p.nombre or "").split()).upper()
+        address = " ".join(str(p.lugar or "").split()).upper()
+        phone = re.sub(r"\D", "", str(p.celular or ""))
+        email = str(p.correo or "").strip().lower()
+    ident_digits = re.sub(r"\D", "", ident_raw)
+    if len(ident_digits) == 13:
+        ident_type = "04"  # RUC
+        ident = ident_digits
+    elif len(ident_digits) == 10:
+        ident_type = "05"  # Cédula
+        ident = ident_digits
+    elif ident_raw:
+        ident_type = "08"  # Identificación del exterior
+        ident = ident_raw
+    else:
+        raise HTTPException(400, "Falta identificación para emitir en AZUR")
+    if not name:
+        raise HTTPException(400, "Falta nombre o razón social para emitir en AZUR")
+    if email and "@" not in email:
+        raise HTTPException(400, "El correo de facturación no es válido")
+    buyer = {
+        "tipo_identificacion": ident_type,
+        "identificacion": ident,
+        "razon_social": name,
+        "direccion": address or "NO REGISTRADA",
+    }
+    # AZUR permite emitir sin correo; solo se envía el campo cuando existe.
+    if email:
+        buyer["correo"] = email
+    if phone:
+        buyer["celular"] = phone
+    return buyer
+
+
+def _azur_payload_for_group(data: BillingGroupIn, p: Patient, rows: list[tuple[BillingRecord, Visit]]) -> dict:
+    try:
+        tipo_iva = int(AZUR_TIPO_IVA)
+    except Exception:
+        tipo_iva = 0
+    items = []
+    total = 0.0
+    for _, v in rows:
+        value = round(float(v.valor or 0), 2)
+        if value <= 0:
+            raise HTTPException(400, "Todas las atenciones de la factura deben tener un valor mayor a cero")
+        raw_desc = (v.procedimiento or "CONSULTA MEDICA").strip().upper() or "CONSULTA MEDICA"
+        code = "CONSULTA" if not (v.procedimiento or "").strip() else f"SERV-{int(v.id)}"
+        items.append({
+            "codigo_principal": code,
+            "descripcion": raw_desc,
+            "cantidad": 1,
+            "precio_unitario": value,
+            "descuento": 0,
+            "tipoproducto": 2,
+            "tipo_iva": tipo_iva,
+        })
+        total += value
+    total = round(total, 2)
+    return {
+        "codigoDoc": "01",
+        "emisor": {
+            "fecha_emision": data.fecha.strftime("%Y/%m/%d"),
+            "manejo_interno_secuencia": "SI",
+        },
+        "comprador": _azur_recipient(data, p),
+        "items": items,
+        "pagos": [{"tipo": AZUR_FORMA_PAGO, "total": total, "tiempo": "dias", "plazo": 0}],
+        "informacion_adicional": [{"nombre": "Origen", "detalle": "Recepcion Dr. Armando Revelo"}],
+    }
+
+
+@app.post("/api/billing/azur/preview")
+def billing_azur_preview(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones para facturar ese día")
+    payload = _azur_payload_for_group(data, p, rows)
+    existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == _azur_group_key(data.patient_id, data.fecha)))
+    return {
+        "configured": bool(AZUR_BASE_URL and AZUR_API_KEY),
+        "domain": _azur_config_payload().get("domain"),
+        "payload": payload,
+        "already_sent": bool(existing and existing.clave_acceso),
+        "live_enabled": bool(AZUR_LIVE_EMISSION),
+        "azur": {
+            "estado": existing.estado,
+            "clave_acceso": existing.clave_acceso,
+            "numero_factura": existing.numero_factura,
+        } if existing else None,
+    }
+
+
+@app.post("/api/billing/azur/emit")
+def billing_azur_emit(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if not AZUR_LIVE_EMISSION:
+        raise HTTPException(403, "La emisión real está desactivada")
+    if is_offline_db(db):
+        raise HTTPException(503, "Emitir en AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado. Ve a Configuración > AZUR")
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones aprobadas para ese día")
+    if any(b.estado != "APROBADA" for b, _ in rows):
+        raise HTTPException(409, "Primero aprueba la pre-factura completa")
+    group_key = _azur_group_key(data.patient_id, data.fecha)
+    existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    if existing and existing.clave_acceso:
+        raise HTTPException(409, "Esta factura ya fue enviada a AZUR. Consulta su estado; no se reenviará para evitar duplicados")
+    payload = _azur_payload_for_group(data, p, rows)
+    request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    try:
+        result = azur_emit_invoice(AZUR_BASE_URL, AZUR_API_KEY, payload, timeout=20)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    response = result.get("data") if isinstance(result, dict) else {}
+    response = response if isinstance(response, dict) else {}
+    if response.get("creado") is not True:
+        raise HTTPException(502, "AZUR no confirmó la creación del comprobante")
+    access_key = str(response.get("claveacceso") or response.get("clave_acceso") or "").strip() or None
+    invoice_number = str(
+        response.get("numero_factura") or response.get("numero_comprobante") or response.get("numero") or ""
+    ).strip() or None
+    if not access_key:
+        # La documentación oficial usa claveacceso como prueba de creación. Sin
+        # esa clave no podemos bloquear/reconsultar de forma segura.
+        raise HTTPException(502, "AZUR respondió creado=true, pero no devolvió clave de acceso. No se modificó el estado local")
+    # Para Ecuador preferimos el número codificado en la clave SRI. Evita que
+    # un campo genérico de AZUR se muestre como 003-003 cuando el RIDE es 003-001.
+    invoice_number = _azur_invoice_number_from_access_key(access_key) or invoice_number
+    now = datetime.utcnow()
+    record = existing or AzurEmission(group_key=group_key, patient_id=data.patient_id, fecha=data.fecha)
+    if not existing:
+        db.add(record)
+    # IMPORTANTE: recibir clave de acceso NO equivale a autorización del SRI.
+    record.estado = "EN_PROCESO"
+    record.clave_acceso = access_key
+    record.numero_factura = invoice_number
+    record.request_hash = request_hash
+    try:
+        record.response_json = json.dumps(response, ensure_ascii=False)[:10000]
+    except Exception:
+        record.response_json = None
+    record.updated_at = now
+    audit(db, user, "enviar_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}, clave recibida; pendiente autorización")
+    db.commit()
+    mirror_azur_emission_to_local(record)
+    return {
+        "ok": True,
+        "estado": record.estado,
+        "clave_acceso": access_key,
+        "numero_factura": invoice_number,
+        "message": "AZUR recibió la factura y devolvió la clave de acceso. Falta confirmar la autorización del SRI; Recepción bloqueó cualquier reenvío.",
+    }
+
+
+@app.post("/api/billing/azur/check-status")
+def billing_azur_check_status(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Consultar AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    record = db.scalar(select(AzurEmission).where(AzurEmission.group_key == _azur_group_key(data.patient_id, data.fecha)))
+    if not record or not record.clave_acceso:
+        raise HTTPException(404, "Esta factura todavía no tiene una clave de acceso de AZUR")
+    try:
+        result = azur_query_comprobante(AZUR_BASE_URL, AZUR_API_KEY, record.clave_acceso, timeout=15)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    state = str(result.get("estado") or "CONSULTADA").upper()
+    number = _azur_invoice_number_from_access_key(record.clave_acceso) or str(result.get("numero_factura") or record.numero_factura or "").strip() or None
+    record.estado = state
+    if number:
+        record.numero_factura = number
+    record.updated_at = datetime.utcnow()
+    try:
+        record.response_json = json.dumps(result.get("data") or {}, ensure_ascii=False)[:10000]
+    except Exception:
+        pass
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if state == "AUTORIZADA":
+        now = datetime.utcnow()
+        for b, _v in rows:
+            b.estado = "EMITIDA"
+            if number:
+                b.numero_factura = number
+            b.emitted_at = now
+            if not b.approved_at:
+                b.approved_at = now
+        audit(db, user, "autorizar_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}")
+    elif state == "RECHAZADA":
+        audit(db, user, "rechazo_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}")
+    db.commit()
+    mirror_azur_emission_to_local(record)
+    if state == "AUTORIZADA":
+        for b, _ in rows:
+            mirror_billing_to_local(b)
+    return {
+        "ok": True,
+        "estado": state,
+        "estado_origen": result.get("estado_origen"),
+        "numero_factura": number,
+        "clave_acceso": record.clave_acceso,
+        "numero_autorizacion": result.get("numero_autorizacion"),
+        "pdf_url": result.get("pdf_url"),
+        "xml_url": result.get("xml_url"),
+        "mass_emission_unlocked": _azur_mass_unlocked(db),
+        "message": (
+            "Factura AUTORIZADA por AZUR/SRI." if state == "AUTORIZADA" else
+            "AZUR reportó la factura como rechazada. No se reenviará automáticamente." if state == "RECHAZADA" else
+            "La factura todavía está en proceso. Puedes consultar nuevamente más tarde."
+        ),
+    }
+
+
+@app.post("/api/billing/azur/check-all-status")
+def billing_azur_check_all_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Actualiza en lote los comprobantes enviados recientemente y cualquiera que siga pendiente.
+
+    No reenvía facturas. Solo consulta por la clave de acceso ya registrada en AZUR.
+    """
+    if is_offline_db(db):
+        raise HTTPException(503, "Consultar AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    history_from = date.today() - timedelta(days=6)
+    records = list(db.scalars(
+        select(AzurEmission)
+        .where(
+            AzurEmission.clave_acceso.is_not(None),
+            or_(AzurEmission.fecha >= history_from, AzurEmission.estado.in_(["EN_PROCESO", "CONSULTADA", "RECHAZADA"]))
+        )
+        .order_by(AzurEmission.fecha.desc(), AzurEmission.id.desc())
+    ))
+    checked=[]; failed=[]; authorized=processing=rejected=0
+    for record in records:
+        try:
+            result = azur_query_comprobante(AZUR_BASE_URL, AZUR_API_KEY, record.clave_acceso, timeout=15)
+            state = str(result.get("estado") or "CONSULTADA").upper()
+            number = _azur_invoice_number_from_access_key(record.clave_acceso) or str(result.get("numero_factura") or record.numero_factura or "").strip() or None
+            record.estado = state
+            if number:
+                record.numero_factura = number
+            record.updated_at = datetime.utcnow()
+            try:
+                record.response_json = json.dumps(result.get("data") or {}, ensure_ascii=False)[:10000]
+            except Exception:
+                pass
+            rows = billing_group_records(db, int(record.patient_id), record.fecha)
+            if state == "AUTORIZADA":
+                now = datetime.utcnow()
+                for b, _v in rows:
+                    b.estado = "EMITIDA"
+                    if number:
+                        b.numero_factura = number
+                    b.emitted_at = now
+                    if not b.approved_at:
+                        b.approved_at = now
+                authorized += 1
+            elif state == "RECHAZADA":
+                rejected += 1
+            else:
+                processing += 1
+            db.commit()
+            mirror_azur_emission_to_local(record)
+            if state == "AUTORIZADA":
+                for b, _v in rows:
+                    mirror_billing_to_local(b)
+            checked.append({"patient_id": int(record.patient_id), "fecha": record.fecha, "estado": state, "numero_factura": number})
+        except AzurError as exc:
+            db.rollback()
+            p = db.get(Patient, int(record.patient_id))
+            failed.append({"patient_id": int(record.patient_id), "nombre": p.nombre if p else None, "fecha": record.fecha, "numero_factura": record.numero_factura, "reason": str(exc)})
+        except Exception as exc:
+            db.rollback()
+            p = db.get(Patient, int(record.patient_id))
+            failed.append({"patient_id": int(record.patient_id), "nombre": p.nombre if p else None, "fecha": record.fecha, "numero_factura": record.numero_factura, "reason": str(exc)[:300]})
+    audit(db, user, "actualizar_estados_azur_lote", f"Consultadas {len(checked)}, autorizadas {authorized}, rechazadas {rejected}, fallidas {len(failed)}")
+    db.commit()
+    return {
+        "ok": True,
+        "checked": checked,
+        "failed": failed,
+        "counts": {
+            "checked": len(checked),
+            "authorized": authorized,
+            "processing": processing,
+            "rejected": rejected,
+            "failed": len(failed),
+        },
+    }
+
+
+@app.get("/api/billing/azur/batch-preview")
+def billing_azur_batch_preview(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "APROBADA")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    ready=[]; skipped=[]
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "APROBADA" for b, _ in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura todavía no está completamente aprobada"}); continue
+        existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == _azur_group_key(int(patient_id), fecha)))
+        if existing and existing.clave_acceso:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        try:
+            validate_billing_recipient(data, p)
+            _azur_payload_for_group(data, p, rows)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        ready.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "total": round(sum(float(v.valor or 0) for _b,v in rows),2)})
+    return {"ok": True, "unlocked": True, "ready": ready, "skipped": skipped,
+            "counts": {"ready": len(ready), "skipped": len(skipped)}}
+
+
+@app.post("/api/billing/azur/emit-all-pending")
+def billing_azur_emit_all_pending(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Envía en serie facturas completas; la autorización se consulta después."""
+    if not AZUR_LIVE_EMISSION:
+        raise HTTPException(403, "La emisión real de AZUR está desactivada")
+    if is_offline_db(db):
+        raise HTTPException(503, "La emisión masiva requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "APROBADA")
+        .group_by(Visit.patient_id, Visit.

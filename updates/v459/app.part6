@@ -1,0 +1,939 @@
+fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    sent=[]; skipped=[]; failed=[]
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "APROBADA" for b, _ in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura todavía no está completamente aprobada"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        group_key = _azur_group_key(int(patient_id), fecha)
+        existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+        if existing and existing.clave_acceso:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
+        try:
+            validate_billing_recipient(data, p)
+            payload = _azur_payload_for_group(data, p, rows)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        try:
+            result = azur_emit_invoice(AZUR_BASE_URL, AZUR_API_KEY, payload, timeout=25)
+            response = result.get("data") if isinstance(result, dict) else {}
+            response = response if isinstance(response, dict) else {}
+            access_key = str(response.get("claveacceso") or response.get("clave_acceso") or "").strip() or None
+            invoice_number = str(response.get("numero_factura") or response.get("numero_comprobante") or response.get("numero") or "").strip() or None
+            if response.get("creado") is not True or not access_key:
+                raise AzurError("AZUR no devolvió creado=true con una clave de acceso")
+            invoice_number = _azur_invoice_number_from_access_key(access_key) or invoice_number
+            now = datetime.utcnow()
+            record = existing or AzurEmission(group_key=group_key, patient_id=int(patient_id), fecha=fecha)
+            if not existing:
+                db.add(record)
+            record.estado="EN_PROCESO"; record.clave_acceso=access_key; record.numero_factura=invoice_number; record.request_hash=request_hash; record.updated_at=now
+            try: record.response_json=json.dumps(response,ensure_ascii=False)[:10000]
+            except Exception: record.response_json=None
+            # La emisión masiva trabaja únicamente sobre facturas ya aprobadas.
+            db.commit()
+            mirror_azur_emission_to_local(record)
+            sent.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "numero_factura": invoice_number, "clave_acceso": access_key})
+        except AzurError as exc:
+            db.rollback(); failed.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc)})
+        except Exception as exc:
+            db.rollback(); failed.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc)[:300]})
+    audit(db, user, "enviar_facturas_azur_lote", f"Enviadas {len(sent)}, omitidas {len(skipped)}, fallidas {len(failed)}")
+    db.commit()
+    return {"ok": True, "sent": sent, "emitted": sent, "skipped": skipped, "failed": failed,
+            "counts": {"sent": len(sent), "emitted": len(sent), "skipped": len(skipped), "failed": len(failed)},
+            "message": "Las facturas enviadas quedaron EN PROCESO. La autorización del SRI debe consultarse; no se reenviarán."}
+
+def billing_group_records(db: Session, patient_id: int, fecha: date):
+    return db.execute(
+        select(BillingRecord, Visit)
+        .join(Visit, BillingRecord.visit_id == Visit.id)
+        .where(Visit.patient_id == patient_id, Visit.fecha == fecha)
+        .order_by(Visit.id.asc())
+    ).all()
+
+
+def billing_required_missing(p: Patient) -> list[str]:
+    missing = []
+    if not (p.cedula or "").strip(): missing.append("cédula")
+    return missing
+
+
+def validate_billing_recipient(data: BillingGroupIn, p: Patient) -> None:
+    """Valida el receptor sin tocar la ficha del paciente.
+
+    Los datos alternos viajan solo en la acción actual; la UI los conserva localmente
+    por factura para evitar agregar lecturas/escrituras a Neon.
+    """
+    if not bool(data.factura_otro):
+        missing = billing_required_missing(p)
+        if missing:
+            raise HTTPException(400, "Completa antes de aprobar: " + ", ".join(missing))
+        return
+    ident = re.sub(r"\D", "", str(data.factura_identificacion or ""))
+    name = " ".join(str(data.factura_nombre or "").split())
+    email = str(data.factura_correo or "").strip().lower()
+    if len(ident) not in {10, 13}:
+        raise HTTPException(400, "La identificación para facturar debe tener 10 dígitos (cédula) o 13 dígitos (RUC)")
+    if len(name) < 3:
+        raise HTTPException(400, "Ingresa el nombre o razón social para la factura")
+    if email and "@" not in email:
+        raise HTTPException(400, "El correo de facturación no es válido")
+
+
+def _billing_action_counts(db: Session) -> dict[str, int]:
+    """Grupos de factura que requieren aprobación o emisión.
+
+    Un grupo se cuenta como ``pending`` si cualquiera de sus líneas sigue
+    PENDIENTE. Solo cuando ya no hay pendientes y existe alguna APROBADA pasa a
+    ``approved``. Las EMITIDAS no generan recordatorio. Se calcula en una sola
+    consulta local y evita recorrer la cola completa en JavaScript.
+    """
+    grouped = (
+        select(
+            Visit.patient_id.label("patient_id"),
+            Visit.fecha.label("fecha"),
+            func.max(case((BillingRecord.estado == "PENDIENTE", 1), else_=0)).label("has_pending"),
+            func.max(case((BillingRecord.estado == "APROBADA", 1), else_=0)).label("has_approved"),
+        )
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE)
+        .group_by(Visit.patient_id, Visit.fecha)
+        .subquery()
+    )
+    row = db.execute(
+        select(
+            func.coalesce(func.sum(grouped.c.has_pending), 0).label("pending"),
+            func.coalesce(
+                func.sum(case(((grouped.c.has_pending == 0) & (grouped.c.has_approved == 1), 1), else_=0)),
+                0,
+            ).label("approved"),
+        )
+    ).one()
+    pending = int(row.pending or 0)
+    approved = int(row.approved or 0)
+    return {"pending": pending, "approved": approved, "total": pending + approved}
+
+
+def _billing_pending_count(db: Session) -> int:
+    """Facturas que todavía requieren acción humana."""
+    return _billing_action_counts(db)["total"]
+
+
+@app.get("/api/pending-summary")
+def pending_summary(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    billing = _billing_action_counts(db)
+    return {
+        "billing": billing["total"],
+        "billing_pending": billing["pending"],
+        "billing_approved": billing["approved"],
+        "agenda": int(db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0),
+    }
+
+
+@app.get("/api/patients/{pid}/billing-preference")
+def get_billing_preference(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return {"preference": billing_preference_dict(_billing_preference_for_patient(db, pid))}
+
+
+@app.put("/api/patients/{pid}/billing-preference")
+def save_billing_preference(pid: int, data: BillingPreferenceIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Guardar la preferencia de facturación requiere conexión a Internet")
+    patient = db.get(Patient, pid)
+    if not patient: raise HTTPException(404, "Paciente no encontrado")
+    existing = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == pid))
+    if not data.enabled:
+        if existing:
+            existing.enabled = 0; existing.updated_at = datetime.utcnow(); db.commit(); mirror_billing_preference_to_local(existing)
+        else:
+            mirror_delete_billing_preference_local(pid)
+        return {"ok": True, "preference": None}
+    ident = re.sub(r"\D", "", str(data.identificacion or ""))
+    name = " ".join(str(data.nombre or "").split()).upper()
+    email = str(data.correo or "").strip().lower()
+    if len(ident) not in {10, 13}: raise HTTPException(400, "La identificación debe tener 10 dígitos o el RUC 13 dígitos")
+    if len(name) < 3: raise HTTPException(400, "Ingresa el nombre o razón social")
+    if email and "@" not in email: raise HTTPException(400, "El correo de facturación no es válido")
+    values = dict(enabled=1, identificacion=ident, nombre=name,
+                  direccion=" ".join(str(data.direccion or "").split()).upper() or None,
+                  telefono=re.sub(r"\D", "", str(data.telefono or "")) or None,
+                  correo=email, updated_at=datetime.utcnow())
+    if existing:
+        for key, value in values.items(): setattr(existing, key, value)
+        pref=existing
+    else:
+        pref=BillingPreference(patient_id=pid, **values); db.add(pref)
+    audit(db, user, "guardar_preferencia_facturacion", f"Paciente {pid}")
+    db.commit(); db.refresh(pref); mirror_billing_preference_to_local(pref)
+    return {"ok": True, "preference": billing_preference_dict(pref)}
+
+
+@app.delete("/api/patients/{pid}/billing-preference")
+def delete_billing_preference(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db): raise HTTPException(503, "Desactivar esta preferencia requiere conexión a Internet")
+    pref = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == pid))
+    if pref: db.delete(pref)
+    audit(db, user, "eliminar_preferencia_facturacion", f"Paciente {pid}")
+    db.commit(); mirror_delete_billing_preference_local(pid)
+    return {"ok": True}
+
+
+@app.get("/api/billing/pending-count")
+def billing_pending_count(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return {"pending": _billing_pending_count(db)}
+
+
+@app.get("/api/billing/next")
+def billing_next(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    target = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id).label("first_visit"))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE)
+        .group_by(Visit.patient_id, Visit.fecha)
+        .having(
+            func.min(BillingRecord.estado) == "PENDIENTE",
+            func.max(BillingRecord.estado) == "PENDIENTE",
+        )
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+        .limit(1)
+    ).first()
+    if not target:
+        return {"items": []}
+    patient_id, fecha, _ = target
+    p = db.get(Patient, patient_id)
+    rows = billing_group_records(db, patient_id, fecha)
+    return {
+        "items": [{"billing": billing_dict(b), "visit": v_dict(v), "patient": p_dict(p)} for b, v in rows],
+        "patient": p_dict(p),
+        "fecha": fecha,
+        "billing_preference": billing_preference_dict(_billing_preference_for_patient(db, int(patient_id))),
+    }
+
+
+@app.get("/api/billing")
+def billing_list(
+    estado: str = "TODAS", desde: Optional[date] = None, hasta: Optional[date] = None,
+    db: Session = Depends(get_db), user: User = Depends(current_user)
+):
+    """Lista de facturación con estado operativo + estado real de AZUR/SRI.
+
+    Pendientes y aprobadas nunca se ocultan por antigüedad para que no se pierda
+    trabajo por resolver. El historial resuelto (emitidas y rechazadas) muestra
+    por defecto solo los últimos 7 días; una consulta con ``desde/hasta`` puede
+    recuperar cualquier fecha histórica de forma explícita.
+    """
+    stmt = (
+        select(BillingRecord, Visit, Patient)
+        .join(Visit, BillingRecord.visit_id == Visit.id)
+        .join(Patient, Visit.patient_id == Patient.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE)
+    )
+    if desde:
+        stmt = stmt.where(Visit.fecha >= desde)
+    if hasta:
+        stmt = stmt.where(Visit.fecha <= hasta)
+    all_rows = db.execute(stmt.order_by(Visit.fecha.desc(), Visit.id.desc())).all()
+
+    group_states = {}
+    for b, v, p in all_rows:
+        group_states.setdefault((int(p.id), v.fecha), set()).add(str(b.estado or "").upper())
+
+    all_group_keys = [_azur_group_key(pid, fecha) for pid, fecha in group_states]
+    all_emissions = list(db.scalars(select(AzurEmission).where(AzurEmission.group_key.in_(all_group_keys)))) if all_group_keys else []
+    emission_by_group = {(int(x.patient_id), x.fecha): x for x in all_emissions}
+
+    def display_state(group_key):
+        states = group_states.get(group_key, set())
+        emission = emission_by_group.get(group_key)
+        az_state = str(emission.estado or "").upper() if emission else ""
+        if az_state == "RECHAZADA":
+            return "RECHAZADA"
+        if az_state == "AUTORIZADA" or states == {"EMITIDA"}:
+            return "EMITIDA"
+        if states == {"APROBADA"}:
+            return "APROBADA"
+        if states == {"PENDIENTE"}:
+            return "PENDIENTE"
+        return "MIXTA"
+
+    # Siete días calendario incluyendo hoy.
+    history_from = date.today() - timedelta(days=6)
+    counts = {"PENDIENTE": 0, "APROBADA": 0, "EMITIDA": 0, "RECHAZADA": 0}
+    for key in group_states:
+        st = display_state(key)
+        if st in {"EMITIDA", "RECHAZADA"} and key[1] < history_from:
+            continue
+        if st in counts:
+            counts[st] += 1
+
+    estado = (estado or "TODAS").strip().upper()
+    if estado in {"PENDIENTE", "APROBADA", "EMITIDA", "RECHAZADA"}:
+        allowed = {key for key in group_states if display_state(key) == estado}
+        # Solo el historial resuelto se recorta automáticamente. Pendientes y
+        # aprobadas permanecen visibles hasta que alguien las resuelva.
+        if estado in {"EMITIDA", "RECHAZADA"} and not desde and not hasta:
+            allowed = {key for key in allowed if key[1] >= history_from}
+        rows = [(b, v, p) for b, v, p in all_rows if (int(p.id), v.fecha) in allowed]
+    else:
+        rows = all_rows
+
+    patient_ids = sorted({int(p.id) for _, _, p in rows})
+    prefs = list(db.scalars(select(BillingPreference).where(BillingPreference.patient_id.in_(patient_ids), BillingPreference.enabled == 1))) if patient_ids else []
+    azur_by_key = {x.group_key: azur_emission_dict(x) for x in all_emissions}
+    items = [
+        {
+            "billing": billing_dict(b),
+            "visit": v_dict(v),
+            "patient": p_dict(p),
+            "azur": azur_by_key.get(_azur_group_key(int(p.id), v.fecha)),
+        }
+        for b, v, p in rows
+    ]
+    return {
+        "items": items,
+        "counts": counts,
+        "history_window_days": 7,
+        "history_from": history_from,
+        "billing_preferences": {str(x.patient_id): billing_preference_dict(x) for x in prefs},
+    }
+
+
+@app.post("/api/billing/approve")
+def billing_approve(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones pendientes de facturación para ese día")
+    if any(b.estado == "EMITIDA" for b, _ in rows):
+        raise HTTPException(409, "Ese día ya contiene una atención marcada como emitida")
+    touched = []
+    for b, v in rows:
+        b.estado = "APROBADA"
+        b.approved_at = datetime.utcnow()
+        b.numero_factura = None
+        b.emitted_at = None
+        touched.append(b)
+        if is_offline_db(db):
+            add_queue(db, "billing.approve", "billing", {"visit_id": v.id}, user.username, b.id)
+    audit(db, user, "aprobar_prefactura" + ("_offline" if is_offline_db(db) else ""), f"Paciente {p.id}, fecha {data.fecha}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched: mirror_billing_to_local(b)
+    return {"ok": True, "estado": "APROBADA", "offline": is_offline_db(db)}
+
+
+@app.post("/api/billing/approve-all-pending")
+def billing_approve_all_pending(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Aprueba todos los grupos pendientes que tengan un receptor válido.
+
+    Los grupos incompletos se omiten y permanecen PENDIENTES para revisarlos luego.
+    """
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "PENDIENTE")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    approved=[]; skipped=[]; touched=[]
+    now = datetime.utcnow()
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "PENDIENTE" for b, _v in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura tiene estados mezclados"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        try:
+            validate_billing_recipient(data, p)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        for b, v in rows:
+            b.estado = "APROBADA"
+            b.approved_at = now
+            b.numero_factura = None
+            b.emitted_at = None
+            touched.append(b)
+            if is_offline_db(db):
+                add_queue(db, "billing.approve", "billing", {"visit_id": v.id}, user.username, b.id)
+        approved.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha})
+    audit(db, user, "aprobar_prefacturas_lote" + ("_offline" if is_offline_db(db) else ""), f"Aprobadas {len(approved)}, omitidas {len(skipped)}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched:
+            mirror_billing_to_local(b)
+    return {
+        "ok": True,
+        "approved": approved,
+        "skipped": skipped,
+        "counts": {"approved": len(approved), "skipped": len(skipped)},
+        "offline": is_offline_db(db),
+    }
+
+
+@app.post("/api/billing/pending")
+def billing_back_to_pending(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones de facturación para ese día")
+    if any(b.estado == "EMITIDA" for b, _ in rows):
+        raise HTTPException(409, "Una factura emitida no puede volver a pendiente desde aquí")
+    touched = []
+    for b, v in rows:
+        b.estado = "PENDIENTE"
+        b.approved_at = None
+        b.numero_factura = None
+        b.emitted_at = None
+        touched.append(b)
+        if is_offline_db(db):
+            add_queue(db, "billing.pending", "billing", {"visit_id": v.id}, user.username, b.id)
+    audit(db, user, "reabrir_prefactura" + ("_offline" if is_offline_db(db) else ""), f"Paciente {data.patient_id}, fecha {data.fecha}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched: mirror_billing_to_local(b)
+    return {"ok": True, "estado": "PENDIENTE", "offline": is_offline_db(db)}
+
+
+@app.post("/api/billing/emit")
+def billing_emit(data: BillingEmitIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    number = (data.numero_factura or "").strip()
+    if not number:
+        raise HTTPException(400, "Ingresa el número de factura emitida")
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones aprobadas para ese día")
+    if any(b.estado != "APROBADA" for b, _ in rows):
+        raise HTTPException(409, "Primero debes aprobar la pre-factura completa")
+    touched = []
+    for b, v in rows:
+        b.estado = "EMITIDA"
+        b.numero_factura = number
+        b.emitted_at = datetime.utcnow()
+        if not b.approved_at:
+            b.approved_at = datetime.utcnow()
+        touched.append(b)
+        if is_offline_db(db):
+            add_queue(db, "billing.emit", "billing", {"visit_id": v.id, "numero_factura": number}, user.username, b.id)
+    audit(db, user, "marcar_factura_emitida" + ("_offline" if is_offline_db(db) else ""), f"Paciente {data.patient_id}, fecha {data.fecha}, factura {number}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched: mirror_billing_to_local(b)
+    return {"ok": True, "estado": "EMITIDA", "numero_factura": number, "offline": is_offline_db(db)}
+
+
+@app.get("/api/procedures")
+def procedures(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return [
+        {"id": x.id, "nombre": str(x.nombre or "").upper(), "valor_default": float(x.valor_default) if x.valor_default is not None else None}
+        for x in db.scalars(select(Procedure).where(Procedure.activo == 1).order_by(Procedure.nombre))
+    ]
+
+
+@app.post("/api/procedures")
+def add_procedure(data: ProcedureIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Agregar procedimientos nuevos requiere conexión a Internet")
+    name = data.nombre.strip().upper()
+    if not name:
+        raise HTTPException(400, "El nombre del procedimiento es obligatorio")
+    if db.scalar(select(Procedure).where(Procedure.nombre == name)):
+        raise HTTPException(409, "Ese procedimiento ya existe")
+    p = Procedure(nombre=name, valor_default=data.valor_default)
+    db.add(p)
+    audit(db, user, "crear_procedimiento", name)
+    db.commit()
+    mirror_procedure_local(p)
+    return {"ok": True}
+
+
+@app.put("/api/procedures/{procedure_id}")
+def update_procedure_value(procedure_id: int, data: ProcedureValueIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Procedure, procedure_id)
+    if not p:
+        raise HTTPException(404, "Procedimiento no encontrado")
+    p.valor_default = data.valor_default
+    if is_offline_db(db):
+        add_queue(
+            db, "procedure.update", "procedure",
+            {"procedure_id": procedure_id, "valor_default": data.valor_default},
+            user.username, procedure_id,
+        )
+        audit(db, user, "editar_valor_procedimiento_offline", f"{p.nombre}: {data.valor_default}")
+        db.commit()
+        return {"ok": True, "id": p.id, "nombre": p.nombre, "valor_default": float(p.valor_default) if p.valor_default is not None else None, "offline": True}
+    audit(db, user, "editar_valor_procedimiento", f"{p.nombre}: {data.valor_default}")
+    db.commit()
+    mirror_procedure_local(p)
+    return {"ok": True, "id": p.id, "nombre": p.nombre, "valor_default": float(p.valor_default) if p.valor_default is not None else None, "offline": False}
+
+
+@app.delete("/api/procedures/{procedure_id}")
+def delete_procedure(procedure_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Eliminar o archivar procedimientos requiere conexión a Internet")
+    proc = db.get(Procedure, procedure_id)
+    if not proc: raise HTTPException(404, "Procedimiento no encontrado")
+    used = int(db.scalar(select(func.count(Visit.id)).where(func.upper(func.coalesce(Visit.procedimiento, "")) == str(proc.nombre or "").upper())) or 0)
+    name = proc.nombre
+    if used:
+        proc.activo = 0
+        audit(db, user, "archivar_procedimiento", f"{name}; {used} atención(es) históricas")
+        db.commit(); mirror_procedure_local(proc)
+        return {"ok": True, "archived": True, "used": used, "message": "El procedimiento se archivó porque tiene historial. Ya no aparecerá en nuevas atenciones."}
+    db.delete(proc)
+    audit(db, user, "eliminar_procedimiento", name)
+    db.commit()
+    try:
+        with LocalSessionLocal() as ldb:
+            local=ldb.get(Procedure,procedure_id)
+            if local: ldb.delete(local)
+            ldb.commit()
+    except Exception: pass
+    return {"ok": True, "archived": False, "used": 0, "message": "Procedimiento eliminado."}
+
+
+@app.post("/api/change-password")
+def change_password(data: PasswordIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Por seguridad, el cambio de contraseña requiere conexión a Internet")
+    db_user = db.scalar(select(User).where(User.username == user.username))
+    if not db_user or not verify_password(data.current_password, db_user.password_hash):
+        raise HTTPException(400, "Contraseña actual incorrecta")
+    if len(data.new_password) < 8:
+        raise HTTPException(400, "La nueva contraseña debe tener al menos 8 caracteres")
+    db_user.password_hash = hash_password(data.new_password)
+    audit(db, db_user, "cambiar_contrasena")
+    db.commit()
+    mirror_user_local(db_user)
+    invalidate_user_cache(user.username)
+    return {"ok": True}
+
+
+def _safe_update_member_path(root: Path, member: str) -> Path:
+    dest = (root / member).resolve()
+    if root.resolve() not in dest.parents and dest != root.resolve():
+        raise HTTPException(400, "Paquete de actualización inválido")
+    return dest
+
+
+def _app_backup_zip() -> str:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = Path(UPDATE_BACKUP_DIR) / f"app_antes_actualizacion_{stamp}.zip"
+    excluded = {".venv", ".env", "data", "__pycache__", "backup", "backups"}
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+        base = Path(BASE_DIR)
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(base)
+            if rel.parts and rel.parts[0] in excluded:
+                continue
+            if any(part.startswith("backup_antes_") for part in rel.parts):
+                continue
+            zf.write(path, rel.as_posix())
+    backups = sorted(Path(UPDATE_BACKUP_DIR).glob("app_antes_actualizacion_*.zip"), key=lambda x: x.stat().st_mtime, reverse=True)
+    for old in backups[5:]:
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    return str(dest)
+
+
+def _whatsapp_manual_test_missing(template_key: str = "recordatorio_cita") -> list[str]:
+    """Configuración mínima para probar una plantilla sin activar automatización local."""
+    missing = []
+    if not WHATSAPP_GRAPH_VERSION:
+        missing.append("WHATSAPP_GRAPH_VERSION")
+    if not WHATSAPP_PHONE_NUMBER_ID:
+        missing.append("WHATSAPP_PHONE_NUMBER_ID")
+    if not WHATSAPP_ACCESS_TOKEN:
+        missing.append("WHATSAPP_ACCESS_TOKEN")
+    if template_key == "recordatorio_cita" and not WHATSAPP_TEMPLATE_RECORDATORIO_CITA:
+        missing.append("WHATSAPP_TEMPLATE_RECORDATORIO_CITA")
+    if template_key == "cita_agendada":
+        if not WHATSAPP_TEMPLATE_CITA_AGENDADA:
+            missing.append("WHATSAPP_TEMPLATE_CITA_AGENDADA")
+        if not WHATSAPP_HEADER_IMAGE_ID:
+            missing.append("WHATSAPP_HEADER_IMAGE_ID")
+    if template_key == "recordatorio_hoy":
+        if not WHATSAPP_TEMPLATE_RECORDATORIO_HOY:
+            missing.append("WHATSAPP_TEMPLATE_RECORDATORIO_HOY")
+        if not WHATSAPP_HEADER_IMAGE_ID:
+            missing.append("WHATSAPP_HEADER_IMAGE_ID")
+    return missing
+
+
+def _whatsapp_test_payload(template_key: str, phone: str, name: str, test_date: date, raw_time: str) -> tuple[dict, str, str, list[str]]:
+    clean_name = re.sub(r"\s+", " ", str(name or "Prueba").strip())[:80] or "Prueba"
+    if template_key == "recordatorio_cita":
+        template = WHATSAPP_TEMPLATE_RECORDATORIO_CITA
+        language = WHATSAPP_LANGUAGE_RECORDATORIO_CITA  # plantilla aprobada: es_ES
+        body = [clean_name, whatsapp_recordatorio_datetime_label(test_date, raw_time)]
+        header = None
+        replies = ["TEST_CONFIRMAR", "TEST_CANCELAR"]
+    elif template_key == "cita_agendada":
+        template = WHATSAPP_TEMPLATE_CITA_AGENDADA
+        language = WHATSAPP_LANGUAGE_CITA_AGENDADA  # Español (Ecuador)
+        body = [clean_name, whatsapp_date_label(test_date), whatsapp_time_label(raw_time)]
+        header = WHATSAPP_HEADER_IMAGE_ID
+        replies = []
+    elif template_key == "recordatorio_hoy":
+        template = WHATSAPP_TEMPLATE_RECORDATORIO_HOY
+        language = WHATSAPP_LANGUAGE_RECORDATORIO_HOY  # Español (Ecuador)
+        body = [clean_name, whatsapp_time_label(raw_time)]
+        header = WHATSAPP_HEADER_IMAGE_ID
+        replies = []
+    else:
+        raise HTTPException(400, "Plantilla de prueba no válida")
+    payload = whatsapp_build_template_payload(
+        to=phone, template_name=template, language_code=language, body_params=body,
+        header_image_id=header, quick_reply_payloads=replies,
+    )
+    return payload, template, language, body
+
+
+
+def _whatsapp_cloud_test_ready() -> tuple[bool, str]:
+    if not WHATSAPP_CLOUD_MODE:
+        return False, "WhatsApp Cloud 24/7 está desactivado"
+    if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+        return False, "Neon no está disponible"
+    if not WHATSAPP_APPROVED_RECORDATORIO_CITA:
+        return False, "La plantilla recordatorio_cita todavía no está aprobada"
+    return True, ""
+
+
+def _cleanup_old_whatsapp_cloud_tests() -> None:
+    if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+        return
+    try:
+        with CloudSessionLocal() as cdb:
+            cdb.execute(text("""
+                DELETE FROM public.confirmafy_agenda_items
+                WHERE source_hash LIKE :prefix
+                  AND created_at < now() - interval '2 hours'
+            """), {"prefix": WHATSAPP_CLOUD_TEST_PREFIX + "%"})
+            cdb.commit()
+    except Exception:
+        pass
+
+
+@app.post("/api/whatsapp/cloud-test")
+def whatsapp_cloud_test(payload: dict, request: Request, user: User = Depends(current_user)):
+    """Solicita UNA prueba por el worker Cloud, sin guardar credenciales Meta en esta PC."""
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "La prueba solo puede iniciarse desde la PC de Recepción")
+    ready, reason = _whatsapp_cloud_test_ready()
+    if not ready:
+        raise HTTPException(503, reason)
+    template_key = str(payload.get("template") or "recordatorio_cita").strip().lower()
+    if template_key != "recordatorio_cita":
+        raise HTTPException(409, "Por ahora solo puede probarse recordatorio_cita porque es la plantilla aprobada por Meta")
+    phone = confirmafy_phone(str(payload.get("phone") or WHATSAPP_TEST_PHONE or ""))
+    if not re.fullmatch(r"\d{10,15}", phone or ""):
+        raise HTTPException(400, "Ingresa un número válido. Ecuador: 09xxxxxxxx o 5939xxxxxxxx.")
+    name = re.sub(r"\s+", " ", str(payload.get("name") or "Prueba").strip())[:60] or "Prueba"
+    raw_date = str(payload.get("date") or "").strip()
+    raw_time = str(payload.get("time") or "").strip()[:5]
+    try:
+        test_date = date.fromisoformat(raw_date)
+    except Exception:
+        raise HTTPException(400, "Selecciona una fecha válida para la prueba")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw_time):
+        raise HTTPException(400, "Selecciona una hora válida para la prueba")
+    try:
+        hh, mm = [int(x) for x in raw_time.split(":")]
+        if datetime(test_date.year, test_date.month, test_date.day, hh, mm) <= datetime.now():
+            raise HTTPException(400, "La fecha y hora mostradas en la prueba deben estar en el futuro")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "Fecha u hora inválida")
+
+    _cleanup_old_whatsapp_cloud_tests()
+    token = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:22]
+    source_hash = WHATSAPP_CLOUD_TEST_PREFIX + token
+    item = ConfirmafyAgendaItem(
+        nombre=name.upper(), celular=phone, fecha=test_date, hora=raw_time,
+        duracion=20, source_hash=source_hash,
+    )
+    try:
+        with CloudSessionLocal() as cdb:
+            cdb.add(item); cdb.commit(); cdb.refresh(item)
+            source_id = int(item.id)
+    except Exception as exc:
+        raise HTTPException(503, f"No se pudo registrar la prueba en Cloud: {str(exc)[:180]}")
+    return {
+        "ok": True, "mode": "cloud", "test_id": source_id, "token": token,
+        "to": phone, "template": "recordatorio_cita", "worker_cycle_minutes": 5,
+        "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker la recogerá en su próximo ciclo (máximo aproximado 5 minutos).",
+    }
+
+
+@app.get("/api/whatsapp/cloud-test/{test_id}")
+def whatsapp_cloud_test_status(test_id: int, token: str, user: User = Depends(current_user)):
+    ready, reason = _whatsapp_cloud_test_ready()
+    if not ready:
+        return {"ok": False, "status": "UNAVAILABLE", "status_label": reason, "terminal": True}
+    source_hash = WHATSAPP_CLOUD_TEST_PREFIX + str(token or "")
+    try:
+        with CloudSessionLocal() as cdb:
+            item = cdb.scalar(select(ConfirmafyAgendaItem).where(
+                ConfirmafyAgendaItem.id == int(test_id), ConfirmafyAgendaItem.source_hash == source_hash
+            ))
+            if not item:
+                return {"ok": False, "status": "CLEANED", "status_label": "Prueba finalizada o vencida", "terminal": True}
+            event = cdb.execute(text("""
+                SELECT status, message_id, created_at, sent_at, delivered_at, read_at, error_text
+                FROM whatsapp_cloud.events
+                WHERE source_type='staged' AND source_id=:source_id AND template_name=:template
+                ORDER BY created_at DESC LIMIT 1
+            """), {"source_id": int(test_id), "template": whatsapp_recordatorio_template_name()}).mappings().first()
+        if not event:
+            return {"ok": True, "status": "QUEUED", "status_label": "Esperando al worker Cloud", "terminal": False}
+        st = str(event.get("status") or "").upper()
+        label, _tone = _wa_event_display_status(st)
+        timestamp = event.get("read_at") or event.get("delivered_at") or event.get("sent_at") or event.get("created_at")
+        return {
+            "ok": st not in {"ERROR", "FAILED"}, "status": st, "status_label": label,
+            "terminal": st in {"SENT", "DELIVERED", "READ", "ERROR", "FAILED"},
+            "message_id": str(event.get("message_id") or ""),
+            "timestamp": timestamp.isoformat() if timestamp else None,
+            "error": str(event.get("error_text") or "")[:240],
+        }
+    except Exception as exc:
+        return {"ok": False, "status": "ERROR", "status_label": "No se pudo consultar Cloud", "terminal": False, "error": str(exc)[:220]}
+
+
+@app.delete("/api/whatsapp/cloud-test/{test_id}")
+def whatsapp_cloud_test_finish(test_id: int, token: str, user: User = Depends(current_user)):
+    if not cloud_configured() or not CloudSessionLocal:
+        raise HTTPException(503, "Neon no está disponible")
+    source_hash = WHATSAPP_CLOUD_TEST_PREFIX + str(token or "")
+    try:
+        with CloudSessionLocal() as cdb:
+            item = cdb.scalar(select(ConfirmafyAgendaItem).where(
+                ConfirmafyAgendaItem.id == int(test_id), ConfirmafyAgendaItem.source_hash == source_hash
+            ))
+            if item:
+                cdb.delete(item); cdb.commit()
+        return {"ok": True, "message": "Prueba técnica finalizada. No se modificó ningún paciente."}
+    except Exception as exc:
+        raise HTTPException(503, f"No se pudo finalizar la prueba: {str(exc)[:180]}")
+
+
+@app.post("/api/whatsapp/test-message")
+def whatsapp_test_message(payload: dict, user: User = Depends(current_user)):
+    """Envía UNA de las tres plantillas configuradas sin tocar outbox ni worker."""
+    template_key = str(payload.get("template") or "recordatorio_cita").strip().lower()
+    if template_key not in {"recordatorio_cita", "cita_agendada", "recordatorio_hoy"}:
+        raise HTTPException(400, "Plantilla de prueba no válida")
+    missing = _whatsapp_manual_test_missing(template_key)
+    if missing:
+        raise HTTPException(400, "Falta configurar para esta prueba: " + ", ".join(missing))
+
+    phone = confirmafy_phone(str(payload.get("phone") or WHATSAPP_TEST_PHONE or ""))
+    if not re.fullmatch(r"\d{10,15}", phone or ""):
+        raise HTTPException(400, "Ingresa un número válido. Ecuador: 09xxxxxxxx o 5939xxxxxxxx.")
+    name = re.sub(r"\s+", " ", str(payload.get("name") or "Prueba").strip())[:80] or "Prueba"
+    raw_date = str(payload.get("date") or "").strip()
+    raw_time = str(payload.get("time") or "").strip()[:5]
+    try:
+        test_date = date.fromisoformat(raw_date)
+    except Exception:
+        raise HTTPException(400, "Selecciona una fecha válida para la prueba")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw_time):
+        raise HTTPException(400, "Selecciona una hora válida para la prueba")
+
+    wa_payload, template, language, body = _whatsapp_test_payload(template_key, phone, name, test_date, raw_time)
+    try:
+        response = whatsapp_send_template(
+            graph_version=WHATSAPP_GRAPH_VERSION, phone_number_id=WHATSAPP_PHONE_NUMBER_ID,
+            access_token=WHATSAPP_ACCESS_TOKEN, payload=wa_payload, timeout=20.0,
+        )
+    except WhatsAppError as exc:
+        raise HTTPException(502, str(exc))
+    message_id = ""
+    try:
+        message_id = str((response.get("messages") or [{}])[0].get("id") or "")
+    except Exception:
+        pass
+    return {
+        "ok": True, "to": phone, "template_key": template_key, "template": template,
+        "language": language, "body_preview": body,
+        "buttons": ["Sí", "No"] if template_key == "recordatorio_cita" else [],
+        "message_id": message_id, "automatic_sending_enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
+        "message": "Prueba enviada a Meta. La automatización Cloud no fue modificada.",
+    }
+
+
+@app.post("/api/whatsapp/test-recordatorio-cita")
+def whatsapp_test_recordatorio_cita(payload: dict, user: User = Depends(current_user)):
+    # Compatibilidad con v4.3.36-v4.3.38.
+    data = dict(payload or {})
+    data["template"] = "recordatorio_cita"
+    return whatsapp_test_message(data, user)
+
+
+@app.get("/api/whatsapp/cloud-status")
+def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
+    """Resumen bajo demanda de entregas cloud. No crea hilos ni sondeos de fondo."""
+    if not cloud_configured() or not CloudSessionLocal:
+        return {"available": False, "message": "Neon no está configurado en esta PC.", "summary": {}, "items": []}
+    try:
+        with CloudSessionLocal() as cdb:
+            rows = cdb.execute(text("""
+                SELECT template_name, appointment_date, appointment_time, patient_name, status,
+                       created_at, sent_at, delivered_at, read_at, error_text
+                FROM whatsapp_cloud.events
+                WHERE created_at >= now() - interval '7 days'
+                ORDER BY created_at DESC
+                LIMIT 40
+            """)).mappings().all()
+    except Exception as exc:
+        return {"available": False, "message": f"No se pudo consultar el estado Cloud: {exc}", "summary": {}, "items": []}
+
+    summary = {"TOTAL": 0, "SENT": 0, "DELIVERED": 0, "READ": 0, "FAILED": 0, "ERROR": 0, "SENDING": 0}
+    items = []
+    for r in rows:
+        st = str(r.get("status") or "").upper()
+        summary["TOTAL"] += 1
+        summary[st] = summary.get(st, 0) + 1
+        items.append({
+            "template": str(r.get("template_name") or ""),
+            "date": str(r.get("appointment_date") or "")[:10],
+            "time": str(r.get("appointment_time") or "")[:5],
+            "patient": str(r.get("patient_name") or ""),
+            "status": st,
+            "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+            "sent_at": r.get("sent_at").isoformat() if r.get("sent_at") else None,
+            "delivered_at": r.get("delivered_at").isoformat() if r.get("delivered_at") else None,
+            "read_at": r.get("read_at").isoformat() if r.get("read_at") else None,
+            "error": str(r.get("error_text") or "")[:240],
+        })
+    bad = summary.get("FAILED", 0) + summary.get("ERROR", 0)
+    return {
+        "available": True, "summary": summary, "items": items,
+        "message": "Sin errores de entrega en los últimos 7 días." if bad == 0 else f"Hay {bad} mensaje(s) con error para revisar.",
+    }
+
+
+@app.get("/api/whatsapp/status")
+def whatsapp_status(user: User = Depends(current_user)):
+    ready, missing = whatsapp_ready()
+    with LocalSessionLocal() as db:
+        counts = {str(status): int(count) for status, count in db.execute(
+            select(WhatsAppOutbox.status, func.count(WhatsAppOutbox.id)).group_by(WhatsAppOutbox.status)
+        ).all()}
+    return {
+        "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
+        "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
+        "state": "CLOUD_24_7" if WHATSAPP_CLOUD_MODE else ("ACTIVO" if WHATSAPP_ENABLED and ready else ("CONFIGURACION_INCOMPLETA" if WHATSAPP_ENABLED else "PENDIENTE_APROBACION")),
+        "ready": ready, "missing": missing,
+        "templates": {
+            "cita_agendada": {"name": WHATSAPP_TEMPLATE_CITA_AGENDADA, "language": WHATSAPP_LANGUAGE_CITA_AGENDADA, "automatic": WHATSAPP_AUTO_CITA_AGENDADA, "approved": WHATSAPP_APPROVED_CITA_AGENDADA},
+            "recordatorio_cita": {"name": whatsapp_recordatorio_template_name(), "language": WHATSAPP_LANGUAGE_RECORDATORIO_CITA, "automatic": WHATSAPP_AUTO_RECORDATORIO_CITA, "approved": WHATSAPP_APPROVED_RECORDATORIO_CITA},
+            "recordatorio_hoy": {"name": WHATSAPP_TEMPLATE_RECORDATORIO_HOY, "language": WHATSAPP_LANGUAGE_RECORDATORIO_HOY, "automatic": WHATSAPP_AUTO_RECORDATORIO_HOY, "approved": WHATSAPP_APPROVED_RECORDATORIO_HOY},
+        },
+        "recordatorio_cita_approved_structure": {"body_params": 2, "variables": ["nombre", "fecha_y_hora"], "buttons": ["Sí", "No"]},
+        "manual_test": {
+            "ready": _whatsapp_cloud_test_ready()[0] if WHATSAPP_CLOUD_MODE else not bool(_whatsapp_manual_test_missing("recordatorio_cita")),
+            "missing": [] if (WHATSAPP_CLOUD_MODE and _whatsapp_cloud_test_ready()[0]) else ((_whatsapp_cloud_test_ready()[1:] or [""])[0:1] if WHATSAPP_CLOUD_MODE else _whatsapp_manual_test_missing("recordatorio_cita")),
+            "default_phone": WHATSAPP_TEST_PHONE,
+            "works_with_automatic_sending_disabled": True,
+            "mode": "cloud" if WHATSAPP_CLOUD_MODE else "local",
+            "requires_local_meta_token": False if WHATSAPP_CLOUD_MODE else True,
+        },
+        "previous_day_time": WHATSAPP_PREVIOUS_DAY_TIME,
+        "today_hours_before": WHATSAPP_TODAY_HOURS_BEFORE,
+        "outbox": counts,
+        "message": ("WhatsApp Cloud 24/7 activo. La PC no envía automáticamente y no puede duplicar los mensajes de Cloudflare." if WHATSAPP_CLOUD_MODE else ("Preparado. No se envía nada mientras WHATSAPP_ENABLED=0." if not WHATSAPP_ENABLED else ("WhatsApp habilitado." if ready else "WhatsApp habilitado pero faltan datos de Meta en .env."))),
+    }
+
+
+# ---------------------------------------------------------------------------
+# v4.3.58 — Configuración profesional + comprobación pasiva de servicios
+# ---------------------------------------------------------------------------
+V458_SETTINGS_CSS = "/* v4.3.58 — Configuración profesional y estado de servicios */\n#config.v458-settings .config-title-row{margin-bottom:12px}\n#config.v458-settings .config-tabs{gap:7px;flex-wrap:wrap;margin-bottom:14px}\n#config.v458-settings .config-tabs button{padding:8px 12px;border-radius:10px;white-space:nowrap}\n.v458-service-panel{margin:0 0 14px!important;padding:15px!important;border:1px solid rgba(76,108,155,.22)!important}\n.v458-service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}\n.v458-service-head h3{margin:0 0 3px;font-size:17px}.v458-service-head p{margin:0}\n.v458-service-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}\n.v458-service-time{font-size:12px;color:#6f7f96;white-space:nowrap}\n.v458-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}\n.v458-service-card{border:1px solid #dfe6ef;border-radius:12px;padding:11px 12px;background:#fbfcfe;min-height:92px;display:flex;flex-direction:column;gap:5px}\n.v458-service-card .v458-service-top{display:flex;align-items:center;justify-content:space-between;gap:8px}\n.v458-service-card b{font-size:14px;color:#20324d}.v458-service-card small{font-size:12px;line-height:1.35;color:#687890}\n.v458-status{font-size:10px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:4px 7px;background:#eef2f7;color:#53647b}\n.v458-status.online{background:#e7f7ed;color:#16703c}.v458-status.degraded{background:#fff4db;color:#936117}.v458-status.offline{background:#ffe9e8;color:#a13731}.v458-status.no-configurado{background:#eef1f5;color:#667287}.v458-status.checking{background:#e9f1ff;color:#315f9d}\n.v458-service-card.online{border-color:#bfe5ca;background:#fbfffc}.v458-service-card.degraded{border-color:#eedda8}.v458-service-card.offline{border-color:#efc3bf}\n.v458-config-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 0 10px}.v458-config-section-head h2{font-size:18px;margin:0}.v458-config-section-head p{margin:3px 0 0;color:#718097;font-size:13px}\n.v458-link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}\n.v458-link-card{border:1px solid #dce5f0;border-radius:12px;padding:12px;background:#fbfcff;display:flex;flex-direction:column;gap:8px}.v458-link-card .label{display:flex;align-items:center;justify-content:space-between;gap:8px}.v458-link-card .label b{font-size:14px}.v458-link-card .label span{font-size:10px;font-weight:800;border-radius:999px;padding:3px 7px;background:#eef4ff;color:#315f9d}.v458-link-card code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f1f4f8;padding:7px 8px;border-radius:8px;font-size:11px}.v458-link-actions{display:flex;gap:7px;flex-wrap:wrap}\n.v458-agenda-state{border-radius:10px;padding:9px 11px;background:#f2f7ff;color:#315f75;font-size:13px}.v458-agenda-state.ready{background:#eaf8ef;color:#22683e}\n.v458-advanced{margin-top:10px;border:1px solid #e2e8f0;border-radius:11px;background:#fafbfd}.v458-advanced>summary{cursor:pointer;padding:10px 12px;font-weight:700;color:#56677f;list-style:none}.v458-advanced>summary::-webkit-details-marker{display:none}.v458-advanced>summary:after{content:'▾';float:right;color:#8491a4}.v458-advanced[open]>summary:after{content:'▴'}.v458-advanced>.panel{border:0!important;box-shadow:none!important;margin:0!important;padding-top:5px!important}\n.v458-wa-overview{margin-bottom:10px!important}.v458-template-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:10px}.v458-template-card{border:1px solid #dfe5ed;border-radius:11px;padding:10px 11px;background:#fbfcfe}.v458-template-card .top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.v458-template-card b{font-size:13px}.v458-template-card code{display:block;margin-top:6px;font-size:11px;color:#5e6d80;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.v458-template-card small{display:block;margin-top:5px;line-height:1.3;color:#718097}.v458-template-badge{font-size:9px;font-weight:800;border-radius:999px;padding:3px 6px;background:#eef1f5;color:#687488}.v458-template-badge.approved{background:#e5f7eb;color:#19703f}.v458-delivery-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-top:10px}.v458-delivery-grid>div{border:1px solid #e2e7ee;border-radius:9px;padding:8px;text-align:center;background:#fff}.v458-delivery-grid span{display:block;font-size:10px;color:#78869a}.v458-delivery-grid b{font-size:16px;color:#2a3c55}.v458-delivery-note{margin-top:8px;font-size:12px;color:#6d7c90}\n.v458-program-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:10px 0}.v458-program-card>div{border:1px solid #e1e7ef;border-radius:10px;padding:10px;background:#fbfcfe}.v458-program-card span{display:block;color:#75849a;font-size:11px}.v458-program-card b{display:block;margin-top:3px;color:#263b57}\n#config.v458-settings .v451-update-box{display:none!important}\n#config.v458-settings .v458-hidden-obsolete{display:none!important}\n@media(max-width:1050px){.v458-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v458-template-grid{grid-template-columns:1fr}.v458-delivery-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}\n@media(max-width:720px){.v458-service-head{flex-direction:column}.v458-service-actions{justify-content:flex-start}.v458-service-grid,.v458-link-grid,.v458-program-card{grid-template-columns:1fr}.v458-delivery-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}"
+V458_SETTINGS_JS = '(()=>{\n\'use strict\';\nconst V=\'4.3.58\';\nconst $=(s,r=document)=>r.querySelector(s);\nconst $$=(s,r=document)=>[...r.querySelectorAll(s)];\nconst escH=v=>String(v??\'\').replace(/[&<>"\']/g,c=>({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[c]));\nconst norm=v=>String(v||\'\').replace(/\\s+/g,\' \').trim();\nconst lower=v=>norm(v).toLowerCase();\nconst apiCall=async(url,opt={})=>{\n  if(typeof window.api===\'function\')return window.api(url,opt);\n  const r=await fetch(url,{headers:{\'Content-Type\':\'application/json\',...(opt.headers||{})},...opt});\n  const d=await r.json().catch(()=>({}));\n  if(!r.ok)throw new Error(d.detail||d.message||\'No se pudo completar la operación\');\n  return d;\n};\nfunction statusClass(state){return lower(state).replace(/_/g,\'-\').replace(/\\s+/g,\'-\')||\'no-configurado\'}\nfunction servicePlaceholder(){\n  const names=[[\'local\',\'Recepción local\'],[\'neon\',\'Neon\'],[\'azur\',\'AZUR\'],[\'whatsapp\',\'WhatsApp Meta\'],[\'mensajes\',\'Mensajes 24/7\'],[\'agenda\',\'Agenda web 24/7\'],[\'updates\',\'Actualizaciones\']];\n  return names.map(([key,label])=>`<div class="v458-service-card" data-service="${key}"><div class="v458-service-top"><b>${label}</b><span class="v458-status">SIN COMPROBAR</span></div><small>Pulsa “Comprobar servicios”.</small></div>`).join(\'\');\n}\nfunction createServicePanel(config){\n  if($(\'#v458ServicePanel\',config))return;\n  const panel=document.createElement(\'div\');panel.id=\'v458ServicePanel\';panel.className=\'panel v458-service-panel\';\n  panel.innerHTML=`<div class="v458-service-head"><div><h3>Estado de servicios</h3><p class="muted">Comprobación manual y segura. No envía mensajes, no emite facturas y no modifica citas.</p></div><div class="v458-service-actions"><span id="v458ServiceTime" class="v458-service-time">Sin comprobar</span><button id="v458CheckServices" class="primary-soft" type="button">↻ Comprobar servicios</button></div></div><div id="v458ServiceGrid" class="v458-service-grid">${servicePlaceholder()}</div>`;\n  const title=$(\'.config-title-row\',config);(title?.parentNode||config).insertBefore(panel,title?.nextSibling||config.firstChild);\n  $(\'#v458CheckServices\',panel)?.addEventListener(\'click\',checkServices);\n}\nfunction renderServices(data){\n  const grid=$(\'#v458ServiceGrid\');if(!grid)return;\n  const order=[\'local\',\'neon\',\'azur\',\'whatsapp\',\'mensajes\',\'agenda\',\'updates\'];\n  grid.innerHTML=order.map(key=>{\n    const s=(data.services||{})[key]||{label:key,status:\'NO_CONFIGURADO\',detail:\'Sin información\'};\n    const cls=statusClass(s.status),lat=s.latency_ms!=null?` · ${Math.round(Number(s.latency_ms))} ms`:\'\';\n    return `<div class="v458-service-card ${cls}" data-service="${escH(key)}"><div class="v458-service-top"><b>${escH(s.label||key)}</b><span class="v458-status ${cls}">${escH(String(s.status||\'\').replace(\'_\',\' \'))}</span></div><small>${escH(s.detail||\'\')}${escH(lat)}</small></div>`;\n  }).join(\'\');\n  const t=$(\'#v458ServiceTime\');if(t)t.textContent=data.checked_at?`Última comprobación: ${new Date(data.checked_at).toLocaleTimeString(\'es-EC\',{hour:\'2-digit\',minute:\'2-digit\'})}`:\'Comprobado ahora\';\n}\nasync function checkServices(){\n  const btn=$(\'#v458CheckServices\'),grid=$(\'#v458ServiceGrid\');\n  if(btn){btn.disabled=true;btn.textContent=\'Comprobando…\'}\n  if(grid)$$(\'.v458-status\',grid).forEach(x=>{x.className=\'v458-status checking\';x.textContent=\'COMPROBANDO\'});\n  try{renderServices(await apiCall(\'/api/services/check\',{method:\'POST\',body:\'{}\'}));}\n  catch(e){if(grid)grid.innerHTML=`<div class="desktop-runtime-status err">No se pudo completar la comprobación: ${escH(e.message||e)}</div>`}\n  finally{if(btn){btn.disabled=false;btn.textContent=\'↻ Comprobar servicios\'}}\n}\nwindow.checkServices=checkServices;\n\nfunction panelHeading(panel){return lower(panel?.querySelector(\'h1,h2,h3,h4\')?.textContent||\'\')}\nfunction makeTab(tabs,key,label,after){\n  let b=tabs.querySelector(`[data-config-tab="${key}"]`);if(b)return b;\n  b=document.createElement(\'button\');b.type=\'button\';b.dataset.configTab=key;b.textContent=label;b.onclick=()=>window.showConfigTab(key,b);\n  after?.after(b)||tabs.appendChild(b);return b;\n}\nfunction wrapAdvanced(panel,label){\n  if(!panel||panel.closest(\'details.v458-advanced\'))return;\n  const d=document.createElement(\'details\');d.className=\'v458-advanced\';const s=document.createElement(\'summary\');s.textContent=label;d.appendChild(s);panel.replaceWith(d);d.appendChild(panel);\n}\nfunction linkCard(label,url,badge,description){\n  if(!url)return\'\';\n  return `<div class="v458-link-card"><div class="label"><b>${escH(label)}</b><span>${escH(badge)}</span></div><small>${escH(description)}</small><code title="${escH(url)}">${escH(url)}</code><div class="v458-link-actions"><button type="button" data-copy-url="${escH(url)}">Copiar enlace</button><button type="button" class="primary-soft" data-open-url="${escH(url)}">Abrir</button></div></div>`;\n}\nfunction bindLinkButtons(root){\n  $$(\'[data-copy-url]\',root).forEach(b=>b.addEventListener(\'click\',async()=>{const u=b.dataset.copyUrl||\'\';try{await navigator.clipboard.writeText(u);b.textContent=\'Copiado ✓\';setTimeout(()=>b.textContent=\'Copiar enlace\',1200)}catch{prompt(\'Copia el enlace:\',u)}}));\n  $$(\'[data-open-url]\',root).forEach(b=>b.addEventListener(\'click\',()=>window.open(b.dataset.openUrl||\'\',\'_blank\',\'noopener\')));\n}\nfunction professionalCloudAgenda(cloud={}){\n  const box=$(\'#cloudAgendaLinks\'),pill=$(\'#cloudAgendaPill\');if(!box)return;\n  const registered=!!cloud.registered;\n  if(pill){pill.textContent=registered?\'ONLINE 24/7\':\'POR VERIFICAR\';pill.classList.toggle(\'ready\',registered)}\n  box.innerHTML=`<div class="v458-agenda-state ${registered?\'ready\':\'\'}"><b>${registered?\'Agenda web activa\':\'Agenda web preparada\'}</b> · ${escH(cloud.architecture||\'GitHub Pages + Neon\')}${cloud.last_error?`<br><small>${escH(cloud.last_error)}</small>`:\'\'}</div><div class="v458-link-grid">${linkCard(\'Doctor\',cloud.doctor_url,\'SOLO LECTURA\',\'Enlace permanente para consultar la agenda.\')}${linkCard(\'Recepción / Ayudante\',cloud.reception_url,\'EDITABLE\',\'Puede agendar, reagendar y cancelar. Este acceso sí puede renovarse.\')}</div><small>Los enlaces funcionan aunque esta PC esté apagada. El secreto viaja en el fragmento # y no se guarda en logs HTTP.</small>`;\n  bindLinkButtons(box);\n}\nwindow.renderCloudAgenda=professionalCloudAgenda;\nwindow.rotateMobileLinks=async function(){\n  if(!confirm(\'¿Renovar el enlace editable de Recepción / Ayudante?\\n\\nEl enlace del Doctor permanecerá exactamente igual. El enlace editable anterior dejará de funcionar.\'))return;\n  try{const d=await apiCall(\'/api/mobile/links/rotate\',{method:\'POST\',body:\'{}\'});alert(d.message||\'Acceso editable renovado.\');if(\'mobileConfigCache\' in window)window.mobileConfigCache=null;await window.loadMobileConfigLinks?.(true)}catch(e){alert(e.message||e)}\n};\n\nfunction renderTemplateCards(d={}){\n  const grid=$(\'#v458TemplateGrid\');if(!grid)return;\n  const defs=[[\'recordatorio_cita\',\'Confirmación de cita\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio del día\']];\n  grid.innerHTML=defs.map(([key,label])=>{const x=d.templates?.[key]||{},approved=!!x.approved,auto=!!x.automatic;return `<div class="v458-template-card"><div class="top"><b>${escH(label)}</b><span class="v458-template-badge ${approved?\'approved\':\'\'}">${approved?\'APROBADA\':\'EN ESPERA\'}</span></div><code>${escH(x.name||key)} · ${escH(x.language||\'\')}</code><small>${approved?(auto?\'Activa en la automatización 24/7.\':\'Aprobada, pero no activada automáticamente.\'):\'No se usa automáticamente hasta que Meta la apruebe.\'}</small></div>`}).join(\'\');\n}\nfunction renderDelivery(cloud={}){\n  const host=$(\'#v458Delivery\');if(!host)return;const s=cloud.summary||{};\n  if(!cloud.available){host.innerHTML=`<div class="desktop-runtime-status">${escH(cloud.message||\'Sin datos recientes de entrega.\')}</div>`;return}\n  host.innerHTML=`<div class="v458-delivery-grid"><div><span>Total</span><b>${Number(s.TOTAL||0)}</b></div><div><span>Enviados</span><b>${Number(s.SENT||0)}</b></div><div><span>Entregados</span><b>${Number(s.DELIVERED||0)}</b></div><div><span>Leídos</span><b>${Number(s.READ||0)}</b></div><div><span>Errores</span><b>${Number(s.FAILED||0)+Number(s.ERROR||0)}</b></div></div><div class="v458-delivery-note">${escH(cloud.message||\'\')}</div>`;\n}\nwindow.loadWhatsappStatus=async function(){\n  const pill=$(\'#whatsappStatusPill\'),text=$(\'#whatsappStatusText\'),testPill=$(\'#whatsappTestPill\');\n  try{\n    const [d,cloud]=await Promise.all([apiCall(\'/api/whatsapp/status\'),apiCall(\'/api/whatsapp/cloud-status\').catch(e=>({available:false,message:e.message}))]);\n    if(pill){pill.textContent=d.cloud_mode?\'ONLINE 24/7\':(d.enabled?\'ACTIVO\':\'LOCAL APAGADO\');pill.classList.toggle(\'ready\',!!(d.cloud_mode||d.enabled))}\n    if(text){text.innerHTML=d.cloud_mode?\'<b>WhatsApp Cloud 24/7 activo.</b> La PC no envía automáticamente, por lo que no puede duplicar los mensajes del worker Cloud. Las respuestas Sí / No se sincronizan mediante Neon.\':escH(d.message||\'\')}\n    renderTemplateCards(d);renderDelivery(cloud);\n    if(testPill){const ready=!!d.manual_test?.ready;testPill.textContent=ready?\'DISPONIBLE\':\'FALTA CONFIGURAR\';testPill.classList.toggle(\'ready\',ready)}\n    const dateInput=$(\'#waTestDate\');if(dateInput&&!dateInput.value){const x=new Date();x.setDate(x.getDate()+1);dateInput.value=x.toISOString().slice(0,10)}\n  }catch(e){if(text)text.textContent=e.message||e}\n};\n\nfunction prepareAgendaSection(sec){\n  if(!sec)return;\n  const cloud=$(\'.remote-agenda-panel\',sec)||$$(\'.panel\',sec).find(p=>panelHeading(p).includes(\'agenda cloud\'));\n  if(cloud){const h=cloud.querySelector(\'h3\');if(h)h.textContent=\'Agenda web 24/7\';const p=cloud.querySelector(\'.config-panel-head p\');if(p)p.textContent=\'Accesos permanentes para consultar y administrar la agenda desde cualquier lugar.\';const actions=$(\'.remote-agenda-actions\',cloud);if(actions){const buttons=$$(\'button\',actions);if(buttons[0])buttons[0].textContent=\'↻ Verificar ahora\';if(buttons[1])buttons[1].textContent=\'🔑 Renovar acceso editable\'}}\n  const local=$$(\'.panel\',sec).find(p=>panelHeading(p).includes(\'acceso local de respaldo\'));if(local)wrapAdvanced(local,\'Respaldo local dentro del consultorio (avanzado)\');\n}\nfunction prepareWhatsappSection(config,agendaSec,tabs){\n  let sec=config.querySelector(\'[data-config-section="whatsapp"]\');\n  if(!sec){sec=document.createElement(\'div\');sec.className=\'config-section hidden\';sec.dataset.configSection=\'whatsapp\';agendaSec.after(sec)}\n  const moved=$$(\'.panel\',agendaSec).filter(p=>panelHeading(p).includes(\'whatsapp\')||p.classList.contains(\'whatsapp-test-panel\'));\n  moved.forEach(p=>sec.appendChild(p));\n  if(!$(\'#v458WaOverview\',sec)){\n    const over=document.createElement(\'div\');over.id=\'v458WaOverview\';over.className=\'panel compact-config-panel v458-wa-overview\';over.innerHTML=`<div class="config-panel-head"><div><h3>WhatsApp Cloud 24/7</h3><p class="muted">Conexión, plantillas aprobadas y entregas recientes en un solo lugar.</p></div><span class="performance-pill ready">CLOUD</span></div><div id="v458TemplateGrid" class="v458-template-grid"></div><div id="v458Delivery"></div>`;sec.insertBefore(over,sec.firstChild)\n  }\n  const test=$(\'.whatsapp-test-panel\',sec);if(test){const note=$(\'.config-info-note span\',test);if(note)note.textContent=\'Solo diagnóstico manual. No cambia la automatización, no crea citas y no toca pacientes. Las respuestas Sí / No del sistema real se procesan por Cloud 24/7 y se sincronizan con Neon.\';wrapAdvanced(test,\'Prueba controlada de WhatsApp (avanzado)\')}\n  const agendaBtn=tabs.querySelector(\'[data-config-tab="agenda"]\');makeTab(tabs,\'whatsapp\',\'WhatsApp\',agendaBtn);\n}\nfunction prepareProgramSection(sec){\n  if(!sec)return;\n  $$(\'.v451-update-box\',sec).forEach(x=>x.remove());\n  const perf=$(\'.performance-panel\',sec);if(perf){perf.innerHTML=`<div class="config-panel-head"><div><h3>Inicio y rendimiento</h3><p class="muted">Arquitectura actual del iniciador.</p></div><span class="performance-pill">⚡ ESTABLE</span></div><div class="v458-program-card"><div><span>Ventana principal</span><b>WebView2</b><small>Edge se usa solo como respaldo automático.</small></div><div><span>Protección</span><b>Una sola instancia</b><small>Un segundo clic no abre otro backend ni otra ventana.</small></div><div><span>Ahorro de nube</span><b>AFK automático</b><small>Neon descansa cuando Recepción no se está usando.</small></div></div>`}\n  const up=$(\'.updater-panel\',sec);if(up){up.innerHTML=`<div class="config-panel-head"><div><h3>Actualizaciones automáticas</h3><p class="muted">El launcher verifica SHA, staging y rollback antes de iniciar el programa.</p></div><span id="currentVersionBadge" class="version-badge">v${V}</span></div><div class="actions"><button id="v458CheckChannel" class="primary-soft" type="button">↻ Comprobar canal</button><button type="button" onclick="restartReception()">Reiniciar Recepción</button></div><div id="updateStatus" class="muted update-status">El launcher instala las versiones nuevas al abrir Recepción.</div>`;$(\'#v458CheckChannel\',up)?.addEventListener(\'click\',checkUpdateChannel)}\n}\nasync function checkUpdateChannel(){const b=$(\'#v458CheckChannel\'),s=$(\'#updateStatus\');try{if(b){b.disabled=true;b.textContent=\'Comprobando…\'}const d=await apiCall(\'/api/program/update-now\',{method:\'POST\',body:\'{}\'});if(s)s.textContent=d.message||\'Canal comprobado.\'}catch(e){if(s)s.textContent=e.message||e}finally{if(b){b.disabled=false;b.textContent=\'↻ Comprobar canal\'}}}\n\nfunction installTabLoader(){\n  window.showConfigTab=function(tab=\'general\',button=null){\n    $$(\'[data-config-section]\').forEach(x=>x.classList.toggle(\'hidden\',x.dataset.configSection!==tab));\n    $$(\'[data-config-tab]\').forEach(x=>x.classList.toggle(\'active\',x.dataset.configTab===tab));\n    if(button)button.classList.add(\'active\');\n    let task=null;\n    try{\n      if(tab===\'general\')task=window.loadReceptionConfig?.();\n      else if(tab===\'agenda\')task=window.loadMobileConfigLinks?.(false);\n      else if(tab===\'whatsapp\')task=window.loadWhatsappStatus?.();\n      else if(tab===\'procedimientos\')task=window.loadProcedures?.();\n      else if(tab===\'facturacion\')task=window.loadAzurStatus?.();\n      else if(tab===\'sistema\')task=window.refreshProtectionStatus?.(false);\n      else if(tab===\'actualizaciones\')task=window.loadUpdateInfo?.();\n    }catch(_e){}\n    Promise.resolve(task).catch(()=>{});\n  };\n}\nfunction upgrade(){\n  const config=$(\'#config\');if(!config||config.dataset.v458===\'1\')return;\n  config.dataset.v458=\'1\';config.classList.add(\'v458-settings\');\n  const subtitle=$(\'.config-title-row .muted\',config);if(subtitle)subtitle.textContent=\'Conexiones, agenda, WhatsApp y preferencias organizadas para revisar todo rápido.\';\n  createServicePanel(config);\n  const tabs=$(\'.config-tabs\',config),agendaSec=config.querySelector(\'[data-config-section="agenda"]\');if(!tabs||!agendaSec)return;\n  const agendaBtn=tabs.querySelector(\'[data-config-tab="agenda"]\');if(agendaBtn)agendaBtn.textContent=\'Agenda 24/7\';\n  const fact=tabs.querySelector(\'[data-config-tab="facturacion"]\');if(fact)fact.textContent=\'AZUR\';\n  const sys=tabs.querySelector(\'[data-config-tab="sistema"]\');if(sys)sys.textContent=\'Nube y respaldo\';\n  prepareAgendaSection(agendaSec);prepareWhatsappSection(config,agendaSec,tabs);prepareProgramSection(config.querySelector(\'[data-config-section="actualizaciones"]\'));\n  installTabLoader();\n  // Renderiza de nuevo Agenda con los botones Abrir/Copiar si ya había datos cargados.\n  try{if(window.mobileConfigCache?.cloud)professionalCloudAgenda(window.mobileConfigCache.cloud)}catch(_e){}\n}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',upgrade,{once:true});else upgrade();\nsetTimeout(upgrade,250);\n})();'
+UPDATE_CHANNEL_URL = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json"
+
+
+def _service_result(label: str, status: str, detail: str, *, latency_ms: Optional[float] = None, **extra) -> dict:
+    data = {"label": label, "status": status, "detail": str(detail or "")[:240]}
+    if latency_ms is not None:
+        data["latency_ms"] = round(float(latency_ms), 1)
+    data.update(extra)
+    return data
+
+
+def _probe_local_service() -> dict:
+    pending = queue_count()
+    return _service_result(
+        "Recepción local", "ONLINE",
+        f"Programa v{APP_VERSION} listo · {pending} cambio(s) pendiente(s) de sincronizar." if pending else f"Programa v{APP_VERSION} listo · copia local disponible.",
+    )
+
+
+def _probe_neon_service() -> dict:
+    if not cloud_configured():
+        return _service_result("Neon", "NO_CONFIGURADO", "DATABASE_URL no está configurado en esta PC.")
+    if FORCE_OFFLINE:
+        return _service_result("Neon", "OFFLINE", "Modo sin conexión forzado para diagnóstico.")
+    started = time.perf_counter()
+    ok = check_cloud(force=True)
+    with _state_lock:
+        probe_ms = _state.get("last_probe_ms")
+        error = str(_state.get("last_error") or "")
+    latency = probe_ms if probe_ms is not None else (time.perf_counter() - started) * 1000.0
+    return _service_result("Neon", "ONLINE" if ok else "OFFLINE", "Base en la nube disponible." if ok else (error or "Neon no respondió."), latency_ms=latency)
+
+
+def _probe_azur_service() -> dict:
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        return _service_result("AZUR", "NO_CONFIGURADO", "Falta configurar la dirección o la API key de AZUR.")
+    started = time.perf_counter()
+    try:
+        azur_test_connection(AZUR_BASE_URL, AZUR_API_KEY, timeout=8)
+        return _service_result("AZUR", "ONLINE", f"Conexión autenticada con {urlparse(AZUR_BASE_URL).hostname or 'AZUR'}. No se emitió ninguna factura.", latency_ms=(time.perf_counter()-started)*1000)
+    except Exception as exc:
+        return _service_result("AZUR", "OFFLINE", str(exc)[:220], latency_ms=(time.perf_counter()-started)*1000)
+
+
+def _probe_whatsapp_service() -> dict:
+    if WHATSAPP_CLOUD_MODE:
+        if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+            return _service_result("WhatsApp Cloud", "OFFLINE", "El canal Cloud necesita Neon para consultar los envíos.")
+        started = time.perf_counter()
+        try:
+            with CloudSessionLocal() as cdb:
+                row = cdb.execute(text("""
+                    SELECT status, updated_at
+                    FROM whatsapp_cloud.events
+                    ORDER BY updated_at DESC NULLS LAST, created_at DESC
+                    LIMIT 1
+                """)).mappings().first()
+            detail = "Credenciales Meta administradas en Cloudflare; esta PC no guarda token de WhatsApp."
+            if row:
+                st = str(row.get("status") or "").upper()
+                updated = row.get("updated_at")
+                when = updated.isoformat(timespec="minutes") if updated else ""
+                detail += f" Último evento: {st or 'registrado'}" + (f" · {when}" if when else "") + "."
+            return _service_result("WhatsApp Cloud", "ONLINE", detail, latency_ms=(time.perf_counter()-started)*1000)
+        except Exception as exc:
+            return _service_result("WhatsApp Cloud", "DEGRADADO", f"Cloud configurado, pero no se pudo leer el registro de mensajes: {str(exc)[:160]}", latency_ms=(time.perf_counter()-started)*1000)
+
+    missin

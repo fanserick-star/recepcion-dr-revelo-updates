@@ -1,0 +1,1658 @@
+b.commit()
+    except Exception:
+        pass
+
+
+seed_database(LocalSessionLocal)
+seed_initial_agenda(LocalSessionLocal)
+
+
+def cloud_configured() -> bool:
+    return cloud_engine is not None and CloudSessionLocal is not None
+
+
+def _cloud_error_hint(error: object) -> str:
+    """Mensaje corto y seguro para diagnóstico; nunca expone la cadena de conexión."""
+    raw = str(error or "").lower()
+    if "timeout" in raw or "timed out" in raw:
+        return "Neon tardó demasiado en responder. Se volverá a intentar automáticamente."
+    if "name or service not known" in raw or "getaddrinfo" in raw or "could not translate host" in raw:
+        return "No se pudo resolver la dirección de Neon. Revisa Internet o DNS."
+    if "password authentication failed" in raw or "authentication failed" in raw:
+        return "Neon rechazó las credenciales de conexión. Hay que revisar la configuración de nube."
+    if "connection refused" in raw:
+        return "Neon rechazó temporalmente la conexión. Se volverá a intentar."
+    if "network is unreachable" in raw or "no route to host" in raw:
+        return "La PC no pudo llegar a Internet en ese momento."
+    if "ssl" in raw:
+        return "No se pudo establecer la conexión segura con Neon."
+    return "No se pudo abrir la conexión con Neon. El programa seguirá usando la copia de emergencia."
+
+
+def _raw_psycopg_url() -> str:
+    """Devuelve la URL sin el prefijo de driver de SQLAlchemy."""
+    url = CONFIGURED_DB_URL
+    if url.startswith("postgresql+psycopg://"):
+        return url.replace("postgresql+psycopg://", "postgresql://", 1)
+    return url
+
+
+def _probe_cloud_direct() -> float:
+    """Prueba Neon fuera del pool de SQLAlchemy.
+
+    El diagnóstico en la PC mostró que una conexión nueva sí funciona, mientras
+    que el pool interno podía quedarse en un estado lento. Esta sonda usa primero
+    un TCP IPv4 corto y luego una conexión PostgreSQL real, sin tocar datos.
+    Devuelve la latencia total en milisegundos.
+    """
+    started = time.perf_counter()
+    raw_url = _raw_psycopg_url()
+    parsed = urlparse(raw_url)
+    host = parsed.hostname
+    port = parsed.port or 5432
+
+    if host:
+        # Si realmente no hay Internet, no esperamos 12 s a PostgreSQL: esta
+        # comprobación falla rápido. Preferimos IPv4 porque fue la ruta estable
+        # observada por el diagnóstico de Windows.
+        infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        if not infos:
+            raise OSError("No se encontró una dirección IPv4 para Neon")
+        last_socket_error = None
+        connected = False
+        for family, socktype, proto, _canon, sockaddr in infos[:3]:
+            try:
+                with socket.socket(family, socktype, proto) as sock:
+                    sock.settimeout(2.5)
+                    sock.connect(sockaddr)
+                connected = True
+                break
+            except OSError as exc:
+                last_socket_error = exc
+        if not connected:
+            raise last_socket_error or OSError("No se pudo abrir TCP hacia Neon")
+
+    # Conexión nueva e independiente del pool. SELECT 1 no modifica ningún dato.
+    with psycopg.connect(raw_url, connect_timeout=12, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            row = cur.fetchone()
+            if not row or int(row[0]) != 1:
+                raise RuntimeError("Neon no respondió correctamente a la prueba")
+    return (time.perf_counter() - started) * 1000.0
+
+
+def check_cloud(force: bool = False) -> bool:
+    # En modo AFK no hacemos sondas ni SELECT 1. Conservamos el último estado
+    # conocido hasta que el usuario vuelva o fuerce una comprobación manual.
+    with _state_lock:
+        if bool(_state.get("client_idle")) and not force:
+            return bool(_state.get("online"))
+
+    if not cloud_configured() or FORCE_OFFLINE:
+        with _state_lock:
+            _state["online"] = False
+            _state["last_error"] = "Modo sin conexión forzado" if FORCE_OFFLINE else "Nube no configurada"
+            _state["last_checked"] = time.time()
+        return False
+
+    requested_at = time.time()
+    now = requested_at
+    with _state_lock:
+        interval = CLOUD_CHECK_SECONDS if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
+        if not force and now - float(_state["last_checked"] or 0) < interval:
+            return bool(_state["online"])
+
+    # Un solo hilo prueba Neon. La prueba de disponibilidad ya NO depende del
+    # pool de SQLAlchemy; así una conexión vieja no puede declarar offline a toda
+    # la aplicación cuando Neon en realidad está accesible.
+    with _cloud_check_lock:
+        now = time.time()
+        with _state_lock:
+            interval = CLOUD_CHECK_SECONDS if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
+            last_checked = float(_state["last_checked"] or 0)
+            if not force and now - last_checked < interval:
+                return bool(_state["online"])
+            # Si otra petición forzada empezó la misma comprobación mientras esta
+            # esperaba el lock, reutilizamos su resultado. Evita que arranque, UI
+            # y botón de estado abran dos conexiones a Neon casi simultáneas.
+            if force and last_checked >= requested_at:
+                return bool(_state["online"])
+            was_online = bool(_state["online"])
+            old_failures = int(_state.get("consecutive_failures") or 0)
+
+        attempts = 2 if force else 1
+        last_exc = None
+        for attempt in range(attempts):
+            try:
+                probe_ms = _probe_cloud_direct()
+
+                # Si veníamos de un falso offline, descartamos conexiones antiguas
+                # del pool para que la siguiente operación real abra una limpia.
+                if not was_online or old_failures:
+                    try:
+                        cloud_engine.dispose()
+                    except Exception:
+                        pass
+
+                success_at = time.time()
+                with _state_lock:
+                    _state["online"] = True
+                    _state["last_error"] = ""
+                    _state["last_checked"] = success_at
+                    _state["last_success"] = success_at
+                    _state["consecutive_failures"] = 0
+                    _state["last_probe_ms"] = round(probe_ms)
+                return True
+            except Exception as e:
+                last_exc = e
+                try:
+                    cloud_engine.dispose()
+                except Exception:
+                    pass
+                if attempt + 1 < attempts:
+                    time.sleep(0.45)
+
+        failed_at = time.time()
+        with _state_lock:
+            _state["online"] = False
+            _state["last_error"] = _cloud_error_hint(last_exc)
+            _state["last_checked"] = failed_at
+            _state["consecutive_failures"] = int(_state.get("consecutive_failures") or 0) + 1
+            _state["last_probe_ms"] = None
+        return False
+
+
+def invalidate_queue_count():
+    with _queue_count_lock:
+        _queue_count_cache["value"] = None
+        _queue_count_cache["ts"] = 0.0
+
+
+def queue_count(db: Optional[Session] = None, force: bool = False) -> int:
+    now = time.time()
+    if db is None and not force:
+        with _queue_count_lock:
+            value = _queue_count_cache.get("value")
+            ts = float(_queue_count_cache.get("ts") or 0)
+            if value is not None and now - ts < QUEUE_COUNT_CACHE_SECONDS:
+                return int(value)
+    own = db is None
+    if own:
+        db = LocalSessionLocal()
+    try:
+        value = int(db.scalar(select(func.count(OfflineQueue.id))) or 0)
+        if own:
+            with _queue_count_lock:
+                _queue_count_cache["value"] = value
+                _queue_count_cache["ts"] = now
+        return value
+    finally:
+        if own:
+            db.close()
+
+
+def queue_errors() -> list[str]:
+    with LocalSessionLocal() as db:
+        rows = list(db.scalars(select(OfflineQueue).where(OfflineQueue.last_error.is_not(None)).order_by(OfflineQueue.id).limit(5)))
+        return [x.last_error or "" for x in rows if x.last_error]
+
+
+def _queue_patient_from_payload(db: Session, q: OfflineQueue, payload: dict) -> Optional[Patient]:
+    """Obtiene el paciente local asociado a un cambio sin exponer el payload completo."""
+    try:
+        patient_id = payload.get("patient_id")
+        if patient_id is not None:
+            p = db.get(Patient, int(patient_id))
+            if p:
+                return p
+        if q.operation.startswith("patient."):
+            pid = q.local_entity_id or payload.get("patient_id")
+            return db.get(Patient, int(pid)) if pid is not None else None
+        if q.operation.startswith("visit.") or q.operation.startswith("billing."):
+            vid = q.local_entity_id or payload.get("visit_id")
+            if vid is not None:
+                v = db.get(Visit, int(vid))
+                if v:
+                    return db.get(Patient, int(v.patient_id))
+        if q.operation.startswith("appointment."):
+            aid = q.local_entity_id or payload.get("appointment_id")
+            if aid is not None:
+                a = db.get(Appointment, int(aid))
+                if a:
+                    return db.get(Patient, int(a.patient_id))
+    except Exception:
+        return None
+    return None
+
+
+def queue_review_items() -> list[dict]:
+    """Lista segura y legible de cambios offline pendientes para revisión humana."""
+    labels = {
+        "patient.create": "Paciente creado",
+        "patient.update": "Paciente editado",
+        "patient.delete": "Paciente eliminado",
+        "visit.create": "Atención registrada",
+        "visit.delete": "Atención eliminada",
+        "appointment.create": "Cita creada",
+        "appointment.update": "Cita reagendada",
+        "appointment.export": "Cita exportada",
+        "appointment.loaded": "Cita cargada en Confirmafy",
+        "appointment.pending": "Cita devuelta a pendiente",
+        "appointment.delete": "Cita eliminada",
+        "billing.approve": "Factura aprobada",
+        "billing.pending": "Factura devuelta a pendiente",
+        "billing.emit": "Factura marcada emitida",
+        "procedure.update": "Procedimiento actualizado",
+    }
+    with LocalSessionLocal() as db:
+        rows = list(db.scalars(select(OfflineQueue).order_by(OfflineQueue.id.asc())))
+        blocked = False
+        out = []
+        for q in rows:
+            try:
+                payload = json.loads(q.payload or "{}")
+            except Exception:
+                payload = {}
+            patient = _queue_patient_from_payload(db, q, payload)
+            name = patient.nombre if patient else ""
+            title = labels.get(q.operation, q.operation.replace(".", " ").title())
+            section = "config"
+            detail_parts = []
+            if name:
+                detail_parts.append(name)
+            if q.operation.startswith("appointment."):
+                section = "agenda"
+                fecha = payload.get("fecha")
+                hora = payload.get("hora")
+                if not fecha and q.local_entity_id:
+                    a = db.get(Appointment, int(q.local_entity_id))
+                    if a:
+                        fecha, hora = a.fecha, a.hora
+                if fecha:
+                    try:
+                        detail_parts.append(date.fromisoformat(str(fecha)[:10]).strftime("%d/%m/%Y"))
+                    except Exception:
+                        detail_parts.append(str(fecha)[:10])
+                if hora:
+                    detail_parts.append(str(hora)[:5])
+            elif q.operation.startswith("visit."):
+                section = "home"
+                fecha = payload.get("fecha")
+                if fecha:
+                    try:
+                        detail_parts.append(date.fromisoformat(str(fecha)[:10]).strftime("%d/%m/%Y"))
+                    except Exception:
+                        detail_parts.append(str(fecha)[:10])
+                proc = payload.get("procedimiento")
+                detail_parts.append(proc or "Consulta")
+            elif q.operation.startswith("billing."):
+                section = "facturacion"
+            elif q.operation.startswith("patient."):
+                section = "patients"
+            elif q.operation.startswith("procedure."):
+                section = "config"
+                proc_id = payload.get("procedure_id")
+                if proc_id:
+                    proc = db.get(Procedure, int(proc_id))
+                    if proc:
+                        detail_parts.append(proc.nombre)
+
+            has_error = bool((q.last_error or "").strip())
+            status = "REVIEW" if has_error else ("WAITING" if blocked else "PENDING")
+            if has_error:
+                blocked = True
+            out.append({
+                "id": q.id,
+                "operation": q.operation,
+                "title": title,
+                "detail": " · ".join(x for x in detail_parts if x),
+                "created_at": q.created_at.isoformat(timespec="seconds") if q.created_at else None,
+                "status": status,
+                "error": (q.last_error or "")[:500] if has_error else "",
+                "section": section,
+            })
+        return out
+
+
+def cache_meta_set(db: Session, key: str, value: str):
+    row = db.get(CacheMeta, key)
+    if row:
+        row.value = value
+    else:
+        db.add(CacheMeta(key=key, value=value))
+
+
+def cache_meta_get(key: str, default: Optional[str] = None) -> Optional[str]:
+    try:
+        with LocalSessionLocal() as db:
+            row = db.get(CacheMeta, key)
+            return row.value if row and row.value is not None else default
+    except Exception:
+        return default
+
+
+def persisted_cache_refresh_ts() -> float:
+    raw = cache_meta_get("last_sync")
+    if not raw:
+        return 0.0
+    try:
+        return datetime.fromisoformat(str(raw)).timestamp()
+    except Exception:
+        return 0.0
+
+
+def effective_cache_refresh_ts() -> float:
+    with _state_lock:
+        memory_ts = float(_state.get("last_cache_refresh") or 0)
+    if memory_ts:
+        return memory_ts
+    persisted = persisted_cache_refresh_ts()
+    if persisted:
+        with _state_lock:
+            _state["last_cache_refresh"] = persisted
+    return persisted
+
+
+def create_local_backup_snapshot(force: bool = False) -> Optional[str]:
+    """Crea una copia SQLite consistente del cache de emergencia sin frenar la recepción."""
+    try:
+        if not os.path.exists(OFFLINE_DB_PATH):
+            return None
+        os.makedirs(BACKUP_DIR, exist_ok=True)
+        existing = sorted(Path(BACKUP_DIR).glob("recepcion_backup_*.db"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if existing and not force and time.time() - existing[0].stat().st_mtime < 6 * 60 * 60:
+            return str(existing[0])
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = Path(BACKUP_DIR) / f"recepcion_backup_{stamp}.db"
+        with sqlite3.connect(OFFLINE_DB_PATH, timeout=10) as src, sqlite3.connect(dest, timeout=10) as dst:
+            src.backup(dst)
+        # Conservamos las 10 copias locales más recientes.
+        existing = sorted(Path(BACKUP_DIR).glob("recepcion_backup_*.db"), key=lambda x: x.stat().st_mtime, reverse=True)
+        for old in existing[10:]:
+            try:
+                old.unlink()
+            except Exception:
+                pass
+        with LocalSessionLocal() as ldb:
+            cache_meta_set(ldb, "last_backup", datetime.now().isoformat(timespec="seconds"))
+            ldb.commit()
+        return str(dest)
+    except Exception as e:
+        with _state_lock:
+            _state["last_error"] = f"No se pudo crear respaldo local: {e}"[:300]
+        return None
+
+
+def _cleanup_expired_confirmafy_appointments(cdb: Session, ldb: Session) -> dict:
+    """Borra de Agenda todas las citas de semanas ya terminadas.
+
+    v4.3.46: una cita cancelada se conserva visible durante toda su semana para
+    que recepción mantenga el rastro visual. Al comenzar una semana nueva se
+    eliminan de Agenda todas las citas anteriores (incluidas canceladas,
+    reagendadas, importadas y marcadores internos), además de las filas externas
+    ya vencidas. Nunca toca pacientes, atenciones ni facturación.
+
+    La limpieza se ejecuta como máximo una vez por día y solo dentro de una
+    actualización de caché que ya iba a abrir Neon, por lo que no agrega
+    conexiones de fondo.
+    """
+    today = date.today()
+    marker_key = "last_agenda_week_cleanup_v446"
+    marker = ldb.get(CacheMeta, marker_key)
+    if marker and str(marker.value or "") == today.isoformat():
+        return {"deleted": 0, "skipped": True}
+    week_start = today - timedelta(days=today.weekday())
+    result = cdb.execute(
+        delete(Appointment).where(Appointment.fecha < week_start)
+    )
+    staged_result = cdb.execute(
+        delete(ConfirmafyAgendaItem).where(ConfirmafyAgendaItem.fecha < week_start)
+    )
+    deleted = int(getattr(result, "rowcount", 0) or 0) + int(getattr(staged_result, "rowcount", 0) or 0)
+    cdb.commit()
+    if marker:
+        marker.value = today.isoformat()
+    else:
+        ldb.add(CacheMeta(key=marker_key, value=today.isoformat()))
+    # El commit local se hace junto con la nueva copia al final de refresh_local_cache.
+    return {"deleted": deleted, "skipped": False, "cutoff": week_start.isoformat()}
+
+
+def refresh_local_cache(force: bool = False, cloud_already_checked: bool = False) -> bool:
+    """Copia la nube al cache local sin bloquear las peticiones normales.
+
+    ``cloud_already_checked`` evita una segunda sonda a Neon cuando el llamador
+    acaba de comprobar la conexión (arranque, regreso de AFK o sincronización).
+    """
+    if not cloud_configured() or (not cloud_already_checked and not check_cloud(force=force)):
+        return False
+    if queue_count() > 0:
+        return False
+
+    last_refresh = effective_cache_refresh_ts()
+    if not force and last_refresh and time.time() - last_refresh < CACHE_REFRESH_SECONDS:
+        return True
+
+    # Solo una actualización de cache a la vez. Antes se mantenía _state_lock
+    # durante toda la copia de tablas, pudiendo frenar la interfaz.
+    if not _cache_refresh_lock.acquire(blocking=False):
+        return True
+    try:
+        with CloudSessionLocal() as cdb, LocalSessionLocal() as ldb:
+            # v4.3.2: una sola pasada de saneamiento después de actualizar. Se hace
+            # dentro de la misma conexión usada para refrescar la copia local, por
+            # lo que no añade consultas periódicas a Neon.
+            legacy_marker_key = "confirmafy_legacy_cleanup_v434"
+            legacy_marker = ldb.get(CacheMeta, legacy_marker_key)
+            legacy_result = {"cleaned": 0, "appointments_moved": 0, "appointments_removed": 0}
+            if not legacy_marker or str(legacy_marker.value or "") != "done":
+                legacy_patients = list(cdb.scalars(select(Patient).order_by(Patient.id)))
+                legacy_plan = _confirmafy_legacy_duplicate_plan(cdb, legacy_patients)
+                if legacy_plan:
+                    legacy_result = _apply_confirmafy_legacy_duplicate_plan(cdb, legacy_plan)
+                    cdb.commit()
+                if legacy_marker:
+                    legacy_marker.value = "done"
+                else:
+                    ldb.add(CacheMeta(key=legacy_marker_key, value="done"))
+
+            cleanup_result = _cleanup_expired_confirmafy_appointments(cdb, ldb)
+            patients = list(cdb.scalars(select(Patient).order_by(Patient.id)))
+            visits = list(cdb.scalars(select(Visit).order_by(Visit.id)))
+            procedures = list(cdb.scalars(select(Procedure).order_by(Procedure.id)))
+            users = list(cdb.scalars(select(User).order_by(User.id)))
+            billing_records = list(cdb.scalars(select(BillingRecord).order_by(BillingRecord.id)))
+            azur_emissions = list(cdb.scalars(select(AzurEmission).order_by(AzurEmission.id)))
+            billing_preferences = list(cdb.scalars(select(BillingPreference).order_by(BillingPreference.id)))
+            appointments = list(cdb.scalars(select(Appointment).order_by(Appointment.id)))
+            confirmafy_agenda_items = list(cdb.scalars(select(ConfirmafyAgendaItem).order_by(ConfirmafyAgendaItem.id)))
+
+            # Una sola transacción local: los lectores siguen viendo la copia
+            # anterior hasta que la nueva queda completa.
+            ldb.execute(delete(ConfirmafyAgendaItem))
+            ldb.execute(delete(Appointment))
+            ldb.execute(delete(BillingPreference))
+            ldb.execute(delete(AzurEmission))
+            ldb.execute(delete(BillingRecord))
+            ldb.execute(delete(Visit))
+            ldb.execute(delete(Patient))
+            ldb.execute(delete(Procedure))
+            ldb.execute(delete(User))
+            ldb.execute(delete(SyncOperation))
+            ldb.flush()
+
+            ldb.add_all([Patient(
+                id=p.id, cedula=p.cedula, nombre=p.nombre, fecha_nacimiento=p.fecha_nacimiento,
+                celular=p.celular, correo=p.correo, lugar=p.lugar, notas=p.notas, created_at=p.created_at,
+            ) for p in patients])
+            ldb.flush()
+            ldb.add_all([Visit(
+                id=v.id, patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo,
+                procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion,
+                source_row=v.source_row, created_at=v.created_at,
+            ) for v in visits])
+            ldb.add_all([Procedure(id=p.id, nombre=p.nombre, valor_default=p.valor_default, activo=p.activo) for p in procedures])
+            ldb.add_all([User(id=u.id, username=u.username, password_hash=u.password_hash, role=u.role) for u in users])
+            ldb.add_all([BillingRecord(
+                id=b.id, visit_id=b.visit_id, estado=b.estado, numero_factura=b.numero_factura,
+                approved_at=b.approved_at, emitted_at=b.emitted_at, created_at=b.created_at,
+            ) for b in billing_records])
+            ldb.add_all([AzurEmission(
+                id=x.id, group_key=x.group_key, patient_id=x.patient_id, fecha=x.fecha,
+                estado=x.estado, clave_acceso=x.clave_acceso, numero_factura=x.numero_factura,
+                request_hash=x.request_hash, response_json=x.response_json,
+                created_at=x.created_at, updated_at=x.updated_at,
+            ) for x in azur_emissions])
+            ldb.add_all([BillingPreference(
+                id=x.id, patient_id=x.patient_id, enabled=x.enabled, identificacion=x.identificacion,
+                nombre=x.nombre, direccion=x.direccion, telefono=x.telefono, correo=x.correo,
+                updated_at=x.updated_at,
+            ) for x in billing_preferences])
+            ldb.add_all([Appointment(
+                id=a.id, patient_id=a.patient_id, fecha=a.fecha, hora=a.hora, duracion=a.duracion,
+                nota=a.nota, estado=a.estado, origen=a.origen, exported_at=a.exported_at,
+                loaded_at=a.loaded_at, created_at=a.created_at, updated_at=a.updated_at,
+            ) for a in appointments])
+            ldb.add_all([ConfirmafyAgendaItem(
+                id=a.id, nombre=a.nombre, celular=a.celular, fecha=a.fecha, hora=a.hora,
+                duracion=a.duracion, source_hash=a.source_hash, created_at=a.created_at,
+            ) for a in confirmafy_agenda_items])
+            cache_meta_set(ldb, "last_sync", datetime.now().isoformat(timespec="seconds"))
+            ldb.commit()
+
+        # El respaldo se hace después de terminar la copia local, fuera de la transacción.
+        create_local_backup_snapshot(force=False)
+
+        with _state_lock:
+            _state["last_cache_refresh"] = time.time()
+        return True
+    except Exception as e:
+        with _state_lock:
+            _state["last_error"] = f"No se pudo actualizar cache local: {e}"[:300]
+        return False
+    finally:
+        _cache_refresh_lock.release()
+
+
+def schedule_local_cache_refresh(force: bool = False, cloud_already_checked: bool = False) -> bool:
+    """Lanza la copia de emergencia en segundo plano si ya corresponde."""
+    if not cloud_configured() or FORCE_OFFLINE or queue_count() > 0:
+        return False
+    last_refresh = effective_cache_refresh_ts()
+    due = force or not last_refresh or (time.time() - last_refresh >= CACHE_REFRESH_SECONDS)
+    if not due or _cache_refresh_lock.locked():
+        return False
+    threading.Thread(target=refresh_local_cache, kwargs={"force": force, "cloud_already_checked": cloud_already_checked}, daemon=True, name="rp-cache-refresh").start()
+    return True
+
+
+def ensure_performance_indexes(engine):
+    if engine is None:
+        return
+    statements = [
+        "CREATE INDEX IF NOT EXISTS ix_visits_fecha_id ON visits (fecha, id)",
+        "CREATE INDEX IF NOT EXISTS ix_visits_patient_fecha ON visits (patient_id, fecha)",
+        "CREATE INDEX IF NOT EXISTS ix_appointments_fecha_hora ON appointments (fecha, hora)",
+        "CREATE INDEX IF NOT EXISTS ix_appointments_estado_fecha ON appointments (estado, fecha)",
+        "CREATE INDEX IF NOT EXISTS ix_confirmafy_agenda_fecha_hora ON confirmafy_agenda_items (fecha, hora)",
+        "CREATE INDEX IF NOT EXISTS ix_billing_estado_visit ON billing_records (estado, visit_id)",
+        "CREATE INDEX IF NOT EXISTS ix_visits_fecha_patient_id ON visits (fecha, patient_id, id)",
+    ]
+    try:
+        with engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+    except Exception:
+        pass
+
+
+LOCAL_PERF_MARKER = "local_performance_ready_v4_3_14"
+
+
+def optimize_local_sqlite_once() -> None:
+    """Pide a SQLite optimizar estadísticas/índices sin VACUUM ni bloqueos largos."""
+    try:
+        with local_engine.begin() as conn:
+            conn.exec_driver_sql("PRAGMA analysis_limit=400")
+            conn.exec_driver_sql("PRAGMA optimize")
+    except Exception:
+        pass
+
+
+def ensure_local_performance_ready() -> None:
+    """Crea índices nuevos una sola vez por versión, no en cada arranque."""
+    try:
+        with LocalSessionLocal() as ldb:
+            marker = ldb.get(CacheMeta, LOCAL_PERF_MARKER)
+            if marker and str(marker.value or "") == "1":
+                return
+        ensure_performance_indexes(local_engine)
+        optimize_local_sqlite_once()
+        with LocalSessionLocal() as ldb:
+            marker = ldb.get(CacheMeta, LOCAL_PERF_MARKER)
+            if marker:
+                marker.value = "1"
+            else:
+                ldb.add(CacheMeta(key=LOCAL_PERF_MARKER, value="1"))
+            ldb.commit()
+    except Exception:
+        # Si algo falla, el próximo inicio vuelve a intentarlo; la app sigue usable.
+        pass
+
+
+def ensure_cloud_initialized() -> bool:
+    """Prepara tablas/índices una sola vez por revisión para ahorrar consultas."""
+    global _cloud_initialized
+    if _cloud_initialized:
+        return True
+    with _cloud_init_lock:
+        if _cloud_initialized:
+            return True
+        if cache_meta_get(CLOUD_SCHEMA_MARKER) == "1":
+            _cloud_initialized = True
+            return True
+        try:
+            Base.metadata.create_all(cloud_engine)
+            ensure_performance_indexes(cloud_engine)
+            seed_database(CloudSessionLocal)
+            seed_initial_agenda(CloudSessionLocal)
+            with LocalSessionLocal() as ldb:
+                cache_meta_set(ldb, CLOUD_SCHEMA_MARKER, "1")
+                ldb.commit()
+            _cloud_initialized = True
+            return True
+        except Exception as e:
+            with _state_lock:
+                _state["last_error"] = _cloud_error_hint(e)
+            return False
+
+
+def initialize_cloud_if_possible():
+    if not check_cloud(force=True):
+        return
+    try:
+        if not ensure_cloud_initialized():
+            return
+        # Reutiliza la copia local si sigue reciente. v4.3.2 fuerza UNA sola
+        # actualización tras instalarse para ejecutar el saneamiento de duplicados
+        # heredados; después vuelve al comportamiento normal y liviano.
+        with LocalSessionLocal() as ldb:
+            cleanup_marker = ldb.get(CacheMeta, "confirmafy_legacy_cleanup_v434")
+            force_cleanup_refresh = not cleanup_marker or str(cleanup_marker.value or "") != "done"
+        schedule_local_cache_refresh(force=force_cleanup_refresh, cloud_already_checked=True)
+    except Exception as e:
+        with _state_lock:
+            _state["last_error"] = _cloud_error_hint(e)
+
+
+def prepare_desktop_runtime_background():
+    """Prepara WebView2/pywebview una sola vez sin frenar el servidor.
+
+    Cuando la aplicación fue arrancada por ABRIR_RECEPCION.py, el propio
+    lanzador hace esta preparación antes de abrir la ventana y evitamos duplicar
+    el trabajo. Tras actualizar desde una versión antigua, este proceso sí se
+    ejecuta para dejar listo el siguiente inicio.
+    """
+    if os.name != "nt" or (os.getenv("RP_DESKTOP_LAUNCH") or "").strip() == "1":
+        return
+    helper = os.path.join(BASE_DIR, "PREPARAR_ESCRITORIO.py")
+    if not os.path.exists(helper):
+        return
+    try:
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen(
+            [sys.executable, helper, "--background"],
+            cwd=BASE_DIR,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=flags, close_fds=True,
+        )
+    except Exception:
+        pass
+
+
+ensure_local_performance_ready()
+# La UI local tiene prioridad al arrancar. En una PC lenta dejamos que FastAPI y
+# WebView2 terminen de abrir antes de iniciar el único chequeo de nube de arranque.
+def _deferred_cloud_init():
+    time.sleep(1.0)
+    initialize_cloud_if_possible()
+
+
+if cloud_configured() and not FORCE_OFFLINE:
+    threading.Thread(target=_deferred_cloud_init, daemon=True, name="rp-cloud-init").start()
+prepare_desktop_runtime_background()
+
+
+# ---------------------------------------------------------------------------
+# WhatsApp / Meta Cloud API - cola local y automatización de citas
+# ---------------------------------------------------------------------------
+
+_WA_WEEKDAYS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_WA_MONTHS = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+_whatsapp_worker_lock = threading.Lock()
+_whatsapp_worker_started = False
+
+
+def whatsapp_date_label(value: date) -> str:
+    return f"{_WA_WEEKDAYS[value.weekday()]} {value.day} de {_WA_MONTHS[value.month - 1]} de {value.year}"
+
+
+def whatsapp_time_label(value: str) -> str:
+    hh, mm = [int(x) for x in str(value or "00:00")[:5].split(":")]
+    return f"{(hh % 12) or 12}:{mm:02d} {'PM' if hh >= 12 else 'AM'}"
+
+
+def whatsapp_recordatorio_datetime_label(fecha: date, hora: str) -> str:
+    """Texto exacto para {{2}} de recordatorio_cita aprobado por Meta.
+
+    Ejemplo: martes, 25 de agosto de 2026 a las 1:00 p. m.
+    """
+    hh, mm = [int(x) for x in str(hora or "00:00")[:5].split(":")]
+    period = "p. m." if hh >= 12 else "a. m."
+    return (
+        f"{_WA_WEEKDAYS[fecha.weekday()]}, {fecha.day} de {_WA_MONTHS[fecha.month - 1]} "
+        f"de {fecha.year} a las {(hh % 12) or 12}:{mm:02d} {period}"
+    )
+
+
+def whatsapp_recordatorio_template_name() -> str:
+    return WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO if WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED else WHATSAPP_TEMPLATE_RECORDATORIO_CITA
+
+
+def whatsapp_language_for_template(template_name: str) -> str:
+    name = str(template_name or "")
+    if name in (WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO):
+        return WHATSAPP_LANGUAGE_RECORDATORIO_CITA
+    if name == WHATSAPP_TEMPLATE_CITA_AGENDADA:
+        return WHATSAPP_LANGUAGE_CITA_AGENDADA
+    if name == WHATSAPP_TEMPLATE_RECORDATORIO_HOY:
+        return WHATSAPP_LANGUAGE_RECORDATORIO_HOY
+    return WHATSAPP_TEMPLATE_LANGUAGE
+
+
+def whatsapp_template_enabled(template_name: str) -> bool:
+    name = str(template_name or "")
+    if name in (WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO):
+        return WHATSAPP_AUTO_RECORDATORIO_CITA
+    if name == WHATSAPP_TEMPLATE_CITA_AGENDADA:
+        return WHATSAPP_AUTO_CITA_AGENDADA
+    if name == WHATSAPP_TEMPLATE_RECORDATORIO_HOY:
+        return WHATSAPP_AUTO_RECORDATORIO_HOY
+    return False
+
+
+def whatsapp_enabled_template_names() -> list[str]:
+    names = []
+    for name in (WHATSAPP_TEMPLATE_CITA_AGENDADA, whatsapp_recordatorio_template_name(), WHATSAPP_TEMPLATE_RECORDATORIO_HOY):
+        if whatsapp_template_enabled(name) and name not in names:
+            names.append(name)
+    return names
+
+
+def whatsapp_ready() -> tuple[bool, list[str]]:
+    missing = []
+    if not WHATSAPP_GRAPH_VERSION: missing.append("WHATSAPP_GRAPH_VERSION")
+    if not WHATSAPP_PHONE_NUMBER_ID: missing.append("WHATSAPP_PHONE_NUMBER_ID")
+    if not WHATSAPP_ACCESS_TOKEN: missing.append("WHATSAPP_ACCESS_TOKEN")
+    # Solo exigimos imagen si alguna plantilla ACTIVA realmente la necesita.
+    image_needed = WHATSAPP_AUTO_CITA_AGENDADA or WHATSAPP_AUTO_RECORDATORIO_HOY or (WHATSAPP_AUTO_RECORDATORIO_CITA and WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED)
+    if image_needed and not WHATSAPP_HEADER_IMAGE_ID:
+        missing.append("WHATSAPP_HEADER_IMAGE_ID")
+    return not missing, missing
+
+
+def _whatsapp_event_key(source_type: str, source_id: int, template_name: str, fecha: date, hora: str) -> str:
+    raw = f"{source_type}|{source_id}|{template_name}|{fecha.isoformat()}|{hora}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _whatsapp_cancel_pending(source_type: str, source_id: int) -> None:
+    try:
+        with LocalSessionLocal() as db:
+            rows = list(db.scalars(select(WhatsAppOutbox).where(
+                WhatsAppOutbox.source_type == source_type,
+                WhatsAppOutbox.source_id == int(source_id),
+                WhatsAppOutbox.status.in_(["PENDING", "ERROR"]),
+            )))
+            now = datetime.now()
+            for row in rows:
+                row.status = "CANCELLED"
+                row.updated_at = now
+            if rows:
+                db.commit()
+    except Exception:
+        pass
+
+
+def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, template_name: str,
+                        fecha: date, hora: str, due_at: datetime, body_params: list[str],
+                        header_required: bool = False, quick_reply_payloads: Optional[list[str]] = None) -> bool:
+    normalized_phone = confirmafy_phone(phone)
+    if len(normalized_phone) < 8 or len(normalized_phone) > 15:
+        return False
+    key = _whatsapp_event_key(source_type, source_id, template_name, fecha, hora)
+    payload = {
+        "body_params": body_params,
+        "header_required": bool(header_required),
+        "quick_reply_payloads": quick_reply_payloads or [],
+        "appointment_date": fecha.isoformat(),
+        "appointment_time": hora,
+        "original_due_at": due_at.isoformat(),
+    }
+    try:
+        with LocalSessionLocal() as db:
+            existing = db.scalar(select(WhatsAppOutbox).where(WhatsAppOutbox.event_key == key))
+            if existing:
+                return False
+            db.add(WhatsAppOutbox(
+                event_key=key, template_name=template_name, source_type=source_type,
+                source_id=int(source_id), phone=normalized_phone,
+                payload_json=json.dumps(payload, ensure_ascii=False), status="PENDING", due_at=due_at,
+            ))
+            db.commit()
+        return True
+    except IntegrityError:
+        return False
+    except Exception:
+        return False
+
+
+def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str, phone: str,
+                                  fecha: date, hora: str) -> dict:
+    """Prepara los tres mensajes. No hace ninguna llamada a Meta por sí sola."""
+    now = datetime.now()
+    try:
+        hh, mm = [int(x) for x in hora.split(":")]
+        appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
+    except Exception:
+        return {"queued": 0, "reason": "invalid_datetime"}
+    if appointment_at <= now:
+        _whatsapp_cancel_pending(source_type, source_id)
+        return {"queued": 0, "reason": "past_appointment"}
+
+    _whatsapp_cancel_pending(source_type, source_id)
+    clean_name = " ".join(str(name or "").split()).upper()
+    date_text = whatsapp_date_label(fecha)
+    time_text = whatsapp_time_label(hora)
+    queued = 0
+
+    # 1) Inmediato al crear/reagendar. Lleva logo + nombre + fecha + hora.
+    queued += int(_whatsapp_queue_one(
+        source_type=source_type, source_id=source_id, phone=phone,
+        template_name=WHATSAPP_TEMPLATE_CITA_AGENDADA, fecha=fecha, hora=hora, due_at=now,
+        body_params=[clean_name, date_text, time_text], header_required=True,
+    ))
+
+    # 2) Confirmación previa: a las 08:00 AM del día anterior a la cita.
+    # Plantilla aprobada por Meta `recordatorio_cita`:
+    #   {{1}} nombre
+    #   {{2}} fecha + hora en un solo texto
+    # Los botones visibles son Sí / No; los payloads internos siguen siendo
+    # CONFIRMAR / CANCELAR para que el webhook pueda distinguir la acción.
+    previous_hh, previous_mm = [int(x) for x in WHATSAPP_PREVIOUS_DAY_TIME.split(":")]
+    previous_date = fecha - timedelta(days=1)
+    reminder_at = datetime(previous_date.year, previous_date.month, previous_date.day, previous_hh, previous_mm)
+    if reminder_at > now:
+        yes_payload = f"CONFIRMAR|{source_type}|{source_id}|{fecha.isoformat()}|{hora}"
+        no_payload = f"CANCELAR|{source_type}|{source_id}|{fecha.isoformat()}|{hora}"
+        queued += int(_whatsapp_queue_one(
+            source_type=source_type, source_id=source_id, phone=phone,
+            template_name=whatsapp_recordatorio_template_name(), fecha=fecha, hora=hora, due_at=reminder_at,
+            body_params=[clean_name, whatsapp_recordatorio_datetime_label(fecha, hora)],
+            header_required=WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED,
+            quick_reply_payloads=[yes_payload, no_payload],
+        ))
+
+    # 3) Recordatorio final: exactamente 2 horas antes de la cita por defecto.
+    today_at = appointment_at - timedelta(hours=WHATSAPP_TODAY_HOURS_BEFORE)
+    if now < today_at < appointment_at:
+        queued += int(_whatsapp_queue_one(
+            source_type=source_type, source_id=source_id, phone=phone,
+            template_name=WHATSAPP_TEMPLATE_RECORDATORIO_HOY, fecha=fecha, hora=hora, due_at=today_at,
+            body_params=[clean_name, time_text], header_required=True,
+        ))
+    return {"queued": queued}
+
+
+def _whatsapp_rebase_pending_schedule() -> int:
+    """Recalcula recordatorios pendientes creados por versiones anteriores."""
+    changed = 0
+    try:
+        with LocalSessionLocal() as db:
+            rows = list(db.scalars(select(WhatsAppOutbox).where(
+                WhatsAppOutbox.status.in_(["PENDING", "ERROR"]),
+                WhatsAppOutbox.template_name.in_([WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO, WHATSAPP_TEMPLATE_RECORDATORIO_HOY]),
+            )))
+            for row in rows:
+                try:
+                    payload = json.loads(row.payload_json or "{}")
+                    fecha = date.fromisoformat(str(payload.get("appointment_date")))
+                    hh, mm = [int(x) for x in str(payload.get("appointment_time")).split(":")]
+                    appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
+                    payload_changed = False
+                    if row.template_name in (WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO):
+                        ph, pm = [int(x) for x in WHATSAPP_PREVIOUS_DAY_TIME.split(":")]
+                        previous_date = fecha - timedelta(days=1)
+                        target = datetime(previous_date.year, previous_date.month, previous_date.day, ph, pm)
+
+                        # v4.3.35: convertir también filas pendientes creadas por versiones
+                        # anteriores (3 variables) al formato aprobado de 2 variables.
+                        old_params = list(payload.get("body_params") or [])
+                        patient_name = str(old_params[0] if old_params else "").strip()
+                        expected_params = [patient_name, whatsapp_recordatorio_datetime_label(fecha, str(payload.get("appointment_time")))]
+                        if old_params != expected_params:
+                            payload["body_params"] = expected_params
+                            payload_changed = True
+                        expected_replies = [
+                            f"CONFIRMAR|{row.source_type}|{row.source_id}|{fecha.isoformat()}|{str(payload.get('appointment_time'))}",
+                            f"CANCELAR|{row.source_type}|{row.source_id}|{fecha.isoformat()}|{str(payload.get('appointment_time'))}",
+                        ]
+                        if list(payload.get("quick_reply_payloads") or []) != expected_replies:
+                            payload["quick_reply_payloads"] = expected_replies
+                            payload_changed = True
+                        expected_header = row.template_name == WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO and WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED
+                        if bool(payload.get("header_required")) != bool(expected_header):
+                            payload["header_required"] = bool(expected_header)
+                            payload_changed = True
+                    else:
+                        target = appointment_at - timedelta(hours=WHATSAPP_TODAY_HOURS_BEFORE)
+                    if row.due_at != target or payload.get("original_due_at") != target.isoformat():
+                        row.due_at = target
+                        payload["original_due_at"] = target.isoformat()
+                        payload_changed = True
+                    if payload_changed:
+                        row.payload_json = json.dumps(payload, ensure_ascii=False)
+                        row.updated_at = datetime.now()
+                        changed += 1
+                except Exception:
+                    continue
+            if changed:
+                db.commit()
+    except Exception:
+        return 0
+    return changed
+
+
+def _whatsapp_is_stale(row: WhatsAppOutbox, payload: dict, now: datetime) -> bool:
+    try:
+        fecha = date.fromisoformat(str(payload.get("appointment_date")))
+        hh, mm = [int(x) for x in str(payload.get("appointment_time")).split(":")]
+        appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
+        original_due = datetime.fromisoformat(str(payload.get("original_due_at")))
+    except Exception:
+        return True
+    if now >= appointment_at:
+        return True
+    age = now - original_due
+    if row.template_name == WHATSAPP_TEMPLATE_CITA_AGENDADA:
+        return age > timedelta(hours=1)
+    if row.template_name in (WHATSAPP_TEMPLATE_RECORDATORIO_CITA, WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO, WHATSAPP_TEMPLATE_RECORDATORIO_HOY):
+        return age > timedelta(hours=4)
+    return age > timedelta(hours=4)
+
+
+def process_whatsapp_outbox_once(limit: int = 20) -> dict:
+    if WHATSAPP_CLOUD_MODE:
+        return {"ok": True, "enabled": False, "cloud_mode": True, "processed": 0, "message": "Automatización gestionada por WhatsApp Cloud 24/7"}
+    if not WHATSAPP_ENABLED:
+        return {"ok": False, "enabled": False, "processed": 0}
+    ready, missing = whatsapp_ready()
+    if not ready:
+        return {"ok": False, "enabled": True, "processed": 0, "missing": missing}
+    if not _whatsapp_worker_lock.acquire(blocking=False):
+        return {"ok": True, "enabled": True, "processed": 0, "busy": True}
+    processed = sent = expired = errors = 0
+    try:
+        now = datetime.now()
+        with LocalSessionLocal() as db:
+            active_templates = whatsapp_enabled_template_names()
+            if not active_templates:
+                return {"ok": True, "enabled": True, "processed": 0, "sent": 0, "expired": 0, "errors": 0, "skipped_disabled": 0}
+            rows = list(db.scalars(select(WhatsAppOutbox).where(
+                WhatsAppOutbox.status.in_(["PENDING", "ERROR"]),
+                WhatsAppOutbox.template_name.in_(active_templates),
+                WhatsAppOutbox.due_at <= now,
+                WhatsAppOutbox.attempts < 5,
+            ).order_by(WhatsAppOutbox.due_at.asc(), WhatsAppOutbox.id.asc()).limit(max(1, min(int(limit), 50)))))
+            skipped_disabled = 0
+            for row in rows:
+                processed += 1
+                try:
+                    payload_data = json.loads(row.payload_json or "{}")
+                    if _whatsapp_is_stale(row, payload_data, now):
+                        row.status = "EXPIRED"; row.updated_at = now; expired += 1
+                        continue
+                    header_image = WHATSAPP_HEADER_IMAGE_ID if payload_data.get("header_required") else None
+                    wa_payload = whatsapp_build_template_payload(
+                        to=row.phone,
+                        template_name=row.template_name,
+                        language_code=whatsapp_language_for_template(row.template_name),
+                        body_params=[str(x) for x in payload_data.get("body_params", [])],
+                        header_image_id=header_image,
+                        quick_reply_payloads=[str(x) for x in payload_data.get("quick_reply_payloads", [])],
+                    )
+                    response = whatsapp_send_template(
+                        graph_version=WHATSAPP_GRAPH_VERSION,
+                        phone_number_id=WHATSAPP_PHONE_NUMBER_ID,
+                        access_token=WHATSAPP_ACCESS_TOKEN,
+                        payload=wa_payload,
+                    )
+                    row.status = "SENT"; row.sent_at = now; row.last_error = None
+                    row.response_json = json.dumps(response, ensure_ascii=False)[:4000]
+                    row.updated_at = now; sent += 1
+                except Exception as exc:
+                    row.attempts = int(row.attempts or 0) + 1
+                    row.status = "ERROR"
+                    row.last_error = str(exc)[:500]
+                    # Reintento suave: nunca más de una vez cada 5 minutos.
+                    row.due_at = now + timedelta(minutes=5)
+                    row.updated_at = now; errors += 1
+            db.commit()
+        return {"ok": errors == 0, "enabled": True, "processed": processed, "sent": sent, "expired": expired, "errors": errors, "skipped_disabled": skipped_disabled}
+    finally:
+        _whatsapp_worker_lock.release()
+
+
+def _whatsapp_background_loop() -> None:
+    # Un único hilo liviano; no consulta Neon. Solo existe cuando WHATSAPP_ENABLED=1.
+    while WHATSAPP_ENABLED:
+        try:
+            process_whatsapp_outbox_once(limit=20)
+        except Exception:
+            pass
+        time.sleep(WHATSAPP_POLL_SECONDS)
+
+
+def start_whatsapp_worker_if_enabled() -> None:
+    global _whatsapp_worker_started
+    if WHATSAPP_CLOUD_MODE:
+        return
+    if not WHATSAPP_ENABLED or _whatsapp_worker_started:
+        return
+    _whatsapp_worker_started = True
+    threading.Thread(target=_whatsapp_background_loop, daemon=True, name="rp-whatsapp").start()
+
+
+def mirror_patient_to_local(p: Patient):
+    try:
+        with LocalSessionLocal() as db:
+            lp = db.get(Patient, p.id)
+            values = dict(cedula=p.cedula, nombre=p.nombre, fecha_nacimiento=p.fecha_nacimiento, celular=p.celular, correo=p.correo, lugar=p.lugar, notas=p.notas, created_at=p.created_at)
+            if lp:
+                for k, v in values.items(): setattr(lp, k, v)
+            else:
+                db.add(Patient(id=p.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_visit_to_local(v: Visit):
+    try:
+        with LocalSessionLocal() as db:
+            lv = db.get(Visit, v.id)
+            values = dict(patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo, procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion, source_row=v.source_row, created_at=v.created_at)
+            if lv:
+                for k, val in values.items(): setattr(lv, k, val)
+            else:
+                db.add(Visit(id=v.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_billing_to_local(b: BillingRecord):
+    try:
+        with LocalSessionLocal() as db:
+            lb = db.scalar(select(BillingRecord).where(BillingRecord.visit_id == b.visit_id))
+            values = dict(
+                visit_id=b.visit_id, estado=b.estado, numero_factura=b.numero_factura,
+                approved_at=b.approved_at, emitted_at=b.emitted_at, created_at=b.created_at,
+            )
+            if lb:
+                for k, val in values.items(): setattr(lb, k, val)
+            else:
+                db.add(BillingRecord(id=b.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_azur_emission_to_local(record: AzurEmission):
+    """Refleja inmediatamente el estado técnico AZUR/SRI en SQLite local.
+
+    Facturación se lee local-first para que la PC antigua sea rápida; si solo
+    actualizamos Neon, la pantalla seguiría mostrando EMITIDA aunque AZUR ya
+    hubiese respondido AUTORIZADA.
+    """
+    try:
+        with LocalSessionLocal() as db:
+            local = db.scalar(select(AzurEmission).where(AzurEmission.group_key == record.group_key))
+            values = dict(
+                group_key=record.group_key, patient_id=record.patient_id, fecha=record.fecha,
+                estado=record.estado, clave_acceso=record.clave_acceso, numero_factura=record.numero_factura,
+                request_hash=record.request_hash, response_json=record.response_json,
+                created_at=record.created_at, updated_at=record.updated_at,
+            )
+            if local:
+                for key, value in values.items(): setattr(local, key, value)
+            else:
+                db.add(AzurEmission(id=record.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_billing_preference_to_local(pref: BillingPreference):
+    try:
+        with LocalSessionLocal() as db:
+            local = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == pref.patient_id))
+            values = dict(
+                patient_id=pref.patient_id, enabled=pref.enabled, identificacion=pref.identificacion,
+                nombre=pref.nombre, direccion=pref.direccion, telefono=pref.telefono,
+                correo=pref.correo, updated_at=pref.updated_at,
+            )
+            if local:
+                for key, value in values.items(): setattr(local, key, value)
+            else:
+                db.add(BillingPreference(id=pref.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_delete_billing_preference_local(patient_id: int):
+    try:
+        with LocalSessionLocal() as db:
+            row = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == int(patient_id)))
+            if row: db.delete(row)
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_appointment_to_local(a: Appointment):
+    try:
+        with LocalSessionLocal() as db:
+            la = db.get(Appointment, a.id)
+            values = dict(
+                patient_id=a.patient_id, fecha=a.fecha, hora=a.hora, duracion=a.duracion, nota=a.nota,
+                estado=a.estado, origen=a.origen, exported_at=a.exported_at, loaded_at=a.loaded_at,
+                created_at=a.created_at, updated_at=a.updated_at,
+            )
+            if la:
+                for k, val in values.items(): setattr(la, k, val)
+            else:
+                db.add(Appointment(id=a.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_delete_appointment_local(aid: int):
+    try:
+        with LocalSessionLocal() as db:
+            a = db.get(Appointment, aid)
+            if a: db.delete(a)
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_confirmafy_agenda_local(item: ConfirmafyAgendaItem):
+    try:
+        with LocalSessionLocal() as db:
+            local = db.get(ConfirmafyAgendaItem, item.id)
+            values = {
+                "nombre": item.nombre, "celular": item.celular, "fecha": item.fecha,
+                "hora": item.hora, "duracion": item.duracion, "source_hash": item.source_hash,
+                "created_at": item.created_at,
+            }
+            if local:
+                for key, value in values.items(): setattr(local, key, value)
+            else:
+                db.add(ConfirmafyAgendaItem(id=item.id, **values))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_delete_confirmafy_agenda_local(item_id: int):
+    try:
+        with LocalSessionLocal() as db:
+            item = db.get(ConfirmafyAgendaItem, item_id)
+            if item: db.delete(item)
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_delete_patient_local(pid: int):
+    try:
+        with LocalSessionLocal() as db:
+            p = db.get(Patient, pid)
+            if p: db.delete(p)
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_delete_visit_local(vid: int):
+    try:
+        with LocalSessionLocal() as db:
+            v = db.get(Visit, vid)
+            if v: db.delete(v)
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_procedure_local(p: Procedure):
+    try:
+        with LocalSessionLocal() as db:
+            lp = db.get(Procedure, p.id)
+            if lp:
+                lp.nombre=p.nombre; lp.valor_default=p.valor_default; lp.activo=p.activo
+            else:
+                db.add(Procedure(id=p.id,nombre=p.nombre,valor_default=p.valor_default,activo=p.activo))
+            db.commit()
+    except Exception:
+        pass
+
+
+def mirror_user_local(u: User):
+    try:
+        with LocalSessionLocal() as db:
+            lu=db.get(User,u.id)
+            if lu:
+                lu.username=u.username;lu.password_hash=u.password_hash;lu.role=u.role
+            else:
+                db.add(User(id=u.id,username=u.username,password_hash=u.password_hash,role=u.role))
+            db.commit()
+    except Exception:
+        pass
+
+
+LOCAL_FIRST_GET_PREFIXES = (
+    "/api/bootstrap",
+    "/api/today",
+    "/api/patients",
+    "/api/home/week",
+    "/api/pending-summary",
+    "/api/procedures",
+    "/api/agenda/recent-patients",
+    "/api/agenda/pending-count",
+    "/api/agenda/appointments",
+    "/api/agenda/week",
+    "/api/agenda/confirmafy-staged",
+    "/api/agenda/slots",
+    "/api/billing",
+    "/api/report",
+    "/api/dashboard",
+    "/api/export.xlsx",
+    "/api/export.csv",
+    "/api/agenda/dashboard",
+)
+
+
+def _mark_client_active() -> None:
+    with _state_lock:
+        _state["client_idle"] = False
+        _state["last_activity"] = time.time()
+
+
+def _prefer_local_read(request: Request) -> bool:
+    if request.method.upper() != "GET":
+        return False
+    if str(request.query_params.get("fresh") or "").strip() == "1":
+        return False
+    path = request.url.path
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in LOCAL_FIRST_GET_PREFIXES)
+
+
+def get_db(request: Request):
+    # Las pantallas más consultadas leen desde la copia SQLite local. Las
+    # escrituras siguen yendo a Neon cuando está disponible y se reflejan
+    # inmediatamente al cache local. Así la PC vieja responde rápido y Neon
+    # recibe muchas menos lecturas innecesarias.
+    _mark_client_active()
+    pending = queue_count()
+    if pending > 0 or _prefer_local_read(request):
+        use_cloud = False
+    else:
+        online = check_cloud()
+        use_cloud = bool(online and CloudSessionLocal)
+    factory = CloudSessionLocal if use_cloud else LocalSessionLocal
+    db = factory()
+    db.info["offline"] = not use_cloud
+    db.info["local_first"] = bool(not use_cloud and pending == 0 and _prefer_local_read(request))
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def is_offline_db(db: Session) -> bool:
+    return bool(db.info.get("offline"))
+
+
+def _user_snapshot(user: User) -> User:
+    return User(id=user.id, username=user.username, password_hash=user.password_hash, role=user.role)
+
+
+def invalidate_user_cache(username: Optional[str] = None):
+    with _user_cache_lock:
+        if username:
+            _user_cache.pop(username, None)
+        else:
+            _user_cache.clear()
+
+
+def _auto_login_enabled() -> bool:
+    # La interfaz clínica solo se permite desde loopback. El servidor escucha también
+    # en la LAN únicamente para la superficie protegida de Agenda móvil.
+    try:
+        return bool(_app_preferences().get("auto_login", True))
+    except Exception:
+        return True
+
+
+def _default_local_user() -> Optional[User]:
+    now = time.time()
+    with _user_cache_lock:
+        cached = _user_cache.get("admin")
+        if cached and now - cached[0] < USER_CACHE_SECONDS:
+            return cached[1]
+    try:
+        with LocalSessionLocal() as db:
+            user = db.scalar(select(User).where(User.username == "admin")) or db.scalar(select(User).order_by(User.id))
+            if user:
+                snap = _user_snapshot(user)
+                with _user_cache_lock:
+                    _user_cache[snap.username] = (now, snap)
+                return snap
+    except Exception:
+        pass
+    return None
+
+
+def current_user(request: Request) -> User:
+    token = request.cookies.get("rp_session")
+    username = TOKENS.get(token or "")
+    if not username and _auto_login_enabled():
+        auto_user = _default_local_user()
+        if auto_user:
+            return auto_user
+    if not username:
+        raise HTTPException(401, "No autenticado")
+    now = time.time()
+    with _user_cache_lock:
+        cached = _user_cache.get(username)
+        if cached and now - cached[0] < USER_CACHE_SECONDS:
+            return cached[1]
+    # La sesión ya iniciada debe seguir funcionando si Internet se cae.
+    with LocalSessionLocal() as db:
+        user = db.scalar(select(User).where(User.username == username))
+        if user:
+            snap = _user_snapshot(user)
+            with _user_cache_lock:
+                _user_cache[username] = (now, snap)
+            return snap
+    # El login manual conserva un último respaldo de nube, pero el modo
+    # automático nunca despierta Neon solo para validar la sesión.
+    if check_cloud(force=True):
+        try:
+            with CloudSessionLocal() as db:
+                user = db.scalar(select(User).where(User.username == username))
+                if user:
+                    snap = _user_snapshot(user)
+                    with _user_cache_lock:
+                        _user_cache[username] = (now, snap)
+                    return snap
+        except Exception:
+            pass
+    raise HTTPException(401, "No autenticado")
+
+
+def p_dict(p: Patient):
+    return {
+        "id": p.id, "cedula": p.cedula, "nombre": p.nombre,
+        "fecha_nacimiento": p.fecha_nacimiento, "celular": p.celular,
+        "correo": p.correo, "lugar": p.lugar, "notas": p.notas,
+    }
+
+
+def v_dict(v: Visit):
+    return {
+        "id": v.id, "patient_id": v.patient_id, "fecha": v.fecha, "tipo": v.tipo,
+        "procedimiento": v.procedimiento,
+        "valor": float(v.valor) if v.valor is not None else None,
+        "observacion": v.observacion,
+    }
+
+
+def billing_dict(b: BillingRecord):
+    return {
+        "id": b.id, "visit_id": b.visit_id, "estado": b.estado,
+        "numero_factura": b.numero_factura, "approved_at": b.approved_at,
+        "emitted_at": b.emitted_at,
+    }
+
+
+def azur_emission_dict(x: Optional[AzurEmission]):
+    if not x:
+        return None
+    return {
+        "estado": x.estado,
+        "numero_factura": x.numero_factura,
+        "has_clave_acceso": bool(x.clave_acceso),
+        "updated_at": x.updated_at,
+    }
+
+
+def billing_preference_dict(x: Optional[BillingPreference]):
+    if not x:
+        return None
+    return {
+        "patient_id": x.patient_id, "enabled": bool(x.enabled),
+        "identificacion": x.identificacion, "nombre": x.nombre,
+        "direccion": x.direccion, "telefono": x.telefono, "correo": x.correo,
+        "updated_at": x.updated_at,
+    }
+
+
+def appointment_dict(a: Appointment):
+    return {
+        "id": a.id, "patient_id": a.patient_id, "fecha": a.fecha, "hora": a.hora,
+        "duracion": int(a.duracion or 20), "nota": a.nota, "estado": a.estado,
+        "origen": a.origen, "exported_at": a.exported_at, "loaded_at": a.loaded_at,
+        "created_at": a.created_at, "updated_at": a.updated_at,
+    }
+
+
+def confirmafy_agenda_dict(a: ConfirmafyAgendaItem):
+    return {
+        "id": a.id, "nombre": a.nombre, "celular": a.celular, "fecha": a.fecha,
+        "hora": a.hora, "duracion": int(a.duracion or 20),
+        "source_hash": a.source_hash, "created_at": a.created_at,
+    }
+
+
+def confirmafy_phone(value: Optional[str]) -> str:
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("593"):
+        return digits
+    if len(digits) == 10 and digits.startswith("0"):
+        return "593" + digits[1:]
+    return digits
+
+
+def normalize_appointment_payload(data) -> dict:
+    values = data.model_dump() if hasattr(data, "model_dump") else dict(data)
+    raw_time = str(values.get("hora") or "").strip()[:5]
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw_time):
+        raise HTTPException(400, "La hora no es válida")
+    minutes = hhmm_to_minutes(raw_time)
+    end = minutes + 20
+    # Horario del consultorio: no se agenda durante el almuerzo (12:30–14:00)
+    # y la última cita disponible comienza a las 17:00.
+    if minutes < 8 * 60 or minutes > 17 * 60:
+        raise HTTPException(400, "La cita debe estar entre las 08:00 y las 17:00")
+    if minutes < 14 * 60 and end > 12 * 60 + 30:
+        raise HTTPException(400, "De 12:30 a 14:00 es horario de almuerzo")
+    values["hora"] = raw_time
+    values["duracion"] = 20
+    values["nota"] = (values.get("nota") or "").strip() or None
+    return values
+
+
+
+def confirmafy_marker_note(source_hash: str) -> str:
+    return f"{CONFIRMAFY_ATTENDED_NOTE_PREFIX}{str(source_hash or '').strip()}"
+
+
+def confirmafy_marker_hash(appointment: Appointment) -> str:
+    note = str(getattr(appointment, "nota", "") or "")
+    if note.startswith(CONFIRMAFY_ATTENDED_NOTE_PREFIX):
+        return note[len(CONFIRMAFY_ATTENDED_NOTE_PREFIX):].strip()
+    return ""
+
+
+def active_confirmafy_attended_hashes(db: Session, dates: list[date]) -> set[str]:
+    """Hashes de citas externas que ya tienen una atención clínica vigente.
+
+    La cita de Confirmafy se conserva como staged y se oculta mientras exista
+    al menos una atención del paciente vinculado en esa fecha. Si se borran
+    todas las atenciones de ese día, vuelve a aparecer automáticamente.
+    """
+    clean_dates = [d for d in dates if d]
+    if not clean_dates:
+        return set()
+    markers = list(db.scalars(
+        select(Appointment).where(
+            Appointment.fecha.in_(clean_dates),
+            Appointment.origen == CONFIRMAFY_ATTENDED_ORIGIN,
+        )
+    ))
+    if not markers:
+        return set()
+    patient_ids = sorted({int(a.patient_id) for a in markers if a.patient_id})
+    if not patient_ids:
+        return set()
+    visit_pairs = {
+        (int(pid), f) for pid, f in db.execute(
+            select(Visit.patient_id, Visit.fecha).where(
+                Visit.fecha.in_(clean_dates), Visit.patient_id.in_(patient_ids)
+            ).distinct()
+        ).all()
+    }
+    out: set[str] = set()
+    for marker in markers:
+        if (int(marker.patient_id), marker.fecha) not in visit_pairs:
+            continue
+        source_hash = confirmafy_marker_hash(marker)
+        if source_hash:
+            out.add(source_hash)
+    return out
+
+
+def hhmm_to_minutes(value: str) -> int:
+    h, m = str(value or "00:00")[:5].split(":")
+    return int(h) * 60 + int(m)
+
+
+def appointment_conflicts(
+    db: Session,
+    fecha: date,
+    hora: str,
+    duration: int = 20,
+    exclude_id: Optional[int] = None,
+):
+    """Devuelve cruces contra *toda* la agenda visible.
+
+    Desde v4.3.7 las citas importadas de Confirmafy pueden vivir en
+    ``confirmafy_agenda_items`` sin patient_id hasta que el paciente llega.
+    Esas citas ocupan un bloque igual que una reagenda normal y por tanto deben
+    bloquear tanto el selector visual como la validación final al guardar.
+
+    El segundo elemento de cada tupla es ``Patient`` para citas vinculadas y
+    ``None`` para citas externas; ``occupied_message`` entiende ambos casos.
+    """
+    new_start = hhmm_to_minutes(hora)
+    new_end = new_start + int(duration or 20)
+
+    stmt = select(Appointment, Patient).join(Patient).where(
+        Appointment.fecha == fecha,
+        Appointment.origen != CONFIRMAFY_ATTENDED_ORIGIN,
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(Appointment.id != int(exclude_id))
+    rows = db.execute(stmt.order_by(Appointment.hora.asc(), Appointment.id.asc())).all()
+
+    conflicts = []
+    for a, p in rows:
+        try:
+            old_start = hhmm_to_minutes(a.hora)
+        except Exception:
+            continue
+        old_end = old_start + int(a.duracion or 20)
+        if new_start < old_end and old_start < new_end:
+            conflicts.append((a, p))
+
+    # Citas de Confirmafy aún sin vincular. No se excluyen mediante exclude_id,
+    # porque ese id pertenece exclusivamente a Appointment.
+    attended_hashes = active_confirmafy_attended_hashes(db, [fecha])
+    staged_rows = [a for a in db.scalars(
+        select(ConfirmafyAgendaItem)
+        .where(ConfirmafyAgendaItem.fecha == fecha)
+        .order_by(ConfirmafyAgendaItem.hora.asc(), ConfirmafyAgendaItem.id.asc())
+    ) if str(a.source_hash or "") not in attended_hashes
+       and not str(a.source_hash or "").startswith("mobile:whatsapp-cloud-test:")]
+    for a in staged_rows:
+        try:
+            old_start = hhmm_to_minutes(a.hora)
+        except Exception:
+            continue
+        old_end = old_start + int(a.duracion or 20)
+        if new_start < old_end and old_start < new_end:
+            conflicts.append((a, None))
+    return conflicts
+
+
+def occupied_message(fecha: date, hora: str, conflicts) -> str:
+    if not conflicts:
+        return ""
+    labels = []
+    for item, patient in conflicts[:3]:
+        label = (getattr(patient, "nombre", None) if patient is not None else None) or getattr(item, "nombre", None) or "otra cita"
+        labels.append(str(label))
+    # Una migración antigua puede haber dejado la misma cita representada en
+    # ambas tablas; no repetimos el mismo nombre en el aviso.
+    labels = list(dict.fromkeys(labels))
+    names = ", ".join(labels[:3])
+    extra = "" if len(labels) <= 3 else f" y {len(labels) - 3} más"
+    return f"El {fecha.strftime('%d/%m/%Y')} a las {hora} ya está ocupado por {names}{extra}. Elige otra hora."
+
+
+def is_procedure(v: Visit) -> bool:
+    return bool((v.procedimiento or "").strip()) or v.tipo == "P"
+
+
+def valid_ecuadorian_cedula(value: str) -> bool:
+    digits = re.sub(r"\D", "", value or "")
+    if len(digits) != 10 or int(digits[2]) > 5:
+        return False
+    total = 0
+    for i, ch in enumerate(digits[:9]):
+        n = int(ch) * (2 if i % 2 == 0 else 1)
+        total += n - 9 if n >= 10 else n
+    return ((10 - (total % 10)) % 10) == int(digits[9])
+
+
+def normalize_patient_payload(data) -> dict:
+    values = data.model_dump() if hasattr(data, "model_dump") else dict(data)
+    marker_present = "extranjero" in values
+    extranjero = bool(values.pop("extranjero", False))
+    values["nombre"] = (values.get("nombre") or "").strip().upper()
+
+    raw_id = str(values.get("cedula") or "").strip()
+    if raw_id and not marker_present and not re.fullmatch(r"\d{10}", re.sub(r"\s+", "", raw_id)):
+        extranjero = True
+    if raw_id:
+        if extranjero:
+            normalized_id = re.sub(r"\s+", "", raw_id).upper()
+            if len(normalized_id) > 30:
+                raise HTTPException(400, "La identificación extranjera no puede superar 30 caracteres")
+            values["cedula"] = normalized_id
+        else:
+            digits = re.sub(r"\D", "", raw_id)
+            if len(digits) != 10:
+                raise HTTPException(400, "La cédula ecuatoriana debe tener exactamente 10 dígitos")
+            if not valid_ecuadorian_cedula(digits):
+                raise HTTPException(400, "La cédula ecuatoriana no es válida. Revisa si se digitó correctamente")
+            values["cedula"] = digits
+    else:
+        values["cedula"] = None
+
+    raw_phone = (values.get("celular") or "").strip()
+    values["celular"] = re.sub(r"\D", "", raw_phone) or None
+    values["correo"] = (values.get("correo") or "").strip().lower() or None
+    nac = values.get("fecha_nacimiento")
+    if isinstance(nac, str) and nac.strip():
+        try:
+            values["fecha_nacimiento"] = date.fromisoformat(nac.strip()[:10])
+        except Exception:
+            values["fecha_nacimiento"] = None
+    values["lugar"] = (values.get("lugar") or "").strip() or None
+    values["notas"] = (values.get("notas") or "").strip() or None
+    return values
+
+
+def add_queue(db: Session, operation: str, entity: str, payload: dict, username: str, local_entity_id: Optional[int] = None) -> str:
+    token = uuid.uuid4().hex
+    invalidate_queue_count()
+    db.add(OfflineQueue(
+        token=token,
+        operation=operation,
+        entity=en
