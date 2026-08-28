@@ -3,14 +3,14 @@
   "version": "4.3.51",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.51: reacondiciona Configuración de Agenda y WhatsApp con una vista más compacta y profesional. Además blinda la actualización automática y el iniciador: reintentos sin caché, SHA recalculado por canal, validación previa, rollback automático, registro de errores y arranque seguro para que un fallo de red/CDN/actualizador no deje al consultorio sin Recepción cuando la instalación local está sana. Conserva el token permanente del doctor y la sincronización Sí/No de WhatsApp.",
+  "message": "v4.3.51: reacondiciona Configuración de Agenda y WhatsApp y blinda la actualización automática. Incluye recuperación específica para consolidar correctamente el salto 4.3.50 → 4.3.51 y evitar que la misma actualización se reinstale en cada inicio. Mantiene reintentos sin caché, verificación SHA, rollback, registro de errores y arranque seguro.",
   "files": [
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/bootstrap_app.py"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v451/bootstrap_recovery.py"
       ],
-      "sha256": "bc938668ae0a153e90bcd8c7f325de5f290c7b0bc422c58704ffe25f9ff236ca",
+      "sha256": "f723d57f1ac7121d6c8cf36f87a5f6606eb425aef96fb4bacf86d73d5f45bc5e",
       "encoding": "utf-8"
     },
     {
