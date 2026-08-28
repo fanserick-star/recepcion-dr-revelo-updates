@@ -12,24 +12,52 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Localizar confirmaciones nativas de Facturación
+      - name: Localizar confirmaciones nativas y helpers internos
         run: |
           python - <<'PY'
           from pathlib import Path
+          import ast
           root=Path('.')
           parts=sorted((root/'updates'/'v465').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
           s=b''.join(p.read_bytes() for p in parts).decode('utf-8')
-          terms=['confirm(', 'window.confirm', 'EMITIR ESTA FACTURA', 'emitir esta factura', 'APROBAR', 'aprobar', 'PRODUCCIÓN', 'producción']
+          terms=['rpConfirm','v464BindAlert','rpNotice','SRI','ambiente de','correo es opcional','revisa nombre','factura real','aprobar para facturar','aprobar factura','confirmar aprobación','azur/emit','billing/approve']
           low=s.lower()
           for term in terms:
-              print('\n### TERM',term)
+              print('\n### APP TERM',term)
               t=term.lower(); start=0; count=0
               while True:
                   pos=low.find(t,start)
                   if pos<0: break
                   count+=1
                   print(f'--- OCC {count} POS {pos} ---')
-                  print(s[max(0,pos-900):min(len(s),pos+1800)])
+                  print(s[max(0,pos-1400):min(len(s),pos+3000)])
                   start=pos+max(1,len(t))
               print('COUNT',count)
+          print('\n### TOP LEVEL STRING ASSIGNMENTS WITH BILLING TERMS')
+          tree=ast.parse(s)
+          for n in tree.body:
+              if not (isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name)): continue
+              try: val=ast.literal_eval(n.value)
+              except Exception: continue
+              if not isinstance(val,str): continue
+              l=val.lower()
+              hits=[x for x in ['confirm','sri','factura','azur','aprobar','rpconfirm'] if x in l]
+              if hits:
+                  print(n.targets[0].id,'LEN',len(val),'HITS',hits)
+          print('\n### REPO FRONTEND TEXT MATCHES (EXCLUYE agenda/ Y updates/)')
+          needles=['emitir esta factura','factura real','ambiente de producción','correo es opcional','revisa nombre','aprobar factura','aprobar para facturar','confirm(','rpconfirm']
+          for p in root.rglob('*'):
+              if not p.is_file(): continue
+              rel=p.relative_to(root).as_posix()
+              if rel.startswith('agenda/') or rel.startswith('updates/') or rel.startswith('.git/'): continue
+              if p.suffix.lower() not in {'.py','.js','.html','.css','.txt','.json'}: continue
+              try: text=p.read_text(encoding='utf-8')
+              except Exception: continue
+              lt=text.lower()
+              found=[n for n in needles if n in lt]
+              if found:
+                  print('\nFILE',rel,'FOUND',found)
+                  for n in found:
+                      pos=lt.find(n)
+                      print('TERM',n,'CTX',text[max(0,pos-700):min(len(text),pos+1800)])
           PY
