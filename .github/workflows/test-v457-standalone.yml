@@ -1,0 +1,44 @@
+name: Probar launcher standalone v4.3.57
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v457/**'
+      - '.github/workflows/test-v457-standalone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selftest:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Reconstruir launcher candidato
+        shell: bash
+        run: |
+          python -c "from pathlib import Path; d=Path('updates/v457'); (d/'ABRIR_RECEPCION.py').write_bytes(b''.join((d/f'ABRIR_RECEPCION.part{i}').read_bytes() for i in range(1,5)))"
+
+      - name: Compilar launcher
+        shell: bash
+        run: python -m py_compile updates/v457/ABRIR_RECEPCION.py
+
+      - name: Ejecutar pruebas integradas
+        shell: bash
+        run: python updates/v457/ABRIR_RECEPCION.py --self-test-core
+
+      - name: Validar arquitectura autocontenida
+        shell: bash
+        run: |
+          python -c "import ast,json,pathlib; d=pathlib.Path('updates/v457'); s=(d/'ABRIR_RECEPCION.py').read_text(encoding='utf-8'); t=ast.parse(s); imp=set(); [imp.update(a.name for a in n.names) if isinstance(n,ast.Import) else imp.add(n.module) if isinstance(n,ast.ImportFrom) and n.module else None for n in ast.walk(t)]; banned={'AUTOACTUALIZAR','_AUTOACTUALIZAR_31','_ABRIR_RECEPCION_451'}; assert not (banned & imp), banned & imp; m=json.loads((d/'update_manifest.json').read_text(encoding='utf-8')); assert m['version']=='4.3.57'; assert m['app_version']=='4.3.54'; assert m['copy']==['ABRIR_RECEPCION.py','update_manifest.json']; assert 'MUTEX_NAME' in s and '_acquire_mutex' in s and 'check_and_apply_update' in s; print('Arquitectura standalone validada')"
