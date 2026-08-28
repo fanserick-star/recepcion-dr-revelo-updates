@@ -98,7 +98,8 @@ begin
     wpWelcome,
     'Ubicación actual de Recepción',
     'Selecciona la carpeta que hoy contiene el programa',
-    'El instalador moverá la instalación completa a C:\Recepcion Dr Revelo y conservará configuración, datos y actualizaciones. Selecciona la carpeta que contiene ABRIR_RECEPCION.py.'
+    'El instalador moverá la instalación completa a C:\Recepcion Dr Revelo y conservará configuración, datos y actualizaciones. Selecciona la carpeta que contiene ABRIR_RECEPCION.py.',
+    False
   );
   SourcePage.Add('');
   Detected := DetectExistingInstall();
@@ -140,7 +141,7 @@ begin
 
   if ResultCode <> 0 then
   begin
-    Result := 'No se pudo mover Recepción a C:. Verifica que el programa esté cerrado y que hayas seleccionado la carpeta correcta. La instalación anterior no se eliminará si la migración falla.';
+    Result := 'No se pudo mover Recepción a C:. Verifica que el programa esté cerrado y que hayas seleccionado la carpeta correcta. Si la migración alcanzó a mover la carpeta, el script intenta devolverla automáticamente a su ubicación anterior.';
     exit;
   end;
 
