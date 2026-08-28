@@ -5,7 +5,7 @@ oldroot=ROOT/'updates'/'v459'
 parts=sorted(oldroot.glob('app.part*'),key=lambda p:int(p.name.split('part')[-1]))
 raw=b''.join(p.read_bytes() for p in parts)
 OLD_SHA='edb50022e37bc08e0ce2cfc23cc2e0c9d4be32fe7ea0353b4f47860549361321'
-NEW_SHA='27b2a199c3a1696a16849754f8e9426f1395cd8b5a30a3658e6011d6d823ae78'
+NEW_SHA='63f5171cc66d04eb82d0b9e2b0dd4c13a4822be1a6cd391c4c75a7b2d5c088a3'
 if hashlib.sha256(raw).hexdigest()!=OLD_SHA: raise SystemExit('La base v4.3.59 no coincide con la publicada')
 s=raw.decode('utf-8')
 s=s.replace('APP_VERSION = "4.3.59"','APP_VERSION = "4.3.60"',1)
