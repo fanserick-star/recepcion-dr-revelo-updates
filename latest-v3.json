@@ -1,9 +1,9 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.65",
+  "version": "4.3.66",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.65: muestra la última cita del historial 2020–2025 al atender, acelera la Agenda de la PC cargando primero desde SQLite y elimina el recuadro redundante Cola de facturación. La Agenda web no se modifica.",
+  "message": "v4.3.66: reemplaza las confirmaciones nativas de Facturación y AZUR por avisos internos de Recepción, manteniendo intacta la lógica de facturación y la Agenda web.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -19,21 +19,21 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/app.part7"
       ],
-      "sha256": "e9763acd0bbf7792a8b90a88093a5ce0749bcc9fddce2dd75e9495cf89d81958",
+      "sha256": "70a97679078eb9dfd549a03f7a10f880f7f2a2fc307c3e4f4ce969bade31b7fd",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v465/update_manifest.json",
-      "sha256": "8eae78539fc573bd1915f534234a2631016b237b9ea046c593a8272c1aa68ebe",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v466/update_manifest.json",
+      "sha256": "46bacf140ee33f9221826ffeb48f93da2ba02e2cccf8e7a1b179b546b2c038db",
       "encoding": "utf-8"
     }
   ]
