@@ -28,7 +28,7 @@
     {
       "path": "AUTOACTUALIZAR.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/AUTOACTUALIZAR.py",
-      "sha256": "PENDING",
+      "sha256": "1c5904e87d00449c69abdbc7b3be158b85483d7d79e1444320bcc30cea897da6",
       "encoding": "utf-8"
     },
     {
@@ -40,7 +40,7 @@
     {
       "path": "ABRIR_RECEPCION.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v454/ABRIR_RECEPCION.py",
-      "sha256": "PENDING",
+      "sha256": "c6b54c073fa0b1df0c97d81942c55d72736f762f87f49a9f3d94b6b8a7861ab7",
       "encoding": "utf-8"
     },
     {
