@@ -28,7 +28,7 @@ jobs:
           New-Item -ItemType Directory -Force installer_clean\buildroot | Out-Null
           @'
           from pathlib import Path
-          import hashlib, json, shutil, zipfile
+          import hashlib, json, shutil
           root=Path('.')
           out=root/'installer_clean'/'buildroot'
           def join_parts(folder, prefix, target, expected):
@@ -46,30 +46,30 @@ jobs:
           print('PUBLICADA_OK', manifest['version'])
           '@ | python -
 
-      - name: Recuperar componentes base oficiales
+      - name: Recuperar base limpia completa
         shell: powershell
         run: |
           @'
           from pathlib import Path
-          import shutil, zipfile
+          import hashlib, shutil, zipfile
           root=Path('.')
           out=root/'installer_clean'/'buildroot'
-          z=root/'updates'/'ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip'
+          z=root/'installer_clean'/'base'/'clean_base_resources.zip'
+          expected='c7096e0f8318bf995b01e9940902d096415681416691657cb367344c237d69d5'
+          if not z.is_file(): raise SystemExit('Falta installer_clean/base/clean_base_resources.zip')
+          got=hashlib.sha256(z.read_bytes()).hexdigest()
+          if got != expected: raise SystemExit(f'SHA incorrecto de la base limpia: {got}')
           temp=root/'installer_clean'/'_base_extract'
           if temp.exists(): shutil.rmtree(temp)
           with zipfile.ZipFile(z) as f: f.extractall(temp)
-          pkg=temp/'package'
-          for name in ['azur_client.py']:
-              src=pkg/name
-              if not src.is_file(): raise SystemExit(f'Falta {name} en paquete base')
-              shutil.copy2(src,out/name)
-          static=pkg/'static'
-          if not (static/'index.html').is_file(): raise SystemExit('El paquete base no contiene static/index.html')
-          shutil.copytree(static,out/'static',dirs_exist_ok=True)
-          print('BASE_STATIC_OK', sum(1 for _ in (out/'static').rglob('*')))
+          for rel in ['static/index.html','mobile/index.html','azur_client.py','whatsapp_client.py','remote_agenda.py']:
+              if not (temp/rel).is_file(): raise SystemExit(f'Falta {rel} en la base limpia')
+          shutil.copytree(temp/'static',out/'static',dirs_exist_ok=True)
+          shutil.copytree(temp/'mobile',out/'mobile',dirs_exist_ok=True)
+          for name in ['azur_client.py','whatsapp_client.py','remote_agenda.py']:
+              shutil.copy2(temp/name,out/name)
+          print('BASE_LIMPIA_OK', got)
           '@ | python -
-          Copy-Item installer_clean\helpers\whatsapp_client.py installer_clean\buildroot\whatsapp_client.py -Force
-          Copy-Item installer_clean\helpers\remote_agenda.py installer_clean\buildroot\remote_agenda.py -Force
           Copy-Item installer_clean\env.example installer_clean\buildroot\.env.example -Force
           New-Item -ItemType Directory -Force installer_clean\buildroot\tools | Out-Null
           Copy-Item installer_clean\restore_config.ps1 installer_clean\buildroot\tools\restore_config.ps1 -Force
@@ -90,7 +90,6 @@ jobs:
           local={'azur_client','whatsapp_client','remote_agenda'}
           std={'os','csv','io','hashlib','hmac','secrets','re','json','uuid','shutil','threading','sqlite3','zipfile','tempfile','subprocess','sys','time','socket','ipaddress','ctypes','webbrowser','unicodedata','difflib','datetime','typing','pathlib','urllib','xml'}
           for n in ast.walk(tree):
-              mod=None
               if isinstance(n,ast.Import):
                   for a in n.names:
                       top=a.name.split('.')[0]
@@ -114,21 +113,17 @@ jobs:
           $embed = Join-Path $env:RUNNER_TEMP 'python-embed.zip'
           Invoke-WebRequest 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip' -OutFile $embed
           Expand-Archive -LiteralPath $embed -DestinationPath $scripts -Force
-
           python -m pip install --disable-pip-version-check --no-compile --target $site `
             'fastapi==0.115.6' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
             'psycopg[binary]==3.2.3' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' `
             'pywebview==5.3.2'
           if ($LASTEXITCODE -ne 0) { throw 'No se pudieron preparar las dependencias Python' }
-
-          # Tkinter para el splash liviano del launcher. El runtime embebible no lo trae.
           Copy-Item "$env:pythonLocation\Lib\tkinter" (Join-Path $lib 'tkinter') -Recurse -Force
           foreach ($f in @('_tkinter.pyd','tcl86t.dll','tk86t.dll')) {
             $src = Join-Path $env:pythonLocation "DLLs\$f"
             if (Test-Path $src) { Copy-Item $src $scripts -Force }
           }
           if (Test-Path "$env:pythonLocation\tcl") { Copy-Item "$env:pythonLocation\tcl" (Join-Path $scripts 'tcl') -Recurse -Force }
-
           @'
           python311.zip
           .
@@ -142,7 +137,6 @@ jobs:
           include-system-site-packages = false
           version = 3.11.9
           '@ | Set-Content (Join-Path $root '.venv\pyvenv.cfg') -Encoding ascii
-
           & (Join-Path $scripts 'python.exe') -c "import fastapi,uvicorn,sqlalchemy,psycopg,dotenv,multipart,webview; import azur_client,whatsapp_client,remote_agenda; print('PORTABLE_RUNTIME_OK')"
           if ($LASTEXITCODE -ne 0) { throw 'El Python portátil no pudo importar el programa' }
 
@@ -201,7 +195,7 @@ jobs:
           $exe=(Resolve-Path 'installer_clean\output\INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe').Path
           $p=Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$dest+'"')) -Wait -PassThru
           if($p.ExitCode -ne 0){ throw "El instalador devolvió $($p.ExitCode)" }
-          foreach($rel in @('app.py','ABRIR_RECEPCION.py','azur_client.py','whatsapp_client.py','remote_agenda.py','update_manifest.json','static\index.html','.venv\Scripts\python.exe','.venv\Scripts\pythonw.exe','.env')){
+          foreach($rel in @('app.py','ABRIR_RECEPCION.py','azur_client.py','whatsapp_client.py','remote_agenda.py','update_manifest.json','static\index.html','mobile\index.html','.venv\Scripts\python.exe','.venv\Scripts\pythonw.exe','.env')){
             if(-not (Test-Path (Join-Path $dest $rel))){ throw "Falta tras instalar: $rel" }
           }
           $env:RP_FORCE_OFFLINE='1'
