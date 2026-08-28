@@ -1,0 +1,60 @@
+name: Validar app v4.3.58
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v458/**'
+      - '.github/workflows/test-v458-app.yml'
+      - 'latest.json'
+      - 'latest-v3.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.14']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Instalar dependencias mínimas para importar app.py
+        run: python -m pip install --disable-pip-version-check fastapi sqlalchemy python-dotenv python-multipart
+      - name: Reconstruir y compilar app publicada
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          root=Path('updates/v458')
+          parts=sorted(root.glob('app.part*'), key=lambda p:int(p.name.split('part')[-1]))
+          raw=b''.join(p.read_bytes() for p in parts)
+          Path('_ci_app.py').write_bytes(raw)
+          print('app.py reconstruido:',len(raw),'bytes')
+          PY
+          python -m py_compile _ci_app.py
+      - name: Validar JavaScript incrustado
+        shell: bash
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          t=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          for n in t.body:
+              if isinstance(n,ast.Assign) and len(n.targets)==1 and isinstance(n.targets[0],ast.Name) and n.targets[0].id=='V458_SETTINGS_JS':
+                  Path('_ci_settings.js').write_text(ast.literal_eval(n.value),encoding='utf-8'); break
+          else: raise SystemExit('No se encontró V458_SETTINGS_JS')
+          PY
+          node --check _ci_settings.js
+      - name: Pruebas de comportamiento aisladas
+        run: python updates/v458/test_v458.py

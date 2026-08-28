@@ -1,0 +1,86 @@
+name: Construir candidata v4.3.58
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v458/**'
+      - '.github/workflows/build-v458-candidate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-v458-candidate
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Reconstruir app.py candidata y validar byte por byte
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, hashlib, lzma, re, shutil
+          from pathlib import Path
+
+          expected_sha = 'f6a95f3058afe93feb5b386d514d6ef79313595c37138c1189276e69f642781f'
+          expected_len = 423484
+          src = Path('build/v458/source')
+          pieces = sorted(src.glob('source*.txt'))
+          if len(pieces) != 13:
+              raise SystemExit(f'Se esperaban 13 fuentes, hay {len(pieces)}')
+          b64 = ''.join(p.read_text(encoding='utf-8').strip() for p in pieces)
+          packed = base64.b64decode(b64, validate=True)
+          raw = lzma.decompress(packed)
+          if len(raw) != expected_len:
+              raise SystemExit(f'Tamaño incorrecto: {len(raw)} != {expected_len}')
+          got = hashlib.sha256(raw).hexdigest()
+          if got != expected_sha:
+              raise SystemExit(f'SHA app incorrecto: {got} != {expected_sha}')
+          text = raw.decode('utf-8')
+          compile(text, 'app.py', 'exec')
+          if not re.search(r'(?m)^APP_VERSION\s*=\s*["\']4\.3\.58["\']', text[:2500]):
+              raise SystemExit('APP_VERSION 4.3.58 no está en cabecera')
+
+          out = Path('updates/v458')
+          out.mkdir(parents=True, exist_ok=True)
+          for old in out.glob('app.part*'):
+              old.unlink()
+          part_size = 72000
+          parts=[]
+          for i, pos in enumerate(range(0, len(raw), part_size), start=1):
+              p = out / f'app.part{i}'
+              p.write_bytes(raw[pos:pos+part_size])
+              parts.append(p)
+          rejoined = b''.join(p.read_bytes() for p in parts)
+          if rejoined != raw or hashlib.sha256(rejoined).hexdigest() != expected_sha:
+              raise SystemExit('Las partes publicables no reconstruyen app.py exactamente')
+          shutil.copyfile('build/v458/update_manifest.json', out/'update_manifest.json')
+          shutil.copyfile('build/v458/test_v458.py', out/'test_v458.py')
+          print(f'v4.3.58 reconstruida: {len(raw)} bytes, {len(parts)} partes, SHA {got}')
+          PY
+          python - <<'PY'
+          from pathlib import Path
+          raw=b''.join(p.read_bytes() for p in sorted(Path('updates/v458').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1])))
+          compile(raw.decode('utf-8'),'app.py','exec')
+          print('Compilación final OK')
+          PY
+      - name: Publicar candidata reconstruida
+        shell: bash
+        run: |
+          if git diff --quiet -- updates/v458; then
+            echo 'La candidata ya coincide; no hay cambios.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v458
+          git commit -m 'build: reconstruir candidata v4.3.58 verificada'
+          git push origin main
