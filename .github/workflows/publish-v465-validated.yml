@@ -1,0 +1,68 @@
+name: Publicar v4.3.65 validada
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v465-validated.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Validar candidata y proteger Agenda web
+        run: |
+          python build/v465/test_v465.py
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('updates/v465/release_meta.json').read_text(encoding='utf-8'))
+          assert m['version']=='4.3.65'
+          assert m['base_version']=='4.3.64'
+          assert m['base_sha256']=='33ba932ef73ae28722c5f8f1a75d439a82cfb4a67adb78d837430522b786f9a8'
+          assert m['app_sha256']=='e9763acd0bbf7792a8b90a88093a5ce0749bcc9fddce2dd75e9495cf89d81958'
+          print('RELEASE_META_V465_OK')
+          PY
+          test "$(git rev-parse HEAD:agenda)" = "941724927605b90acd39006214cbc99820e55b15"
+      - name: Generar canal desde metadata única
+        run: >-
+          python tools/publish_release_from_meta.py
+          --release-dir updates/v465
+          --message "v4.3.65: muestra la última cita del historial 2020–2025 al atender, acelera la Agenda de la PC cargando primero desde SQLite y elimina el recuadro redundante Cola de facturación. La Agenda web no se modifica."
+      - name: Verificar manifests idénticos
+        run: |
+          cmp latest-v3.json latest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          a=json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))
+          assert a['version']=='4.3.65'
+          assert a['mandatory'] is True
+          assert a['channel']=='files-v3'
+          assert [x['path'] for x in a['files']]==['ABRIR_RECEPCION.py','app.py','update_manifest.json']
+          assert a['files'][1]['sha256']=='e9763acd0bbf7792a8b90a88093a5ce0749bcc9fddce2dd75e9495cf89d81958'
+          print('CHANNEL_V465_OK')
+          PY
+      - name: Publicar canal automático
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest-v3.json latest.json
+          if git diff --cached --quiet; then
+            echo 'El canal ya estaba en v4.3.65.'
+          else
+            git commit -m 'release: publicar v4.3.65 validada'
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
