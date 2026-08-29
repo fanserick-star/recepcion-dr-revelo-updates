@@ -24,7 +24,7 @@ jobs:
           git rev-parse HEAD:agenda > _agenda_before.txt
           git rev-parse HEAD:cloudflare > _cloudflare_before.txt
       - name: Construir paquete candidato
-        run: python build/v481/build_v481.py
+        run: python build/v481/run_build_v481.py
       - name: Validar Python, JS, UI y paquete
         run: |
           cat updates/v481/app.part* > _ci_app.py
@@ -32,7 +32,7 @@ jobs:
           python -m py_compile _ci_app.py _ci_launcher.py
           python _ci_launcher.py --self-test-core
           python - <<'PY'
-          import ast,json,hashlib,re
+          import ast,json,hashlib
           from pathlib import Path
           src=Path('_ci_app.py').read_text(encoding='utf-8')
           tree=ast.parse(src); js=css=None
@@ -49,7 +49,7 @@ jobs:
           assert 'V480_POLISH_JS' in src and 'data-v480-zero-rejected' in src
           assert 'V478_REMIX_JS' in src and 'MAÑANA' in src and 'TARDE' in src
           assert 'V476_JS' in src and 'b.estado = "EMITIDA"' in src
-          assert '@app.post(\\"/api/patients\\")' in src
+          assert '@app.post("/api/patients")' in src
           assert 'APP_VERSION = "4.3.81"' in src
           Path('_ci_v481.js').write_text(js,encoding='utf-8')
           latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
