@@ -1,0 +1,97 @@
+name: Validar y publicar v4.3.97
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v497/**'
+      - '.github/workflows/build-v497-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v497/build_v497.py
+      - name: Validar Consulta nativa, icono y sintaxis
+        run: |
+          cat updates/v497/app.part* > _ci_app.py
+          cat updates/v497/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python - <<'PY'
+          import ast,hashlib,json,zipfile
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          for token in ['APP_VERSION = "4.3.97"','V497_ATTENTION_JS','button.service-card[data-service]','v497-native-consult','/static/doctor_icon.ico?v=4.3.97','_POSTGRES_DRIVER = "pg8000"','V495_ATTENTION_JS','Revisando AZUR','Emitir por lotes']:
+              assert token in src,token
+          assert 'DISABLE_SQLALCHEMY_CEXT_RUNTIME' in launcher
+          tree=ast.parse(src); js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V497_ATTENTION_JS' for t in node.targets):
+                  js=ast.literal_eval(node.value)
+          assert js and 'MutationObserver' not in js
+          Path('_v497.js').write_text(js,encoding='utf-8')
+          html=Path('updates/v497/static/index.html').read_text(encoding='utf-8')
+          assert html.count('/static/doctor_icon.ico?v=4.3.97')>=1
+          with zipfile.ZipFile('installer_clean/base/clean_base_resources.zip') as z:
+              basejs=z.read('static/app.js').decode('utf-8-sig')
+          for token in ['data-service="CONSULTA"',"toggleService('CONSULTA')","if(name==='CONSULTA')return {procedimiento:null,valor:40}"]:
+              assert token in basejs,token
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.97'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          hi=next(x for x in latest['files'] if x['path']=='static/index.html')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          assert hashlib.sha256(Path('updates/v497/static/index.html').read_bytes()).hexdigest()==hi['sha256']
+          print('STATIC_V497_OK')
+          PY
+          node --check _v497.js
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(80):
+              time.sleep(.25)
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8000/api/version',timeout=1) as r:
+                      d=json.loads(r.read().decode())
+                  if d.get('version')=='4.3.97': ok=True; break
+              except Exception: pass
+          if not ok:
+              print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+              raise SystemExit('backend portable no arranco')
+          print('PORTABLE_BACKEND_V497_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v497 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.97 consulta nativa e icono Edge'
+          git pull --rebase origin main
+          git push
