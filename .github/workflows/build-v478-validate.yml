@@ -1,0 +1,81 @@
+name: Validar y publicar v4.3.78
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v478/**'
+      - '.github/workflows/build-v478-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v478/build_v478.py
+      - name: Validar Python, launcher y updater
+        run: |
+          cat updates/v478/app.part* > _ci_app.py
+          cat updates/v478/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+      - name: Validar remaster Inicio y Nueva atención
+        run: |
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          js=css=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign):
+                  names=[t.id for t in node.targets if isinstance(t,ast.Name)]
+                  if 'V478_REMIX_JS' in names: js=ast.literal_eval(node.value)
+                  if 'V478_REMIX_CSS' in names: css=ast.literal_eval(node.value)
+          assert js and css
+          for token in ['TOTAL SEMANA','remasterHomeTable','PACIENTES DE HOY','AGENDA','MAÑANA','TARDE','apptMinutes','Recibo','Imprimir','Borrar atención']:
+              assert token in js+css, token
+          assert 'position:sticky' in css
+          assert 'grid-template-columns:repeat(3,minmax(0,1fr)) minmax(190px,.85fr)' in css
+          assert 'days.map(attentionWeekRow)' not in js
+          assert 'APP_VERSION = "4.3.78"' in src
+          assert "const VERSION=\\'4.3.78\\';" in src
+          assert 'V476_JS' in src and 'V477_ATTENTION_JS' in src
+          assert 'b.estado = "EMITIDA"' in src
+          Path('_ci_v478.js').write_text(js,encoding='utf-8')
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.78'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          assert 'doctor_isotype.png' in launcher and 'text="AR"' not in launcher
+          print('VALIDACION V4.3.78 OK')
+          PY
+          node --check _ci_v478.js
+      - name: Confirmar aislamiento del cambio
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v478 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.78 remaster Inicio y Agenda'
+          git pull --rebase origin main
+          git push
