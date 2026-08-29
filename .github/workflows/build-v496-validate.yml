@@ -1,0 +1,77 @@
+name: Validar y publicar v4.3.96
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v496/**'
+      - '.github/workflows/build-v496-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v496/build_v496.py
+      - name: Validar sintaxis y compatibilidad portable
+        run: |
+          cat updates/v496/app.part* > _ci_app.py
+          cat updates/v496/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          for token in ['APP_VERSION = "4.3.96"','_POSTGRES_DRIVER = "pg8000"','postgresql+pg8000','pg8000_dbapi.connect','V495_ATTENTION_JS','v495-consult-card','Revisando AZUR','Emitir por lotes']:
+              assert token in src,token
+          assert 'DISABLE_SQLALCHEMY_CEXT_RUNTIME' in launcher
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.96'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('STATIC_V496_OK')
+          PY
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          mkdir -p _smoke_data
+          RP_FORCE_OFFLINE=1 RP_DATA_DIR="$PWD/_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python _ci_app.py > _smoke.log 2>&1 & echo $! > _smoke.pid
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(80):
+              time.sleep(.25)
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8000/api/version',timeout=1) as r:
+                      d=json.loads(r.read().decode())
+                  if d.get('version')=='4.3.96': ok=True; break
+              except Exception: pass
+          if not ok:
+              print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+              raise SystemExit('backend portable no arranco')
+          print('PORTABLE_BACKEND_V496_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v496 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.96 compatibilidad portable postgres'
+          git pull --rebase origin main
+          git push
