@@ -22,7 +22,7 @@ jobs:
       - name: Validar liberación real del puerto 8000
         shell: powershell
         run: |
-          Get-Content updates/v498/ABRIR_RECEPCION.part* | Set-Content -Encoding utf8 _ci_launcher.py
+          python -c "from pathlib import Path; ps=sorted(Path('updates/v498').glob('ABRIR_RECEPCION.part*'),key=lambda p:int(p.name.rsplit('part',1)[1])); Path('_ci_launcher.py').write_text(''.join(p.read_text(encoding='utf-8') for p in ps),encoding='utf-8',newline='')"
           python -m py_compile _ci_launcher.py
           $p = Start-Process python -ArgumentList '-m','http.server','8000','--bind','127.0.0.1' -PassThru -WindowStyle Hidden
           Start-Sleep -Seconds 2
