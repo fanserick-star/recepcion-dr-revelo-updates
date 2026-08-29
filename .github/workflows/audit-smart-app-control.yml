@@ -1,0 +1,64 @@
+name: Auditar compatibilidad Smart App Control
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/audit-smart-app-control.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Auditar runtime actual y candidato sin pydantic-core
+        shell: powershell
+        run: |
+          $base = Join-Path $env:RUNNER_TEMP 'sac-audit'
+          $current = Join-Path $base 'current'
+          $candidate = Join-Path $base 'candidate'
+          New-Item -ItemType Directory -Force $current,$candidate | Out-Null
+
+          python -m pip install --disable-pip-version-check --no-compile --target $current `
+            'fastapi==0.115.6' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'psycopg[binary]==3.2.3' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' `
+            'pywebview==5.3.2'
+          if($LASTEXITCODE -ne 0){ throw 'No se pudo preparar runtime actual' }
+
+          python -m pip install --disable-pip-version-check --no-compile --target $candidate `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'psycopg[binary]==3.2.3' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' `
+            'pywebview==5.3.2'
+          if($LASTEXITCODE -ne 0){ throw 'No se pudo preparar runtime candidato' }
+
+          # Pydantic 1 conserva los .py puros. Quitamos sus extensiones C para que Python use esos .py.
+          Get-ChildItem (Join-Path $candidate 'pydantic') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
+          # Las extensiones C de SQLAlchemy son opcionales; el paquete tiene fallback Python.
+          Get-ChildItem (Join-Path $candidate 'sqlalchemy\cyextension') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
+
+          function Audit-Native([string]$dir,[string]$label){
+            Write-Host "===== $label ====="
+            Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in @('.pyd','.dll') } | Sort-Object FullName | ForEach-Object {
+              $sig = Get-AuthenticodeSignature $_.FullName
+              $rel = $_.FullName.Substring($dir.Length).TrimStart('\')
+              $subject = if($sig.SignerCertificate){ $sig.SignerCertificate.Subject } else { '[sin firma]' }
+              Write-Host ("NATIVE|{0}|{1}|{2}|{3}" -f $label,$rel,$sig.Status,$subject)
+            }
+          }
+
+          Audit-Native $current 'ACTUAL'
+          Audit-Native $candidate 'CANDIDATO'
+
+          $env:PYTHONPATH=$candidate
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          python -S -c "import pydantic,fastapi,sqlalchemy,psycopg; print('CANDIDATE_IMPORTS_OK', pydantic.VERSION, fastapi.__version__, sqlalchemy.__version__, psycopg.__version__)"
+          if($LASTEXITCODE -ne 0){ throw 'El candidato no importa correctamente' }
