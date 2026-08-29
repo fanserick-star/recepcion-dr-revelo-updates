@@ -1,0 +1,77 @@
+name: Validar y publicar v4.3.77
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v477/**'
+      - '.github/workflows/build-v477-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir candidato
+        run: python build/v477/build_v477.py
+      - name: Validar Python, launcher y JavaScript
+        run: |
+          cat updates/v477/app.part* > _ci_app.py
+          cat updates/v477/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V477_ATTENTION_JS' for t in node.targets):
+                  js=ast.literal_eval(node.value);break
+          assert js
+          for token in ['Agenda de hoy','days.find','Paciente nuevo','Buscar paciente','Hoy no hay consulta programada','attentionWeekRow','loadAttentionWeek']:
+              assert token in js, token
+          assert 'days.map' not in js
+          assert 'moveAttentionWeek' not in js
+          assert 'currentAttentionWeek' not in js
+          Path('_ci_v477.js').write_text(js,encoding='utf-8')
+          assert 'APP_VERSION = "4.3.77"' in src
+          assert "const VERSION=\\'4.3.77\\';" in src
+          assert 'V476_JS' in src
+          assert 'b.estado = "EMITIDA"' in src
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          assert 'doctor_isotype.png' in launcher and 'text="AR"' not in launcher
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.77'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('VALIDACION V4.3.77 OK')
+          PY
+          node --check _ci_v477.js
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v477 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.77 remaster Nueva atención'
+          git pull --rebase origin main
+          git push
