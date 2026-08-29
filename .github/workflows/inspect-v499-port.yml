@@ -1,0 +1,28 @@
+name: Inspect v499 port
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-v499-port.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect port references
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          launcher=''.join(Path(f'updates/v499/ABRIR_RECEPCION.part{i}').read_text(encoding='utf-8') for i in range(1,5))
+          app=''.join(Path(f'updates/v499/app.part{i}').read_text(encoding='utf-8') for i in range(1,8))
+          for name,text in [('LAUNCHER',launcher),('APP',app)]:
+              print('\n===== '+name+' =====')
+              lines=text.splitlines()
+              for i,line in enumerate(lines,1):
+                  if any(x in line for x in ['8000','URL =','def _running_version','uvicorn.run','host=','port=']):
+                      a=max(1,i-3); b=min(len(lines),i+6)
+                      print(f'--- {a}-{b} ---')
+                      for j in range(a,b+1): print(f'{j}: {lines[j-1]}')
+          PY
