@@ -20,12 +20,11 @@ jobs:
           from pathlib import Path
           z=Path('installer_clean/base/clean_base_resources.zip')
           with zipfile.ZipFile(z) as f:
-              for name in ['static/index.html']:
-                  Path('_inspect').mkdir(exist_ok=True)
-                  Path('_inspect/index.html').write_bytes(f.read(name))
+              for src,dst in [('static/index.html','index.html'),('static/app.js','app.js'),('static/style.css','style.css')]:
+                  Path('_inspect',dst).write_bytes(f.read(src))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: v497-static-index
-          path: _inspect/index.html
+          path: _inspect/
           if-no-files-found: error
