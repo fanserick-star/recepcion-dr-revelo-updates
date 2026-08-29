@@ -1,0 +1,23 @@
+name: Inspect v499 ports
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-v499-ports.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct and inspect
+        run: |
+          cat updates/v499/app.part* > /tmp/app.py
+          cat updates/v499/ABRIR_RECEPCION.part* > /tmp/launcher.py
+          echo '=== APP 8000 ==='
+          grep -n -C 3 '8000' /tmp/app.py || true
+          echo '=== APP UVICORN ==='
+          grep -n -C 5 'uvicorn' /tmp/app.py || true
+          echo '=== LAUNCHER URL/PORT ==='
+          grep -n -C 3 -E 'URL =|URL=|8000|_running_version|_start_server|_stop_server' /tmp/launcher.py || true
