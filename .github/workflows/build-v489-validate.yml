@@ -1,0 +1,68 @@
+name: Validar y publicar v4.3.89
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v489/**'
+      - '.github/workflows/build-v489-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v489/build_v489.py
+      - name: Validar Python y auto-vinculo histórico local
+        run: |
+          cat updates/v489/app.part* > _ci_app.py
+          cat updates/v489/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+          python - <<'PY'
+          import hashlib,json,re
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          helper=re.search(r'def _auto_link_safe_review_duplicates.*?\n\ndef _patient_review_rows',src,re.S)
+          hist=re.search(r'def _historical_review_matches.*?\n\ndef _confirmafy_patient_status_map',src,re.S)
+          assert helper and hist
+          hb=helper.group(0); hh=hist.group(0)
+          assert 'local_read = is_offline_db(db)' in hb
+          assert 'historical_matches=_historical_review_matches(current,per_patient=24)' in hb
+          assert '_historical_link_patient(source_key,int(p.id))' in hb
+          assert 'if is_offline_db(db):\n        return' not in hb
+          assert 'p_ced and h_ceds and p_ced not in h_ceds' not in hh
+          assert 'elif score >= 0.75:' in hh
+          for token in ['V488_HOME_CSS','v488-home-action-svg','V487_ICON_JS','Revisando AZUR','V486_FIX_JS','v486OpenAzur','V485_FIX_JS','Emitir por lotes']:
+              assert token in src,token
+          assert 'APP_VERSION = "4.3.89"' in src
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.89'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('VALIDACION V4.3.89 OK')
+          PY
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v489 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.89 historicos locales 75'
+          git pull --rebase origin main
+          git push
