@@ -26,7 +26,13 @@ jobs:
 
       - name: Construir y probar instalador compatible con Smart App Control
         shell: powershell
-        run: .\installer_clean\build_clean_sac.ps1
+        run: |
+          $path='.\installer_clean\build_clean_sac.ps1'
+          $script=Get-Content $path -Raw
+          $script=$script.Replace('$home=Invoke-WebRequest','$homeResponse=Invoke-WebRequest')
+          $script=$script.Replace('$home.StatusCode','$homeResponse.StatusCode')
+          Set-Content $path $script -Encoding UTF8
+          & $path
 
       - uses: actions/upload-artifact@v4
         with:
