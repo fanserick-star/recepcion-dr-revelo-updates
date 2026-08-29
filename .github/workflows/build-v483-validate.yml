@@ -1,0 +1,76 @@
+name: Validar y publicar v4.3.83
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v483/**'
+      - '.github/workflows/build-v483-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v483/build_v483.py
+      - name: Validar Python, JS, UI y paquete
+        run: |
+          cat updates/v483/app.part* > _ci_app.py
+          cat updates/v483/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src);js=css=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign):
+                  names=[t.id for t in node.targets if isinstance(t,ast.Name)]
+                  if 'V483_PATIENT_JS' in names: js=ast.literal_eval(node.value)
+                  if 'V483_PATIENT_CSS' in names: css=ast.literal_eval(node.value)
+          assert js and css
+          for token in ['🪪','📍','Ingrese 10 dígitos','Apellidos y nombres','v483-location','v483ManualDate','pointerdown','Registra al paciente y continúa a su atención.']:
+              assert token in js, token
+          for token in ['::-webkit-calendar-picker-indicator','v481-role-notes','v483-location','font-size:10.5px','width:min(730px']:
+              assert token in css, token
+          assert 'V482_HOTFIX_JS' in src and 'Emitir por lotes' in src
+          assert 'V481_PATIENT_JS' in src and 'validEcuadorCedula' in src
+          assert 'V480_POLISH_JS' in src and 'data-v480-zero-rejected' in src
+          assert 'V476_JS' in src and 'b.estado = "EMITIDA"' in src
+          assert 'APP_VERSION = "4.3.83"' in src
+          Path('_ci_v483.js').write_text(js,encoding='utf-8')
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.83'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('VALIDACION V4.3.83 OK')
+          PY
+          node --check _ci_v483.js
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v483 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.83 pulido final Nuevo paciente'
+          git pull --rebase origin main
+          git push
