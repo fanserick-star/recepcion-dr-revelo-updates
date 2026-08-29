@@ -1,4 +1,4 @@
-name: Validar v4.3.75
+name: Validar y publicar v4.3.75
 on:
   push:
     branches: [main]
@@ -7,9 +7,9 @@ on:
       - '.github/workflows/build-v475-validate.yml'
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
 jobs:
-  validate:
+  validate-publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,6 +19,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
       - name: Construir paquete candidato
         run: python build/v475/build_v475.py
       - name: Validar Python, launcher y updater
@@ -59,9 +63,16 @@ jobs:
           print('VALIDACION V4.3.75 OK')
           PY
           node --check _ci_v475.js
-      - name: Empaquetar candidato validado
-        run: zip -r v475-candidate.zip updates/v475 latest.json latest-v3.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: v475-candidate
-          path: v475-candidate.zip
+      - name: Confirmar aislamiento del cambio
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v475 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.75 facturación simplificada'
+          git pull --rebase origin main
+          git push
