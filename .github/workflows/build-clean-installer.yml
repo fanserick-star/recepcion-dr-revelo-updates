@@ -144,8 +144,11 @@ jobs:
         shell: powershell
         run: |
           $root = (Resolve-Path 'installer_clean\buildroot').Path
+          $smokeData = Join-Path $env:RUNNER_TEMP 'recepcion-clean-smoke-data'
+          if(Test-Path $smokeData){ Remove-Item $smokeData -Recurse -Force }
+          New-Item -ItemType Directory -Force $smokeData | Out-Null
           $env:RP_FORCE_OFFLINE='1'
-          $env:RP_DATA_DIR=(Join-Path $root 'data')
+          $env:RP_DATA_DIR=$smokeData
           $py=Join-Path $root '.venv\Scripts\python.exe'
           $app=Join-Path $root 'app.py'
           $proc=Start-Process -FilePath $py -ArgumentList ('"'+$app+'"') -WorkingDirectory $root -PassThru -WindowStyle Hidden
@@ -165,7 +168,18 @@ jobs:
             Write-Host 'BACKEND_CLEAN_SMOKE_OK'
           } finally {
             if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            Remove-Item $smokeData -Recurse -Force -ErrorAction SilentlyContinue
           }
+
+      - name: Validar buildroot limpio antes de empaquetar
+        shell: powershell
+        run: |
+          $root=(Resolve-Path 'installer_clean\buildroot').Path
+          foreach($rel in @('.env','data\recepcion.db','data\offline_cache.db')){
+            $path=Join-Path $root $rel
+            if(Test-Path $path){ throw "No se debe empaquetar: $path" }
+          }
+          Write-Host 'BUILDROOT_PRIVACY_OK'
 
       - name: Preparar icono
         shell: powershell
