@@ -1,17 +1,17 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.89",
+  "version": "4.3.90",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.89: vincula todos los históricos con 75% o más desde la copia local, incluso varios por paciente y nombres cortos.",
+  "message": "v4.3.90: remasteriza Nueva atención con Guardar atención siempre visible y resumen fijo de selección.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/ABRIR_RECEPCION.part4"
       ],
       "sha256": "542257adc7a0f9867b0f7354627ca3b5d7e7167e323e1e427a8c5301787c5340",
       "encoding": "utf-8"
@@ -19,21 +19,21 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/app.part7"
       ],
-      "sha256": "07c97b0e22746dab00ad913a72ac0e60bc01ff1ef6ce5d31ab1349a60983ec8c",
+      "sha256": "b9aef34127fe0e27125533f8f53796179606205f4478af1c47af9dd6c901c9b5",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v489/update_manifest.json",
-      "sha256": "cce4e3ea0e3638e50babd55b02310c3171922aec8c3e84ba02dd1c36fc845d13",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v490/update_manifest.json",
+      "sha256": "34bfa77901146d2d030c2710ce92fd7ad1b48c7ceea1257ef0632d998946f9f8",
       "encoding": "utf-8"
     }
   ]
