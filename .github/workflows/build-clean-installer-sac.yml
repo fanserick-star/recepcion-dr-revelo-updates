@@ -1,0 +1,38 @@
+name: Construir instalador limpio compatible con Smart App Control
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'installer_clean/**'
+      - 'updates/v472/**'
+      - 'updates/v457/**'
+      - '.github/workflows/build-clean-installer-sac.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-sac-installer:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.9'
+
+      - name: Construir y probar instalador compatible con Smart App Control
+        shell: powershell
+        run: .\installer_clean\build_clean_sac.ps1
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: INSTALADOR_RECEPCION_DESDE_CERO_SAC
+          path: |
+            installer_clean/output/INSTALAR_RECEPCION_DR_REVELO_DESDE_CERO.exe
+            installer_clean/output/SHA256.txt
+          if-no-files-found: error
+          retention-days: 30
