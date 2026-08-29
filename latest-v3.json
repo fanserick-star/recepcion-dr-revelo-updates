@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.95",
+  "version": "4.3.96",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.95: recupera CONSULTA enlazando directamente el selector oculto real en Nueva atención.",
+  "message": "v4.3.96: corrige el arranque en instalaciones portables usando pg8000 cuando psycopg no esta disponible.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/ABRIR_RECEPCION.part4"
       ],
-      "sha256": "542257adc7a0f9867b0f7354627ca3b5d7e7167e323e1e427a8c5301787c5340",
+      "sha256": "7b2cb8b2205add469d51fc1cce2dadf66cd28d6cb58d45ca2ec345ad43ad3328",
       "encoding": "utf-8"
     },
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/app.part7"
       ],
-      "sha256": "d68f40b68e9340d596aed59c9e7ba04ab939a58aea806b423f70331507b227fd",
+      "sha256": "5ab9b465794a3015c68b27e28e65829a3dc1522a689b5866be22c7cbd566975f",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v495/update_manifest.json",
-      "sha256": "aaacc8e06ed1a73fcf6af1958fbae364d99b0f9185842f5d52c8a1540a3f5f3d",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v496/update_manifest.json",
+      "sha256": "1034f51fa95fe3869df12f0899d774b0cb41d39a5df117a17c8bbb30677e1154",
       "encoding": "utf-8"
     }
   ]
