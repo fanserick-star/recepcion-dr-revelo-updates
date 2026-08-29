@@ -1,0 +1,1920 @@
+r = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede descartar cambios pendientes")
+    with LocalSessionLocal() as db:
+        q = db.get(OfflineQueue, int(queue_id))
+        if not q:
+            raise HTTPException(404, "Ese cambio pendiente ya no existe")
+        deps = _queue_dependent_ids(db, q)
+        if deps:
+            raise HTTPException(409, f"Este cambio tiene {len(deps)} cambio(s) posterior(es) que dependen de él. Descarta primero los posteriores o usa ‘Descartar todos’.")
+        label = q.operation
+        db.delete(q)
+        audit(db, user, "descartar_cambio_offline", f"Cola {queue_id}: {label}")
+        db.commit()
+    invalidate_queue_count()
+    pending = queue_count(force=True)
+    refreshed = _refresh_after_queue_discard() if pending == 0 else False
+    return {"ok": True, "discarded": 1, "pending": pending, "cache_refreshed": refreshed}
+
+
+@app.delete("/api/offline/queue")
+def offline_queue_discard_all(user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede descartar todos los cambios pendientes")
+    with LocalSessionLocal() as db:
+        count = int(db.scalar(select(func.count(OfflineQueue.id))) or 0)
+        db.execute(delete(OfflineQueue))
+        db.execute(delete(OfflineIdMap))
+        audit(db, user, "descartar_todos_cambios_offline", f"{count} cambio(s) descartados")
+        db.commit()
+    invalidate_queue_count()
+    refreshed = _refresh_after_queue_discard()
+    return {"ok": True, "discarded": count, "pending": 0, "cache_refreshed": refreshed}
+
+
+@app.post("/api/connectivity/recover")
+def recover_connectivity(user: User = Depends(current_user)):
+    """Reinicia el pool de Neon, comprueba la nube y sincroniza la cola local."""
+    if not cloud_configured():
+        return {"configured": False, "online": False, "pending": queue_count(), "last_error": "Nube no configurada"}
+    try:
+        cloud_engine.dispose()
+    except Exception:
+        pass
+    online = check_cloud(force=True)
+    sync_result = None
+    if online and queue_count() > 0:
+        sync_result = process_offline_queue(cloud_already_checked=True)
+    status = connectivity(force=False)
+    status["recovery"] = sync_result
+    return status
+
+
+@app.post("/api/backup/now")
+@app.post("/api/data-protection/backup")
+def backup_now(user: User = Depends(current_user)):
+    path = create_local_backup_snapshot(force=True)
+    if not path:
+        raise HTTPException(500, "No se pudo crear el respaldo local")
+    with LocalSessionLocal() as ldb:
+        last_backup = ldb.get(CacheMeta, "last_backup")
+    return {
+        "ok": True,
+        "last_backup": last_backup.value if last_backup else datetime.now().isoformat(timespec="seconds"),
+        "backup_count": len(list(Path(BACKUP_DIR).glob("recepcion_backup_*.db"))),
+    }
+
+
+@app.post("/api/app/restart")
+def restart_app(user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede reiniciar el programa")
+
+    # Reinicio robusto: el helper espera a que el puerto 8000 quede realmente
+    # libre antes de levantar el nuevo backend. Evita que el segundo reinicio
+    # falle por una carrera entre el proceso saliente y el entrante.
+    app_path = os.path.join(BASE_DIR, "app.py")
+    python_exe = sys.executable
+    helper_code = f"""
+import os, subprocess, time, socket
+python_exe = {python_exe!r}
+app_path = {app_path!r}
+base_dir = {BASE_DIR!r}
+deadline = time.time() + 15.0
+while time.time() < deadline:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.25)
+    try:
+        busy = sock.connect_ex(('127.0.0.1', 8000)) == 0
+    finally:
+        sock.close()
+    if not busy:
+        break
+    time.sleep(0.25)
+time.sleep(0.25)
+flags = 0
+if os.name == 'nt':
+    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0)
+env = os.environ.copy()
+env['RP_DESKTOP_LAUNCH'] = '1'
+subprocess.Popen([python_exe, app_path], cwd=base_dir, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags, close_fds=True)
+"""
+    flags = 0
+    if os.name == "nt":
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    try:
+        subprocess.Popen(
+            [python_exe, "-c", helper_code],
+            cwd=BASE_DIR,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=flags, close_fds=True,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo preparar el reinicio: {e}")
+
+    old_pid = os.getpid()
+    threading.Timer(0.45, lambda: os._exit(0)).start()
+    return {"ok": True, "version": APP_VERSION, "pid": old_pid}
+
+
+@app.post("/api/login")
+def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
+    try:
+        user = db.scalar(select(User).where(User.username == data.username))
+    except Exception:
+        user = None
+    if not user and not is_offline_db(db):
+        # Si la conexión cayó justo en el login, intentamos cache local.
+        with LocalSessionLocal() as ldb:
+            user = ldb.scalar(select(User).where(User.username == data.username))
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(401, "Usuario o contraseña incorrectos")
+    token = secrets.token_urlsafe(32)
+    TOKENS[token] = user.username
+    with _user_cache_lock:
+        _user_cache[user.username] = (time.time(), _user_snapshot(user))
+    response.set_cookie("rp_session", token, httponly=True, samesite="lax", secure=False, max_age=60 * 60 * 12)
+    return {"ok": True, "username": user.username, "offline": is_offline_db(db)}
+
+
+@app.post("/api/logout")
+def logout(request: Request, response: Response):
+    token = request.cookies.get("rp_session")
+    TOKENS.pop(token or "", None)
+    response.delete_cookie("rp_session")
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(user: User = Depends(current_user)):
+    return {"username": user.username, "role": user.role, "auto_login": _auto_login_enabled()}
+
+
+@app.get("/api/bootstrap")
+def bootstrap(anchor: date = date.today(), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Datos mínimos para abrir Recepción con un solo checkout/conexión a la nube."""
+    proc_rows = list(db.scalars(select(Procedure).where(Procedure.activo == 1).order_by(Procedure.nombre)))
+    last_refresh = effective_cache_refresh_ts()
+    cache_stale = bool(not last_refresh or (time.time() - last_refresh >= CACHE_REFRESH_SECONDS))
+    return {
+        "cache_stale": cache_stale,
+        "home": home_week(anchor=anchor, db=db, user=user),
+        "procedures": [
+            {"id": x.id, "nombre": str(x.nombre or "").upper(), "valor_default": float(x.valor_default) if x.valor_default is not None else None}
+            for x in proc_rows
+        ],
+        "pending": (lambda billing: {
+            "billing": billing["total"],
+            "billing_pending": billing["pending"],
+            "billing_approved": billing["approved"],
+            "agenda": int(db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0),
+        })(_billing_action_counts(db)),
+    }
+
+
+@app.get("/api/historical/stats")
+def historical_stats(user: User = Depends(current_user)):
+    try:
+        with LocalSessionLocal() as db:
+            total = int(db.scalar(select(func.count(HistoricalPatient.id))) or 0)
+            first = db.scalar(select(func.min(HistoricalPatient.first_year)))
+            last = db.scalar(select(func.max(HistoricalPatient.last_year)))
+            return {"total": total, "first_year": first, "last_year": last, "local_only": True}
+    except Exception:
+        return {"total": 0, "first_year": None, "last_year": None, "local_only": True}
+
+
+@app.get("/api/patients")
+def search_patients(q: str = "", limit: int = 30, mode: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Buscador local-first. Sin texto ni filtro no devuelve una lista aleatoria."""
+    lim = min(max(int(limit or 30), 1), 100)
+    raw = " ".join(str(q or "").strip().upper().split())
+    mode = str(mode or "").strip().lower()
+
+    last_visit = (
+        select(func.max(Visit.fecha))
+        .where(Visit.patient_id == Patient.id)
+        .correlate(Patient)
+        .scalar_subquery()
+    )
+
+    if not raw and not mode:
+        return []
+
+    if mode == "historical":
+        try:
+            with LocalSessionLocal() as ldb:
+                linked_keys = _historical_linked_keys(ldb)
+                hist_rows = list(ldb.scalars(
+                    select(HistoricalPatient)
+                    .order_by(HistoricalPatient.last_visit_date.desc().nullslast(), HistoricalPatient.last_year.desc(), HistoricalPatient.nombre)
+                    .limit(min(lim * 4, 120))
+                ))
+                current_rows = list(ldb.scalars(select(Patient)))
+                result = []
+                for h in hist_rows:
+                    if h.source_key in linked_keys:
+                        continue
+                    if _historical_matches_current(h, current_rows):
+                        continue
+                    result.append(historical_dict(h))
+                    if len(result) >= lim:
+                        break
+                return result
+        except Exception:
+            return []
+
+    if mode == "review":
+        _auto_link_safe_review_duplicates(db, user)
+        return _patient_review_rows(db, lim)
+    if mode == "confirmafy":
+        return _patient_review_rows(db, lim, confirmafy_only=True)
+
+    stmt = select(Patient, last_visit.label("ultima_atencion"))
+    if mode == "recent":
+        stmt = stmt.where(last_visit.is_not(None)).order_by(last_visit.desc(), Patient.id.desc()).limit(lim)
+    elif mode == "incomplete":
+        stmt = stmt.where(or_(
+            Patient.cedula.is_(None), Patient.cedula == "",
+            Patient.celular.is_(None), Patient.celular == "",
+            Patient.correo.is_(None), Patient.correo == "",
+        )).order_by(Patient.nombre).limit(lim)
+    else:
+        if len(raw) < 2:
+            return []
+        tokens = [token for token in normalize_lookup_name(raw).split(" ") if token][:8]
+        for token in tokens:
+            pattern = f"%{token}%"
+            stmt = stmt.where(or_(
+                Patient.cedula.ilike(pattern),
+                Patient.nombre.ilike(pattern),
+                Patient.celular.ilike(pattern),
+                Patient.correo.ilike(pattern),
+            ))
+        stmt = stmt.order_by(Patient.nombre).limit(lim)
+
+    rows = db.execute(stmt).all()
+    current = [{**p_dict(p), "ultima_atencion": ultima, "historical": False} for p, ultima in rows]
+    if raw and not mode:
+        historical = search_historical_patients(raw, limit=min(10, max(4, int(lim // 2) or 4)))
+        result = current + historical
+        # Si una palabra fue dictada con una pequeña diferencia (JHONNY/JHONY),
+        # añadimos coincidencias parecidas al final. Todo ocurre sobre SQLite.
+        name_tokens = [x for x in normalize_lookup_name(raw).split() if len(x) >= 3]
+        if len(name_tokens) >= 2 and len(result) < lim + 6:
+            any_stmt = select(Patient).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in name_tokens[:5]])).limit(100)
+            already_current = {int(x.get("id")) for x in result if x.get("id") is not None}
+            proxy = Patient(id=-1, nombre=raw, cedula=None, celular=None, correo=None, lugar=None, notas=None, fecha_nacimiento=None)
+            fuzzy_current = []
+            for p in db.scalars(any_stmt):
+                if int(p.id) in already_current:
+                    continue
+                score, why = patient_similarity(proxy, p)
+                if score >= 0.74:
+                    fuzzy_current.append(({**p_dict(p), "ultima_atencion": None, "historical": False, "similarity": round(score, 3), "similar_reason": why}, score))
+            fuzzy_current.sort(key=lambda x: (-x[1], str(x[0].get("nombre") or "")))
+            result.extend([x[0] for x in fuzzy_current[:6]])
+            existing_h = {int(x.get("historical_id")) for x in result if x.get("historical_id") is not None}
+            for h in _historical_similarity_candidates(raw, 6):
+                if int(h.get("historical_id") or 0) not in existing_h:
+                    result.append(h)
+        return result[: min(lim + 10, 110)]
+    return current
+
+
+@app.get("/api/patients/similar")
+def similar_patients(name: str, exclude_id: int = 0, limit: int = 8, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Advertencias de identidad calculadas en SQLite; nunca despierta Neon."""
+    raw = " ".join(str(name or "").strip().upper().split())
+    if len(normalize_lookup_name(raw)) < 4:
+        return {"name_quality": patient_name_quality(raw), "word_count": patient_name_word_count(raw), "matches": []}
+    tokens = [x for x in normalize_lookup_name(raw).split() if len(x) >= 3]
+    # Preselección por cualquier palabra para no recorrer toda la tabla en cada tecla.
+    if tokens:
+        stmt = select(Patient).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in tokens[:5]]))
+        candidates = list(db.scalars(stmt.limit(80)))
+    else:
+        candidates = []
+    proxy = Patient(id=-1, nombre=raw, cedula=None, celular=None, correo=None, lugar=None, notas=None, fecha_nacimiento=None)
+    matches = []
+    for p in candidates:
+        if int(p.id) == int(exclude_id or 0):
+            continue
+        score, why = patient_similarity(proxy, p)
+        if score < 0.74:
+            continue
+        matches.append({**p_dict(p), "historical": False, "similarity": round(score, 3), "similar_reason": why})
+    historical_candidates = _historical_similarity_candidates(raw, max(4, int(limit)))
+    if historical_candidates and candidates:
+        try:
+            with LocalSessionLocal() as ldb:
+                hids = [int(x.get("historical_id") or 0) for x in historical_candidates if int(x.get("historical_id") or 0)]
+                hmap = {int(h.id): h for h in ldb.scalars(select(HistoricalPatient).where(HistoricalPatient.id.in_(hids)))} if hids else {}
+            filtered_hist = []
+            for item in historical_candidates:
+                h = hmap.get(int(item.get("historical_id") or 0))
+                # En el modal de atención mostramos la ficha actual una sola vez.
+                # El vínculo histórico pendiente seguirá apareciendo en Pacientes -> Por revisar.
+                if h and any(int(p.id) != int(exclude_id or 0) and _historical_identity_match(h, p)[0] for p in candidates):
+                    continue
+                filtered_hist.append(item)
+            historical_candidates = filtered_hist
+        except Exception:
+            pass
+    matches.extend(historical_candidates)
+    # La lista prioriza fichas actuales; históricos ya vinculados no entran aquí.
+    matches.sort(key=lambda x: (-float(x.get("similarity") or 0), 1 if x.get("historical") else 0, str(x.get("nombre") or "")))
+    dedup = []
+    seen = set()
+    for item in matches:
+        key = ("h", item.get("historical_id")) if item.get("historical") else ("p", item.get("id"))
+        if key in seen:
+            continue
+        seen.add(key); dedup.append(item)
+        if len(dedup) >= min(max(int(limit or 8), 1), 12):
+            break
+    return {"name_quality": patient_name_quality(raw), "word_count": patient_name_word_count(raw), "matches": dedup}
+
+
+@app.get("/api/patients/{pid}/review-detail")
+def patient_review_detail(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Detalle local para revisar una posible ficha duplicada sin consultar Neon."""
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    st = _confirmafy_patient_status_map(db, [p]).get(int(pid), {})
+    last = db.scalar(select(func.max(Visit.fecha)).where(Visit.patient_id == pid))
+    tokens = [x for x in normalize_lookup_name(p.nombre).split() if len(x) >= 3]
+    if tokens:
+        stmt = select(Patient).where(Patient.id != pid).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in tokens[:5]])).limit(100)
+        candidates = list(db.scalars(stmt))
+    else:
+        candidates = []
+    matches = []
+    for other in candidates:
+        score, why = patient_similarity(p, other)
+        if score < 0.72:
+            continue
+        other_last = db.scalar(select(func.max(Visit.fecha)).where(Visit.patient_id == other.id))
+        other_visits = int(db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == other.id)) or 0)
+        matches.append({
+            **p_dict(other), "similarity": round(score, 3), "similar_reason": why,
+            "ultima_atencion": other_last, "visit_count": other_visits,
+        })
+    matches.extend((_historical_review_matches([p]).get(int(pid)) or []))
+    matches.sort(key=lambda x: (-float(x.get("similarity") or 0), 0 if x.get("historical") else 1, str(x.get("nombre") or "")))
+    return {
+        "patient": {**p_dict(p), "ultima_atencion": last, **st},
+        "matches": matches[:10],
+    }
+
+
+@app.post("/api/patients/{pid}/link-historical/{hid}")
+def link_historical_to_patient(pid: int, hid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Vincula manualmente un registro 2020–2025 con una ficha actual, sin crear paciente."""
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente actual no encontrado")
+    with LocalSessionLocal() as ldb:
+        h = ldb.get(HistoricalPatient, hid)
+        if not h:
+            raise HTTPException(404, "Paciente histórico no encontrado")
+        existing = ldb.get(HistoricalPatientLink, h.source_key)
+        if existing and int(existing.patient_id) != int(pid):
+            other = ldb.get(Patient, int(existing.patient_id))
+            name = other.nombre if other else f"ID {existing.patient_id}"
+            raise HTTPException(409, f"Este histórico ya está vinculado a {name}. Revísalo antes de cambiar el vínculo.")
+        snapshot = {
+            "source_key": h.source_key, "nombre": h.nombre, "cedula": h.cedula, "celular": h.celular,
+            "correo": h.correo, "lugar": h.lugar, "first_year": h.first_year, "last_year": h.last_year,
+            "last_visit_date": h.last_visit_date, "aliases": h.aliases, "phones": h.phones,
+            "emails": h.emails, "cedulas": h.cedulas,
+        }
+
+    hproxy = HistoricalPatient(
+        id=hid, source_key=snapshot["source_key"], nombre=snapshot["nombre"], search_text=snapshot["nombre"],
+        cedula=snapshot["cedula"], celular=snapshot["celular"], correo=snapshot["correo"], lugar=snapshot["lugar"],
+        first_year=int(snapshot["first_year"] or 2020), last_year=int(snapshot["last_year"] or 2025),
+        last_visit_date=snapshot["last_visit_date"], row_count=1, aliases=snapshot["aliases"],
+        phones=snapshot["phones"], emails=snapshot["emails"], cedulas=snapshot["cedulas"],
+    )
+    p_ced = re.sub(r"\D", "", p.cedula or "")
+    h_ceds = {re.sub(r"\D", "", x) for x in (_pipe_values(snapshot["cedulas"]) or ([snapshot["cedula"]] if snapshot["cedula"] else [])) if re.sub(r"\D", "", x)}
+    if p_ced and h_ceds and p_ced not in h_ceds:
+        raise HTTPException(409, "La ficha actual y el histórico tienen cédulas diferentes. No se vinculó nada.")
+    identity_ok, why = _historical_identity_match(hproxy, p)
+    score, labels = _name_similarity(p.nombre, snapshot["nombre"])
+    p_phone = normalize_lookup_phone(p.celular)
+    h_phones = {normalize_lookup_phone(x) for x in (_pipe_values(snapshot["phones"]) or ([snapshot["celular"]] if snapshot["celular"] else []))}
+    same_phone = bool(p_phone and p_phone in h_phones)
+    if not identity_ok and not same_phone and score < 0.70:
+        raise HTTPException(409, "La coincidencia es demasiado baja para vincular estas fichas. Revisa los nombres antes de continuar.")
+
+    changed = False
+    # Solo completamos huecos de datos razonablemente seguros; nunca cambiamos el nombre actual.
+    historical_ced = re.sub(r"\D", "", snapshot["cedula"] or "")
+    if not p.cedula and len(historical_ced) == 10 and valid_ecuadorian_cedula(historical_ced):
+        p.cedula = historical_ced; changed = True
+    for field in ("celular", "correo", "lugar"):
+        incoming = snapshot.get(field)
+        if incoming and not getattr(p, field, None):
+            setattr(p, field, incoming); changed = True
+
+    if changed:
+        if is_offline_db(db):
+            extranjero = bool(p.cedula and not valid_ecuadorian_cedula(str(p.cedula)))
+            add_queue(db, "patient.update", "patient", {
+                "patient_id": int(p.id), "extranjero": extranjero, "cedula": p.cedula, "nombre": p.nombre,
+                "fecha_nacimiento": p.fecha_nacimiento, "celular": p.celular, "correo": p.correo,
+                "lugar": p.lugar, "notas": p.notas,
+            }, user.username, int(p.id))
+            audit(db, user, "vincular_historico_offline", f"Paciente local {p.id} <- histórico {hid}; {why or ','.join(labels[:4])}")
+            db.commit()
+        else:
+            audit(db, user, "vincular_historico", f"Paciente {p.id} <- histórico {hid}; {why or ','.join(labels[:4])}")
+            db.commit(); mirror_patient_to_local(p)
+    else:
+        # El vínculo es puramente local cuando no hay campos vacíos que completar:
+        # no hacemos Audit/COMMIT en Neon solo por ocultar el histórico duplicado.
+        pass
+    _historical_link_patient(snapshot["source_key"], int(p.id))
+    return {
+        "ok": True, "patient": p_dict(p), "historical_id": int(hid),
+        "historical_name": snapshot["nombre"], "data_completed": bool(changed),
+        "last_visit_date": snapshot["last_visit_date"],
+    }
+
+
+@app.post("/api/patients")
+def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    values = normalize_patient_payload(data)
+    if not values["nombre"]:
+        raise HTTPException(400, "El nombre es obligatorio")
+    if values["cedula"]:
+        existing = db.scalar(select(Patient).where(Patient.cedula == values["cedula"]))
+        if existing:
+            raise HTTPException(409, "Ya existe un paciente con esa cédula")
+    p = Patient(**values)
+    db.add(p)
+    db.flush()
+    if is_offline_db(db):
+        add_queue(db, "patient.create", "patient", {"extranjero": bool(data.extranjero), **values}, user.username, p.id)
+        audit(db, user, "crear_paciente_offline", f"Paciente local {p.id}: {p.nombre}")
+        db.commit()
+        result = p_dict(p)
+        result["offline"] = True
+        return result
+    audit(db, user, "crear_paciente", f"Paciente {p.id}: {p.nombre}")
+    db.commit()
+    mirror_patient_to_local(p)
+    result = p_dict(p)
+    result["offline"] = False
+    return result
+
+
+@app.put("/api/patients/{pid}")
+def update_patient(pid: int, data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    values = normalize_patient_payload(data)
+    if not values["nombre"]:
+        raise HTTPException(400, "El nombre es obligatorio")
+    if values["cedula"]:
+        existing = db.scalar(select(Patient).where(Patient.cedula == values["cedula"], Patient.id != pid))
+        if existing:
+            raise HTTPException(409, "Ya existe otro paciente con esa cédula")
+    for k, v in values.items():
+        setattr(p, k, v)
+    if is_offline_db(db):
+        add_queue(db, "patient.update", "patient", {"patient_id": pid, "extranjero": bool(data.extranjero), **values}, user.username, pid)
+        audit(db, user, "editar_paciente_offline", f"Paciente local {pid}")
+        db.commit()
+        result = p_dict(p)
+        result["offline"] = True
+        return result
+    audit(db, user, "editar_paciente", f"Paciente {p.id}")
+    db.commit()
+    mirror_patient_to_local(p)
+    result = p_dict(p)
+    result["offline"] = False
+    return result
+
+
+@app.post("/api/patients/{source_id}/link/{target_id}")
+def link_duplicate_patient(source_id: int, target_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Vincula un duplicado sin historial clínico con la ficha correcta.
+
+    Se usa cuando recepción confirma una sugerencia. Nunca fusiona automáticamente
+    dos pacientes con atenciones y no se ejecuta offline, para no dejar una fusión
+    compleja pendiente entre SQLite y Neon.
+    """
+    if source_id == target_id:
+        p = db.get(Patient, target_id)
+        if not p:
+            raise HTTPException(404, "Paciente no encontrado")
+        return {"patient": p_dict(p), "deleted_source": False, "moved_appointments": 0}
+    if is_offline_db(db):
+        raise HTTPException(503, "Para vincular dos fichas necesitas conexión a Internet. No se hizo ningún cambio.")
+    source = db.get(Patient, source_id)
+    target = db.get(Patient, target_id)
+    if not source or not target:
+        raise HTTPException(404, "No se encontró una de las fichas")
+    source_visits = int(db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == source_id)) or 0)
+    if source_visits:
+        raise HTTPException(409, "La ficha que intentas fusionar ya tiene atenciones clínicas. Revísala manualmente para no perder historial.")
+    score, why = patient_similarity(source, target)
+    if score < 0.74:
+        raise HTTPException(409, "Las fichas no tienen una coincidencia suficientemente clara para fusionarlas automáticamente.")
+
+    # Completa solo huecos de la ficha buena; nunca pisa información existente.
+    changed_target = False
+    for field in ("cedula", "celular", "correo", "lugar", "fecha_nacimiento"):
+        incoming = getattr(source, field, None)
+        if incoming and not getattr(target, field, None):
+            setattr(target, field, incoming); changed_target = True
+
+    moved = 0; removed_appointments: list[int] = []; moved_appointments: list[Appointment] = []
+    source_apps = list(db.scalars(select(Appointment).where(Appointment.patient_id == source_id).order_by(Appointment.id)))
+    for a in source_apps:
+        duplicate = db.scalar(select(Appointment).where(
+            Appointment.patient_id == target_id, Appointment.fecha == a.fecha, Appointment.hora == a.hora, Appointment.id != a.id
+        ))
+        if duplicate:
+            removed_appointments.append(int(a.id)); db.delete(a)
+        else:
+            a.patient_id = target_id; moved += 1; moved_appointments.append(a)
+
+    source_name = source.nombre
+    audit(db, user, "vincular_paciente_duplicado", f"{source_id} {source_name} -> {target_id} {target.nombre}; {why}; {moved} citas trasladadas")
+    db.delete(source)
+    db.commit()
+    # Reflejo inmediato en SQLite sin esperar al próximo refresco completo.
+    mirror_patient_to_local(target)
+    for a in moved_appointments:
+        mirror_appointment_to_local(a)
+    for aid in removed_appointments:
+        mirror_delete_appointment_local(aid)
+    mirror_delete_patient_local(source_id)
+    _historical_reassign_links(source_id, target_id)
+    return {
+        "patient": p_dict(target), "deleted_source": True,
+        "moved_appointments": moved, "reason": why, "target_changed": changed_target,
+    }
+
+
+@app.post("/api/patients/{source_id}/merge/{target_id}")
+def merge_patient_confirmed(source_id: int, target_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Fusión manual confirmada por recepción.
+
+    Conserva la ficha target, traslada TODAS las atenciones y citas de source,
+    completa solo campos vacíos y finalmente elimina source. Nunca se ejecuta
+    offline. Si ambas fichas tienen cédulas distintas no permite fusionar hasta
+    revisar ese dato, porque es una contradicción demasiado importante.
+    """
+    if source_id == target_id:
+        raise HTTPException(400, "Selecciona una ficha diferente para fusionar")
+    if is_offline_db(db):
+        raise HTTPException(503, "Para fusionar pacientes necesitas conexión a Internet. No se hizo ningún cambio.")
+    source = db.get(Patient, source_id); target = db.get(Patient, target_id)
+    if not source or not target:
+        raise HTTPException(404, "No se encontró una de las fichas")
+
+    sid = re.sub(r"\s+", "", str(source.cedula or "").upper())
+    tid = re.sub(r"\s+", "", str(target.cedula or "").upper())
+    if sid and tid and sid != tid:
+        raise HTTPException(409, "Las dos fichas tienen identificaciones diferentes. Revisa la cédula antes de fusionarlas.")
+    score, why = patient_similarity(source, target)
+    same_phone = bool(normalize_lookup_phone(source.celular) and normalize_lookup_phone(source.celular) == normalize_lookup_phone(target.celular))
+    same_id = bool(sid and tid and sid == tid)
+    if score < 0.62 and not same_phone and not same_id:
+        raise HTTPException(409, "La coincidencia es demasiado baja para una fusión segura. Revisa los nombres o datos antes de continuar.")
+
+    changed_target = False
+    for field in ("cedula", "celular", "correo", "lugar", "fecha_nacimiento", "notas"):
+        incoming = getattr(source, field, None)
+        if incoming and not getattr(target, field, None):
+            setattr(target, field, incoming); changed_target = True
+
+    moved_visits = list(db.scalars(select(Visit).where(Visit.patient_id == source_id).order_by(Visit.id)))
+    for v in moved_visits:
+        v.patient_id = target_id
+
+    source_apps = list(db.scalars(select(Appointment).where(Appointment.patient_id == source_id).order_by(Appointment.id)))
+    moved_apps: list[Appointment] = []; removed_app_ids: list[int] = []
+    for a in source_apps:
+        duplicate = db.scalar(select(Appointment).where(
+            Appointment.patient_id == target_id,
+            Appointment.fecha == a.fecha,
+            Appointment.hora == a.hora,
+            Appointment.id != a.id,
+        ))
+        if duplicate:
+            removed_app_ids.append(int(a.id)); db.delete(a)
+        else:
+            a.patient_id = target_id; moved_apps.append(a)
+
+    # Persistimos primero los cambios de propietario. Así el cascade de Patient
+    # no puede interpretar las atenciones trasladadas como hijas a eliminar.
+    db.flush()
+    source_name = source.nombre; target_name = target.nombre
+    audit(db, user, "fusion_manual_paciente", f"{source_id} {source_name} -> {target_id} {target_name}; {why}; {len(moved_visits)} atenciones; {len(moved_apps)} citas trasladadas")
+    db.delete(source)
+    db.commit()
+
+    mirror_patient_to_local(target)
+    for v in moved_visits: mirror_visit_to_local(v)
+    for a in moved_apps: mirror_appointment_to_local(a)
+    for aid in removed_app_ids: mirror_delete_appointment_local(aid)
+    mirror_delete_patient_local(source_id)
+    _historical_reassign_links(source_id, target_id)
+    return {
+        "ok": True, "patient": p_dict(target), "deleted_source": True,
+        "visits_moved": len(moved_visits), "appointments_moved": len(moved_apps),
+        "appointments_removed": len(removed_app_ids), "target_changed": changed_target,
+        "reason": why,
+    }
+
+
+@app.delete("/api/patients/{pid}/confirmafy-imported")
+def delete_confirmafy_imported_patient(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Borra manualmente solo una ficha cuya creación antigua por Confirmafy está demostrada."""
+    if is_offline_db(db):
+        raise HTTPException(503, "Para borrar una ficha importada de Confirmafy necesitas conexión a Internet.")
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    st = _confirmafy_patient_status_map(db, [p]).get(int(pid), {})
+    if not st.get("safe_confirmafy_delete"):
+        raise HTTPException(409, "Esta ficha no cumple las condiciones de seguridad para borrarla como importación de Confirmafy. No se eliminó nada.")
+    apps = list(db.scalars(select(Appointment).where(Appointment.patient_id == pid)))
+    if any(str(a.origen or "").upper() != "CONFIRMAFY_IMPORTADO" for a in apps):
+        raise HTTPException(409, "La ficha tiene una cita que no proviene de Confirmafy. No se eliminó nada.")
+    app_ids = [int(a.id) for a in apps]
+    name = p.nombre
+    audit(db, user, "borrar_paciente_importado_confirmafy", f"Paciente {pid}: {name}; {len(app_ids)} citas importadas eliminadas")
+    db.delete(p); db.commit()
+    for aid in app_ids: mirror_delete_appointment_local(aid)
+    mirror_delete_patient_local(pid)
+    _historical_remove_links(pid)
+    return {"ok": True, "patient_id": pid, "appointments_deleted": len(app_ids)}
+
+
+@app.delete("/api/patients/{pid}")
+def delete_patient(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    visit_count = db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == pid)) or 0
+    name = p.nombre
+    if is_offline_db(db):
+        add_queue(db, "patient.delete", "patient", {"patient_id": pid}, user.username, pid)
+        audit(db, user, "borrar_paciente_offline", f"Paciente local {pid}: {name}; atenciones: {visit_count}")
+        db.delete(p)
+        db.commit()
+        _historical_remove_links(pid)
+        return {"ok": True, "patient_id": pid, "visits_deleted": visit_count, "offline": True}
+    audit(db, user, "borrar_paciente", f"Paciente {pid}: {name}; atenciones eliminadas: {visit_count}")
+    db.delete(p)
+    db.commit()
+    mirror_delete_patient_local(pid)
+    _historical_remove_links(pid)
+    return {"ok": True, "patient_id": pid, "visits_deleted": visit_count, "offline": False}
+
+
+@app.get("/api/patients/{pid}")
+def get_patient(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    visits = list(db.scalars(select(Visit).where(Visit.patient_id == pid).order_by(Visit.fecha.desc(), Visit.id.desc())))
+    historical = historical_summary_for_patient(p) if not visits else None
+    return {
+        **p_dict(p),
+        "visits": [v_dict(v) for v in visits],
+        "suggested_type": "S" if visits or historical else "N",
+        "ultima_atencion": visits[0].fecha if visits else None,
+        "historical": historical,
+    }
+
+
+@app.post("/api/historical/{hid}/activate")
+def activate_historical_patient(hid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Convierte una ficha histórica en paciente actual solo por acción del usuario.
+
+    Antes de crear vuelve a buscar coincidencias en la base activa. Si existe una
+    única coincidencia segura la reutiliza y solo completa campos vacíos.
+    """
+    with LocalSessionLocal() as ldb:
+        h = ldb.get(HistoricalPatient, hid)
+        if not h:
+            raise HTTPException(404, "Paciente histórico no encontrado")
+        snapshot = {
+            "nombre": h.nombre, "cedula": h.cedula, "celular": h.celular,
+            "correo": h.correo, "lugar": h.lugar, "first_year": h.first_year, "last_year": h.last_year,
+            "last_visit_date": h.last_visit_date,
+            "aliases": h.aliases, "phones": h.phones, "emails": h.emails, "cedulas": h.cedulas,
+        }
+
+    # Preselección barata por identificadores o palabras del nombre, en la base que recibirá la escritura.
+    candidates: dict[int, Patient] = {}
+    if snapshot["cedula"]:
+        for p in db.scalars(select(Patient).where(Patient.cedula == snapshot["cedula"]).limit(4)):
+            candidates[int(p.id)] = p
+    if snapshot["celular"]:
+        ph = normalize_lookup_phone(snapshot["celular"])
+        if ph:
+            for p in db.scalars(select(Patient).where(Patient.celular.ilike(f"%{ph[-9:]}%")).limit(8)):
+                candidates[int(p.id)] = p
+    name_tokens = list(lookup_name_tokens(snapshot["nombre"]))
+    if len(name_tokens) >= 3:
+        stmt = select(Patient)
+        for token in name_tokens[:5]:
+            stmt = stmt.where(Patient.nombre.ilike(f"%{token}%"))
+        for p in db.scalars(stmt.limit(10)):
+            candidates[int(p.id)] = p
+
+    # Reconstruimos un objeto histórico liviano para usar la misma comparación segura.
+    hproxy = HistoricalPatient(
+        id=hid, source_key=str(hid), nombre=snapshot["nombre"], search_text=snapshot["nombre"],
+        cedula=snapshot["cedula"], celular=snapshot["celular"], correo=snapshot["correo"], lugar=snapshot["lugar"],
+        first_year=int(snapshot["first_year"] or 2020), last_year=int(snapshot["last_year"] or 2025),
+        last_visit_date=snapshot.get("last_visit_date"), row_count=1,
+        aliases=snapshot["aliases"], phones=snapshot["phones"], emails=snapshot["emails"], cedulas=snapshot["cedulas"],
+    )
+    matched = [p for p in candidates.values() if _historical_identity_match(hproxy, p)[0]]
+    if len(matched) > 1:
+        raise HTTPException(409, "Hay más de un paciente actual que podría corresponder a este histórico. Búscalo manualmente antes de continuar.")
+
+    created = False
+    if matched:
+        p = matched[0]
+        changed = False
+        for field in ("cedula", "celular", "correo", "lugar"):
+            incoming = snapshot.get(field)
+            if incoming and not getattr(p, field):
+                setattr(p, field, incoming); changed = True
+        if changed:
+            if is_offline_db(db):
+                extranjero = bool(p.cedula and not valid_ecuadorian_cedula(str(p.cedula)))
+                add_queue(db, "patient.update", "patient", {
+                    "patient_id": int(p.id), "extranjero": extranjero,
+                    "cedula": p.cedula, "nombre": p.nombre, "fecha_nacimiento": p.fecha_nacimiento,
+                    "celular": p.celular, "correo": p.correo, "lugar": p.lugar, "notas": p.notas,
+                }, user.username, int(p.id))
+                audit(db, user, "completar_desde_historico_offline", f"Paciente local {p.id}; histórico {hid}; {snapshot['first_year']}-{snapshot['last_year']}")
+                db.commit()
+            else:
+                audit(db, user, "completar_desde_historico", f"Paciente {p.id}; histórico {hid}; {snapshot['first_year']}-{snapshot['last_year']}")
+                db.commit()
+                mirror_patient_to_local(p)
+    else:
+        p = Patient(
+            cedula=snapshot["cedula"] or None, nombre=str(snapshot["nombre"] or "").upper(),
+            fecha_nacimiento=None, celular=snapshot["celular"] or None, correo=snapshot["correo"] or None,
+            lugar=snapshot["lugar"] or None, notas=None,
+        )
+        db.add(p); db.flush(); created = True
+        if is_offline_db(db):
+            add_queue(db, "patient.create", "patient", {
+                "extranjero": False, "cedula": p.cedula, "nombre": p.nombre, "fecha_nacimiento": None,
+                "celular": p.celular, "correo": p.correo, "lugar": p.lugar, "notas": None,
+            }, user.username, p.id)
+            audit(db, user, "activar_historico_offline", f"Paciente local {p.id}; histórico {hid}; {snapshot['first_year']}-{snapshot['last_year']}")
+            db.commit()
+        else:
+            audit(db, user, "activar_historico", f"Paciente {p.id}; histórico {hid}; {snapshot['first_year']}-{snapshot['last_year']}")
+            db.commit(); mirror_patient_to_local(p)
+    result = p_dict(p)
+    result.update({"created": created, "historical": {
+        "first_year": int(snapshot["first_year"] or 2020),
+        "last_year": int(snapshot["last_year"] or 2025),
+        "last_visit_date": snapshot.get("last_visit_date"),
+    }})
+    return result
+
+
+@app.post("/api/visits")
+def create_visit(data: VisitIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    prior = db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == p.id)) or 0
+    historical_prior = bool(not prior and historical_summary_for_patient(p))
+    automatic_type = "S" if prior or historical_prior else "N"
+    override = (data.tipo or "").strip().upper()
+    if override and override not in {"N", "S"}:
+        raise HTTPException(400, "Estado de paciente inválido")
+    tipo = override or automatic_type
+    procedimiento = (data.procedimiento or "").strip().upper() or None
+    valor = data.valor
+    if procedimiento is None:
+        valor = 40.0
+    v = Visit(
+        patient_id=data.patient_id,
+        fecha=data.fecha,
+        tipo=tipo,
+        procedimiento=procedimiento,
+        valor=valor,
+        observacion=data.observacion,
+    )
+    db.add(v)
+    db.flush()
+    billing = BillingRecord(visit_id=v.id, estado="PENDIENTE")
+    db.add(billing)
+    db.flush()
+    if is_offline_db(db):
+        payload = {
+            "patient_id": data.patient_id,
+            "fecha": data.fecha.isoformat(),
+            "tipo": tipo,
+            "procedimiento": procedimiento,
+            "valor": float(valor) if valor is not None else None,
+            "observacion": data.observacion,
+        }
+        add_queue(db, "visit.create", "visit", payload, user.username, v.id)
+        audit(db, user, "crear_atencion_offline", f"Atención local {v.id}, paciente {p.id}, {procedimiento or 'CONSULTA'}")
+        db.commit()
+        result = v_dict(v)
+        result["offline"] = True
+        return result
+    audit(db, user, "crear_atencion", f"Atención {v.id}, paciente {p.id}, estado {tipo}, servicio {procedimiento or 'CONSULTA'}")
+    db.commit()
+    mirror_visit_to_local(v)
+    mirror_billing_to_local(billing)
+    result = v_dict(v)
+    result["offline"] = False
+    return result
+
+
+@app.post("/api/visits/batch")
+def create_visit_batch(data: VisitBatchIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Guarda varias acciones de una misma atención en una sola operación."""
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    if not data.services:
+        raise HTTPException(400, "Selecciona al menos una atención")
+    if len(data.services) > 20:
+        raise HTTPException(400, "Hay demasiadas acciones seleccionadas")
+
+    override = (data.tipo or "").strip().upper()
+    if override and override not in {"N", "S"}:
+        raise HTTPException(400, "Estado de paciente inválido")
+    prior = db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == p.id)) or 0
+    historical_prior = bool(not prior and historical_summary_for_patient(p))
+    first_type = override or ("S" if prior or historical_prior else "N")
+
+    normalized = []
+    seen = set()
+    for item in data.services:
+        procedimiento = (item.procedimiento or "").strip().upper() or None
+        key = procedimiento or "CONSULTA"
+        if key in seen:
+            continue
+        seen.add(key)
+        valor = 40.0 if procedimiento is None else item.valor
+        if valor is None:
+            raise HTTPException(400, f"Ingresa el valor de {key}")
+        try:
+            valor = float(valor)
+        except (TypeError, ValueError):
+            raise HTTPException(400, f"El valor de {key} no es válido")
+        if valor < 0:
+            raise HTTPException(400, f"El valor de {key} no es válido")
+        normalized.append((procedimiento, valor))
+    if not normalized:
+        raise HTTPException(400, "Selecciona al menos una atención")
+
+    created = []
+    billings = []
+    offline = is_offline_db(db)
+    for index, (procedimiento, valor) in enumerate(normalized):
+        tipo = first_type if index == 0 else "S"
+        v = Visit(
+            patient_id=data.patient_id,
+            fecha=data.fecha,
+            tipo=tipo,
+            procedimiento=procedimiento,
+            valor=valor,
+            observacion=data.observacion,
+        )
+        db.add(v)
+        db.flush()
+        billing = BillingRecord(visit_id=v.id, estado="PENDIENTE")
+        db.add(billing)
+        db.flush()
+        created.append(v)
+        billings.append(billing)
+        service_name = procedimiento or "CONSULTA"
+        if offline:
+            payload = {
+                "patient_id": data.patient_id,
+                "fecha": data.fecha.isoformat(),
+                "tipo": tipo,
+                "procedimiento": procedimiento,
+                "valor": valor,
+                "observacion": data.observacion,
+            }
+            add_queue(db, "visit.create", "visit", payload, user.username, v.id)
+            audit(db, user, "crear_atencion_multiple_offline", f"Atención local {v.id}, paciente {p.id}, {service_name}")
+        else:
+            audit(db, user, "crear_atencion_multiple", f"Atención {v.id}, paciente {p.id}, estado {tipo}, servicio {service_name}")
+
+    db.commit()
+    if not offline:
+        for v, billing in zip(created, billings):
+            mirror_visit_to_local(v)
+            mirror_billing_to_local(billing)
+    with LocalSessionLocal() as summary_db:
+        billing_actions = _billing_action_counts(summary_db)
+        pending_summary_local = {
+            "billing": billing_actions["total"],
+            "billing_pending": billing_actions["pending"],
+            "billing_approved": billing_actions["approved"],
+            "agenda": int(summary_db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0),
+        }
+    return {
+        "ok": True,
+        "count": len(created),
+        "items": [v_dict(v) for v in created],
+        "offline": offline,
+        "pending": pending_summary_local,
+    }
+
+
+@app.delete("/api/visits/{visit_id}")
+def delete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    v = db.get(Visit, visit_id)
+    if not v:
+        raise HTTPException(404, "Atención no encontrada")
+    patient_id = v.patient_id
+    detail = f"Atención {v.id}, paciente {patient_id}, fecha {v.fecha}, servicio {v.procedimiento or 'CONSULTA'}"
+    if is_offline_db(db):
+        add_queue(db, "visit.delete", "visit", {"visit_id": visit_id}, user.username, visit_id)
+        audit(db, user, "borrar_atencion_offline", detail)
+        db.delete(v)
+        db.commit()
+        return {"ok": True, "visit_id": visit_id, "patient_id": patient_id, "offline": True}
+    audit(db, user, "borrar_atencion", detail)
+    db.delete(v)
+    db.commit()
+    mirror_delete_visit_local(visit_id)
+    return {"ok": True, "visit_id": visit_id, "patient_id": patient_id, "offline": False}
+
+
+@app.get("/api/dashboard")
+def dashboard(fecha: date = date.today(), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Resumen rápido para Inicio en una sola conexión."""
+    rows = db.execute(select(Visit, Patient).join(Patient).where(Visit.fecha == fecha)).all()
+    patient_ids = {p.id for _, p in rows}
+    new_ids = {p.id for v, p in rows if v.tipo == "N"}
+    subsequent_ids = patient_ids - new_ids
+    procedures = sum(is_procedure(v) for v, _ in rows)
+    total = sum(float(v.valor or 0) for v, _ in rows)
+
+    pending_billing_groups = db.execute(
+        select(Visit.patient_id, Visit.fecha)
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(BillingRecord.estado == "PENDIENTE")
+        .distinct()
+    ).all()
+    pending_billing = len(pending_billing_groups)
+    pending_agenda = int(db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0)
+    return {
+        "fecha": fecha,
+        "patients": len(patient_ids),
+        "new": len(new_ids),
+        "subsequent": len(subsequent_ids),
+        "procedures": procedures,
+        "total": total,
+        "billing_pending": pending_billing,
+        "agenda_pending": pending_agenda,
+    }
+
+
+@app.get("/api/today")
+def today(fecha: date = date.today(), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.execute(select(Visit, Patient).join(Patient).where(Visit.fecha == fecha).order_by(Visit.id.desc())).all()
+    visits = [{**v_dict(v), "patient": p_dict(p)} for v, p in rows]
+    total = sum(float(v.valor or 0) for v, _ in rows)
+    patient_ids = {p.id for _, p in rows}
+    new_patient_ids = {p.id for v, p in rows if v.tipo == "N"}
+    subsequent_patient_ids = patient_ids - new_patient_ids
+    return {
+        "fecha": fecha,
+        "count": len(patient_ids),
+        "N": len(new_patient_ids),
+        "S": len(subsequent_patient_ids),
+        "P": sum(is_procedure(v) for v, _ in rows),
+        "total": total,
+        "visits": visits,
+    }
+
+
+@app.get("/api/home/week")
+def home_week(anchor: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Inicio semanal en una sola petición/conexión a Neon."""
+    monday = anchor - timedelta(days=anchor.weekday())
+    defs = [
+        ("Jueves", monday + timedelta(days=3)),
+        ("Viernes", monday + timedelta(days=4)),
+        ("Sábado", monday + timedelta(days=5)),
+    ]
+    dates = [d for _, d in defs]
+    rows = db.execute(
+        select(Visit, Patient).join(Patient)
+        .where(Visit.fecha.in_(dates))
+        .order_by(Visit.fecha.asc(), Visit.id.desc())
+    ).all()
+    grouped = {d: [] for d in dates}
+    for v, p in rows:
+        grouped.setdefault(v.fecha, []).append((v, p))
+
+    days = []
+    for label, d in defs:
+        day_rows = grouped.get(d, [])
+        patient_ids = {p.id for _, p in day_rows}
+        new_patient_ids = {p.id for v, p in day_rows if v.tipo == "N"}
+        payload = {
+            "fecha": d,
+            "count": len(patient_ids),
+            "N": len(new_patient_ids),
+            "S": len(patient_ids - new_patient_ids),
+            "P": sum(is_procedure(v) for v, _ in day_rows),
+            "total": sum(float(v.valor or 0) for v, _ in day_rows),
+            "visits": [{**v_dict(v), "patient": p_dict(p)} for v, p in day_rows],
+        }
+        days.append({"label": label, "date": d, "data": payload})
+    return {"anchor": anchor, "week_start": monday, "days": days}
+
+
+def build_report_data(rows):
+    """Agrupa el período en pacientes/día para que N/S no se infle por procedimientos."""
+    patient_days = {}
+    for v, p in rows:
+        patient_days.setdefault((v.fecha, p.id), []).append((v, p))
+
+    turns = {}
+    by_date = {}
+    for key, items in patient_days.items():
+        fecha, pid = key
+        first_id = min(v.id for v, _ in items)
+        by_date.setdefault(fecha, []).append((first_id, pid))
+    for fecha, items in by_date.items():
+        for n, (_, pid) in enumerate(sorted(items), 1):
+            turns[(fecha, pid)] = n
+
+    daily = {}
+    service_totals = {}
+    detail_rows = []
+    for (fecha, pid), items in sorted(patient_days.items(), key=lambda kv: (kv[0][0], turns[kv[0]])):
+        p = items[0][1]
+        is_new = any(v.tipo == "N" for v, _ in items)
+        classification = "NUEVO" if is_new else "SUBSECUENTE"
+        d = daily.setdefault(fecha, {
+            "fecha": fecha, "patients": 0, "N": 0, "S": 0,
+            "consultations": 0, "procedures": 0, "total": 0.0,
+        })
+        d["patients"] += 1
+        d["N" if is_new else "S"] += 1
+
+        for v, _ in sorted(items, key=lambda pair: pair[0].id):
+            procedure = (v.procedimiento or "").strip().upper()
+            is_proc = is_procedure(v)
+            service = procedure or ("PROCEDIMIENTO" if is_proc else "CONSULTA")
+            value = float(v.valor or 0)
+            if is_proc:
+                d["procedures"] += 1
+            else:
+                d["consultations"] += 1
+            d["total"] += value
+            st = service_totals.setdefault(service, {"service": service, "count": 0, "total": 0.0})
+            st["count"] += 1
+            st["total"] += value
+            detail_rows.append({
+                "fecha": fecha,
+                "turno": turns[(fecha, pid)],
+                "patient_id": pid,
+                "patient": p_dict(p),
+                "classification": classification,
+                "service": service,
+                "value": value,
+                "observacion": v.observacion or "",
+                "visit_id": v.id,
+            })
+
+    days = [daily[d] for d in sorted(daily)]
+    services = sorted(service_totals.values(), key=lambda x: (0 if x["service"] == "CONSULTA" else 1, x["service"]))
+    patient_count = len(patient_days)
+    new_count = sum(1 for items in patient_days.values() if any(v.tipo == "N" for v, _ in items))
+    consultations = sum(not is_procedure(v) for v, _ in rows)
+    procedures = sum(is_procedure(v) for v, _ in rows)
+    total = sum(float(v.valor or 0) for v, _ in rows)
+    return {
+        "count": len(rows),
+        "patients": patient_count,
+        "N": new_count,
+        "S": patient_count - new_count,
+        "consultations": consultations,
+        "P": procedures,
+        "total": total,
+        "services": services,
+        "days": days,
+        "details": detail_rows,
+        "rows": [{**v_dict(v), "patient": p_dict(p)} for v, p in rows],
+    }
+
+
+def _xlsx_col_name(n: int) -> str:
+    out = ""
+    while n:
+        n, r = divmod(n - 1, 26)
+        out = chr(65 + r) + out
+    return out
+
+
+def _xlsx_cell(ref: str, value=None, style: int = 0, formula: str | None = None) -> str:
+    style_attr = f' s="{style}"' if style else ""
+    if formula is not None:
+        numeric = "0" if value is None else str(value)
+        return f'<c r="{ref}"{style_attr}><f>{xml_escape(formula)}</f><v>{numeric}</v></c>'
+    if value is None:
+        return f'<c r="{ref}"{style_attr}/>'
+    if isinstance(value, bool):
+        return f'<c r="{ref}" t="b"{style_attr}><v>{1 if value else 0}</v></c>'
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f'<c r="{ref}"{style_attr}><v>{value}</v></c>'
+    text_value = xml_escape(str(value))
+    return f'<c r="{ref}" t="inlineStr"{style_attr}><is><t xml:space="preserve">{text_value}</t></is></c>'
+
+
+def _xlsx_sheet(rows, widths, merges=None, freeze_row=None, auto_filter=None) -> str:
+    row_xml = []
+    for row_num, height, cells in rows:
+        h = f' ht="{height}" customHeight="1"' if height else ""
+        row_xml.append(f'<row r="{row_num}"{h}>' + "".join(cells) + '</row>')
+    cols = "".join(
+        f'<col min="{i}" max="{i}" width="{w}" customWidth="1"/>'
+        for i, w in enumerate(widths, 1)
+    )
+    if freeze_row:
+        pane = f'<sheetViews><sheetView workbookViewId="0"><pane ySplit="{freeze_row}" topLeftCell="A{freeze_row+1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'
+    else:
+        pane = '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+    merge_xml = ""
+    if merges:
+        merge_xml = f'<mergeCells count="{len(merges)}">' + "".join(f'<mergeCell ref="{m}"/>' for m in merges) + '</mergeCells>'
+    filter_xml = f'<autoFilter ref="{auto_filter}"/>' if auto_filter else ""
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'{pane}<sheetFormatPr defaultRowHeight="15"/><cols>{cols}</cols>'
+        f'<sheetData>{"".join(row_xml)}</sheetData>{merge_xml}{filter_xml}'
+        '<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>'
+        '</worksheet>'
+    )
+
+
+def build_report_payload(db: Session, desde: date, hasta: date) -> dict:
+    """Reporte del período + comparativo con el mismo tramo del mes anterior cuando empieza el día 1."""
+    rows = db.execute(
+        select(Visit, Patient).join(Patient)
+        .where(Visit.fecha >= desde, Visit.fecha <= hasta)
+        .order_by(Visit.fecha.asc(), Visit.id.asc())
+    ).all()
+    data = build_report_data(rows)
+    comparison = {"available": False}
+    if desde.day == 1 and desde.year == hasta.year and desde.month == hasta.month:
+        previous_last = desde - timedelta(days=1)
+        previous_from = previous_last.replace(day=1)
+        previous_to = min(previous_from + timedelta(days=max(0, hasta.day - 1)), previous_last)
+        prev_rows = db.execute(
+            select(Visit, Patient).join(Patient)
+            .where(Visit.fecha >= previous_from, Visit.fecha <= previous_to)
+            .order_by(Visit.fecha.asc(), Visit.id.asc())
+        ).all()
+        prev = build_report_data(prev_rows)
+        comparison = {
+            "available": True,
+            "current_from": desde, "current_to": hasta,
+            "previous_from": previous_from, "previous_to": previous_to,
+            "previous": {
+                "patients": prev["patients"], "N": prev["N"], "S": prev["S"],
+                "consultations": prev["consultations"], "P": prev["P"], "total": prev["total"],
+            },
+        }
+    data["comparison"] = comparison
+    return data
+
+
+def build_report_xlsx(data: dict, desde: date, hasta: date) -> bytes:
+    """Genera un XLSX real con una hoja de resumen y otra de detalle."""
+    period = f"Período: {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
+
+    summary_rows = []
+    def add(row, cells, height=None):
+        summary_rows.append((row, height, cells))
+
+    add(1, [_xlsx_cell('A1', 'REPORTE DE ATENCIONES', 1)], 28)
+    add(2, [_xlsx_cell('A2', 'Dr. Armando Revelo — Cirujano Urólogo', 2)], 20)
+    add(3, [_xlsx_cell('A3', period, 15)], 18)
+    add(5, [_xlsx_cell('A5', 'PACIENTES ATENDIDOS', 9), _xlsx_cell('C5', 'NUEVOS', 9), _xlsx_cell('E5', 'SUBSECUENTES', 9)], 20)
+    add(6, [_xlsx_cell('A6', data['patients'], 10), _xlsx_cell('C6', data['N'], 10), _xlsx_cell('E6', data['S'], 10)], 26)
+    add(8, [_xlsx_cell('A8', 'CONSULTAS', 9), _xlsx_cell('C8', 'PROCEDIMIENTOS', 9), _xlsx_cell('E8', 'TOTAL DEL PERÍODO', 9)], 20)
+    add(9, [_xlsx_cell('A9', data['consultations'], 10), _xlsx_cell('C9', data['P'], 10), _xlsx_cell('E9', data['total'], 16)], 26)
+
+    comparison = data.get('comparison') or {}
+    comparison_title = None
+    comparison_header = None
+    row = 11
+    if comparison.get('available'):
+        prev = comparison.get('previous') or {}
+        comparison_title = row
+        add(row, [_xlsx_cell(f'A{row}', 'COMPARATIVO MENSUAL', 3)], 22); row += 1
+        add(row, [_xlsx_cell(f'A{row}', f"Actual: {comparison['current_from'].strftime('%d/%m/%Y')} al {comparison['current_to'].strftime('%d/%m/%Y')}  |  Anterior: {comparison['previous_from'].strftime('%d/%m/%Y')} al {comparison['previous_to'].strftime('%d/%m/%Y')}", 15)], 18); row += 1
+        comparison_header = row
+        add(row, [_xlsx_cell(f'A{row}', 'Indicador', 4), _xlsx_cell(f'B{row}', 'Período actual', 4), _xlsx_cell(f'C{row}', 'Período anterior', 4), _xlsx_cell(f'D{row}', 'Variación', 4)], 20); row += 1
+        metrics = [
+            ('Pacientes', data['patients'], prev.get('patients', 0), False),
+            ('Consultas', data['consultations'], prev.get('consultations', 0), False),
+            ('Procedimientos', data['P'], prev.get('P', 0), False),
+            ('Total', data['total'], prev.get('total', 0), True),
+        ]
+        for label, current_value, previous_value, is_money in metrics:
+            cur_style = 8 if is_money else 7
+            old_style = 8 if is_money else 7
+            formula = f'IF(C{row}=0,IF(B{row}=0,0,1),(B{row}-C{row})/C{row})'
+            add(row, [_xlsx_cell(f'A{row}', label, 5), _xlsx_cell(f'B{row}', current_value, cur_style), _xlsx_cell(f'C{row}', previous_value, old_style), _xlsx_cell(f'D{row}', 0, 18, formula=formula)], 19)
+            row += 1
+        row += 1
+
+    service_title = row
+    add(row, [_xlsx_cell(f'A{row}', 'TOTALES POR ATENCIÓN', 3)], 22); row += 1
+    service_header = row
+    add(row, [_xlsx_cell(f'A{row}', 'Atención', 4), _xlsx_cell(f'B{row}', 'Cantidad', 4), _xlsx_cell(f'C{row}', 'Total', 4)], 20); row += 1
+    for item in data['services']:
+        label = 'CONSULTA' if item['service'] == 'CONSULTA' else str(item['service'] or '').upper()
+        add(row, [
+            _xlsx_cell(f'A{row}', label, 5),
+            _xlsx_cell(f'B{row}', item['count'], 7),
+            _xlsx_cell(f'C{row}', item['total'], 8),
+        ], 19)
+        row += 1
+
+    row += 1
+    daily_title = row
+    add(row, [_xlsx_cell(f'A{row}', 'RESUMEN POR DÍA', 3)], 22)
+    row += 1
+    daily_header = row
+    headers = ['Fecha', 'Pacientes', 'Nuevos', 'Subsecuentes', 'Consultas', 'Procedimientos', 'Total']
+    add(row, [_xlsx_cell(f'{_xlsx_col_name(i)}{row}', h, 4) for i, h in enumerate(headers, 1)], 20)
+    row += 1
+    for d in data['days']:
+        add(row, [
+            _xlsx_cell(f'A{row}', d['fecha'].strftime('%d/%m/%Y'), 6),
+            _xlsx_cell(f'B{row}', d['patients'], 7),
+            _xlsx_cell(f'C{row}', d['N'], 7),
+            _xlsx_cell(f'D{row}', d['S'], 7),
+            _xlsx_cell(f'E{row}', d['consultations'], 7),
+            _xlsx_cell(f'F{row}', d['procedures'], 7),
+            _xlsx_cell(f'G{row}', d['total'], 8),
+        ], 19)
+        row += 1
+    if data['days']:
+        add(row, [
+            _xlsx_cell(f'A{row}', 'TOTAL', 13),
+            _xlsx_cell(f'B{row}', data['patients'], 13),
+            _xlsx_cell(f'C{row}', data['N'], 13),
+            _xlsx_cell(f'D{row}', data['S'], 13),
+            _xlsx_cell(f'E{row}', data['consultations'], 13),
+            _xlsx_cell(f'F{row}', data['P'], 13),
+            _xlsx_cell(f'G{row}', data['total'], 17),
+        ], 20)
+
+    summary_xml = _xlsx_sheet(
+        summary_rows,
+        [18, 12, 18, 15, 18, 15, 16],
+        merges=(
+            ['A1:G1', 'A2:G2', 'A3:G3',
+             'A5:B5', 'C5:D5', 'E5:F5', 'A6:B6', 'C6:D6', 'E6:F6',
+             'A8:B8', 'C8:D8', 'E8:F8', f'A{service_title}:C{service_title}', f'A{daily_title}:G{daily_title}']
+            + ([f'A{comparison_title}:G{comparison_title}', f'A{comparison_title+1}:G{comparison_title+1}'] if comparison_title else [])
+        ),
+        freeze_row=3,
+    )
+
+    detail_rows = []
+    def dadd(row, cells, height=None):
+        detail_rows.append((row, height, cells))
+
+    dadd(1, [_xlsx_cell('A1', 'DETALLE DE ATENCIONES', 1)], 28)
+    dadd(2, [_xlsx_cell('A2', period, 15)], 18)
+    headers = ['N.º', 'Fecha', 'Turno', 'Paciente', 'Estado', 'Atención', 'Valor', 'Observación']
+    dadd(4, [_xlsx_cell(f'{_xlsx_col_name(i)}4', h, 4) for i, h in enumerate(headers, 1)], 22)
+
+    rr = 5
+    for n, item in enumerate(data['details'], 1):
+        status_style = 11 if item['classification'] == 'NUEVO' else 12
+        service = 'CONSULTA' if item['service'] == 'CONSULTA' else str(item['service'] or '').upper()
+        dadd(rr, [
+            _xlsx_cell(f'A{rr}', n, 7),
+            _xlsx_cell(f'B{rr}', item['fecha'].strftime('%d/%m/%Y'), 6),
+            _xlsx_cell(f'C{rr}', item['turno'], 7),
+            _xlsx_cell(f'D{rr}', item['patient']['nombre'], 5),
+            _xlsx_cell(f'E{rr}', item['classification'].title(), status_style),
+            _xlsx_cell(f'F{rr}', service, 5),
+            _xlsx_cell(f'G{rr}', item['value'], 8),
+            _xlsx_cell(f'H{rr}', item['observacion'], 14),
+        ], 20)
+        rr += 1
+
+    total_row = rr
+    detail_merges = ['A1:H1', 'A2:H2']
+    if data['details']:
+        dadd(total_row, [
+            _xlsx_cell(f'A{total_row}', 'TOTAL', 13),
+            _xlsx_cell(f'G{total_row}', data['total'], 17, formula=f'SUM(G5:G{total_row-1})'),
+        ], 22)
+        detail_merges.append(f'A{total_row}:F{total_row}')
+
+    detail_xml = _xlsx_sheet(
+        detail_rows,
+        [7, 13, 8, 34, 16, 24, 13, 34],
+        merges=detail_merges,
+        freeze_row=4,
+        auto_filter=f'A4:H{max(4, total_row - 1)}',
+    )
+
+    styles = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<numFmts count="1"><numFmt numFmtId="164" formatCode="$#,##0.00"/></numFmts>
+<fonts count="6">
+<font><sz val="11"/><name val="Calibri"/></font>
+<font><b/><sz val="17"/><color rgb="FF17365D"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
+<font><b/><sz val="11"/><color rgb="FF17365D"/><name val="Calibri"/></font>
+<font><b/><sz val="15"/><color rgb="FF17365D"/><name val="Calibri"/></font>
+<font><i/><sz val="10"/><color rgb="FF64748B"/><name val="Calibri"/></font>
+</fonts>
+<fills count="7">
+<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FF17365D"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFDCE6F1"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFE2F0D9"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2CC"/></patternFill></fill>
+<fill><patternFill patternType="solid"><fgColor rgb="FFF5F7FA"/></patternFill></fill>
+</fills>
+<borders count="2"><border/><border><left style="thin"><color rgb="FFD8DEE8"/></left><right style="thin"><color rgb="FFD8DEE8"/></right><top style="thin"><color rgb="FFD8DEE8"/></top><bottom style="thin"><color rgb="FFD8DEE8"/></bottom><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="19">
+<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>
+<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="4" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="3" borderId="1" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="0" fontId="3" fillId="5" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="center"/></xf>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="5" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center"/></xf>
+<xf numFmtId="164" fontId="4" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="3" fillId="5" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>
+<xf numFmtId="10" fontId="3" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'''
+
+    workbook = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Resumen" sheetId="1" r:id="rId1"/><sheet name="Detalle" sheetId="2" r:id="rId2"/></sheets><calcPr calcId="191029" fullCalcOnLoad="1" forceFullCalc="1"/></workbook>'''
+    wb_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'''
+    root_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'''
+    content_types = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'''
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
+        z.writestr('[Content_Types].xml', content_types)
+        z.writestr('_rels/.rels', root_rels)
+        z.writestr('xl/workbook.xml', workbook)
+        z.writestr('xl/_rels/workbook.xml.rels', wb_rels)
+        z.writestr('xl/styles.xml', styles)
+        z.writestr('xl/worksheets/sheet1.xml', summary_xml)
+        z.writestr('xl/worksheets/sheet2.xml', detail_xml)
+    return out.getvalue()
+
+
+@app.get("/api/report")
+def report(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    return build_report_payload(db, desde, hasta)
+
+MOBILE_LAN_PORT = 8000
+MOBILE_FIREWALL_RULE = "Agenda Dr Revelo - Red Local"
+
+
+def _is_loopback_client(request: Request) -> bool:
+    host = str(getattr(request.client, "host", "") or "").split("%", 1)[0]
+    if host.lower() in {"localhost", "testclient"}:
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except Exception:
+        return host in {"127.0.0.1", "::1"}
+
+
+def _remote_mobile_path_allowed(path: str) -> bool:
+    # Tanto desde la LAN como a través de Cloudflare exponemos únicamente la
+    # superficie de Agenda móvil. La aplicación clínica completa queda local.
+    if path in {"/mobile", "/mobile/", "/mobile/manifest.webmanifest", "/mobile/sw.js", "/static/doctor_isotype.png"}:
+        return True
+    if path.startswith("/mobile-static/"):
+        return True
+    if path in {"/api/mobile/me", "/api/mobile/agenda/week", "/api/mobile/appointments"}:
+        return True
+    if path.startswith("/api/mobile/appointments/") or path.startswith("/api/mobile/unlinked/"):
+        return True
+    return False
+
+
+def _request_is_external_surface(request: Request) -> bool:
+    # cloudflared conecta al origen por 127.0.0.1, así que request.client por sí
+    # solo parecería local. Cloudflare añade estos encabezados al tráfico que
+    # viene de Internet. Si alguien los falsifica desde la LAN, el efecto es
+    # únicamente más restrictivo (nunca obtiene acceso adicional).
+    if request.headers.get("cf-connecting-ip") or request.headers.get("cf-ray"):
+        return True
+    return not _is_loopback_client(request)
+
+
+@app.middleware("http")
+async def local_network_surface_guard(request: Request, call_next):
+    if _request_is_external_surface(request) and not _remote_mobile_path_allowed(request.url.path):
+        return Response(
+            content="Acceso disponible solo desde la PC de Recepción. Para el celular usa el enlace de Agenda web.",
+            status_code=403,
+            media_type="text/plain; charset=utf-8",
+        )
+    return await call_next(request)
+
+
+def _preferred_lan_ip() -> str:
+    candidates: list[str] = []
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(0.25)
+        # UDP connect no necesita que el destino responda; solo permite conocer
+        # qué interfaz usaría Windows para salir a la red.
+        sock.connect(("8.8.8.8", 80))
+        candidates.append(str(sock.getsockname()[0]))
+        sock.close()
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET, socket.SOCK_STREAM):
+            candidates.append(str(info[4][0]))
+    except Exception:
+        pass
+
+    seen = set()
+    usable = []
+    for raw in candidates:
+        if raw in seen:
+            continue
+        seen.add(raw)
+        try:
+            ip = ipaddress.ip_address(raw)
+        except Exception:
+            continue
+        if ip.version != 4 or ip.is_loopback or ip.is_link_local or not ip.is_private:
+            continue
+        if raw.startswith("192.168."):
+            score = 30
+        elif raw.startswith("10."):
+            score = 20
+        elif raw.startswith("172."):
+            try:
+                score = 20 if 16 <= int(raw.split('.')[1]) <= 31 else 10
+            except Exception:
+                score = 10
+        else:
+            score = 10
+        usable.append((score, raw))
+    usable.sort(reverse=True)
+    return usable[0][1] if usable else ""
+
+
+def _mobile_firewall_present() -> bool:
+    if os.name != "nt":
+        return True
+    try:
+        proc = subprocess.run(
+            ["netsh", "advfirewall", "firewall", "show", "rule", "name=all"],
+            capture_output=True, text=True, timeout=8, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        return MOBILE_FIREWALL_RULE.lower() in ((proc.stdout or "") + (proc.stderr or "")).lower()
+    except Exception:
+        return False
+
+
+def _try_add_mobile_firewall_rule() -> bool:
+    if os.name != "nt":
+        return True
+    args = [
+        "netsh", "advfirewall", "firewall", "add", "rule",
+        f"name={MOBILE_FIREWALL_RULE}", "dir=in", "action=allow", "protocol=TCP",
+        f"localport={MOBILE_LAN_PORT}", "remoteip=localsubnet", "profile=any",
+    ]
+    try:
+        proc = subprocess.run(
+            args, capture_output=True, text=True, timeout=8, check=False,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        return proc.returncode == 0 and _mobile_firewall_present()
+    except Exception:
+        return False
+
+
+def _request_mobile_firewall_elevation() -> bool:
+    if os.name != "nt":
+        return True
+    params = (
+        'advfirewall firewall add rule '
+        f'name="{MOBILE_FIREWALL_RULE}" dir=in action=allow protocol=TCP '
+        f'localport={MOBILE_LAN_PORT} remoteip=localsubnet profile=any'
+    )
+    try:
+        rc = ctypes.windll.shell32.ShellExecuteW(None, "runas", "netsh.exe", params, None, 0)
+        return int(rc) > 32
+    except Exception:
+        return False
+
+
+def _mobile_token_role(request: Request) -> str:
+    token = str(request.query_params.get("token") or "").strip()
+    auth = str(request.headers.get("Authorization") or "").strip()
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+    if token and MOBILE_RECEPTION_TOKEN and hmac.compare_digest(token, MOBILE_RECEPTION_TOKEN):
+        return "reception"
+    if token and MOBILE_DOCTOR_TOKEN and hmac.compare_digest(token, MOBILE_DOCTOR_TOKEN):
+        return "doctor"
+    raise HTTPException(401, "Enlace de Agenda móvil inválido o vencido")
+
+
+def _ensure_mobile_tokens() -> tuple[str, str]:
+    global MOBILE_DOCTOR_TOKEN, MOBILE_RECEPTION_TOKEN
+    updates = {}
+    if not MOBILE_DOCTOR_TOKEN:
+        MOBILE_DOCTOR_TOKEN = secrets.token_urlsafe(32)
+        updates["MOBILE_DOCTOR_TOKEN"] = MOBILE_DOCTOR_TOKEN
+    if not MOBILE_RECEPTION_TOKEN:
+        MOBILE_RECEPTION_TOKEN = secrets.token_urlsafe(32)
+        updates["MOBILE_RECEPTION_TOKEN"] = MOBILE_RECEPTION_TOKEN
+    if updates:
+        _upsert_local_env(updates)
+    return MOBILE_DOCTOR_TOKEN, MOBILE_RECEPTION_TOKEN
+
+
+def _mobile_require_reception(request: Request) -> str:
+    role = _mobile_token_role(request)
+    if role != "reception":
+        raise HTTPException(403, "La agenda del doctor es solo lectura")
+    return role
+
+
+def _mobile_cloud_db() -> Session:
+    if not cloud_configured() or FORCE_OFFLINE or not check_cloud(force=False) or not CloudSessionLocal:
+        raise HTTPException(503, "La agenda móvil necesita conexión con la nube para guardar cambios")
+    return CloudSessionLocal()
+
+
+def _mobile_unlinked(item: ConfirmafyAgendaItem) -> bool:
+    return str(item.source_hash or "").startswith("mobile:")
+
+
+def _mobile_source_hash(nombre: str, celular: str, fecha: date, hora: str, nonce: Optional[str] = None) -> str:
+    clean_name = normalize_lookup_name(nombre or "PACIENTE")
+    phone = normalize_lookup_phone(celular or "")
+    seed = nonce or uuid.uuid4().hex
+    return "mobile:" + hashlib.sha1(f"{clean_name}|{phone}|{fecha.isoformat()}|{hora}|{seed}".encode("utf-8")).hexdigest()
+
+
+def _mobile_normalize_contact(data) -> tuple[str, str, dict]:
+    name = " ".join(str(getattr(data, "nombre", "") or "").split()).upper()
+    phone = re.sub(r"\D", "", str(getattr(data, "celular", "") or ""))
+    if len(name) < 3:
+        raise HTTPException(400, "Escribe el nombre del paciente")
+    if len(phone) < 8 or len(phone) > 15:
+        raise HTTPException(400, "Escribe un número de celular válido")
+    normalized = normalize_appointment_payload(type("MobileSlot", (), {
+        "model_dump": lambda self: {"fecha": data.fecha, "hora": data.hora, "nota": None}
+    })())
+    return name, phone, normalized
+
+
+@app.middleware("http")
+async def mobile_asset_no_cache(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/mobile-static/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
+@app.get("/mobile", response_class=FileResponse)
+@app.get("/mobile/", response_class=FileResponse)
+def mobile_agenda_page():
+    path = Path(BASE_DIR) / "mobile" / "index.html"
+    if not path.exists():
+        raise HTTPException(404, "Agenda móvil no instalada")
+    response = FileResponse(path)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@app.get("/mobile/manifest.webmanifest")
+def mobile_manifest():
+    path = Path(BASE_DIR) / "mobile" / "manifest.webmanifest"
+    if not path.exists():
+        raise HTTPException(404, "Agenda móvil no instalada")
+    return FileResponse(path, media_type="application/manifest+json")
+
+
+@app.get("/mobile/sw.js")
+def mobile_service_worker():
+    path = Path(BASE_DIR) / "mobile" / "sw.js"
+    if not path.exists():
+        raise HTTPException(404, "Agenda móvil no instalada")
+    response = FileResponse(path, media_type="application/javascript")
+    response.headers["Service-Worker-Allowed"] = "/mobile/"
+    response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
+@app.get("/api/mobile/me")
+def mobile_me(request: Request):
+    role = _mobile_token_role(request)
+    return {"role": role, "read_only": role == "doctor", "version": APP_VERSION}
+
+
+def _mobile_secret_path(token: str) -> str:
+    # El secreto se coloca tras # para que el navegador NO lo envíe a Cloudflare
+    # ni quede en logs HTTP. mobile/app.js lo toma del fragmento y luego usa un
+    # encabezado Authorization para las APIs.
+    return f"/mobile/?v=4.3.34#token={token}"
+
+
+def _agenda_cloud_link(token: str) -> str:
+    return f"{AGENDA_CLOUD_BASE_URL}#token={token}"
+
+
+def _agenda_cloud_signature(doctor: str, reception: str) -> str:
+    return hashlib.sha256(f"{doctor}|{reception}".encode("utf-8")).hexdigest()
+
+
+def _write_cloud_agenda_keys(doctor: str, reception: str, *, replace_existing: bool = False) -> None:
+    """Registra solo hashes de las llaves en Neon; nunca guarda el secreto en la nube."""
+    if not cloud_configured() or not CloudSessionLocal:
+        raise RuntimeError("Neon no está configurado")
+    if FORCE_OFFLINE or not check_cloud(force=False):
+        raise RuntimeError("Neon no está disponible en este momento")
+    doctor_hash = hashlib.sha256(doctor.encode("utf-8")).hexdigest()
+    reception_hash = hashlib.sha256(reception.encode("utf-8")).hexdigest()
+    with CloudSessionLocal() as cdb:
+        try:
+            if replace_existing:
+                # El enlace del doctor es permanente: nunca desactivamos llaves
+                # de solo lectura al renovar el acceso editable de recepción.
+                cdb.execute(text("""
+                    UPDATE agenda_private.web_keys
+                    SET active = false
+                    WHERE access_level = 'reception'
+                """))
+            for key_hash, role in ((doctor_hash, "doctor"), (reception_hash, "reception")):
+                cdb.execute(text("""
+                    INSERT INTO agenda_private.web_keys (key_hash, access_level, active)
+                    SELECT :key_hash, :role, true
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM agenda_private.web_keys WHERE key_hash = :key_hash
+                    )
+                """), {"role": role, "key_hash": key_hash})
+                cdb.execute(text("""
+                    UPDATE agenda_private.web_keys
+                    SET access_level = :role, active = true
+                    WHERE key_hash = :key_hash
+                """), {"role": role, "key_hash": key_hash})
+            cdb.commit()
+        except Exception:
+            cdb.rollback()
+            raise
+
+
+def _agenda_cloud_payload(doctor: str, reception: str, *, force_sync: bool = False) -> dict:
+    global AGENDA_CLOUD_KEYS_SYNCED_SHA
+    signature = _agenda_cloud_signature(doctor, reception)
+    registered = bool(AGENDA_CLOUD_KEYS_SYNCED_SHA and hmac.compare_digest(AGENDA_CLOUD_KEYS_SYNCED_SHA, signature))
+    error = ""
+    if force_sync or not registered:
+        try:
+            _write_cloud_agenda_keys(doctor, reception, replace_existing=False)
+            registered = True
+            AGENDA_CLOUD_KEYS_SYNCED_SHA = signature
+            _upsert_local_env({"AGENDA_CLOUD_KEYS_SYNCED_SHA": signature})
+        except Exception as exc:
+            error = _cloud_error_hint(exc) if "Neon" not in str(exc) else str(exc)
+    return {
+        "enabled": True,
+        "base_url": AGENDA_CLOUD_BASE_URL,
+        "doctor_url": _agenda_cloud_link(doctor),
+        "reception_url": _agenda_cloud_link(reception),
+        "registered": registered,
+        "last_error": error,
+        "always_available": True,
+        "architecture": "GitHub Pages + Neon Data API",
+    }
+
+
+def _mobile_remote_payload(doctor: str, reception: str) -> dict:
+    status = remote_tunnel_status(DATA_DIR)
+    configured_base = ""
+    try:
+        configured_base = remote_normalize_base_url(REMOTE_AGENDA_BASE_URL) if REMOTE_AGENDA_BASE_URL else ""
+    except Exception:
+        configured_base = ""
+    active_base = str(status.get("public_base_url") or "").rstrip("/")
+    base = active_base or configured_base
+    return {
+        "configured": bool(configured_base and REMOTE_AGENDA_TUNNEL_TOKEN),
+        "autostart": bool(REMOTE_AGENDA_AUTOSTART),
+        "running": bool(status.get("running")),
+        "mode": status.get("mode") or "off",
+        "public_base_url": base,
+        "active_base_url": active_base,
+        "doctor_url": base + _mobile_secret_path(doctor) if base else "",
+        "reception_url": base + _mobile_secret_path(reception) if base else "",
+        "cloudflared_ready": bool(status.get("cloudflared_ready")),
+        "downloading": bool(status.get("downloading")),
+        "last_error": status.get("last_error") or "",
+    }
+
+
+@app.get("/api/mobile/config")
+def mobile_config(request: Request, force_cloud: bool = False, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta configuración solo se abre desde la PC de Recepción")
+    doctor, reception = _ensure_mobile_tokens()
+    lan_ip = _preferred_lan_ip()
+    lan_base = f"http://{lan_ip}:{MOBILE_LAN_PORT}" if lan_ip else ""
+    firewall = _mobile_firewall_present() or _try_add_mobile_firewall_rule()
+    return {
+        "enabled": True,
+        "doctor_path": _mobile_secret_path(doctor),
+        "reception_path": _mobile_secret_path(reception),
+        "lan_ip": lan_ip,
+        "lan_base_url": lan_base,
+        "firewall_ready": firewall,
+        # Verificar la configuración también vuelve a registrar las llaves
+        # actuales en Neon sin cambiarlas. Así una pérdida del registro cloud
+        # no obliga a reemplazar el acceso guardado del doctor.
+        "cloud": _agenda_cloud_payload(doctor, reception, force_sync=bool(force_cloud)),
+        "note": (
+            "La Agenda Cloud funciona 24/7 aunque esta PC esté apagada. La red local queda disponible solo como respaldo dentro del consultorio."
+            if lan_ip else
+            "La Agenda Cloud funciona 24/7 aunque esta PC esté apagada. No se detectó una red local para el acceso de respaldo."
+        ),
+    }
+
+
+@app.post("/api/mobile/network/enable")
+def mobile_network_enable(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
+    if os.name != "nt":
+        return {"ready": True, "elevation_requested": False, "message": "No requiere regla de Windows."}
+    if _mobile_firewall_present() or _try_add_mobile_firewall_rule():
+        return {"ready": True, "elevation_requested": False, "message": "Acceso desde la red local habilitado."}
+    requested = _request_mobile_firewall_elevation()
+    return {
+        "ready": False,
+        "elevation_requested": requested,
+        "message": (
+            "Windows pidió permiso de administrador. Acéptalo y luego pulsa Renovar enlaces."
+            if requested else
+            "Windows no pudo abrir el permiso automáticamente. Revisa el Firewall de Windows."
+        ),
+    }
+
+
+@app.get("/api/mobile/remote/status")
+def mobile_remote_status(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta configuración solo se abre desde la PC de Recepción")
+    doctor, reception = _ensure_mobile_tokens()
+    return _mobile_remote_payload(doctor, reception)
+
+
+@app.post("/api/mobile/remote/quick/start")
+def mobile_remote_quick_start(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
+    try:
+        remote_start_quick_tunnel(DATA_DIR, origin="http://127.0.0.1:8000", wait_seconds=18)
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo publicar la agenda: {exc}")
+    doctor, reception = _ensure_mobile_tokens()
+    payload = _mobile_remote_payload(doctor, reception)
+    payload["message"] = (
+        "Acceso remoto de prueba listo. Este enlace cambia si se reinicia el túnel; para el enlace definitivo configura el túnel estable."
+        if payload.get("active_base_url") else
+        "Cloudflare está conectando. Pulsa Actualizar estado en unos segundos."
+    )
+    return payload
+
+
+@app.post("/api/mobile/remote/stable/restart")
+def mobile_remote_stable_restart(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
+    if not REMOTE_AGENDA_BASE_URL or not REMOTE_AGENDA_TUNNEL_TOKEN:
+        raise HTTPException(400, "El túnel estable todavía no está configurado en .env")
+    try:
+        remote_start_named_tunnel(DATA_DIR, REMOTE_AGENDA_TUNNEL_TOKEN, REMOTE_AGENDA_BASE_URL)
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo iniciar el túnel estable: {exc}")
+    doctor, reception = _ensure_mobile_tokens()
+    return _mobile_remote_payload(doctor, reception)
+
+
+@app.post("/api/mobile/remote/stop")
+def mobile_remote_stop(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
+    remote_stop_tunnel(DATA_DIR)
+    doctor, reception = _ensure_mobile_tokens()
+    return {**_mobile_remote_payload(doctor, reception), "message": "Acceso remoto detenido."}
+
+
+@app.post("/api/mobile/links/rotate")
+def mobile_rotate_links(request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
+    global MOBILE_DOCTOR_TOKEN, MOBILE_RECEPTION_TOKEN, AGENDA_CLOUD_KEYS_SYNCED_SHA
+    old_doctor, old_reception = _ensure_mobile_tokens()
+    # v4.3.49: el token del doctor es permanente. Renovar accesos solo cambia
+    # el token editable de recepción; el enlace de consulta del doctor conserva
+    # exactamente el mismo secreto y puede quedarse guardado en Inicio.
+    new_doctor = old_doctor
+    new_reception = secrets.token_urlsafe(32)
+    # Primero persistimos localmente. Si Neon falla, restauramos las llaves previas
+    # para no mostrar enlaces nuevos que todavía no funcionen en la nube.
+    try:
+        _upsert_local_env({
+            "MOBILE_DOCTOR_TOKEN": new_doctor,
+            "MOBILE_RECEPTION_TOKEN": new_reception,
+            "AGENDA_CLOUD_KEYS_SYNCED_SHA": "",
+        })
+        _write_cloud_agenda_keys(new_doctor, new_reception, replace_existing=True)
+    except Exception as exc:
+        try:
+            _upsert_local_env({
+                "MOBILE_DOCTOR_TOKEN": old_doctor,
+                "MOBILE_RECEPTION_TOKEN": old_reception,
+                "AGENDA_CLOUD_KEYS_SYNCED_SHA": AGENDA_CLOUD_KEYS_SYNCED_SHA,
+            })
+        except Exception:
+            pass
+        raise HTTPException(503, f"No se pudieron renovar los enlaces porque Neon no respondió: {_cloud_error_hint(exc)}")
+    MOBILE_DOCTOR_TOKEN = new_doctor
+    MOBILE_RECEPTION_TOKEN = new_reception
+    AGENDA_CLOUD_KEYS_SYNCED_SHA = _agenda_cloud_signature(new_doctor, new_reception)
+    _upsert_local_env({"AGENDA_CLOUD_KEYS_SYNCED_SHA": AGENDA_CLOUD_KEYS_SYNCED_SHA})
+    return {
+        "ok": True,
+        "doctor_path": _mobile_secret_path(new_doctor),
+        "reception_path": _mobile_secret_path(new_reception),
+        "cloud": _agenda_cloud_payload(new_doctor, new_reception),
+        "message": "Acceso editable renovado. El enlace del doctor permanece igual y seguirá funcionando.",
+    }
+
+
+@app.get("/api/mobile/agenda/week")
+def mobile_agenda_week(anchor: date, request: Request):
+    role = _mobile_token_role(request)
+    # La agenda web nunca expone semanas anteriores a la actual. Incluso si
+    # alguien modifica manualmente el parámetro anchor, el servidor lo limita.
+    today = date.today()
+    current_monday = today - timedelta(days=today.weekday())
+    requested_monday = anchor - timedelta(days=anchor.weekday())
+    safe_anchor = current_monday if requested_monday < current_monday else anchor
+    # La lectura usa la copia local para no consultar Neon cada vez que se abre el teléfono.
+    with LocalSessionLocal() as db:
+        payload = agenda_week(anchor=safe_anchor, db=db, user=User(id=0, username="mobile", pass
