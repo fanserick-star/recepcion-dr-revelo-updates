@@ -44,8 +44,11 @@ jobs:
           print('STATIC_V496_OK')
           PY
           python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
-          mkdir -p _smoke_data
-          RP_FORCE_OFFLINE=1 RP_DATA_DIR="$PWD/_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python _ci_app.py > _smoke.log 2>&1 & echo $! > _smoke.pid
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
           python - <<'PY'
           import json,time,urllib.request
           ok=False
