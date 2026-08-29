@@ -33,7 +33,18 @@ jobs:
       - name: Validar relanzamiento inmediato del launcher
         shell: powershell
         run: |
-          python -c "from pathlib import Path; s=Path('_ci_launcher.py').read_text(encoding='utf-8'); ts=['def _relaunch_updated_launcher()','\"abrir_recepcion.py\" in updated_paths','_release_mutex(handle)','handle = None','_relaunch_updated_launcher()']; missing=[t for t in ts if t not in s]; print('MISSING',missing); assert not missing; print('WINDOWS_LAUNCHER_V499_OK')"
+          $txt = Get-Content _ci_launcher.py -Raw
+          $tokens = @(
+            'def _relaunch_updated_launcher()',
+            '"abrir_recepcion.py" in updated_paths',
+            '_release_mutex(handle)',
+            'handle = None',
+            '_relaunch_updated_launcher()'
+          )
+          foreach ($t in $tokens) {
+            if (-not $txt.Contains($t)) { throw "Falta token: $t" }
+          }
+          Write-Host 'WINDOWS_LAUNCHER_V499_OK'
 
   validate-publish:
     needs: windows-launcher-test
