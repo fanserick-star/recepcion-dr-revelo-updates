@@ -1,0 +1,31 @@
+name: Inspect static v497
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-static-v497.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract base frontend
+        run: |
+          mkdir -p _inspect
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          z=Path('installer_clean/base/clean_base_resources.zip')
+          with zipfile.ZipFile(z) as f:
+              for name in ['static/index.html']:
+                  Path('_inspect').mkdir(exist_ok=True)
+                  Path('_inspect/index.html').write_bytes(f.read(name))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v497-static-index
+          path: _inspect/index.html
+          if-no-files-found: error
