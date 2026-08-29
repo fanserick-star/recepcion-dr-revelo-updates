@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.3.95",
+  "app_version": "4.3.95",
+  "runtime_version": "4.3.95",
+  "launcher_version": "4.3.76-standalone-3",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "ABRIR_RECEPCION.py",
+    "app.py",
+    "update_manifest.json"
+  ]
+}

@@ -1,0 +1,779 @@
+v463-notice" role="dialog" aria-modal="true"><div class="v463-notice-head"><span class="v463-notice-icon">?</span><h3>${esc(title)}</h3></div><div class="v463-notice-body">${esc(message)}</div><div class="v463-notice-actions"><button type="button" data-no>Cancelar</button><button class="primary" type="button" data-yes>Aceptar</button></div></div>`;const done=v=>{back.remove();resolve(v)};back.querySelector(\'[data-no]\').onclick=()=>done(false);back.querySelector(\'[data-yes]\').onclick=()=>done(true);document.body.appendChild(back);back.querySelector(\'[data-yes]\').focus();});\n\nconst patientCache=new Map();\nfunction cacheBilling(data){for(const item of data?.items||[]){const p=item?.patient||{};if(!p.id)continue;patientCache.set(String(p.id),p);if(p.nombre)patientCache.set(\'n:\'+norm(p.nombre),p)}}\nif(window.fetch&&!window.fetch.__v463){const original=window.fetch.bind(window);const wrapped=async(...args)=>{const r=await original(...args);try{const u=String(args[0]?.url||args[0]||\'\');if(u.includes(\'/api/billing\'))r.clone().json().then(cacheBilling).catch(()=>{})}catch{}return r};wrapped.__v463=true;window.fetch=wrapped;}\nfunction patientFromHost(host){const text=norm(host?.textContent);let best=null;for(const [key,p] of patientCache){if(!key.startsWith(\'n:\')||!key.slice(2)||!text.includes(key.slice(2)))continue;if(!best||String(p.nombre||\'\').length>String(best.nombre||\'\').length)best=p}return best;}\nfunction emailInput(host){const direct=[...host.querySelectorAll(\'input\')].find(x=>x.type===\'email\'||/correo|email/i.test(`${x.id} ${x.name} ${x.placeholder}`));if(direct)return direct;for(const label of host.querySelectorAll(\'label\')){if(!/correo|email/i.test(label.textContent||\'\'))continue;const x=label.querySelector(\'input\')||document.getElementById(label.htmlFor);if(x)return x}return null;}\nfunction enhanceOtherBillingEmail(){\n for(const host of document.querySelectorAll(\'.modal,.modal-content,.modal-card,[role="dialog"]\')){\n  const txt=norm(host.textContent);if(!txt.includes(\'factur\')||!(txt.includes(\'otro\')||txt.includes(\'otra\')))continue;if(host.querySelector(\'.v463-use-patient-email\'))continue;\n  const input=emailInput(host);if(!input)continue;const p=patientFromHost(host);if(!p?.correo)continue;\n  const box=document.createElement(\'label\');box.className=\'v463-use-patient-email\';box.innerHTML=`<input type="checkbox"> Usar correo registrado del paciente · ${esc(p.correo)}`;input.parentElement?.appendChild(box);box.querySelector(\'input\').onchange=e=>{if(e.target.checked){input.value=p.correo;input.dispatchEvent(new Event(\'input\',{bubbles:true}));input.dispatchEvent(new Event(\'change\',{bubbles:true}))}};\n }\n}\nfunction hideResolvedAzurButtons(){\n for(const btn of document.querySelectorAll(\'button\')){const t=norm(btn.textContent);if(!(t.includes(\'actualizar\')&&t.includes(\'estado\')))continue;let node=btn.parentElement,hide=false;for(let i=0;i<5&&node;i++,node=node.parentElement){const badges=[...node.querySelectorAll(\'[class*="status"],[class*="badge"],.pill,.tag\')].map(x=>norm(x.textContent));if(badges.some(x=>x===\'emitida\'||x.includes(\'autorizada\'))){hide=true;break}const all=norm(node.textContent);if(all.length<1800&&(/\\bemitida\\b/.test(all)||all.includes(\'autorizada por azur\'))){hide=true;break}}if(hide){btn.style.display=\'none\';btn.dataset.v463Hidden=\'1\'}}\n}\nlet v472UiTimer=0;function scheduleV472UiRefresh(){if(v472UiTimer)return;v472UiTimer=setTimeout(()=>{v472UiTimer=0;paintVersion();hideResolvedAzurButtons();enhanceOtherBillingEmail()},140)}function watch(){paintVersion();installStyle();hideResolvedAzurButtons();enhanceOtherBillingEmail();const root=document.body;if(root&&!root.dataset.v463Watch){root.dataset.v463Watch=\'1\';new MutationObserver(scheduleV472UiRefresh).observe(root,{childList:true,subtree:true})}}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',watch,{once:true});else watch();setTimeout(watch,250);\n})();\n\n;(()=>{\n  const normV465=s=>String(s||\'\').normalize(\'NFD\').replace(/[\\u0300-\\u036f]/g,\'\').replace(/\\s+/g,\' \').trim().toLowerCase();\n  let v465BillingTimer=0;\n  function hideV465BillingQueue(){\n    const wanted=\'cola de facturacion\';\n    const selectors=\'h1,h2,h3,h4,h5,h6,legend,.card-title,.panel-title,.section-title,strong,b\';\n    let title=[...document.querySelectorAll(selectors)].find(el=>normV465(el.textContent).startsWith(wanted));\n    if(!title){\n      title=[...document.querySelectorAll(\'div,span\')].find(el=>{const t=normV465(el.textContent);return t.startsWith(wanted)&&t.length<90&&el.children.length<=2});\n    }\n    if(!title)return false;\n    let box=title.closest(\'.billing-queue,.billing-next,.queue-card,.card,.panel,.box\');\n    if(!box){\n      const p=title.parentElement;\n      if(p&&normV465(p.textContent).startsWith(wanted)&&normV465(p.textContent).length<1200)box=p;\n    }\n    if(!box||box.dataset.v465BillingQueueHidden===\'1\')return !!box;\n    box.dataset.v465BillingQueueHidden=\'1\';\n    box.style.display=\'none\';\n    box.setAttribute(\'aria-hidden\',\'true\');\n    return true;\n  }\n  function scheduleV465BillingCleanup(){\n    if(v465BillingTimer)return;\n    v465BillingTimer=setTimeout(()=>{v465BillingTimer=0;hideV465BillingQueue()},100);\n  }\n  function bootV465Billing(){hideV465BillingQueue();setTimeout(hideV465BillingQueue,250);setTimeout(hideV465BillingQueue,900)}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',bootV465Billing,{once:true});else bootV465Billing();\n  const root=document.documentElement;\n  if(root)new MutationObserver(scheduleV465BillingCleanup).observe(root,{childList:true,subtree:true});\n})();\n\n;(()=>{\n  const v466BillingPrompt=/factur|azur|sri|comprobante/i;\n  const v466NativeConfirm=window.confirm.bind(window);\n  let v466ClickTarget=null;\n  let v466ClickAt=0;\n  let v466AllowTarget=null;\n  let v466Pending=false;\n\n  function v466ActionTarget(e){\n    const path=typeof e.composedPath===\'function\'?e.composedPath():[];\n    for(const el of path){\n      if(!el||el===document||el===window||typeof el.matches!==\'function\')continue;\n      if(el.matches(\'button,input[type="button"],input[type="submit"],a,[role="button"]\'))return el;\n    }\n    const t=e.target;\n    return t&&typeof t.closest===\'function\'?(t.closest(\'button,input[type="button"],input[type="submit"],a,[role="button"]\')||t):t;\n  }\n\n  document.addEventListener(\'click\',e=>{\n    const target=v466ActionTarget(e);\n    if(!target)return;\n    v466ClickTarget=target;\n    v466ClickAt=Date.now();\n    const stamp=v466ClickAt;\n    setTimeout(()=>{if(v466ClickAt===stamp&&Date.now()-stamp>=10000)v466ClickTarget=null},10050);\n  },true);\n\n  function v466InstallConfirmBridge(){\n    if(window.confirm&&window.confirm.__v466BillingBridge)return;\n    const bridge=function(message){\n      const text=String(message??\'\');\n      if(!v466BillingPrompt.test(text))return v466NativeConfirm(text);\n      const target=(v466ClickTarget&&Date.now()-v466ClickAt<10000)?v466ClickTarget:null;\n      if(v466AllowTarget&&target===v466AllowTarget){v466AllowTarget=null;return true;}\n      if(v466Pending)return false;\n      if(!target||typeof window.rpConfirm!==\'function\')return v466NativeConfirm(text);\n      v466Pending=true;\n      const title=/azur|sri/i.test(text)?\'Confirmar emisión en AZUR\':\'Confirmar facturación\';\n      const originalClickAt=v466ClickAt;\n      Promise.resolve(window.rpConfirm(text,title)).then(ok=>{\n        v466Pending=false;\n        if(!ok)return;\n        const wait=Math.max(0,720-(Date.now()-originalClickAt));\n        setTimeout(()=>{\n          v466AllowTarget=target;\n          try{target.click()}finally{setTimeout(()=>{if(v466AllowTarget===target)v466AllowTarget=null},0)}\n        },wait);\n      }).catch(()=>{v466Pending=false});\n      return false;\n    };\n    bridge.__v466BillingBridge=true;\n    window.confirm=bridge;\n  }\n\n  v466InstallConfirmBridge();\n  setTimeout(v466InstallConfirmBridge,0);\n  setTimeout(v466InstallConfirmBridge,500);\n})();\n\n;(()=>{\n  function installV467CompactStyle(){\n    if(document.getElementById(\'v467CompactStyle\'))return;\n    const st=document.createElement(\'style\');st.id=\'v467CompactStyle\';st.textContent=`\n      /* Ficha de Agenda: compacta, centrada y con teléfono solo al abrir la cita. */\n      .v467-agenda-modal-shell{width:min(520px,calc(100vw - 56px))!important;max-width:520px!important;height:auto!important;min-height:0!important;max-height:calc(100vh - 44px)!important;padding:16px 18px!important;border-radius:17px!important;overflow:auto!important}\n      .native-appointment-detail{width:100%!important;max-width:none!important}\n      .native-appointment-detail .v467-agenda-heading{margin:0 0 9px!important}\n      .native-appointment-detail .v467-agenda-heading h2{margin:0 0 5px!important;font-size:22px!important;line-height:1.16!important;letter-spacing:-.2px}\n      .v467-agenda-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;color:#607087;font-size:13px;font-weight:650}\n      .v467-agenda-phone{display:inline-flex;align-items:center;padding:3px 8px;border:1px solid #dbe5ef;border-radius:999px;background:#f6f9fc;color:#334e68;font-weight:750}\n      .native-appointment-detail .native-detail-status{margin:5px 0 8px!important;padding:5px 9px!important;font-size:11px!important}\n      .native-appointment-detail>.muted{margin:4px 0 9px!important;font-size:12px!important}\n      .native-appointment-detail .native-detail-note{margin:7px 0!important;padding:8px 10px!important}\n      .native-appointment-detail .v459-whatsapp-timeline{margin-top:8px!important;padding:10px 11px!important;border-radius:12px!important}\n      .native-appointment-detail .v459-whatsapp-timeline h3{margin:0 0 7px!important;font-size:13px!important}\n      .native-appointment-detail .v459-wa-flow{gap:2px!important}\n      .native-appointment-detail .v459-wa-step{padding:6px 0!important;min-height:0!important}\n      .native-appointment-detail .v459-wa-dot{width:22px!important;height:22px!important;min-width:22px!important;font-size:11px!important}\n      .native-appointment-detail .v459-wa-title{min-height:22px!important;gap:8px!important}\n      .native-appointment-detail .v459-wa-title b{font-size:13px!important}\n      .native-appointment-detail .v459-wa-copy small{font-size:11px!important;line-height:1.35!important}\n      .native-appointment-detail .v459-wa-badge{font-size:10px!important;padding:3px 6px!important}\n      .native-appointment-detail .actions{margin-top:9px!important;gap:6px!important;justify-content:flex-end!important}\n      .native-appointment-detail .actions button{padding:8px 12px!important;font-size:12px!important;border-radius:9px!important}\n\n      /* Configuración: ancho de lectura cómodo en monitor ancho. */\n      #config.v458-settings{width:min(1120px,calc(100% - 32px))!important;max-width:1120px!important;margin-left:auto!important;margin-right:auto!important}\n      #config.v458-settings .config-title-row{margin-bottom:12px!important}\n      #config.v458-settings .config-title-row h2{margin-bottom:4px!important}\n      #config.v458-settings .config-tabs{gap:3px!important;padding:4px 5px!important;margin-bottom:12px!important;overflow-x:auto!important}\n      #config.v458-settings .config-tabs button{padding:8px 11px!important;font-size:12px!important;white-space:nowrap!important}\n      #config.v458-settings [data-config-section]{width:100%!important;max-width:980px!important;margin-left:auto!important;margin-right:auto!important}\n      #config.v458-settings [data-config-section]>.panel,\n      #config.v458-settings [data-config-section] details>.panel{padding:15px 17px!important;border-radius:14px!important}\n      #config.v458-settings .config-panel-head{margin-bottom:10px!important}\n      #config.v458-settings .config-panel-head h3{margin-bottom:3px!important}\n      #config.v458-settings .v458-template-grid{gap:9px!important}\n      #config.v458-settings .v458-template-card{padding:11px 12px!important;border-radius:12px!important}\n      #config.v458-settings .v458-service-grid{gap:9px!important}\n      #config.v458-settings .v458-service-card{padding:11px 12px!important;border-radius:12px!important}\n      #config.v458-settings .v458-link-grid{gap:10px!important}\n      #config.v458-settings .v458-link-card{padding:12px!important}\n      @media(max-width:900px){\n        .v467-agenda-modal-shell{width:calc(100vw - 28px)!important;padding:15px!important}\n        #config.v458-settings{width:calc(100% - 18px)!important}\n        #config.v458-settings [data-config-section]{max-width:none!important}\n      }\n    `;document.head.appendChild(st)\n  }\n  function bootV467Compact(){installV467CompactStyle()}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',bootV467Compact,{once:true});else bootV467Compact();\n})();\n\n;(()=>{\n  function clearAgendaModalShell(){\n    document.querySelectorAll(\'.v467-agenda-modal-shell,.v471-agenda-outer\').forEach(el=>el.classList.remove(\'v467-agenda-modal-shell\',\'v471-agenda-outer\'));\n  }\n  function installV469ModalGuard(){\n    if(window.__v469ModalGuard)return;\n    const original=window.openModal;\n    if(typeof original!==\'function\')return;\n    window.__v469ModalGuard=true;\n    window.openModal=function(...args){\n      clearAgendaModalShell();\n      return original.apply(this,args);\n    };\n    const close=window.closeModal;\n    if(typeof close===\'function\'&&!close.__v469Wrapped){\n      const wrapped=function(...args){clearAgendaModalShell();return close.apply(this,args)};\n      wrapped.__v469Wrapped=true;window.closeModal=wrapped;\n    }\n  }\n  function bootV469(){clearAgendaModalShell();installV469ModalGuard()}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',bootV469,{once:true});else bootV469();\n  setTimeout(bootV469,120);setTimeout(bootV469,500);\n})();\n\n;(()=>{\n  function installV471AgendaOuterStyle(){\n    if(document.getElementById(\'v471AgendaOuterStyle\'))return;\n    const st=document.createElement(\'style\');st.id=\'v471AgendaOuterStyle\';st.textContent=`\n      .v471-agenda-outer{width:min(590px,calc(100vw - 40px))!important;max-width:590px!important;min-width:0!important;height:auto!important;min-height:0!important;max-height:calc(100vh - 24px)!important}\n      @media(max-width:680px){.v471-agenda-outer{width:calc(100vw - 24px)!important;max-width:none!important}}\n    `;document.head.appendChild(st)\n  }\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',installV471AgendaOuterStyle,{once:true});else installV471AgendaOuterStyle();\n})();\n'
+
+V473_HOTFIX_JS = r""";(()=>{
+  if(window.__v473Hotfix)return;
+  window.__v473Hotfix=true;
+
+  // CANCELADA era el estado que dejaba el antiguo botón Eliminar. No debe
+  // presentarse como si el paciente hubiese respondido "No" por WhatsApp.
+  const baseAgendaStatusInfo=window.agendaStatusInfo;
+  window.agendaStatusInfo=function(state){
+    const s=String(state||'PENDIENTE').toUpperCase();
+    if(['CANCELADA','CANCELADO'].includes(s))return {label:'Cancelada',cls:'cancelled'};
+    return typeof baseAgendaStatusInfo==='function'?baseAgendaStatusInfo(state):{label:'Pendiente',cls:'pending'};
+  };
+
+  function confirmationDue(fecha){
+    const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(fecha||'').slice(0,10));
+    if(!m)return null;
+    const due=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]),8,0,0,0);
+    due.setDate(due.getDate()-1);
+    return due;
+  }
+  function statusForDate(state,fecha){
+    const s=String(state||'PENDIENTE').toUpperCase();
+    if(['CONFIRMADA','CONFIRMADO'].includes(s))return {label:'Confirmada',cls:'confirmed'};
+    if(s==='NO_ASISTIRA')return {label:'No asistirá',cls:'cancelled'};
+    if(['CANCELADA','CANCELADO'].includes(s))return {label:'Cancelada',cls:'cancelled'};
+    if(s==='REAGENDADA')return {label:'Reagendada',cls:'rescheduled'};
+    const due=confirmationDue(fecha);
+    if(due&&Date.now()<due.getTime())return {label:'Agendada',cls:'scheduled'};
+    return {label:'Pendiente',cls:'pending'};
+  }
+  window.v473AgendaStatusForDate=statusForDate;
+
+  // En la cuadrícula, "Pendiente" solo aparece desde la hora en que corresponde
+  // enviar la confirmación. Una cita futura todavía no confirmada dice "Agendada".
+  window.nativeAgendaRowCell=function(row,date,time){
+    if(!row)return `<button class="native-slot free" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">${esc(fmtTime(time))}</b><span>Disponible</span></button>`;
+    const a=row.appointment||{},p=row.patient||{},staged=row.staged||{},source=String(row.source_type||''),unlinked=source==='MOBILE_UNLINKED'||source==='LEGACY_UNLINKED'||source==='CONFIRMAFY_STAGED'||source==='CONFIRMAFY_LEGACY';
+    const name=staged.nombre||p.nombre||'PACIENTE',status=statusForDate(a.estado,date),sourceBadge=unlinked?'<small class="native-unlinked">SIN VINCULAR</small>':'';
+    const action=unlinked?`openUnlinkedAgendaDetail(${Number(staged.id||0)},'${date}')`:`openLinkedAgendaDetail(${Number(a.id||0)},${Number(p.id||0)},'${date}')`;
+    return `<button class="native-slot occupied ${status.cls}" onclick="${action}"><b>${esc(name)}</b><span>${esc(status.label)}</span>${sourceBadge}</button>`;
+  };
+
+  // El detalle usa la misma regla de fecha que la cuadrícula.
+  const baseOpenLinked=window.openLinkedAgendaDetail;
+  if(typeof baseOpenLinked==='function')window.openLinkedAgendaDetail=async function(appointmentId,patientId,fecha){
+    await baseOpenLinked(appointmentId,patientId,fecha);
+    try{
+      const row=agendaAppointmentById.get(Number(appointmentId)),a=row?.appointment||{};
+      const st=statusForDate(a.estado,a.fecha||fecha),el=document.querySelector('.native-appointment-detail .native-detail-status');
+      if(el){el.className=`native-detail-status ${st.cls}`;el.textContent=st.label}
+    }catch(_e){}
+  };
+
+  // Emisión masiva: confirmar una sola vez y ejecutar la llamada directamente.
+  // No se vuelve a hacer click programáticamente sobre el botón, evitando el bucle.
+  window.emitAllPendingInvoices=async function(){
+    try{
+      const pre=await api('/api/billing/azur/batch-preview');
+      const c=pre.counts||{},ready=Number(c.ready||0),skipped=Number(c.skipped||0);
+      if(!pre.unlocked){alert('🔒 Emisión masiva bloqueada por seguridad.\n\nPrimero emite UNA factura individual real y confirma que AZUR/SRI la marque AUTORIZADA.');return}
+      if(!ready){alert(`No hay facturas completas listas para emitir.\n\nOmitidas: ${skipped}`);return}
+      const examples=(pre.skipped||[]).slice(0,5).map(x=>`• ${x.nombre||'Paciente'}: ${x.reason}`).join('\n');
+      const text=`¿Emitir ${ready} factura${ready===1?'':'s'} aprobada${ready===1?'':'s'} en AZUR?\n\nSe enviarán una por una para evitar duplicados. Las enviadas quedarán EN PROCESO hasta consultar la autorización del SRI.`+(skipped?`\n\nSe omitirán ${skipped} por datos incompletos o estado.`:'')+(examples?`\n\nEjemplos omitidos:\n${examples}`:'');
+      const ok=typeof window.rpConfirm==='function'?await window.rpConfirm(text,'Confirmar emisión en AZUR'):window.confirm(text);
+      if(!ok)return;
+      const result=await singleFlightMutation('billing:azur:emit-all',()=>api('/api/billing/azur/emit-all-pending',{method:'POST',body:'{}'}),'Enviando facturas…');
+      if(!result)return;
+      const r=result.counts||{};let detail=`Enviadas a AZUR: ${r.sent??r.emitted??0}\nOmitidas: ${r.skipped||0}\nFallidas: ${r.failed||0}`;
+      const omit=(result.skipped||[]).slice(0,8);if(omit.length)detail+='\n\nOmitidas:\n'+omit.map(x=>`• ${x.nombre||'Paciente'}: ${x.reason}`).join('\n');
+      const failed=(result.failed||[]).slice(0,5);if(failed.length)detail+='\n\nFallidas:\n'+failed.map(x=>`• ${x.nombre||'Paciente'}: ${x.reason}`).join('\n');
+      alert('Lote enviado. Las enviadas quedan EN PROCESO hasta confirmar autorización SRI.\n\n'+detail);
+      await loadBilling();await refreshPendingBadges();
+    }catch(e){alert(e.message||'No se pudo completar la emisión masiva.')}
+  };
+})();"""
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V473_HOTFIX_JS
+
+V474_CAPTURE_FIX_JS = r""";(()=>{
+  if(window.__v474CaptureFix)return;
+  window.__v474CaptureFix=true;
+  let billingBusy=false, deleteBusy=false;
+
+  async function req(url, options={}){
+    const opts={credentials:'same-origin',...options};
+    if(options.body && !opts.headers)opts.headers={'Content-Type':'application/json'};
+    const r=await fetch(url,opts);
+    let data={};
+    try{data=await r.json()}catch(_e){}
+    if(!r.ok)throw new Error(data?.detail||data?.message||`Error HTTP ${r.status}`);
+    return data;
+  }
+  function notice(msg,title='Recepción'){
+    if(typeof window.rpNotice==='function')window.rpNotice(String(msg||''),title);
+    else window.alert(String(msg||''));
+  }
+  async function ask(msg,title){
+    if(typeof window.rpConfirm==='function')return !!(await window.rpConfirm(msg,title));
+    return window.confirm(msg);
+  }
+
+  async function emitAll(btn){
+    if(billingBusy)return;
+    billingBusy=true;
+    const old=btn?.textContent;
+    try{
+      if(btn){btn.disabled=true;btn.textContent='Revisando…'}
+      const pre=await req('/api/billing/azur/batch-preview');
+      const c=pre.counts||{}, ready=Number(c.ready||0), skipped=Number(c.skipped||0);
+      if(!ready){notice(`No hay facturas completas listas para emitir.\n\nOmitidas: ${skipped}`,'Facturación');return}
+      const text=`¿Emitir ${ready} factura${ready===1?'':'s'} aprobada${ready===1?'':'s'} en AZUR?\n\nSe enviarán una por una para evitar duplicados. Las enviadas quedarán EN PROCESO hasta consultar la autorización del SRI.`;
+      if(!(await ask(text,'Confirmar emisión en AZUR')))return;
+      if(btn)btn.textContent='Enviando…';
+      const result=await req('/api/billing/azur/emit-all-pending',{method:'POST',body:'{}',headers:{'Content-Type':'application/json'}});
+      const r=result.counts||{};
+      let detail=`Enviadas a AZUR: ${r.sent??r.emitted??0}\nOmitidas: ${r.skipped||0}\nFallidas: ${r.failed||0}`;
+      const failed=(result.failed||[]).slice(0,5);
+      if(failed.length)detail+='\n\nFallidas:\n'+failed.map(x=>`• ${x.nombre||'Paciente'}: ${x.reason}`).join('\n');
+      notice('Lote procesado. Las enviadas quedan EN PROCESO hasta confirmar autorización SRI.\n\n'+detail,'AZUR');
+      try{if(typeof window.loadBilling==='function')await window.loadBilling()}catch(_e){}
+      try{if(typeof window.refreshPendingBadges==='function')await window.refreshPendingBadges()}catch(_e){}
+    }catch(e){notice(e?.message||'No se pudo completar la emisión masiva.','Error de AZUR')}
+    finally{billingBusy=false;if(btn){btn.disabled=false;btn.textContent=old||'Emitir todas'}}
+  }
+
+  async function removeAppointment(btn, kind, id){
+    if(deleteBusy)return;
+    deleteBusy=true;
+    try{
+      if(!(await ask('¿Eliminar esta cita y liberar el horario? La ficha del paciente no se borrará.','Eliminar cita')))return;
+      if(btn)btn.disabled=true;
+      const url=kind==='staged'?`/api/agenda/confirmafy-staged/${id}`:`/api/agenda/appointments/${id}`;
+      await req(url,{method:'DELETE'});
+      try{if(typeof window.closeModal==='function')window.closeModal()}catch(_e){}
+      try{
+        if(typeof window.loadAgendaWeek==='function')await window.loadAgendaWeek();
+        else if(typeof window.loadAgenda==='function')await window.loadAgenda();
+        else location.reload();
+      }catch(_e){location.reload()}
+    }catch(e){notice(e?.message||'No se pudo eliminar la cita.','Agenda')}
+    finally{deleteBusy=false;if(btn)btn.disabled=false}
+  }
+
+  document.addEventListener('click',e=>{
+    const btn=e.target?.closest?.('button');
+    if(!btn)return;
+    const label=String(btn.textContent||'').replace(/\s+/g,' ').trim();
+    if(/emitir\s+todas/i.test(label)){
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      void emitAll(btn);return;
+    }
+    if(/^eliminar cita$/i.test(label)){
+      const onclick=String(btn.getAttribute('onclick')||'');
+      let m=onclick.match(/deleteAgendaAppointment\((\d+)\)/i), kind='appointment';
+      if(!m){m=onclick.match(/deleteUnlinkedAppointment\((\d+)\)/i);kind='staged'}
+      if(!m)return;
+      e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+      void removeAppointment(btn,kind,Number(m[1]));
+    }
+  },true);
+})();"""
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V474_CAPTURE_FIX_JS
+
+V475_BILLING_CSS = r"""
+/* v4.3.75 — Facturación simplificada */
+.v475-hidden{display:none!important}
+.v475-sri-compact{background:transparent!important;border:0!important;border-top:1px solid #e5ebf2!important;border-radius:0!important;padding:10px 0 2px!important;margin:8px 0 0!important;box-shadow:none!important}
+.v475-sri-line{display:flex;align-items:center;gap:8px;font-size:12px;color:#52647a;line-height:1.3}
+.v475-sri-chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;padding:3px 7px;border-radius:999px;background:#eef3f8;color:#50657e;font-size:9px;font-weight:900;letter-spacing:.06em}
+.v475-sri-line strong{font-size:12px;color:#344960;font-weight:800}
+.v475-sri-compact.authorized .v475-sri-chip{background:#e7f6ec;color:#237045}
+.v475-sri-compact.authorized .v475-sri-line strong{color:#286849}
+.v475-sri-compact.process .v475-sri-chip{background:#eef4ff;color:#456b9c}
+.v475-sri-compact.rejected .v475-sri-chip{background:#fff0ef;color:#a04a45}
+.v475-action-button{font-weight:800!important}
+"""
+V475_BILLING_JS = r""";(()=>{
+  if(window.__v475BillingUi)return;
+  window.__v475BillingUi=true;
+  const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  let busy=false;
+
+  function exactElements(text){
+    const wanted=norm(text);
+    return [...document.querySelectorAll('span,b,strong,label,small,option,button,h2,h3,p')].filter(el=>norm(el.textContent)===wanted);
+  }
+  function cardFor(el){
+    return el?.closest?.('[class*="stat"],[class*="summary"],[class*="metric"],[class*="counter"],.card') || el?.parentElement?.parentElement || el?.parentElement;
+  }
+  function simplifyMetrics(){
+    for(const el of exactElements('Pendientes')) el.textContent='Por emitir';
+    for(const el of exactElements('Aprobadas')){
+      const card=cardFor(el); if(card)card.classList.add('v475-hidden'); else el.classList.add('v475-hidden');
+    }
+  }
+  function simplifySelects(){
+    for(const sel of document.querySelectorAll('select')){
+      const opts=[...sel.options], labels=opts.map(o=>norm(o.textContent));
+      if(!labels.some(x=>x==='emitidas') || !labels.some(x=>x==='pendientes'))continue;
+      for(const o of opts){
+        const t=norm(o.textContent);
+        if(t==='pendientes')o.textContent='Por emitir';
+        if(t==='aprobadas')o.remove();
+      }
+      if(String(sel.value||'').toUpperCase()==='APROBADA'){
+        sel.value='PENDIENTE';
+        setTimeout(()=>sel.dispatchEvent(new Event('change',{bubbles:true})),0);
+      }
+    }
+  }
+  function simplifyActions(){
+    for(const btn of document.querySelectorAll('button')){
+      const t=norm(btn.textContent);
+      if(t==='aprobar' || t==='aprobar factura' || t==='confirmar aprobacion' || t==='confirmar aprobación'){
+        btn.textContent='Revisar y emitir';btn.classList.add('v475-action-button');
+      }
+      if(t.includes('aprobar todas') || t.includes('emitir todas') || t==='volver a pendiente')btn.classList.add('v475-hidden');
+    }
+    for(const el of [...document.querySelectorAll('span,b,strong,small')]){
+      const t=norm(el.textContent);
+      if(t==='pendiente' || t==='aprobada')el.textContent='POR EMITIR';
+    }
+  }
+  function compactSri(){
+    for(const label of [...document.querySelectorAll('b,strong,span')]){
+      if(norm(label.textContent)!=='estado azur / sri')continue;
+      let box=label.parentElement;
+      if(!box)continue;
+      if(box.parentElement && /actualizar estado|consulta nuevamente|autorizada por sri|en proceso|rechaz/i.test(norm(box.parentElement.textContent)))box=box.parentElement;
+      if(box.dataset.v475Sri==='1')continue;
+      const txt=norm(box.textContent);
+      let state='Estado registrado', cls='process';
+      if(txt.includes('autorizada')){state='Autorizada por SRI';cls='authorized'}
+      else if(txt.includes('rechaz')){state='Rechazada por SRI';cls='rejected'}
+      else if(txt.includes('proceso')){state='En proceso en SRI';cls='process'}
+      else if(txt.includes('devuelta')){state='Devuelta por SRI';cls='rejected'}
+      box.dataset.v475Sri='1';
+      box.classList.add('v475-sri-compact',cls);
+      box.innerHTML=`<div class="v475-sri-line"><span class="v475-sri-chip">SRI</span><strong>${state}</strong></div>`;
+    }
+  }
+  function copyText(){
+    for(const p of [...document.querySelectorAll('p')]){
+      const t=norm(p.textContent);
+      if(t==='revisa, aprueba y emite directamente en azur.')p.textContent='Revisa los datos y emite directamente en AZUR.';
+    }
+  }
+  function apply(){if(busy)return;busy=true;try{copyText();simplifySelects();simplifyMetrics();simplifyActions();compactSri()}finally{busy=false}}
+
+  // El endpoint /api/billing/approve ahora realiza toda la operación. Solo
+  // adaptamos mensajes viejos de la interfaz para que no diga "aprobada".
+  const oldNotice=window.rpNotice;
+  if(typeof oldNotice==='function')window.rpNotice=function(msg,title){
+    let text=String(msg||'');
+    if(/factura.+aprob/i.test(text))text='Factura revisada y enviada a AZUR.';
+    return oldNotice.call(this,text,title);
+  };
+
+  const observer=new MutationObserver(()=>queueMicrotask(apply));
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
+  setTimeout(apply,250);setTimeout(apply,900);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V475_BILLING_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V475_BILLING_JS
+
+V476_CSS = r"""#facturacion .billing-filters{display:none!important}#facturacion .billing-title-actions button:not(.external-billing-link){display:none!important}#facturacion .billing-summary{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;margin:15px 0 18px!important}#facturacion .billing-summary>button{min-height:70px!important;border:1px solid #d7e0eb!important;border-radius:15px!important;background:#fff!important;padding:12px 16px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;text-align:left!important;color:#30435b!important}#facturacion .billing-summary>button.active{border-color:#77a1d0!important;background:#edf5ff!important;color:#244f82!important}#facturacion .billing-summary>button b{font-size:24px!important}#facturacion .billing-summary>button span{font-size:13px!important;font-weight:850!important}.v476-sri{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid #e4eaf1;margin-top:10px;padding-top:9px;font-size:12px}.v476-sri i{font-style:normal;border-radius:999px;padding:3px 8px;background:#eef3f8;color:#50657e;font-size:9px;font-weight:900}.v476-sri.ok i{background:#e7f6ec;color:#237045}.v476-sri.ok b{color:#286849}.v476-sri.wait i{background:#eef4ff;color:#456b9c}.v476-sri.wait b{color:#456b9c}.v476-sri.bad i{background:#fff0ef;color:#a04a45}.v476-sri.bad b{color:#93443f}@media(max-width:760px){#facturacion .billing-summary{grid-template-columns:1fr!important}}"""
+V476_JS = r""";(()=>{if(window.__v476)return;window.__v476=true;const n=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(),e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function az(g){return(g.items||[]).map(x=>x.azur).find(Boolean)||null}function sri(g){const a=az(g);if(!a)return'';const s=String(a.estado||'').toUpperCase();let t='En proceso en SRI',c='wait';if(s==='AUTORIZADA'){t='Autorizada por SRI';c='ok'}else if(s==='RECHAZADA'||s==='DEVUELTA'){t=s==='RECHAZADA'?'Rechazada por SRI':'Devuelta por SRI';c='bad'}return`<div class="v476-sri ${c}"><i>SRI</i><b>${e(t)}</b></div>`}
+window.billingCardHtml=function(g){const view=String(document.querySelector('#bEstado')?.value||'PENDIENTE').toUpperCase(),st=billingGroupStatus(g),miss=billingMissingFields(g.patient),total=billingTotal(g),a=billingRecipientDraft(g.patient.id,g.fecha),z=az(g),invoice=billingInvoiceNumber(g)||String(z?.numero_factura||'');let actions='';const other=`<button onclick="openBillingRecipientEditor(${g.patient.id},'${g.fecha}')">👤 ${a?.alternate?'Editar datos de factura':'Facturar con otros datos'}</button>`;if(view==='EMITIDA'){actions=`<button onclick="copyBillingData(${g.patient.id},'${g.fecha}')">📋 Ver datos de factura</button>`;if(z&&['EN_PROCESO','CONSULTADA'].includes(String(z.estado||'').toUpperCase()))actions+=`<button onclick="checkAzurInvoiceStatus(${g.patient.id},'${g.fecha}')">↻ Consultar SRI</button>`}else{const emit=`<button class="primary billing-approve" onclick="approveBilling(${g.patient.id},'${g.fecha}')">✓ Revisar y emitir</button>`;actions=a?.alternate?other+emit:(miss.length?`<button class="complete-patient-list-btn" onclick="editPatientFromBilling(${g.patient.id})">✎ Completar datos</button>${other}`:other+emit)}const warn=view!=='EMITIDA'&&miss.length&&!a?.alternate?`<div class="billing-warning">⚠ Falta ${e(miss.join(' y '))} para emitir con los datos del paciente. También puedes facturar con otros datos.</div>`:'',num=invoice?`<div class="billing-invoice-number"><span>Factura</span><b>${e(invoice)}</b></div>`:'',badge=view==='EMITIDA'?'EMITIDA':'POR EMITIR',cls=view==='EMITIDA'?'emitida':'pendiente';return`<article class="billing-card ${cls}"><div class="billing-card-head"><div><div class="billing-patient-name">${e(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${e(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${e(g.patient.correo||'Sin correo')}</span><span><b>Fecha:</b> ${fmtDate(g.fecha)}</span></div></div><span class="billing-status ${cls}">${badge}</span></div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div>${sri(g)}<div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${num}<div class="billing-actions">${actions}</div></div></article>`};
+function clean(){const s=document.querySelector('#facturacion');if(!s)return;s.querySelector('.billing-filters')?.setAttribute('hidden','');s.querySelectorAll('.billing-title-actions button:not(.external-billing-link)').forEach(b=>b.style.display='none');const p=s.querySelector('.billing-title-row p.muted');if(p)p.textContent='Revisa los datos y emite directamente en AZUR.'}
+function tabs(){const h=document.querySelector('#billingSummary');if(!h)return;const bs=[...h.querySelectorAll('button')],pend=bs.find(b=>n(b.textContent).includes('pendiente')||n(b.textContent).includes('por emitir')),app=bs.find(b=>n(b.textContent).includes('aprobada')),emit=bs.find(b=>n(b.textContent).includes('emitida'));if(pend){pend.querySelector('span')&&(pend.querySelector('span').textContent='Por emitir');pend.classList.toggle('active',String(document.querySelector('#bEstado')?.value||'PENDIENTE').toUpperCase()!=='EMITIDA')}if(app)app.remove();if(emit)emit.classList.toggle('active',String(document.querySelector('#bEstado')?.value||'').toUpperCase()==='EMITIDA')}
+const oldLoad=window.loadBilling;window.loadBilling=async function(){await oldLoad();clean();tabs()};const oldSet=window.setBillingStatus;window.setBillingStatus=async function(s){s=String(s||'PENDIENTE').toUpperCase();if(s==='APROBADA')s='PENDIENTE';if(s==='EMITIDA'){try{await api('/api/billing/azur/check-all-status',{method:'POST',body:'{}'})}catch(_e){}}await oldSet(s);clean();tabs()};window.approveBilling=async function(id,f){const d=billingRecipientDraft(id,f),who=d?.alternate?`\n\nLa factura se emitirá a: ${d.nombre} (${billingRecipientKind(d.identificacion)} ${d.identificacion})`:'';const q='¿Revisar y emitir esta factura en AZUR?'+who+'\n\nAl aceptar se enviará el comprobante; no habrá un paso de aprobación separado.',ok=typeof window.rpConfirm==='function'?await window.rpConfirm(q,'Revisar y emitir'):window.confirm(q);if(!ok)return;try{await singleFlightMutation(`billing:approve:${id}:${f}`,async()=>{await api('/api/billing/approve',{method:'POST',body:JSON.stringify({patient_id:id,fecha:f,...billingRecipientPayload(id,f)})});await window.loadBilling();refreshPendingBadges()},'Emitiendo en AZUR…')}catch(x){alert(x.message)}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',clean,{once:true});else clean();})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V476_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V476_JS
+
+V477_ATTENTION_CSS = r"""
+/* v4.3.77 — Remaster de Nueva atención */
+.modalbox.modalbox-wide.v477-attention-modalbox{width:min(790px,94vw)!important;max-height:90vh!important;padding:21px 23px 20px!important;border-radius:18px!important}
+.v477-attention-remaster{display:grid;gap:12px}
+.v477-attention-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-right:42px}
+.v477-attention-top .modal-form-heading{padding-right:0!important;margin:0!important}
+.v477-attention-top .modal-form-heading h2{font-size:22px!important;letter-spacing:-.015em}
+.v477-attention-top .modal-form-heading p{margin-top:4px!important;font-size:11px!important}
+.v477-new-patient-btn{flex:0 0 auto;min-height:39px;padding:9px 13px!important;border-radius:11px!important;font-size:11px!important;font-weight:850!important;white-space:nowrap}
+.v477-attention-remaster .attention-start-search{margin:0!important;gap:4px!important}
+.v477-attention-remaster .attention-start-search>label{font-size:11px!important;color:#53647b!important}
+.v477-attention-remaster .attention-start-search .search{height:46px!important;padding:10px 13px!important;border-radius:12px!important;background:#fff!important;font-size:14px!important}
+.v477-attention-remaster .attention-start-search>small{display:none!important}
+.v477-attention-remaster .attention-week-block{margin:0!important;padding:0!important;border:0!important;background:transparent!important}
+.v477-today-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 13px;margin:1px 0 7px;border:1px solid #dfe7f1;border-radius:12px;background:#f7f9fc}
+.v477-today-title{display:grid;gap:2px;min-width:0}
+.v477-today-kicker{font-size:8px;font-weight:900;letter-spacing:.12em;color:#6d7d92;text-transform:uppercase}
+.v477-today-title b{font-size:13px;color:#1c314f;text-transform:capitalize}
+.v477-today-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.v477-today-meta strong{font-size:10px;color:#586c85;white-space:nowrap}
+.v477-today-meta .attention-week-conflict-note{font-size:8px;padding:3px 6px}
+.v477-attention-remaster .attention-week-calendar{display:block!important}
+.v477-attention-remaster .attention-week-day{border:1px solid #dce5ef!important;border-radius:13px!important;overflow:hidden!important;box-shadow:none!important;background:#fff!important}
+.v477-attention-remaster .attention-week-day>header{padding:8px 11px!important;background:#edf5ff!important;border-bottom:1px solid #dce8f6!important}
+.v477-attention-remaster .attention-week-day>header b{font-size:12px!important}
+.v477-attention-remaster .attention-week-day>header span{font-size:9px!important}
+.v477-attention-remaster .attention-week-day>header strong{min-width:27px!important;height:25px!important;border-radius:8px!important;font-size:10px!important}
+.v477-attention-remaster .attention-week-list{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;padding:8px!important;max-height:330px!important;overflow:auto!important}
+.v477-attention-remaster .attention-week-row{grid-template-columns:54px minmax(0,1fr)!important;min-height:49px!important;padding:8px 10px!important;border-radius:10px!important;border:1px solid #e3e9f1!important;background:#fff!important}
+.v477-attention-remaster .attention-week-row:hover,.v477-attention-remaster .attention-week-row:focus{background:#f2f7ff!important;border-color:#a9c6ec!important;box-shadow:0 0 0 2px #e2edfb!important}
+.v477-attention-remaster .attention-week-time{font-size:12px!important;color:#1d66a7!important}
+.v477-attention-remaster .attention-week-person b{font-size:11.5px!important;line-height:1.2!important;-webkit-line-clamp:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;display:block!important}
+.v477-attention-remaster .attention-week-person small{font-size:9px!important;color:#738196!important}
+.v477-attention-remaster .attention-week-row.confirmafy-unlinked{padding-right:10px!important;padding-bottom:8px!important}
+.v477-attention-remaster .attention-week-unlinked-badge{display:none!important}
+.v477-attention-remaster .attention-week-empty,.v477-attention-remaster .attention-week-loading{padding:22px 14px!important;border:1px dashed #d6e0eb;border-radius:12px;background:#fbfcfe;font-size:11px!important}
+.v477-no-clinic{display:grid;justify-items:center;gap:4px;padding:25px 15px!important}
+.v477-no-clinic b{font-size:13px;color:#314762}.v477-no-clinic span{font-size:10px;color:#77869a;text-align:center}
+.v477-attention-remaster .attention-results{margin-top:0!important;max-height:390px!important}
+@media(max-width:720px){.modalbox.modalbox-wide.v477-attention-modalbox{width:min(94vw,620px)!important;padding:18px!important}.v477-attention-top{padding-right:34px;align-items:stretch;flex-direction:column;gap:9px}.v477-new-patient-btn{align-self:flex-start}.v477-attention-remaster .attention-week-list{grid-template-columns:1fr!important;max-height:none!important}.v477-today-head{align-items:flex-start;flex-direction:column;gap:6px}.v477-today-meta{justify-content:flex-start}}
+"""
+V477_ATTENTION_JS = r""";(()=>{
+  if(window.__v477AttentionRemaster)return;
+  window.__v477AttentionRemaster=true;
+
+  const dayName=(d)=>{
+    try{return new Intl.DateTimeFormat('es-EC',{weekday:'long',day:'2-digit',month:'long'}).format(d)}catch(_e){return 'Hoy'}
+  };
+  const applyShell=()=>{
+    const modal=document.querySelector('#modal .modalbox');
+    if(modal&&modal.querySelector('.v477-attention-remaster'))modal.classList.add('v477-attention-modalbox');
+  };
+
+  window.renderAttentionWeek=function(d={}){
+    const box=$('#attentionWeekCalendar');if(!box)return;
+    const days=d.days||[],today=toISO(new Date());
+    const day=days.find(x=>String(x?.date||'').slice(0,10)===today)||null;
+    const title=$('#v477TodayTitle'),label=$('#attentionWeekLabel');
+    if(title)title.textContent=day?.label?`${day.label} · ${fmtDate(day.date)}`:dayName(new Date());
+    if(label)label.textContent=day?`${(day.appointments||[]).length} cita${(day.appointments||[]).length===1?'':'s'}`:'Sin consulta';
+    const conflict=$('#attentionWeekConflict');
+    if(conflict){
+      const n=day?(day.appointments||[]).filter(x=>x?.conflict).length:0;
+      conflict.textContent=n?`⚠ ${n} duplicada${n===1?'':'s'}`:'';
+      conflict.classList.toggle('hidden',n<=0);
+    }
+    if(!day){
+      box.innerHTML='<div class="attention-week-empty wide v477-no-clinic"><b>Hoy no hay consulta programada</b><span>Puedes buscar un paciente arriba para registrar una atención manualmente.</span></div>';
+      return;
+    }
+    const rows=(day.appointments||[]).map(attentionWeekRow).join('')||'<div class="attention-week-empty">No hay pacientes agendados para hoy.</div>';
+    box.innerHTML=`<article class="attention-week-day today v477-today-card"><header><div><b>Pacientes de hoy</b><span>${fmtDate(day.date)}</span></div><strong>${(day.appointments||[]).length}</strong></header><div class="attention-week-list">${rows}</div></article>`;
+  };
+
+  window.newAttention=async function(){
+    currentPatientSource='general';
+    attentionSearchSeq++;
+    attentionWeekAnchor=toISO(new Date());
+    const todayText=dayName(new Date());
+    openModal(`<div class="new-attention-start-modal v477-attention-remaster"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona al paciente de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div class="v477-today-head"><div class="v477-today-title"><span class="v477-today-kicker">Agenda de hoy</span><b id="v477TodayTitle">${esc(todayText)}</b></div><div class="v477-today-meta"><strong id="attentionWeekLabel"></strong><span id="attentionWeekConflict" class="attention-week-conflict-note hidden"></span></div></div><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
+    applyShell();
+    loadAttentionWeek(false,attentionWeekAnchor);
+    setTimeout(()=>$('#aSearch')?.focus(),0);
+  };
+
+  const oldClose=window.closeModal;
+  if(typeof oldClose==='function')window.closeModal=function(){
+    document.querySelector('#modal .modalbox')?.classList.remove('v477-attention-modalbox');
+    return oldClose.apply(this,arguments);
+  };
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V477_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V477_ATTENTION_JS
+
+V478_REMIX_CSS = r"""
+/* v4.3.78 — Inicio compacto + Agenda mañana/tarde */
+#inicio .home-title-row{align-items:center!important;margin:0 0 7px!important;gap:16px!important}
+#inicio .page-heading{gap:1px!important}
+#inicio .page-eyebrow{font-size:8px!important;letter-spacing:.11em!important}
+#inicio .page-heading h1{font-size:25px!important;line-height:1.05!important;margin:1px 0!important}
+#inicio .page-heading p{font-size:10px!important;margin:2px 0 0!important}
+#inicio .new-attention-main{min-height:43px!important;padding:10px 20px!important;border-radius:12px!important;font-size:12px!important}
+#inicio .home-week-nav{justify-content:flex-end!important;margin:0 0 6px!important;gap:5px!important}
+#inicio .tiny-week-label{font-size:9px!important;padding:4px 8px!important}
+#inicio .tiny-week-btn{min-width:29px!important;min-height:28px!important;padding:4px 7px!important;font-size:9px!important;border-radius:9px!important}
+#inicio .week-cards{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(190px,.85fr)!important;gap:8px!important;margin:0 0 8px!important}
+#inicio .week-card.v478-week-chip{min-height:58px!important;padding:9px 11px!important;border-radius:12px!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:'day count' 'meta total'!important;gap:2px 9px!important;align-items:center!important;box-shadow:none!important;transform:none!important}
+#inicio .v478-week-chip .week-day{grid-area:day;font-size:12px!important;font-weight:900!important;line-height:1.1!important}
+#inicio .v478-week-chip .v478-week-count{grid-area:count;font-size:20px!important;line-height:1!important;color:#1f5fbf!important;font-weight:900!important}
+#inicio .v478-week-chip .v478-week-meta{grid-area:meta;font-size:8.5px!important;color:#748297!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#inicio .v478-week-chip .v478-week-total{grid-area:total;font-size:10px!important;font-weight:850!important;color:#304760!important;white-space:nowrap!important}
+#inicio .week-card.v478-week-chip.active{background:#edf5ff!important;border-color:#75a2d7!important;box-shadow:inset 0 0 0 1px #bad2ec!important}
+#inicio .week-card.v478-week-chip.active:after{left:11px!important;right:11px!important;height:2px!important}
+#inicio .v478-week-total-card{min-height:58px;border:1px solid #dbe4ee;border-radius:12px;background:#f7f9fc;padding:9px 12px;display:grid;grid-template-columns:1fr auto;grid-template-areas:'kicker money' 'patients money';gap:2px 10px;align-items:center}
+#inicio .v478-week-total-card span{grid-area:kicker;font-size:8px;font-weight:900;letter-spacing:.11em;color:#738197}
+#inicio .v478-week-total-card strong{grid-area:patients;font-size:11px;color:#293e5b}
+#inicio .v478-week-total-card b{grid-area:money;font-size:15px;color:#214f84;white-space:nowrap}
+#inicio #weekSummary{display:none!important}
+#inicio .selected-day-title{margin:2px 0 6px!important;padding:0!important}
+#inicio .v478-day-head{width:100%;display:flex;align-items:end;justify-content:space-between;gap:12px}
+#inicio .v478-day-head-main{display:grid;gap:1px}
+#inicio .v478-day-kicker{font-size:8px;font-weight:900;letter-spacing:.1em;color:#7b8798;text-transform:uppercase}
+#inicio .v478-day-head h2{font-size:17px!important;line-height:1.1!important;margin:0!important}
+#inicio .v478-day-stats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#inicio .v478-day-stats span,#inicio .v478-day-stats b{border:1px solid #dfe6ef;background:#f8fafc;border-radius:999px;padding:5px 8px;font-size:9px;color:#53667f;white-space:nowrap}
+#inicio .v478-day-stats b{color:#214f84;background:#edf5ff;border-color:#d3e2f4}
+#inicio #todayTable{overflow:visible!important;border-radius:13px!important;box-shadow:none!important}
+#inicio .home-patient-table{font-size:12px!important}
+#inicio .home-patient-table thead th{position:sticky!important;top:0;z-index:4;background:#edf3f9!important;padding:7px 8px!important;font-size:8.5px!important;letter-spacing:.055em!important}
+#inicio .home-patient-table td{padding:6px 8px!important;vertical-align:middle!important}
+#inicio .home-patient-table th:nth-child(1){width:5%!important}#inicio .home-patient-table th:nth-child(2){width:42%!important}#inicio .home-patient-table th:nth-child(3){width:18%!important}#inicio .home-patient-table th:nth-child(4){width:11%!important}#inicio .home-patient-table th:nth-child(5){width:24%!important}
+#inicio .row-number{font-size:11px!important}.v478-home-table .patient-name-line>a{font-size:12px!important;line-height:1.15!important}.v478-home-table .new-patient-badge{font-size:7px!important;padding:2px 5px!important}.v478-home-table .service-badge{font-size:8.5px!important;padding:4px 7px!important}.v478-home-table .money-pill{font-size:9px!important;min-width:58px!important;padding:4px 6px!important}
+.v478-home-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;white-space:nowrap}.v478-home-actions>button,.v478-more-summary{border:1px solid #dbe3ed!important;background:#fff!important;color:#425774!important;border-radius:8px!important;padding:5px 7px!important;font-size:8px!important;font-weight:800!important;min-height:27px!important;line-height:1!important}.v478-home-actions>button:hover,.v478-more-summary:hover{background:#f3f7fb!important}.v478-home-more{position:relative;display:inline-block}.v478-home-more>summary{list-style:none;cursor:pointer}.v478-home-more>summary::-webkit-details-marker{display:none}.v478-home-more-menu{display:none;position:absolute;right:0;top:31px;z-index:20;min-width:132px;padding:5px;border:1px solid #dbe3ed;border-radius:9px;background:#fff;box-shadow:0 8px 24px rgba(35,55,80,.15)}.v478-home-more[open] .v478-home-more-menu{display:block}.v478-home-more-menu button{width:100%;border:0;background:#fff4f3;color:#9a3f38;border-radius:7px;padding:7px 8px;font-size:8.5px;font-weight:850;text-align:left}.v478-home-more-menu button:hover{background:#ffe9e7}
+#inicio .sub-visit-row td{padding-top:4px!important;padding-bottom:4px!important}.v478-home-table .sub-visit-label{font-size:9px!important}
+
+/* Nueva atención — AGENDA grande y separación por jornada */
+.modalbox.modalbox-wide.v477-attention-modalbox{width:min(820px,94vw)!important;padding:19px 21px 18px!important}
+.v478-attention .v477-attention-top{margin-bottom:0!important}.v478-attention .v477-attention-top .modal-form-heading h2{font-size:21px!important}.v478-attention .attention-start-search .search{height:44px!important}
+.v478-agenda-shell{border:1px solid #dce5ef;border-radius:14px;background:#fff;overflow:hidden}
+.v478-agenda-brand{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border-bottom:1px solid #dfe8f2;background:linear-gradient(90deg,#edf5ff,#f9fbfe)}
+.v478-agenda-title{display:flex;align-items:baseline;gap:9px;min-width:0}.v478-agenda-title span{font-size:8px;font-weight:900;letter-spacing:.11em;color:#708098;white-space:nowrap}.v478-agenda-title strong{font-size:24px;line-height:1;color:#1d4f86;letter-spacing:-.025em}.v478-agenda-date{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.v478-agenda-date b{font-size:10px;color:#344b69}.v478-agenda-date span{border:1px solid #cedced;background:#fff;border-radius:999px;padding:4px 7px;font-size:8.5px;font-weight:850;color:#536a86;white-space:nowrap}
+.v478-shifts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.v478-shift{min-width:0}.v478-shift+ .v478-shift{border-left:1px solid #e2e9f1}.v478-shift-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fafbfd;border-bottom:1px solid #e7ecf2}.v478-shift-head b{font-size:10px;letter-spacing:.09em;color:#475d78}.v478-shift-head span{font-size:8px;font-weight:850;color:#74849a;background:#eef2f7;border-radius:999px;padding:3px 6px}.v478-shift-list{display:grid;gap:5px;padding:7px;align-content:start}.v478-shift .attention-week-row{grid-template-columns:48px minmax(0,1fr)!important;min-height:46px!important;padding:7px 9px!important;margin:0!important;border-radius:9px!important}.v478-shift .attention-week-time{font-size:11px!important}.v478-shift .attention-week-person b{font-size:10.5px!important}.v478-shift .attention-week-person small{font-size:8.5px!important}.v478-shift-empty{padding:18px 10px;text-align:center;font-size:9px;color:#8995a5}.v478-agenda-conflict{margin-left:6px;color:#995b16!important;background:#fff5e8!important;border-color:#f1d3a9!important}
+@media(max-width:900px){#inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.v478-home-actions{flex-wrap:wrap}.v478-shifts{grid-template-columns:1fr}.v478-shift+.v478-shift{border-left:0;border-top:1px solid #e2e9f1}}
+@media(max-width:620px){#inicio .week-cards{grid-template-columns:1fr!important}#inicio .v478-day-head{align-items:flex-start;flex-direction:column}.v478-agenda-brand{align-items:flex-start;flex-direction:column}.v478-agenda-date{justify-content:flex-start}.v478-agenda-title strong{font-size:21px}.v478-home-actions>button,.v478-more-summary{padding:5px 6px!important}}
+"""
+V478_REMIX_JS = r""";(()=>{
+  if(window.__v478Remix)return;window.__v478Remix=true;
+  const eh=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  window.renderWeekCards=function(days){
+    const totalPatients=(days||[]).reduce((s,d)=>s+Number(weeklyData[d.iso]?.count||0),0);
+    const totalMoney=(days||[]).reduce((s,d)=>s+Number(weeklyData[d.iso]?.total||0),0);
+    const box=$('#weekCards');if(!box)return;
+    box.innerHTML=(days||[]).map(d=>{const info=weeklyData[d.iso]||{count:0,total:0};return `<button class="week-card v478-week-chip ${selectedHomeDate===d.iso?'active':''}" data-date="${d.iso}" onclick="selectHomeDay('${d.iso}')"><span class="week-day">${eh(d.label)}</span><strong class="v478-week-count">${Number(info.count||0)}</strong><span class="v478-week-meta">${fmtDate(d.iso)} · ${Number(info.count||0)===1?'paciente':'pacientes'}</span><span class="v478-week-total">${money(info.total||0)}</span></button>`}).join('')+`<div class="v478-week-total-card"><span>TOTAL SEMANA</span><strong>${totalPatients} ${totalPatients===1?'paciente':'pacientes'}</strong><b>${money(totalMoney)}</b></div>`;
+    const old=$('#weekSummary');if(old)old.innerHTML='';
+  };
+
+  function homeActionIcon(kind){
+    if(kind==='receipt')return '<svg class="v488-home-action-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"></path><path d="M9 8h6M9 12h6M9 16h4"></path></svg>';
+    if(kind==='print')return '<svg class="v488-home-action-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5"></path><rect x="5" y="14" width="14" height="7" rx="1.5"></rect><path d="M5 16H3V9h18v7h-2"></path><circle cx="18" cy="11.5" r=".7"></circle></svg>';
+    return '<svg class="v488-home-action-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"></path></svg>';
+  }
+  function homeMore(v){const id=Number(v?.id||0),fecha=String(v?.fecha||selectedHomeDate||'').slice(0,10);return `<button class="v486-home-delete" type="button" onclick="deleteVisitFromHome(${id},'${eh(fecha)}')">${homeActionIcon('trash')}<span>Borrar</span></button>`}
+  function homeActions(g,fecha,primary){const hasConsultation=(g.visits||[]).some(v=>!String(v.procedimiento||'').trim());const pid=Number(g.patient?.id||0);return `<div class="v478-home-actions">${hasConsultation?`<button type="button" onclick="viewReceiptFromHome(${pid},'${eh(fecha)}')">${homeActionIcon('receipt')}<span>Ver recibo</span></button><button type="button" onclick="reprintReceiptFromHome(${pid},'${eh(fecha)}')">${homeActionIcon('print')}<span>Reimprimir</span></button>`:''}${homeMore(primary)}</div>`}
+  function remasterHomeTable(rows){
+    if(!rows?.length)return '<div class="panel muted empty-state">No hay pacientes registrados en este día.</div>';
+    const groups=groupHomeVisits(rows);const head='<tr><th class="number-col">N.º</th><th>Paciente</th><th>Atención</th><th>Valor</th><th class="home-actions-col">Acciones</th></tr>';
+    const body=groups.map((g,index)=>{const consultations=g.visits.filter(v=>!String(v.procedimiento||'').trim()),proceduresOnly=g.visits.filter(v=>String(v.procedimiento||'').trim()),primary=consultations[0]||proceduresOnly[0],extras=consultations.length?[...consultations.slice(1),...proceduresOnly]:proceduresOnly.slice(1),num=groups.length-index,fecha=String(primary?.fecha||selectedHomeDate||'').slice(0,10),main=`<tr class="patient-main-row"><td class="row-number" rowspan="${1+extras.length}">${num}.</td><td class="patient-cell" rowspan="${1+extras.length}">${patientNameCell(primary,true,g.isNew)}</td><td>${serviceBadge(primary)}</td><td class="money-cell"><span class="money-pill">${money(primary.valor)}</span></td><td class="home-action-cell">${homeActions(g,fecha,primary)}</td></tr>`,sub=extras.map(v=>`<tr class="sub-visit-row"><td><span class="sub-visit-label">↳</span> ${serviceBadge(v)}</td><td class="money-cell sub-money"><span class="money-pill subtle">${money(v.valor)}</span></td><td class="home-action-cell sub-actions"><div class="v478-home-actions">${homeMore(v)}</div></td></tr>`).join('');return main+sub}).join('');
+    return `<table class="home-patient-table v478-home-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  window.renderHomeDayPayload=function(iso,d){
+    if(!d)return;const label=d.label||weeklyData[iso]?.label||'Día',count=Number(d.count||0),today=toISO(new Date())===String(iso).slice(0,10),title=$('#selectedDayTitle');
+    if(title)title.innerHTML=`<div class="v478-day-head"><div class="v478-day-head-main"><span class="v478-day-kicker">${today?'HOY':'DÍA SELECCIONADO'}</span><h2>${eh(label)} ${fmtDate(iso)}</h2></div><div class="v478-day-stats"><span>${count} ${count===1?'paciente':'pacientes'}</span><b>${money(d.total||0)}</b></div></div>`;
+    const tableBox=$('#todayTable');if(tableBox){try{tableBox.innerHTML=remasterHomeTable(d.visits||[])}catch(err){console.error(err);tableBox.innerHTML='<div class="panel home-render-error">No se pudo dibujar este día.</div>'}tableBox.scrollLeft=0;tableBox.scrollTop=0}
+  };
+
+  function apptMinutes(row){const raw=String(row?.appointment?.hora||row?.staged?.hora||'00:00').slice(0,5),m=/^(\d{1,2}):(\d{2})$/.exec(raw);return m?Number(m[1])*60+Number(m[2]):0}
+  function shiftBlock(title,rows){return `<section class="v478-shift"><div class="v478-shift-head"><b>${title}</b><span>${rows.length} ${rows.length===1?'cita':'citas'}</span></div><div class="v478-shift-list">${rows.length?rows.map(attentionWeekRow).join(''):'<div class="v478-shift-empty">Sin citas en esta jornada.</div>'}</div></section>`}
+  window.renderAttentionWeek=function(d={}){
+    const box=$('#attentionWeekCalendar');if(!box)return;const today=toISO(new Date()),days=d.days||[],day=days.find(x=>String(x?.date||'').slice(0,10)===today)||null;
+    if(!day){box.innerHTML='<div class="attention-week-empty wide v477-no-clinic"><b>Hoy no hay consulta programada</b><span>Puedes buscar un paciente arriba para registrar una atención manualmente.</span></div>';return}
+    const rows=day.appointments||[],morning=rows.filter(x=>apptMinutes(x)<14*60),afternoon=rows.filter(x=>apptMinutes(x)>=14*60),conflicts=rows.filter(x=>x?.conflict).length;
+    box.innerHTML=`<div class="v478-agenda-shell"><div class="v478-agenda-brand"><div class="v478-agenda-title"><span>PACIENTES DE HOY</span><strong>AGENDA</strong></div><div class="v478-agenda-date"><b>${eh(day.label)} · ${fmtDate(day.date)}</b><span>${rows.length} ${rows.length===1?'cita':'citas'}</span>${conflicts?`<span class="v478-agenda-conflict">⚠ ${conflicts} duplicada${conflicts===1?'':'s'}</span>`:''}</div></div><div class="v478-shifts">${shiftBlock('MAÑANA',morning)}${shiftBlock('TARDE',afternoon)}</div></div>`;
+  };
+
+  window.newAttention=async function(){
+    currentPatientSource='general';attentionSearchSeq++;attentionWeekAnchor=toISO(new Date());
+    openModal(`<div class="new-attention-start-modal v477-attention-remaster v478-attention"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona un paciente de la agenda de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
+    requestAnimationFrame(()=>document.querySelector('#modal .modalbox')?.classList.add('v477-attention-modalbox'));
+    loadAttentionWeek(false,attentionWeekAnchor);setTimeout(()=>$('#aSearch')?.focus(),0);
+  };
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V478_REMIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V478_REMIX_JS
+
+V479_POLISH_CSS = r"""
+/* v4.3.79 — pulido Agenda + Facturación inteligente */
+.v478-agenda-brand{position:relative!important;padding:11px 14px 11px 17px!important;background:#eef6ff!important;border-bottom:1px solid #d7e6f6!important}
+.v478-agenda-brand:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:#4e86c5}
+.v478-agenda-title{gap:8px!important;align-items:center!important}
+.v478-agenda-title span{display:none!important}
+.v478-agenda-title strong{font-size:15px!important;line-height:1.15!important;color:#285f98!important;letter-spacing:.005em!important;font-weight:900!important}
+.v478-agenda-date b{font-size:10px!important;color:#405774!important}.v478-agenda-date span{background:#fff!important;border-color:#cbdced!important;color:#426383!important}
+.v478-shift-head{background:#fbfcfe!important}.v478-shift:first-child .v478-shift-head{box-shadow:inset 3px 0 0 #e4ad45}.v478-shift:last-child .v478-shift-head{box-shadow:inset 3px 0 0 #6c8fca}
+
+#facturacion .billing-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#facturacion .billing-summary.v479-no-reject{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#facturacion .billing-summary.v479-no-reject>button{width:100%!important;min-width:0!important}
+#facturacion .billing-summary>button.v479-rejected{border-color:#efc7c4!important;background:#fff8f7!important;color:#874743!important}
+#facturacion .billing-summary>button.v479-rejected b{color:#a24d47!important}
+@media(max-width:760px){#facturacion .billing-summary,#facturacion .billing-summary.v479-no-reject{grid-template-columns:1fr!important}}
+"""
+V479_POLISH_JS = r""";(()=>{
+ if(window.__v479Polish)return;window.__v479Polish=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function polishAgenda(){
+   const title=document.querySelector('.v478-agenda-title strong');
+   if(title)title.textContent='Agenda de hoy';
+ }
+ function billingSummary(){
+   const box=document.querySelector('#billingSummary');if(!box)return;
+   const buttons=[...box.querySelectorAll(':scope > button')];
+   const rejected=buttons.find(b=>norm(b.textContent).includes('rechaz'));
+   if(!rejected){box.classList.add('v479-no-reject');return}
+   rejected.classList.add('v479-rejected');
+   const numNode=rejected.querySelector('b,strong');
+   const raw=(numNode?.textContent||rejected.textContent||'').match(/\d+/);
+   const count=raw?Number(raw[0]):0;
+   rejected.style.display=count>0?'':'none';
+   box.classList.toggle('v479-no-reject',count<=0);
+ }
+ const oldRender=window.renderAttentionWeek;
+ if(typeof oldRender==='function')window.renderAttentionWeek=function(d){const r=oldRender.apply(this,arguments);polishAgenda();return r};
+ const oldLoad=window.loadBilling;
+ if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);billingSummary();return r};
+ const oldSet=window.setBillingStatus;
+ if(typeof oldSet==='function')window.setBillingStatus=async function(){const r=await oldSet.apply(this,arguments);billingSummary();return r};
+ function boot(){polishAgenda();billingSummary()}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,40),{once:true});else setTimeout(boot,40);
+ setTimeout(boot,400);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V479_POLISH_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V479_POLISH_JS
+
+V480_POLISH_CSS = r"""
+/* v4.3.80 — Inicio más legible + resumen semanal separado + rechazadas condicional */
+#inicio .week-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;margin-bottom:7px!important}
+#inicio .week-card.v478-week-chip{min-height:67px!important;padding:11px 13px!important}
+#inicio .v478-week-chip .week-day{font-size:14px!important;line-height:1.15!important}
+#inicio .v478-week-chip .v478-week-count{font-size:23px!important}
+#inicio .v478-week-chip .v478-week-meta{font-size:10px!important}
+#inicio .v478-week-chip .v478-week-total{font-size:11.5px!important}
+#inicio #weekSummary{display:flex!important;justify-content:flex-end!important;margin:0 0 10px!important;padding:0!important;background:transparent!important;border:0!important}
+#inicio .v480-week-summary{min-width:285px;display:grid;grid-template-columns:1fr auto;grid-template-areas:'label money' 'patients money';align-items:center;gap:2px 18px;padding:9px 13px;border:1px solid #d8e3ef;border-radius:11px;background:#f4f7fb;box-shadow:none}
+#inicio .v480-week-summary span{grid-area:label;font-size:9px;font-weight:900;letter-spacing:.1em;color:#6d7e94;text-transform:uppercase}
+#inicio .v480-week-summary strong{grid-area:patients;font-size:11.5px;color:#344b68}
+#inicio .v480-week-summary b{grid-area:money;font-size:17px;color:#214f84;white-space:nowrap}
+#inicio .v478-week-total-card{display:none!important}
+#inicio .v478-day-head h2{font-size:19px!important}
+#inicio .v478-day-kicker{font-size:9px!important}
+#inicio .v478-day-stats span,#inicio .v478-day-stats b{font-size:10px!important;padding:5px 9px!important}
+#inicio .home-patient-table{font-size:13px!important}
+#inicio .home-patient-table thead th{font-size:9.5px!important;padding:8px 9px!important}
+#inicio .home-patient-table td{padding:7px 9px!important}
+#inicio .row-number{font-size:12px!important}
+.v478-home-table .patient-name-line>a{font-size:13.5px!important;line-height:1.18!important}
+.v478-home-table .new-patient-badge{font-size:8px!important;padding:3px 6px!important}
+.v478-home-table .service-badge{font-size:9.5px!important;padding:4px 8px!important}
+.v478-home-table .money-pill{font-size:10px!important;min-width:62px!important;padding:5px 7px!important}
+.v478-home-actions>button,.v478-more-summary{font-size:9px!important;padding:6px 8px!important;min-height:29px!important}
+.v478-home-more-menu button{font-size:9px!important}
+.v478-home-table .sub-visit-label{font-size:10px!important}
+
+/* Rechazadas en cero: se elimina físicamente del layout, aunque cambie la etiqueta HTML. */
+#facturacion #billingSummary [data-v480-zero-rejected="1"]{display:none!important}
+#facturacion .billing-summary.v480-two-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#facturacion .billing-summary.v480-two-cards>*{min-width:0!important;width:100%!important}
+#facturacion .billing-summary.v480-three-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:760px){#facturacion .billing-summary.v480-two-cards,#facturacion .billing-summary.v480-three-cards{grid-template-columns:1fr!important}#inicio .week-cards{grid-template-columns:1fr!important}#inicio .v480-week-summary{width:100%;min-width:0}}
+"""
+V480_POLISH_JS = r""";(()=>{
+ if(window.__v480Polish)return;window.__v480Polish=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let billingGuard=false,observer=null;
+
+ window.renderWeekCards=function(days){
+   const data=days||[],totalPatients=data.reduce((s,d)=>s+Number(weeklyData[d.iso]?.count||0),0),totalMoney=data.reduce((s,d)=>s+Number(weeklyData[d.iso]?.total||0),0);
+   const box=$('#weekCards');if(!box)return;
+   box.innerHTML=data.map(d=>{const info=weeklyData[d.iso]||{count:0,total:0};return `<button class="week-card v478-week-chip ${selectedHomeDate===d.iso?'active':''}" data-date="${d.iso}" onclick="selectHomeDay('${d.iso}')"><span class="week-day">${esc(d.label)}</span><strong class="v478-week-count">${Number(info.count||0)}</strong><span class="v478-week-meta">${fmtDate(d.iso)} · ${Number(info.count||0)===1?'paciente':'pacientes'}</span><span class="v478-week-total">${money(info.total||0)}</span></button>`}).join('');
+   const summary=$('#weekSummary');if(summary)summary.innerHTML=`<div class="v480-week-summary"><span>Resumen semanal</span><strong>${totalPatients} ${totalPatients===1?'paciente':'pacientes'}</strong><b>${money(totalMoney)}</b></div>`;
+ };
+
+ function extractCount(el){
+   if(!el)return 0;
+   const candidates=[...el.querySelectorAll('b,strong,[class*="count"],[class*="number"],[class*="value"]'),el];
+   for(const node of candidates){const m=String(node?.textContent||'').trim().match(/(^|\s)(\d+)(\s|$)/);if(m)return Number(m[2]||0)}
+   const m=String(el.textContent||'').match(/\d+/);return m?Number(m[0]):0;
+ }
+ function polishBillingSummary(){
+   if(billingGuard)return;billingGuard=true;
+   try{
+     const box=document.querySelector('#billingSummary');if(!box)return;
+     const children=[...box.children];let rejected=null;
+     for(const el of children){if(norm(el.textContent).includes('rechaz')){rejected=el;break}}
+     let count=0;
+     if(rejected){count=extractCount(rejected);if(count<=0)rejected.setAttribute('data-v480-zero-rejected','1');else rejected.removeAttribute('data-v480-zero-rejected')}
+     const visible=children.filter(el=>el!==rejected||count>0);
+     box.classList.toggle('v480-two-cards',visible.length===2);
+     box.classList.toggle('v480-three-cards',visible.length>=3);
+     box.classList.toggle('v479-no-reject',!!rejected&&count<=0);
+   }finally{billingGuard=false}
+ }
+ function observeBilling(){
+   const box=document.querySelector('#billingSummary');if(!box||box.dataset.v480Observed==='1')return;
+   box.dataset.v480Observed='1';observer=new MutationObserver(()=>queueMicrotask(polishBillingSummary));observer.observe(box,{childList:true,subtree:true,characterData:true});polishBillingSummary();
+ }
+ const oldLoad=window.loadBilling;if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);observeBilling();polishBillingSummary();return r};
+ const oldSet=window.setBillingStatus;if(typeof oldSet==='function')window.setBillingStatus=async function(){const r=await oldSet.apply(this,arguments);observeBilling();polishBillingSummary();return r};
+ function boot(){observeBilling();polishBillingSummary()}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,40),{once:true});else setTimeout(boot,40);
+ setTimeout(boot,300);setTimeout(boot,1000);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V480_POLISH_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V480_POLISH_JS
+
+V481_PATIENT_CSS = r"""
+/* v4.3.81 — Remaster completo de Paciente nuevo */
+#modal .modalbox.v481-patient-modal{width:min(780px,94vw)!important;max-height:92vh!important;padding:20px 22px 18px!important;border-radius:18px!important;overflow:auto!important}
+.v481-patient-modal .v481-remastered-form{display:grid!important;gap:12px!important}
+.v481-patient-modal .modal-form-heading{margin-bottom:2px!important;padding-right:38px!important}
+.v481-patient-modal .modal-form-heading h2{font-size:23px!important;letter-spacing:-.015em!important;margin-bottom:3px!important}
+.v481-patient-modal .modal-form-heading p{font-size:10.5px!important;color:#6e7f94!important;margin:0!important}
+.v481-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:12px 13px;border:1px solid #dce5ef;border-radius:14px;background:#fbfcfe}
+.v481-section.v481-identity{background:#f8fbff;border-color:#d6e4f4}
+.v481-section.v481-contact{background:#fbfcfe}
+.v481-section-head{grid-column:1/-1;display:flex;align-items:end;justify-content:space-between;gap:12px;padding-bottom:7px;margin-bottom:1px;border-bottom:1px solid #e5ebf2}
+.v481-section-head div{display:grid;gap:1px}.v481-section-head b{font-size:9px;letter-spacing:.11em;color:#3c5f86}.v481-section-head span{font-size:9px;color:#7b899b}.v481-section-head .v481-section-icon{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:#eaf3fd;color:#2f679e;font-size:14px}
+.v481-patient-modal label,.v481-patient-modal .field,.v481-patient-modal .form-field,.v481-patient-modal .form-group{min-width:0}
+.v481-patient-modal label{font-size:10px!important;color:#53667e!important;font-weight:800!important}
+.v481-patient-modal input:not([type="checkbox"]),.v481-patient-modal textarea,.v481-patient-modal select{width:100%!important;min-height:43px!important;border-radius:11px!important;padding:9px 11px!important;font-size:12.5px!important;background:#fff!important}
+.v481-patient-modal textarea{min-height:72px!important;resize:vertical!important}
+.v481-role-name{grid-column:1/-1!important}.v481-role-name input{font-size:14px!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:.01em!important}
+.v481-role-id{grid-column:1/-1!important}.v481-role-id input{font-size:14px!important;font-weight:850!important;letter-spacing:.035em!important}
+.v481-role-foreign{grid-column:1/-1!important;padding:2px 1px!important}.v481-role-foreign label,.v481-role-foreign{font-size:9.5px!important}
+.v481-id-status{grid-column:1/-1;display:flex;align-items:center;gap:7px;min-height:31px;padding:7px 9px;border-radius:10px;border:1px solid #e0e7ef;background:#fff;color:#68798f;font-size:9.5px;font-weight:800}
+.v481-id-status.ok{border-color:#b9dfc9;background:#f2fbf6;color:#237247}.v481-id-status.bad{border-color:#ecc4c0;background:#fff6f5;color:#9a4a43}.v481-id-status.foreign{border-color:#cbd9ec;background:#f4f8fd;color:#446687}
+.v481-age-pill{display:inline-flex;align-items:center;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf4fb;color:#3f6388;font-size:8.5px;font-weight:850}
+.v481-field-invalid input{border-color:#d7847d!important;box-shadow:0 0 0 2px rgba(190,75,65,.08)!important}.v481-inline-error{display:block;margin-top:4px;font-size:8.5px;color:#a44d45;font-weight:750}
+.v481-duplicate-card{grid-column:1/-1;display:none;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 11px;border-radius:11px;border:1px solid #edd1a9;background:#fff9ef;color:#74521f}.v481-duplicate-card.show{display:flex}.v481-duplicate-card.danger{border-color:#e9bbb7;background:#fff5f4;color:#873f39}.v481-duplicate-card .copy{display:grid;gap:2px;min-width:0}.v481-duplicate-card b{font-size:10.5px}.v481-duplicate-card span{font-size:9px;line-height:1.3}.v481-duplicate-card button{flex:0 0 auto;border:1px solid currentColor;background:#fff;border-radius:8px;padding:6px 8px;font-size:8.5px;font-weight:850;cursor:pointer}
+.v481-more-details{border:1px solid #dfe6ee;border-radius:12px;background:#fafbfd;overflow:hidden}.v481-more-details>summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:9.5px;font-weight:900;color:#536981;display:flex;align-items:center;justify-content:space-between}.v481-more-details>summary::-webkit-details-marker{display:none}.v481-more-details>summary:after{content:'Abrir';font-size:8px;color:#77879a}.v481-more-details[open]>summary:after{content:'Ocultar'}.v481-more-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:0 12px 12px}.v481-role-notes{grid-column:1/-1!important}
+.v481-patient-modal .actions,.v481-patient-modal .form-actions,.v481-patient-modal .modal-actions{position:sticky;bottom:-18px;z-index:5;margin:4px -2px -1px!important;padding:10px 2px 1px!important;background:linear-gradient(to bottom,rgba(255,255,255,.82),#fff 32%)!important;display:flex!important;justify-content:flex-end!important;gap:7px!important}.v481-create-btn{min-width:145px!important;min-height:39px!important;border-radius:10px!important;font-size:10.5px!important;font-weight:900!important}.v481-create-btn:disabled{opacity:.48!important;cursor:not-allowed!important}
+@media(max-width:680px){#modal .modalbox.v481-patient-modal{width:94vw!important;padding:17px!important}.v481-section,.v481-more-body{grid-template-columns:1fr}.v481-role-name,.v481-role-id,.v481-role-foreign,.v481-role-notes{grid-column:1!important}.v481-duplicate-card{flex-direction:column}.v481-section-head{align-items:flex-start}}
+"""
+V481_PATIENT_JS = r""";(()=>{
+ if(window.__v481PatientRemaster)return;window.__v481PatientRemaster=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const digits=v=>String(v||'').replace(/\D/g,'');
+ let installTries=0;
+
+ function ecuadorPhone(v){const d=digits(v);if(d.startsWith('593')&&d.length===12)return '0'+d.slice(3);return d}
+ function validEcuadorCedula(value){
+   const d=digits(value);if(d.length!==10)return false;
+   const province=Number(d.slice(0,2)),third=Number(d[2]);if(province<1||province>24||third>=6)return false;
+   let sum=0;for(let i=0;i<9;i++){let n=Number(d[i])*(i%2===0?2:1);if(n>9)n-=9;sum+=n}
+   const check=(10-(sum%10))%10;return check===Number(d[9]);
+ }
+ function labelText(el){
+   const id=el.id||'';const direct=el.closest('label');
+   const byFor=id?[...document.querySelectorAll('label[for]')].find(l=>l.htmlFor===id):null;
+   return norm([el.name,el.id,el.placeholder,el.getAttribute('aria-label'),direct?.textContent,byFor?.textContent].filter(Boolean).join(' '));
+ }
+ function field(root,words,type){
+   const els=[...root.querySelectorAll('input,textarea,select')].filter(x=>!['button','submit','hidden'].includes(String(x.type||'').toLowerCase()));
+   if(type){const exact=els.find(x=>String(x.type||'').toLowerCase()===type&&words.some(w=>labelText(x).includes(w)));if(exact)return exact}
+   return els.find(x=>words.some(w=>labelText(x).includes(w)))||null;
+ }
+ function wrap(el,root){
+   if(!el)return null;
+   const w=el.closest('label,.field,.form-field,.form-group,.input-group,.control');
+   if(w&&w!==root&&root.contains(w))return w;
+   const p=el.parentElement;return p&&p!==root?p:el;
+ }
+ function topUnique(list){
+   const x=[...new Set(list.filter(Boolean))];return x.filter(a=>!x.some(b=>a!==b&&b.contains(a)));
+ }
+ function heading(title,subtitle,icon){const h=document.createElement('div');h.className='v481-section-head';h.innerHTML=`<div><b>${esc(title)}</b><span>${esc(subtitle)}</span></div><span class="v481-section-icon">${icon}</span>`;return h}
+ function makeSection(parent,before,title,subtitle,icon,wrappers,cls){
+   wrappers=topUnique(wrappers).filter(w=>w.parentElement===parent);if(!wrappers.length)return null;
+   const s=document.createElement('section');s.className='v481-section '+cls;s.appendChild(heading(title,subtitle,icon));parent.insertBefore(s,before||wrappers[0]);wrappers.forEach(w=>s.appendChild(w));return s;
+ }
+ async function searchPatients(q){
+   try{
+     if(!q)return [];
+     const url=`/api/patients?q=${encodeURIComponent(q)}&limit=12`;
+     let d;
+     if(typeof window.api==='function')d=await window.api(url);else{const r=await fetch(url,{credentials:'same-origin'});if(!r.ok)return [];d=await r.json()}
+     return Array.isArray(d)?d:(Array.isArray(d?.items)?d.items:(Array.isArray(d?.patients)?d.patients:(Array.isArray(d?.results)?d.results:[])));
+   }catch(_e){return []}
+ }
+ function patientCore(x){return x?.patient&&typeof x.patient==='object'?x.patient:x||{}}
+ function patientName(x){const p=patientCore(x);return String(p.nombre||p.name||'Paciente registrado')}
+ function patientPhone(x){const p=patientCore(x);return String(p.celular||p.phone||'')}
+ function patientCedula(x){const p=patientCore(x);return String(p.cedula||p.identificacion||'')}
+ function patientDate(x){const p=patientCore(x);return String(x?.last_visit_date||p.last_visit_date||p.ultima_atencion||'')}
+ function ageFromISO(v){
+   const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||''));if(!m)return null;
+   const b=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));if(Number.isNaN(b.getTime()))return null;
+   const t=new Date();let a=t.getFullYear()-b.getFullYear();if(t.getMonth()<b.getMonth()||(t.getMonth()===b.getMonth()&&t.getDate()<b.getDate()))a--;return a>=0&&a<130?a:null;
+ }
+ function findActionButton(root){return [...root.querySelectorAll('button')].reverse().find(b=>/guardar|crear paciente|registrar paciente/.test(norm(b.textContent)))||null}
+
+ function remaster(fromAttention){
+   const modal=document.querySelector('#modal .modalbox');if(!modal||modal.dataset.v481Patient==='1')return;
+   const name=field(modal,['apellidos y nombres','nombre completo','nombre','paciente']);
+   const cedula=field(modal,['cedula','identificacion']);
+   if(!name||!cedula)return;
+   modal.dataset.v481Patient='1';modal.classList.add('v481-patient-modal');
+   const root=name.closest('form')||cedula.closest('form')||name.parentElement?.parentElement||modal;
+   root.classList.add('v481-remastered-form');
+   const birth=field(modal,['fecha de nacimiento','nacimiento'],'date');
+   const phone=field(modal,['celular','telefono','whatsapp']);
+   const email=field(modal,['correo','email']);
+   const place=field(modal,['lugar','ciudad','direccion']);
+   const notes=field(modal,['notas','observacion']);
+   const foreign=field(modal,['extranjero','extranjera'],'checkbox')||[...modal.querySelectorAll('input[type="checkbox"]')].find(x=>labelText(x).includes('extranj'))||null;
+   const wId=wrap(cedula,root),wName=wrap(name,root),wBirth=wrap(birth,root),wForeign=wrap(foreign,root),wPhone=wrap(phone,root),wEmail=wrap(email,root),wPlace=wrap(place,root),wNotes=wrap(notes,root);
+   [[wId,'v481-role-id'],[wName,'v481-role-name'],[wBirth,'v481-role-birth'],[wForeign,'v481-role-foreign'],[wPhone,'v481-role-phone'],[wEmail,'v481-role-email'],[wPlace,'v481-role-place'],[wNotes,'v481-role-notes']].forEach(([w,c])=>w?.classList?.add(c));
+   const commonParent=wName?.parentElement===wId?.parentElement?wName.parentElement:root;
+   if(commonParent&&commonParent!==modal){
+     const idWrappers=topUnique([wId,wForeign,wName,wBirth]).filter(w=>w?.parentElement===commonParent);
+     if(idWrappers.length){makeSection(commonParent,idWrappers[0],'IDENTIDAD','Datos principales del paciente','ID',idWrappers,'v481-identity')}
+     const contactWrappers=topUnique([wPhone,wEmail]).filter(w=>w?.parentElement===commonParent);
+     if(contactWrappers.length){makeSection(commonParent,contactWrappers[0],'CONTACTO','Información para comunicarnos con el paciente','☎',contactWrappers,'v481-contact')}
+     const extras=topUnique([wPlace,wNotes]).filter(w=>w?.parentElement===commonParent);
+     if(extras.length){
+       const det=document.createElement('details');det.className='v481-more-details';if(extras.some(w=>w.querySelector('input,textarea')?.value))det.open=true;
+       const sum=document.createElement('summary');sum.textContent='＋ Más datos';const body=document.createElement('div');body.className='v481-more-body';det.append(sum,body);commonParent.insertBefore(det,extras[0]);extras.forEach(w=>body.appendChild(w));
+     }
+   }
+   const idSection=modal.querySelector('.v481-identity')||wId?.parentElement;
+   const idStatus=document.createElement('div');idStatus.className='v481-id-status';idStatus.textContent='Ingresa la cédula para validarla localmente.';
+   const duplicate=document.createElement('div');duplicate.className='v481-duplicate-card';duplicate.innerHTML='<div class="copy"><b></b><span></span></div>';
+   if(idSection){idSection.appendChild(idStatus);idSection.appendChild(duplicate)}
+   let agePill=null;if(birth&&wBirth){agePill=document.createElement('span');agePill.className='v481-age-pill';agePill.textContent='Edad —';wBirth.appendChild(agePill)}
+   let emailError=null;if(email&&wEmail){emailError=document.createElement('small');emailError.className='v481-inline-error';emailError.textContent='Correo no válido';emailError.style.display='none';wEmail.appendChild(emailError)}
+   const save=findActionButton(modal);const initialSaveLabel=norm(save?.textContent);const headingText=norm(modal.querySelector('.modal-form-heading h2,h1,h2,h3')?.textContent||'');const editMode=!!window.__v485EditingPatientId||/editar|completar/.test(headingText)||/guardar cambios|actualizar/.test(initialSaveLabel);if(save){save.classList.add('v481-create-btn');if(!editMode&&/guardar|registrar/.test(norm(save.textContent)))save.textContent='Crear paciente'}
+   const state={duplicateCedula:false,phoneDuplicate:false,seqId:0,seqPhone:0};
+   function showDup(kind,p){
+     if(!p){duplicate.classList.remove('show','danger');duplicate.querySelector('b').textContent='';duplicate.querySelector('span').textContent='';duplicate.querySelector('button')?.remove();return}
+     const nm=patientName(p),ph=patientPhone(p),last=patientDate(p);duplicate.classList.add('show');duplicate.classList.toggle('danger',kind==='cedula');
+     duplicate.querySelector('b').textContent=kind==='cedula'?'⚠ Este paciente ya está registrado':'⚠ Este celular ya está registrado';
+     duplicate.querySelector('span').textContent=`${nm}${ph?' · '+ph:''}${last?' · Última atención: '+String(last).slice(0,10):''}`;
+     duplicate.querySelector('button')?.remove();if(kind==='cedula'&&fromAttention&&typeof window.newAttention==='function'){const b=document.createElement('button');b.type='button';b.textContent='Volver a buscarlo';b.onclick=()=>window.newAttention();duplicate.appendChild(b)}
+   }
+   function updateAge(){if(!agePill)return;const a=ageFromISO(birth?.value);agePill.textContent=a===null?'Edad —':`Edad: ${a} año${a===1?'':'s'}`}
+   function updateStatus(){
+     const foreignOn=!!foreign?.checked,raw=String(cedula.value||'').trim(),d=digits(raw);
+     idStatus.className='v481-id-status';
+     if(foreignOn){idStatus.classList.add('foreign');idStatus.textContent='Identificación extranjera · no se aplica validación ecuatoriana.'}
+     else if(!raw){idStatus.textContent='Ingresa la cédula para validarla localmente.'}
+     else if(d.length<10){idStatus.textContent=`Cédula ecuatoriana · ${d.length}/10 dígitos`}
+     else if(validEcuadorCedula(d)){idStatus.classList.add('ok');idStatus.textContent='✓ Cédula ecuatoriana válida'}
+     else{idStatus.classList.add('bad');idStatus.textContent='✕ La cédula no pasa la validación ecuatoriana'}
+   }
+   function emailOk(){if(!email||!String(email.value||'').trim())return true;return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email.value||'').trim())}
+   function updateSave(){
+     if(!save)return;const foreignOn=!!foreign?.checked,raw=String(cedula.value||'').trim(),idOk=foreignOn||!raw||validEcuadorCedula(raw),mailOk=emailOk(),required=[...modal.querySelectorAll('input[required],textarea[required],select[required]')].every(x=>String(x.value||'').trim());
+     wEmail?.classList.toggle('v481-field-invalid',!mailOk);if(emailError)emailError.style.display=mailOk?'none':'block';
+     save.disabled=!String(name.value||'').trim()||!idOk||!mailOk||!required||(!editMode&&state.duplicateCedula);
+   }
+   async function checkCedula(){
+     if(editMode){state.duplicateCedula=false;if(!state.phoneDuplicate)showDup(null,null);updateSave();return}
+     const q=digits(cedula.value);state.duplicateCedula=false;if(foreign?.checked||q.length!==10||!validEcuadorCedula(q)){if(!state.phoneDuplicate)showDup(null,null);updateSave();return}
+     const seq=++state.seqId,rows=await searchPatients(q);if(seq!==state.seqId)return;const hit=rows.find(x=>digits(patientCedula(x))===q)||null;state.duplicateCedula=!!hit;if(hit)showDup('cedula',hit);else if(!state.phoneDuplicate)showDup(null,null);updateSave();
+   }
+   async function checkPhone(){
+     if(!phone)return;if(editMode){state.phoneDuplicate=false;if(!state.duplicateCedula)showDup(null,null);return}
+const q=ecuadorPhone(phone.value);state.phoneDuplicate=false;if(q.length<9){if(!state.duplicateCedula)showDup(null,null);return}
+     const seq=++state.seqPhone,rows=await searchPatients(q);if(seq!==state.seqPhone)return;const hit=rows.find(x=>ecuadorPhone(patientPhone(x))===q)||null;state.phoneDuplicate=!!hit;if(!state.duplicateCedula){if(hit)showDup('phone',hit);else showDup(null,null)}
+   }
+   let idTimer=0,phoneTimer=0;
+   cedula.addEventListener('input',()=>{updateStatus();updateSave();clearTimeout(idTimer);idTimer=setTimeout(checkCedula,260)});
+   cedula.addEventListener('blur',checkCedula);
+   foreign?.addEventListener('change',()=>{state.duplicateCedula=false;updateStatus();updateSave();checkCedula()});
+   name.addEventListener('input',()=>{const s=name.selectionStart,e=name.selectionEnd;name.value=String(name.value||'').toUpperCase();try{name.setSelectionRange(s,e)}catch(_e){}updateSave()});
+   birth?.addEventListener('change',updateAge);birth?.addEventListener('input',updateAge);
+   email?.addEventListener('input',updateSave);
+   phone?.addEventListener('input',()=>{clearTimeout(phoneTimer);phoneTimer=setTimeout(checkPhone,340)});phone?.addEventListener('blur',()=>{const d=digits(phone.value);if(d.startsWith('593')&&d.length===12)phone.value='0'+d.slice(3);checkPhone()});
+   updateAge();updateStatus();updateSave();setTimeout(checkCedula,50);if(phone?.value)setTimeout(checkPhone,80);
+ }
+ function install(){
+   if(window.newPatient&&window.newPatient.__v481Wrapped)return true;
+   if(typeof window.newPatient!=='function')return false;
+   const base=window.newPatient;const wrapped=function(...args){const r=base.apply(this,args);const fromAttention=!!args[0];requestAnimationFrame(()=>remaster(fromAttention));setTimeout(()=>remaster(fromAttention),40);if(r&&typeof r.then==='function')r.finally(()=>setTimeout(()=>remaster(fromAttention),0));return r};wrapped.__v481Wrapped=true;window.v481RemasterPatient=remaster;window.newPatient=wrapped;return true;
+ }
+ function boot(){if(install())return;if(++installTries<12)setTimeout(boot,120)}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();setTimeout(boot,350);
+})();"""
+V460_OVERLAY_C
