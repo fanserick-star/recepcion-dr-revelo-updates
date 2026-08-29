@@ -1,0 +1,82 @@
+name: Construir y publicar v4.3.73
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v473/**'
+      - '.github/workflows/build-v473-hotfix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardar huellas críticas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+          git rev-parse HEAD:updates/v457 > _launcher_before.txt
+      - name: Construir hotfix acumulativo
+        run: python build/v473/build_v473.py
+      - name: Validar Python y JavaScript
+        run: |
+          cat updates/v473/app.part* > _ci_app.py
+          python -m py_compile _ci_app.py
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          value=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V473_HOTFIX_JS' for t in node.targets):
+                  value=ast.literal_eval(node.value);break
+          if value is None: raise SystemExit('V473_HOTFIX_JS no encontrado')
+          Path('_ci_v473.js').write_text(value,encoding='utf-8')
+          assert 'APP_VERSION = "4.3.73"' in src
+          block=src[src.index('@app.delete("/api/agenda/appointments/{appointment_id}")'):src.index('def _decode_confirmafy_csv')]
+          assert 'appointment.delete' in block
+          assert 'db.delete(a)' in block
+          assert 'a.estado = "CANCELADA"' not in block
+          assert 'window.emitAllPendingInvoices=async function' in value
+          assert "await window.rpConfirm" in value
+          assert "label:'Agendada'" in value
+          assert "s==='NO_ASISTIRA'" in value
+          assert "label:'Cancelada'" in value
+          PY
+          node --check _ci_v473.js
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=b''.join(p.read_bytes() for p in sorted(Path('updates/v473').glob('app.part*'),key=lambda p:int(p.name.replace('app.part',''))))
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          item=next(x for x in latest['files'] if x['path']=='app.py')
+          assert hashlib.sha256(app).hexdigest()==item['sha256']
+          assert latest['version']=='4.3.73'
+          assert json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))==latest
+          manifest=json.loads(Path('updates/v473/update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version']==manifest['app_version']==manifest['runtime_version']=='4.3.73'
+          print('VALIDACION V4.3.73 OK')
+          PY
+      - name: Confirmar que servicios y launcher no cambiaron
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          test "$(cat _launcher_before.txt)" = "$(git rev-parse HEAD:updates/v457)"
+          git diff --exit-code -- agenda cloudflare updates/v457
+      - name: Publicar v4.3.73 en el canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v473 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.73 hotfix de agenda y AZUR'
+          git pull --rebase origin main
+          git push
