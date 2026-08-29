@@ -1,0 +1,322 @@
+      user32.GetWindowTextW(hwnd, buf, n + 1)
+            title = buf.value.strip()
+            if title:
+                found.append((hwnd, title))
+        except Exception:
+            pass
+        return True
+
+    user32.EnumWindows(cb, 0)
+    return found
+
+
+def _focus_existing_window() -> bool:
+    if os.name != "nt":
+        return False
+    user32 = ctypes.windll.user32
+    for hwnd, title in _enum_visible_windows():
+        low = title.lower()
+        if "recepción dr. armando revelo" in low or "recepcion dr. armando revelo" in low:
+            try:
+                user32.ShowWindow(hwnd, 9)
+                user32.SetForegroundWindow(hwnd)
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def _acquire_mutex(name: str = MUTEX_NAME):
+    if os.name != "nt":
+        return None, False
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, name)
+    already = kernel32.GetLastError() == 183
+    return handle, already
+
+
+def _release_mutex(handle) -> None:
+    if os.name == "nt" and handle:
+        try:
+            ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            pass
+
+
+class Splash:
+    def __init__(self):
+        self.root = None
+        self.label = None
+        self.detail = None
+        self.elapsed = None
+        self.canvas = None
+        self.started = time.monotonic()
+        self.phase = self.started
+        self.spin = 0
+        self.warned = False
+        try:
+            import tkinter as tk
+
+            root = tk.Tk()
+            root.overrideredirect(True)
+            root.attributes("-topmost", True)
+            w, h = 470, 220
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+            root.configure(bg="#13213c")
+
+            outer = tk.Frame(root, bg="#13213c", padx=24, pady=19)
+            outer.pack(fill="both", expand=True)
+            top = tk.Frame(outer, bg="#13213c")
+            top.pack(fill="x")
+
+            c = tk.Canvas(top, width=58, height=58, bg="#13213c", highlightthickness=0)
+            c.pack(side="left", padx=(0, 13))
+            try:
+                logo = tk.PhotoImage(file=str(ROOT / "static" / "doctor_isotype.png")).subsample(5, 5)
+                c.create_image(29, 29, image=logo)
+                c._doctor_logo = logo
+            except Exception:
+                c.create_oval(5, 5, 53, 53, outline="#8fb5ff", width=2)
+                c.create_text(29, 29, text="+", font=("Segoe UI", 22, "bold"), fill="#ffffff")
+
+            titles = tk.Frame(top, bg="#13213c")
+            titles.pack(side="left", fill="x", expand=True)
+            tk.Label(titles, text="RECEPCIÓN", font=("Segoe UI", 10, "bold"),
+                     fg="#8fb5ff", bg="#13213c").pack(anchor="w")
+            tk.Label(titles, text="Dr. Armando Revelo", font=("Segoe UI", 18, "bold"),
+                     fg="white", bg="#13213c").pack(anchor="w", pady=(1, 0))
+
+            body = tk.Frame(outer, bg="#13213c")
+            body.pack(fill="x", pady=(17, 0))
+            self.label = tk.Label(body, text="Abriendo Recepción…", font=("Segoe UI", 11, "bold"),
+                                  fg="white", bg="#13213c")
+            self.label.pack(anchor="w")
+            self.detail = tk.Label(body, text="Preparando sistema", font=("Segoe UI", 9),
+                                   fg="#b9c8df", bg="#13213c")
+            self.detail.pack(anchor="w", pady=(4, 0))
+            self.elapsed = tk.Label(body, text="", font=("Segoe UI", 8),
+                                    fg="#7f93b0", bg="#13213c")
+            self.elapsed.pack(anchor="w", pady=(5, 0))
+            self.canvas = tk.Canvas(outer, width=420, height=4, bg="#233653", highlightthickness=0)
+            self.canvas.pack(fill="x", pady=(12, 0))
+            root.update_idletasks()
+            root.update()
+            self.root = root
+        except Exception:
+            self.root = None
+
+    def set(self, text: str, detail: str = ""):
+        self.phase = time.monotonic()
+        self.warned = False
+        try:
+            if self.label:
+                self.label.config(text=text)
+            if self.detail:
+                self.detail.config(text=detail)
+        except Exception:
+            pass
+        self.pump()
+
+    def pump(self):
+        try:
+            now = time.monotonic()
+            if self.elapsed and now - self.started >= 2:
+                self.elapsed.config(text=f"{now - self.started:.0f} s")
+            if self.detail and now - self.phase >= 8 and not self.warned:
+                self.warned = True
+                self.detail.config(text="Está tardando más de lo normal; seguimos intentando…")
+            if self.canvas:
+                self.spin = (self.spin + 1) % 32
+                self.canvas.delete("progress")
+                full = max(1, int(self.canvas.winfo_width() or 420))
+                width = max(70, full // 4)
+                x = int((self.spin / 31.0) * (full + width)) - width
+                self.canvas.create_rectangle(x, 0, min(full, x + width), 4,
+                                             fill="#5f9cff", outline="", tags="progress")
+            if self.root:
+                self.root.update_idletasks()
+                self.root.update()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            if self.root:
+                self.root.destroy()
+        except Exception:
+            pass
+        self.root = None
+
+
+def _open_webview() -> bool:
+    try:
+        import webview
+    except Exception as exc:
+        _log("pywebview no disponible: " + repr(exc))
+        return False
+
+    kwargs = {
+        "gui": "edgechromium",
+        "debug": False,
+        "private_mode": False,
+        "storage_path": str(_data_dir(ROOT) / "webview_profile"),
+    }
+    icon = ROOT / "static" / "doctor_icon.ico"
+    if icon.exists():
+        kwargs["icon"] = str(icon)
+
+    try:
+        try:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True, maximized=True,
+            )
+            maximize_after = False
+        except TypeError:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True,
+            )
+            maximize_after = True
+
+        if maximize_after:
+            def on_start():
+                try:
+                    time.sleep(0.15)
+                    window.maximize()
+                except Exception:
+                    pass
+            webview.start(on_start, **kwargs)
+        else:
+            webview.start(**kwargs)
+        return True
+    except Exception as exc:
+        _log("WebView2 falló: " + repr(exc) + " | " + traceback.format_exc(limit=4).replace("\n", " | "))
+        return False
+
+
+def _edge_exe() -> Path | None:
+    if os.name != "nt":
+        return None
+    candidates = [
+        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+        Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+    ]
+    for p in candidates:
+        if str(p) and p.exists():
+            return p
+    return None
+
+
+def _open_fallback() -> None:
+    edge = _edge_exe()
+    if edge:
+        try:
+            subprocess.Popen(
+                [str(edge), f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"],
+                cwd=str(ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_hidden_flags(),
+            )
+            return
+        except Exception as exc:
+            _log("Fallback Edge falló: " + repr(exc))
+    webbrowser.open(URL, new=2)
+
+
+def _message(text: str) -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.user32.MessageBoxW(0, text, TITLE, 0x10)
+            return
+        except Exception:
+            pass
+    print(text, file=sys.stderr)
+
+
+def main() -> None:
+    _set_windows_identity()
+
+    # Protección doble: mutex mientras el launcher/WebView está vivo y detección
+    # de ventana para el caso excepcional de fallback Edge.
+    if _running_version(timeout=0.45) is not None and _focus_existing_window():
+        return
+
+    handle, already = _acquire_mutex()
+    if already:
+        _focus_existing_window()
+        _release_mutex(handle)
+        return
+
+    splash = Splash()
+    try:
+        splash.set("Verificando actualización…", "Comprobando el canal seguro")
+        result = check_and_apply_update(ROOT)
+
+        if result.get("blocked"):
+            splash.close()
+            _message(result.get("error") or "La instalación local necesita reparación.")
+            return
+
+        if result.get("updated"):
+            splash.set("Instalando actualización…", f"Versión {result.get('version') or ''}")
+            if "app.py" in {p.lower() for p in result.get("paths", [])}:
+                _stop_server()
+
+        expected = _expected_app_version(ROOT)
+        current = _running_version()
+        if current != expected:
+            splash.set("Iniciando sistema…", "Preparando datos locales")
+            if current is not None:
+                _stop_server()
+            _start_server()
+            splash.set("Cargando agenda…", "Esperando al servidor local")
+            if not _wait_server(expected, 20.0, splash):
+                _stop_server()
+                _start_server()
+                splash.set("Verificando conexión…", "Reintentando el inicio local")
+                if not _wait_server(expected, 16.0, splash):
+                    raise RuntimeError("El backend no respondió. Revisa data\\backend_startup.log.")
+
+        splash.set("Listo", "Abriendo Recepción")
+        time.sleep(0.08)
+        splash.close()
+
+        if not _open_webview():
+            _open_fallback()
+    except Exception as exc:
+        _log("Fallo general del launcher: " + repr(exc) + " | " + traceback.format_exc(limit=6).replace("\n", " | "))
+        splash.close()
+        _message("No se pudo iniciar Recepción.\n\nEl detalle quedó guardado en data\\launcher_errors.log.")
+    finally:
+        splash.close()
+        _release_mutex(handle)
+
+
+
+def _selftest_mutex_holder(name: str, ready_file: str) -> int:
+    handle, already = _acquire_mutex(name)
+    if already:
+        _release_mutex(handle)
+        return 31
+    try:
+        Path(ready_file).write_text("ready", encoding="utf-8")
+        time.sleep(4.0)
+        return 0
+    finally:
+        _release_mutex(handle)
+
+
+def _selftest_mutex_probe(name: str) -> int:
+    handle, already = _acquire_mutex(name)
+    try:
+        return 0 if already else 32
+    finally:
+        _release_mutex(handle)
+
+# -------------------- SELF TESTS --------------------
+
+class _TestHandler(BaseHTTPRequestHandler):
+    f
