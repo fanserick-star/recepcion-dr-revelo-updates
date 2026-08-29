@@ -1,0 +1,24 @@
+name: Inspect launcher v498
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-launcher-v498.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct and print relevant functions
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          src=''.join(Path(f'updates/v498/ABRIR_RECEPCION.part{i}').read_text(encoding='utf-8') for i in range(1,5))
+          Path('_launcher.py').write_text(src,encoding='utf-8')
+          for name in ['def _acquire_mutex','def _port_8000_pids','def _stop_server','def _start_server','def main(']:
+              i=src.find(name)
+              print('\n===== '+name+' =====')
+              print(src[i:i+7000] if i>=0 else 'NOT FOUND')
+          PY
