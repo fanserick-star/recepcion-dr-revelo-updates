@@ -1,0 +1,83 @@
+name: Validar y publicar v4.3.76
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v476/**'
+      - '.github/workflows/build-v476-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v476/build_v476.py
+      - name: Validar Python, launcher y updater
+        run: |
+          cat updates/v476/app.part* > _ci_app.py
+          cat updates/v476/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+      - name: Validar Facturación, tarjetas y launcher
+        run: |
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='billing_approve')
+          body=ast.get_source_segment(src,fn) or ''
+          assert 'azur_emit_invoice' in body and 'validate_billing_recipient' in body
+          assert 'record.estado = "EN_PROCESO"' in body
+          assert 'b.estado = "EMITIDA"' in body and 'b.numero_factura = invoice_number' in body
+          assert 'add_queue' not in body
+          assert body.index('azur_emit_invoice') < body.index('b.estado = "EMITIDA"') < body.index('db.commit()')
+          js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V476_JS' for t in node.targets):
+                  js=ast.literal_eval(node.value);break
+          assert js
+          for token in ['billing-patient-name','billing-meta','billing-total','billing-invoice-number','Por emitir','check-all-status','doctor']:
+              if token=='doctor': continue
+              assert token in js, token
+          assert 'box.innerHTML' not in js
+          Path('_ci_v476.js').write_text(js,encoding='utf-8')
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.76'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          assert 'doctor_isotype.png' in launcher
+          assert 'create_image(29, 29, image=logo)' in launcher
+          assert 'text="AR"' not in launcher
+          print('VALIDACION V4.3.76 OK')
+          PY
+          node --check _ci_v476.js
+      - name: Confirmar aislamiento del cambio
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v476 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.76 facturación por accesos directos'
+          git pull --rebase origin main
+          git push
