@@ -1,0 +1,77 @@
+name: Construir y publicar v4.3.74
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v474/**'
+      - '.github/workflows/build-v474-hotfix.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Guardar huellas críticas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+          git rev-parse HEAD:updates/v457 > _launcher_before.txt
+      - name: Construir v4.3.74
+        run: python build/v474/build_v474.py
+      - name: Validar Python y hotfix JavaScript
+        run: |
+          cat updates/v474/app.part* > _ci_app.py
+          python -m py_compile _ci_app.py
+          python - <<'PY'
+          import ast, hashlib, json
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src); js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V474_CAPTURE_FIX_JS' for t in node.targets):
+                  js=ast.literal_eval(node.value); break
+          assert js
+          Path('_ci_v474.js').write_text(js,encoding='utf-8')
+          assert 'APP_VERSION = "4.3.74"' in src
+          assert "const VERSION=\\'4.3.74\\';" in src
+          assert "const VERSION=\\'4.3.72\\';" not in src
+          assert "document.addEventListener('click'" in js
+          assert 'stopImmediatePropagation' in js
+          assert '/api/billing/azur/batch-preview' in js
+          assert '/api/billing/azur/emit-all-pending' in js
+          assert "method:'POST'" in js
+          assert "window.rpConfirm" in js
+          assert 'deleteAgendaAppointment' in js
+          assert "method:'DELETE'" in js
+          block=src[src.index('@app.delete("/api/agenda/appointments/{appointment_id}")'):src.index('def _decode_confirmafy_csv')]
+          assert 'db.delete(a)' in block and 'appointment.delete' in block
+          app=Path('_ci_app.py').read_bytes()
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.74'
+          assert hashlib.sha256(app).hexdigest()==next(x for x in latest['files'] if x['path']=='app.py')['sha256']
+          assert json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))==latest
+          manifest=json.loads(Path('updates/v474/update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version']==manifest['app_version']==manifest['runtime_version']=='4.3.74'
+          print('VALIDACION V4.3.74 OK')
+          PY
+          node --check _ci_v474.js
+      - name: Confirmar que nube y launcher quedaron intactos
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          test "$(cat _launcher_before.txt)" = "$(git rev-parse HEAD:updates/v457)"
+          git diff --exit-code -- agenda cloudflare updates/v457
+      - name: Publicar v4.3.74
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v474 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.74 corrección directa de AZUR y UI'
+          git pull --rebase origin main
+          git push
