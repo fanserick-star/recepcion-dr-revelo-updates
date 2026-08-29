@@ -20,33 +20,53 @@ jobs:
         with:
           python-version: '3.11.9'
 
-      - name: Probar runtime puro compatible con Smart App Control
+      - name: Probar runtime portable compatible con Smart App Control
         shell: powershell
         run: |
-          $pure = Join-Path $env:RUNNER_TEMP 'sac-pure-runtime'
-          New-Item -ItemType Directory -Force $pure | Out-Null
+          $root = Join-Path $env:RUNNER_TEMP 'sac-portable'
+          $scripts = Join-Path $root '.venv\Scripts'
+          $lib = Join-Path $root '.venv\Lib'
+          $site = Join-Path $lib 'site-packages'
+          New-Item -ItemType Directory -Force $scripts,$site | Out-Null
 
-          python -m pip install --disable-pip-version-check --no-compile --target $pure `
+          $embed = Join-Path $env:RUNNER_TEMP 'python-embed.zip'
+          Invoke-WebRequest 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip' -OutFile $embed
+          Expand-Archive -LiteralPath $embed -DestinationPath $scripts -Force
+
+          python -m pip install --disable-pip-version-check --no-compile --target $site `
             'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
             'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
           if($LASTEXITCODE -ne 0){ throw 'No se pudo preparar runtime puro' }
 
-          # Pydantic 1 trae los módulos .py además de aceleradores C. Quitamos los .pyd.
-          Get-ChildItem (Join-Path $pure 'pydantic') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
-          # SQLAlchemy funciona en modo síncrono sin sus aceleradores C ni greenlet.
-          Get-ChildItem (Join-Path $pure 'sqlalchemy\cyextension') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
-          Get-ChildItem $pure -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'greenlet' -or $_.Name -like 'greenlet-*.dist-info' } | Remove-Item -Recurse -Force
+          # Pydantic 1 y SQLAlchemy tienen fallback Python puro.
+          Get-ChildItem (Join-Path $site 'pydantic') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
+          Get-ChildItem (Join-Path $site 'sqlalchemy\cyextension') -Recurse -Filter '*.pyd' -ErrorAction SilentlyContinue | Remove-Item -Force
+          Get-ChildItem $site -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq 'greenlet' -or $_.Name -like 'greenlet-*.dist-info' } | Remove-Item -Recurse -Force
 
-          $native = @(Get-ChildItem $pure -Recurse -File | Where-Object { $_.Extension -in @('.pyd','.dll') })
-          foreach($f in $native){
-            $sig = Get-AuthenticodeSignature $f.FullName
-            $rel = $f.FullName.Substring($pure.Length).TrimStart('\')
-            $subject = if($sig.SignerCertificate){ $sig.SignerCertificate.Subject } else { '[sin firma]' }
-            Write-Host ("NATIVE|PURE|{0}|{1}|{2}" -f $rel,$sig.Status,$subject)
+          @'
+          python311.zip
+          .
+          ..\..
+          ..\Lib
+          ..\Lib\site-packages
+          import site
+          '@ | Set-Content (Join-Path $scripts 'python311._pth') -Encoding ascii
+
+          $thirdNative = @(Get-ChildItem $site -Recurse -File | Where-Object { $_.Extension -in @('.exe','.pyd','.dll') })
+          if($thirdNative.Count -ne 0){
+            foreach($f in $thirdNative){ Write-Host "THIRD_NATIVE|$($f.FullName.Substring($site.Length).TrimStart('\'))" }
+            throw "Quedaron $($thirdNative.Count) binarios nativos de terceros"
           }
-          if($native.Count -ne 0){ throw "El runtime puro todavía contiene $($native.Count) binario(s) nativo(s) de terceros" }
 
-          $env:PYTHONPATH=$pure
+          $bad = @()
+          Get-ChildItem $scripts -File | Where-Object { $_.Extension -in @('.exe','.pyd','.dll') } | Sort-Object Name | ForEach-Object {
+            $sig=Get-AuthenticodeSignature $_.FullName
+            $subject=if($sig.SignerCertificate){$sig.SignerCertificate.Subject}else{'[sin firma]'}
+            Write-Host "PYTHON_NATIVE|$($_.Name)|$($sig.Status)|$subject"
+            if($sig.Status -ne 'Valid'){ $bad += $_.Name }
+          }
+          if($bad.Count){ throw ('Python embebido contiene binarios sin firma válida: '+($bad -join ', ')) }
+
           $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
-          python -S -c "import pydantic,fastapi,sqlalchemy,pg8000; from sqlalchemy import create_engine,text; e=create_engine('sqlite:///:memory:'); print(e.connect().execute(text('select 1')).scalar()); p=create_engine('postgresql+pg8000://user:pass@127.0.0.1:5432/db', connect_args={'timeout':1}); print('PURE_RUNTIME_OK', pydantic.VERSION, fastapi.__version__, sqlalchemy.__version__, pg8000.__version__, p.dialect.name, p.dialect.driver)"
-          if($LASTEXITCODE -ne 0){ throw 'El runtime puro no importa o SQLAlchemy no carga pg8000' }
+          & (Join-Path $scripts 'python.exe') -c "import sqlite3,pydantic,fastapi,sqlalchemy,pg8000,dotenv,multipart; from sqlalchemy import create_engine,text; e=create_engine('sqlite:///:memory:'); assert e.connect().execute(text('select 1')).scalar()==1; p=create_engine('postgresql+pg8000://user:pass@127.0.0.1:5432/db',connect_args={'timeout':1}); print('SAC_PORTABLE_RUNTIME_OK',pydantic.VERSION,fastapi.__version__,sqlalchemy.__version__,pg8000.__version__,p.dialect.driver)"
+          if($LASTEXITCODE -ne 0){ throw 'El runtime portable no funciona' }
