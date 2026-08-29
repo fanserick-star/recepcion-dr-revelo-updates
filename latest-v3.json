@@ -1,17 +1,17 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.86",
+  "version": "4.3.87",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.86: integra Lugar en Contacto, corrige atajos de correo, auto-vincula duplicados seguros en Por revisar, restaura acciones visibles y añade acceso a AZUR.",
+  "message": "v4.3.87: auto-vincula duplicados desde 75%, restaura iconos vectoriales y muestra Revisando AZUR al cargar facturas emitidas.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/ABRIR_RECEPCION.part4"
       ],
       "sha256": "542257adc7a0f9867b0f7354627ca3b5d7e7167e323e1e427a8c5301787c5340",
       "encoding": "utf-8"
@@ -19,21 +19,21 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/app.part7"
       ],
-      "sha256": "c6c31d524d6a7f45463149fddd5999dc18579953aa711703160c07c21df14e0e",
+      "sha256": "e2a025052814bb943f67a97087f14edf4a4360f4f1f851876fd91ce531857671",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v486/update_manifest.json",
-      "sha256": "dd58f7418c5e113e68eb84dab42aeed1e4bb57487032f61f2016449251822c09",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v487/update_manifest.json",
+      "sha256": "09bc22cd8661294ee35ad8ac5c6cf2cab2f2545d3685d461f88d9e1edf381ecb",
       "encoding": "utf-8"
     }
   ]
