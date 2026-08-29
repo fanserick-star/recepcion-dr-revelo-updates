@@ -170,11 +170,13 @@ jobs:
       - name: Preparar icono
         shell: powershell
         run: |
+          $source='installer_clean\buildroot\static\doctor_icon.ico'
+          if(-not (Test-Path $source)){ throw 'La base limpia no contiene static\doctor_icon.ico' }
+          if((Get-Item $source).Length -le 0){ throw 'El icono incluido en la base está vacío' }
           New-Item -ItemType Directory -Force installer_clean\build | Out-Null
-          if (-not (Get-Command magick.exe -ErrorAction SilentlyContinue)) { choco install imagemagick.app -y --no-progress }
-          magick.exe -background none -density 384 agenda\logo.svg -resize 256x256 installer_clean\build\logo.png
-          magick.exe installer_clean\build\logo.png -define icon:auto-resize=256,128,64,48,32,16 installer_clean\build\recepcion.ico
-          Copy-Item installer_clean\build\recepcion.ico installer_clean\buildroot\recepcion.ico -Force
+          Copy-Item $source installer_clean\build\recepcion.ico -Force
+          Copy-Item $source installer_clean\buildroot\recepcion.ico -Force
+          Write-Host 'ICONO_BASE_OK'
 
       - name: Instalar Inno Setup y compilar
         shell: powershell
