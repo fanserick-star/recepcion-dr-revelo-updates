@@ -62,6 +62,15 @@ jobs:
           print('PORTABLE_BACKEND_V496_OK')
           PY
           kill "$(cat _smoke.pid)" || true
+      - name: Subir diagnóstico portable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v496-smoke-debug
+          path: |
+            _smoke.log
+            _smoke.pid
+          if-no-files-found: ignore
       - name: Confirmar aislamiento
         run: |
           test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
