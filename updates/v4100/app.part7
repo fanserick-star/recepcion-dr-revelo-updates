@@ -1,0 +1,1136 @@
+re/.test(norm([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' '))))||t.includes('apellidos y nombres');
+   return id&&name;
+ }
+ function ensurePatientRemaster(){
+   if(guard)return;const modal=document.querySelector('#modal .modalbox');if(!patientFieldsPresent(modal))return;
+   if(modal.querySelector('.v481-section')&&modal.querySelector('.v481-remastered-form'))return;
+   if(typeof window.v481RemasterPatient!=='function')return;
+   guard=true;
+   try{delete modal.dataset.v481Patient;modal.classList.remove('v481-patient-modal');window.v481RemasterPatient(true)}finally{guard=false}
+ }
+ function apply(){ensureBatchButton();ensurePatientRemaster()}
+ const observer=new MutationObserver(()=>queueMicrotask(apply));
+ observer.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+ const oldLoad=window.loadBilling;if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);ensureBatchButton();return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(apply,30),{once:true});else setTimeout(apply,30);
+ setTimeout(apply,250);setTimeout(apply,900);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V482_HOTFIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V482_HOTFIX_JS
+
+V484_PATIENT_CSS = r"""
+/* v4.3.84 — hotfix seguro + pulido de Nuevo paciente */
+#modal .modalbox.v481-patient-modal{width:min(730px,94vw)!important;max-height:90vh!important;padding:18px 20px 16px!important}
+.v481-patient-modal .v481-remastered-form{gap:10px!important}
+.v481-patient-modal .modal-form-heading h2{font-size:22px!important}
+.v481-patient-modal .modal-form-heading p{font-size:10px!important}
+.v481-section{gap:8px 11px!important;padding:11px 12px!important;border-radius:13px!important}
+.v481-section-head{padding-bottom:6px!important;margin-bottom:0!important;align-items:center!important}
+.v481-section-head b{font-size:9px!important;letter-spacing:.1em!important}
+.v481-section-head span{font-size:8.7px!important}
+.v481-section-head .v481-section-icon{width:30px!important;height:30px!important;border-radius:10px!important;font-size:15px!important;background:#eef5fd!important}
+.v481-identity{border-left:3px solid #8fb4dc!important}
+.v481-contact{border-left:3px solid #9bcbb1!important}
+.v484-location{grid-column:1/-1!important;display:grid!important;grid-template-columns:1fr!important;border-left:3px solid #d2b36f!important;background:#fffdf8!important}
+.v484-location .v481-role-place{grid-column:1/-1!important}
+.v484-location .v481-role-place input{width:100%!important}
+.v481-patient-modal input:not([type="checkbox"]),.v481-patient-modal textarea,.v481-patient-modal select{min-height:40px!important;padding:8px 10px!important;font-size:12px!important;border-radius:10px!important}
+.v481-role-id input,.v481-role-name input{font-size:12.5px!important;font-weight:750!important;letter-spacing:0!important}
+.v481-role-id input::placeholder,.v481-role-name input::placeholder{font-size:10.5px!important;font-weight:600!important;letter-spacing:0!important;color:#8a96a6!important;opacity:1!important}
+.v481-role-phone input::placeholder,.v481-role-email input::placeholder,.v481-role-place input::placeholder,.v481-role-birth input::placeholder{font-size:10.5px!important;font-weight:550!important;color:#929dac!important;opacity:1!important}
+.v481-id-status{min-height:29px!important;padding:6px 8px!important;font-size:9px!important}
+.v481-age-pill{font-size:8.5px!important;padding:3px 7px!important}
+.v481-role-notes{display:none!important}
+.v484-hide-more{display:none!important}
+.v484-date-error{display:none;margin-top:4px;font-size:8.5px;font-weight:750;color:#a44d45}
+.v484-date-error.show{display:block}
+.v484-date-invalid{border-color:#d7847d!important;box-shadow:0 0 0 2px rgba(190,75,65,.08)!important}
+.v481-patient-modal .actions,.v481-patient-modal .form-actions,.v481-patient-modal .modal-actions{padding-top:8px!important}
+.v481-create-btn{min-height:37px!important;font-size:10px!important}
+@media(max-width:680px){#modal .modalbox.v481-patient-modal{width:94vw!important;padding:15px!important}.v481-section{padding:10px!important}}
+"""
+V484_PATIENT_JS = r""";(()=>{
+ if(window.__v484PatientHotfix)return;window.__v484PatientHotfix=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function parseDMY(v){
+   const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v||'').trim());if(!m)return null;
+   const d=Number(m[1]),mo=Number(m[2]),y=Number(m[3]);if(y<1900||y>new Date().getFullYear()||mo<1||mo>12||d<1||d>31)return null;
+   const x=new Date(y,mo-1,d);if(x.getFullYear()!==y||x.getMonth()!==mo-1||x.getDate()!==d)return null;
+   return {d,mo,y,iso:`${String(y).padStart(4,'0')}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`,display:`${String(d).padStart(2,'0')}/${String(mo).padStart(2,'0')}/${String(y).padStart(4,'0')}`};
+ }
+ function isoToDMY(v){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||''));return m?`${m[3]}/${m[2]}/${m[1]}`:String(v||'')}
+ function age(p){if(!p)return null;const t=new Date();let a=t.getFullYear()-p.y;if(t.getMonth()+1<p.mo||(t.getMonth()+1===p.mo&&t.getDate()<p.d))a--;return a>=0&&a<130?a:null}
+ function sectionHead(title,subtitle,icon){const h=document.createElement('div');h.className='v481-section-head';h.innerHTML=`<div><b>${title}</b><span>${subtitle}</span></div><span class="v481-section-icon" aria-hidden="true">${icon}</span>`;return h}
+ function findSave(modal){return [...modal.querySelectorAll('button')].reverse().find(b=>/guardar|crear paciente|registrar paciente/.test(norm(b.textContent)))||null}
+ function polishOnce(){
+   const modal=document.querySelector('#modal .modalbox');if(!modal)return false;
+   const root=modal.querySelector('.v481-remastered-form');if(!root||root.dataset.v484Polished==='1')return false;
+   const cedula=root.querySelector('.v481-role-id input'),name=root.querySelector('.v481-role-name input');if(!cedula||!name)return false;
+   root.dataset.v484Polished='1';modal.classList.add('v481-patient-modal');
+   const identity=modal.querySelector('.v481-identity'),contact=modal.querySelector('.v481-contact');
+   const ii=identity?.querySelector('.v481-section-icon');if(ii)ii.textContent='🪪';
+   const ci=contact?.querySelector('.v481-section-icon');if(ci)ci.textContent='☎';
+   const heading=modal.querySelector('.modal-form-heading p');if(heading)heading.textContent='Registra al paciente y continúa a su atención.';
+   cedula.placeholder='Ingrese 10 dígitos';name.placeholder='Apellidos y nombres';
+
+   const placeWrap=root.querySelector('.v481-role-place'),notesWrap=root.querySelector('.v481-role-notes');
+   if(notesWrap)notesWrap.style.display='none';
+   if(placeWrap){
+     let sec=root.querySelector('.v484-location');
+     if(!sec){sec=document.createElement('section');sec.className='v481-section v484-location';sec.appendChild(sectionHead('LUGAR','Ciudad o sector del paciente','📍'));
+       const actions=root.querySelector(':scope > .actions,:scope > .form-actions,:scope > .modal-actions')||root.querySelector('.actions,.form-actions,.modal-actions');
+       const more=root.querySelector(':scope > .v481-more-details')||root.querySelector('.v481-more-details');root.insertBefore(sec,actions||more||null)}
+     sec.appendChild(placeWrap);const p=placeWrap.querySelector('input');if(p)p.placeholder='Ciudad o sector';
+   }
+   for(const det of root.querySelectorAll('.v481-more-details')){
+     const useful=[...det.querySelectorAll('input,textarea,select')].filter(el=>!el.closest('.v481-role-notes')&&!el.closest('.v481-role-place'));
+     if(!useful.length)det.classList.add('v484-hide-more');
+   }
+
+   const birth=root.querySelector('.v481-role-birth input');
+   if(birth&&birth.dataset.v484Manual!=='1'){
+     birth.dataset.v484Manual='1';const initial=isoToDMY(birth.value);birth.type='text';birth.value=initial;birth.placeholder='dd/mm/aaaa';birth.inputMode='numeric';birth.maxLength=10;birth.autocomplete='off';
+     const err=document.createElement('small');err.className='v484-date-error';err.textContent='Fecha inválida · usa dd/mm/aaaa';birth.parentElement?.appendChild(err);
+     const pill=root.querySelector('.v481-age-pill');
+     const render=()=>{const raw=birth.value.trim(),p=parseDMY(raw);birth.classList.toggle('v484-date-invalid',!!raw&&!p);err.classList.toggle('show',!!raw&&!p);if(pill){const a=age(p);pill.textContent=a===null?'Edad —':`Edad: ${a} año${a===1?'':'s'}`}};
+     birth.addEventListener('input',()=>{let d=String(birth.value||'').replace(/\D/g,'').slice(0,8);if(d.length>4)d=d.slice(0,2)+'/'+d.slice(2,4)+'/'+d.slice(4);else if(d.length>2)d=d.slice(0,2)+'/'+d.slice(2);birth.value=d;render()});birth.addEventListener('blur',render);render();
+     const save=findSave(modal);if(save&&!save.dataset.v484DateGuard){save.dataset.v484DateGuard='1';save.addEventListener('click',e=>{const raw=birth.value.trim();if(!raw)return;const p=parseDMY(raw);if(!p){e.preventDefault();e.stopImmediatePropagation();render();birth.focus();return}birth.value=p.iso;setTimeout(()=>{if(document.body.contains(birth)){birth.value=p.display;render()}},700)},true)}
+   }
+   return true;
+ }
+ const previousExport=window.v481RemasterPatient;
+ if(typeof previousExport==='function')window.v481RemasterPatient=function(){const r=previousExport.apply(this,arguments);queueMicrotask(polishOnce);setTimeout(polishOnce,30);return r};
+ const previousNew=window.newPatient;
+ if(typeof previousNew==='function')window.newPatient=async function(){const r=await previousNew.apply(this,arguments);setTimeout(polishOnce,0);setTimeout(polishOnce,60);return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(polishOnce,80),{once:true});else setTimeout(polishOnce,80);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V484_PATIENT_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V484_PATIENT_JS
+
+V485_FIX_CSS = r"""
+/* v4.3.85 — identidad compatible + Lugar debajo de Contacto */
+.v481-section-icon .v485-id-card{display:block;width:20px;height:14px;border:1.5px solid currentColor;border-radius:3px;position:relative;box-sizing:border-box}
+.v481-section-icon .v485-id-card:before{content:'';position:absolute;left:3px;top:3px;width:4px;height:4px;border:1px solid currentColor;border-radius:50%;box-sizing:border-box}
+.v481-section-icon .v485-id-card:after{content:'';position:absolute;right:3px;top:4px;width:7px;height:1.5px;border-radius:2px;background:currentColor;box-shadow:0 3px 0 currentColor}
+.v484-location.v485-location-under-contact{grid-column:2!important;align-self:start!important;margin-top:0!important;min-height:auto!important}
+.v484-location.v485-location-under-contact .v481-section-head{margin-bottom:2px!important}
+@media(max-width:680px){.v484-location.v485-location-under-contact{grid-column:1!important}}
+"""
+V485_FIX_JS = r""";(()=>{
+ if(window.__v485Fixes)return;window.__v485Fixes=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let batchBusy=false;
+
+ function visualFix(){
+   const modal=document.querySelector('#modal .modalbox');if(!modal)return;
+   const identity=modal.querySelector('.v481-identity'),contact=modal.querySelector('.v481-contact'),location=modal.querySelector('.v484-location');
+   const icon=identity?.querySelector('.v481-section-icon');
+   if(icon&&!icon.querySelector('.v485-id-card'))icon.innerHTML='<span class="v485-id-card" aria-hidden="true"></span>';
+   if(location&&contact&&location.parentElement===contact.parentElement){contact.insertAdjacentElement('afterend',location);location.classList.add('v485-location-under-contact')}
+ }
+
+ async function req(url,opt={}){
+   if(typeof window.api==='function')return await window.api(url,opt);
+   const r=await fetch(url,{credentials:'same-origin',headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
+   const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.detail||d.message||'No se pudo completar la operación');return d;
+ }
+ async function ask(text,title){return typeof window.rpConfirm==='function'?await window.rpConfirm(text,title):window.confirm(text)}
+ function notice(text,title){if(typeof window.rpNotice==='function')return window.rpNotice(text,title);alert(text)}
+
+ window.emitAllPendingInvoices=async function(){
+   if(batchBusy)return;batchBusy=true;
+   const btn=document.querySelector('#v482BatchEmit');const old=btn?.textContent;
+   try{
+     if(btn){btn.disabled=true;btn.textContent='Revisando…'}
+     const pre=await req('/api/billing/azur/batch-preview');
+     const c=pre.counts||{},ready=Number(c.ready||0),skipped=Number(c.skipped||0);
+     if(!ready){notice(`No hay facturas completas listas para emitir.\n\nOmitidas: ${skipped}`,'Facturación');return}
+     const examples=(pre.ready||[]).slice(0,5).map(x=>`• ${x.nombre||'Paciente'} · $${Number(x.total||0).toFixed(2)}`).join('\n');
+     const text=`¿Emitir ${ready} factura${ready===1?'':'s'} por lotes en AZUR?\n\nSe enviarán una por una para evitar duplicados.${examples?'\n\n'+examples:''}`;
+     if(!(await ask(text,'Emitir por lotes')))return;
+     if(btn)btn.textContent='Emitiendo…';
+     const result=await req('/api/billing/azur/emit-all-pending',{method:'POST',body:'{}'});
+     const r=result.counts||{};
+     let detail=`Enviadas a AZUR: ${r.sent??r.emitted??0}\nOmitidas: ${r.skipped||0}\nFallidas: ${r.failed||0}`;
+     const failed=(result.failed||[]).slice(0,5);if(failed.length)detail+='\n\nCon error:\n'+failed.map(x=>`• ${x.nombre||'Paciente'}: ${x.reason||'Error'}`).join('\n');
+     notice(detail,'Emisión por lotes');
+     try{await window.loadBilling?.()}catch(_e){}try{window.refreshPendingBadges?.()}catch(_e){}
+   }catch(e){notice(e?.message||String(e),'Facturación')}
+   finally{batchBusy=false;if(btn){btn.disabled=false;btn.textContent=old||'⚡ Emitir por lotes'}}
+ };
+
+ const oldEdit=window.editPatientFromBilling;
+ if(typeof oldEdit==='function')window.editPatientFromBilling=function(id){
+   window.__v485EditingPatientId=Number(id)||id||true;
+   try{return oldEdit.apply(this,arguments)}finally{setTimeout(()=>{window.__v485EditingPatientId=null},1500)}
+ };
+
+ const oldRemaster=window.v481RemasterPatient;
+ if(typeof oldRemaster==='function')window.v481RemasterPatient=function(){const r=oldRemaster.apply(this,arguments);setTimeout(visualFix,0);setTimeout(visualFix,60);return r};
+ const oldNew=window.newPatient;
+ if(typeof oldNew==='function')window.newPatient=function(){const r=oldNew.apply(this,arguments);setTimeout(visualFix,20);setTimeout(visualFix,90);return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(visualFix,80),{once:true});else setTimeout(visualFix,80);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V485_FIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V485_FIX_JS
+
+V486_FIX_CSS = r"""/* v4.3.86 — Paciente nuevo + Inicio + acceso AZUR */
+.v481-contact{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.v481-contact .v486-place-in-contact{grid-column:1/-1!important;margin-top:1px!important}
+.v481-contact .v486-place-in-contact input{width:100%!important}
+.v484-location{display:none!important}
+.v486-home-delete{border-color:#efd0cd!important;color:#99453f!important;background:#fff7f6!important}
+.v486-home-delete:hover{background:#ffefed!important}
+#facturacion .v486-azur-link{display:inline-flex!important;align-items:center!important;gap:6px!important;min-height:34px!important;padding:7px 11px!important;border:1px solid #cfdced!important;border-radius:10px!important;background:#f5f9ff!important;color:#315f94!important;font-size:9.5px!important;font-weight:900!important;cursor:pointer!important}
+#facturacion .v486-azur-link:hover{background:#eaf3ff!important}
+"""
+V486_FIX_JS = r""";(()=>{
+ if(window.__v486Fixes)return;window.__v486Fixes=true;
+ const domains=new Set(['@gmail.com','@hotmail.com','@outlook.com','@yahoo.com']);
+ function patientFix(){
+   const modal=document.querySelector('#modal .modalbox');if(!modal)return;
+   const contact=modal.querySelector('.v481-contact');
+   const location=modal.querySelector('.v484-location');
+   const place=(location?.querySelector('.v481-role-place'))||modal.querySelector('.v481-role-place');
+   if(contact&&place&&!contact.contains(place)){contact.appendChild(place);place.classList.add('v486-place-in-contact');if(location)location.remove()}
+   if(contact&&!contact.dataset.v486EmailShortcuts){
+     contact.dataset.v486EmailShortcuts='1';
+     contact.addEventListener('click',ev=>{
+       const b=ev.target.closest('button');if(!b)return;
+       const domain=String(b.textContent||'').trim().toLowerCase();if(!domains.has(domain))return;
+       const email=contact.querySelector('.v481-role-email input,input[type="email"]');if(!email)return;
+       ev.preventDefault();ev.stopImmediatePropagation();
+       let local=String(email.value||'').trim().toLowerCase().split('@')[0].replace(/\s+/g,'');
+       if(!local){email.focus();return}
+       email.value=local+domain;
+       email.dispatchEvent(new Event('input',{bubbles:true}));email.dispatchEvent(new Event('change',{bubbles:true}));
+       email.focus();try{email.setSelectionRange(email.value.length,email.value.length)}catch(_e){}
+     },true);
+   }
+ }
+ async function openAzur(){
+   try{if(typeof window.api==='function')await window.api('/api/open-external/azur',{method:'POST',body:'{}'});else await fetch('/api/open-external/azur',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:'{}'})}
+   catch(e){alert(e?.message||'No se pudo abrir AZUR')}
+ }
+ function ensureAzurButton(){
+   const sec=document.querySelector('#facturacion');if(!sec||sec.querySelector('#v486OpenAzur'))return;
+   let row=sec.querySelector('.billing-title-row')||sec.querySelector('.page-title-row')||sec.querySelector('h1')?.parentElement;if(!row)return;
+   let actions=row.querySelector('.billing-title-actions');if(!actions){actions=document.createElement('div');actions.className='billing-title-actions';row.appendChild(actions)}
+   const b=document.createElement('button');b.id='v486OpenAzur';b.type='button';b.className='external-billing-link v486-azur-link';b.textContent='↗ Abrir AZUR';b.onclick=openAzur;actions.appendChild(b);
+ }
+ const oldNew=window.newPatient;if(typeof oldNew==='function')window.newPatient=function(){const r=oldNew.apply(this,arguments);setTimeout(patientFix,20);setTimeout(patientFix,100);return r};
+ const oldEdit=window.editPatientFromBilling;if(typeof oldEdit==='function')window.editPatientFromBilling=function(){const r=oldEdit.apply(this,arguments);setTimeout(patientFix,20);setTimeout(patientFix,100);return r};
+ const oldBilling=window.loadBilling;if(typeof oldBilling==='function')window.loadBilling=async function(){const r=await oldBilling.apply(this,arguments);ensureAzurButton();return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(patientFix,80);setTimeout(ensureAzurButton,100)},{once:true});else{setTimeout(patientFix,80);setTimeout(ensureAzurButton,100)}
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V486_FIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V486_FIX_JS
+
+V487_ICON_CSS = r"""/* v4.3.87 — iconos vectoriales compatibles + feedback AZUR */
+.v487-section-svg{width:18px;height:18px;display:block;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.v481-section-icon.v487-identity-icon{color:#356da7!important;background:#eaf3fd!important}
+.v481-section-icon.v487-contact-icon{color:#397b58!important;background:#edf8f1!important}
+.v486-place-in-contact{position:relative}
+.v486-place-in-contact>label:first-child,.v486-place-in-contact .field-label:first-child{display:flex!important;align-items:center!important;gap:5px!important}
+.v487-place-label-icon{width:12px;height:12px;display:inline-block;vertical-align:-2px;stroke:#9b6a26;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#facturacion .v487-azur-loading{display:none;align-items:center;gap:10px;margin:8px 0 10px;padding:10px 12px;border:1px solid #cfe0f3;border-radius:11px;background:#f4f9ff;color:#315f91;font-size:10px;font-weight:800}
+#facturacion .v487-azur-loading.show{display:flex}
+#facturacion .v487-azur-loading-copy{display:grid;gap:1px}
+#facturacion .v487-azur-loading-copy b{font-size:10.5px;color:#285783}
+#facturacion .v487-azur-loading-copy span{font-size:8.8px;color:#70869d;font-weight:650}
+#facturacion .v487-azur-spinner{width:17px;height:17px;flex:0 0 17px;border:2px solid #bdd4ed;border-top-color:#3976b6;border-radius:50%;animation:v487spin .75s linear infinite}
+@keyframes v487spin{to{transform:rotate(360deg)}}
+"""
+V487_ICON_JS = r""";(()=>{
+ if(window.__v487Icons)return;window.__v487Icons=true;
+ const idSvg='<svg class="v487-section-svg" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><circle cx="8" cy="10" r="2.1"></circle><path d="M5.8 15c.8-1.6 3.6-1.6 4.4 0"></path><path d="M13 9h5M13 12h5M13 15h3.5"></path></svg>';
+ const phoneSvg='<svg class="v487-section-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.2 4.5 9.6 8 8.1 9.7c1.1 2.2 2.9 4 5.1 5.1l1.7-1.5 3.6 2.4-.6 3c-.2.9-1 1.5-1.9 1.4C9.4 19.3 4.7 14.6 3.9 8c-.1-.9.5-1.7 1.4-1.9l1.9-.4z"></path></svg>';
+ const pinSvg='<svg class="v487-place-label-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11z"></path><circle cx="12" cy="10" r="2"></circle></svg>';
+ let azurLoadingTimer=null;
+ function applyIcons(){
+   const modal=document.querySelector('#modal .modalbox');if(!modal)return;
+   const identity=modal.querySelector('.v481-identity'),contact=modal.querySelector('.v481-contact');
+   const ii=identity?.querySelector('.v481-section-icon');if(ii){ii.classList.add('v487-identity-icon');ii.innerHTML=idSvg}
+   const ci=contact?.querySelector('.v481-section-icon');if(ci){ci.classList.add('v487-contact-icon');ci.innerHTML=phoneSvg}
+   const place=contact?.querySelector('.v486-place-in-contact,.v481-role-place');
+   if(place&&!place.dataset.v487Pin){
+     place.dataset.v487Pin='1';
+     const label=place.querySelector('label,.field-label');
+     if(label&&!label.querySelector('.v487-place-label-icon'))label.insertAdjacentHTML('afterbegin',pinSvg);
+   }
+ }
+ function ensureAzurLoading(){
+   const sec=document.querySelector('#facturacion');if(!sec)return null;
+   let box=sec.querySelector('#v487AzurLoading');if(box)return box;
+   box=document.createElement('div');box.id='v487AzurLoading';box.className='v487-azur-loading';box.innerHTML='<span class="v487-azur-spinner" aria-hidden="true"></span><span class="v487-azur-loading-copy"><b>Revisando AZUR…</b><span>Consultando el estado de las facturas emitidas y su autorización SRI.</span></span>';
+   const title=sec.querySelector('.billing-title-row,.page-title-row')||sec.querySelector('h1')?.parentElement;
+   if(title)title.insertAdjacentElement('afterend',box);else sec.prepend(box);
+   return box;
+ }
+ function showAzurLoading(){const box=ensureAzurLoading();if(!box)return;box.classList.add('show');clearTimeout(azurLoadingTimer);azurLoadingTimer=setTimeout(hideAzurLoading,90000)}
+ function hideAzurLoading(){const box=document.querySelector('#v487AzurLoading');box?.classList.remove('show');clearTimeout(azurLoadingTimer);azurLoadingTimer=null}
+ document.addEventListener('click',ev=>{
+   const b=ev.target.closest('#facturacion button');if(!b)return;
+   const text=String(b.textContent||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+   if(text.includes('emitidas')||text.includes('autorizadas'))showAzurLoading();
+ },true);
+ const oldBilling=window.loadBilling;if(typeof oldBilling==='function')window.loadBilling=async function(){try{return await oldBilling.apply(this,arguments)}finally{hideAzurLoading()}};
+ const oldNew=window.newPatient;if(typeof oldNew==='function')window.newPatient=function(){const r=oldNew.apply(this,arguments);setTimeout(applyIcons,25);setTimeout(applyIcons,110);return r};
+ const oldEdit=window.editPatientFromBilling;if(typeof oldEdit==='function')window.editPatientFromBilling=function(){const r=oldEdit.apply(this,arguments);setTimeout(applyIcons,25);setTimeout(applyIcons,110);return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(applyIcons,100);setTimeout(ensureAzurLoading,120)},{once:true});else{setTimeout(applyIcons,100);setTimeout(ensureAzurLoading,120)}
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V487_ICON_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V487_ICON_JS
+
+V488_HOME_CSS = r"""/* v4.3.88 — iconos visibles en acciones de Inicio */
+.v478-home-actions>button{display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important}
+.v488-home-action-svg{width:13px;height:13px;display:block;flex:0 0 13px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.v486-home-delete .v488-home-action-svg{width:12px;height:12px;flex-basis:12px}
+@media(max-width:760px){.v478-home-actions>button{gap:4px!important}.v488-home-action-svg{width:12px;height:12px;flex-basis:12px}}
+"""
+V488_REVIEW_JS = r""";(()=>{
+ if(window.__v488ReviewCopy)return;window.__v488ReviewCopy=true;
+ function fixReviewCopy(){
+   const modal=document.querySelector('#modal .modalbox');if(!modal)return;
+   const title=[...modal.querySelectorAll('h1,h2,h3')].find(x=>String(x.textContent||'').toLowerCase().includes('revisar paciente'));
+   if(!title)return;
+   const p=title.parentElement?.querySelector('p')||title.nextElementSibling;
+   if(p&&String(p.textContent||'').toLowerCase().includes('fusion'))p.textContent='Las coincidencias de 75% o más se vinculan automáticamente. Las menores quedan para revisión manual.';
+ }
+ const oldOpen=window.openModal;
+ if(typeof oldOpen==='function')window.openModal=function(){const r=oldOpen.apply(this,arguments);setTimeout(fixReviewCopy,0);setTimeout(fixReviewCopy,50);return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(fixReviewCopy,100),{once:true});else setTimeout(fixReviewCopy,100);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V488_HOME_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V488_REVIEW_JS
+
+V490_ATTENTION_CSS = r"""/* v4.3.90 — remaster de Nueva atención: acción siempre visible */
+.modalbox.v490-attention-remaster{width:min(900px,96vw)!important;max-height:88vh!important;padding:17px 20px 16px!important;overflow:auto!important;scrollbar-gutter:stable}
+.v490-attention-remaster .v490-attention-bar{position:sticky;top:-1px;z-index:90;display:flex;align-items:center;justify-content:space-between;gap:12px;margin:9px 0 13px;padding:9px 10px 9px 12px;border:1px solid #d7e3ef;border-radius:12px;background:rgba(248,251,255,.97);box-shadow:0 5px 16px rgba(40,64,92,.10)}
+.v490-attention-remaster .v490-attention-bar-left{display:flex;align-items:center;gap:9px;min-width:0}
+.v490-attention-remaster .v490-attention-bar-icon{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:#e8f4ee;color:#28704d;flex:0 0 28px}
+.v490-attention-remaster .v490-attention-bar-icon svg{width:16px;height:16px;display:block;stroke:currentColor;fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+.v490-attention-remaster .v490-attention-copy{display:grid;gap:1px;min-width:0}.v490-attention-remaster .v490-attention-copy b{font-size:9px;line-height:1;letter-spacing:.09em;color:#5c6d82;text-transform:uppercase}.v490-attention-remaster .v490-attention-copy span{font-size:11px;font-weight:800;color:#263b55;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v490-attention-remaster .v490-save-btn{border:0;border-radius:10px;min-height:37px;padding:8px 15px;background:#287fc4;color:#fff;font-size:10.5px;font-weight:900;box-shadow:0 4px 10px rgba(40,127,196,.18);white-space:nowrap;cursor:pointer}
+.v490-attention-remaster .v490-save-btn:hover:not(:disabled){filter:brightness(.96)}.v490-attention-remaster .v490-save-btn:disabled{background:#c9d4df;color:#f8fafc;box-shadow:none;cursor:not-allowed}
+.v490-attention-remaster textarea{min-height:52px!important;max-height:74px!important}
+.v490-attention-remaster .modal-form-heading{margin-bottom:6px!important}.v490-attention-remaster .modal-form-heading h2{margin-bottom:2px!important}
+@media(max-width:700px){.modalbox.v490-attention-remaster{width:96vw!important;padding:14px 13px 12px!important}.v490-attention-remaster .v490-attention-bar{gap:8px;padding:8px}.v490-attention-remaster .v490-attention-copy span{font-size:10px}.v490-attention-remaster .v490-save-btn{padding:8px 11px;font-size:9.5px}}
+"""
+V490_ATTENTION_JS = r""";(()=>{
+ if(window.__v490AttentionRemaster)return;window.__v490AttentionRemaster=true;
+ const norm=v=>String(v||'').replace(/\s+/g,' ').trim().toLowerCase();
+ function attentionBox(){
+   const boxes=[...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')];
+   return boxes.find(box=>[...box.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atención')&&findOriginalSave(box))||null;
+ }
+ function findOriginalSave(box){
+   return [...box.querySelectorAll('button,input[type="button"],input[type="submit"]')].find(el=>{
+     if(el.classList?.contains('v490-save-btn'))return false;
+     const t=norm(el.textContent||el.value);return t.includes('guardar atención')||t.includes('guardando');
+   })||null;
+ }
+ function selectionText(box){
+   const leaves=[...box.querySelectorAll('span,b,small,div')].filter(el=>el.children.length===0&&/seleccionad/.test(norm(el.textContent)));
+   leaves.sort((a,b)=>String(a.textContent||'').length-String(b.textContent||'').length);
+   if(leaves.length){
+     let txt=String(leaves[0].textContent||'').replace(/puedes elegir varias\s*[·•-]?\s*/i,'').trim();
+     if(txt)return txt;
+   }
+   const count=[...box.querySelectorAll('input[type="checkbox"]:checked,input[type="radio"]:checked')].filter(x=>!x.disabled).length;
+   return count===1?'1 seleccionada':`${count} seleccionadas`;
+ }
+ function sync(box){
+   if(!box)return;const original=findOriginalSave(box),bar=box.querySelector('.v490-attention-bar');if(!original||!bar)return;
+   const clone=bar.querySelector('.v490-save-btn'),status=bar.querySelector('.v490-attention-status');
+   if(status)status.textContent=selectionText(box);
+   if(clone){clone.disabled=!!original.disabled;clone.textContent=norm(original.textContent||original.value).includes('guardando')?'Guardando…':'Guardar atención';}
+ }
+ function enhance(){
+   const box=attentionBox();if(!box)return;
+   box.classList.add('v490-attention-remaster');
+   let bar=box.querySelector('.v490-attention-bar');
+   if(!bar){
+     bar=document.createElement('div');bar.className='v490-attention-bar';
+     bar.innerHTML='<div class="v490-attention-bar-left"><span class="v490-attention-bar-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4 4L19 7"></path></svg></span><div class="v490-attention-copy"><b>ATENCIÓN</b><span class="v490-attention-status">0 seleccionadas</span></div></div><button class="v490-save-btn" type="button">Guardar atención</button>';
+     const title=[...box.querySelectorAll('h1,h2,h3')].find(h=>norm(h.textContent)==='nueva atención');
+     const heading=title?.closest('.modal-form-heading')||title?.parentElement;
+     if(heading&&heading.parentElement===box)heading.insertAdjacentElement('afterend',bar);else box.insertBefore(bar,box.children[1]||box.firstChild);
+   }
+   if(!box.dataset.v490Bound){
+     box.dataset.v490Bound='1';
+     box.addEventListener('click',e=>{
+       const save=e.target.closest?.('.v490-save-btn');
+       if(save){e.preventDefault();const original=findOriginalSave(box);if(original&&!original.disabled)original.click();return;}
+       setTimeout(()=>sync(box),0);setTimeout(()=>sync(box),80);
+     });
+     box.addEventListener('change',()=>{setTimeout(()=>sync(box),0);setTimeout(()=>sync(box),60)});
+     box.addEventListener('input',()=>setTimeout(()=>sync(box),0));
+   }
+   sync(box);setTimeout(()=>sync(box),80);
+ }
+ document.addEventListener('click',()=>{setTimeout(enhance,0);setTimeout(enhance,80);setTimeout(enhance,180)},true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,120),{once:true});else setTimeout(enhance,120);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V490_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V490_ATTENTION_JS
+
+V491_ATTENTION_CSS = r"""/* v4.3.91 — Nueva atención profesional, compacta y sin redundancias */
+.v490-attention-bar{display:none!important}
+.modalbox.v491-attention-pro{width:min(920px,96vw)!important;max-height:88vh!important;padding:16px 18px 15px!important;overflow:auto!important;scrollbar-gutter:stable}
+.v491-attention-pro .modal-form-heading{margin:0 0 9px!important}.v491-attention-pro .modal-form-heading h2{margin:0 0 2px!important;font-size:24px!important;line-height:1.05!important;letter-spacing:-.02em}.v491-attention-pro .modal-form-heading p{margin:0!important;font-size:9.5px!important;color:#6e7f91!important}
+.v491-attention-pro .v491-hidden{display:none!important}
+.v491-attention-pro .v491-overview-grid{display:grid!important;grid-template-columns:minmax(0,1.7fr) minmax(180px,.75fr) minmax(205px,.8fr)!important;gap:9px!important;align-items:stretch!important;margin:0 0 12px!important}
+.v491-attention-pro .v491-overview-grid>.v491-patient-card,.v491-attention-pro .v491-overview-grid>.v491-type-card,.v491-attention-pro .v491-overview-grid>.v491-date-card{margin:0!important;min-height:0!important;height:auto!important}
+.v491-attention-pro .v491-patient-card,.v491-attention-pro .v491-type-card,.v491-attention-pro .v491-date-card{padding:11px 12px!important;border-radius:12px!important}
+.v491-attention-pro .v491-patient-card{background:#fff!important;border:1px solid #dfe6ee!important}.v491-attention-pro .v491-patient-card h3,.v491-attention-pro .v491-patient-card strong{line-height:1.12!important}
+.v491-attention-pro .v491-type-card{background:#eef8f2!important;border:1px solid #cee6d7!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:3px!important}
+.v491-attention-pro .v491-type-label{display:none!important}.v491-attention-pro .v491-type-value{display:inline-flex!important;align-items:center!important;width:max-content!important;max-width:100%;padding:4px 8px!important;border-radius:999px!important;background:#dff2e7!important;color:#286946!important;font-size:9px!important;font-weight:950!important;letter-spacing:.055em!important}
+.v491-attention-pro .v491-type-card small,.v491-attention-pro .v491-type-card span:not(.v491-type-value){font-size:8.5px!important;line-height:1.2!important;color:#557363!important}
+.v491-attention-pro .v491-date-card{background:#f8fafc!important;border:1px solid #dfe6ee!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:8px!important}.v491-attention-pro .v491-date-card input{min-height:36px!important;height:36px!important;font-size:10.5px!important;padding:7px 9px!important}
+.v491-attention-pro .v491-attention-title{margin-top:3px!important;margin-bottom:2px!important;font-size:18px!important;letter-spacing:-.01em!important}.v491-attention-pro .v491-selection-help{font-size:8.5px!important;color:#7a8998!important;margin:0 0 7px!important}.v491-attention-pro .v491-selection-count{display:inline-flex!important;align-items:center!important;padding:4px 8px!important;border-radius:999px!important;background:#edf6f2!important;color:#376c56!important;font-size:8.5px!important;font-weight:850!important;white-space:nowrap!important}
+.v491-attention-pro .v491-observation-wrap{display:none!important}
+.v491-attention-pro textarea[placeholder*="Observ" i]{display:none!important}
+.v491-attention-pro .modal-actions,.v491-attention-pro .form-actions{margin-top:10px!important;padding-top:9px!important;border-top:1px solid #e7edf3!important;background:#fff!important}
+.v491-attention-pro button{transition:background .12s ease,border-color .12s ease,transform .08s ease}.v491-attention-pro button:active{transform:translateY(1px)}
+@media(max-width:760px){.v491-attention-pro .v491-overview-grid{grid-template-columns:1fr!important}.modalbox.v491-attention-pro{width:96vw!important;padding:14px 13px!important}.v491-attention-pro .v491-date-card{justify-content:flex-start!important}}
+"""
+V491_ATTENTION_JS = r""";(()=>{
+ if(window.__v491AttentionPro)return;window.__v491AttentionPro=true;
+ const norm=v=>String(v||'').replace(/\s+/g,' ').trim().toLowerCase();
+ const leaves=(box)=>[...box.querySelectorAll('label,span,b,strong,small,p,div,h1,h2,h3')].filter(el=>el.children.length===0);
+ function attentionBox(){
+   return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(box=>[...box.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atención'))||null;
+ }
+ function leaf(box,test){return leaves(box).find(el=>test(norm(el.textContent),el))||null}
+ function sectionFor(el,needles,box){
+   let cur=el;
+   for(let i=0;cur&&cur!==box&&i<6;i++,cur=cur.parentElement){
+     const txt=norm(cur.textContent);
+     if(needles.every(n=>txt.includes(n))&&txt.length<900)return cur;
+   }
+   return el?.parentElement||null;
+ }
+ function hideObservation(box){
+   [...box.querySelectorAll('textarea')].forEach(ta=>{
+     const ph=norm(ta.getAttribute('placeholder'));
+     let lab=null;let prev=ta.previousElementSibling;
+     if(prev&&/observ/.test(norm(prev.textContent)))lab=prev;
+     const parent=ta.parentElement;
+     if(ph.includes('observ')||lab||/observ/.test(norm(parent?.textContent||''))){
+       const wrap=parent&&parent!==box?parent:ta;
+       wrap.classList.add('v491-observation-wrap');
+       ta.value='';
+     }
+   });
+   leaves(box).filter(el=>/^observaci[oó]n/.test(norm(el.textContent))).forEach(el=>el.classList.add('v491-hidden'));
+ }
+ function compactOverview(box){
+   const patientLabel=leaf(box,t=>t==='paciente');
+   const typeLabel=leaf(box,t=>t==='tipo de paciente detectado');
+   const dateLabel=leaf(box,t=>t==='fecha de atención');
+   const pCard=patientLabel?sectionFor(patientLabel,['paciente'],box):null;
+   const tCard=typeLabel?sectionFor(typeLabel,['tipo de paciente detectado'],box):null;
+   let dCard=null;
+   if(dateLabel){
+     let cur=dateLabel;
+     for(let i=0;cur&&cur!==box&&i<6;i++,cur=cur.parentElement){if(cur.querySelector?.('input')){dCard=cur;break}}
+     dCard=dCard||dateLabel.parentElement;
+   }
+   if(pCard)pCard.classList.add('v491-patient-card');
+   if(tCard){tCard.classList.add('v491-type-card');typeLabel.classList.add('v491-type-label');const val=leaf(tCard,t=>t==='subsecuente'||t==='nuevo');if(val)val.classList.add('v491-type-value')}
+   if(dCard)dCard.classList.add('v491-date-card');
+   if(pCard&&tCard&&dCard&&pCard!==tCard&&pCard!==dCard&&tCard!==dCard){
+     const parent=pCard.parentElement;
+     if(parent&&tCard.parentElement===parent&&dCard.parentElement===parent)parent.classList.add('v491-overview-grid');
+   }
+   const missing=leaf(box,t=>t.includes('faltan datos'));
+   if(missing){const redundant=leaf(box,t=>t.includes('sin cédula o identificación registrada')||t.includes('sin cedula o identificacion registrada'));if(redundant)redundant.classList.add('v491-hidden')}
+ }
+ function cleanSelection(box){
+   const title=leaf(box,t=>t==='selecciona la atención');if(title){title.textContent='Atención realizada';title.classList.add('v491-attention-title')}
+   const redundant=leaf(box,t=>t.includes('no hay ninguna opción marcada por defecto'));if(redundant)redundant.classList.add('v491-hidden');
+   const count=leaf(box,t=>t.includes('puedes elegir varias')&&t.includes('seleccionad'));
+   if(count){count.textContent=String(count.textContent||'').replace(/puedes elegir varias\s*[·•-]?\s*/i,'').trim()||'0 seleccionadas';count.classList.add('v491-selection-count')}
+   const procHelp=leaf(box,t=>t.includes('selecciona uno o varios si corresponde'));if(procHelp){procHelp.textContent='Puedes seleccionar uno o varios';procHelp.classList.add('v491-selection-help')}
+ }
+ function enhance(){
+   const box=attentionBox();if(!box)return;
+   box.classList.add('v491-attention-pro');
+   box.querySelectorAll('.v490-attention-bar').forEach(x=>x.remove());
+   hideObservation(box);compactOverview(box);cleanSelection(box);
+ }
+ document.addEventListener('click',()=>{setTimeout(enhance,0);setTimeout(enhance,80);setTimeout(enhance,180)},true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,120),{once:true});else setTimeout(enhance,120);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V491_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V491_ATTENTION_JS
+
+V492_ATTENTION_CSS = r"""/* v4.3.92 — remaster estructural real de Nueva atención */
+.v490-attention-bar{display:none!important}
+.modalbox.v492-attention{width:min(980px,97vw)!important;max-height:90vh!important;padding:15px 17px 0!important;overflow:auto!important;scrollbar-gutter:stable;background:#fbfcfe!important}
+.v492-attention .modal-form-heading{margin:0 0 9px!important}.v492-attention .modal-form-heading h2{font-size:23px!important;line-height:1.05!important;margin:0 0 2px!important;letter-spacing:-.025em}.v492-attention .modal-form-heading p{font-size:9.5px!important;margin:0!important;color:#708095!important}
+.v492-attention .v491-overview-grid{display:block!important;margin:0!important}.v492-attention .v491-patient-card,.v492-attention .v491-type-card,.v492-attention .v491-date-card{margin:0!important}
+.v492-clinical-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,310px);gap:10px;align-items:stretch;margin:0 0 13px;padding:10px 11px;border:1px solid #dbe4ed;border-radius:15px;background:#fff;box-shadow:0 3px 12px rgba(39,61,83,.045)}
+.v492-head-main{min-width:0;display:flex;align-items:center}.v492-head-main>.v491-patient-card{width:100%!important;padding:3px 5px!important;border:0!important;background:transparent!important;box-shadow:none!important;min-height:0!important}
+.v492-head-main .v491-hidden{display:none!important}.v492-head-main strong,.v492-head-main h3{font-size:16px!important;line-height:1.12!important;letter-spacing:-.01em!important}.v492-head-main button{min-height:30px!important;padding:6px 9px!important;font-size:8.5px!important;border-radius:9px!important}
+.v492-head-main [class*="warn"],.v492-head-main [class*="missing"]{font-size:8.5px!important;padding:5px 8px!important;border-radius:9px!important}
+.v492-head-side{display:grid;grid-template-columns:1fr;gap:6px;align-content:center;border-left:1px solid #e6edf3;padding-left:10px;min-width:0}
+.v492-head-side>.v491-type-card,.v492-head-side>.v491-date-card{padding:7px 9px!important;border:0!important;border-radius:10px!important;min-height:0!important;height:auto!important;box-shadow:none!important}
+.v492-head-side>.v491-type-card{background:#edf8f2!important}.v492-head-side>.v491-date-card{background:#f5f8fb!important;display:flex!important;align-items:center!important;gap:7px!important}
+.v492-head-side .v491-type-value{font-size:8.5px!important;padding:3px 7px!important}.v492-head-side .v491-type-card small,.v492-head-side .v491-type-card span:not(.v491-type-value){font-size:7.8px!important}
+.v492-head-side .v491-date-card label,.v492-head-side .v491-date-card>span,.v492-head-side .v491-date-card>div:first-child{font-size:8px!important;font-weight:850!important;color:#6b7b8f!important}.v492-head-side .v491-date-card input{height:31px!important;min-height:31px!important;padding:5px 7px!important;font-size:9.5px!important;background:#fff!important}
+.v492-attention .v492-selection-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:1px 2px 8px}.v492-attention .v492-selection-head h3{font-size:17px!important;margin:0!important;letter-spacing:-.015em;color:#25384f}.v492-attention .v492-selection-count{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:999px;background:#edf6f2;color:#376d56;font-size:8.5px;font-weight:900;white-space:nowrap}
+.v492-services-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 10px!important;padding:0!important}
+.v492-service-card{position:relative!important;min-width:0!important;min-height:64px!important;height:auto!important;margin:0!important;padding:10px 31px 9px 38px!important;border:1px solid #dce5ee!important;border-radius:12px!important;background:#fff!important;box-shadow:0 2px 7px rgba(43,63,84,.035)!important;display:flex!important;align-items:center!important;cursor:pointer!important;transition:border-color .12s ease,background .12s ease,box-shadow .12s ease,transform .08s ease!important}
+.v492-service-card:hover{border-color:#b9cce0!important;background:#f8fbfe!important}.v492-service-card:active{transform:translateY(1px)}
+.v492-service-card.v492-consult{border-color:#c8e3d3!important;background:#f3faf6!important}.v492-service-card.is-selected{border-color:#6fa0ce!important;background:#eef6fd!important;box-shadow:0 0 0 2px rgba(69,129,184,.10)!important}.v492-service-card.v492-consult.is-selected{border-color:#65aa83!important;background:#eaf7ef!important;box-shadow:0 0 0 2px rgba(58,145,96,.10)!important}
+.v492-service-mark{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:7px;display:grid;place-items:center;background:#edf3f9;color:#4f769f;font-size:14px;font-weight:900;line-height:1}.v492-consult .v492-service-mark{background:#e0f2e7;color:#2d7850}.v492-service-card.is-selected .v492-service-mark{background:#5a8fbe;color:#fff}.v492-service-card.v492-consult.is-selected .v492-service-mark{background:#418c62;color:#fff}.v492-service-card.is-selected .v492-service-mark::before{content:'✓';font-size:12px}.v492-service-card.is-selected .v492-service-mark{font-size:0}
+.v492-service-card input[type="checkbox"],.v492-service-card input[type="radio"]{position:absolute!important;right:9px!important;top:9px!important;width:16px!important;height:16px!important;margin:0!important;opacity:.38}.v492-service-card.is-selected input[type="checkbox"],.v492-service-card.is-selected input[type="radio"]{opacity:1}
+.v492-service-card strong,.v492-service-card b{font-size:10.5px!important;line-height:1.08!important}.v492-service-card small,.v492-service-card span,.v492-service-card div{line-height:1.15}.v492-service-card small{font-size:8px!important;color:#748498!important}.v492-service-card .v492-editable{display:inline-flex!important;width:max-content!important;margin-top:3px!important;padding:2px 5px!important;border-radius:999px!important;background:#f0f3f7!important;color:#6a7788!important;font-size:7px!important;font-weight:850!important}
+.v492-empty-source,.v492-observation-hidden{display:none!important}.v492-attention textarea[placeholder*="Observ" i]{display:none!important}
+.v492-attention .v491-attention-title,.v492-attention .v491-selection-help,.v492-attention .v491-selection-count{display:none!important}
+.v492-sticky-actions{position:sticky!important;bottom:0!important;z-index:80!important;margin:8px -17px 0!important;padding:9px 17px 11px!important;border-top:1px solid #dde6ef!important;background:rgba(251,252,254,.98)!important;box-shadow:0 -6px 18px rgba(36,57,78,.07)!important;backdrop-filter:blur(4px)}
+.v492-sticky-actions button{min-height:36px!important;border-radius:10px!important;font-size:10px!important}.v492-sticky-actions button:last-child{padding-left:18px!important;padding-right:18px!important;font-weight:900!important}
+@media(max-width:900px){.v492-services-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.v492-clinical-head{grid-template-columns:minmax(0,1fr) minmax(220px,270px)}}
+@media(max-width:700px){.modalbox.v492-attention{width:97vw!important;padding:13px 12px 0!important}.v492-clinical-head{grid-template-columns:1fr}.v492-head-side{border-left:0;border-top:1px solid #e6edf3;padding-left:0;padding-top:7px;grid-template-columns:1fr 1fr}.v492-services-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.v492-sticky-actions{margin-left:-12px!important;margin-right:-12px!important;padding-left:12px!important;padding-right:12px!important}}
+"""
+V492_ATTENTION_JS = r""";(()=>{
+ if(window.__v492Attention)return;window.__v492Attention=true;
+ const norm=v=>String(v||'').replace(/\s+/g,' ').trim().toLowerCase();
+ const leaves=box=>[...box.querySelectorAll('label,span,b,strong,small,p,div,h1,h2,h3')].filter(el=>el.children.length===0);
+ function boxNow(){return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(b=>[...b.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atención'))||null}
+ function leaf(box,fn){return leaves(box).find(el=>fn(norm(el.textContent),el))||null}
+ function cardAround(el,box,needsInput=false){
+   let cur=el;
+   for(let i=0;cur&&cur!==box&&i<7;i++,cur=cur.parentElement){
+     if(needsInput&&cur.querySelector?.('input'))return cur;
+     const txt=norm(cur.textContent);if(!needsInput&&txt.length>0&&txt.length<700&&cur.children.length>0)return cur;
+   }
+   return el?.parentElement||null;
+ }
+ function findOverview(box){
+   const pLab=leaf(box,t=>t==='paciente');
+   const tLab=leaf(box,t=>t==='tipo de paciente detectado');
+   const dLab=leaf(box,t=>t==='fecha de atención');
+   const pCard=pLab?cardAround(pLab,box,false):null;
+   let tCard=tLab?cardAround(tLab,box,false):null;
+   let dCard=dLab?dLab.parentElement:null;
+   if(dLab){let c=dLab;for(let i=0;c&&c!==box&&i<7;i++,c=c.parentElement){if(c.querySelector?.('input[type="date"],input')){dCard=c;break}}}
+   if(tCard){tCard.classList.add('v491-type-card');tLab.classList.add('v491-type-label');const v=leaf(tCard,t=>t==='subsecuente'||t==='nuevo');if(v)v.classList.add('v491-type-value')}
+   if(pCard)pCard.classList.add('v491-patient-card');if(dCard)dCard.classList.add('v491-date-card');
+   return {pCard,tCard,dCard};
+ }
+ function buildHeader(box){
+   let head=box.querySelector('.v492-clinical-head');if(head)return head;
+   const {pCard,tCard,dCard}=findOverview(box);if(!pCard||!tCard||!dCard)return null;
+   if(pCard===tCard||pCard===dCard||tCard===dCard)return null;
+   head=document.createElement('section');head.className='v492-clinical-head';
+   const main=document.createElement('div');main.className='v492-head-main';
+   const side=document.createElement('div');side.className='v492-head-side';
+   const heading=[...box.querySelectorAll('h1,h2,h3')].find(h=>norm(h.textContent)==='nueva atención');
+   const headingWrap=heading?.closest('.modal-form-heading')||heading?.parentElement;
+   if(headingWrap)headingWrap.insertAdjacentElement('afterend',head);else box.prepend(head);
+   main.appendChild(pCard);side.appendChild(tCard);side.appendChild(dCard);head.append(main,side);
+   const patientLabel=leaf(pCard,t=>t==='paciente');if(patientLabel)patientLabel.style.display='none';
+   const redundant=leaf(pCard,t=>t.includes('sin cédula o identificación registrada')||t.includes('sin cedula o identificacion registrada'));const missing=leaf(pCard,t=>t.includes('faltan datos'));if(redundant&&missing)redundant.style.display='none';
+   return head;
+ }
+ function serviceCardForInput(inp,box){
+   let cur=inp.parentElement,best=null;
+   for(let i=0;cur&&cur!==box&&i<6;i++,cur=cur.parentElement){
+     const text=norm(cur.textContent);const inputCount=cur.querySelectorAll?.('input[type="checkbox"],input[type="radio"]').length||0;
+     if(inputCount===1&&text.length>2&&text.length<260)best=cur;
+   }
+   return best||inp.parentElement;
+ }
+ function buildServices(box){
+   let grid=box.querySelector('.v492-services-grid');
+   const inputs=[...box.querySelectorAll('input[type="checkbox"],input[type="radio"]')].filter(i=>!i.disabled&&i.offsetParent!==null);
+   const cards=[];const seen=new Set();
+   for(const inp of inputs){const c=serviceCardForInput(inp,box);if(c&&!seen.has(c)){seen.add(c);cards.push(c)}}
+   if(!cards.length)return null;
+   if(!grid){
+     grid=document.createElement('div');grid.className='v492-services-grid';
+     const title=leaf(box,t=>t==='atención realizada'||t==='selecciona la atención');
+     let anchor=title?.parentElement||null;
+     const head=document.createElement('div');head.className='v492-selection-head';head.innerHTML='<h3>Atención realizada</h3><span class="v492-selection-count">0 seleccionadas</span>';
+     if(anchor)anchor.insertAdjacentElement('beforebegin',head);else box.appendChild(head);
+     head.insertAdjacentElement('afterend',grid);
+     if(anchor)anchor.classList.add('v492-empty-source');
+   }
+   for(const card of cards){
+     if(!card.classList.contains('v492-service-card')){
+       const old=card.parentElement;card.classList.add('v492-service-card');
+       const txt=norm(card.textContent);if(/(^|\s)consulta(\s|$)/.test(txt)&&!txt.includes('cisto'))card.classList.add('v492-consult');
+       const mark=document.createElement('span');mark.className='v492-service-mark';mark.textContent='+';card.prepend(mark);
+       const editable=[...card.querySelectorAll('small,span,div')].find(x=>x.children.length===0&&norm(x.textContent).includes('valor editable'));if(editable){editable.textContent='Editable';editable.classList.add('v492-editable')}
+       grid.appendChild(card);
+       if(old&&old!==box&&!old.querySelector('input[type="checkbox"],input[type="radio"]')&&norm(old.textContent).length<180)old.classList.add('v492-empty-source');
+     } else if(card.parentElement!==grid){grid.appendChild(card)}
+   }
+   return grid;
+ }
+ function hideObservation(box){
+   [...box.querySelectorAll('textarea')].forEach(ta=>{const ph=norm(ta.placeholder);if(ph.includes('observ')||norm(ta.parentElement?.textContent).includes('observ')){ta.value='';(ta.parentElement||ta).classList.add('v492-observation-hidden')}});
+   leaves(box).filter(x=>/^observaci[oó]n/.test(norm(x.textContent))).forEach(x=>x.classList.add('v492-observation-hidden'));
+ }
+ function stickyActions(box){
+   const save=[...box.querySelectorAll('button,input[type="button"],input[type="submit"]')].find(el=>!el.classList.contains('v490-save-btn')&&norm(el.textContent||el.value).includes('guardar atención'));
+   if(!save)return null;let row=save.parentElement;
+   for(let i=0;row&&row!==box&&i<4;i++,row=row.parentElement){const buttons=row.querySelectorAll?.('button,input[type="button"],input[type="submit"]').length||0;if(buttons>=2)break}
+   row=row&&row!==box?row:save.parentElement;if(row)row.classList.add('v492-sticky-actions');return row;
+ }
+ function sync(box){
+   const count=box.querySelectorAll('.v492-service-card input[type="checkbox"]:checked,.v492-service-card input[type="radio"]:checked').length;
+   const pill=box.querySelector('.v492-selection-count');if(pill)pill.textContent=count===1?'1 seleccionada':`${count} seleccionadas`;
+   box.querySelectorAll('.v492-service-card').forEach(c=>c.classList.toggle('is-selected',!!c.querySelector('input:checked')));
+ }
+ function enhance(){
+   const box=boxNow();if(!box)return;box.classList.add('v492-attention');box.querySelectorAll('.v490-attention-bar').forEach(x=>x.remove());
+   const sub=box.querySelector('.modal-form-heading p');if(sub)sub.textContent='Confirma el paciente y registra la atención realizada.';
+   buildHeader(box);buildServices(box);hideObservation(box);stickyActions(box);
+   const oldTitle=leaf(box,t=>t==='atención realizada'||t==='selecciona la atención');if(oldTitle&&oldTitle.closest('.v492-selection-head')==null){const parent=oldTitle.parentElement;if(parent)parent.classList.add('v492-empty-source')}
+   ['consulta','procedimientos'].forEach(word=>{leaves(box).filter(x=>norm(x.textContent)===word).forEach(x=>{const p=x.parentElement;if(p&&!p.closest('.v492-service-card')&&!p.closest('.v492-selection-head'))p.classList.add('v492-empty-source')})});
+   sync(box);
+ }
+ document.addEventListener('click',()=>{setTimeout(enhance,0);setTimeout(enhance,70);setTimeout(enhance,170)},true);
+ document.addEventListener('change',()=>setTimeout(()=>{const b=boxNow();if(b){enhance();sync(b)}},0),true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,120),{once:true});else setTimeout(enhance,120);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V492_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V492_ATTENTION_JS
+
+V493_ATTENTION_CSS = r"""/* v4.3.93 — CONSULTA restaurada + alertas clínicas visibles */
+.v493-alert-band{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;margin:-3px 0 11px;padding:10px 12px;border:1px solid #e1b84d;border-radius:13px;background:linear-gradient(135deg,#fff8d8 0%,#fff1b5 100%);box-shadow:0 3px 10px rgba(155,111,22,.08)}
+.v493-alert-icon{font-size:22px;line-height:1;filter:saturate(1.08)}
+.v493-alert-copy{display:grid;gap:3px;min-width:0}.v493-alert-title{font-size:10px;font-weight:950;color:#6e4d08;letter-spacing:.015em}.v493-alert-line{font-size:9px;line-height:1.25;color:#735b23}.v493-alert-line b{font-weight:950;color:#5d430c}
+.v493-alert-actions{display:flex;align-items:center}.v493-alert-actions button{min-height:33px!important;padding:6px 11px!important;border-radius:9px!important;border:1px solid #d3a83f!important;background:#fff9df!important;color:#684d12!important;font-size:8.5px!important;font-weight:900!important;white-space:nowrap!important;box-shadow:0 2px 6px rgba(128,92,18,.08)!important}.v493-alert-actions button:hover{background:#fff3c4!important}
+.v493-old-alert{display:none!important}
+.v492-services-grid>.v493-consult{order:-100!important;border-color:#b9ddc7!important;background:#eff9f3!important}.v492-services-grid>.v493-consult:hover{border-color:#7fbd98!important;background:#e9f7ef!important}.v492-services-grid>.v493-consult strong,.v492-services-grid>.v493-consult b{color:#245f41!important}.v492-services-grid>.v493-consult .v492-service-mark{background:#d9efe2!important;color:#267149!important}
+.v492-services-grid>.v493-consult::after{content:'$40 fijo';display:inline-flex;margin-left:auto;padding:2px 5px;border-radius:999px;background:#def1e6;color:#286b49;font-size:7px;font-weight:900;white-space:nowrap}
+.v492-services-grid>.v493-consult.is-selected::after{background:#cae8d6;color:#215d3e}
+@media(max-width:700px){.v493-alert-band{grid-template-columns:auto 1fr}.v493-alert-actions{grid-column:1/-1}.v493-alert-actions button{width:100%}}
+"""
+V493_ATTENTION_JS = r""";(()=>{
+ if(window.__v493AttentionFix)return;window.__v493AttentionFix=true;
+ const norm=v=>String(v||'').replace(/\s+/g,' ').trim().toLowerCase();
+ const leaves=box=>[...box.querySelectorAll('label,span,b,strong,small,p,div,h1,h2,h3')].filter(el=>el.children.length===0);
+ function boxNow(){return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(b=>[...b.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atención'))||null}
+ function patientName(box){
+   const root=box.querySelector('.v492-head-main')||box;
+   const candidates=[...root.querySelectorAll('h3,strong,b,span,div')].filter(el=>el.children.length===0).map(el=>String(el.textContent||'').replace(/\s+/g,' ').trim()).filter(t=>t&&t.length>5&&!/^(paciente|subsecuente|nuevo)$/i.test(t)&&!/^faltan datos/i.test(t)&&!/^sin c[eé]dula/i.test(t));
+   candidates.sort((a,b)=>b.length-a.length);return candidates[0]||'';
+ }
+ function incompleteName(name){
+   const words=String(name||'').trim().split(/\s+/).filter(Boolean);return words.length>0&&words.length<4;
+ }
+ function smallestCommon(a,b,box){
+   if(!a)return null;let cur=a;
+   for(let i=0;cur&&cur!==box&&i<7;i++,cur=cur.parentElement){if((!b||cur.contains(b))&&norm(cur.textContent).length<650)return cur}
+   return a.parentElement;
+ }
+ function ensureAlert(box){
+   const head=box.querySelector('.v492-clinical-head');if(!head)return;
+   const all=leaves(box);const missing=all.find(el=>norm(el.textContent).includes('faltan datos'))||null;
+   const complete=[...box.querySelectorAll('button')].find(b=>norm(b.textContent).includes('completar datos'))||null;
+   const name=patientName(box),badName=incompleteName(name);
+   let band=box.querySelector('.v493-alert-band');
+   if(!missing&&!badName){if(band)band.remove();return}
+   if(!band){
+     band=document.createElement('section');band.className='v493-alert-band';
+     band.innerHTML='<div class="v493-alert-icon" aria-hidden="true">⚠️</div><div class="v493-alert-copy"><div class="v493-alert-title">Atención al registro del paciente</div><div class="v493-alert-lines"></div></div><div class="v493-alert-actions"></div>';
+     head.insertAdjacentElement('afterend',band);
+   }
+   const lines=band.querySelector('.v493-alert-lines');lines.innerHTML='';
+   if(missing){
+     let txt=String(missing.textContent||'').replace(/^\s*[⚠️⚠\s]*/,'').trim();
+     const colon=txt.indexOf(':');const detail=colon>=0?txt.slice(colon+1).trim():txt.replace(/^faltan datos\s*/i,'').trim();
+     const line=document.createElement('div');line.className='v493-alert-line';line.innerHTML='⚠️ <b>Faltan datos:</b> '+(detail||'completa la ficha del paciente');lines.appendChild(line);
+   }
+   if(badName){const line=document.createElement('div');line.className='v493-alert-line';line.innerHTML='⚠️ <b>Nombre incompleto:</b> ideal registrar dos apellidos y dos nombres';lines.appendChild(line)}
+   if(complete){band.querySelector('.v493-alert-actions').appendChild(complete)}
+   if(missing){missing.style.display='none'}
+   const old=smallestCommon(missing,complete,box);if(old&&old!==head&&!old.classList.contains('v493-alert-band')&&!old.contains(band)){old.classList.add('v493-old-alert')}
+ }
+ function consultCard(box){
+   const exact=leaves(box).filter(el=>norm(el.textContent)==='consulta');
+   let fallback=null;
+   for(const label of exact){
+     let cur=label;
+     for(let i=0;cur&&cur!==box&&i<7;i++,cur=cur.parentElement){
+       const txt=norm(cur.textContent);
+       if(txt.includes('consulta')&&(txt.includes('$40')||txt.includes('40 fijo')||txt.includes('atención médica')||txt.includes('atencion medica'))&&txt.length<350){
+         fallback=cur;
+         if(cur.querySelector?.('input,button')||cur.onclick||cur.getAttribute?.('role'))return cur;
+       }
+     }
+   }
+   return fallback;
+ }
+ function ensureConsult(box){
+   const grid=box.querySelector('.v492-services-grid');if(!grid)return;
+   let card=grid.querySelector('.v492-consult,.v493-consult');
+   if(!card)card=consultCard(box);
+   if(!card)return;
+   card.classList.remove('v492-empty-source','v491-hidden');card.style.removeProperty('display');
+   card.classList.add('v492-service-card','v492-consult','v493-consult');
+   if(!card.querySelector('.v492-service-mark')){const mark=document.createElement('span');mark.className='v492-service-mark';mark.textContent='+';card.prepend(mark)}
+   if(card.parentElement!==grid)grid.insertBefore(card,grid.firstElementChild);else if(grid.firstElementChild!==card)grid.insertBefore(card,grid.firstElementChild);
+   let p=card.parentElement;while(p&&p!==box){p.classList.remove('v492-empty-source','v493-old-alert');p=p.parentElement}
+ }
+ function enhance(){const box=boxNow();if(!box)return;setTimeout(()=>{ensureConsult(box);ensureAlert(box)},0)}
+ document.addEventListener('click',()=>{setTimeout(enhance,40);setTimeout(enhance,160)},true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,220),{once:true});else setTimeout(enhance,220);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V493_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V493_ATTENTION_JS
+
+V494_ATTENTION_CSS = r"""/* v4.3.94 — CONSULTA garantizada + alerta legible + limpieza de huecos */
+.v493-alert-band{grid-template-columns:34px minmax(0,1fr) auto!important;gap:12px!important;padding:13px 14px!important;border-width:1.5px!important;border-color:#d8a51f!important;background:linear-gradient(135deg,#fff3ad 0%,#ffe989 100%)!important;box-shadow:0 4px 14px rgba(139,96,8,.12)!important}
+.v493-alert-icon{font-size:28px!important;line-height:1!important}
+.v493-alert-copy{gap:5px!important}.v493-alert-title{font-size:13px!important;line-height:1.15!important;font-weight:950!important;color:#5c4107!important}.v493-alert-line{font-size:11.5px!important;line-height:1.3!important;color:#654d17!important}.v493-alert-line b{font-weight:950!important;color:#4d3504!important}
+.v493-alert-actions button{min-height:39px!important;padding:8px 14px!important;font-size:10.5px!important;border-width:1.5px!important;background:#fff9dc!important}
+.v494-consult-proxy{order:-1000!important;position:relative!important;min-height:64px!important;padding:10px 30px 9px 39px!important;border:1.5px solid #8fc9a6!important;border-radius:12px!important;background:#ebf8f0!important;box-shadow:0 2px 8px rgba(38,112,70,.07)!important;display:flex!important;align-items:center!important;cursor:pointer!important;color:#245f41!important;user-select:none!important}
+.v494-consult-proxy:hover{background:#e2f5ea!important;border-color:#62ac80!important}.v494-consult-proxy:active{transform:translateY(1px)}
+.v494-consult-proxy .v494-consult-mark{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:21px;height:21px;border-radius:7px;background:#d8efe1;color:#28754c;display:grid;place-items:center;font-size:15px;font-weight:950}.v494-consult-proxy .v494-consult-copy{display:grid;gap:3px;min-width:0}.v494-consult-proxy .v494-consult-copy b{font-size:11px!important;line-height:1!important;color:#245f41!important}.v494-consult-proxy .v494-consult-copy small{font-size:8px!important;color:#557764!important}.v494-consult-proxy .v494-consult-price{margin-left:auto;padding:3px 6px;border-radius:999px;background:#d8efe1;color:#276b49;font-size:7.5px;font-weight:950;white-space:nowrap}
+.v494-consult-proxy.is-selected{background:#dff3e7!important;border-color:#45966a!important;box-shadow:0 0 0 2px rgba(49,135,86,.11)!important}.v494-consult-proxy.is-selected .v494-consult-mark{background:#418c62;color:#fff;font-size:0}.v494-consult-proxy.is-selected .v494-consult-mark::before{content:'✓';font-size:12px}
+.v494-ghost-hidden{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+@media(max-width:700px){.v493-alert-band{grid-template-columns:32px 1fr!important}.v493-alert-actions{grid-column:1/-1!important}.v493-alert-title{font-size:12px!important}.v493-alert-line{font-size:10.5px!important}}
+"""
+V494_ATTENTION_JS = r""";(()=>{
+ if(window.__v494AttentionHotfix)return;window.__v494AttentionHotfix=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function boxNow(){return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(b=>[...b.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atencion'))||null}
+ function gridNow(box){return box?.querySelector('.v492-services-grid')||null}
+ function candidateScore(el){
+   const t=norm(el.textContent);if(!t.includes('consulta'))return -1;if(t.includes('cistoscopia')||t.includes('consulta nuevamente'))return -1;
+   let s=5;if(t.includes('$40')||t.includes('40 fijo')||t.includes('atencion medica'))s+=8;
+   if(el.matches('button,label,[role="button"]'))s+=7;if(el.querySelector?.('input[type="checkbox"],input[type="radio"],button'))s+=5;
+   if(t.length<180)s+=4;if(el.closest('.v492-services-grid'))s-=4;return s;
+ }
+ function originalConsult(box){
+   const all=[...box.querySelectorAll('button,label,div,section,article,span')].filter(el=>el!==box&&norm(el.textContent).includes('consulta'));
+   all.sort((a,b)=>candidateScore(b)-candidateScore(a)||norm(a.textContent).length-norm(b.textContent).length);
+   const host=all.find(el=>candidateScore(el)>=9)||null;if(!host)return null;
+   let root=host;
+   for(let i=0;root&&root!==box&&i<5;i++,root=root.parentElement){
+     const t=norm(root.textContent),n=root.querySelectorAll?.('input[type="checkbox"],input[type="radio"]').length||0;
+     if(t.includes('consulta')&&!t.includes('cistoscopia')&&t.length<260&&(n===1||root.matches?.('button,label,[role="button"]')))return root;
+   }
+   return host;
+ }
+ function actionInside(host){
+   if(!host)return null;
+   const inp=host.matches?.('input[type="checkbox"],input[type="radio"]')?host:host.querySelector?.('input[type="checkbox"],input[type="radio"]');if(inp)return inp;
+   const btn=host.matches?.('button,[role="button"],label')?host:host.querySelector?.('button,[role="button"],label');return btn||host;
+ }
+ function selected(host){const inp=host?.matches?.('input[type="checkbox"],input[type="radio"]')?host:host?.querySelector?.('input[type="checkbox"],input[type="radio"]');if(inp)return !!inp.checked;return host?.classList?.contains('is-selected')||host?.classList?.contains('selected')||false}
+ function triggerOriginal(host){
+   const act=actionInside(host);if(!act)return;
+   if(act.matches?.('input[type="checkbox"],input[type="radio"]')){act.click();return}
+   act.click?.();
+ }
+ function ensureConsult(box){
+   const grid=gridNow(box);if(!grid)return;
+   const oldVisible=[...grid.children].find(el=>/\bconsulta\b/.test(norm(el.textContent))&&!norm(el.textContent).includes('cistoscopia'));
+   if(oldVisible){oldVisible.classList.add('v493-consult');return}
+   const original=originalConsult(box);let proxy=grid.querySelector('.v494-consult-proxy');
+   if(!proxy){proxy=document.createElement('div');proxy.className='v494-consult-proxy';proxy.setAttribute('role','button');proxy.setAttribute('tabindex','0');proxy.innerHTML='<span class="v494-consult-mark">+</span><span class="v494-consult-copy"><b>CONSULTA</b><small>Atención médica</small></span><span class="v494-consult-price">$40 fijo</span>';grid.insertBefore(proxy,grid.firstElementChild);proxy.addEventListener('click',e=>{e.preventDefault();const h=originalConsult(box);triggerOriginal(h);setTimeout(()=>syncConsult(box),0);setTimeout(()=>syncConsult(box),80)});proxy.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();proxy.click()}})}
+   proxy.classList.toggle('is-selected',selected(original));
+ }
+ function syncConsult(box){const p=gridNow(box)?.querySelector('.v494-consult-proxy');if(!p)return;const h=originalConsult(box);p.classList.toggle('is-selected',selected(h))}
+ function cleanGhosts(box){
+   const band=box.querySelector('.v493-alert-band'),grid=gridNow(box);if(!band||!grid)return;
+   let el=band.nextElementSibling;let guard=0;
+   while(el&&el!==grid&&guard++<12){const next=el.nextElementSibling;const t=norm(el.textContent);const interactive=!!el.querySelector?.('button,input,select,textarea');const structural=el.classList?.contains('v492-selection-head')||el.classList?.contains('v492-empty-source')||el.classList?.contains('v491-attention-title')||el.classList?.contains('v493-old-alert');if((!t&&!interactive)||structural)el.classList.add('v494-ghost-hidden');el=next}
+   [...box.querySelectorAll('.v492-empty-source,.v493-old-alert')].forEach(el=>{if(!el.contains(grid)&&!el.contains(band))el.classList.add('v494-ghost-hidden')});
+ }
+ function enlargeAlert(box){const band=box.querySelector('.v493-alert-band');if(!band)return;const title=band.querySelector('.v493-alert-title');if(title)title.textContent='⚠️ Atención al registro del paciente'}
+ function enhance(){const box=boxNow();if(!box)return;ensureConsult(box);enlargeAlert(box);cleanGhosts(box);syncConsult(box)}
+ document.addEventListener('click',()=>{setTimeout(enhance,20);setTimeout(enhance,100);setTimeout(enhance,220)},true);
+ document.addEventListener('change',()=>setTimeout(enhance,0),true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,250),{once:true});else setTimeout(enhance,250);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V494_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V494_ATTENTION_JS
+
+V495_ATTENTION_CSS = r"""/* v4.3.95 — CONSULTA enlazada al selector oculto real */
+.v495-consult-card{order:-2000!important;position:relative!important;min-height:66px!important;padding:10px 34px 9px 40px!important;border:1.5px solid #79bd94!important;border-radius:12px!important;background:#eaf7ef!important;display:flex!important;align-items:center!important;gap:8px!important;cursor:pointer!important;box-shadow:0 2px 9px rgba(37,110,68,.08)!important;user-select:none!important}
+.v495-consult-card:hover{background:#e1f4e8!important;border-color:#55a978!important}.v495-consult-card:active{transform:translateY(1px)}
+.v495-consult-icon{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:22px;height:22px;border-radius:7px;background:#d4ecde;color:#267248;display:grid;place-items:center;font-size:15px;font-weight:950}.v495-consult-copy{display:grid;gap:3px;min-width:0}.v495-consult-copy b{font-size:11.5px!important;color:#215d3d!important;line-height:1!important}.v495-consult-copy small{font-size:8.5px!important;color:#557565!important}.v495-consult-price{margin-left:auto;padding:3px 7px;border-radius:999px;background:#d5ecde;color:#246743;font-size:8px;font-weight:950;white-space:nowrap}
+.v495-consult-card.is-selected{background:#d9f0e2!important;border-color:#398b5e!important;box-shadow:0 0 0 2px rgba(49,135,86,.11)!important}.v495-consult-card.is-selected .v495-consult-icon{background:#398b5e;color:#fff;font-size:0}.v495-consult-card.is-selected .v495-consult-icon:before{content:'✓';font-size:12px}
+.v495-hidden-source{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+"""
+V495_ATTENTION_JS = r""";(()=>{
+ if(window.__v495ConsultFix)return;window.__v495ConsultFix=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function boxNow(){return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(b=>[...b.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atencion'))||null}
+ function gridNow(box){return box?.querySelector('.v492-services-grid')||null}
+ function inputText(inp,box){
+   let txt=[inp.id,inp.name,inp.value,inp.getAttribute('aria-label'),inp.dataset?.service,inp.dataset?.name].filter(Boolean).join(' ');
+   let cur=inp.parentElement;
+   for(let i=0;cur&&cur!==box&&i<5;i++,cur=cur.parentElement){const t=norm(cur.textContent);if(t&&t.length<260)txt+=' '+t}
+   return norm(txt);
+ }
+ function hiddenConsultInput(box){
+   const grid=gridNow(box);if(!grid)return null;
+   const all=[...box.querySelectorAll('input[type="checkbox"],input[type="radio"]')].filter(i=>!i.disabled);
+   const outside=all.filter(i=>!grid.contains(i)&&!i.closest('.v492-clinical-head')&&!i.closest('.v493-alert-band'));
+   if(!outside.length)return null;
+   const scored=outside.map(i=>{const t=inputText(i,box);let s=0;if(t.includes('consulta'))s+=30;if(t.includes('40'))s+=10;if(t.includes('atencion medica'))s+=10;if(t.includes('cisto'))s-=25;if(i.offsetParent===null)s+=6;return [i,s,t]}).sort((a,b)=>b[1]-a[1]);
+   if(scored[0][1]>0)return scored[0][0];
+   return outside.length===1?outside[0]:null;
+ }
+ function hideSource(inp,box){
+   if(!inp)return;let cur=inp.parentElement;
+   for(let i=0;cur&&cur!==box&&i<5;i++,cur=cur.parentElement){const t=norm(cur.textContent);if(t.includes('consulta')&&!t.includes('cistoscopia')&&t.length<280){cur.classList.add('v495-hidden-source');return}}
+ }
+ function sync(box){const grid=gridNow(box),card=grid?.querySelector('.v495-consult-card'),inp=hiddenConsultInput(box);if(card)card.classList.toggle('is-selected',!!inp?.checked)}
+ function ensure(box){
+   const grid=gridNow(box);if(!grid)return;
+   let card=grid.querySelector('.v495-consult-card');const inp=hiddenConsultInput(box);
+   if(!inp)return;
+   hideSource(inp,box);
+   if(!card){
+     card=document.createElement('div');card.className='v495-consult-card';card.setAttribute('role','button');card.setAttribute('tabindex','0');card.innerHTML='<span class="v495-consult-icon">+</span><span class="v495-consult-copy"><b>CONSULTA</b><small>Atención médica</small></span><span class="v495-consult-price">$40 fijo</span>';
+     const activate=()=>{inp.click();inp.dispatchEvent(new Event('change',{bubbles:true}));setTimeout(()=>sync(box),0);setTimeout(()=>sync(box),80)};
+     card.addEventListener('click',e=>{e.preventDefault();activate()});card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();activate()}});
+     grid.insertBefore(card,grid.firstElementChild);
+   } else if(grid.firstElementChild!==card)grid.insertBefore(card,grid.firstElementChild);
+   sync(box);
+ }
+ function cleanup(box){
+   const band=box.querySelector('.v493-alert-band'),grid=gridNow(box);if(!band||!grid)return;
+   let el=band.nextElementSibling,guard=0;while(el&&el!==grid&&guard++<10){const next=el.nextElementSibling;const t=norm(el.textContent),interactive=!!el.querySelector?.('button,input:not([type="hidden"]),select,textarea');if(!t&&!interactive)el.classList.add('v495-hidden-source');el=next}
+ }
+ function enhance(){const box=boxNow();if(!box)return;ensure(box);cleanup(box);sync(box)}
+ document.addEventListener('click',()=>{setTimeout(enhance,20);setTimeout(enhance,100);setTimeout(enhance,220)},true);
+ document.addEventListener('change',()=>setTimeout(enhance,0),true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(enhance,240),{once:true});else setTimeout(enhance,240);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V495_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V495_ATTENTION_JS
+
+V497_ATTENTION_CSS = r"""/* v4.3.97 — CONSULTA nativa visible dentro del remaster */
+.v497-native-consult{order:-3000!important;display:grid!important;visibility:visible!important;opacity:1!important;height:auto!important;min-height:62px!important;background:#f2fbf6!important;border-color:#79bd96!important}
+.v497-native-consult .service-icon{background:#dcf4e5!important;color:#257249!important}
+.v497-native-consult:hover{border-color:#55a978!important;background:#ebf9f0!important}
+.v497-native-consult.selected{background:#e3f7eb!important;border-color:#43a66e!important;box-shadow:0 0 0 2px #43a66e22!important}
+.v497-native-consult.selected .service-icon{background:#2f925a!important;color:#fff!important}
+.v497-native-section-empty{display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;overflow:hidden!important}
+"""
+V497_ATTENTION_JS = r""";(()=>{
+ if(window.__v497NativeConsult)return;window.__v497NativeConsult=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function boxNow(){return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(b=>[...b.querySelectorAll('h1,h2,h3')].some(h=>norm(h.textContent)==='nueva atencion'))||null}
+ function nativeConsult(box){return [...box.querySelectorAll('button.service-card[data-service]')].find(b=>norm(b.dataset.service)==='consulta')||null}
+ function hideEmptyNativeSections(box){
+   for(const sec of box.querySelectorAll('.consultation-service-section,.procedures-service-section')){
+     if(!sec.querySelector('.service-card'))sec.classList.add('v497-native-section-empty');
+   }
+   for(const groups of box.querySelectorAll('.service-groups')){
+     if(!groups.querySelector('.service-card'))groups.classList.add('v497-native-section-empty');
+   }
+ }
+ function repairConsult(){
+   const box=boxNow();if(!box)return false;
+   const grid=box.querySelector('.v492-services-grid');if(!grid)return false;
+   const card=nativeConsult(box);if(!card)return false;
+   const oldSection=card.closest('.consultation-service-section');
+   card.classList.remove('v492-empty-source','v493-old-alert','v495-hidden-source','hidden');
+   card.style.removeProperty('display');card.style.removeProperty('height');card.style.removeProperty('visibility');
+   card.classList.add('v492-service-card','v492-consult','v497-native-consult');
+   grid.querySelectorAll('.v494-consult-proxy,.v495-consult-card').forEach(el=>{if(el!==card)el.remove()});
+   if(grid.firstElementChild!==card)grid.insertBefore(card,grid.firstElementChild);
+   if(oldSection&&!oldSection.querySelector('.service-card'))oldSection.classList.add('v497-native-section-empty');
+   hideEmptyNativeSections(box);
+   return true;
+ }
+ function installFavicon(){
+   let link=document.querySelector('link[data-rp-favicon="497"]');
+   if(!link){link=document.createElement('link');link.rel='icon';link.type='image/x-icon';link.dataset.rpFavicon='497';document.head.appendChild(link)}
+   link.href='/static/doctor_icon.ico?v=4.3.97';
+ }
+ function enhance(){installFavicon();repairConsult()}
+ document.addEventListener('click',()=>{setTimeout(enhance,0);setTimeout(enhance,50);setTimeout(enhance,140);setTimeout(enhance,300)},true);
+ document.addEventListener('change',()=>setTimeout(enhance,0),true);
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{installFavicon();setTimeout(enhance,120)},{once:true});else{installFavicon();setTimeout(enhance,120)}
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V497_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V497_ATTENTION_JS
+
+@app.get("/v460/overlay.css")
+def v460_overlay_css():
+    return Response(content=V460_OVERLAY_CSS, media_type="text/css; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+@app.get("/v460/overlay.js")
+def v460_overlay_js():
+    return Response(content=V460_OVERLAY_JS, media_type="application/javascript; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+@app.get("/api/update/info")
+def update_info(user: User = Depends(current_user)):
+    return {
+        "version": APP_VERSION,
+        "mode": "package",
+        "message": "Paquetes compatibles pueden aplicarse aquí; siempre se crea un respaldo antes de actualizar.",
+    }
+
+
+@app.post("/api/update/apply")
+async def apply_update_package(
+    package: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede actualizar el programa")
+    filename = (package.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(400, "Selecciona un paquete ZIP de actualización")
+
+    raw = await package.read()
+    if len(raw) > 50 * 1024 * 1024:
+        raise HTTPException(400, "El paquete de actualización es demasiado grande")
+
+    with tempfile.TemporaryDirectory(prefix="rp_update_") as tmp:
+        tmp_path = Path(tmp)
+        zip_path = tmp_path / "update.zip"
+        zip_path.write_bytes(raw)
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                for member in zf.namelist():
+                    _safe_update_member_path(tmp_path / "extract", member)
+                zf.extractall(tmp_path / "extract")
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "El archivo ZIP está dañado")
+
+        manifests = list((tmp_path / "extract").rglob("update_manifest.json"))
+        if not manifests:
+            raise HTTPException(400, "Este ZIP no es un paquete de actualización compatible")
+        manifest_path = manifests[0]
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            raise HTTPException(400, "No se pudo leer el manifiesto de actualización")
+        if manifest.get("product") != "recepcion-pacientes":
+            raise HTTPException(400, "El paquete no corresponde a Recepción de Pacientes")
+        new_version = str(manifest.get("version") or "").strip()
+        if not new_version:
+            raise HTTPException(400, "El paquete no indica su versión")
+        if new_version == APP_VERSION:
+            raise HTTPException(409, f"La versión {new_version} ya está instalada")
+
+        package_root = manifest_path.parent
+        copy_items = manifest.get("copy") or [
+            "app.py", "requirements.txt", "ABRIR_RECEPCION.py", "INICIAR.bat",
+            "ABRIR_RECEPCION.bat", "CERRAR_RECEPCION.bat", "CREAR_ACCESO_DIRECTO.bat",
+            "REPARAR_ACCESO_DIRECTO.bat", "static", "README.md", "MODO_DE_USO.txt", "NUBE_LEEME.txt"
+        ]
+        prohibited = {".env", "data", ".venv", "BASE DE DATOS 2026.xlsx"}
+        for item in copy_items:
+            top = Path(item).parts[0] if Path(item).parts else ""
+            if top in prohibited:
+                raise HTTPException(400, f"El paquete intenta reemplazar un archivo protegido: {top}")
+            if not (package_root / item).exists():
+                raise HTTPException(400, f"Falta un componente de actualización: {item}")
+
+        backup_path = _app_backup_zip()
+        for item in copy_items:
+            src = package_root / item
+            dst = Path(BASE_DIR) / item
+            if src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                for child in src.rglob("*"):
+                    rel = child.relative_to(src)
+                    target = dst / rel
+                    if child.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(child, target)
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+
+        audit(db, user, "aplicar_actualizacion", f"{APP_VERSION} -> {new_version}; respaldo {Path(backup_path).name}")
+        db.commit()
+
+        # Desde v3.9.5 las futuras actualizaciones se reinician solas.
+        # El ayudante se inicia con el Python de la instalación, espera a que
+        # esta respuesta salga y luego levanta app.py ya reemplazado.
+        python_exe = sys.executable
+        app_path = os.path.join(BASE_DIR, "app.py")
+        helper = (
+            "import os,subprocess,time;"
+            "time.sleep(2.0);"
+            "flags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0;"
+            f"subprocess.Popen([{python_exe!r},{app_path!r}],cwd={BASE_DIR!r},stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,close_fds=True)"
+        )
+        try:
+            subprocess.Popen([python_exe, "-c", helper], cwd=BASE_DIR, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0, close_fds=True)
+            threading.Timer(0.9, lambda: os._exit(0)).start()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "from_version": APP_VERSION,
+            "to_version": new_version,
+            "backup": Path(backup_path).name,
+            "restart_required": False,
+            "restarting": True,
+        }
+
+
+def _downloads_dir() -> Path:
+    """Carpeta Descargas del mismo usuario que ejecuta Recepción.
+
+    En WebView2 evitamos depender del gestor de descargas del navegador y
+    guardamos el archivo desde el servidor local.
+    """
+    candidates = []
+    profile = (os.getenv("USERPROFILE") or "").strip()
+    if profile:
+        candidates.append(Path(profile) / "Downloads")
+    try:
+        candidates.append(Path.home() / "Downloads")
+    except Exception:
+        pass
+    candidates.append(Path(DATA_DIR) / "exports")
+    for folder in candidates:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            test = folder / ".recepcion_write_test"
+            test.write_text("ok", encoding="utf-8")
+            test.unlink(missing_ok=True)
+            return folder
+        except Exception:
+            continue
+    raise HTTPException(500, "No se encontró una carpeta donde guardar el Excel")
+
+
+def _unique_export_path(folder: Path, filename: str) -> Path:
+    target = folder / filename
+    if not target.exists():
+        return target
+    stem, suffix = target.stem, target.suffix
+    for n in range(2, 1000):
+        candidate = folder / f"{stem} ({n}){suffix}"
+        if not candidate.exists():
+            return candidate
+    return folder / f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+
+
+@app.post("/api/export.xlsx/save")
+def save_xlsx_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    folder = _downloads_dir()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    target = _unique_export_path(folder, filename)
+    try:
+        target.write_bytes(content)
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el Excel: {exc}")
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; guardado en {target}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    return {
+        "ok": True,
+        "filename": target.name,
+        "folder": str(target.parent),
+        "path": str(target),
+        "patients": data["patients"],
+        "total": data["total"],
+    }
+
+
+@app.get("/api/export.xlsx")
+def export_xlsx(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _build_report_csv(db: Session, desde: date, hasta: date) -> str:
+    rows = db.execute(
+        select(Visit, Patient).join(Patient).where(Visit.fecha >= desde, Visit.fecha <= hasta).order_by(Visit.fecha, Visit.id)
+    ).all()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Fecha", "Cédula", "Nombre", "Nacimiento", "Celular", "Estado", "Procedimiento", "Correo", "Lugar", "Valor", "Observación"])
+    for v, p in rows:
+        w.writerow([
+            v.fecha, p.cedula or "", p.nombre, p.fecha_nacimiento or "", p.celular or "", v.tipo,
+            v.procedimiento or "CONSULTA", p.correo or "", p.lugar or "",
+            float(v.valor) if v.valor is not None else "", v.observacion or "",
+        ])
+    return "\ufeff" + out.getvalue()
+
+
+@app.post("/api/export.csv/save")
+def save_csv_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    folder = _downloads_dir()
+    target = _unique_export_path(folder, f"atenciones_{desde}_{hasta}.csv")
+    try:
+        target.write_bytes(data.encode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el CSV: {exc}")
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}; guardado en {target}")
+    db.commit()
+    return {"ok": True, "filename": target.name, "folder": str(target.parent), "path": str(target)}
+
+
+@app.get("/api/export.csv")
+def export_csv(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}")
+    db.commit()
+    return StreamingResponse(
+        iter([data.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="atenciones_{desde}_{hasta}.csv"'},
+    )
+
+
+
+
+# v4.3.58 — el launcher autocontenido es el único instalador.
+@app.post("/api/program/update-now")
+def program_update_now():
+    """Comprueba el canal sin reemplazar archivos desde el backend en ejecución."""
+    try:
+        info = _read_update_channel_status()
+        if info["update_available"]:
+            return {
+                "ok": True, "update": True, "current": info["local"], "latest": info["latest"],
+                "message": f"Hay una actualización {info['latest']} disponible. Cierra y vuelve a abrir Recepción para que el launcher la instale de forma segura.",
+            }
+        return {
+            "ok": True, "update": False, "current": info["local"], "latest": info["latest"],
+            "message": f"Programa actualizado. El paquete {info['local']} coincide con el canal oficial.",
+        }
+    except Exception as exc:
+        return {"ok": False, "update": False, "current": APP_VERSION, "message": f"No se pudo consultar el canal: {str(exc)[:200]}"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=APP_PORT, reload=False, access_log=False, log_level="warning", workers=1)
