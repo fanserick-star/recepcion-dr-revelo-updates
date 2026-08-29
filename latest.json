@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.3.74",
+  "version": "4.3.75",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.3.74: corrige el número visual de versión, elimina los cuadros nativos de Agenda y ejecuta Emitir todas en AZUR por una ruta directa sin rebotes.",
+  "message": "v4.3.75: simplifica Facturación a Revisar y emitir, unifica Por emitir, compacta el estado AZUR/SRI y corrige la marca visual del launcher.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v457/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/ABRIR_RECEPCION.part4"
       ],
-      "sha256": "d5819a74e570c096d571971b244630d03342b258d32da93949d0bf1b5edb4d31",
+      "sha256": "7c1058d3ceda006b1273ebd42937db66855d316a8279f806ca790d38bf37f9b3",
       "encoding": "utf-8"
     },
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/app.part7"
       ],
-      "sha256": "e33a123ee370cd2a8f67f937aa2c2e1f557eb2252b2b54b5232baee9b2a67480",
+      "sha256": "e2baaea5768668c87cc76a0f2aecb7e11f182f0f3e733cf2bcf589a204ce8cd9",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v474/update_manifest.json",
-      "sha256": "07139d76ee74ed69682a0d7c895d1b5b4e5027ea6dda8a814cb4525dc22b96b3",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v475/update_manifest.json",
+      "sha256": "7a2dfce3ee376ce13d110de6e7c1b82428924937ecb50b7c6be97c9a204cf026",
       "encoding": "utf-8"
     }
   ]
