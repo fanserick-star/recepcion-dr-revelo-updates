@@ -1,0 +1,67 @@
+name: Validar v4.3.75
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v475/**'
+      - '.github/workflows/build-v475-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Construir paquete candidato
+        run: python build/v475/build_v475.py
+      - name: Validar Python, launcher y updater
+        run: |
+          cat updates/v475/app.part* > _ci_app.py
+          cat updates/v475/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python _ci_launcher.py --self-test-core
+      - name: Validar semántica y JavaScript
+        run: |
+          python - <<'PY'
+          import ast,json,hashlib
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='billing_approve')
+          body=ast.get_source_segment(src,fn) or ''
+          assert 'azur_emit_invoice' in body
+          assert 'validate_billing_recipient' in body
+          assert 'record.estado = "EN_PROCESO"' in body
+          assert 'b.estado = "APROBADA"' in body
+          assert 'add_queue' not in body
+          assert body.index('azur_emit_invoice') < body.index('b.estado = "APROBADA"') < body.index('db.commit()')
+          js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V475_BILLING_JS' for t in node.targets):
+                  js=ast.literal_eval(node.value);break
+          assert js and 'Revisar y emitir' in js and 'v475-sri-compact' in js
+          Path('_ci_v475.js').write_text(js,encoding='utf-8')
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.75'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          assert 'text="AR"' in launcher and 'create_arc(16, 22, 38, 48' not in launcher
+          print('VALIDACION V4.3.75 OK')
+          PY
+          node --check _ci_v475.js
+      - name: Empaquetar candidato validado
+        run: zip -r v475-candidate.zip updates/v475 latest.json latest-v3.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v475-candidate
+          path: v475-candidate.zip
