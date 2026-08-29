@@ -1,0 +1,1555 @@
+me,_parse_confirmafy_links(links))
+
+
+@app.post("/api/agenda/export.csv")
+def agenda_export_csv(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = db.execute(
+        select(Appointment, Patient).join(Patient).where(Appointment.estado == "PENDIENTE").order_by(Appointment.fecha, Appointment.hora, Appointment.id)
+    ).all()
+    if not rows:
+        raise HTTPException(404, "No hay citas pendientes para exportar")
+    out = io.StringIO()
+    w = csv.writer(out, lineterminator="\n")
+    w.writerow(["name", "phone", "date", "time", "duration"])
+    exported = []
+    now = datetime.utcnow()
+    for a, p in rows:
+        phone = confirmafy_phone(p.celular)
+        if not phone:
+            continue
+        w.writerow([p.nombre, phone, a.fecha.isoformat(), a.hora, 20])
+        a.estado = "EXPORTADO"; a.exported_at = now; a.loaded_at = None; a.updated_at = now
+        exported.append(a)
+        if is_offline_db(db):
+            add_queue(db, "appointment.export", "appointment", {"appointment_id": a.id}, user.username, a.id)
+    if not exported:
+        raise HTTPException(400, "Las citas pendientes no tienen celular válido")
+    audit(db, user, "exportar_agenda_confirmafy" + ("_offline" if is_offline_db(db) else ""), f"{len(exported)} citas")
+    db.commit()
+    if not is_offline_db(db):
+        for a in exported: mirror_appointment_to_local(a)
+    data = "\ufeff" + out.getvalue()
+    filename = f"confirmafy_reagendados_{date.today().isoformat()}.csv"
+    return Response(content=data.encode("utf-8"), media_type="text/csv; charset=utf-8", headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def _upsert_local_env(values: dict[str, str]) -> None:
+    """Actualiza claves concretas del .env sin tocar DATABASE_URL ni otros secretos."""
+    env_path = Path(BASE_DIR) / ".env"
+    try:
+        existing = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo leer .env: {exc}")
+    lines = existing.splitlines()
+    keys = set(values)
+    written = set()
+    output: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            output.append(line)
+            continue
+        key = line.split("=", 1)[0].strip()
+        if key in keys:
+            output.append(f"{key}={values[key]}")
+            written.add(key)
+        else:
+            output.append(line)
+    for key, value in values.items():
+        if key not in written:
+            output.append(f"{key}={value}")
+    tmp = env_path.with_suffix(".env.tmp")
+    try:
+        tmp.write_text("\n".join(output).rstrip() + "\n", encoding="utf-8")
+        os.replace(tmp, env_path)
+    except Exception as exc:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except Exception:
+            pass
+        raise HTTPException(500, f"No se pudo guardar la configuración de AZUR: {exc}")
+
+
+def _azur_config_payload() -> dict:
+    configured = bool(AZUR_BASE_URL and AZUR_API_KEY)
+    domain = ""
+    try:
+        domain = urlparse(AZUR_BASE_URL).hostname or "" if AZUR_BASE_URL else ""
+    except Exception:
+        domain = ""
+    return {
+        "configured": configured,
+        "base_url": AZUR_BASE_URL,
+        "domain": domain,
+        "api_key_saved": bool(AZUR_API_KEY),
+        "api_key_masked": azur_mask_api_key(AZUR_API_KEY),
+        "tipo_iva": AZUR_TIPO_IVA,
+        "forma_pago": AZUR_FORMA_PAGO,
+        "live_emission_enabled": bool(AZUR_LIVE_EMISSION),
+    }
+
+
+@app.get("/api/azur/status")
+def azur_status(user: User = Depends(current_user)):
+    return _azur_config_payload()
+
+
+@app.post("/api/azur/config")
+def azur_save_config(data: AzurConfigIn, user: User = Depends(current_user)):
+    global AZUR_BASE_URL, AZUR_API_KEY
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede configurar AZUR")
+    try:
+        base_url = azur_normalize_base_url(data.base_url)
+    except AzurError as exc:
+        raise HTTPException(400, str(exc))
+    new_key = (data.api_key or "").strip()
+    if not new_key and not AZUR_API_KEY:
+        raise HTTPException(400, "Ingresa la API key de AZUR")
+    values = {"AZUR_BASE_URL": base_url}
+    if new_key:
+        # Nunca registramos el valor en auditoría ni respuesta.
+        values["AZUR_API_KEY"] = new_key
+    _upsert_local_env(values)
+    AZUR_BASE_URL = base_url
+    if new_key:
+        AZUR_API_KEY = new_key
+    return {"ok": True, **_azur_config_payload()}
+
+
+@app.post("/api/azur/test")
+def azur_test(user: User = Depends(current_user)):
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "Configura primero la dirección de AZUR y la API key")
+    try:
+        result = azur_test_connection(AZUR_BASE_URL, AZUR_API_KEY, timeout=12)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    result["base_url"] = AZUR_BASE_URL
+    return result
+
+
+def _azur_invoice_number_from_access_key(access_key: Optional[str]) -> Optional[str]:
+    """Deriva establecimiento-punto-secuencial desde la clave SRI de 49 dígitos.
+
+    La clave de acceso ecuatoriana codifica estos campos de forma inequívoca y
+    es una fuente más fiable que campos genéricos como ``numero`` devueltos por
+    algunos tenants de AZUR. No altera el comprobante; solo corrige la etiqueta
+    mostrada/guardada en Recepción.
+    """
+    digits = re.sub(r"\D", "", str(access_key or ""))
+    if len(digits) != 49:
+        return None
+    establishment = digits[24:27]
+    point = digits[27:30]
+    sequential = digits[30:39]
+    if not (establishment.isdigit() and point.isdigit() and sequential.isdigit()):
+        return None
+    return f"{establishment}-{point}-{sequential}"
+
+
+def _azur_group_key(patient_id: int, fecha: date, first_visit_id: Optional[int] = None) -> str:
+    base = f"{int(patient_id)}:{fecha.isoformat()}"
+    return f"{base}:{int(first_visit_id)}" if first_visit_id is not None else base
+
+
+def _azur_group_key_for_rows(patient_id: int, fecha: date, rows: list[tuple[BillingRecord, Visit]]) -> str:
+    first_visit_id = min((int(v.id) for _b, v in rows), default=None)
+    return _azur_group_key(patient_id, fecha, first_visit_id)
+
+
+def _azur_pack_response(payload: object, rows: Optional[list[tuple[BillingRecord, Visit]]] = None, existing_raw: Optional[str] = None) -> str:
+    data = dict(payload) if isinstance(payload, dict) else {"data": payload}
+    ids = [int(v.id) for _b, v in (rows or [])]
+    if not ids and existing_raw:
+        try:
+            old = json.loads(existing_raw)
+            if isinstance(old, dict) and isinstance(old.get("_billing_visit_ids"), list):
+                ids = [int(x) for x in old.get("_billing_visit_ids") if str(x).isdigit()]
+        except Exception:
+            pass
+    if ids:
+        data["_billing_visit_ids"] = ids
+    return json.dumps(data, ensure_ascii=False)[:10000]
+
+
+def _azur_rows_from_record(db: Session, record: AzurEmission) -> list[tuple[BillingRecord, Visit]]:
+    ids = []
+    try:
+        stored = json.loads(record.response_json or "{}")
+        if isinstance(stored, dict):
+            ids = [int(x) for x in (stored.get("_billing_visit_ids") or []) if str(x).isdigit()]
+    except Exception:
+        ids = []
+    if ids:
+        return db.execute(
+            select(BillingRecord, Visit)
+            .join(Visit, BillingRecord.visit_id == Visit.id)
+            .where(Visit.id.in_(ids))
+            .order_by(Visit.id.asc())
+        ).all()
+    if record.numero_factura:
+        matched = db.execute(
+            select(BillingRecord, Visit)
+            .join(Visit, BillingRecord.visit_id == Visit.id)
+            .where(Visit.patient_id == int(record.patient_id), Visit.fecha == record.fecha, BillingRecord.numero_factura == record.numero_factura)
+            .order_by(Visit.id.asc())
+        ).all()
+        if matched:
+            return matched
+    # Compatibilidad con emisiones antiguas que no guardaban los ids de líneas.
+    # Congelamos por el momento en que nació la emisión: una atención creada
+    # después jamás puede entrar retroactivamente en ese comprobante.
+    if record.created_at:
+        return db.execute(
+            select(BillingRecord, Visit)
+            .join(Visit, BillingRecord.visit_id == Visit.id)
+            .where(
+                Visit.patient_id == int(record.patient_id),
+                Visit.fecha == record.fecha,
+                Visit.created_at <= record.created_at,
+            )
+            .order_by(Visit.id.asc())
+        ).all()
+    return billing_group_records(db, int(record.patient_id), record.fecha)
+
+
+def _azur_mass_unlocked(db: Session) -> bool:
+    """La emisión masiva se habilita solo después de validar 1 factura real.
+
+    Esto evita que una integración recién configurada pueda disparar un lote
+    antes de comprobar en producción el ciclo completo emisión -> autorización.
+    """
+    return bool(db.scalar(select(AzurEmission.id).where(AzurEmission.estado == "AUTORIZADA").limit(1)))
+
+
+def _billing_preference_for_patient(db: Session, patient_id: int) -> Optional[BillingPreference]:
+    return db.scalar(select(BillingPreference).where(BillingPreference.patient_id == int(patient_id), BillingPreference.enabled == 1))
+
+
+def _apply_billing_preference(data: BillingGroupIn, db: Session) -> BillingGroupIn:
+    if bool(data.factura_otro):
+        return data
+    pref = _billing_preference_for_patient(db, data.patient_id)
+    if not pref:
+        return data
+    return data.model_copy(update={
+        "factura_otro": True,
+        "factura_identificacion": pref.identificacion,
+        "factura_nombre": pref.nombre,
+        "factura_direccion": pref.direccion,
+        "factura_telefono": pref.telefono,
+        "factura_correo": pref.correo,
+    })
+
+
+def _azur_recipient(data: BillingGroupIn, p: Patient) -> dict:
+    if bool(data.factura_otro):
+        ident_raw = str(data.factura_identificacion or "").strip()
+        name = " ".join(str(data.factura_nombre or "").split()).upper()
+        address = " ".join(str(data.factura_direccion or "").split()).upper()
+        phone = re.sub(r"\D", "", str(data.factura_telefono or ""))
+        email = str(data.factura_correo or "").strip().lower()
+    else:
+        ident_raw = str(p.cedula or "").strip()
+        name = " ".join(str(p.nombre or "").split()).upper()
+        address = " ".join(str(p.lugar or "").split()).upper()
+        phone = re.sub(r"\D", "", str(p.celular or ""))
+        email = str(p.correo or "").strip().lower()
+    ident_digits = re.sub(r"\D", "", ident_raw)
+    if len(ident_digits) == 13:
+        ident_type = "04"  # RUC
+        ident = ident_digits
+    elif len(ident_digits) == 10:
+        ident_type = "05"  # Cédula
+        ident = ident_digits
+    elif ident_raw:
+        ident_type = "08"  # Identificación del exterior
+        ident = ident_raw
+    else:
+        raise HTTPException(400, "Falta identificación para emitir en AZUR")
+    if not name:
+        raise HTTPException(400, "Falta nombre o razón social para emitir en AZUR")
+    if email and "@" not in email:
+        raise HTTPException(400, "El correo de facturación no es válido")
+    buyer = {
+        "tipo_identificacion": ident_type,
+        "identificacion": ident,
+        "razon_social": name,
+        "direccion": address or "NO REGISTRADA",
+    }
+    # AZUR permite emitir sin correo; solo se envía el campo cuando existe.
+    if email:
+        buyer["correo"] = email
+    if phone:
+        buyer["celular"] = phone
+    return buyer
+
+
+def _azur_payload_for_group(data: BillingGroupIn, p: Patient, rows: list[tuple[BillingRecord, Visit]]) -> dict:
+    try:
+        tipo_iva = int(AZUR_TIPO_IVA)
+    except Exception:
+        tipo_iva = 0
+    items = []
+    total = 0.0
+    for _, v in rows:
+        value = round(float(v.valor or 0), 2)
+        if value <= 0:
+            raise HTTPException(400, "Todas las atenciones de la factura deben tener un valor mayor a cero")
+        raw_desc = (v.procedimiento or "CONSULTA MEDICA").strip().upper() or "CONSULTA MEDICA"
+        code = "CONSULTA" if not (v.procedimiento or "").strip() else f"SERV-{int(v.id)}"
+        items.append({
+            "codigo_principal": code,
+            "descripcion": raw_desc,
+            "cantidad": 1,
+            "precio_unitario": value,
+            "descuento": 0,
+            "tipoproducto": 2,
+            "tipo_iva": tipo_iva,
+        })
+        total += value
+    total = round(total, 2)
+    return {
+        "codigoDoc": "01",
+        "emisor": {
+            "fecha_emision": data.fecha.strftime("%Y/%m/%d"),
+            "manejo_interno_secuencia": "SI",
+        },
+        "comprador": _azur_recipient(data, p),
+        "items": items,
+        "pagos": [{"tipo": AZUR_FORMA_PAGO, "total": total, "tiempo": "dias", "plazo": 0}],
+        "informacion_adicional": [{"nombre": "Origen", "detalle": "Recepcion Dr. Armando Revelo"}],
+    }
+
+
+@app.post("/api/billing/azur/preview")
+def billing_azur_preview(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones abiertas para facturar ese día")
+    payload = _azur_payload_for_group(data, p, rows)
+    group_key = _azur_group_key_for_rows(data.patient_id, data.fecha, rows)
+    existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    return {
+        "configured": bool(AZUR_BASE_URL and AZUR_API_KEY),
+        "domain": _azur_config_payload().get("domain"),
+        "payload": payload,
+        "already_sent": bool(existing and existing.clave_acceso),
+        "live_enabled": bool(AZUR_LIVE_EMISSION),
+        "azur": {
+            "estado": existing.estado, "clave_acceso": existing.clave_acceso, "numero_factura": existing.numero_factura,
+        } if existing else None,
+    }
+
+
+@app.post("/api/billing/azur/emit")
+def billing_azur_emit(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if not AZUR_LIVE_EMISSION:
+        raise HTTPException(403, "La emisión real está desactivada")
+    if is_offline_db(db):
+        raise HTTPException(503, "Emitir en AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado. Ve a Configuración > AZUR")
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones aprobadas abiertas para ese día")
+    if any(str(b.estado or "").upper() != "APROBADA" for b, _ in rows):
+        raise HTTPException(409, "Primero aprueba la pre-factura nueva")
+    group_key = _azur_group_key_for_rows(data.patient_id, data.fecha, rows)
+    existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    if existing and existing.clave_acceso:
+        raise HTTPException(409, "Esta factura ya fue enviada a AZUR. Consulta su estado; no se reenviará para evitar duplicados")
+    payload = _azur_payload_for_group(data, p, rows)
+    request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    try:
+        result = azur_emit_invoice(AZUR_BASE_URL, AZUR_API_KEY, payload, timeout=20)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    response = result.get("data") if isinstance(result, dict) else {}
+    response = response if isinstance(response, dict) else {}
+    if response.get("creado") is not True:
+        raise HTTPException(502, "AZUR no confirmó la creación del comprobante")
+    access_key = str(response.get("claveacceso") or response.get("clave_acceso") or "").strip() or None
+    invoice_number = str(response.get("numero_factura") or response.get("numero_comprobante") or response.get("numero") or "").strip() or None
+    if not access_key:
+        raise HTTPException(502, "AZUR respondió creado=true, pero no devolvió clave de acceso. No se modificó el estado local")
+    invoice_number = _azur_invoice_number_from_access_key(access_key) or invoice_number
+    now = datetime.utcnow()
+    record = existing or AzurEmission(group_key=group_key, patient_id=data.patient_id, fecha=data.fecha)
+    if not existing:
+        db.add(record)
+    record.estado = "EN_PROCESO"
+    record.clave_acceso = access_key
+    record.numero_factura = invoice_number
+    record.request_hash = request_hash
+    record.response_json = _azur_pack_response(response, rows)
+    record.updated_at = now
+    audit(db, user, "enviar_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}, grupo {group_key}, pendiente autorización")
+    db.commit()
+    mirror_azur_emission_to_local(record)
+    return {"ok": True, "estado": record.estado, "clave_acceso": access_key, "numero_factura": invoice_number,
+            "message": "AZUR recibió la factura. Falta confirmar la autorización del SRI; las líneas de este comprobante quedaron identificadas por separado."}
+
+
+@app.post("/api/billing/azur/check-status")
+def billing_azur_check_status(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Consultar AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    open_rows = billing_group_records(db, data.patient_id, data.fecha)
+    record = None
+    if open_rows:
+        group_key = _azur_group_key_for_rows(data.patient_id, data.fecha, open_rows)
+        record = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    if not record:
+        record = db.scalar(
+            select(AzurEmission)
+            .where(AzurEmission.patient_id == data.patient_id, AzurEmission.fecha == data.fecha, AzurEmission.estado != "AUTORIZADA")
+            .order_by(AzurEmission.updated_at.desc(), AzurEmission.id.desc())
+        )
+    if not record or not record.clave_acceso:
+        raise HTTPException(404, "Esta factura no tiene una consulta pendiente en AZUR")
+    try:
+        result = azur_query_comprobante(AZUR_BASE_URL, AZUR_API_KEY, record.clave_acceso, timeout=15)
+    except AzurError as exc:
+        raise HTTPException(502, str(exc))
+    state = str(result.get("estado") or "CONSULTADA").upper()
+    number = _azur_invoice_number_from_access_key(record.clave_acceso) or str(result.get("numero_factura") or record.numero_factura or "").strip() or None
+    record.estado = state
+    if number:
+        record.numero_factura = number
+    record.updated_at = datetime.utcnow()
+    record.response_json = _azur_pack_response(result.get("data") or {}, None, record.response_json)
+    rows = _azur_rows_from_record(db, record)
+    if state == "AUTORIZADA":
+        now = datetime.utcnow()
+        for b, _v in rows:
+            b.estado = "EMITIDA"
+            if number:
+                b.numero_factura = number
+            b.emitted_at = now
+            if not b.approved_at:
+                b.approved_at = now
+        audit(db, user, "autorizar_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}, grupo {record.group_key}")
+    elif state == "RECHAZADA":
+        audit(db, user, "rechazo_factura_azur", f"Paciente {data.patient_id}, fecha {data.fecha}, grupo {record.group_key}")
+    db.commit()
+    mirror_azur_emission_to_local(record)
+    if state == "AUTORIZADA":
+        for b, _ in rows:
+            mirror_billing_to_local(b)
+    return {
+        "ok": True, "estado": state, "estado_origen": result.get("estado_origen"), "numero_factura": number,
+        "clave_acceso": record.clave_acceso, "numero_autorizacion": result.get("numero_autorizacion"),
+        "pdf_url": result.get("pdf_url"), "xml_url": result.get("xml_url"), "mass_emission_unlocked": _azur_mass_unlocked(db),
+        "message": ("Factura AUTORIZADA por AZUR/SRI." if state == "AUTORIZADA" else
+                    "AZUR reportó la factura como rechazada. No se reenviará automáticamente." if state == "RECHAZADA" else
+                    "La factura todavía está en proceso. Puedes consultar nuevamente más tarde."),
+    }
+
+
+@app.post("/api/billing/azur/check-all-status")
+def billing_azur_check_all_status(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Actualiza en lote los comprobantes enviados recientemente y cualquiera que siga pendiente.
+
+    No reenvía facturas. Solo consulta por la clave de acceso ya registrada en AZUR.
+    """
+    if is_offline_db(db):
+        raise HTTPException(503, "Consultar AZUR requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    history_from = date.today() - timedelta(days=6)
+    records = list(db.scalars(
+        select(AzurEmission)
+        .where(
+            AzurEmission.clave_acceso.is_not(None),
+            AzurEmission.estado.in_(["EN_PROCESO", "CONSULTADA"])
+        )
+        .order_by(AzurEmission.fecha.desc(), AzurEmission.id.desc())
+    ))
+    checked=[]; failed=[]; authorized=processing=rejected=0
+    for record in records:
+        try:
+            result = azur_query_comprobante(AZUR_BASE_URL, AZUR_API_KEY, record.clave_acceso, timeout=15)
+            state = str(result.get("estado") or "CONSULTADA").upper()
+            number = _azur_invoice_number_from_access_key(record.clave_acceso) or str(result.get("numero_factura") or record.numero_factura or "").strip() or None
+            record.estado = state
+            if number:
+                record.numero_factura = number
+            record.updated_at = datetime.utcnow()
+            try:
+                record.response_json = json.dumps(result.get("data") or {}, ensure_ascii=False)[:10000]
+            except Exception:
+                pass
+            rows = _azur_rows_from_record(db, record)
+            if state == "AUTORIZADA":
+                now = datetime.utcnow()
+                for b, _v in rows:
+                    b.estado = "EMITIDA"
+                    if number:
+                        b.numero_factura = number
+                    b.emitted_at = now
+                    if not b.approved_at:
+                        b.approved_at = now
+                authorized += 1
+            elif state == "RECHAZADA":
+                rejected += 1
+            else:
+                processing += 1
+            db.commit()
+            mirror_azur_emission_to_local(record)
+            if state == "AUTORIZADA":
+                for b, _v in rows:
+                    mirror_billing_to_local(b)
+            checked.append({"patient_id": int(record.patient_id), "fecha": record.fecha, "estado": state, "numero_factura": number})
+        except AzurError as exc:
+            db.rollback()
+            p = db.get(Patient, int(record.patient_id))
+            failed.append({"patient_id": int(record.patient_id), "nombre": p.nombre if p else None, "fecha": record.fecha, "numero_factura": record.numero_factura, "reason": str(exc)})
+        except Exception as exc:
+            db.rollback()
+            p = db.get(Patient, int(record.patient_id))
+            failed.append({"patient_id": int(record.patient_id), "nombre": p.nombre if p else None, "fecha": record.fecha, "numero_factura": record.numero_factura, "reason": str(exc)[:300]})
+    audit(db, user, "actualizar_estados_azur_lote", f"Consultadas {len(checked)}, autorizadas {authorized}, rechazadas {rejected}, fallidas {len(failed)}")
+    db.commit()
+    return {
+        "ok": True,
+        "checked": checked,
+        "failed": failed,
+        "counts": {
+            "checked": len(checked),
+            "authorized": authorized,
+            "processing": processing,
+            "rejected": rejected,
+            "failed": len(failed),
+        },
+    }
+
+
+@app.get("/api/billing/azur/batch-preview")
+def billing_azur_batch_preview(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "APROBADA")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    ready=[]; skipped=[]
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "APROBADA" for b, _ in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura todavía no está completamente aprobada"}); continue
+        existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == _azur_group_key_for_rows(int(patient_id), fecha, rows)))
+        if existing and existing.clave_acceso:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        try:
+            validate_billing_recipient(data, p)
+            _azur_payload_for_group(data, p, rows)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        ready.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "total": round(sum(float(v.valor or 0) for _b,v in rows),2)})
+    return {"ok": True, "unlocked": True, "ready": ready, "skipped": skipped,
+            "counts": {"ready": len(ready), "skipped": len(skipped)}}
+
+
+@app.post("/api/billing/azur/emit-all-pending")
+def billing_azur_emit_all_pending(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Envía en serie facturas completas; la autorización se consulta después."""
+    if not AZUR_LIVE_EMISSION:
+        raise HTTPException(403, "La emisión real de AZUR está desactivada")
+    if is_offline_db(db):
+        raise HTTPException(503, "La emisión masiva requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "APROBADA")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    sent=[]; skipped=[]; failed=[]
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "APROBADA" for b, _ in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura todavía no está completamente aprobada"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        group_key = _azur_group_key_for_rows(int(patient_id), fecha, rows)
+        existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+        if existing and existing.clave_acceso:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
+        try:
+            validate_billing_recipient(data, p)
+            payload = _azur_payload_for_group(data, p, rows)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+        try:
+            result = azur_emit_invoice(AZUR_BASE_URL, AZUR_API_KEY, payload, timeout=25)
+            response = result.get("data") if isinstance(result, dict) else {}
+            response = response if isinstance(response, dict) else {}
+            access_key = str(response.get("claveacceso") or response.get("clave_acceso") or "").strip() or None
+            invoice_number = str(response.get("numero_factura") or response.get("numero_comprobante") or response.get("numero") or "").strip() or None
+            if response.get("creado") is not True or not access_key:
+                raise AzurError("AZUR no devolvió creado=true con una clave de acceso")
+            invoice_number = _azur_invoice_number_from_access_key(access_key) or invoice_number
+            now = datetime.utcnow()
+            record = existing or AzurEmission(group_key=group_key, patient_id=int(patient_id), fecha=fecha)
+            if not existing:
+                db.add(record)
+            record.estado="EN_PROCESO"; record.clave_acceso=access_key; record.numero_factura=invoice_number; record.request_hash=request_hash; record.updated_at=now
+            record.response_json=_azur_pack_response(response, rows)
+            # La emisión masiva trabaja únicamente sobre facturas ya aprobadas.
+            db.commit()
+            mirror_azur_emission_to_local(record)
+            sent.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "numero_factura": invoice_number, "clave_acceso": access_key})
+        except AzurError as exc:
+            db.rollback(); failed.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc)})
+        except Exception as exc:
+            db.rollback(); failed.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc)[:300]})
+    audit(db, user, "enviar_facturas_azur_lote", f"Enviadas {len(sent)}, omitidas {len(skipped)}, fallidas {len(failed)}")
+    db.commit()
+    return {"ok": True, "sent": sent, "emitted": sent, "skipped": skipped, "failed": failed,
+            "counts": {"sent": len(sent), "emitted": len(sent), "skipped": len(skipped), "failed": len(failed)},
+            "message": "Las facturas enviadas quedaron EN PROCESO. La autorización del SRI debe consultarse; no se reenviarán."}
+
+def billing_group_records(db: Session, patient_id: int, fecha: date):
+    # Grupo operativo abierto. Las líneas EMITIDAS pertenecen a comprobantes ya
+    # cerrados y jamás vuelven a mezclarse con una atención agregada después.
+    return db.execute(
+        select(BillingRecord, Visit)
+        .join(Visit, BillingRecord.visit_id == Visit.id)
+        .where(
+            Visit.patient_id == patient_id,
+            Visit.fecha == fecha,
+            BillingRecord.estado != "EMITIDA",
+        )
+        .order_by(Visit.id.asc())
+    ).all()
+
+
+def billing_required_missing(p: Patient) -> list[str]:
+    missing = []
+    if not (p.cedula or "").strip(): missing.append("cédula")
+    return missing
+
+
+def validate_billing_recipient(data: BillingGroupIn, p: Patient) -> None:
+    """Valida el receptor sin tocar la ficha del paciente.
+
+    Los datos alternos viajan solo en la acción actual; la UI los conserva localmente
+    por factura para evitar agregar lecturas/escrituras a Neon.
+    """
+    if not bool(data.factura_otro):
+        missing = billing_required_missing(p)
+        if missing:
+            raise HTTPException(400, "Completa antes de aprobar: " + ", ".join(missing))
+        return
+    ident = re.sub(r"\D", "", str(data.factura_identificacion or ""))
+    name = " ".join(str(data.factura_nombre or "").split())
+    email = str(data.factura_correo or "").strip().lower()
+    if len(ident) not in {10, 13}:
+        raise HTTPException(400, "La identificación para facturar debe tener 10 dígitos (cédula) o 13 dígitos (RUC)")
+    if len(name) < 3:
+        raise HTTPException(400, "Ingresa el nombre o razón social para la factura")
+    if email and "@" not in email:
+        raise HTTPException(400, "El correo de facturación no es válido")
+
+
+def _billing_action_counts(db: Session) -> dict[str, int]:
+    """Cuenta una sola cola visible: POR EMITIR.
+
+    PENDIENTE y APROBADA se conservan internamente por compatibilidad, pero desde
+    v4.3.75 ambas significan una única acción para Recepción: revisar y emitir.
+    """
+    grouped = (
+        select(
+            Visit.patient_id.label("patient_id"),
+            Visit.fecha.label("fecha"),
+            func.max(case((BillingRecord.estado.in_(["PENDIENTE", "APROBADA"]), 1), else_=0)).label("needs_action"),
+        )
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE)
+        .group_by(Visit.patient_id, Visit.fecha)
+        .subquery()
+    )
+    total = int(db.scalar(select(func.coalesce(func.sum(grouped.c.needs_action), 0))) or 0)
+    return {"pending": total, "approved": 0, "total": total}
+
+
+def _billing_pending_count(db: Session) -> int:
+    """Facturas que todavía requieren acción humana."""
+    return _billing_action_counts(db)["total"]
+
+
+@app.get("/api/pending-summary")
+def pending_summary(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    billing = _billing_action_counts(db)
+    return {
+        "billing": billing["total"],
+        "billing_pending": billing["pending"],
+        "billing_approved": billing["approved"],
+        "agenda": int(db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0),
+    }
+
+
+@app.get("/api/patients/{pid}/billing-preference")
+def get_billing_preference(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return {"preference": billing_preference_dict(_billing_preference_for_patient(db, pid))}
+
+
+@app.put("/api/patients/{pid}/billing-preference")
+def save_billing_preference(pid: int, data: BillingPreferenceIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Guardar la preferencia de facturación requiere conexión a Internet")
+    patient = db.get(Patient, pid)
+    if not patient: raise HTTPException(404, "Paciente no encontrado")
+    existing = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == pid))
+    if not data.enabled:
+        if existing:
+            existing.enabled = 0; existing.updated_at = datetime.utcnow(); db.commit(); mirror_billing_preference_to_local(existing)
+        else:
+            mirror_delete_billing_preference_local(pid)
+        return {"ok": True, "preference": None}
+    ident = re.sub(r"\D", "", str(data.identificacion or ""))
+    name = " ".join(str(data.nombre or "").split()).upper()
+    email = str(data.correo or "").strip().lower()
+    if len(ident) not in {10, 13}: raise HTTPException(400, "La identificación debe tener 10 dígitos o el RUC 13 dígitos")
+    if len(name) < 3: raise HTTPException(400, "Ingresa el nombre o razón social")
+    if email and "@" not in email: raise HTTPException(400, "El correo de facturación no es válido")
+    values = dict(enabled=1, identificacion=ident, nombre=name,
+                  direccion=" ".join(str(data.direccion or "").split()).upper() or None,
+                  telefono=re.sub(r"\D", "", str(data.telefono or "")) or None,
+                  correo=email, updated_at=datetime.utcnow())
+    if existing:
+        for key, value in values.items(): setattr(existing, key, value)
+        pref=existing
+    else:
+        pref=BillingPreference(patient_id=pid, **values); db.add(pref)
+    audit(db, user, "guardar_preferencia_facturacion", f"Paciente {pid}")
+    db.commit(); db.refresh(pref); mirror_billing_preference_to_local(pref)
+    return {"ok": True, "preference": billing_preference_dict(pref)}
+
+
+@app.delete("/api/patients/{pid}/billing-preference")
+def delete_billing_preference(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db): raise HTTPException(503, "Desactivar esta preferencia requiere conexión a Internet")
+    pref = db.scalar(select(BillingPreference).where(BillingPreference.patient_id == pid))
+    if pref: db.delete(pref)
+    audit(db, user, "eliminar_preferencia_facturacion", f"Paciente {pid}")
+    db.commit(); mirror_delete_billing_preference_local(pid)
+    return {"ok": True}
+
+
+@app.get("/api/billing/pending-count")
+def billing_pending_count(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return {"pending": _billing_pending_count(db)}
+
+
+@app.get("/api/billing/next")
+def billing_next(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    target = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id).label("first_visit"))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "PENDIENTE")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+        .limit(1)
+    ).first()
+    if not target:
+        return {"items": []}
+    patient_id, fecha, _ = target
+    p = db.get(Patient, patient_id)
+    rows = billing_group_records(db, patient_id, fecha)
+    rows = [(b, v) for b, v in rows if str(b.estado or "").upper() == "PENDIENTE"]
+    return {
+        "items": [{"billing": billing_dict(b), "visit": v_dict(v), "patient": p_dict(p)} for b, v in rows],
+        "patient": p_dict(p),
+        "fecha": fecha,
+        "billing_preference": billing_preference_dict(_billing_preference_for_patient(db, int(patient_id))),
+    }
+
+
+@app.get("/api/billing")
+def billing_list(
+    estado: str = "TODAS", desde: Optional[date] = None, hasta: Optional[date] = None,
+    db: Session = Depends(get_db), user: User = Depends(current_user)
+):
+    """Facturación sin mezclar comprobantes cerrados con líneas nuevas.
+
+    Si un paciente tiene una factura EMITIDA y luego se agrega otra atención el
+    mismo día, PENDIENTE/APROBADA muestran únicamente la atención nueva. La
+    factura anterior sigue disponible en el historial EMITIDA.
+    """
+    stmt = (
+        select(BillingRecord, Visit, Patient)
+        .join(Visit, BillingRecord.visit_id == Visit.id)
+        .join(Patient, Visit.patient_id == Patient.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE)
+    )
+    if desde:
+        stmt = stmt.where(Visit.fecha >= desde)
+    if hasta:
+        stmt = stmt.where(Visit.fecha <= hasta)
+    all_rows = db.execute(stmt.order_by(Visit.fecha.desc(), Visit.id.desc())).all()
+
+    groups = {}
+    for row in all_rows:
+        b, v, p = row
+        groups.setdefault((int(p.id), v.fecha), []).append(row)
+
+    patient_ids = sorted({key[0] for key in groups})
+    emissions = list(db.scalars(select(AzurEmission).where(AzurEmission.patient_id.in_(patient_ids)))) if patient_ids else []
+    emission_groups = {}
+    for x in emissions:
+        key = (int(x.patient_id), x.fecha)
+        if key in groups:
+            emission_groups.setdefault(key, []).append(x)
+    for values in emission_groups.values():
+        values.sort(key=lambda x: (x.updated_at or x.created_at or datetime.min, x.id or 0), reverse=True)
+
+    states = {key: {str(b.estado or "").upper() for b, _v, _p in rows} for key, rows in groups.items()}
+    history_from = date.today() - timedelta(days=6)
+    counts = {
+        "PENDIENTE": sum(1 for st in states.values() if "PENDIENTE" in st or "APROBADA" in st),
+        "APROBADA": 0,
+        "EMITIDA": sum(1 for st in states.values() if "EMITIDA" in st),
+        "RECHAZADA": sum(1 for key in groups if any(str(x.estado or "").upper() == "RECHAZADA" for x in emission_groups.get(key, []))),
+    }
+
+    requested = (estado or "TODAS").strip().upper()
+    rows = []
+    if requested in {"PENDIENTE", "APROBADA"}:
+        # Compatibilidad: ambos filtros antiguos muestran la única cola POR EMITIR.
+        for key, grouped_rows in groups.items():
+            st = states[key]
+            if "PENDIENTE" in st:
+                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "PENDIENTE")
+            elif "APROBADA" in st:
+                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "APROBADA")
+    elif requested == "EMITIDA":
+        rows = [r for r in all_rows if str(r[0].estado or "").upper() == "EMITIDA"]
+        if not desde and not hasta:
+            rows = [r for r in rows if r[1].fecha >= history_from]
+    elif requested == "RECHAZADA":
+        rejected = {key for key in groups if any(str(x.estado or "").upper() == "RECHAZADA" for x in emission_groups.get(key, []))}
+        rows = [r for r in all_rows if (int(r[2].id), r[1].fecha) in rejected and str(r[0].estado or "").upper() != "EMITIDA"]
+    else:
+        # En TODAS mostramos el grupo que requiere acción. Una factura vieja
+        # emitida del mismo día no se suma al total de la atención nueva.
+        for key, grouped_rows in groups.items():
+            st = states[key]
+            if "PENDIENTE" in st:
+                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "PENDIENTE")
+            elif "APROBADA" in st:
+                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "APROBADA")
+            else:
+                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "EMITIDA" and (desde or hasta or r[1].fecha >= history_from))
+        rows.sort(key=lambda r: (r[1].fecha, r[1].id), reverse=True)
+
+    def azur_for_row(b: BillingRecord, v: Visit, p: Patient):
+        candidates = emission_groups.get((int(p.id), v.fecha), [])
+        if not candidates:
+            return None
+        state = str(b.estado or "").upper()
+        if state == "EMITIDA":
+            if b.numero_factura:
+                for x in candidates:
+                    if str(x.numero_factura or "") == str(b.numero_factura or ""):
+                        return x
+            for x in candidates:
+                if str(x.estado or "").upper() == "AUTORIZADA":
+                    return x
+            return None
+        for x in candidates:
+            if str(x.estado or "").upper() not in {"AUTORIZADA"}:
+                return x
+        return None
+
+    visible_patient_ids = sorted({int(p.id) for _b, _v, p in rows})
+    prefs = list(db.scalars(select(BillingPreference).where(BillingPreference.patient_id.in_(visible_patient_ids), BillingPreference.enabled == 1))) if visible_patient_ids else []
+    items = []
+    for b, v, p in rows:
+        az = azur_for_row(b, v, p)
+        items.append({
+            "billing": billing_dict(b),
+            "visit": v_dict(v),
+            "patient": p_dict(p),
+            "azur": azur_emission_dict(az) if az else None,
+            "billing_group_key": f"{int(p.id)}:{v.fecha.isoformat()}:{str(b.estado or '').upper()}",
+        })
+    return {
+        "items": items,
+        "counts": counts,
+        "history_window_days": 7,
+        "history_from": history_from,
+        "billing_preferences": {str(x.patient_id): billing_preference_dict(x) for x in prefs},
+    }
+
+
+@app.post("/api/billing/approve")
+def billing_approve(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """v4.3.75: revisar + aprobar + enviar a AZUR en una sola operación.
+
+    La interfaz ya no expone un estado APROBADA intermedio. Internamente las
+    líneas quedan APROBADA únicamente después de que AZUR acepta el comprobante,
+    mientras la autorización del SRI se consulta con el flujo existente. Si AZUR
+    falla, las líneas permanecen como estaban para poder corregir/reintentar sin
+    dejar una pre-factura atrapada a mitad del proceso.
+    """
+    if not AZUR_LIVE_EMISSION:
+        raise HTTPException(403, "La emisión real de AZUR está desactivada")
+    if is_offline_db(db):
+        raise HTTPException(503, "Revisar y emitir requiere conexión a Internet")
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        raise HTTPException(400, "AZUR todavía no está configurado")
+
+    p = db.get(Patient, data.patient_id)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    data = _apply_billing_preference(data, db)
+    validate_billing_recipient(data, p)
+
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones por facturar para ese día")
+    invalid = [str(b.estado or "").upper() for b, _v in rows if str(b.estado or "").upper() not in {"PENDIENTE", "APROBADA"}]
+    if invalid:
+        raise HTTPException(409, "Esta factura ya no está disponible para emitir")
+
+    group_key = _azur_group_key_for_rows(int(data.patient_id), data.fecha, rows)
+    existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    if existing and existing.clave_acceso:
+        raise HTTPException(409, "Esta factura ya fue enviada a AZUR. Usa Actualizar estado para consultar el SRI.")
+
+    payload = _azur_payload_for_group(data, p, rows)
+    request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
+    try:
+        result = azur_emit_invoice(AZUR_BASE_URL, AZUR_API_KEY, payload, timeout=25)
+        response = result.get("data") if isinstance(result, dict) else {}
+        response = response if isinstance(response, dict) else {}
+        access_key = str(response.get("claveacceso") or response.get("clave_acceso") or "").strip() or None
+        invoice_number = str(response.get("numero_factura") or response.get("numero_comprobante") or response.get("numero") or "").strip() or None
+        if response.get("creado") is not True or not access_key:
+            raise AzurError("AZUR no devolvió creado=true con una clave de acceso")
+    except AzurError as exc:
+        db.rollback()
+        raise HTTPException(502, str(exc))
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(502, f"No se pudo enviar la factura a AZUR: {str(exc)[:260]}")
+
+    invoice_number = _azur_invoice_number_from_access_key(access_key) or invoice_number
+    now = datetime.utcnow()
+    record = existing or AzurEmission(group_key=group_key, patient_id=int(data.patient_id), fecha=data.fecha)
+    if not existing:
+        db.add(record)
+    record.estado = "EN_PROCESO"
+    record.clave_acceso = access_key
+    record.numero_factura = invoice_number
+    record.request_hash = request_hash
+    record.updated_at = now
+    record.response_json = _azur_pack_response(response, rows)
+
+    touched = []
+    for b, _v in rows:
+        b.estado = "EMITIDA"
+        b.approved_at = now
+        b.numero_factura = invoice_number
+        b.emitted_at = now
+        touched.append(b)
+
+    audit(db, user, "revisar_emitir_factura_azur", f"Paciente {data.patient_id}, {data.fecha}, AZUR {invoice_number or access_key[-8:]}")
+    db.commit()
+    mirror_azur_emission_to_local(record)
+    for b in touched:
+        mirror_billing_to_local(b)
+    return {
+        "ok": True,
+        "estado": "EN_PROCESO",
+        "numero_factura": invoice_number,
+        "clave_acceso": access_key,
+        "message": "Factura revisada y enviada a AZUR. Queda EN PROCESO hasta confirmar autorización del SRI.",
+    }
+
+
+@app.post("/api/billing/approve-all-pending")
+def billing_approve_all_pending(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Aprueba todos los grupos pendientes que tengan un receptor válido.
+
+    Los grupos incompletos se omiten y permanecen PENDIENTES para revisarlos luego.
+    """
+    grouped = db.execute(
+        select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
+        .join(BillingRecord, BillingRecord.visit_id == Visit.id)
+        .where(Visit.fecha >= BILLING_QUEUE_START_DATE, BillingRecord.estado == "PENDIENTE")
+        .group_by(Visit.patient_id, Visit.fecha)
+        .order_by(Visit.fecha.asc(), func.min(Visit.id).asc())
+    ).all()
+    approved=[]; skipped=[]; touched=[]
+    now = datetime.utcnow()
+    for patient_id, fecha, _ in grouped:
+        p = db.get(Patient, int(patient_id))
+        if not p:
+            skipped.append({"patient_id": int(patient_id), "fecha": fecha, "reason": "Paciente no encontrado"}); continue
+        rows = billing_group_records(db, int(patient_id), fecha)
+        if not rows or any(b.estado != "PENDIENTE" for b, _v in rows):
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura tiene estados mezclados"}); continue
+        data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
+        try:
+            validate_billing_recipient(data, p)
+        except HTTPException as exc:
+            skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
+        for b, v in rows:
+            b.estado = "APROBADA"
+            b.approved_at = now
+            b.numero_factura = None
+            b.emitted_at = None
+            touched.append(b)
+            if is_offline_db(db):
+                add_queue(db, "billing.approve", "billing", {"visit_id": v.id}, user.username, b.id)
+        approved.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha})
+    audit(db, user, "aprobar_prefacturas_lote" + ("_offline" if is_offline_db(db) else ""), f"Aprobadas {len(approved)}, omitidas {len(skipped)}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched:
+            mirror_billing_to_local(b)
+    return {
+        "ok": True,
+        "approved": approved,
+        "skipped": skipped,
+        "counts": {"approved": len(approved), "skipped": len(skipped)},
+        "offline": is_offline_db(db),
+    }
+
+
+@app.post("/api/billing/pending")
+def billing_back_to_pending(data: BillingGroupIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones de facturación para ese día")
+    if any(b.estado == "EMITIDA" for b, _ in rows):
+        raise HTTPException(409, "Una factura emitida no puede volver a pendiente desde aquí")
+    touched = []
+    for b, v in rows:
+        b.estado = "PENDIENTE"
+        b.approved_at = None
+        b.numero_factura = None
+        b.emitted_at = None
+        touched.append(b)
+        if is_offline_db(db):
+            add_queue(db, "billing.pending", "billing", {"visit_id": v.id}, user.username, b.id)
+    audit(db, user, "reabrir_prefactura" + ("_offline" if is_offline_db(db) else ""), f"Paciente {data.patient_id}, fecha {data.fecha}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched: mirror_billing_to_local(b)
+    return {"ok": True, "estado": "PENDIENTE", "offline": is_offline_db(db)}
+
+
+@app.post("/api/billing/emit")
+def billing_emit(data: BillingEmitIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    number = (data.numero_factura or "").strip()
+    if not number:
+        raise HTTPException(400, "Ingresa el número de factura emitida")
+    rows = billing_group_records(db, data.patient_id, data.fecha)
+    if not rows:
+        raise HTTPException(404, "No hay atenciones aprobadas para ese día")
+    if any(b.estado != "APROBADA" for b, _ in rows):
+        raise HTTPException(409, "Primero debes aprobar la pre-factura completa")
+    touched = []
+    for b, v in rows:
+        b.estado = "EMITIDA"
+        b.numero_factura = number
+        b.emitted_at = datetime.utcnow()
+        if not b.approved_at:
+            b.approved_at = datetime.utcnow()
+        touched.append(b)
+        if is_offline_db(db):
+            add_queue(db, "billing.emit", "billing", {"visit_id": v.id, "numero_factura": number}, user.username, b.id)
+    audit(db, user, "marcar_factura_emitida" + ("_offline" if is_offline_db(db) else ""), f"Paciente {data.patient_id}, fecha {data.fecha}, factura {number}")
+    db.commit()
+    if not is_offline_db(db):
+        for b in touched: mirror_billing_to_local(b)
+    return {"ok": True, "estado": "EMITIDA", "numero_factura": number, "offline": is_offline_db(db)}
+
+
+@app.get("/api/procedures")
+def procedures(db: Session = Depends(get_db), user: User = Depends(current_user)):
+    return [
+        {"id": x.id, "nombre": str(x.nombre or "").upper(), "valor_default": float(x.valor_default) if x.valor_default is not None else None}
+        for x in db.scalars(select(Procedure).where(Procedure.activo == 1).order_by(Procedure.nombre))
+    ]
+
+
+@app.post("/api/procedures")
+def add_procedure(data: ProcedureIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Agregar procedimientos nuevos requiere conexión a Internet")
+    name = data.nombre.strip().upper()
+    if not name:
+        raise HTTPException(400, "El nombre del procedimiento es obligatorio")
+    if db.scalar(select(Procedure).where(Procedure.nombre == name)):
+        raise HTTPException(409, "Ese procedimiento ya existe")
+    p = Procedure(nombre=name, valor_default=data.valor_default)
+    db.add(p)
+    audit(db, user, "crear_procedimiento", name)
+    db.commit()
+    mirror_procedure_local(p)
+    return {"ok": True}
+
+
+@app.put("/api/procedures/{procedure_id}")
+def update_procedure_value(procedure_id: int, data: ProcedureValueIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Procedure, procedure_id)
+    if not p:
+        raise HTTPException(404, "Procedimiento no encontrado")
+    p.valor_default = data.valor_default
+    if is_offline_db(db):
+        add_queue(
+            db, "procedure.update", "procedure",
+            {"procedure_id": procedure_id, "valor_default": data.valor_default},
+            user.username, procedure_id,
+        )
+        audit(db, user, "editar_valor_procedimiento_offline", f"{p.nombre}: {data.valor_default}")
+        db.commit()
+        return {"ok": True, "id": p.id, "nombre": p.nombre, "valor_default": float(p.valor_default) if p.valor_default is not None else None, "offline": True}
+    audit(db, user, "editar_valor_procedimiento", f"{p.nombre}: {data.valor_default}")
+    db.commit()
+    mirror_procedure_local(p)
+    return {"ok": True, "id": p.id, "nombre": p.nombre, "valor_default": float(p.valor_default) if p.valor_default is not None else None, "offline": False}
+
+
+@app.delete("/api/procedures/{procedure_id}")
+def delete_procedure(procedure_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Eliminar o archivar procedimientos requiere conexión a Internet")
+    proc = db.get(Procedure, procedure_id)
+    if not proc: raise HTTPException(404, "Procedimiento no encontrado")
+    used = int(db.scalar(select(func.count(Visit.id)).where(func.upper(func.coalesce(Visit.procedimiento, "")) == str(proc.nombre or "").upper())) or 0)
+    name = proc.nombre
+    if used:
+        proc.activo = 0
+        audit(db, user, "archivar_procedimiento", f"{name}; {used} atención(es) históricas")
+        db.commit(); mirror_procedure_local(proc)
+        return {"ok": True, "archived": True, "used": used, "message": "El procedimiento se archivó porque tiene historial. Ya no aparecerá en nuevas atenciones."}
+    db.delete(proc)
+    audit(db, user, "eliminar_procedimiento", name)
+    db.commit()
+    try:
+        with LocalSessionLocal() as ldb:
+            local=ldb.get(Procedure,procedure_id)
+            if local: ldb.delete(local)
+            ldb.commit()
+    except Exception: pass
+    return {"ok": True, "archived": False, "used": 0, "message": "Procedimiento eliminado."}
+
+
+@app.post("/api/change-password")
+def change_password(data: PasswordIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if is_offline_db(db):
+        raise HTTPException(503, "Por seguridad, el cambio de contraseña requiere conexión a Internet")
+    db_user = db.scalar(select(User).where(User.username == user.username))
+    if not db_user or not verify_password(data.current_password, db_user.password_hash):
+        raise HTTPException(400, "Contraseña actual incorrecta")
+    if len(data.new_password) < 8:
+        raise HTTPException(400, "La nueva contraseña debe tener al menos 8 caracteres")
+    db_user.password_hash = hash_password(data.new_password)
+    audit(db, db_user, "cambiar_contrasena")
+    db.commit()
+    mirror_user_local(db_user)
+    invalidate_user_cache(user.username)
+    return {"ok": True}
+
+
+def _safe_update_member_path(root: Path, member: str) -> Path:
+    dest = (root / member).resolve()
+    if root.resolve() not in dest.parents and dest != root.resolve():
+        raise HTTPException(400, "Paquete de actualización inválido")
+    return dest
+
+
+def _app_backup_zip() -> str:
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dest = Path(UPDATE_BACKUP_DIR) / f"app_antes_actualizacion_{stamp}.zip"
+    excluded = {".venv", ".env", "data", "__pycache__", "backup", "backups"}
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+        base = Path(BASE_DIR)
+        for path in base.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(base)
+            if rel.parts and rel.parts[0] in excluded:
+                continue
+            if any(part.startswith("backup_antes_") for part in rel.parts):
+                continue
+            zf.write(path, rel.as_posix())
+    backups = sorted(Path(UPDATE_BACKUP_DIR).glob("app_antes_actualizacion_*.zip"), key=lambda x: x.stat().st_mtime, reverse=True)
+    for old in backups[5:]:
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    return str(dest)
+
+
+def _whatsapp_manual_test_missing(template_key: str = "recordatorio_cita") -> list[str]:
+    """Configuración mínima para probar una plantilla sin activar automatización local."""
+    missing = []
+    if not WHATSAPP_GRAPH_VERSION:
+        missing.append("WHATSAPP_GRAPH_VERSION")
+    if not WHATSAPP_PHONE_NUMBER_ID:
+        missing.append("WHATSAPP_PHONE_NUMBER_ID")
+    if not WHATSAPP_ACCESS_TOKEN:
+        missing.append("WHATSAPP_ACCESS_TOKEN")
+    if template_key == "recordatorio_cita" and not WHATSAPP_TEMPLATE_RECORDATORIO_CITA:
+        missing.append("WHATSAPP_TEMPLATE_RECORDATORIO_CITA")
+    if template_key == "cita_agendada":
+        if not WHATSAPP_TEMPLATE_CITA_AGENDADA:
+            missing.append("WHATSAPP_TEMPLATE_CITA_AGENDADA")
+        if not WHATSAPP_HEADER_IMAGE_ID:
+            missing.append("WHATSAPP_HEADER_IMAGE_ID")
+    if template_key == "recordatorio_hoy":
+        if not WHATSAPP_TEMPLATE_RECORDATORIO_HOY:
+            missing.append("WHATSAPP_TEMPLATE_RECORDATORIO_HOY")
+        if not WHATSAPP_HEADER_IMAGE_ID:
+            missing.append("WHATSAPP_HEADER_IMAGE_ID")
+    return missing
+
+
+def _whatsapp_test_payload(template_key: str, phone: str, name: str, test_date: date, raw_time: str) -> tuple[dict, str, str, list[str]]:
+    clean_name = re.sub(r"\s+", " ", str(name or "Prueba").strip())[:80] or "Prueba"
+    if template_key == "recordatorio_cita":
+        template = WHATSAPP_TEMPLATE_RECORDATORIO_CITA
+        language = WHATSAPP_LANGUAGE_RECORDATORIO_CITA  # plantilla aprobada: es_ES
+        body = [clean_name, whatsapp_recordatorio_datetime_label(test_date, raw_time)]
+        header = None
+        replies = ["TEST_CONFIRMAR", "TEST_CANCELAR"]
+    elif template_key == "cita_agendada":
+        template = WHATSAPP_TEMPLATE_CITA_AGENDADA
+        language = WHATSAPP_LANGUAGE_CITA_AGENDADA  # Español (Ecuador)
+        body = [clean_name, whatsapp_date_label(test_date), whatsapp_time_label(raw_time)]
+        header = WHATSAPP_HEADER_IMAGE_ID
+        replies = []
+    elif template_key == "recordatorio_hoy":
+        template = WHATSAPP_TEMPLATE_RECORDATORIO_HOY
+        language = WHATSAPP_LANGUAGE_RECORDATORIO_HOY  # Español (Ecuador)
+        body = [clean_name, whatsapp_time_label(raw_time)]
+        header = WHATSAPP_HEADER_IMAGE_ID
+        replies = []
+    else:
+        raise HTTPException(400, "Plantilla de prueba no válida")
+    payload = whatsapp_build_template_payload(
+        to=phone, template_name=template, language_code=language, body_params=body,
+        header_image_id=header, quick_reply_payloads=replies,
+    )
+    return payload, template, language, body
+
+
+
+
+WHATSAPP_CLOUD_TEST_TEMPLATES = {"recordatorio_cita", "cita_agendada", "recordatorio_hoy"}
+
+
+def _whatsapp_cloud_test_parse_source_hash(value: str) -> tuple[str, str]:
+    raw = str(value or "")
+    if not raw.startswith(WHATSAPP_CLOUD_TEST_PREFIX):
+        return "", ""
+    rest = raw[len(WHATSAPP_CLOUD_TEST_PREFIX):]
+    parts = rest.split(":")
+    if len(parts) >= 2 and parts[0] in WHATSAPP_CLOUD_TEST_TEMPLATES:
+        return parts[0], parts[-1]
+    return "recordatorio_cita", rest
+
+
+def _whatsapp_cloud_test_source_hash(template_key: str, token: str) -> str:
+    return f"{WHATSAPP_CLOUD_TEST_PREFIX}{template_key}:{token}"
+
+
+def _whatsapp_cloud_test_template_name(template_key: str) -> str:
+    if template_key == "cita_agendada":
+        return WHATSAPP_TEMPLATE_CITA_AGENDADA
+    if template_key == "recordatorio_hoy":
+        return WHATSAPP_TEMPLATE_RECORDATORIO_HOY
+    return whatsapp_recordatorio_template_name()
+
+
+def _whatsapp_cloud_test_approved(template_key: str) -> bool:
+    if template_key == "cita_agendada":
+        return bool(WHATSAPP_APPROVED_CITA_AGENDADA)
+    if template_key == "recordatorio_hoy":
+        return bool(WHATSAPP_APPROVED_RECORDATORIO_HOY)
+    return bool(WHATSAPP_APPROVED_RECORDATORIO_CITA)
+
+
+def _wa_cita_agendada_allowed(fecha: date, hora: str, created_at: Optional[datetime]) -> bool:
+    # No se envía con menos de 24 h ni si ya es el día de confirmación.
+    created = created_at or datetime.now()
+    try:
+        hh, mm = [int(x) for x in str(hora or "00:00")[:5].split(":")]
+        appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
+    except Exception:
+        appointment_at = datetime.combine(fecha, datetime.min.time())
+    return (appointment_at - created) >= timedelta(hours=24) and created.date() < (fecha - timedelta(days=1))
+
+
+def _whatsapp_cloud_test_ready() -> tuple[bool, str]:
+    if not WHATSAPP_CLOUD_MODE:
+        return False, "WhatsApp Cloud 24/7 está desactivado"
+    if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+        return False, "Neon no está disponible"
+    return True, ""
+
+
+def _cleanup_old_whatsapp_cloud_tests() -> None:
+    if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+        return
+    try:
+        with CloudSessionLocal() as cdb:
+            cdb.execute(text("""
+                DELETE FROM public.confirmafy_agenda_items
+                WHERE source_hash LIKE :prefix
+                  AND created_at < now() - interval '2 hours'
+            """), {"prefix": WHATSAPP_CLOUD_TEST_PREFIX + "%"})
+            cdb.commit()
+    except Exception:
+        pass
+
+
+@app.post("/api/whatsapp/cloud-test")
+def whatsapp_cloud_test(payload: dict, request: Request, user: User = Depends(current_user)):
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "La prueba solo puede iniciarse desde la PC de Recepción")
+    ready, reason = _whatsapp_cloud_test_ready()
+    if not ready:
+        raise HTTPException(503, reason)
+    template_key = str(payload.get("template") or "recordatorio_cita").strip().lower()
+    if template_key not in WHATSAPP_CLOUD_TEST_TEMPLATES:
+        raise HTTPException(400, "Plantilla de prueba no válida")
+    if not _whatsapp_cloud_test_approved(template_key):
+        raise HTTPException(409, f"La plantilla {template_key} todavía no está aprobada en la configuración de Recepción")
+    phone = confirmafy_phone(str(payload.get("phone") or WHATSAPP_TEST_PHONE or ""))
+    if not re.fullmatch(r"\d{10,15}", phone or ""):
+        raise HTTPException(400, "Ingresa un número válido. Ecuador: 09xxxxxxxx o 5939xxxxxxxx.")
+    name = re.sub(r"\s+", " ", str(payload.get("name") or "Prueba").strip())[:60] or "Prueba"
+    raw_date = str(payload.get("date") or "").strip()
+    raw_time = str(payload.get("time") or "").strip()[:5]
+    try:
+        test_date = date.fromisoformat(raw_date)
+    except Exception:
+        raise HTTPException(400, "Selecciona una fecha válida para la prueba")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw_time):
+        raise HTTPException(400, "Selecciona una hora válida para la prueba")
+    try:
+        hh, mm = [int(x) for x in raw_time.split(":")]
+        if datetime(test_date.year, test_date.month, test_date.day, hh, mm) <= datetime.now():
+            raise HTTPException(400, "La fecha y hora mostradas en la prueba deben estar en el futuro")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(400, "Fecha u hora inválida")
+    _cleanup_old_whatsapp_cloud_tests()
+    token = secrets.token_urlsafe(16).replace("-", "").replace("_", "")[:19]
+    source_hash = _whatsapp_cloud_test_source_hash(template_key, token)
+    item = ConfirmafyAgendaItem(nombre=name.upper(), celular=phone, fecha=test_date, hora=raw_time, duracion=20, source_hash=source_hash)
+    try:
+        with CloudSessionLocal() as cdb:
+            cdb.add(item); cdb.commit(); cdb.refresh(item)
+            source_id = int(item.id)
+    except Exception as exc:
+        raise HTTPException(503, f"No se pudo registrar la prueba en Cloud: {str(exc)[:180]}")
+    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 5, "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker enviará únicamente la plantilla elegida."}
+
+@app.get("/api/whatsapp/cloud-test/{test_id}")
+def whatsapp_cloud_test_status(test_id: int, token: str, user: User = Depends(current_user)):
+    ready, reason = _whatsapp_cloud_test_ready()
+    if not ready:
+        return {"ok": False, "status": "UNAVAILABLE", "status_label": reason, "terminal": True}
+    try:
+        with CloudSessionLocal() as cdb:
+            item = cdb.execute(text("""SELECT source_hash FROM public.confirmafy_agenda_items WHERE id=:source_id AND source_hash LIKE :prefix LIMIT 1"""), {"source_id": int(test_id), "prefix": WHATSAPP_CLOUD_TEST_PREFIX + "%"}).mappings().first()
+            if not item:
+                return {"ok": False, "status": "CLEANED", "status_label": "Prueba finalizada o vencida", "terminal": True}
+            template_key, stored_token = _whatsapp_cloud_test_parse_source_hash(str(item.get("source_hash") or ""))
+            if not stored_token or not hmac.compare_digest(stored_token, str(token or "")):
+                return {"ok": False, "status": "CLEANED", "status_label": "Prueba finalizada o vencida", "terminal": True}
+            template_name = _whatsapp_cloud_test_template_name(template_key)
+            event = cdb.execute(text("""SELECT status, message_id, created_at, sent_at, delivered_at, read_at, error_text FROM whatsapp_cloud.events WHERE source_type='staged' AND source_id=:source_id AND template_name=:template ORDER BY created_at DESC LIMIT 1"""), {"source_id": int(test_id), "template": template_name}).mappings().first()
+        if not event:
+            return {"ok": True, "status": "QUEUED", "status_label": "Esperando al worker Cloud", "terminal": False, "template": template_key}
+        st = str(event.get("status") or "").upper()
+        label, _tone = _wa_event_display_status(st)
+        timestamp = event.get("read_at") or event.get("delivered_at") or event.get("sent_at") or event.get("created_at")
+        return {"ok": st not in {"ERROR", "FAILED"}, "status": st, "status_label": label, "terminal": st in {"SENT", "DELIVERED", "READ", "ERROR", "FAILED"}, "message_id": str(event.get("message_id") or ""), "timestamp": timestamp.isoformat() if timestamp else None, "error": str(event.get("error_text") or "")[:240], "template": template_key}
+    except Exception as exc:
+        return {"ok": False, "status": "ERROR", "status_label": "No se pudo consultar Cloud", "terminal": False, "error": str(exc)[:220]}
+
+@app.delete("/api/whatsapp/cloud-test/{test_id}")
+def whatsapp_cloud_test_finish(test_id: int, token: str, user: User = Depends(current_user)):
+    if not cloud_configured() or not CloudSessionLocal:
+        raise HTTPException(503, "Neon no está disponible")
+    try:
+        with CloudSessionLocal() as cdb:
+            item = cdb.execute(text("""SELECT source_hash FROM public.confirmafy_agenda_items WHERE id=:source_id AND source_hash LIKE :prefix LIMIT 1"""), {"source_id": int(test_id), "prefix": WHATSAPP_CLOUD_TEST_PREFIX + "%"}).mappings().first()
+            if item:
+                _template_key, stored_token = _whatsapp_cloud_test_parse_source_hash(str(item.get("source_hash") or ""))
+                if stored_token and hmac.compare_digest(stored_token, str(token or "")):
+                    cdb.execute(text("DELETE FROM public.confirmafy_agenda_items WHERE id=:source_id"), {"source_id": int(test_id)})
+                    cdb.commit()
+        return {"ok": True, "message": "Prueba técnica finalizada. No se modificó ningún paciente ni cita real."}
+    except Exception as exc:
+        raise HTTPException(503, f"No se pudo finalizar la prueba: {str(exc)[:180]}")
+
+@app.post("/api/whatsapp/test-message")
+def whatsapp_test_message(payload: dict, user: User = Depends(current_user)):
+    """Envía UNA de las tres plantillas configuradas sin tocar outbox ni worker."""
+    template_key = str(payload.get("template") or "recordatorio_cita").strip().lower()
+    if template_key not in {"recordatorio_cita", "cita_agendada", "recordatorio_hoy"}:
+        raise HTTPException(400, "Plantilla de prueba no válida")
+    missing = _whatsapp_manual_test_missing(template_key)
+    if missing:
+        raise HTTPException(400, "Falta configurar para esta prueba: " + ", ".join(missing))
+
+    phone = confirmafy_phone(str(payload.get("phone") or WHATSAPP_TEST_PHONE or ""))
+    if not re.fullmatch(r"\d{10,15}", phone or ""):
+        raise HTTPException(400, "Ingresa un número válido. Ecuador: 09xxxxxxxx o 5939xxxxxxxx.")
+    name = re.sub(r"\s+", " ", str(payload.get("name") or "Prueba").strip())[:80] or "Prueba"
+    raw_date = str(payload.get("date") or "").strip()
+    raw_time = str(payload.get("time") or "").strip()[:5]
+    try:
+        test_date = date.fromisoformat(raw_date)
+    except Exception:
+        raise HTTPException(400, "Selecciona una fecha válida para la prueba")
+    if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", raw_time):
+        raise HTTPException(400, "Selecciona una hora válida para la prueba")
+
+    wa_payload, template, language, body = _whatsapp_test_payload(template_key, phone, name, test_date, raw_time)
+    try:
+        response = whatsapp_send_template(
+            graph_version=WHATSAPP_GRAPH_VERSION, phone_number_id=WHATSAPP_PHONE_NUMBER_ID,
+            access_token=WHATSAPP_ACCESS_TOKEN, payload=wa_payload, timeout=20.0,
+        )
+    except WhatsAppError as exc:
+        raise HTTPException(502, str(exc))
+    message_id = ""
+    try:
+        message_id = str((response.get("messages") or [{}])[0].get("id") or "")
+    except Exception:
+        pass
+    return {
+        "ok": True, "to": phone, "template_key": template_key, "template": template,
+        "language": language, "body_preview": body,
+        "buttons": ["Sí", "No"] if template_key == "recordatorio_cita" else [],
+        "message_id": message_id, "automatic_sending_enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
+        "message": "Prueba enviada a Meta. La automatización Cloud no fue modificada.",
+    }
+
+
+@app.post("/api/whatsapp/test-recordatorio-cita")
+def whatsapp_test_recordatorio_cita(payload: dict, user: User = Depends(current_user)):
+    # Compatibilidad con v4.3.36-v4.3.38.
+    data = dict(payload or {})
+    data["template"] = "recordatorio_cita"
+    return whatsapp_test_message(data, user)
+
+
+@app.get("/api/whatsapp/cloud-status")
+def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
+    """Resumen bajo demanda de entregas cloud. No crea hilos ni sondeos de fondo."""
+    if not cloud_configured() or not CloudSessionLocal:
+        return {"available": False, "message": "Neon no está configurado en esta PC.", "summary": {}, "items": []}
+    try:
+        with CloudSessionLocal() as cdb:
+            rows = cdb.execute(text("""
+                SELECT template_name, appointment_date, appointment_time, patient_name, status,
+                       created_at, sent_at, delivered_at, read_at, error_text
+                FROM whatsapp_cloud.events
+                WHERE created_at >= now() - interval '7 days'
+                ORDER BY created_at DESC
+                LIMIT 40
+            """)).mappings().all()
+    except Exception as exc:
+        return {"available": False, "message": f"No se pudo consultar el estado Cloud: {exc}", "summary": {}, "items": []}
+
+    summary = {"TOTAL": 0, "SENT": 0, "DELIVERED": 0, "READ": 0, "FAILED": 0, "ERROR": 0, "SENDING": 0}
+    items = []
+    for r in rows:
+        st = str(r.get("status") or "").upper()
+        summary["TOTAL"] += 1
+        summary[st] = summary.get(st, 0) + 1
+        items.append({
+            "template": str(r.get("template_name") or ""),
+            "date": str(r.get("appointment_date") or "")[:10],
+            "time": str(r.get("appointment_time") or "")[:5],
+            "patient": str(r.get("patient_name") or ""),
+            "status": st,
+            "created_at": r.get("created_at").isoformat() if r.get("created_at") else None,
+            "sent_at": r.get("sent_at").isoformat() if r.get("sent_at") else None,
+            "delivered_at": r.get("delivered_at").isoformat() if r.get("delivered_at") else None,
+            "read_at": r.get("read_at").isoformat() if r.get("read_at") else None,
+            "error": str(r.get("error_text") or "")[:240],
+        })
+    bad = summary.get("FAILED", 0) + summary.get("ERROR", 0)
+    return {
+        "available": True, "summary": summary, "items": items,
+        "message": "Sin errores de entrega en los últimos 7 días." if bad == 0 else f"Hay {bad} mensaje(s) con error para revisar.",
+    }
+
+
+@app.get("/api/whatsapp/status")
+def whatsapp_status(user: User = Depends(current_user)):
+    ready, missing = whatsapp_ready()
+    with LocalSessionLocal() as db:
+        counts = {str(status): int(count) for status, count in db.execute(
+            select(WhatsAppOutbox.status, func.count(WhatsAppOutbox.id)).group_by(WhatsAppOutbox.status)
+        ).all()}
+    return {
+        "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
+        "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
+        "state": "CLOUD_24_7" if WHATSAPP_CLOUD_MODE else ("ACTIVO" if WHATSAPP_ENABLED and ready else ("CONFIGURACION_INCOMPLETA" if WHATSAPP_ENABLED else "PENDIENTE_APROBACION")),
+        "ready": ready, "missing": missing,
+        "templates": {
+            "cita_agendada": {"name": WHATSAPP_TEMPLATE_CITA_AGENDADA, "language": WHATSAPP_LANGUAGE_CITA_AGENDADA, "automatic": WHATSAPP_AUTO_CITA_AGENDADA, "approved": WHATSAPP_APPROVED_CITA_AGENDADA},
+            "recordatorio_cita": {"name": whatsapp_recordatorio_template_name(), "language": WHATSAPP_LANGUAGE_RECORDATORIO_CITA, "automatic": WHATSAPP_AUTO_RECORDATORIO_CITA, "approved": WHATSAPP_APPROVED_RECORDATORIO_CITA},
+            "recordatorio_hoy": {"name": WHATSAPP_TEMPLATE_RECORDATORIO_HOY, "language": WHATSAPP_LANGUAGE_RECORDATORIO_HOY, "automatic": WHATSAPP_AUTO_RECORDATORIO_HOY, "approved": WHATSAPP_APPROVED_RECORDATORIO_HOY},
+        },
+        "recordatorio_cita_approved_structure": {"body_params": 2, "variables": ["nombre", "fecha_y_hora"], "buttons": ["Sí", "No"]},
+        "manual_test": {
+            "ready": _whatsapp_cloud_test_ready()[0] if WHATSAPP_CLOUD_MODE else not bool(_whatsapp_manual_test_missing("recordatorio_cita")),
+            "missing": [] if (WHATSAPP_CLOUD_MODE and _whatsapp_cloud_test_ready()[0]) else ((_whatsapp_cloud_test_ready()[1:] or [""])[0:1] if WHATSAPP_CLOUD_MODE else _whatsapp_manual_test_missing("recordatorio_cita")),
+            "default_phone": WHATSAPP_TEST_PHONE,
+            "works_with_automatic_sending_disabled": True,
+            "mode": "cloud" if WHATSAPP_CLOUD_MODE else "local",
+            "requires_local_meta_token": False if WHATSAPP_CLOUD_MODE else True,
+        },
+        "previous_day_time": WHATSAPP_PREVIOUS_DAY_TIME,
+        "today_hours_before": WHATSAPP_TODAY_HOURS_BEFORE,
+        "outbox": counts,
+        "message": ("WhatsApp Cloud 24/7 activo. La PC no envía automáticamente y no puede duplicar los mensajes de Cloudflare." if WHATSAPP_CLOUD_MODE else ("Preparado. No se envía nada mientras WHATSAPP_ENABLED=0." if not WHATSAPP_ENABLED else ("WhatsApp habilitado." if ready else "WhatsApp habilitado pero faltan datos de Meta en .env."))),
+    }
+
+
+# ---------------------------------------------------------------------------
+# v4.3.58 — Configuración profesional + comprobación pasiva de servicios
+# ---------------------------------------------------------------------------
+V458_SETTINGS_CSS = "/* v4.3.58 — Configuración profesional y estado de servicios */\n#config.v458-settings .config-title-row{margin-bottom:12px}\n#config.v458-settings .config-tabs{gap:7px;flex-wrap:wrap;margin-bottom:14px}\n#config.v458-settings .config-tabs button{padding:8px 12px;border-radius:10px;white-space:nowrap}\n.v458-service-panel{margin:0 0 14px!important;padding:15px!important;border:1px solid rgba(76,108,155,.22)!important}\n.v458-service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px}\n.v458-service-head h3{margin:0 0 3px;font-size:17px}.v458-service-head p{margin:0}\n.v458-service-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}\n.v458-service-time{font-size:12px;color:#6f7f96;white-space:nowrap}\n.v458-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}\n.v458-service-card{border:1px solid #dfe6ef;border-radius:12px;padding:11px 12px;background:#fbfcfe;min-height:92px;display:flex;flex-direction:column;gap:5px}\n.v458-service-card .v458-service-top{display:flex;align-items:center;justify-content:space-between;gap:8px}\n.v458-service-card b{font-size:14px;color:#20324d}.v458-service-card small{font-size:12px;line-height:1.35;color:#687890}\n.v458-status{font-size:10px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:4px 7px;background:#eef2f7;color:#53647b}\n.v458-status.online{background:#e7f7ed;color:#16703c}.v458-status.degraded{background:#fff4db;color:#936117}.v458-status.offline{background:#ffe9e8;color:#a13731}.v458-status.no-configurado{background:#eef1f5;color:#667287}.v458-status.checking{background:#e9f1ff;color:#315f9d}\n.v458-service-card.online{border-color:#bfe5ca;background:#fbfffc}.v458-service-card.degraded{border-color:#eedda8}.v458-service-card.offline{border-color:#efc3bf}\n.v458-config-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin:2px 0 10px}.v458-config-section-head h2{font-size:18px;margin:0}.v458-config-section-head p{margin:3px 0 0;color:#718097;font-size:13px}\n.v458-link-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}\n.v458-link-card{border:1px solid #dce5f0;border-radius:12px;padding:12px;background:#fbfcff;display:flex;flex-direction:column;gap:8px}.v458-link-card .label{display:flex;align-items:center;justify-content:space-between;gap:8px}.v458-link-card .label b{font-size:14px}.v458-link-card .label span{font-size:10px;font-weight:800;border-radius:999px;padding:3px 7px;background:#eef4ff;color:#315f9d}.v458-link-card code{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#f1f4f8;padding:7px 8px;border-radius:8px;font-size:11px}.v458-link-actions{display:flex;gap:7px;flex-wrap:wrap}\n.v458-agenda-state{border-radius:10px;padding:9px 11px;background:#f2f7ff;color:#315f75;font-size:13px}.v458-agenda-state.ready{background:#eaf8ef;color:#22683e}\n.v458-advanced{margin-top:10px;border:1px solid #e2e8f0;border-radius:11px;background:#fafbfd}.v458-advanced>summary{cursor:pointer;padding:10px 12px;font-weight:700;color:#56677f;list-style:none}.v458-advanced>summary::-webkit-details-marker{display:none}.v458-advanced>summary:after{content:'▾';float:right;color:#8491a4}.v458-advanced[open]>summary:after{content:'▴'}.v458-advanced>.panel{border:0!important;box-shadow:none!important;margin:0!important;padding-top:5px!important}\n.v458-wa-overview{margin-bo

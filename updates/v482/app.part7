@@ -1,0 +1,892 @@
+E';
+        setTimeout(()=>sel.dispatchEvent(new Event('change',{bubbles:true})),0);
+      }
+    }
+  }
+  function simplifyActions(){
+    for(const btn of document.querySelectorAll('button')){
+      const t=norm(btn.textContent);
+      if(t==='aprobar' || t==='aprobar factura' || t==='confirmar aprobacion' || t==='confirmar aprobación'){
+        btn.textContent='Revisar y emitir';btn.classList.add('v475-action-button');
+      }
+      if(t.includes('aprobar todas') || t.includes('emitir todas') || t==='volver a pendiente')btn.classList.add('v475-hidden');
+    }
+    for(const el of [...document.querySelectorAll('span,b,strong,small')]){
+      const t=norm(el.textContent);
+      if(t==='pendiente' || t==='aprobada')el.textContent='POR EMITIR';
+    }
+  }
+  function compactSri(){
+    for(const label of [...document.querySelectorAll('b,strong,span')]){
+      if(norm(label.textContent)!=='estado azur / sri')continue;
+      let box=label.parentElement;
+      if(!box)continue;
+      if(box.parentElement && /actualizar estado|consulta nuevamente|autorizada por sri|en proceso|rechaz/i.test(norm(box.parentElement.textContent)))box=box.parentElement;
+      if(box.dataset.v475Sri==='1')continue;
+      const txt=norm(box.textContent);
+      let state='Estado registrado', cls='process';
+      if(txt.includes('autorizada')){state='Autorizada por SRI';cls='authorized'}
+      else if(txt.includes('rechaz')){state='Rechazada por SRI';cls='rejected'}
+      else if(txt.includes('proceso')){state='En proceso en SRI';cls='process'}
+      else if(txt.includes('devuelta')){state='Devuelta por SRI';cls='rejected'}
+      box.dataset.v475Sri='1';
+      box.classList.add('v475-sri-compact',cls);
+      box.innerHTML=`<div class="v475-sri-line"><span class="v475-sri-chip">SRI</span><strong>${state}</strong></div>`;
+    }
+  }
+  function copyText(){
+    for(const p of [...document.querySelectorAll('p')]){
+      const t=norm(p.textContent);
+      if(t==='revisa, aprueba y emite directamente en azur.')p.textContent='Revisa los datos y emite directamente en AZUR.';
+    }
+  }
+  function apply(){if(busy)return;busy=true;try{copyText();simplifySelects();simplifyMetrics();simplifyActions();compactSri()}finally{busy=false}}
+
+  // El endpoint /api/billing/approve ahora realiza toda la operación. Solo
+  // adaptamos mensajes viejos de la interfaz para que no diga "aprobada".
+  const oldNotice=window.rpNotice;
+  if(typeof oldNotice==='function')window.rpNotice=function(msg,title){
+    let text=String(msg||'');
+    if(/factura.+aprob/i.test(text))text='Factura revisada y enviada a AZUR.';
+    return oldNotice.call(this,text,title);
+  };
+
+  const observer=new MutationObserver(()=>queueMicrotask(apply));
+  observer.observe(document.documentElement,{childList:true,subtree:true});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply,{once:true});else apply();
+  setTimeout(apply,250);setTimeout(apply,900);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V475_BILLING_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V475_BILLING_JS
+
+V476_CSS = r"""#facturacion .billing-filters{display:none!important}#facturacion .billing-title-actions button:not(.external-billing-link){display:none!important}#facturacion .billing-summary{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important;margin:15px 0 18px!important}#facturacion .billing-summary>button{min-height:70px!important;border:1px solid #d7e0eb!important;border-radius:15px!important;background:#fff!important;padding:12px 16px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;text-align:left!important;color:#30435b!important}#facturacion .billing-summary>button.active{border-color:#77a1d0!important;background:#edf5ff!important;color:#244f82!important}#facturacion .billing-summary>button b{font-size:24px!important}#facturacion .billing-summary>button span{font-size:13px!important;font-weight:850!important}.v476-sri{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid #e4eaf1;margin-top:10px;padding-top:9px;font-size:12px}.v476-sri i{font-style:normal;border-radius:999px;padding:3px 8px;background:#eef3f8;color:#50657e;font-size:9px;font-weight:900}.v476-sri.ok i{background:#e7f6ec;color:#237045}.v476-sri.ok b{color:#286849}.v476-sri.wait i{background:#eef4ff;color:#456b9c}.v476-sri.wait b{color:#456b9c}.v476-sri.bad i{background:#fff0ef;color:#a04a45}.v476-sri.bad b{color:#93443f}@media(max-width:760px){#facturacion .billing-summary{grid-template-columns:1fr!important}}"""
+V476_JS = r""";(()=>{if(window.__v476)return;window.__v476=true;const n=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase(),e=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function az(g){return(g.items||[]).map(x=>x.azur).find(Boolean)||null}function sri(g){const a=az(g);if(!a)return'';const s=String(a.estado||'').toUpperCase();let t='En proceso en SRI',c='wait';if(s==='AUTORIZADA'){t='Autorizada por SRI';c='ok'}else if(s==='RECHAZADA'||s==='DEVUELTA'){t=s==='RECHAZADA'?'Rechazada por SRI':'Devuelta por SRI';c='bad'}return`<div class="v476-sri ${c}"><i>SRI</i><b>${e(t)}</b></div>`}
+window.billingCardHtml=function(g){const view=String(document.querySelector('#bEstado')?.value||'PENDIENTE').toUpperCase(),st=billingGroupStatus(g),miss=billingMissingFields(g.patient),total=billingTotal(g),a=billingRecipientDraft(g.patient.id,g.fecha),z=az(g),invoice=billingInvoiceNumber(g)||String(z?.numero_factura||'');let actions='';const other=`<button onclick="openBillingRecipientEditor(${g.patient.id},'${g.fecha}')">👤 ${a?.alternate?'Editar datos de factura':'Facturar con otros datos'}</button>`;if(view==='EMITIDA'){actions=`<button onclick="copyBillingData(${g.patient.id},'${g.fecha}')">📋 Ver datos de factura</button>`;if(z&&['EN_PROCESO','CONSULTADA'].includes(String(z.estado||'').toUpperCase()))actions+=`<button onclick="checkAzurInvoiceStatus(${g.patient.id},'${g.fecha}')">↻ Consultar SRI</button>`}else{const emit=`<button class="primary billing-approve" onclick="approveBilling(${g.patient.id},'${g.fecha}')">✓ Revisar y emitir</button>`;actions=a?.alternate?other+emit:(miss.length?`<button class="complete-patient-list-btn" onclick="editPatientFromBilling(${g.patient.id})">✎ Completar datos</button>${other}`:other+emit)}const warn=view!=='EMITIDA'&&miss.length&&!a?.alternate?`<div class="billing-warning">⚠ Falta ${e(miss.join(' y '))} para emitir con los datos del paciente. También puedes facturar con otros datos.</div>`:'',num=invoice?`<div class="billing-invoice-number"><span>Factura</span><b>${e(invoice)}</b></div>`:'',badge=view==='EMITIDA'?'EMITIDA':'POR EMITIR',cls=view==='EMITIDA'?'emitida':'pendiente';return`<article class="billing-card ${cls}"><div class="billing-card-head"><div><div class="billing-patient-name">${e(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${e(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${e(g.patient.correo||'Sin correo')}</span><span><b>Fecha:</b> ${fmtDate(g.fecha)}</span></div></div><span class="billing-status ${cls}">${badge}</span></div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div>${sri(g)}<div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${num}<div class="billing-actions">${actions}</div></div></article>`};
+function clean(){const s=document.querySelector('#facturacion');if(!s)return;s.querySelector('.billing-filters')?.setAttribute('hidden','');s.querySelectorAll('.billing-title-actions button:not(.external-billing-link)').forEach(b=>b.style.display='none');const p=s.querySelector('.billing-title-row p.muted');if(p)p.textContent='Revisa los datos y emite directamente en AZUR.'}
+function tabs(){const h=document.querySelector('#billingSummary');if(!h)return;const bs=[...h.querySelectorAll('button')],pend=bs.find(b=>n(b.textContent).includes('pendiente')||n(b.textContent).includes('por emitir')),app=bs.find(b=>n(b.textContent).includes('aprobada')),emit=bs.find(b=>n(b.textContent).includes('emitida'));if(pend){pend.querySelector('span')&&(pend.querySelector('span').textContent='Por emitir');pend.classList.toggle('active',String(document.querySelector('#bEstado')?.value||'PENDIENTE').toUpperCase()!=='EMITIDA')}if(app)app.remove();if(emit)emit.classList.toggle('active',String(document.querySelector('#bEstado')?.value||'').toUpperCase()==='EMITIDA')}
+const oldLoad=window.loadBilling;window.loadBilling=async function(){await oldLoad();clean();tabs()};const oldSet=window.setBillingStatus;window.setBillingStatus=async function(s){s=String(s||'PENDIENTE').toUpperCase();if(s==='APROBADA')s='PENDIENTE';if(s==='EMITIDA'){try{await api('/api/billing/azur/check-all-status',{method:'POST',body:'{}'})}catch(_e){}}await oldSet(s);clean();tabs()};window.approveBilling=async function(id,f){const d=billingRecipientDraft(id,f),who=d?.alternate?`\n\nLa factura se emitirá a: ${d.nombre} (${billingRecipientKind(d.identificacion)} ${d.identificacion})`:'';const q='¿Revisar y emitir esta factura en AZUR?'+who+'\n\nAl aceptar se enviará el comprobante; no habrá un paso de aprobación separado.',ok=typeof window.rpConfirm==='function'?await window.rpConfirm(q,'Revisar y emitir'):window.confirm(q);if(!ok)return;try{await singleFlightMutation(`billing:approve:${id}:${f}`,async()=>{await api('/api/billing/approve',{method:'POST',body:JSON.stringify({patient_id:id,fecha:f,...billingRecipientPayload(id,f)})});await window.loadBilling();refreshPendingBadges()},'Emitiendo en AZUR…')}catch(x){alert(x.message)}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',clean,{once:true});else clean();})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V476_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V476_JS
+
+V477_ATTENTION_CSS = r"""
+/* v4.3.77 — Remaster de Nueva atención */
+.modalbox.modalbox-wide.v477-attention-modalbox{width:min(790px,94vw)!important;max-height:90vh!important;padding:21px 23px 20px!important;border-radius:18px!important}
+.v477-attention-remaster{display:grid;gap:12px}
+.v477-attention-top{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding-right:42px}
+.v477-attention-top .modal-form-heading{padding-right:0!important;margin:0!important}
+.v477-attention-top .modal-form-heading h2{font-size:22px!important;letter-spacing:-.015em}
+.v477-attention-top .modal-form-heading p{margin-top:4px!important;font-size:11px!important}
+.v477-new-patient-btn{flex:0 0 auto;min-height:39px;padding:9px 13px!important;border-radius:11px!important;font-size:11px!important;font-weight:850!important;white-space:nowrap}
+.v477-attention-remaster .attention-start-search{margin:0!important;gap:4px!important}
+.v477-attention-remaster .attention-start-search>label{font-size:11px!important;color:#53647b!important}
+.v477-attention-remaster .attention-start-search .search{height:46px!important;padding:10px 13px!important;border-radius:12px!important;background:#fff!important;font-size:14px!important}
+.v477-attention-remaster .attention-start-search>small{display:none!important}
+.v477-attention-remaster .attention-week-block{margin:0!important;padding:0!important;border:0!important;background:transparent!important}
+.v477-today-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:11px 13px;margin:1px 0 7px;border:1px solid #dfe7f1;border-radius:12px;background:#f7f9fc}
+.v477-today-title{display:grid;gap:2px;min-width:0}
+.v477-today-kicker{font-size:8px;font-weight:900;letter-spacing:.12em;color:#6d7d92;text-transform:uppercase}
+.v477-today-title b{font-size:13px;color:#1c314f;text-transform:capitalize}
+.v477-today-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.v477-today-meta strong{font-size:10px;color:#586c85;white-space:nowrap}
+.v477-today-meta .attention-week-conflict-note{font-size:8px;padding:3px 6px}
+.v477-attention-remaster .attention-week-calendar{display:block!important}
+.v477-attention-remaster .attention-week-day{border:1px solid #dce5ef!important;border-radius:13px!important;overflow:hidden!important;box-shadow:none!important;background:#fff!important}
+.v477-attention-remaster .attention-week-day>header{padding:8px 11px!important;background:#edf5ff!important;border-bottom:1px solid #dce8f6!important}
+.v477-attention-remaster .attention-week-day>header b{font-size:12px!important}
+.v477-attention-remaster .attention-week-day>header span{font-size:9px!important}
+.v477-attention-remaster .attention-week-day>header strong{min-width:27px!important;height:25px!important;border-radius:8px!important;font-size:10px!important}
+.v477-attention-remaster .attention-week-list{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;padding:8px!important;max-height:330px!important;overflow:auto!important}
+.v477-attention-remaster .attention-week-row{grid-template-columns:54px minmax(0,1fr)!important;min-height:49px!important;padding:8px 10px!important;border-radius:10px!important;border:1px solid #e3e9f1!important;background:#fff!important}
+.v477-attention-remaster .attention-week-row:hover,.v477-attention-remaster .attention-week-row:focus{background:#f2f7ff!important;border-color:#a9c6ec!important;box-shadow:0 0 0 2px #e2edfb!important}
+.v477-attention-remaster .attention-week-time{font-size:12px!important;color:#1d66a7!important}
+.v477-attention-remaster .attention-week-person b{font-size:11.5px!important;line-height:1.2!important;-webkit-line-clamp:1!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;display:block!important}
+.v477-attention-remaster .attention-week-person small{font-size:9px!important;color:#738196!important}
+.v477-attention-remaster .attention-week-row.confirmafy-unlinked{padding-right:10px!important;padding-bottom:8px!important}
+.v477-attention-remaster .attention-week-unlinked-badge{display:none!important}
+.v477-attention-remaster .attention-week-empty,.v477-attention-remaster .attention-week-loading{padding:22px 14px!important;border:1px dashed #d6e0eb;border-radius:12px;background:#fbfcfe;font-size:11px!important}
+.v477-no-clinic{display:grid;justify-items:center;gap:4px;padding:25px 15px!important}
+.v477-no-clinic b{font-size:13px;color:#314762}.v477-no-clinic span{font-size:10px;color:#77869a;text-align:center}
+.v477-attention-remaster .attention-results{margin-top:0!important;max-height:390px!important}
+@media(max-width:720px){.modalbox.modalbox-wide.v477-attention-modalbox{width:min(94vw,620px)!important;padding:18px!important}.v477-attention-top{padding-right:34px;align-items:stretch;flex-direction:column;gap:9px}.v477-new-patient-btn{align-self:flex-start}.v477-attention-remaster .attention-week-list{grid-template-columns:1fr!important;max-height:none!important}.v477-today-head{align-items:flex-start;flex-direction:column;gap:6px}.v477-today-meta{justify-content:flex-start}}
+"""
+V477_ATTENTION_JS = r""";(()=>{
+  if(window.__v477AttentionRemaster)return;
+  window.__v477AttentionRemaster=true;
+
+  const dayName=(d)=>{
+    try{return new Intl.DateTimeFormat('es-EC',{weekday:'long',day:'2-digit',month:'long'}).format(d)}catch(_e){return 'Hoy'}
+  };
+  const applyShell=()=>{
+    const modal=document.querySelector('#modal .modalbox');
+    if(modal&&modal.querySelector('.v477-attention-remaster'))modal.classList.add('v477-attention-modalbox');
+  };
+
+  window.renderAttentionWeek=function(d={}){
+    const box=$('#attentionWeekCalendar');if(!box)return;
+    const days=d.days||[],today=toISO(new Date());
+    const day=days.find(x=>String(x?.date||'').slice(0,10)===today)||null;
+    const title=$('#v477TodayTitle'),label=$('#attentionWeekLabel');
+    if(title)title.textContent=day?.label?`${day.label} · ${fmtDate(day.date)}`:dayName(new Date());
+    if(label)label.textContent=day?`${(day.appointments||[]).length} cita${(day.appointments||[]).length===1?'':'s'}`:'Sin consulta';
+    const conflict=$('#attentionWeekConflict');
+    if(conflict){
+      const n=day?(day.appointments||[]).filter(x=>x?.conflict).length:0;
+      conflict.textContent=n?`⚠ ${n} duplicada${n===1?'':'s'}`:'';
+      conflict.classList.toggle('hidden',n<=0);
+    }
+    if(!day){
+      box.innerHTML='<div class="attention-week-empty wide v477-no-clinic"><b>Hoy no hay consulta programada</b><span>Puedes buscar un paciente arriba para registrar una atención manualmente.</span></div>';
+      return;
+    }
+    const rows=(day.appointments||[]).map(attentionWeekRow).join('')||'<div class="attention-week-empty">No hay pacientes agendados para hoy.</div>';
+    box.innerHTML=`<article class="attention-week-day today v477-today-card"><header><div><b>Pacientes de hoy</b><span>${fmtDate(day.date)}</span></div><strong>${(day.appointments||[]).length}</strong></header><div class="attention-week-list">${rows}</div></article>`;
+  };
+
+  window.newAttention=async function(){
+    currentPatientSource='general';
+    attentionSearchSeq++;
+    attentionWeekAnchor=toISO(new Date());
+    const todayText=dayName(new Date());
+    openModal(`<div class="new-attention-start-modal v477-attention-remaster"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona al paciente de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div class="v477-today-head"><div class="v477-today-title"><span class="v477-today-kicker">Agenda de hoy</span><b id="v477TodayTitle">${esc(todayText)}</b></div><div class="v477-today-meta"><strong id="attentionWeekLabel"></strong><span id="attentionWeekConflict" class="attention-week-conflict-note hidden"></span></div></div><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
+    applyShell();
+    loadAttentionWeek(false,attentionWeekAnchor);
+    setTimeout(()=>$('#aSearch')?.focus(),0);
+  };
+
+  const oldClose=window.closeModal;
+  if(typeof oldClose==='function')window.closeModal=function(){
+    document.querySelector('#modal .modalbox')?.classList.remove('v477-attention-modalbox');
+    return oldClose.apply(this,arguments);
+  };
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V477_ATTENTION_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V477_ATTENTION_JS
+
+V478_REMIX_CSS = r"""
+/* v4.3.78 — Inicio compacto + Agenda mañana/tarde */
+#inicio .home-title-row{align-items:center!important;margin:0 0 7px!important;gap:16px!important}
+#inicio .page-heading{gap:1px!important}
+#inicio .page-eyebrow{font-size:8px!important;letter-spacing:.11em!important}
+#inicio .page-heading h1{font-size:25px!important;line-height:1.05!important;margin:1px 0!important}
+#inicio .page-heading p{font-size:10px!important;margin:2px 0 0!important}
+#inicio .new-attention-main{min-height:43px!important;padding:10px 20px!important;border-radius:12px!important;font-size:12px!important}
+#inicio .home-week-nav{justify-content:flex-end!important;margin:0 0 6px!important;gap:5px!important}
+#inicio .tiny-week-label{font-size:9px!important;padding:4px 8px!important}
+#inicio .tiny-week-btn{min-width:29px!important;min-height:28px!important;padding:4px 7px!important;font-size:9px!important;border-radius:9px!important}
+#inicio .week-cards{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(190px,.85fr)!important;gap:8px!important;margin:0 0 8px!important}
+#inicio .week-card.v478-week-chip{min-height:58px!important;padding:9px 11px!important;border-radius:12px!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:'day count' 'meta total'!important;gap:2px 9px!important;align-items:center!important;box-shadow:none!important;transform:none!important}
+#inicio .v478-week-chip .week-day{grid-area:day;font-size:12px!important;font-weight:900!important;line-height:1.1!important}
+#inicio .v478-week-chip .v478-week-count{grid-area:count;font-size:20px!important;line-height:1!important;color:#1f5fbf!important;font-weight:900!important}
+#inicio .v478-week-chip .v478-week-meta{grid-area:meta;font-size:8.5px!important;color:#748297!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+#inicio .v478-week-chip .v478-week-total{grid-area:total;font-size:10px!important;font-weight:850!important;color:#304760!important;white-space:nowrap!important}
+#inicio .week-card.v478-week-chip.active{background:#edf5ff!important;border-color:#75a2d7!important;box-shadow:inset 0 0 0 1px #bad2ec!important}
+#inicio .week-card.v478-week-chip.active:after{left:11px!important;right:11px!important;height:2px!important}
+#inicio .v478-week-total-card{min-height:58px;border:1px solid #dbe4ee;border-radius:12px;background:#f7f9fc;padding:9px 12px;display:grid;grid-template-columns:1fr auto;grid-template-areas:'kicker money' 'patients money';gap:2px 10px;align-items:center}
+#inicio .v478-week-total-card span{grid-area:kicker;font-size:8px;font-weight:900;letter-spacing:.11em;color:#738197}
+#inicio .v478-week-total-card strong{grid-area:patients;font-size:11px;color:#293e5b}
+#inicio .v478-week-total-card b{grid-area:money;font-size:15px;color:#214f84;white-space:nowrap}
+#inicio #weekSummary{display:none!important}
+#inicio .selected-day-title{margin:2px 0 6px!important;padding:0!important}
+#inicio .v478-day-head{width:100%;display:flex;align-items:end;justify-content:space-between;gap:12px}
+#inicio .v478-day-head-main{display:grid;gap:1px}
+#inicio .v478-day-kicker{font-size:8px;font-weight:900;letter-spacing:.1em;color:#7b8798;text-transform:uppercase}
+#inicio .v478-day-head h2{font-size:17px!important;line-height:1.1!important;margin:0!important}
+#inicio .v478-day-stats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+#inicio .v478-day-stats span,#inicio .v478-day-stats b{border:1px solid #dfe6ef;background:#f8fafc;border-radius:999px;padding:5px 8px;font-size:9px;color:#53667f;white-space:nowrap}
+#inicio .v478-day-stats b{color:#214f84;background:#edf5ff;border-color:#d3e2f4}
+#inicio #todayTable{overflow:visible!important;border-radius:13px!important;box-shadow:none!important}
+#inicio .home-patient-table{font-size:12px!important}
+#inicio .home-patient-table thead th{position:sticky!important;top:0;z-index:4;background:#edf3f9!important;padding:7px 8px!important;font-size:8.5px!important;letter-spacing:.055em!important}
+#inicio .home-patient-table td{padding:6px 8px!important;vertical-align:middle!important}
+#inicio .home-patient-table th:nth-child(1){width:5%!important}#inicio .home-patient-table th:nth-child(2){width:42%!important}#inicio .home-patient-table th:nth-child(3){width:18%!important}#inicio .home-patient-table th:nth-child(4){width:11%!important}#inicio .home-patient-table th:nth-child(5){width:24%!important}
+#inicio .row-number{font-size:11px!important}.v478-home-table .patient-name-line>a{font-size:12px!important;line-height:1.15!important}.v478-home-table .new-patient-badge{font-size:7px!important;padding:2px 5px!important}.v478-home-table .service-badge{font-size:8.5px!important;padding:4px 7px!important}.v478-home-table .money-pill{font-size:9px!important;min-width:58px!important;padding:4px 6px!important}
+.v478-home-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;white-space:nowrap}.v478-home-actions>button,.v478-more-summary{border:1px solid #dbe3ed!important;background:#fff!important;color:#425774!important;border-radius:8px!important;padding:5px 7px!important;font-size:8px!important;font-weight:800!important;min-height:27px!important;line-height:1!important}.v478-home-actions>button:hover,.v478-more-summary:hover{background:#f3f7fb!important}.v478-home-more{position:relative;display:inline-block}.v478-home-more>summary{list-style:none;cursor:pointer}.v478-home-more>summary::-webkit-details-marker{display:none}.v478-home-more-menu{display:none;position:absolute;right:0;top:31px;z-index:20;min-width:132px;padding:5px;border:1px solid #dbe3ed;border-radius:9px;background:#fff;box-shadow:0 8px 24px rgba(35,55,80,.15)}.v478-home-more[open] .v478-home-more-menu{display:block}.v478-home-more-menu button{width:100%;border:0;background:#fff4f3;color:#9a3f38;border-radius:7px;padding:7px 8px;font-size:8.5px;font-weight:850;text-align:left}.v478-home-more-menu button:hover{background:#ffe9e7}
+#inicio .sub-visit-row td{padding-top:4px!important;padding-bottom:4px!important}.v478-home-table .sub-visit-label{font-size:9px!important}
+
+/* Nueva atención — AGENDA grande y separación por jornada */
+.modalbox.modalbox-wide.v477-attention-modalbox{width:min(820px,94vw)!important;padding:19px 21px 18px!important}
+.v478-attention .v477-attention-top{margin-bottom:0!important}.v478-attention .v477-attention-top .modal-form-heading h2{font-size:21px!important}.v478-attention .attention-start-search .search{height:44px!important}
+.v478-agenda-shell{border:1px solid #dce5ef;border-radius:14px;background:#fff;overflow:hidden}
+.v478-agenda-brand{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;border-bottom:1px solid #dfe8f2;background:linear-gradient(90deg,#edf5ff,#f9fbfe)}
+.v478-agenda-title{display:flex;align-items:baseline;gap:9px;min-width:0}.v478-agenda-title span{font-size:8px;font-weight:900;letter-spacing:.11em;color:#708098;white-space:nowrap}.v478-agenda-title strong{font-size:24px;line-height:1;color:#1d4f86;letter-spacing:-.025em}.v478-agenda-date{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}.v478-agenda-date b{font-size:10px;color:#344b69}.v478-agenda-date span{border:1px solid #cedced;background:#fff;border-radius:999px;padding:4px 7px;font-size:8.5px;font-weight:850;color:#536a86;white-space:nowrap}
+.v478-shifts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}.v478-shift{min-width:0}.v478-shift+ .v478-shift{border-left:1px solid #e2e9f1}.v478-shift-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;background:#fafbfd;border-bottom:1px solid #e7ecf2}.v478-shift-head b{font-size:10px;letter-spacing:.09em;color:#475d78}.v478-shift-head span{font-size:8px;font-weight:850;color:#74849a;background:#eef2f7;border-radius:999px;padding:3px 6px}.v478-shift-list{display:grid;gap:5px;padding:7px;align-content:start}.v478-shift .attention-week-row{grid-template-columns:48px minmax(0,1fr)!important;min-height:46px!important;padding:7px 9px!important;margin:0!important;border-radius:9px!important}.v478-shift .attention-week-time{font-size:11px!important}.v478-shift .attention-week-person b{font-size:10.5px!important}.v478-shift .attention-week-person small{font-size:8.5px!important}.v478-shift-empty{padding:18px 10px;text-align:center;font-size:9px;color:#8995a5}.v478-agenda-conflict{margin-left:6px;color:#995b16!important;background:#fff5e8!important;border-color:#f1d3a9!important}
+@media(max-width:900px){#inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}.v478-home-actions{flex-wrap:wrap}.v478-shifts{grid-template-columns:1fr}.v478-shift+.v478-shift{border-left:0;border-top:1px solid #e2e9f1}}
+@media(max-width:620px){#inicio .week-cards{grid-template-columns:1fr!important}#inicio .v478-day-head{align-items:flex-start;flex-direction:column}.v478-agenda-brand{align-items:flex-start;flex-direction:column}.v478-agenda-date{justify-content:flex-start}.v478-agenda-title strong{font-size:21px}.v478-home-actions>button,.v478-more-summary{padding:5px 6px!important}}
+"""
+V478_REMIX_JS = r""";(()=>{
+  if(window.__v478Remix)return;window.__v478Remix=true;
+  const eh=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  window.renderWeekCards=function(days){
+    const totalPatients=(days||[]).reduce((s,d)=>s+Number(weeklyData[d.iso]?.count||0),0);
+    const totalMoney=(days||[]).reduce((s,d)=>s+Number(weeklyData[d.iso]?.total||0),0);
+    const box=$('#weekCards');if(!box)return;
+    box.innerHTML=(days||[]).map(d=>{const info=weeklyData[d.iso]||{count:0,total:0};return `<button class="week-card v478-week-chip ${selectedHomeDate===d.iso?'active':''}" data-date="${d.iso}" onclick="selectHomeDay('${d.iso}')"><span class="week-day">${eh(d.label)}</span><strong class="v478-week-count">${Number(info.count||0)}</strong><span class="v478-week-meta">${fmtDate(d.iso)} · ${Number(info.count||0)===1?'paciente':'pacientes'}</span><span class="v478-week-total">${money(info.total||0)}</span></button>`}).join('')+`<div class="v478-week-total-card"><span>TOTAL SEMANA</span><strong>${totalPatients} ${totalPatients===1?'paciente':'pacientes'}</strong><b>${money(totalMoney)}</b></div>`;
+    const old=$('#weekSummary');if(old)old.innerHTML='';
+  };
+
+  function homeMore(v){const id=Number(v?.id||0),fecha=String(v?.fecha||selectedHomeDate||'').slice(0,10);return `<details class="v478-home-more"><summary class="v478-more-summary" title="Más acciones">•••</summary><div class="v478-home-more-menu"><button type="button" onclick="event.preventDefault();event.stopPropagation();deleteVisitFromHome(${id},'${eh(fecha)}')">🗑 Borrar atención</button></div></details>`}
+  function homeActions(g,fecha,primary){const hasConsultation=(g.visits||[]).some(v=>!String(v.procedimiento||'').trim());const pid=Number(g.patient?.id||0);return `<div class="v478-home-actions">${hasConsultation?`<button type="button" onclick="viewReceiptFromHome(${pid},'${eh(fecha)}')">Recibo</button><button type="button" onclick="reprintReceiptFromHome(${pid},'${eh(fecha)}')">Imprimir</button>`:''}${homeMore(primary)}</div>`}
+  function remasterHomeTable(rows){
+    if(!rows?.length)return '<div class="panel muted empty-state">No hay pacientes registrados en este día.</div>';
+    const groups=groupHomeVisits(rows);const head='<tr><th class="number-col">N.º</th><th>Paciente</th><th>Atención</th><th>Valor</th><th class="home-actions-col">Acciones</th></tr>';
+    const body=groups.map((g,index)=>{const consultations=g.visits.filter(v=>!String(v.procedimiento||'').trim()),proceduresOnly=g.visits.filter(v=>String(v.procedimiento||'').trim()),primary=consultations[0]||proceduresOnly[0],extras=consultations.length?[...consultations.slice(1),...proceduresOnly]:proceduresOnly.slice(1),num=groups.length-index,fecha=String(primary?.fecha||selectedHomeDate||'').slice(0,10),main=`<tr class="patient-main-row"><td class="row-number" rowspan="${1+extras.length}">${num}.</td><td class="patient-cell" rowspan="${1+extras.length}">${patientNameCell(primary,true,g.isNew)}</td><td>${serviceBadge(primary)}</td><td class="money-cell"><span class="money-pill">${money(primary.valor)}</span></td><td class="home-action-cell">${homeActions(g,fecha,primary)}</td></tr>`,sub=extras.map(v=>`<tr class="sub-visit-row"><td><span class="sub-visit-label">↳</span> ${serviceBadge(v)}</td><td class="money-cell sub-money"><span class="money-pill subtle">${money(v.valor)}</span></td><td class="home-action-cell sub-actions"><div class="v478-home-actions">${homeMore(v)}</div></td></tr>`).join('');return main+sub}).join('');
+    return `<table class="home-patient-table v478-home-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  window.renderHomeDayPayload=function(iso,d){
+    if(!d)return;const label=d.label||weeklyData[iso]?.label||'Día',count=Number(d.count||0),today=toISO(new Date())===String(iso).slice(0,10),title=$('#selectedDayTitle');
+    if(title)title.innerHTML=`<div class="v478-day-head"><div class="v478-day-head-main"><span class="v478-day-kicker">${today?'HOY':'DÍA SELECCIONADO'}</span><h2>${eh(label)} ${fmtDate(iso)}</h2></div><div class="v478-day-stats"><span>${count} ${count===1?'paciente':'pacientes'}</span><b>${money(d.total||0)}</b></div></div>`;
+    const tableBox=$('#todayTable');if(tableBox){try{tableBox.innerHTML=remasterHomeTable(d.visits||[])}catch(err){console.error(err);tableBox.innerHTML='<div class="panel home-render-error">No se pudo dibujar este día.</div>'}tableBox.scrollLeft=0;tableBox.scrollTop=0}
+  };
+
+  function apptMinutes(row){const raw=String(row?.appointment?.hora||row?.staged?.hora||'00:00').slice(0,5),m=/^(\d{1,2}):(\d{2})$/.exec(raw);return m?Number(m[1])*60+Number(m[2]):0}
+  function shiftBlock(title,rows){return `<section class="v478-shift"><div class="v478-shift-head"><b>${title}</b><span>${rows.length} ${rows.length===1?'cita':'citas'}</span></div><div class="v478-shift-list">${rows.length?rows.map(attentionWeekRow).join(''):'<div class="v478-shift-empty">Sin citas en esta jornada.</div>'}</div></section>`}
+  window.renderAttentionWeek=function(d={}){
+    const box=$('#attentionWeekCalendar');if(!box)return;const today=toISO(new Date()),days=d.days||[],day=days.find(x=>String(x?.date||'').slice(0,10)===today)||null;
+    if(!day){box.innerHTML='<div class="attention-week-empty wide v477-no-clinic"><b>Hoy no hay consulta programada</b><span>Puedes buscar un paciente arriba para registrar una atención manualmente.</span></div>';return}
+    const rows=day.appointments||[],morning=rows.filter(x=>apptMinutes(x)<14*60),afternoon=rows.filter(x=>apptMinutes(x)>=14*60),conflicts=rows.filter(x=>x?.conflict).length;
+    box.innerHTML=`<div class="v478-agenda-shell"><div class="v478-agenda-brand"><div class="v478-agenda-title"><span>PACIENTES DE HOY</span><strong>AGENDA</strong></div><div class="v478-agenda-date"><b>${eh(day.label)} · ${fmtDate(day.date)}</b><span>${rows.length} ${rows.length===1?'cita':'citas'}</span>${conflicts?`<span class="v478-agenda-conflict">⚠ ${conflicts} duplicada${conflicts===1?'':'s'}</span>`:''}</div></div><div class="v478-shifts">${shiftBlock('MAÑANA',morning)}${shiftBlock('TARDE',afternoon)}</div></div>`;
+  };
+
+  window.newAttention=async function(){
+    currentPatientSource='general';attentionSearchSeq++;attentionWeekAnchor=toISO(new Date());
+    openModal(`<div class="new-attention-start-modal v477-attention-remaster v478-attention"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona un paciente de la agenda de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
+    requestAnimationFrame(()=>document.querySelector('#modal .modalbox')?.classList.add('v477-attention-modalbox'));
+    loadAttentionWeek(false,attentionWeekAnchor);setTimeout(()=>$('#aSearch')?.focus(),0);
+  };
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V478_REMIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V478_REMIX_JS
+
+V479_POLISH_CSS = r"""
+/* v4.3.79 — pulido Agenda + Facturación inteligente */
+.v478-agenda-brand{position:relative!important;padding:11px 14px 11px 17px!important;background:#eef6ff!important;border-bottom:1px solid #d7e6f6!important}
+.v478-agenda-brand:before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:#4e86c5}
+.v478-agenda-title{gap:8px!important;align-items:center!important}
+.v478-agenda-title span{display:none!important}
+.v478-agenda-title strong{font-size:15px!important;line-height:1.15!important;color:#285f98!important;letter-spacing:.005em!important;font-weight:900!important}
+.v478-agenda-date b{font-size:10px!important;color:#405774!important}.v478-agenda-date span{background:#fff!important;border-color:#cbdced!important;color:#426383!important}
+.v478-shift-head{background:#fbfcfe!important}.v478-shift:first-child .v478-shift-head{box-shadow:inset 3px 0 0 #e4ad45}.v478-shift:last-child .v478-shift-head{box-shadow:inset 3px 0 0 #6c8fca}
+
+#facturacion .billing-summary{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#facturacion .billing-summary.v479-no-reject{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#facturacion .billing-summary.v479-no-reject>button{width:100%!important;min-width:0!important}
+#facturacion .billing-summary>button.v479-rejected{border-color:#efc7c4!important;background:#fff8f7!important;color:#874743!important}
+#facturacion .billing-summary>button.v479-rejected b{color:#a24d47!important}
+@media(max-width:760px){#facturacion .billing-summary,#facturacion .billing-summary.v479-no-reject{grid-template-columns:1fr!important}}
+"""
+V479_POLISH_JS = r""";(()=>{
+ if(window.__v479Polish)return;window.__v479Polish=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ function polishAgenda(){
+   const title=document.querySelector('.v478-agenda-title strong');
+   if(title)title.textContent='Agenda de hoy';
+ }
+ function billingSummary(){
+   const box=document.querySelector('#billingSummary');if(!box)return;
+   const buttons=[...box.querySelectorAll(':scope > button')];
+   const rejected=buttons.find(b=>norm(b.textContent).includes('rechaz'));
+   if(!rejected){box.classList.add('v479-no-reject');return}
+   rejected.classList.add('v479-rejected');
+   const numNode=rejected.querySelector('b,strong');
+   const raw=(numNode?.textContent||rejected.textContent||'').match(/\d+/);
+   const count=raw?Number(raw[0]):0;
+   rejected.style.display=count>0?'':'none';
+   box.classList.toggle('v479-no-reject',count<=0);
+ }
+ const oldRender=window.renderAttentionWeek;
+ if(typeof oldRender==='function')window.renderAttentionWeek=function(d){const r=oldRender.apply(this,arguments);polishAgenda();return r};
+ const oldLoad=window.loadBilling;
+ if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);billingSummary();return r};
+ const oldSet=window.setBillingStatus;
+ if(typeof oldSet==='function')window.setBillingStatus=async function(){const r=await oldSet.apply(this,arguments);billingSummary();return r};
+ function boot(){polishAgenda();billingSummary()}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,40),{once:true});else setTimeout(boot,40);
+ setTimeout(boot,400);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V479_POLISH_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V479_POLISH_JS
+
+V480_POLISH_CSS = r"""
+/* v4.3.80 — Inicio más legible + resumen semanal separado + rechazadas condicional */
+#inicio .week-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:10px!important;margin-bottom:7px!important}
+#inicio .week-card.v478-week-chip{min-height:67px!important;padding:11px 13px!important}
+#inicio .v478-week-chip .week-day{font-size:14px!important;line-height:1.15!important}
+#inicio .v478-week-chip .v478-week-count{font-size:23px!important}
+#inicio .v478-week-chip .v478-week-meta{font-size:10px!important}
+#inicio .v478-week-chip .v478-week-total{font-size:11.5px!important}
+#inicio #weekSummary{display:flex!important;justify-content:flex-end!important;margin:0 0 10px!important;padding:0!important;background:transparent!important;border:0!important}
+#inicio .v480-week-summary{min-width:285px;display:grid;grid-template-columns:1fr auto;grid-template-areas:'label money' 'patients money';align-items:center;gap:2px 18px;padding:9px 13px;border:1px solid #d8e3ef;border-radius:11px;background:#f4f7fb;box-shadow:none}
+#inicio .v480-week-summary span{grid-area:label;font-size:9px;font-weight:900;letter-spacing:.1em;color:#6d7e94;text-transform:uppercase}
+#inicio .v480-week-summary strong{grid-area:patients;font-size:11.5px;color:#344b68}
+#inicio .v480-week-summary b{grid-area:money;font-size:17px;color:#214f84;white-space:nowrap}
+#inicio .v478-week-total-card{display:none!important}
+#inicio .v478-day-head h2{font-size:19px!important}
+#inicio .v478-day-kicker{font-size:9px!important}
+#inicio .v478-day-stats span,#inicio .v478-day-stats b{font-size:10px!important;padding:5px 9px!important}
+#inicio .home-patient-table{font-size:13px!important}
+#inicio .home-patient-table thead th{font-size:9.5px!important;padding:8px 9px!important}
+#inicio .home-patient-table td{padding:7px 9px!important}
+#inicio .row-number{font-size:12px!important}
+.v478-home-table .patient-name-line>a{font-size:13.5px!important;line-height:1.18!important}
+.v478-home-table .new-patient-badge{font-size:8px!important;padding:3px 6px!important}
+.v478-home-table .service-badge{font-size:9.5px!important;padding:4px 8px!important}
+.v478-home-table .money-pill{font-size:10px!important;min-width:62px!important;padding:5px 7px!important}
+.v478-home-actions>button,.v478-more-summary{font-size:9px!important;padding:6px 8px!important;min-height:29px!important}
+.v478-home-more-menu button{font-size:9px!important}
+.v478-home-table .sub-visit-label{font-size:10px!important}
+
+/* Rechazadas en cero: se elimina físicamente del layout, aunque cambie la etiqueta HTML. */
+#facturacion #billingSummary [data-v480-zero-rejected="1"]{display:none!important}
+#facturacion .billing-summary.v480-two-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#facturacion .billing-summary.v480-two-cards>*{min-width:0!important;width:100%!important}
+#facturacion .billing-summary.v480-three-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+@media(max-width:760px){#facturacion .billing-summary.v480-two-cards,#facturacion .billing-summary.v480-three-cards{grid-template-columns:1fr!important}#inicio .week-cards{grid-template-columns:1fr!important}#inicio .v480-week-summary{width:100%;min-width:0}}
+"""
+V480_POLISH_JS = r""";(()=>{
+ if(window.__v480Polish)return;window.__v480Polish=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ let billingGuard=false,observer=null;
+
+ window.renderWeekCards=function(days){
+   const data=days||[],totalPatients=data.reduce((s,d)=>s+Number(weeklyData[d.iso]?.count||0),0),totalMoney=data.reduce((s,d)=>s+Number(weeklyData[d.iso]?.total||0),0);
+   const box=$('#weekCards');if(!box)return;
+   box.innerHTML=data.map(d=>{const info=weeklyData[d.iso]||{count:0,total:0};return `<button class="week-card v478-week-chip ${selectedHomeDate===d.iso?'active':''}" data-date="${d.iso}" onclick="selectHomeDay('${d.iso}')"><span class="week-day">${esc(d.label)}</span><strong class="v478-week-count">${Number(info.count||0)}</strong><span class="v478-week-meta">${fmtDate(d.iso)} · ${Number(info.count||0)===1?'paciente':'pacientes'}</span><span class="v478-week-total">${money(info.total||0)}</span></button>`}).join('');
+   const summary=$('#weekSummary');if(summary)summary.innerHTML=`<div class="v480-week-summary"><span>Resumen semanal</span><strong>${totalPatients} ${totalPatients===1?'paciente':'pacientes'}</strong><b>${money(totalMoney)}</b></div>`;
+ };
+
+ function extractCount(el){
+   if(!el)return 0;
+   const candidates=[...el.querySelectorAll('b,strong,[class*="count"],[class*="number"],[class*="value"]'),el];
+   for(const node of candidates){const m=String(node?.textContent||'').trim().match(/(^|\s)(\d+)(\s|$)/);if(m)return Number(m[2]||0)}
+   const m=String(el.textContent||'').match(/\d+/);return m?Number(m[0]):0;
+ }
+ function polishBillingSummary(){
+   if(billingGuard)return;billingGuard=true;
+   try{
+     const box=document.querySelector('#billingSummary');if(!box)return;
+     const children=[...box.children];let rejected=null;
+     for(const el of children){if(norm(el.textContent).includes('rechaz')){rejected=el;break}}
+     let count=0;
+     if(rejected){count=extractCount(rejected);if(count<=0)rejected.setAttribute('data-v480-zero-rejected','1');else rejected.removeAttribute('data-v480-zero-rejected')}
+     const visible=children.filter(el=>el!==rejected||count>0);
+     box.classList.toggle('v480-two-cards',visible.length===2);
+     box.classList.toggle('v480-three-cards',visible.length>=3);
+     box.classList.toggle('v479-no-reject',!!rejected&&count<=0);
+   }finally{billingGuard=false}
+ }
+ function observeBilling(){
+   const box=document.querySelector('#billingSummary');if(!box||box.dataset.v480Observed==='1')return;
+   box.dataset.v480Observed='1';observer=new MutationObserver(()=>queueMicrotask(polishBillingSummary));observer.observe(box,{childList:true,subtree:true,characterData:true});polishBillingSummary();
+ }
+ const oldLoad=window.loadBilling;if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);observeBilling();polishBillingSummary();return r};
+ const oldSet=window.setBillingStatus;if(typeof oldSet==='function')window.setBillingStatus=async function(){const r=await oldSet.apply(this,arguments);observeBilling();polishBillingSummary();return r};
+ function boot(){observeBilling();polishBillingSummary()}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(boot,40),{once:true});else setTimeout(boot,40);
+ setTimeout(boot,300);setTimeout(boot,1000);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V480_POLISH_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V480_POLISH_JS
+
+V481_PATIENT_CSS = r"""
+/* v4.3.81 — Remaster completo de Paciente nuevo */
+#modal .modalbox.v481-patient-modal{width:min(780px,94vw)!important;max-height:92vh!important;padding:20px 22px 18px!important;border-radius:18px!important;overflow:auto!important}
+.v481-patient-modal .v481-remastered-form{display:grid!important;gap:12px!important}
+.v481-patient-modal .modal-form-heading{margin-bottom:2px!important;padding-right:38px!important}
+.v481-patient-modal .modal-form-heading h2{font-size:23px!important;letter-spacing:-.015em!important;margin-bottom:3px!important}
+.v481-patient-modal .modal-form-heading p{font-size:10.5px!important;color:#6e7f94!important;margin:0!important}
+.v481-section{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:12px 13px;border:1px solid #dce5ef;border-radius:14px;background:#fbfcfe}
+.v481-section.v481-identity{background:#f8fbff;border-color:#d6e4f4}
+.v481-section.v481-contact{background:#fbfcfe}
+.v481-section-head{grid-column:1/-1;display:flex;align-items:end;justify-content:space-between;gap:12px;padding-bottom:7px;margin-bottom:1px;border-bottom:1px solid #e5ebf2}
+.v481-section-head div{display:grid;gap:1px}.v481-section-head b{font-size:9px;letter-spacing:.11em;color:#3c5f86}.v481-section-head span{font-size:9px;color:#7b899b}.v481-section-head .v481-section-icon{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:#eaf3fd;color:#2f679e;font-size:14px}
+.v481-patient-modal label,.v481-patient-modal .field,.v481-patient-modal .form-field,.v481-patient-modal .form-group{min-width:0}
+.v481-patient-modal label{font-size:10px!important;color:#53667e!important;font-weight:800!important}
+.v481-patient-modal input:not([type="checkbox"]),.v481-patient-modal textarea,.v481-patient-modal select{width:100%!important;min-height:43px!important;border-radius:11px!important;padding:9px 11px!important;font-size:12.5px!important;background:#fff!important}
+.v481-patient-modal textarea{min-height:72px!important;resize:vertical!important}
+.v481-role-name{grid-column:1/-1!important}.v481-role-name input{font-size:14px!important;font-weight:800!important;text-transform:uppercase!important;letter-spacing:.01em!important}
+.v481-role-id{grid-column:1/-1!important}.v481-role-id input{font-size:14px!important;font-weight:850!important;letter-spacing:.035em!important}
+.v481-role-foreign{grid-column:1/-1!important;padding:2px 1px!important}.v481-role-foreign label,.v481-role-foreign{font-size:9.5px!important}
+.v481-id-status{grid-column:1/-1;display:flex;align-items:center;gap:7px;min-height:31px;padding:7px 9px;border-radius:10px;border:1px solid #e0e7ef;background:#fff;color:#68798f;font-size:9.5px;font-weight:800}
+.v481-id-status.ok{border-color:#b9dfc9;background:#f2fbf6;color:#237247}.v481-id-status.bad{border-color:#ecc4c0;background:#fff6f5;color:#9a4a43}.v481-id-status.foreign{border-color:#cbd9ec;background:#f4f8fd;color:#446687}
+.v481-age-pill{display:inline-flex;align-items:center;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf4fb;color:#3f6388;font-size:8.5px;font-weight:850}
+.v481-field-invalid input{border-color:#d7847d!important;box-shadow:0 0 0 2px rgba(190,75,65,.08)!important}.v481-inline-error{display:block;margin-top:4px;font-size:8.5px;color:#a44d45;font-weight:750}
+.v481-duplicate-card{grid-column:1/-1;display:none;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 11px;border-radius:11px;border:1px solid #edd1a9;background:#fff9ef;color:#74521f}.v481-duplicate-card.show{display:flex}.v481-duplicate-card.danger{border-color:#e9bbb7;background:#fff5f4;color:#873f39}.v481-duplicate-card .copy{display:grid;gap:2px;min-width:0}.v481-duplicate-card b{font-size:10.5px}.v481-duplicate-card span{font-size:9px;line-height:1.3}.v481-duplicate-card button{flex:0 0 auto;border:1px solid currentColor;background:#fff;border-radius:8px;padding:6px 8px;font-size:8.5px;font-weight:850;cursor:pointer}
+.v481-more-details{border:1px solid #dfe6ee;border-radius:12px;background:#fafbfd;overflow:hidden}.v481-more-details>summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:9.5px;font-weight:900;color:#536981;display:flex;align-items:center;justify-content:space-between}.v481-more-details>summary::-webkit-details-marker{display:none}.v481-more-details>summary:after{content:'Abrir';font-size:8px;color:#77879a}.v481-more-details[open]>summary:after{content:'Ocultar'}.v481-more-body{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;padding:0 12px 12px}.v481-role-notes{grid-column:1/-1!important}
+.v481-patient-modal .actions,.v481-patient-modal .form-actions,.v481-patient-modal .modal-actions{position:sticky;bottom:-18px;z-index:5;margin:4px -2px -1px!important;padding:10px 2px 1px!important;background:linear-gradient(to bottom,rgba(255,255,255,.82),#fff 32%)!important;display:flex!important;justify-content:flex-end!important;gap:7px!important}.v481-create-btn{min-width:145px!important;min-height:39px!important;border-radius:10px!important;font-size:10.5px!important;font-weight:900!important}.v481-create-btn:disabled{opacity:.48!important;cursor:not-allowed!important}
+@media(max-width:680px){#modal .modalbox.v481-patient-modal{width:94vw!important;padding:17px!important}.v481-section,.v481-more-body{grid-template-columns:1fr}.v481-role-name,.v481-role-id,.v481-role-foreign,.v481-role-notes{grid-column:1!important}.v481-duplicate-card{flex-direction:column}.v481-section-head{align-items:flex-start}}
+"""
+V481_PATIENT_JS = r""";(()=>{
+ if(window.__v481PatientRemaster)return;window.__v481PatientRemaster=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const digits=v=>String(v||'').replace(/\D/g,'');
+ let installTries=0;
+
+ function ecuadorPhone(v){const d=digits(v);if(d.startsWith('593')&&d.length===12)return '0'+d.slice(3);return d}
+ function validEcuadorCedula(value){
+   const d=digits(value);if(d.length!==10)return false;
+   const province=Number(d.slice(0,2)),third=Number(d[2]);if(province<1||province>24||third>=6)return false;
+   let sum=0;for(let i=0;i<9;i++){let n=Number(d[i])*(i%2===0?2:1);if(n>9)n-=9;sum+=n}
+   const check=(10-(sum%10))%10;return check===Number(d[9]);
+ }
+ function labelText(el){
+   const id=el.id||'';const direct=el.closest('label');
+   const byFor=id?[...document.querySelectorAll('label[for]')].find(l=>l.htmlFor===id):null;
+   return norm([el.name,el.id,el.placeholder,el.getAttribute('aria-label'),direct?.textContent,byFor?.textContent].filter(Boolean).join(' '));
+ }
+ function field(root,words,type){
+   const els=[...root.querySelectorAll('input,textarea,select')].filter(x=>!['button','submit','hidden'].includes(String(x.type||'').toLowerCase()));
+   if(type){const exact=els.find(x=>String(x.type||'').toLowerCase()===type&&words.some(w=>labelText(x).includes(w)));if(exact)return exact}
+   return els.find(x=>words.some(w=>labelText(x).includes(w)))||null;
+ }
+ function wrap(el,root){
+   if(!el)return null;
+   const w=el.closest('label,.field,.form-field,.form-group,.input-group,.control');
+   if(w&&w!==root&&root.contains(w))return w;
+   const p=el.parentElement;return p&&p!==root?p:el;
+ }
+ function topUnique(list){
+   const x=[...new Set(list.filter(Boolean))];return x.filter(a=>!x.some(b=>a!==b&&b.contains(a)));
+ }
+ function heading(title,subtitle,icon){const h=document.createElement('div');h.className='v481-section-head';h.innerHTML=`<div><b>${esc(title)}</b><span>${esc(subtitle)}</span></div><span class="v481-section-icon">${icon}</span>`;return h}
+ function makeSection(parent,before,title,subtitle,icon,wrappers,cls){
+   wrappers=topUnique(wrappers).filter(w=>w.parentElement===parent);if(!wrappers.length)return null;
+   const s=document.createElement('section');s.className='v481-section '+cls;s.appendChild(heading(title,subtitle,icon));parent.insertBefore(s,before||wrappers[0]);wrappers.forEach(w=>s.appendChild(w));return s;
+ }
+ async function searchPatients(q){
+   try{
+     if(!q)return [];
+     const url=`/api/patients?q=${encodeURIComponent(q)}&limit=12`;
+     let d;
+     if(typeof window.api==='function')d=await window.api(url);else{const r=await fetch(url,{credentials:'same-origin'});if(!r.ok)return [];d=await r.json()}
+     return Array.isArray(d)?d:(Array.isArray(d?.items)?d.items:(Array.isArray(d?.patients)?d.patients:(Array.isArray(d?.results)?d.results:[])));
+   }catch(_e){return []}
+ }
+ function patientCore(x){return x?.patient&&typeof x.patient==='object'?x.patient:x||{}}
+ function patientName(x){const p=patientCore(x);return String(p.nombre||p.name||'Paciente registrado')}
+ function patientPhone(x){const p=patientCore(x);return String(p.celular||p.phone||'')}
+ function patientCedula(x){const p=patientCore(x);return String(p.cedula||p.identificacion||'')}
+ function patientDate(x){const p=patientCore(x);return String(x?.last_visit_date||p.last_visit_date||p.ultima_atencion||'')}
+ function ageFromISO(v){
+   const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||''));if(!m)return null;
+   const b=new Date(Number(m[1]),Number(m[2])-1,Number(m[3]));if(Number.isNaN(b.getTime()))return null;
+   const t=new Date();let a=t.getFullYear()-b.getFullYear();if(t.getMonth()<b.getMonth()||(t.getMonth()===b.getMonth()&&t.getDate()<b.getDate()))a--;return a>=0&&a<130?a:null;
+ }
+ function findActionButton(root){return [...root.querySelectorAll('button')].reverse().find(b=>/guardar|crear paciente|registrar paciente/.test(norm(b.textContent)))||null}
+
+ function remaster(fromAttention){
+   const modal=document.querySelector('#modal .modalbox');if(!modal||modal.dataset.v481Patient==='1')return;
+   const name=field(modal,['apellidos y nombres','nombre completo','nombre','paciente']);
+   const cedula=field(modal,['cedula','identificacion']);
+   if(!name||!cedula)return;
+   modal.dataset.v481Patient='1';modal.classList.add('v481-patient-modal');
+   const root=name.closest('form')||cedula.closest('form')||name.parentElement?.parentElement||modal;
+   root.classList.add('v481-remastered-form');
+   const birth=field(modal,['fecha de nacimiento','nacimiento'],'date');
+   const phone=field(modal,['celular','telefono','whatsapp']);
+   const email=field(modal,['correo','email']);
+   const place=field(modal,['lugar','ciudad','direccion']);
+   const notes=field(modal,['notas','observacion']);
+   const foreign=field(modal,['extranjero','extranjera'],'checkbox')||[...modal.querySelectorAll('input[type="checkbox"]')].find(x=>labelText(x).includes('extranj'))||null;
+   const wId=wrap(cedula,root),wName=wrap(name,root),wBirth=wrap(birth,root),wForeign=wrap(foreign,root),wPhone=wrap(phone,root),wEmail=wrap(email,root),wPlace=wrap(place,root),wNotes=wrap(notes,root);
+   [[wId,'v481-role-id'],[wName,'v481-role-name'],[wBirth,'v481-role-birth'],[wForeign,'v481-role-foreign'],[wPhone,'v481-role-phone'],[wEmail,'v481-role-email'],[wPlace,'v481-role-place'],[wNotes,'v481-role-notes']].forEach(([w,c])=>w?.classList?.add(c));
+   const commonParent=wName?.parentElement===wId?.parentElement?wName.parentElement:root;
+   if(commonParent&&commonParent!==modal){
+     const idWrappers=topUnique([wId,wForeign,wName,wBirth]).filter(w=>w?.parentElement===commonParent);
+     if(idWrappers.length){makeSection(commonParent,idWrappers[0],'IDENTIDAD','Datos principales del paciente','ID',idWrappers,'v481-identity')}
+     const contactWrappers=topUnique([wPhone,wEmail]).filter(w=>w?.parentElement===commonParent);
+     if(contactWrappers.length){makeSection(commonParent,contactWrappers[0],'CONTACTO','Información para comunicarnos con el paciente','☎',contactWrappers,'v481-contact')}
+     const extras=topUnique([wPlace,wNotes]).filter(w=>w?.parentElement===commonParent);
+     if(extras.length){
+       const det=document.createElement('details');det.className='v481-more-details';if(extras.some(w=>w.querySelector('input,textarea')?.value))det.open=true;
+       const sum=document.createElement('summary');sum.textContent='＋ Más datos';const body=document.createElement('div');body.className='v481-more-body';det.append(sum,body);commonParent.insertBefore(det,extras[0]);extras.forEach(w=>body.appendChild(w));
+     }
+   }
+   const idSection=modal.querySelector('.v481-identity')||wId?.parentElement;
+   const idStatus=document.createElement('div');idStatus.className='v481-id-status';idStatus.textContent='Ingresa la cédula para validarla localmente.';
+   const duplicate=document.createElement('div');duplicate.className='v481-duplicate-card';duplicate.innerHTML='<div class="copy"><b></b><span></span></div>';
+   if(idSection){idSection.appendChild(idStatus);idSection.appendChild(duplicate)}
+   let agePill=null;if(birth&&wBirth){agePill=document.createElement('span');agePill.className='v481-age-pill';agePill.textContent='Edad —';wBirth.appendChild(agePill)}
+   let emailError=null;if(email&&wEmail){emailError=document.createElement('small');emailError.className='v481-inline-error';emailError.textContent='Correo no válido';emailError.style.display='none';wEmail.appendChild(emailError)}
+   const save=findActionButton(modal);if(save){save.classList.add('v481-create-btn');if(/guardar|registrar/.test(norm(save.textContent)))save.textContent='Crear paciente'}
+   const state={duplicateCedula:false,phoneDuplicate:false,seqId:0,seqPhone:0};
+   function showDup(kind,p){
+     if(!p){duplicate.classList.remove('show','danger');duplicate.querySelector('b').textContent='';duplicate.querySelector('span').textContent='';duplicate.querySelector('button')?.remove();return}
+     const nm=patientName(p),ph=patientPhone(p),last=patientDate(p);duplicate.classList.add('show');duplicate.classList.toggle('danger',kind==='cedula');
+     duplicate.querySelector('b').textContent=kind==='cedula'?'⚠ Este paciente ya está registrado':'⚠ Este celular ya está registrado';
+     duplicate.querySelector('span').textContent=`${nm}${ph?' · '+ph:''}${last?' · Última atención: '+String(last).slice(0,10):''}`;
+     duplicate.querySelector('button')?.remove();if(kind==='cedula'&&fromAttention&&typeof window.newAttention==='function'){const b=document.createElement('button');b.type='button';b.textContent='Volver a buscarlo';b.onclick=()=>window.newAttention();duplicate.appendChild(b)}
+   }
+   function updateAge(){if(!agePill)return;const a=ageFromISO(birth?.value);agePill.textContent=a===null?'Edad —':`Edad: ${a} año${a===1?'':'s'}`}
+   function updateStatus(){
+     const foreignOn=!!foreign?.checked,raw=String(cedula.value||'').trim(),d=digits(raw);
+     idStatus.className='v481-id-status';
+     if(foreignOn){idStatus.classList.add('foreign');idStatus.textContent='Identificación extranjera · no se aplica validación ecuatoriana.'}
+     else if(!raw){idStatus.textContent='Ingresa la cédula para validarla localmente.'}
+     else if(d.length<10){idStatus.textContent=`Cédula ecuatoriana · ${d.length}/10 dígitos`}
+     else if(validEcuadorCedula(d)){idStatus.classList.add('ok');idStatus.textContent='✓ Cédula ecuatoriana válida'}
+     else{idStatus.classList.add('bad');idStatus.textContent='✕ La cédula no pasa la validación ecuatoriana'}
+   }
+   function emailOk(){if(!email||!String(email.value||'').trim())return true;return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email.value||'').trim())}
+   function updateSave(){
+     if(!save)return;const foreignOn=!!foreign?.checked,raw=String(cedula.value||'').trim(),idOk=foreignOn||!raw||validEcuadorCedula(raw),mailOk=emailOk(),required=[...modal.querySelectorAll('input[required],textarea[required],select[required]')].every(x=>String(x.value||'').trim());
+     wEmail?.classList.toggle('v481-field-invalid',!mailOk);if(emailError)emailError.style.display=mailOk?'none':'block';
+     save.disabled=!String(name.value||'').trim()||!idOk||!mailOk||!required||state.duplicateCedula;
+   }
+   async function checkCedula(){
+     const q=digits(cedula.value);state.duplicateCedula=false;if(foreign?.checked||q.length!==10||!validEcuadorCedula(q)){if(!state.phoneDuplicate)showDup(null,null);updateSave();return}
+     const seq=++state.seqId,rows=await searchPatients(q);if(seq!==state.seqId)return;const hit=rows.find(x=>digits(patientCedula(x))===q)||null;state.duplicateCedula=!!hit;if(hit)showDup('cedula',hit);else if(!state.phoneDuplicate)showDup(null,null);updateSave();
+   }
+   async function checkPhone(){
+     if(!phone)return;const q=ecuadorPhone(phone.value);state.phoneDuplicate=false;if(q.length<9){if(!state.duplicateCedula)showDup(null,null);return}
+     const seq=++state.seqPhone,rows=await searchPatients(q);if(seq!==state.seqPhone)return;const hit=rows.find(x=>ecuadorPhone(patientPhone(x))===q)||null;state.phoneDuplicate=!!hit;if(!state.duplicateCedula){if(hit)showDup('phone',hit);else showDup(null,null)}
+   }
+   let idTimer=0,phoneTimer=0;
+   cedula.addEventListener('input',()=>{updateStatus();updateSave();clearTimeout(idTimer);idTimer=setTimeout(checkCedula,260)});
+   cedula.addEventListener('blur',checkCedula);
+   foreign?.addEventListener('change',()=>{state.duplicateCedula=false;updateStatus();updateSave();checkCedula()});
+   name.addEventListener('input',()=>{const s=name.selectionStart,e=name.selectionEnd;name.value=String(name.value||'').toUpperCase();try{name.setSelectionRange(s,e)}catch(_e){}updateSave()});
+   birth?.addEventListener('change',updateAge);birth?.addEventListener('input',updateAge);
+   email?.addEventListener('input',updateSave);
+   phone?.addEventListener('input',()=>{clearTimeout(phoneTimer);phoneTimer=setTimeout(checkPhone,340)});phone?.addEventListener('blur',()=>{const d=digits(phone.value);if(d.startsWith('593')&&d.length===12)phone.value='0'+d.slice(3);checkPhone()});
+   updateAge();updateStatus();updateSave();setTimeout(checkCedula,50);if(phone?.value)setTimeout(checkPhone,80);
+ }
+ function install(){
+   if(window.newPatient&&window.newPatient.__v481Wrapped)return true;
+   if(typeof window.newPatient!=='function')return false;
+   const base=window.newPatient;const wrapped=function(...args){const r=base.apply(this,args);const fromAttention=!!args[0];requestAnimationFrame(()=>remaster(fromAttention));setTimeout(()=>remaster(fromAttention),40);if(r&&typeof r.then==='function')r.finally(()=>setTimeout(()=>remaster(fromAttention),0));return r};wrapped.__v481Wrapped=true;window.v481RemasterPatient=remaster;window.newPatient=wrapped;return true;
+ }
+ function boot(){if(install())return;if(++installTries<12)setTimeout(boot,120)}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();setTimeout(boot,350);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V481_PATIENT_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V481_PATIENT_JS
+
+V482_HOTFIX_CSS = r"""
+/* v4.3.82 — recupera emisión por lotes + remaster persistente de Paciente nuevo */
+#facturacion .v482-quick-head{position:relative!important;padding-right:170px!important;min-height:42px!important}
+#facturacion .v482-batch-btn{position:absolute!important;right:0!important;top:0!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:6px!important;min-height:36px!important;padding:8px 12px!important;border:1px solid #8eb3dc!important;border-radius:10px!important;background:#edf5ff!important;color:#245785!important;font-size:10px!important;font-weight:900!important;cursor:pointer!important;white-space:nowrap!important}
+#facturacion .v482-batch-btn:hover{background:#e2effd!important}
+#facturacion .v482-batch-btn[hidden]{display:none!important}
+@media(max-width:720px){#facturacion .v482-quick-head{padding-right:0!important;padding-bottom:46px!important}#facturacion .v482-batch-btn{left:0!important;right:auto!important;top:auto!important;bottom:4px!important}}
+"""
+V482_HOTFIX_JS = r""";(()=>{
+ if(window.__v482Hotfix)return;window.__v482Hotfix=true;
+ const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+ let guard=false;
+ function readPending(){
+   const box=document.querySelector('#billingSummary');if(!box)return 0;
+   const el=[...box.children].find(x=>{const t=norm(x.textContent);return t.includes('por emitir')||t.includes('pendiente')});
+   if(!el)return 0;const m=String(el.textContent||'').match(/\d+/);return m?Number(m[0]):0;
+ }
+ function ensureBatchButton(){
+   const sec=document.querySelector('#facturacion');if(!sec)return;
+   const nodes=[...sec.querySelectorAll('h2,h3,h4,b,strong,p,div')];
+   const title=nodes.find(x=>norm(x.textContent)==='accion rapida')||nodes.find(x=>norm(x.textContent).startsWith('accion rapida'));
+   if(!title)return;
+   const host=title.parentElement;if(!host)return;host.classList.add('v482-quick-head');
+   let btn=document.querySelector('#v482BatchEmit');
+   if(!btn){btn=document.createElement('button');btn.id='v482BatchEmit';btn.type='button';btn.className='v482-batch-btn';btn.innerHTML='⚡ Emitir por lotes';btn.addEventListener('click',async()=>{if(typeof window.emitAllPendingInvoices==='function')await window.emitAllPendingInvoices();else alert('La emisión por lotes no está disponible.');});host.appendChild(btn)}
+   btn.hidden=readPending()<2;
+ }
+ function patientFieldsPresent(modal){
+   if(!modal)return false;const t=norm(modal.textContent);
+   const inputs=[...modal.querySelectorAll('input,textarea')];
+   const id=inputs.some(x=>/cedula|identificacion/.test(norm([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' '))))||t.includes('cedula o identificacion');
+   const name=inputs.some(x=>/nombre/.test(norm([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' '))))||t.includes('apellidos y nombres');
+   return id&&name;
+ }
+ function ensurePatientRemaster(){
+   if(guard)return;const modal=document.querySelector('#modal .modalbox');if(!patientFieldsPresent(modal))return;
+   if(modal.querySelector('.v481-section')&&modal.querySelector('.v481-remastered-form'))return;
+   if(typeof window.v481RemasterPatient!=='function')return;
+   guard=true;
+   try{delete modal.dataset.v481Patient;modal.classList.remove('v481-patient-modal');window.v481RemasterPatient(true)}finally{guard=false}
+ }
+ function apply(){ensureBatchButton();ensurePatientRemaster()}
+ const observer=new MutationObserver(()=>queueMicrotask(apply));
+ observer.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+ const oldLoad=window.loadBilling;if(typeof oldLoad==='function')window.loadBilling=async function(){const r=await oldLoad.apply(this,arguments);ensureBatchButton();return r};
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(apply,30),{once:true});else setTimeout(apply,30);
+ setTimeout(apply,250);setTimeout(apply,900);
+})();"""
+V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V482_HOTFIX_CSS
+V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V482_HOTFIX_JS
+
+@app.get("/v460/overlay.css")
+def v460_overlay_css():
+    return Response(content=V460_OVERLAY_CSS, media_type="text/css; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+@app.get("/v460/overlay.js")
+def v460_overlay_js():
+    return Response(content=V460_OVERLAY_JS, media_type="application/javascript; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+@app.get("/api/update/info")
+def update_info(user: User = Depends(current_user)):
+    return {
+        "version": APP_VERSION,
+        "mode": "package",
+        "message": "Paquetes compatibles pueden aplicarse aquí; siempre se crea un respaldo antes de actualizar.",
+    }
+
+
+@app.post("/api/update/apply")
+async def apply_update_package(
+    package: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede actualizar el programa")
+    filename = (package.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(400, "Selecciona un paquete ZIP de actualización")
+
+    raw = await package.read()
+    if len(raw) > 50 * 1024 * 1024:
+        raise HTTPException(400, "El paquete de actualización es demasiado grande")
+
+    with tempfile.TemporaryDirectory(prefix="rp_update_") as tmp:
+        tmp_path = Path(tmp)
+        zip_path = tmp_path / "update.zip"
+        zip_path.write_bytes(raw)
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                for member in zf.namelist():
+                    _safe_update_member_path(tmp_path / "extract", member)
+                zf.extractall(tmp_path / "extract")
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "El archivo ZIP está dañado")
+
+        manifests = list((tmp_path / "extract").rglob("update_manifest.json"))
+        if not manifests:
+            raise HTTPException(400, "Este ZIP no es un paquete de actualización compatible")
+        manifest_path = manifests[0]
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            raise HTTPException(400, "No se pudo leer el manifiesto de actualización")
+        if manifest.get("product") != "recepcion-pacientes":
+            raise HTTPException(400, "El paquete no corresponde a Recepción de Pacientes")
+        new_version = str(manifest.get("version") or "").strip()
+        if not new_version:
+            raise HTTPException(400, "El paquete no indica su versión")
+        if new_version == APP_VERSION:
+            raise HTTPException(409, f"La versión {new_version} ya está instalada")
+
+        package_root = manifest_path.parent
+        copy_items = manifest.get("copy") or [
+            "app.py", "requirements.txt", "ABRIR_RECEPCION.py", "INICIAR.bat",
+            "ABRIR_RECEPCION.bat", "CERRAR_RECEPCION.bat", "CREAR_ACCESO_DIRECTO.bat",
+            "REPARAR_ACCESO_DIRECTO.bat", "static", "README.md", "MODO_DE_USO.txt", "NUBE_LEEME.txt"
+        ]
+        prohibited = {".env", "data", ".venv", "BASE DE DATOS 2026.xlsx"}
+        for item in copy_items:
+            top = Path(item).parts[0] if Path(item).parts else ""
+            if top in prohibited:
+                raise HTTPException(400, f"El paquete intenta reemplazar un archivo protegido: {top}")
+            if not (package_root / item).exists():
+                raise HTTPException(400, f"Falta un componente de actualización: {item}")
+
+        backup_path = _app_backup_zip()
+        for item in copy_items:
+            src = package_root / item
+            dst = Path(BASE_DIR) / item
+            if src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                for child in src.rglob("*"):
+                    rel = child.relative_to(src)
+                    target = dst / rel
+                    if child.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(child, target)
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+
+        audit(db, user, "aplicar_actualizacion", f"{APP_VERSION} -> {new_version}; respaldo {Path(backup_path).name}")
+        db.commit()
+
+        # Desde v3.9.5 las futuras actualizaciones se reinician solas.
+        # El ayudante se inicia con el Python de la instalación, espera a que
+        # esta respuesta salga y luego levanta app.py ya reemplazado.
+        python_exe = sys.executable
+        app_path = os.path.join(BASE_DIR, "app.py")
+        helper = (
+            "import os,subprocess,time;"
+            "time.sleep(2.0);"
+            "flags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0;"
+            f"subprocess.Popen([{python_exe!r},{app_path!r}],cwd={BASE_DIR!r},stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,close_fds=True)"
+        )
+        try:
+            subprocess.Popen([python_exe, "-c", helper], cwd=BASE_DIR, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0, close_fds=True)
+            threading.Timer(0.9, lambda: os._exit(0)).start()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "from_version": APP_VERSION,
+            "to_version": new_version,
+            "backup": Path(backup_path).name,
+            "restart_required": False,
+            "restarting": True,
+        }
+
+
+def _downloads_dir() -> Path:
+    """Carpeta Descargas del mismo usuario que ejecuta Recepción.
+
+    En WebView2 evitamos depender del gestor de descargas del navegador y
+    guardamos el archivo desde el servidor local.
+    """
+    candidates = []
+    profile = (os.getenv("USERPROFILE") or "").strip()
+    if profile:
+        candidates.append(Path(profile) / "Downloads")
+    try:
+        candidates.append(Path.home() / "Downloads")
+    except Exception:
+        pass
+    candidates.append(Path(DATA_DIR) / "exports")
+    for folder in candidates:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            test = folder / ".recepcion_write_test"
+            test.write_text("ok", encoding="utf-8")
+            test.unlink(missing_ok=True)
+            return folder
+        except Exception:
+            continue
+    raise HTTPException(500, "No se encontró una carpeta donde guardar el Excel")
+
+
+def _unique_export_path(folder: Path, filename: str) -> Path:
+    target = folder / filename
+    if not target.exists():
+        return target
+    stem, suffix = target.stem, target.suffix
+    for n in range(2, 1000):
+        candidate = folder / f"{stem} ({n}){suffix}"
+        if not candidate.exists():
+            return candidate
+    return folder / f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+
+
+@app.post("/api/export.xlsx/save")
+def save_xlsx_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    folder = _downloads_dir()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    target = _unique_export_path(folder, filename)
+    try:
+        target.write_bytes(content)
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el Excel: {exc}")
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; guardado en {target}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    return {
+        "ok": True,
+        "filename": target.name,
+        "folder": str(target.parent),
+        "path": str(target),
+        "patients": data["patients"],
+        "total": data["total"],
+    }
+
+
+@app.get("/api/export.xlsx")
+def export_xlsx(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _build_report_csv(db: Session, desde: date, hasta: date) -> str:
+    rows = db.execute(
+        select(Visit, Patient).join(Patient).where(Visit.fecha >= desde, Visit.fecha <= hasta).order_by(Visit.fecha, Visit.id)
+    ).all()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Fecha", "Cédula", "Nombre", "Nacimiento", "Celular", "Estado", "Procedimiento", "Correo", "Lugar", "Valor", "Observación"])
+    for v, p in rows:
+        w.writerow([
+            v.fecha, p.cedula or "", p.nombre, p.fecha_nacimiento or "", p.celular or "", v.tipo,
+            v.procedimiento or "CONSULTA", p.correo or "", p.lugar or "",
+            float(v.valor) if v.valor is not None else "", v.observacion or "",
+        ])
+    return "\ufeff" + out.getvalue()
+
+
+@app.post("/api/export.csv/save")
+def save_csv_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    folder = _downloads_dir()
+    target = _unique_export_path(folder, f"atenciones_{desde}_{hasta}.csv")
+    try:
+        target.write_bytes(data.encode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el CSV: {exc}")
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}; guardado en {target}")
+    db.commit()
+    return {"ok": True, "filename": target.name, "folder": str(target.parent), "path": str(target)}
+
+
+@app.get("/api/export.csv")
+def export_csv(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}")
+    db.commit()
+    return StreamingResponse(
+        iter([data.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="atenciones_{desde}_{hasta}.csv"'},
+    )
+
+
+
+
+# v4.3.58 — el launcher autocontenido es el único instalador.
+@app.post("/api/program/update-now")
+def program_update_now():
+    """Comprueba el canal sin reemplazar archivos desde el backend en ejecución."""
+    try:
+        info = _read_update_channel_status()
+        if info["update_available"]:
+            return {
+                "ok": True, "update": True, "current": info["local"], "latest": info["latest"],
+                "message": f"Hay una actualización {info['latest']} disponible. Cierra y vuelve a abrir Recepción para que el launcher la instale de forma segura.",
+            }
+        return {
+            "ok": True, "update": False, "current": info["local"], "latest": info["latest"],
+            "message": f"Programa actualizado. El paquete {info['local']} coincide con el canal oficial.",
+        }
+    except Exception as exc:
+        return {"ok": False, "update": False, "current": APP_VERSION, "message": f"No se pudo consultar el canal: {str(exc)[:200]}"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=False, access_log=False, log_level="warning", workers=1)
