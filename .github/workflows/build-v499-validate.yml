@@ -1,0 +1,116 @@
+name: Validar y publicar v4.3.99
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v499/**'
+      - '.github/workflows/build-v499-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  windows-launcher-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Construir candidato
+        run: python build/v499/build_v499.py
+      - name: Reconstruir launcher sin alterar bytes
+        shell: powershell
+        run: |
+          python -c "from pathlib import Path; Path('_ci_launcher.py').write_text(''.join(Path(f'updates/v499/ABRIR_RECEPCION.part{i}').read_text(encoding='utf-8') for i in range(1,5)),encoding='utf-8',newline='')"
+          python -m py_compile _ci_launcher.py
+      - name: Validar cierre real del puerto 8000
+        shell: powershell
+        run: |
+          $p = Start-Process python -ArgumentList '-m','http.server','8000','--bind','127.0.0.1' -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 2
+          python -c "import importlib.util,time; s=importlib.util.spec_from_file_location('rp_launcher','_ci_launcher.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); p=m._port_8000_pids(); print('PIDS_BEFORE',p); assert p; m._stop_server(); time.sleep(.5); print('PIDS_AFTER',m._port_8000_pids()); assert not m._port_8000_pids()"
+          if (!$p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+      - name: Validar relanzamiento inmediato del launcher
+        shell: powershell
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          for t in ['def _relaunch_updated_launcher()','"abrir_recepcion.py" in updated_paths','_release_mutex(handle)','handle = None','_relaunch_updated_launcher()']:
+              assert t in s,t
+          print('WINDOWS_LAUNCHER_V499_OK')
+          PY
+
+  validate-publish:
+    needs: windows-launcher-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir paquete candidato
+        run: python build/v499/build_v499.py
+      - name: Validar sintaxis y regresiones
+        run: |
+          cat updates/v499/app.part* > _ci_app.py
+          cat updates/v499/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          launcher=Path('_ci_launcher.py').read_text(encoding='utf-8')
+          for token in ['APP_VERSION = "4.3.99"','V497_ATTENTION_JS','button.service-card[data-service]','v497-native-consult','Revisando AZUR','Emitir por lotes']:
+              assert token in app,token
+          for token in ['LAUNCHER_VERSION = "4.3.99-standalone-6"','def _relaunch_updated_launcher()','updated_paths','"abrir_recepcion.py" in updated_paths','handle = None','def _port_8000_pids()']:
+              assert token in launcher,token
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.99'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('STATIC_V499_OK')
+          PY
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v499/static/index.html _smoke_root/static/index.html
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(80):
+              time.sleep(.25)
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8000/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+                  if d.get('version')=='4.3.99':ok=True;break
+              except Exception:pass
+          if not ok:
+              print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+              raise SystemExit('backend portable no arranco')
+          print('PORTABLE_BACKEND_V499_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v499 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.99 relanzamiento launcher'
+          git pull --rebase origin main
+          git push
