@@ -1,0 +1,133 @@
+name: Bundle WhatsApp Worker v2.6.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/whatsapp_v26/**'
+      - 'cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js'
+      - 'cloudflare/whatsapp_inbound_responses_schema.sql'
+      - '.github/workflows/bundle-worker-v26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bundle-whatsapp-worker-v26
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Generar Worker v2.6 desde v2.5.2 estable
+        run: python build/whatsapp_v26/build_worker.py
+
+      - name: Instalar bundler y dependencia
+        run: npm install --no-save esbuild @neondatabase/serverless
+
+      - name: Validar sintaxis y reglas de interpretación
+        run: |
+          node --check cloudflare/whatsapp_worker_v2_6_responses.js
+          node --input-type=module <<'NODE'
+          const m=await import('./cloudflare/whatsapp_worker_v2_6_responses.js');
+          const cases=[
+            ['sí doctor ahí estaré','CONFIRMADO'],
+            ['Confirmo, muchas gracias','CONFIRMADO'],
+            ['Pensaba que era mañana pero ya revisé y sí puedo asistir el miércoles','CONFIRMADO'],
+            ['No puedo asistir mañana','NO_ASISTIRA'],
+            ['No voy a poder ir','NO_ASISTIRA'],
+            ['Quiero cambiar la cita para el jueves','NO_ASISTIRA'],
+            ['¿Puede cambiarme la hora?','NO_ASISTIRA'],
+            ['Quisiera reagendar para otro día','NO_ASISTIRA'],
+            ['No sé si podré asistir','REVISAR'],
+            ['Tal vez pueda ir','REVISAR'],
+            ['Sí voy pero no sé si podré','REVISAR'],
+            ['Buenas tardes doctor, quería hacer una consulta','REVISAR'],
+          ];
+          for(const [text,expected] of cases){
+            const got=m.classifyInboundText(text).interpretation;
+            if(got!==expected)throw new Error(`${text} => ${got}, esperado ${expected}`);
+          }
+          const payload=m.parseActionPayload('CONFIRMAR|appointment|12|2026-09-03|08:00');
+          if(!payload||payload.action!=='CONFIRMAR'||payload.sourceId!==12)throw new Error('Se rompió la respuesta por botón');
+          const no=m.acknowledgementText('CANCELAR',{});
+          if(!no.includes('no podrá asistir'))throw new Error('Se rompió acuse No');
+          const yes=m.acknowledgementText('CONFIRMAR',{});
+          if(!yes.includes('asistencia ha quedado registrada'))throw new Error('Se rompió acuse Sí');
+          console.log('WHATSAPP_V26_CLASSIFIER_AND_BUTTONS_OK');
+          NODE
+
+      - name: Validar privacidad y comportamiento seguro
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('cloudflare/whatsapp_worker_v2_6_responses.js').read_text(encoding='utf-8')
+          assert 'whatsapp_cloud.inbound_responses' in s
+          assert 'solicita_reagendar' in s
+          assert 'interpretation:"NO_ASISTIRA"' in s
+          assert '@cf/openai/whisper-large-v3-turbo' in s
+          assert 'env.AI.run' in s
+          assert 'audio_too_large' in s
+          assert 'raw_payload jsonb' in s
+          assert 'ON CONFLICT(message_id)' in s
+          assert 'if(!target && interpretation!=="REVISAR")' in s
+          assert 'else{interpretation="REVISAR";confidence=Math.min(confidence,30);ackAction="";}' in s
+          assert 'worker_version:"2.6.0"' in s
+          assert 'WHATSAPP_ACCESS_TOKEN' in s
+          # No guardamos bytes de audio en Neon: solo media_id, tipo y transcripción.
+          insert=s[s.index('async function saveInboundRow'):s.index('async function handleFreeformInbound')]
+          assert 'buffer' not in insert.lower()
+          print('WHATSAPP_V26_SAFETY_OK')
+          PY
+
+      - name: Generar Worker standalone
+        run: |
+          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js \
+            --bundle \
+            --format=esm \
+            --platform=browser \
+            --target=es2022 \
+            --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js \
+            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.0 — texto, audio y revisión humana'
+          cp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
+
+      - name: Validar bundle final
+        run: |
+          node --check cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'worker_version' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.0"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'inbound_responses' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'whisper-large-v3-turbo' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'solicita_reagendar' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'NO_ASISTIRA' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js; then
+            echo 'ERROR: dependencia Neon no fue incluida en el bundle'
+            exit 1
+          fi
+          cmp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
+
+      - name: Guardar fuente y bundle validados
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare/whatsapp_worker_v2_6_responses.js cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt cloudflare/whatsapp_inbound_responses_schema.sql
+          if git diff --cached --quiet; then
+            echo 'Worker v2.6 ya estaba actualizado.'
+          else
+            git commit -m 'build: WhatsApp Worker v2.6.0 validado'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
