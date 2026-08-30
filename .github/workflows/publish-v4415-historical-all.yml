@@ -1,0 +1,180 @@
+name: Validar y publicar v4.4.15 históricos completos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4415_historical_all/**'
+      - '.github/workflows/publish-v4415-historical-all.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4415-historical-all
+  cancel-in-progress: false
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.15 desde v4.4.14 estable
+        shell: pwsh
+        run: python build/v4415_historical_all/build_release.py
+
+      - name: Guard de release y sintaxis
+        shell: pwsh
+        run: |
+          python tools/release_guard.py --app updates/v4_4_15_historical_all/app.py --manifest updates/v4_4_15_historical_all/update_manifest.json --version 4.4.15
+          python -m py_compile updates/v4_4_15_historical_all/app.py
+          @'
+          from pathlib import Path
+          app=Path('updates/v4_4_15_historical_all/app.py').read_text(encoding='utf-8-sig')
+          assert 'APP_VERSION = "4.4.15"' in app
+          block=app[app.index('if mode == "historical":'):app.index('if mode == "review":')]
+          assert 'return [historical_dict(h) for h in hist_rows]' in block
+          assert '_historical_matches_current' not in block
+          assert '_historical_linked_keys' not in block
+          assert 'RP_PORT' in app and 'pg8000' in app
+          print('V4415_SCOPE_OK')
+          '@ | python -
+
+      - name: Crear runtime igual al consultorio y sin psycopg
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check --no-input `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          $hasPsycopg=& .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'El smoke debe correr sin psycopg' }
+
+      - name: Preparar instalación simulada completa
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'Recepcion-v4415-smoke'
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $base=Join-Path $env:RUNNER_TEMP 'rp-base-v4415'
+          if(Test-Path $base){Remove-Item $base -Recurse -Force}
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src=Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){throw "Falta $name en base limpia"}
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static=Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){throw 'Falta static en base limpia'}
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile=Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse}
+          Copy-Item updates/v4_4_15_historical_all/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item updates/v4_4_15_historical_all/update_manifest.json (Join-Path $root 'update_manifest.json') -Force
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke real - históricos visibles aunque estén vinculados
+        shell: pwsh
+        run: |
+          $listener=[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v4415.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v4415.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 140;$i++){
+              Start-Sleep -Milliseconds 250
+              try{$v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version' -TimeoutSec 1;if([string]$v.version -eq '4.4.15'){$ok=$true;break}}catch{}
+              if($proc.HasExited){break}
+            }
+            if(-not $ok){if(Test-Path $outlog){Get-Content $outlog -Tail 160};if(Test-Path $errlog){Get-Content $errlog -Tail 160};throw 'Backend 4.4.15 no arrancó en 8766'}
+            @'
+          import json,sqlite3,urllib.request,os
+          base='http://127.0.0.1:8766'
+          def call(path,method='GET',body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(base+path,data=data,method=method,headers={'Content-Type':'application/json'})
+              with urllib.request.urlopen(req,timeout=5) as r:return json.loads(r.read().decode())
+          p=call('/api/patients','POST',{'nombre':'PACIENTE HISTORICO VINCULADO','celular':'0991112233','correo':'hist.vinculado@example.com'})
+          pid=int(p['id'])
+          db=os.path.join(os.environ['RP_DATA_DIR'],'offline_cache.db')
+          con=sqlite3.connect(db)
+          con.execute("INSERT INTO historical_patients(source_key,nombre,search_text,cedula,celular,correo,lugar,first_year,last_year,last_visit_date,row_count,aliases,phones,emails,cedulas) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",('SMOKE-HIST-001','PACIENTE HISTORICO VINCULADO','PACIENTE HISTORICO VINCULADO',None,'0991112233','hist.vinculado@example.com',None,2022,2024,'2024-08-15',3,None,None,None,None))
+          con.execute("INSERT INTO historical_patient_links(source_key,patient_id,linked_at) VALUES(?,?,CURRENT_TIMESTAMP)",('SMOKE-HIST-001',pid))
+          con.commit();con.close()
+          rows=call('/api/patients?mode=historical&limit=30')
+          hit=next((x for x in rows if x.get('source_key')=='SMOKE-HIST-001' or x.get('historical_id')),None)
+          assert any(str(x.get('nombre'))=='PACIENTE HISTORICO VINCULADO' for x in rows),rows
+          row=next(x for x in rows if str(x.get('nombre'))=='PACIENTE HISTORICO VINCULADO')
+          assert str(row.get('historical_last_visit_date'))[:10]=='2024-08-15',row
+          assert int(row.get('historical_last_year') or 0)==2024,row
+          print('V4415_LINKED_HISTORICAL_VISIBLE_OK',pid)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\v4415_smoke.py
+            & $py $env:RUNNER_TEMP\v4415_smoke.py
+          } finally {
+            if(-not $proc.HasExited){Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue}
+            $listener.Stop()
+          }
+
+      - name: Publicar payload sin mover todavía el canal
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_15_historical_all
+          git commit -m 'payload: v4.4.15 históricos completos validados'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar bytes reales desde GitHub Raw
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4415_historical_all/candidate_latest.json
+
+      - name: Mover canal a v4.4.15
+        shell: pwsh
+        run: |
+          Copy-Item build/v4415_historical_all/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4415_historical_all/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          git commit -m 'release: publicar v4.4.15 históricos completos'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar propagación final y SHA remoto
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4415-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4415-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r:raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.15':
+                      out.write_bytes(raw);print('CHANNEL_4415_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else:raise SystemExit('Canal no propagó 4.4.15; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4415.py
+          python $env:RUNNER_TEMP\wait4415.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4415-remote.json
+          Write-Host 'V4415_PUBLISHED_AND_REMOTE_VERIFIED'
