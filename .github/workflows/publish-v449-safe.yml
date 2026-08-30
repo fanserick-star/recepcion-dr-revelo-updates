@@ -1,0 +1,207 @@
+name: Publicar v4.4.9 segura desde v4.4.4
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v449_release/**'
+      - '.github/workflows/publish-v449-safe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Reconstruir release desde la v4.4.4 real
+        shell: pwsh
+        run: python build/v449_release/build_v449_release.py
+
+      - name: Contrato de dependencias y archivos protegidos
+        shell: pwsh
+        run: >-
+          python tools/release_guard.py
+          --app release_staging/v4_4_9_clean_444/app.py
+          --manifest release_staging/v4_4_9_clean_444/update_manifest.json
+          --version 4.4.9
+
+      - name: Validar frontend único y neutralización del legado
+        shell: pwsh
+        run: |
+          node --check release_staging/v4_4_9_clean_444/static/app.js
+          if(Select-String -Path release_staging/v4_4_9_clean_444/static/app.js -SimpleMatch 'loadStableBase(' -Quiet){ throw 'REGRESIÓN: volvió el wrapper dinámico' }
+          if(Select-String -Path release_staging/v4_4_9_clean_444/static/app.js -SimpleMatch '/static/app_base.js?' -Quiet){ throw 'REGRESIÓN: app.js vuelve a cargar app_base.js' }
+          if(-not (Select-String -Path release_staging/v4_4_9_clean_444/static/app.js -SimpleMatch 'v449SearchNormalized' -Quiet)){ throw 'Falta hotfix 4.4.4 integrado' }
+          $legacy=(Get-Content release_staging/v4_4_9_clean_444/static/app_base.js -Raw).Trim()
+          if($legacy -ne '// v4.4.9: archivo legado neutralizado; la interfaz usa únicamente /static/app.js.'){ throw 'app_base.js no quedó neutralizado' }
+          foreach($m in @('id="agenda"','id="facturacion"','id="reportes"','id="pacientes"','Agenda y WhatsApp','Facturación AZUR')){
+            if(-not (Select-String -Path release_staging/v4_4_9_clean_444/static/index.html -SimpleMatch $m -Quiet)){ throw "Falta interfaz: $m" }
+          }
+          Write-Host 'FRONTEND_449_SINGLE_LAYER_OK'
+
+      - name: Crear runtime igual al consultorio y sin psycopg
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('RUNTIME_OK')"
+          $hasPsycopg = & .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'El smoke test debe correr sin psycopg' }
+
+      - name: Preparar instalación simulada completa
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-v449-release-smoke'
+          if(Test-Path $root){ Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Force $root | Out-Null
+
+          $base = Join-Path $env:RUNNER_TEMP 'rp-base-v449-release'
+          if(Test-Path $base){ Remove-Item $base -Recurse -Force }
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src = Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){ throw "Falta $name en base limpia" }
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static = Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){ throw 'Falta static en base limpia' }
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile = Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
+
+          Copy-Item release_staging/v4_4_9_clean_444/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item release_staging/v4_4_9_clean_444/update_manifest.json (Join-Path $root 'update_manifest.json') -Force
+          Copy-Item release_staging/v4_4_9_clean_444/static/index.html (Join-Path $root 'static\index.html') -Force
+          Copy-Item release_staging/v4_4_9_clean_444/static/app.js (Join-Path $root 'static\app.js') -Force
+          Copy-Item release_staging/v4_4_9_clean_444/static/app_base.js (Join-Path $root 'static\app_base.js') -Force
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke real - 8000 ocupado, RP_PORT 8766 y frontend recuperado
+        shell: pwsh
+        run: |
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v449-release.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v449-release.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 120;$i++){
+              Start-Sleep -Milliseconds 250
+              try {
+                $v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version' -TimeoutSec 1
+                if([string]$v.version -eq '4.4.9'){ $ok=$true; break }
+              } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){
+              if(Test-Path $outlog){ Get-Content $outlog -Tail 200 }
+              if(Test-Path $errlog){ Get-Content $errlog -Tail 200 }
+              throw 'Backend v4.4.9 no arrancó en 8766'
+            }
+
+            $page=(Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing -TimeoutSec 4).Content
+            foreach($m in @('id="agenda"','id="facturacion"','id="reportes"','id="pacientes"')){
+              if(-not $page.Contains($m)){ throw "La página servida perdió $m" }
+            }
+            $js=(Invoke-WebRequest 'http://127.0.0.1:8766/static/app.js?v=4.4.9' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $js.Contains('v449SearchNormalized')){ throw 'El servidor no entrega el buscador integrado' }
+            if($js.Contains('loadStableBase(') -or $js.Contains('/static/app_base.js?')){ throw 'El servidor volvió a entregar frontend por capas' }
+            $legacy=(Invoke-WebRequest 'http://127.0.0.1:8766/static/app_base.js' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $legacy.Contains('archivo legado neutralizado')){ throw 'El app_base.js servido no está neutralizado' }
+            $null=Invoke-RestMethod 'http://127.0.0.1:8766/api/patients?q=JUAN' -TimeoutSec 3
+            $null=Invoke-RestMethod 'http://127.0.0.1:8766/api/patients?q=1234' -TimeoutSec 3
+            Write-Host 'V449_RELEASE_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            $listener.Stop()
+          }
+
+      - name: Publicar payload 4.4.9 sin mover todavía el canal
+        shell: pwsh
+        run: |
+          $dst='updates/v4_4_9_clean_444'
+          if(Test-Path $dst){ Remove-Item $dst -Recurse -Force }
+          New-Item -ItemType Directory -Force "$dst/static" | Out-Null
+          Copy-Item release_staging/v4_4_9_clean_444/app.py "$dst/app.py"
+          Copy-Item release_staging/v4_4_9_clean_444/update_manifest.json "$dst/update_manifest.json"
+          Copy-Item release_staging/v4_4_9_clean_444/static/index.html "$dst/static/index.html"
+          Copy-Item release_staging/v4_4_9_clean_444/static/app.js "$dst/static/app.js"
+          Copy-Item release_staging/v4_4_9_clean_444/static/app_base.js "$dst/static/app_base.js"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add $dst
+          git commit -m 'payload: v4.4.9 limpia desde v4.4.4 validada'
+          git pull --rebase origin main
+          git push origin HEAD:main
+          $payloadRef=(git rev-parse HEAD).Trim()
+          "PAYLOAD_REF=$payloadRef" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "PAYLOAD_COMMIT=$payloadRef"
+
+      - name: Generar canal con URLs inmutables
+        shell: pwsh
+        run: |
+          python build/v449_release/make_channel_v449.py --ref $env:PAYLOAD_REF --out candidate-v449-latest.json
+
+      - name: Descargar TODO desde GitHub Raw y verificar SHA exacto
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest candidate-v449-latest.json --require-immutable
+
+      - name: Mover canal solo después de SHA remoto verde
+        shell: pwsh
+        run: |
+          Copy-Item candidate-v449-latest.json latest-v3.json -Force
+          Copy-Item candidate-v449-latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          git commit -m 'release: publicar v4.4.9 tras smoke y SHA remoto inmutable'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar propagación del canal y volver a verificar payload remoto
+        shell: pwsh
+        run: |
+          @'
+          import json, os, pathlib, time, urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          expected=os.environ['PAYLOAD_REF']
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v449-remote.json'
+          last=None
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-release-check'})
+                  with urllib.request.urlopen(req,timeout=8) as r:
+                      raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if d.get('version')=='4.4.9' and d.get('payload_ref')==expected:
+                      out.write_bytes(raw)
+                      print('CHANNEL_PROPAGATED_449', expected)
+                      break
+              except Exception as e:
+                  last=e
+              time.sleep(1)
+          else:
+              raise SystemExit(f'Canal 4.4.9 no propagó correctamente: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait449.py
+          python $env:RUNNER_TEMP\wait449.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v449-remote.json --require-immutable
+          Write-Host 'V449_PUBLISHED_AND_REMOTE_VERIFIED'
