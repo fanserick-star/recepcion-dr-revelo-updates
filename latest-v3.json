@@ -1,28 +1,28 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.10",
+  "version": "4.4.11",
   "app_version": "4.4.9",
   "runtime_version": "4.4.9",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.10: corrige únicamente el buscador de Nueva atención para buscar por nombre, cédula, celular o correo. No modifica backend ni otras pantallas.",
+  "message": "v4.4.11: al buscar en Nueva atención oculta la Agenda y amplía resultados; al limpiar vuelve la Agenda. Quita el aviso vacío de cédula sin eliminar su validación.",
   "files": [
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_10_attention_search/static/app.js",
-      "sha256": "c7d380d8420c53dc8bce3a66b2b34eea1161a52674d5d4c48891a6aed5e302fb",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/static/app.js",
+      "sha256": "852ac51d912740b6faa4a0a9d95826a4c5384e7aac8fe6f69b744f8fb081be66",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_10_attention_search/static/index.html",
-      "sha256": "e9a59657ccfcc90253fc52b8924f37621d8379886e95be330728bf8d0947c094",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/static/index.html",
+      "sha256": "39de6d73f782c73540fa7773f207da25a121437309168a71a3eb6e7a62895d02",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_10_attention_search/update_manifest.json",
-      "sha256": "69b67cc8b3a9d14e6d268678d008aae381de066435c8600e534b0d0a3365a697",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/update_manifest.json",
+      "sha256": "edb02dc5f2254f3c1e29e400e6260f93b8d7015a46800d0ef1a8b77db2997524",
       "encoding": "utf-8"
     }
   ]
