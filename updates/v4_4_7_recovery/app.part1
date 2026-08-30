@@ -1,0 +1,1442 @@
+from __future__ import annotations
+
+import os
+import csv
+import io
+import hashlib
+import hmac
+import secrets
+import re
+import json
+import uuid
+import shutil
+import threading
+import sqlite3
+import zipfile
+import tempfile
+import subprocess
+import sys
+import time
+import socket
+import ipaddress
+import ctypes
+import webbrowser
+import unicodedata
+from difflib import SequenceMatcher
+from datetime import date, datetime, timedelta
+from typing import Optional
+from pathlib import Path
+from urllib.parse import urlparse, urlunparse, unquote
+import ssl
+import urllib.request
+import urllib.error
+
+from azur_client import AzurError, emit_invoice as azur_emit_invoice, query_comprobante as azur_query_comprobante, mask_api_key as azur_mask_api_key, normalize_base_url as azur_normalize_base_url, test_connection as azur_test_connection
+from whatsapp_client import WhatsAppError, build_template_payload as whatsapp_build_template_payload, send_template as whatsapp_send_template
+from remote_agenda import (
+    normalize_public_base_url as remote_normalize_base_url,
+    start_quick_tunnel as remote_start_quick_tunnel,
+    start_named_tunnel as remote_start_named_tunnel,
+    start_named_tunnel_background as remote_start_named_tunnel_background,
+    stop_managed_tunnel as remote_stop_tunnel,
+    tunnel_status as remote_tunnel_status,
+)
+from xml.sax.saxutils import escape as xml_escape
+
+from fastapi import FastAPI, HTTPException, Request, Response, Depends, File, Form, UploadFile
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from sqlalchemy import (
+    create_engine, String, Integer, Date, DateTime, Numeric, ForeignKey, Text,
+    select, or_, func, text, delete, update, insert, case, event
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
+from dotenv import load_dotenv
+import pg8000.dbapi as pg8000_dbapi
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_VERSION = "4.4.7"
+# Desde esta actualización, Facturación muestra la cola generada desde este punto en adelante.
+BILLING_QUEUE_START_DATE = date(2026, 8, 24)
+CONFIRMAFY_ATTENDED_ORIGIN = "CONFIRMAFY_ATENDIDO"
+CONFIRMAFY_ATTENDED_NOTE_PREFIX = "CONFIRMAFY_HASH:"
+LEGACY_DATA_DIR = os.path.join(BASE_DIR, "data")
+AGENDA_INITIAL_FILE = os.path.join(LEGACY_DATA_DIR, "agenda_inicial_confirmafy.csv")
+AGENDA_SEED_ACTION = "agenda_import_confirmafy_2026_08_22_v1"
+HISTORICAL_REGISTRY_FILE = os.path.join(BASE_DIR, "HISTORICO_PACIENTES_2020_2025.csv")
+HISTORICAL_REGISTRY_MARKER = "historico_pacientes_2020_2025_v3"
+DATA_DIR = (os.getenv("RP_DATA_DIR") or "").strip() or LEGACY_DATA_DIR
+os.makedirs(DATA_DIR, exist_ok=True)
+BACKUP_DIR = os.path.join(DATA_DIR, "backups")
+UPDATE_BACKUP_DIR = os.path.join(BASE_DIR, "_update_backups")
+os.makedirs(BACKUP_DIR, exist_ok=True)
+os.makedirs(UPDATE_BACKUP_DIR, exist_ok=True)
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+# AZUR se configura únicamente en el .env local. La API key nunca se guarda en
+# Neon, SQLite, GitHub ni en el frontend.
+AZUR_BASE_URL = (os.getenv("AZUR_BASE_URL") or "").strip()
+AZUR_API_KEY = (os.getenv("AZUR_API_KEY") or "").strip()
+AZUR_TIPO_IVA = (os.getenv("AZUR_TIPO_IVA") or "0").strip() or "0"
+AZUR_FORMA_PAGO = (os.getenv("AZUR_FORMA_PAGO") or "01").strip() or "01"
+AZUR_LIVE_EMISSION = (os.getenv("AZUR_LIVE_EMISSION") or "1").strip() != "0"
+# WhatsApp / Meta Cloud API. v4.3.35 adapta recordatorio_cita exactamente a la
+# plantilla aprobada por Meta: 2 variables (nombre + fecha/hora) y botones Sí / No.
+# Sigue DESACTIVADA por defecto. El .env no se modifica durante la actualización.
+WHATSAPP_ENABLED = (os.getenv("WHATSAPP_ENABLED") or "0").strip() == "1"
+# v4.3.38: la automatización real vive en Cloudflare + Neon. Por defecto el
+# worker local queda bloqueado para evitar mensajes duplicados entre PC y nube.
+WHATSAPP_CLOUD_MODE = (os.getenv("WHATSAPP_CLOUD_MODE") or "1").strip() != "0"
+WHATSAPP_GRAPH_VERSION = (os.getenv("WHATSAPP_GRAPH_VERSION") or "").strip()
+WHATSAPP_PHONE_NUMBER_ID = (os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "").strip()
+WHATSAPP_ACCESS_TOKEN = (os.getenv("WHATSAPP_ACCESS_TOKEN") or "").strip()
+WHATSAPP_TEST_PHONE = (os.getenv("WHATSAPP_TEST_PHONE") or "").strip()
+# Compatibilidad: se conserva la variable global antigua, pero desde v4.3.37
+# cada plantilla usa su propio idioma porque Meta aprobó variantes distintas.
+WHATSAPP_TEMPLATE_LANGUAGE = (os.getenv("WHATSAPP_TEMPLATE_LANGUAGE") or "es").strip() or "es"
+WHATSAPP_LANGUAGE_CITA_AGENDADA = (os.getenv("WHATSAPP_LANGUAGE_CITA_AGENDADA") or "es_EC").strip() or "es_EC"
+WHATSAPP_LANGUAGE_RECORDATORIO_CITA = (os.getenv("WHATSAPP_LANGUAGE_RECORDATORIO_CITA") or "es_ES").strip() or "es_ES"
+WHATSAPP_LANGUAGE_RECORDATORIO_HOY = (os.getenv("WHATSAPP_LANGUAGE_RECORDATORIO_HOY") or "es_EC").strip() or "es_EC"
+WHATSAPP_HEADER_IMAGE_ID = (os.getenv("WHATSAPP_HEADER_IMAGE_ID") or "").strip()
+WHATSAPP_TEMPLATE_CITA_AGENDADA = (os.getenv("WHATSAPP_TEMPLATE_CITA_AGENDADA") or "cita_agendada").strip() or "cita_agendada"
+WHATSAPP_TEMPLATE_RECORDATORIO_CITA = (os.getenv("WHATSAPP_TEMPLATE_RECORDATORIO_CITA") or "recordatorio_cita").strip() or "recordatorio_cita"
+WHATSAPP_TEMPLATE_RECORDATORIO_HOY = (os.getenv("WHATSAPP_TEMPLATE_RECORDATORIO_HOY") or "recordatorio_hoy").strip() or "recordatorio_hoy"
+# Activación por plantilla: solo recordatorio_cita está aprobado hoy. Aunque
+# WHATSAPP_ENABLED llegue a 1, las otras dos no se intentan hasta aprobarlas.
+WHATSAPP_AUTO_CITA_AGENDADA = (os.getenv("WHATSAPP_AUTO_CITA_AGENDADA") or "1").strip() != "0"
+WHATSAPP_AUTO_RECORDATORIO_CITA = (os.getenv("WHATSAPP_AUTO_RECORDATORIO_CITA") or "1").strip() != "0"
+WHATSAPP_AUTO_RECORDATORIO_HOY = (os.getenv("WHATSAPP_AUTO_RECORDATORIO_HOY") or "1").strip() != "0"
+# Estado de aprobación de plantillas. Se deja parametrizable en .env para que
+# una futura aprobación de Meta no requiera cambiar código.
+WHATSAPP_APPROVED_CITA_AGENDADA = (os.getenv("WHATSAPP_APPROVED_CITA_AGENDADA") or "1").strip() != "0"
+WHATSAPP_APPROVED_RECORDATORIO_CITA = (os.getenv("WHATSAPP_APPROVED_RECORDATORIO_CITA") or "1").strip() != "0"
+WHATSAPP_APPROVED_RECORDATORIO_HOY = (os.getenv("WHATSAPP_APPROVED_RECORDATORIO_HOY") or "1").strip() != "0"
+# Preparado para una futura segunda plantilla con encabezado de imagen/logo.
+# Nunca sustituye a la aprobada mientras esta bandera permanezca en 0.
+WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO = (os.getenv("WHATSAPP_TEMPLATE_RECORDATORIO_CITA_LOGO") or "recordatorio_cita_logo").strip() or "recordatorio_cita_logo"
+WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED = (os.getenv("WHATSAPP_RECORDATORIO_CITA_LOGO_ENABLED") or "0").strip() == "1"
+WHATSAPP_PREVIOUS_DAY_TIME = (os.getenv("WHATSAPP_PREVIOUS_DAY_TIME") or "08:00").strip() or "08:00"
+if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", WHATSAPP_PREVIOUS_DAY_TIME):
+    WHATSAPP_PREVIOUS_DAY_TIME = "08:00"
+try:
+    WHATSAPP_TODAY_HOURS_BEFORE = min(max(int((os.getenv("WHATSAPP_TODAY_HOURS_BEFORE") or "2").strip()), 1), 12)
+except Exception:
+    WHATSAPP_TODAY_HOURS_BEFORE = 2
+try:
+    WHATSAPP_POLL_SECONDS = min(max(int((os.getenv("WHATSAPP_POLL_SECONDS") or "60").strip()), 60), 900)
+except Exception:
+    WHATSAPP_POLL_SECONDS = 60
+MOBILE_DOCTOR_TOKEN = (os.getenv("MOBILE_DOCTOR_TOKEN") or "").strip()
+MOBILE_RECEPTION_TOKEN = (os.getenv("MOBILE_RECEPTION_TOKEN") or "").strip()
+AGENDA_CLOUD_BASE_URL = (os.getenv("AGENDA_CLOUD_BASE_URL") or "https://fanserick-star.github.io/recepcion-dr-revelo-updates/").strip().rstrip("/") + "/"
+AGENDA_CLOUD_KEYS_SYNCED_SHA = (os.getenv("AGENDA_CLOUD_KEYS_SYNCED_SHA") or "").strip()
+# Agenda remota por HTTPS. El token del túnel se lee únicamente del .env local.
+REMOTE_AGENDA_BASE_URL = (os.getenv("REMOTE_AGENDA_BASE_URL") or "").strip().rstrip("/")
+REMOTE_AGENDA_TUNNEL_TOKEN = (os.getenv("REMOTE_AGENDA_TUNNEL_TOKEN") or "").strip()
+REMOTE_AGENDA_AUTOSTART = (os.getenv("REMOTE_AGENDA_AUTOSTART") or "1").strip() != "0"
+
+# ---------------------------------------------------------------------------
+# Base principal (nube) + cache local de emergencia
+# ---------------------------------------------------------------------------
+
+CONFIGURED_DB_URL = (os.getenv("DATABASE_URL") or "").strip()
+FORCE_OFFLINE = (os.getenv("RP_FORCE_OFFLINE") or "").strip() == "1"  # solo diagnóstico/pruebas
+INITIAL_LOCAL_DB = os.path.join(DATA_DIR, "recepcion.db")
+OFFLINE_DB_PATH = os.path.join(DATA_DIR, "offline_cache.db")
+LEGACY_INITIAL_LOCAL_DB = os.path.join(LEGACY_DATA_DIR, "recepcion.db")
+LEGACY_OFFLINE_DB_PATH = os.path.join(LEGACY_DATA_DIR, "offline_cache.db")
+
+# v3.1: los archivos que cambian durante el uso diario viven en AppData para que
+# INICIAR.bat no requiera privilegios de administrador. La primera vez copiamos
+# la cache v3.0 (si existe) o, como respaldo, la base inicial incluida.
+if not os.path.exists(OFFLINE_DB_PATH):
+    for candidate in (LEGACY_OFFLINE_DB_PATH, INITIAL_LOCAL_DB, LEGACY_INITIAL_LOCAL_DB):
+        if candidate and os.path.exists(candidate) and os.path.abspath(candidate) != os.path.abspath(OFFLINE_DB_PATH):
+            try:
+                shutil.copy2(candidate, OFFLINE_DB_PATH)
+                break
+            except Exception:
+                pass
+
+LOCAL_DB_URL = f"sqlite:///{OFFLINE_DB_PATH}"
+local_engine = create_engine(
+    LOCAL_DB_URL,
+    connect_args={"check_same_thread": False},
+    pool_pre_ping=False,
+    # La interfaz hace pocas peticiones simultáneas. Limitar el pool evita que una
+    # PC con poca RAM acumule conexiones SQLite/hilos innecesarios, sin bloquear
+    # el refresco de caché que puede correr en paralelo.
+    pool_size=3,
+    max_overflow=1,
+    pool_timeout=5,
+    pool_use_lifo=True,
+)
+
+
+@event.listens_for(local_engine, "connect")
+def _configure_local_sqlite(dbapi_connection, _connection_record):
+    """Ajustes seguros para que la copia local no bloquee la interfaz mientras se sincroniza."""
+    try:
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.execute("PRAGMA temp_store=MEMORY")
+        cur.execute("PRAGMA cache_size=-16000")
+        cur.execute("PRAGMA mmap_size=33554432")
+        cur.execute("PRAGMA journal_size_limit=8388608")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+    except Exception:
+        pass
+
+
+LocalSessionLocal = sessionmaker(bind=local_engine, expire_on_commit=False)
+
+
+def normalize_cloud_url(url: str) -> str:
+    """Convierte la URL de Neon al driver puro pg8000 incluido en el runtime."""
+    if not url:
+        return url
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if scheme in {"postgres", "postgresql", "postgresql+psycopg", "postgresql+pg8000"}:
+        parsed = parsed._replace(scheme="postgresql+pg8000", query="")
+        return urlunparse(parsed)
+    return url
+
+
+cloud_engine = None
+CloudSessionLocal = None
+if CONFIGURED_DB_URL:
+    cloud_url = normalize_cloud_url(CONFIGURED_DB_URL)
+    cloud_connect_args = {"check_same_thread": False} if cloud_url.startswith("sqlite") else {}
+    if cloud_url.startswith("postgresql+"):
+        # Neon rechaza algunos parámetros de arranque enviados en `options`.
+        # Usamos solo connect_timeout para mantener la conexión compatible y estable.
+        cloud_connect_args = {"timeout": 12, "ssl_context": ssl.create_default_context()}
+    cloud_engine = create_engine(
+        cloud_url,
+        connect_args=cloud_connect_args,
+        pool_pre_ping=True,
+        pool_recycle=300,
+        # Una sola conexión persistente basta para esta PC. Dejamos un único
+        # overflow para que una escritura no espere si coincide con un refresco
+        # de la copia local. Menos conexiones = menos RAM y menos sesiones en Neon.
+        pool_size=1,
+        max_overflow=1,
+        pool_timeout=10,
+        pool_use_lifo=True,
+    )
+    CloudSessionLocal = sessionmaker(bind=cloud_engine, expire_on_commit=False)
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Patient(Base):
+    __tablename__ = "patients"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    cedula: Mapped[Optional[str]] = mapped_column(String(30), index=True, nullable=True)
+    nombre: Mapped[str] = mapped_column(String(220), index=True)
+    fecha_nacimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    celular: Mapped[Optional[str]] = mapped_column(String(40), index=True, nullable=True)
+    correo: Mapped[Optional[str]] = mapped_column(String(220), index=True, nullable=True)
+    lugar: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    visits: Mapped[list[Visit]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+    appointments: Mapped[list["Appointment"]] = relationship(back_populates="patient", cascade="all, delete-orphan")
+
+
+class Visit(Base):
+    __tablename__ = "visits"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id"), index=True)
+    fecha: Mapped[date] = mapped_column(Date, index=True)
+    tipo: Mapped[str] = mapped_column(String(1))
+    procedimiento: Mapped[Optional[str]] = mapped_column(String(180), nullable=True)
+    valor: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    observacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source_row: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    patient: Mapped[Patient] = relationship(back_populates="visits")
+    billing_record: Mapped[Optional["BillingRecord"]] = relationship(
+        back_populates="visit", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class BillingRecord(Base):
+    __tablename__ = "billing_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    visit_id: Mapped[int] = mapped_column(ForeignKey("visits.id", ondelete="CASCADE"), unique=True, index=True)
+    estado: Mapped[str] = mapped_column(String(20), default="PENDIENTE", index=True)
+    numero_factura: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    emitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    visit: Mapped[Visit] = relationship(back_populates="billing_record")
+
+
+class AzurEmission(Base):
+    """Registro mínimo para evitar dobles emisiones hacia AZUR.
+
+    No almacena la API key ni datos clínicos. Se conserva el resultado técnico
+    necesario para saber si un grupo de facturación ya fue enviado.
+    """
+    __tablename__ = "azur_emissions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    group_key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    patient_id: Mapped[int] = mapped_column(Integer, index=True)
+    fecha: Mapped[date] = mapped_column(Date, index=True)
+    estado: Mapped[str] = mapped_column(String(30), default="ENVIADA", index=True)
+    clave_acceso: Mapped[Optional[str]] = mapped_column(String(80), nullable=True, index=True)
+    numero_factura: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    request_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    response_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BillingPreference(Base):
+    """Datos alternativos persistentes de facturación de un paciente.
+
+    No modifica la ficha clínica. Se usa automáticamente en emisión individual
+    y masiva hasta que recepción la desactive o reemplace.
+    """
+    __tablename__ = "billing_preferences"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id", ondelete="CASCADE"), unique=True, index=True)
+    enabled: Mapped[int] = mapped_column(Integer, default=1)
+    identificacion: Mapped[str] = mapped_column(String(30))
+    nombre: Mapped[str] = mapped_column(String(220))
+    direccion: Mapped[Optional[str]] = mapped_column(String(240), nullable=True)
+    telefono: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    correo: Mapped[str] = mapped_column(String(220))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Appointment(Base):
+    __tablename__ = "appointments"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    patient_id: Mapped[int] = mapped_column(ForeignKey("patients.id", ondelete="CASCADE"), index=True)
+    fecha: Mapped[date] = mapped_column(Date, index=True)
+    hora: Mapped[str] = mapped_column(String(5), index=True)
+    duracion: Mapped[int] = mapped_column(Integer, default=20)
+    nota: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(String(20), default="PENDIENTE", index=True)
+    origen: Mapped[str] = mapped_column(String(30), default="REAGENDADO")
+    exported_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    loaded_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    patient: Mapped[Patient] = relationship(back_populates="appointments")
+
+
+class ConfirmafyAgendaItem(Base):
+    """Cita importada de Confirmafy todavía sin ficha clínica vinculada.
+
+    La agenda externa se guarda separada de patients para que importar un CSV no
+    cree, edite ni active pacientes. La vinculación ocurre únicamente cuando
+    recepción pulsa la cita para atender al paciente cara a cara.
+    """
+    __tablename__ = "confirmafy_agenda_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(220), index=True)
+    celular: Mapped[Optional[str]] = mapped_column(String(40), index=True, nullable=True)
+    fecha: Mapped[date] = mapped_column(Date, index=True)
+    hora: Mapped[str] = mapped_column(String(5), index=True)
+    duracion: Mapped[int] = mapped_column(Integer, default=20)
+    source_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Procedure(Base):
+    __tablename__ = "procedures"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nombre: Mapped[str] = mapped_column(String(180), unique=True)
+    valor_default: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    activo: Mapped[int] = mapped_column(Integer, default=1)
+
+
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(80), unique=True)
+    password_hash: Mapped[str] = mapped_column(String(300))
+    role: Mapped[str] = mapped_column(String(30), default="admin")
+
+
+class Audit(Base):
+    __tablename__ = "audit"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    username: Mapped[str] = mapped_column(String(80))
+    action: Mapped[str] = mapped_column(String(120))
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class SyncOperation(Base):
+    """Registro en la nube para que reintentos de sincronización no dupliquen datos."""
+    __tablename__ = "sync_operations"
+    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    operation: Mapped[str] = mapped_column(String(80))
+    result_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class LocalBase(DeclarativeBase):
+    pass
+
+
+class OfflineQueue(LocalBase):
+    __tablename__ = "offline_queue"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    operation: Mapped[str] = mapped_column(String(80), index=True)
+    entity: Mapped[str] = mapped_column(String(40))
+    local_entity_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    payload: Mapped[str] = mapped_column(Text)
+    username: Mapped[str] = mapped_column(String(80), default="admin")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class OfflineIdMap(LocalBase):
+    __tablename__ = "offline_id_map"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    entity: Mapped[str] = mapped_column(String(40), index=True)
+    local_id: Mapped[int] = mapped_column(Integer, index=True)
+    cloud_id: Mapped[int] = mapped_column(Integer)
+
+
+class CacheMeta(LocalBase):
+    __tablename__ = "cache_meta"
+    key: Mapped[str] = mapped_column(String(80), primary_key=True)
+    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class WhatsAppOutbox(LocalBase):
+    """Cola local de mensajes de Meta. Nunca guarda el access token.
+
+    Vive solo en SQLite para evitar lecturas periódicas a Neon y para que un
+    reinicio de la PC no duplique recordatorios.
+    """
+    __tablename__ = "whatsapp_outbox"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    event_key: Mapped[str] = mapped_column(String(160), unique=True, index=True)
+    template_name: Mapped[str] = mapped_column(String(100), index=True)
+    source_type: Mapped[str] = mapped_column(String(30), index=True)
+    source_id: Mapped[int] = mapped_column(Integer, index=True)
+    phone: Mapped[str] = mapped_column(String(30))
+    payload_json: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", index=True)
+    due_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    response_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class HistoricalPatient(LocalBase):
+    """Índice local y estático de pacientes atendidos entre 2020 y 2025.
+
+    No se sube a Neon ni se mezcla automáticamente con la tabla principal.
+    Sirve para buscar pacientes antiguos y reconocerlos como subsecuentes sin
+    cargar miles de registros históricos a la nube.
+    """
+    __tablename__ = "historical_patients"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_key: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    nombre: Mapped[str] = mapped_column(String(240), index=True)
+    search_text: Mapped[str] = mapped_column(Text)
+    cedula: Mapped[Optional[str]] = mapped_column(String(30), index=True, nullable=True)
+    celular: Mapped[Optional[str]] = mapped_column(String(40), index=True, nullable=True)
+    correo: Mapped[Optional[str]] = mapped_column(String(220), index=True, nullable=True)
+    lugar: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    first_year: Mapped[int] = mapped_column(Integer, default=2020)
+    last_year: Mapped[int] = mapped_column(Integer, default=2025, index=True)
+    # Última fecha exacta que pudo recuperarse con seguridad del Excel histórico.
+    # Puede ser anterior a last_year cuando en los años posteriores el libro trae
+    # una ficha sin encabezado de día; en ese caso no inventamos una fecha.
+    last_visit_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True, index=True)
+    row_count: Mapped[int] = mapped_column(Integer, default=1)
+    aliases: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    phones: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    emails: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    cedulas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class HistoricalPatientLink(LocalBase):
+    """Vínculo manual local entre una ficha 2020–2025 y un paciente actual.
+
+    El histórico vive solo en SQLite, por eso el vínculo también es local. Se usa
+    para dejar de mostrar dos veces a la misma persona y para conservar la fecha
+    histórica sin crear otro Patient ni añadir lecturas periódicas a Neon.
+    """
+    __tablename__ = "historical_patient_links"
+    source_key: Mapped[str] = mapped_column(String(40), primary_key=True)
+    patient_id: Mapped[int] = mapped_column(Integer, index=True)
+    linked_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+def seed_local_historical_registry() -> dict:
+    """Carga una vez el índice histórico desde el CSV incluido en la app.
+
+    Es una operación exclusivamente SQLite/local. No abre conexiones a Neon.
+    Se usa un INSERT por lote para que incluso una PC antigua lo procese rápido.
+    """
+    if not os.path.exists(HISTORICAL_REGISTRY_FILE):
+        return {"loaded": 0, "skipped": True, "reason": "missing_file"}
+    try:
+        with LocalSessionLocal() as db:
+            marker = db.get(CacheMeta, HISTORICAL_REGISTRY_MARKER)
+            count = int(db.scalar(select(func.count(HistoricalPatient.id))) or 0)
+            if marker and marker.value == "1" and count >= 4000:
+                return {"loaded": count, "skipped": True}
+            rows = []
+            with open(HISTORICAL_REGISTRY_FILE, encoding="utf-8-sig", newline="") as fh:
+                for row in csv.DictReader(fh):
+                    name = " ".join(str(row.get("nombre") or "").split()).upper()
+                    if not name:
+                        continue
+                    rows.append({
+                        "source_key": str(row.get("source_key") or "").strip(),
+                        "nombre": name,
+                        "search_text": str(row.get("search_text") or name).upper(),
+                        "cedula": str(row.get("cedula") or "").strip() or None,
+                        "celular": str(row.get("celular") or "").strip() or None,
+                        "correo": str(row.get("correo") or "").strip().lower() or None,
+                        "lugar": " ".join(str(row.get("lugar") or "").split()).upper() or None,
+                        "first_year": int(row.get("first_year") or 2020),
+                        "last_year": int(row.get("last_year") or 2025),
+                        "last_visit_date": date.fromisoformat(str(row.get("last_visit_date") or "").strip()) if str(row.get("last_visit_date") or "").strip() else None,
+                        "row_count": int(row.get("row_count") or 1),
+                        "aliases": str(row.get("aliases") or "").strip() or None,
+                        "phones": str(row.get("phones") or "").strip() or None,
+                        "emails": str(row.get("emails") or "").strip() or None,
+                        "cedulas": str(row.get("cedulas") or "").strip() or None,
+                    })
+            if not rows:
+                return {"loaded": 0, "skipped": True, "reason": "empty_file"}
+            db.execute(delete(HistoricalPatient))
+            db.execute(insert(HistoricalPatient), rows)
+            if marker:
+                marker.value = "1"
+            else:
+                db.add(CacheMeta(key=HISTORICAL_REGISTRY_MARKER, value="1"))
+            db.commit()
+            return {"loaded": len(rows), "skipped": False}
+    except Exception as exc:
+        return {"loaded": 0, "skipped": True, "reason": str(exc)[:160]}
+
+
+Base.metadata.create_all(local_engine)
+LocalBase.metadata.create_all(local_engine)
+# create_all no agrega columnas a una tabla SQLite existente. Esta migración local
+# es diminuta, no toca Neon y permite enriquecer las fichas históricas ya instaladas.
+try:
+    with local_engine.begin() as conn:
+        cols = {str(row[1]) for row in conn.exec_driver_sql("PRAGMA table_info(historical_patients)").fetchall()}
+        if cols and "last_visit_date" not in cols:
+            conn.exec_driver_sql("ALTER TABLE historical_patients ADD COLUMN last_visit_date DATE")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_historical_patients_last_visit_date ON historical_patients (last_visit_date)")
+except Exception:
+    pass
+seed_local_historical_registry()
+
+TOKENS: dict[str, str] = {}
+_state_lock = threading.RLock()
+_sync_lock = threading.Lock()
+_cache_refresh_lock = threading.Lock()
+_agenda_status_sync_lock = threading.Lock()
+_agenda_status_sync_at: dict[str, float] = {}
+_cloud_check_lock = threading.Lock()
+_queue_count_lock = threading.Lock()
+_user_cache_lock = threading.Lock()
+_cloud_init_lock = threading.Lock()
+# La copia completa de emergencia es costosa; las escrituras de esta PC se reflejan
+# al instante. La copia total solo se renueva cuando vence (60 min), al volver de
+# una pausa larga o cuando hace falta reconciliar cambios offline.
+# v4.0: la copia completa ya no se refresca por un temporizador que mantenga
+# Neon despierto. Se actualiza al iniciar, al volver de AFK y tras operaciones
+# que realmente lo requieren.
+CACHE_REFRESH_SECONDS = 3600
+# Las lecturas de pantalla son locales; esta sonda solo hace falta antes de
+# operaciones reales. Alargamos el intervalo y aplicamos backoff cuando falla.
+CLOUD_CHECK_SECONDS = 180.0
+CLOUD_RETRY_SECONDS = 20.0
+REMOTE_REFRESH_IDLE_SECONDS = 30 * 60
+IDLE_AFTER_SECONDS = 300
+QUEUE_COUNT_CACHE_SECONDS = 1.5
+USER_CACHE_SECONDS = 45.0
+_queue_count_cache = {"value": None, "ts": 0.0}
+_user_cache: dict[str, tuple[float, User]] = {}
+_cloud_initialized = False
+# RC2: forzar una única revisión de esquema de Neon porque RC1 añadió
+# billing_preferences y azur_emissions, pero heredaba el marcador antiguo v4.3.7.
+# Con el marcador viejo una PC ya inicializada podía saltarse create_all() y
+# "Aprobar para facturar" fallaba con HTTP 500 al consultar la tabla nueva.
+CLOUD_SCHEMA_MARKER = "cloud_schema_ready_v4_3_19_visual_" + hashlib.sha1(CONFIGURED_DB_URL.encode("utf-8")).hexdigest()[:10]
+_state = {
+    "online": False,
+    "last_checked": 0.0,
+    "last_error": "",
+    "last_cache_refresh": 0.0,
+    "last_success": 0.0,
+    "consecutive_failures": 0,
+    "last_probe_ms": None,
+    "client_idle": False,
+    "last_activity": time.time(),
+    "idle_since": 0.0,
+}
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 200_000)
+    return f"{salt.hex()}:{dk.hex()}"
+
+
+def verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, dk_hex = stored.split(":", 1)
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), 200_000)
+        return hmac.compare_digest(dk.hex(), dk_hex)
+    except Exception:
+        return False
+
+
+def audit(db: Session, username_or_user, action: str, detail: str = ""):
+    username = getattr(username_or_user, "username", None) or str(username_or_user or "admin")
+    db.add(Audit(username=username, action=action, detail=detail))
+
+
+
+def normalize_lookup_name(value: Optional[str]) -> str:
+    raw = (value or "").strip().upper()
+    raw = "".join(
+        ch for ch in unicodedata.normalize("NFD", raw)
+        if unicodedata.category(ch) != "Mn"
+    )
+    return re.sub(r"[^A-Z0-9]+", " ", raw).strip()
+
+
+def normalize_lookup_phone(value: Optional[str]) -> str:
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("593") and len(digits) >= 12:
+        return "0" + digits[3:12]
+    return digits[:10] if digits else ""
+
+
+def lookup_name_tokens(value: Optional[str]) -> set[str]:
+    """Tokens normalizados para comparar nombres sin depender del orden."""
+    return {token for token in normalize_lookup_name(value).split() if len(token) >= 2}
+
+
+def strong_name_overlap(left: Optional[str], right: Optional[str]) -> bool:
+    """Coincidencia conservadora: al menos dos palabras y un nombre contenido en el otro."""
+    a = lookup_name_tokens(left)
+    b = lookup_name_tokens(right)
+    if len(a) < 2 or len(b) < 2:
+        return False
+    return a.issubset(b) or b.issubset(a)
+
+
+def patient_name_word_count(value: Optional[str]) -> int:
+    """Cantidad de palabras útiles del nombre, sin depender de tildes o puntuación."""
+    return len([x for x in normalize_lookup_name(value).split() if len(x) >= 2])
+
+
+def patient_name_quality(value: Optional[str]) -> str:
+    """Calidad práctica para recepción. 4+ es ideal; 3 se acepta; 1-2 requiere revisión."""
+    count = patient_name_word_count(value)
+    if count >= 4:
+        return "completo"
+    if count == 3:
+        return "aceptable"
+    return "incompleto"
+
+
+def _name_similarity(left: Optional[str], right: Optional[str]) -> tuple[float, list[str]]:
+    """Compara nombres por palabras y tolera una errata pequeña (JHONNY/JHONY).
+
+    Para evitar falsos positivos exigimos dos palabras relacionadas y, salvo que
+    exista un identificador externo, al menos una coincidencia literal larga.
+    """
+    a = [x for x in normalize_lookup_name(left).split() if len(x) >= 2]
+    b = [x for x in normalize_lookup_name(right).split() if len(x) >= 2]
+    if not a or not b:
+        return 0.0, []
+    used: set[int] = set()
+    matches: list[tuple[str, str, float]] = []
+    # Primero emparejamos palabras idénticas.
+    for token in a:
+        for j, other in enumerate(b):
+            if j not in used and token == other:
+                used.add(j); matches.append((token, other, 1.0)); break
+    # Luego permitimos una sola diferencia ortográfica razonable por palabra.
+    for token in a:
+        if any(x == token for x, _, _ in matches):
+            continue
+        best_j = None; best = 0.0
+        for j, other in enumerate(b):
+            if j in used or min(len(token), len(other)) < 4:
+                continue
+            ratio = SequenceMatcher(None, token, other).ratio()
+            if ratio > best:
+                best = ratio; best_j = j
+        if best_j is not None and best >= 0.84:
+            used.add(best_j); matches.append((token, b[best_j], best))
+    if len(matches) < 2:
+        return 0.0, []
+    # Si ambas fichas ya tienen tres o más palabras, dos apellidos iguales no
+    # bastan: podrían ser familiares. Exigimos al menos tres términos relacionados.
+    if min(len(a), len(b)) >= 3 and len(matches) < 3:
+        return 0.0, []
+    exact_long = any(score == 1.0 and len(x) >= 4 for x, _, score in matches)
+    if not exact_long:
+        return 0.0, []
+    coverage = len(matches) / max(2, min(len(a), len(b)))
+    avg = sum(score for _, _, score in matches) / len(matches)
+    # Penalizamos nombres muy largos cuando solo coinciden dos términos.
+    long_penalty = 0.08 if max(len(a), len(b)) >= 5 and len(matches) == 2 else 0.0
+    score = max(0.0, min(1.0, 0.58 * coverage + 0.42 * avg - long_penalty))
+    labels = [x if x == y else f"{x}≈{y}" for x, y, _ in matches]
+    return score, labels
+
+
+def patient_similarity(left: Patient, right: Patient) -> tuple[float, str]:
+    """Puntaje de posible duplicado, usado solo para advertir o fusionar con confirmación."""
+    lc = re.sub(r"\D", "", left.cedula or "")
+    rc = re.sub(r"\D", "", right.cedula or "")
+    if lc and rc and lc == rc:
+        return 1.0, "misma cédula"
+    lp = normalize_lookup_phone(left.celular)
+    rp = normalize_lookup_phone(right.celular)
+    name_score, labels = _name_similarity(left.nombre, right.nombre)
+    if lp and rp and lp == rp:
+        # Un teléfono compartido no basta por sí solo; con nombre relacionado sí.
+        if name_score >= 0.58:
+            return max(0.96, name_score), "mismo celular y nombre parecido"
+        return 0.0, ""
+    if name_score >= 0.74:
+        return name_score, "nombre parecido: " + ", ".join(labels[:4])
+    return 0.0, ""
+
+
+def _pipe_values(value: Optional[str]) -> list[str]:
+    return [x.strip() for x in str(value or "").split("|") if x.strip()]
+
+
+def historical_dict(h: HistoricalPatient) -> dict:
+    return {
+        "id": None,
+        "historical": True,
+        "historical_id": int(h.id),
+        "cedula": h.cedula,
+        "nombre": h.nombre,
+        "fecha_nacimiento": None,
+        "celular": h.celular,
+        "correo": h.correo,
+        "lugar": h.lugar,
+        "notas": None,
+        "ultima_atencion": None,
+        "historical_first_year": int(h.first_year or 2020),
+        "historical_last_year": int(h.last_year or 2025),
+        "historical_last_visit_date": h.last_visit_date,
+        "historical_rows": int(h.row_count or 1),
+    }
+
+
+def _historical_linked_keys(ldb: Session, patient_id: Optional[int] = None) -> set[str]:
+    stmt = select(HistoricalPatientLink.source_key)
+    if patient_id is not None:
+        stmt = stmt.where(HistoricalPatientLink.patient_id == int(patient_id))
+    return {str(x) for x in ldb.scalars(stmt)}
+
+
+def _historical_link_patient(source_key: str, patient_id: int) -> None:
+    """Guarda o actualiza un vínculo explícito exclusivamente en SQLite."""
+    with LocalSessionLocal() as ldb:
+        link = ldb.get(HistoricalPatientLink, str(source_key))
+        if link:
+            link.patient_id = int(patient_id); link.linked_at = datetime.utcnow()
+        else:
+            ldb.add(HistoricalPatientLink(source_key=str(source_key), patient_id=int(patient_id)))
+        ldb.commit()
+
+
+def _historical_reassign_links(source_patient_id: int, target_patient_id: int) -> None:
+    """Mantiene vínculos históricos cuando recepción fusiona dos pacientes actuales."""
+    try:
+        with LocalSessionLocal() as ldb:
+            links = list(ldb.scalars(select(HistoricalPatientLink).where(HistoricalPatientLink.patient_id == int(source_patient_id))))
+            for link in links:
+                link.patient_id = int(target_patient_id); link.linked_at = datetime.utcnow()
+            if links:
+                ldb.commit()
+    except Exception:
+        pass
+
+
+def _historical_remove_links(patient_id: int) -> None:
+    try:
+        with LocalSessionLocal() as ldb:
+            ldb.execute(delete(HistoricalPatientLink).where(HistoricalPatientLink.patient_id == int(patient_id)))
+            ldb.commit()
+    except Exception:
+        pass
+
+
+def _historical_name_alias_sets(h: HistoricalPatient) -> list[set[str]]:
+    names = _pipe_values(h.aliases) or [h.nombre]
+    return [lookup_name_tokens(x) for x in names if lookup_name_tokens(x)]
+
+
+def _historical_identity_match(h: HistoricalPatient, p: Patient) -> tuple[bool, str]:
+    """Compara un histórico con un paciente actual sin aceptar coincidencias débiles."""
+    p_ced = re.sub(r"\D", "", p.cedula or "")
+    h_ceds = set(_pipe_values(h.cedulas) or ([h.cedula] if h.cedula else []))
+    if p_ced and p_ced in h_ceds:
+        return True, "cedula"
+
+    p_phone = normalize_lookup_phone(p.celular)
+    h_phones = {normalize_lookup_phone(x) for x in (_pipe_values(h.phones) or ([h.celular] if h.celular else []))}
+    h_phones.discard("")
+    p_tokens = lookup_name_tokens(p.nombre)
+    aliases = _historical_name_alias_sets(h)
+    if p_phone and p_phone in h_phones and any(len(p_tokens & a) >= 2 for a in aliases):
+        return True, "celular"
+
+    p_email = str(p.correo or "").strip().lower()
+    h_emails = {x.lower() for x in (_pipe_values(h.emails) or ([h.correo] if h.correo else []))}
+    if p_email and p_email in h_emails and any(len(p_tokens & a) >= 2 for a in aliases):
+        return True, "correo"
+
+    # Por nombre solamente exigimos 3 palabras coincidentes para reducir homónimos.
+    for a in aliases:
+        if len(a) >= 3 and len(p_tokens) >= 3 and (a == p_tokens or a.issubset(p_tokens) or p_tokens.issubset(a)):
+            if len(a & p_tokens) >= 3:
+                return True, "nombre"
+    return False, ""
+
+
+def historical_summary_for_patient(p: Patient) -> Optional[dict]:
+    """Busca el historial 2020-2025 solo en SQLite; nunca consulta Neon."""
+    try:
+        with LocalSessionLocal() as ldb:
+            candidates: dict[int, HistoricalPatient] = {}
+            # Un vínculo confirmado por recepción tiene prioridad sobre cualquier
+            # heurística de nombre y sobrevive aunque luego se complete/corrija la ficha.
+            linked_keys = _historical_linked_keys(ldb, int(p.id))
+            if linked_keys:
+                for h in ldb.scalars(select(HistoricalPatient).where(HistoricalPatient.source_key.in_(linked_keys))):
+                    candidates[int(h.id)] = h
+            ced = re.sub(r"\D", "", p.cedula or "")
+            phone = normalize_lookup_phone(p.celular)
+            email = str(p.correo or "").strip().lower()
+            if ced:
+                for h in ldb.scalars(select(HistoricalPatient).where(HistoricalPatient.cedula == ced).limit(8)):
+                    candidates[int(h.id)] = h
+            if phone:
+                for h in ldb.scalars(select(HistoricalPatient).where(or_(HistoricalPatient.celular == phone, HistoricalPatient.phones.ilike(f"%{phone}%"))).limit(12)):
+                    candidates[int(h.id)] = h
+            if email:
+                for h in ldb.scalars(select(HistoricalPatient).where(or_(HistoricalPatient.correo == email, HistoricalPatient.emails.ilike(f"%{email}%"))).limit(12)):
+                    candidates[int(h.id)] = h
+            tokens = list(lookup_name_tokens(p.nombre))
+            if len(tokens) >= 3:
+                stmt = select(HistoricalPatient)
+                for token in tokens[:6]:
+                    stmt = stmt.where(HistoricalPatient.search_text.ilike(f"%{token}%"))
+                for h in ldb.scalars(stmt.limit(12)):
+                    candidates[int(h.id)] = h
+            matched = []
+            reasons = set()
+            for h in candidates.values():
+                if h.source_key in linked_keys:
+                    matched.append(h); reasons.add("vinculo_manual"); continue
+                ok, reason = _historical_identity_match(h, p)
+                if ok:
+                    matched.append(h); reasons.add(reason)
+            if not matched:
+                return None
+            exact_dates = [h.last_visit_date for h in matched if h.last_visit_date]
+            return {
+                "matched": True,
+                "first_year": min(int(h.first_year or 2020) for h in matched),
+                "last_year": max(int(h.last_year or 2025) for h in matched),
+                # Se llama fecha "conocida" deliberadamente: si el Excel menciona
+                # al paciente en un año posterior sin día legible, no inventamos día/mes.
+                "last_visit_date": max(exact_dates) if exact_dates else None,
+                "records": len(matched),
+                "reason": ",".join(sorted(reasons)),
+            }
+    except Exception:
+        return None
+
+
+def _historical_matches_current(h: HistoricalPatient, patients: list[Patient]) -> list[Patient]:
+    return [p for p in patients if _historical_identity_match(h, p)[0]]
+
+
+def search_historical_patients(q: str, limit: int = 12) -> list[dict]:
+    raw = " ".join(str(q or "").strip().upper().split())
+    if len(raw) < 2:
+        return []
+    tokens = [t for t in normalize_lookup_name(raw).split() if t][:8]
+    if not tokens:
+        return []
+    try:
+        with LocalSessionLocal() as ldb:
+            linked_keys = _historical_linked_keys(ldb)
+            stmt = select(HistoricalPatient)
+            for token in tokens:
+                stmt = stmt.where(HistoricalPatient.search_text.ilike(f"%{token}%"))
+            hist = list(ldb.scalars(stmt.order_by(HistoricalPatient.last_year.desc(), HistoricalPatient.nombre).limit(min(max(limit * 2, 12), 40))))
+            if not hist:
+                return []
+            # Solo pacientes actuales que podrían compartir esos mismos términos.
+            p_stmt = select(Patient)
+            for token in tokens:
+                pat = f"%{token}%"
+                p_stmt = p_stmt.where(or_(Patient.cedula.ilike(pat), Patient.nombre.ilike(pat), Patient.celular.ilike(pat), Patient.correo.ilike(pat)))
+            current = list(ldb.scalars(p_stmt.limit(80)))
+            result = []
+            for h in hist:
+                if h.source_key in linked_keys:
+                    continue
+                # Fichas antiguas de solo dos palabras y sin ningún identificador
+                # son demasiado débiles para activarlas automáticamente. Preferimos
+                # no mostrarlas antes que crear un homónimo por error.
+                alias_sets = _historical_name_alias_sets(h)
+                has_identifier = bool(h.cedula or h.celular or h.correo)
+                if not has_identifier and not any(len(x) >= 3 for x in alias_sets):
+                    continue
+                # Si ya existe con una coincidencia segura, no mostramos una ficha histórica duplicada.
+                if _historical_matches_current(h, current):
+                    continue
+                result.append(historical_dict(h))
+                if len(result) >= limit:
+                    break
+            return result
+    except Exception:
+        return []
+
+
+def _historical_similarity_candidates(name: str, limit: int = 8) -> list[dict]:
+    """Busca candidatos históricos parecidos usando solo SQLite local."""
+    tokens = [x for x in normalize_lookup_name(name).split() if len(x) >= 3]
+    if not tokens:
+        return []
+    try:
+        with LocalSessionLocal() as ldb:
+            linked_keys = _historical_linked_keys(ldb)
+            # Para no recorrer 4.222 filas en cada tecla, preseleccionamos por cualquiera
+            # de las palabras largas y solo calculamos similitud sobre un grupo pequeño.
+            stmt = select(HistoricalPatient).where(or_(*[HistoricalPatient.search_text.ilike(f"%{t}%") for t in tokens[:5]]))
+            rows = list(ldb.scalars(stmt.order_by(HistoricalPatient.last_year.desc()).limit(90)))
+            out = []
+            for h in rows:
+                if h.source_key in linked_keys:
+                    continue
+                score, labels = _name_similarity(name, h.nombre)
+                if score < 0.74:
+                    continue
+                item = historical_dict(h)
+                item.update({"similarity": round(score, 3), "similar_reason": "nombre histórico parecido: " + ", ".join(labels[:4])})
+                out.append(item)
+            out.sort(key=lambda x: (-float(x.get("similarity") or 0), -int(x.get("historical_last_year") or 0), str(x.get("nombre") or "")))
+            return out[:limit]
+    except Exception:
+        return []
+
+
+def _historical_review_matches(patients: list[Patient], per_patient: int = 6) -> dict[int, list[dict]]:
+    """Candidatos histórico↔actual para Por revisar, sin un O(n×m) completo.
+
+    Se construyen índices de cédula, teléfono, correo y palabras una sola vez en
+    SQLite. Luego solo se calcula similitud sobre filas que comparten al menos dos
+    términos o un identificador. Se ejecuta únicamente al abrir Por revisar.
+    """
+    if not patients:
+        return {}
+    try:
+        with LocalSessionLocal() as ldb:
+            linked_keys = _historical_linked_keys(ldb)
+            historical_rows = [h for h in ldb.scalars(select(HistoricalPatient)) if h.source_key not in linked_keys]
+    except Exception:
+        return {}
+
+    from collections import defaultdict, Counter
+    by_id: dict[int, HistoricalPatient] = {}
+    token_index: dict[str, set[int]] = defaultdict(set)
+    cedula_index: dict[str, set[int]] = defaultdict(set)
+    phone_index: dict[str, set[int]] = defaultdict(set)
+    email_index: dict[str, set[int]] = defaultdict(set)
+    for h in historical_rows:
+        hid = int(h.id); by_id[hid] = h
+        all_tokens: set[str] = set()
+        for alias in (_pipe_values(h.aliases) or [h.nombre]):
+            all_tokens.update(t for t in lookup_name_tokens(alias) if len(t) >= 3)
+        for token in all_tokens:
+            token_index[token].add(hid)
+        for value in (_pipe_values(h.cedulas) or ([h.cedula] if h.cedula else [])):
+            digits = re.sub(r"\D", "", str(value or ""))
+            if digits: cedula_index[digits].add(hid)
+        for value in (_pipe_values(h.phones) or ([h.celular] if h.celular else [])):
+            phone = normalize_lookup_phone(value)
+            if phone: phone_index[phone].add(hid)
+        for value in (_pipe_values(h.emails) or ([h.correo] if h.correo else [])):
+            email = str(value or "").strip().lower()
+            if email: email_index[email].add(hid)
+
+    out: dict[int, list[dict]] = {}
+    for p in patients:
+        pid = int(p.id)
+        candidate_ids: set[int] = set()
+        strong_ids: set[int] = set()
+        p_ced = re.sub(r"\D", "", p.cedula or "")
+        p_phone = normalize_lookup_phone(p.celular)
+        p_email = str(p.correo or "").strip().lower()
+        if p_ced:
+            strong_ids |= cedula_index.get(p_ced, set())
+        if p_phone:
+            strong_ids |= phone_index.get(p_phone, set())
+        if p_email:
+            strong_ids |= email_index.get(p_email, set())
+        candidate_ids |= strong_ids
+
+        hits: Counter[int] = Counter()
+        for token in [t for t in lookup_name_tokens(p.nombre) if len(t) >= 3]:
+            for hid in token_index.get(token, set()):
+                hits[hid] += 1
+        candidate_ids.update(hid for hid, n in hits.items() if n >= 2)
+
+        matches: list[dict] = []
+        for hid in candidate_ids:
+            h = by_id.get(hid)
+            if not h:
+                continue
+            h_ceds = {re.sub(r"\D", "", x) for x in (_pipe_values(h.cedulas) or ([h.cedula] if h.cedula else [])) if re.sub(r"\D", "", x)}
+            # Cédulas distintas son evidencia suficiente para no sugerir una fusión.
+            if p_ced and h_ceds and p_ced not in h_ceds:
+                continue
+            identity_ok, identity_reason = _historical_identity_match(h, p)
+            score, labels = _name_similarity(p.nombre, h.nombre)
+            same_phone = bool(p_phone and p_phone in {normalize_lookup_phone(x) for x in (_pipe_values(h.phones) or ([h.celular] if h.celular else []))})
+            if identity_ok:
+                score = max(score, 0.99 if identity_reason == "cedula" else 0.96)
+                reason = f"histórico: misma {identity_reason}"
+            elif same_phone and score >= 0.58:
+                score = max(score, 0.94); reason = "histórico: mismo celular y nombre parecido"
+            elif score >= 0.78:
+                reason = "histórico: nombre parecido: " + ", ".join(labels[:4])
+            else:
+                continue
+            item = historical_dict(h)
+            item.update({"similarity": round(float(score), 3), "similar_reason": reason, "visit_count": 0})
+            matches.append(item)
+        matches.sort(key=lambda x: (-float(x.get("similarity") or 0), -int(x.get("historical_last_year") or 0), str(x.get("nombre") or "")))
+        if matches:
+            out[pid] = matches[:max(1, int(per_patient))]
+    return out
+
+
+def _confirmafy_patient_status_map(db: Session, patients: list[Patient]) -> dict[int, dict]:
+    """Clasifica fichas cuyo origen Confirmafy puede demostrarse sin adivinar.
+
+    Se usa solo bajo demanda en Pacientes -> Por revisar / Confirmafy. Una ficha se
+    considera eliminable manualmente únicamente si no tiene atenciones clínicas,
+    sus datos son los mínimos que solían crear las importaciones antiguas y existe
+    una prueba de origen (citas CONFIRMAFY_IMPORTADO o ventana de Audit).
+    """
+    if not patients:
+        return {}
+    ids = [int(p.id) for p in patients]
+    visit_counts = {int(pid): int(total or 0) for pid, total in db.execute(
+        select(Visit.patient_id, func.count(Visit.id)).where(Visit.patient_id.in_(ids)).group_by(Visit.patient_id)
+    ).all()}
+    appointment_stats = {int(pid): (int(total or 0), int(imported or 0)) for pid, total, imported in db.execute(
+        select(
+            Appointment.patient_id,
+            func.count(Appointment.id),
+            func.sum(case((Appointment.origen == "CONFIRMAFY_IMPORTADO", 1), else_=0)),
+        ).where(Appointment.patient_id.in_(ids)).group_by(Appointment.patient_id)
+    ).all()}
+    import_windows = _confirmafy_import_audit_windows(db)
+
+    out: dict[int, dict] = {}
+    for p in patients:
+        pid = int(p.id)
+        total_apps, imported_apps = appointment_stats.get(pid, (0, 0))
+        created = p.created_at
+        created_in_window = bool(created and any(a <= created <= b for a, b in import_windows))
+        # Para mostrar/borrar manualmente como "creado por Confirmafy" exigimos
+        # la prueba más fuerte: created_at dentro de una ventana registrada de importación.
+        # Tener una cita importada no basta, porque un paciente real también puede tenerla.
+        created_by_confirmafy = bool(created_in_window)
+        sparse = not any([p.cedula, p.fecha_nacimiento, p.correo, p.lugar, p.notas])
+        visits = visit_counts.get(pid, 0)
+        all_apps_imported = bool(total_apps == 0 or (total_apps > 0 and imported_apps == total_apps))
+        safe_delete = bool(created_by_confirmafy and visits == 0 and sparse and all_apps_imported)
+        out[pid] = {
+            "confirmafy_origin": created_by_confirmafy,
+            "confirmafy_related": bool(imported_apps > 0),
+            "safe_confirmafy_delete": safe_delete,
+            "visit_count": visits,
+            "appointment_count": total_apps,
+            "imported_appointment_count": imported_apps,
+        }
+    return out
+
+
+def _patient_review_rows(db: Session, limit: int = 30, confirmafy_only: bool = False) -> list[dict]:
+    """Lista local y accionable, calculada solo cuando el usuario la solicita."""
+    patients = list(db.scalars(select(Patient).order_by(Patient.nombre)))
+    last_dates = {int(pid): last for pid, last in db.execute(
+        select(Visit.patient_id, func.max(Visit.fecha)).group_by(Visit.patient_id)
+    ).all()}
+    status = _confirmafy_patient_status_map(db, patients)
+    reasons: dict[int, list[str]] = {int(p.id): [] for p in patients}
+    matches: dict[int, list[dict]] = {int(p.id): [] for p in patients}
+    historical_matches = _historical_review_matches(patients)
+
+    for p in patients:
+        if patient_name_quality(p.nombre) == "incompleto":
+            reasons[int(p.id)].append("Nombre corto: confirma apellidos y nombres")
+        if status.get(int(p.id), {}).get("confirmafy_origin"):
+            reasons[int(p.id)].append("Ficha creada por una importación antigua de Confirmafy")
+        hm = historical_matches.get(int(p.id)) or []
+        if hm:
+            reasons[int(p.id)].append(f"Posible histórico: {hm[0].get('nombre')}")
+            if len(hm) > 1:
+                reasons[int(p.id)].append(f"+ {len(hm)-1} histórico(s) parecido(s)")
+            matches[int(p.id)].extend(hm)
+
+    # Comparación O(n²) solo bajo demanda. En la PC del consultorio se ejecuta
+    # únicamente al pulsar Por revisar/Confirmafy y sobre SQLite local.
+    for i, left in enumerate(patients):
+        for right in patients[i + 1:]:
+            score, why = patient_similarity(left, right)
+            if score < 0.78:
+                continue
+            left_id, right_id = int(left.id), int(right.id)
+            reasons[left_id].append(f"Posible coincidencia con {right.nombre}")
+            reasons[right_id].append(f"Posible coincidencia con {left.nombre}")
+            matches[left_id].append({
+                **p_dict(right), "similarity": round(score, 3), "similar_reason": why,
+                "ultima_atencion": last_dates.get(right_id),
+                "visit_count": status.get(right_id, {}).get("visit_count", 0),
+            })
+            matches[right_id].append({
+                **p_dict(left), "similarity": round(score, 3), "similar_reason": why,
+                "ultima_atencion": last_dates.get(left_id),
+                "visit_count": status.get(left_id, {}).get("visit_count", 0),
+            })
+
+    rows = []
+    for p in patients:
+        pid = int(p.id); st = status.get(pid, {})
+        if confirmafy_only and not st.get("confirmafy_origin"):
+            continue
+        rs = reasons.get(pid) or []
+        if not confirmafy_only and not rs:
+            continue
+        candidates = sorted(matches.get(pid) or [], key=lambda x: (-float(x.get("similarity") or 0), 0 if x.get("historical") else 1, str(x.get("nombre") or "")))[:6]
+        item = {
+            **p_dict(p), "ultima_atencion": last_dates.get(pid), "historical": False,
+            "review_reason": " · ".join(dict.fromkeys(rs)),
+            "review_matches": candidates,
+            **st,
+        }
+        rows.append(item)
+    rows.sort(key=lambda x: (
+        0 if x.get("safe_confirmafy_delete") else 1,
+        0 if x.get("review_matches") else 1,
+        str(x.get("nombre") or ""),
+    ))
+    return rows[:limit]
+
+def _confirmafy_import_audit_windows(db: Session) -> list[tuple[datetime, datetime]]:
+    """Ventanas de tiempo que prueban que un paciente pudo ser creado por Confirmafy.
+
+    Las versiones antiguas no guardaban un campo de origen en Patient. Sin embargo,
+    sí registraban en Audit el final de cada importación. Los pacientes creados por
+    aquella importación se insertaban segundos/minutos antes de ese Audit. Usamos una
+    ventana conservadora de 15 minutos hacia atrás y 1 minuto hacia adelante.
+    """
+    rows = list(db.scalars(
+        select(Audit).where(or_(
+            Audit.action == AGENDA_SEED_ACTION,
+            Audit.action == "importar_agenda_confirmafy",
+        )).order_by(Audit.ts)
+    ))
+    windows: list[tuple[datetime, datetime]] = []
+    for row in rows:
+        if not row.ts:
+            continue
+        windows.append((row.ts - timedelta(minutes=15), row.ts + timedelta(minutes=1)))
+    return windows
+
+
+def _confirmafy_legacy_duplicate_plan(db: Session, patient_rows: list[Patient]) -> list[dict]:
+    """Detecta duplicados antiguos creados por importaciones de Confirmafy.
+
+    Solo considera como eliminable un registro MUY conservador:
+    - no tiene atenciones clínicas;
+    - no tiene cédula, correo, nacimiento, lugar ni notas (el celular sí puede venir de Confirmafy);
+    - o bien conserva citas y TODAS son CONFIRMAFY_IMPORTADO, o bien su fecha de creación
+      cae dentro de una ventana de importación registrada en Audit;
+    - existe exactamente un paciente establecido con coincidencia segura;
+    - si ambos tienen celular, debe ser el mismo.
+
+    Esto permite limpiar también huérfanos cuyo último Appointment importado ya fue
+    purgado por la limpieza semanal, sin confundirlos con pacientes creados manualmente.
+    Si no existe una coincidencia única, no se toca nada.
+    """
+    if not patient_rows:
+        return []
+    visit_counts = {
+        int(pid): int(total or 0)
+        for pid, total in db.execute(
+            select(Visit.patient_id, func.count(Visit.id)).group_by(Visit.patient_id)
+        ).all()
+    }
+    appointment_stats = {
+        int(pid): (int(total or 0), int(imported or 0))
+        for pid, total, imported in db.execute(
+            select(
+                Appointment.patient_id,
+                func.count(Appointment.id),
+                func.sum(case((Appointment.origen == "CONFIRMAFY_IMPORTADO", 1), else_=0)),
+            ).group_by(Appointment.patient_id)
+        ).all()
+    }
+    import_windows = _confirmafy_import_audit_windows(db)
+
+    def created_during_confirmafy_import(p: Patient) -> bool:
+        created = p.created_at
+        if not created:
+            return False
+        return any(start <= created <= end for start, end in import_windows)
+
+    def clearly_imported_only(p: Patient) -> bool:
+        total, imported = appointment_stats.get(int(p.id), (0, 0))
+        sparse = not any([p.cedula, p.fecha_nacimiento, p.correo, p.lugar, p.notas])
+        source_proven = bool((total > 0 and imported == total) or (total == 0 and created_during_confirmafy_import(p)))
+        return bool(
+            visit_counts.get(int(p.id), 0) == 0
+            and sparse
+            and source_proven
+        )
+
+    imported_only = [p for p in patient_rows if clearly_imported_only(p)]
+    imported_ids = {int(p.id) for p in imported_only}
+    established = [p for p in patient_rows if int(p.id) not in imported_ids]
+    plan = []
+
+    for duplicate in imported_only:
+        dup_phone = normalize_lookup_phone(duplicate.celular)
+        dup_name = normalize_lookup_name(duplicate.nombre)
+
+        # 1) Mismo celular, siempre que sea una coincidencia única.
+        phone_matches = [
+            p for p in established
+            if dup_phone and normalize_lookup_phone(p.celular) == dup_phone
+        ]
+        keeper = phone_matches[0] if len(phone_matches) == 1 else None
+        reason = "mismo celular" if keeper is not None else ""
+
+        # 2) Nombre compatible único. También tolera una errata pequeña como
+        # JHONNY/JHONY, pero únicamente para una ficha cuyo origen Confirmafy ya
+        # fue demostrado y que no tiene historial clínico.
+        if keeper is None and len(phone_matches) <= 1:
+            name_matches = []
+            for p in established:
+                keeper_phone = normalize_lookup_phone(p.celular)
+                if dup_phone and keeper_phone and dup_phone != keeper_phone:
+                    continue
+                score, why = patient_similarity(duplicate, p)
+                if score >= 0.78:
+                    name_matches.append((p, why))
+            if len(name_matches) == 1:
+                keeper = name_matches[0][0]
+                reason = name_matches[0][1] or "nombre compatible único"
+
+        if keeper is None:
+            continue
+        plan.append({
+            "duplicate": duplicate,
+            "keeper": keeper,
+            "reason": reason,
+            "duplicate_phone": dup_phone,
+        })
+    return plan
+
+
+def _apply_confirmafy_legacy_duplicate_plan(db: Session, plan: list[dict]) -> dict:
+    """Fusiona citas y borra únicamente el registro importado redundante."""
+    if not plan:
+        return {"cleaned": 0, "appointments_moved": 0, "appointments_removed": 0}
+    duplicate_ids = [int(x["duplicate"].id) for x in plan]
+    keeper_ids = [int(x["keeper"].id) for x in plan]
+    relevant_ids = sorted(set(duplicate_ids + keeper_ids))
+    appointments = list(db.scalars(select(Appointment).where(Appointment.patient_id.in_(relevant_ids))))
+    by_patient: dict[int, list[Appointment]] = {}
+    for appointment in appointments:
+        by_patient.setdefault(int(appointment.patient_id), []).append(appointment)
+
+    moved = removed = cleaned = 0
+    for item in plan:
+        duplicate = item["duplicate"]
+        keeper = item["keeper"]
+        dup_id, keeper_id = int(duplicate.id), int(keeper.id)
+        keeper_keys = {(a.fecha, str(a.hora)) for a in by_patient.get(keeper_id, [])}
+        duplicate_appointments = by_patient.get(dup_id, [])
+        remove_ids = [int(a.id) for a in duplicate_appointments if (a.fecha, str(a.hora)) in keeper_keys]
+        move_ids = [int(a.id) for a in duplicate_appointments if int(a.id) not in set(remove_ids)]
+
+        if remove_ids:
+            db.execute(delete(Appointment).where(Appointment.id.in_(remove_ids)))
+            removed += len(remove_ids)
+        if move_ids:
+            db.execute(update(Appointment).where(Appointment.id.in_(move_ids)).values(patient_id=keeper_id))
+            moved += len(move_ids)
+
+        if not keeper.celular and duplicate.celular:
+            keeper.celular = duplicate.celular
+        db.execute(delete(Patient).where(Patient.id == dup_id))
+        cleaned += 1
+    db.flush()
+    return {"cleaned": cleaned, "appointments_moved": moved, "appointments_removed": removed}
+
+
+def seed_initial_agenda(session_factory):
+    """Importa la agenda inicial sin crear pacientes automáticamente.
+
+    v4.2.6: incluso en una instalación nueva, Confirmafy solo puede vincular
+    citas a pacientes ya existentes. Los nombres parciales pueden coincidir si
+    la coincidencia es única y no hay celulares contradictorios.
+    """
+    if session_factory is None or not os.path.exists(AGENDA_INITIAL_FILE):
+        return {"imported": 0, "patients_created": 0, "skipped": True}
+    try:
+        with session_factory() as db:
+            if db.scalar(select(Audit.id).where(Audit.action == AGENDA_SEED_ACTION).limit(1)):
+                return {"imported": 0, "patients_created": 0, "skipped": True}
+
+            patient_rows = list(db.scalars(select(Patient).order_by(Patient.id)))
+            by_phone: dict[str, list[Patient]] = {}
+            by_name: dict[str, list[Patient]] = {}
+            for p in patient_rows:
+                ph = normalize_lookup_phone(p.celular)
+                nm = normalize_lookup_name(p.nombre)
+                if ph:
+                    by_phone.setdefault(ph, []).append(p)
+                if nm:
+                    by_name.setdefault(nm, []).append(p)
+
+            def match_existing(name: str, phone: str):
+                phone_matches = by_phone.get(phone, []) if phone else []
+                if len(phone_matches) == 1:
+                    return phone_matches[0]
+                if len(phone_matches) > 1:
+                    return None
+                name_key = normalize_lookup_name(name)
+                exact = by_name.get(name_key, []) if name_key else []
+                if len(exact) == 1:
+                    return exact[0]
+                if len(exact) > 1:
+                    return None
+                fuzzy = []
+                for p in patient_rows:
+                    pp = normalize_lookup_phone(p.celular)
+                    if phone and pp and phone != pp:
+                        continue
+                    if strong_name_overlap(name_key, p.nombre):
+                        fuzzy.append(p)
+                return fuzzy[0] if len(fuzzy) == 1 else None
+
+            imported = skipped_unmatched = 0
+            source_slots: dict[tuple[str, str], int] = {}
+            with open(AGENDA_INITIAL_FILE, encoding="utf-8-sig", newline="") as f:
+                rows = list(csv.DictReader(f))
+
+            for row in rows:
+                name = " ".join((row.get("name") or "").replace("\t", " ").split()).upper()
+                phone = normalize_lookup_phone(row.get("phone"))
+                if not name:
+                    continue
+                try:
+                    fecha = date.fromisoformat(str(row.get("date") or "")[:10])
+                except Exception:
+                    continue
+                hora = str(row.get("time") or "").strip()[:5]
+                if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", hora):
+                    continue
+
+                p = match_existing(name, phone)
+                if p is None:
+                    skipped_unmatched += 1
+                    continue
+                if not p.celular and phone:
+                    p.celular = phone
+                    by_phone.setdefault(phone, []).append(p)
+
+                exists = db.scalar(select(Appointment.id).where(
+                    Appointment.patient_id == p.id,
+                    Appointment.fecha == fecha,
+                    Appointment.hora == hora,
+                ).limit(1))
+                if exists:
+                    continue
+                db.add(Appointment(
+                    patient_id=p.id, fecha=fecha, hora=hora, duracion=20, nota=None,
+                    estado="CARGADO", origen="CONFIRMAFY_IMPORTADO",
+                    exported_at=datetime.utcnow(), loaded_at=datetime.utcnow(),
+                ))
+                imported += 1
+                slot_key = (fecha.isoformat(), hora)
+                source_slots[slot_key] = source_slots.get(slot_key, 0) + 1
+
+            source_conflicts = sum(1 for n in source_slots.values() if n > 1)
+            db.add(Audit(
+                username="system", action=AGENDA_SEED_ACTION,
+                detail=f"{imported} citas importadas, 0 pacientes creados, {skipped_unmatched} pacientes no identificados, {source_conflicts} conflicto(s)",
+            ))
+            db.commit()
+            return {
+                "imported": imported, "patients_created": 0,
+                "unmatched": skipped_unmatched, "source_conflicts": source_conflicts,
+                "skipped": False,
+            }
+    except Exception:
+        return {"imported": 0, "patients_created": 0, "skipped": True}
+
+
+def seed_database(session_factory):
+    """Crea mínimos iniciales con pocas consultas (importante para Neon)."""
+    if session_factory is None:
+        return
+    try:
+        with session_factory() as db:
+            # Antes se hacía una consulta por cada procedimiento. Ahora son dos
+            # lecturas pequeñas en total: usuario existente + nombres existentes.
+            if not db.scalar(select(User.id).limit(1)):
+                db.add(User(username="admin", password_hash=hash_password("Cambiar123!"), role="admin"))
+            quick_procedures = [
+                ("FULGURACION", None),
+                ("CISTOSCOPIA", None),
+                ("DILATACION", None),
+                ("CIRCUNSICION", None),
+                ("INSTILACION", 80),
+            ]
+            names = [x[0] for x in quick_procedures]
+            existing = set(db.

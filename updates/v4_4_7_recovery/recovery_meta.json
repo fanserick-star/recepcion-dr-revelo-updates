@@ -1,0 +1,8 @@
+{
+  "app_sha256": "a54ddd8958acddc13ca7df4d028d0d04f33bc9d25662d551a23758f7fbdf2bc7",
+  "driver": "pg8000",
+  "parts_count": 7,
+  "source_sha256": "33ba932ef73ae28722c5f8f1a75d439a82cfb4a67adb78d837430522b786f9a8",
+  "source_version": "4.3.64",
+  "version": "4.4.7"
+}
