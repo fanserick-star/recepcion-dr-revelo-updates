@@ -1,0 +1,96 @@
+name: Validar y publicar v4.3.104 final
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v43104/build_v43104_final.py'
+      - '.github/workflows/build-v43104-final.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Construir candidato final
+        run: python build/v43104/build_v43104_final.py
+      - name: Reconstruir y validar
+        run: |
+          cat updates/v43104/app.part* > _ci_app.py
+          cat updates/v43104/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          python - <<'PY'
+          import ast,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          assert 'APP_VERSION = "4.3.104"' in app
+          assert "replace(/^[^A-Za-zÁÉÍÓÚáéíóúÑñ]+/,'')" in app
+          assert 'Nombre incompleto' in app and 'Faltan datos' in app
+          assert 'V43103_SERVICES_CSS' in app and 'Procedimientos y servicios' in app
+          assert "price.textContent='$40.00'" in app
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.104'
+          tree=ast.parse(app); js=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V43104_ALERT_JS' for t in node.targets): js=ast.literal_eval(node.value); break
+          assert js and 'MutationObserver' not in js
+          Path('_alert.js').write_text(js,encoding='utf-8')
+          PY
+      - name: Probar advertencias y preservar servicios
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install jsdom@26 >/dev/null 2>&1
+          cat > _dom_test.mjs <<'JS'
+          import fs from 'node:fs';
+          import {JSDOM} from 'jsdom';
+          const ps=['FULGURACIÓN','CISTOSCOPIA','DILATACIÓN','CIRCUNCISIÓN','INSTILACIÓN','LAVADO','CAMBIO DE SONDA','CISTO Y DILATACIÓN','SERVICIO DE UROLOGÍA'];
+          const buttons=ps.map(n=>`<button class="service-card" data-service="${n}"><strong>${n}</strong></button>`).join('');
+          const html=`<div id="modal"><div class="modalbox"><h2>Nueva atención</h2><section class="v492-clinical-head"><div class="v492-head-main"><strong>MOREJON JACOME FERNANDO</strong></div></section><div class="native-warning"><span>⚠ Faltan datos: cédula, correo</span><button>Completar datos</button></div><div class="service-groups"><div class="consultation-service-section"><button class="service-card consultation-card" data-service="CONSULTA"><strong>CONSULTA</strong><span class="service-price">$40.00</span></button></div><div class="procedures-service-section">${buttons}</div></div></div></div>`;
+          const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true});
+          dom.window.eval(fs.readFileSync('_alert.js','utf8'));
+          dom.window.document.dispatchEvent(new dom.window.Event('DOMContentLoaded',{bubbles:true}));
+          await new Promise(r=>setTimeout(r,260));
+          const box=dom.window.document.querySelector('.modalbox');
+          const band=box.querySelector('.v43104-alert-band'); if(!band)throw new Error('sin banda');
+          const txt=band.textContent.replace(/\s+/g,' ').trim(); console.log(txt);
+          if(!txt.includes('Faltan datos: cédula, correo'))throw new Error('faltan datos ausentes');
+          if(!txt.includes('Nombre incompleto: ideal registrar dos apellidos y dos nombres'))throw new Error('nombre incompleto ausente');
+          if(!band.querySelector('button'))throw new Error('sin completar datos');
+          if(!box.querySelector('.native-warning').classList.contains('v43104-old-warning-source'))throw new Error('warning nativo visible');
+          const c=box.querySelector('.consultation-service-section [data-service="CONSULTA"]'); if(!c||!c.textContent.includes('$40.00'))throw new Error('consulta alterada');
+          if(box.querySelectorAll('.procedures-service-section .service-card').length!==9)throw new Error('procedimientos alterados');
+          console.log('V43104_FINAL_DOM_OK');
+          JS
+          node _dom_test.mjs
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data; mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v43104/static/index.html _smoke_root/static/index.html
+          cp updates/v43104/static/app.js _smoke_root/static/app.js
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8765 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request
+          for _ in range(100):
+              time.sleep(.25)
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8765/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+                  if d.get('version')=='4.3.104': print('BACKEND_OK'); break
+              except Exception: pass
+          else: raise SystemExit(open('_smoke.log',encoding='utf-8',errors='replace').read())
+          PY
+          kill "$(cat _smoke.pid)" || true
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v43104 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.104 advertencias restauradas'
+          git pull --rebase origin main
+          git push
