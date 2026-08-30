@@ -1,0 +1,156 @@
+name: Validar y publicar v4.4.3
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v443/**'
+      - '.github/workflows/build-v443-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+
+      - name: Construir candidato
+        run: python build/v443/build_v443.py
+
+      - name: Reconstruir y compilar
+        run: |
+          cat updates/v443/app.part* > _ci_app.py
+          cat updates/v443/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+          node --check updates/v443/static/app.js
+
+      - name: Validar regresiones y ahorro de Neon
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          js=Path('updates/v443/static/app.js').read_text(encoding='utf-8')
+          required=[
+            'APP_VERSION = "4.4.3"','TRASH_RETENTION_DAYS = 7',
+            'Actividad local-first estricta','Lectura estrictamente local',
+            'Guarda la Papelera únicamente en SQLite local','Resumen de datos y servicios',
+            'V443_CLEANUP_CSS','V443_CLEANUP_JS','sanitizeHashLinks','cleanAttentionGhostRows',
+            'V43104_ALERT_JS','Procedimientos y servicios',"price.textContent='$40.00'",'Emitir por lotes'
+          ]
+          for token in required: assert token in app,token
+          for token in ['/api/patients/{pid}/quick','/api/ops/agenda-smart']:
+            assert token not in app,token
+          assert 'new-patient-callout' not in js
+          assert 'attention-start-search' not in js
+          assert 'id="aSearch"' not in js
+          assert 'attention-agenda-only' in js
+          assert '<span class="service-price">$40.00</span>' in js
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.3'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('STRUCTURE_V443_OK')
+          PY
+
+      - name: Extraer limpieza v4.4.3
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          tree=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          vals={}
+          for node in tree.body:
+            if isinstance(node,ast.Assign):
+              for target in node.targets:
+                if isinstance(target,ast.Name) and target.id in {'V443_CLEANUP_JS','V443_CLEANUP_CSS'}:
+                  vals[target.id]=ast.literal_eval(node.value)
+          assert vals.get('V443_CLEANUP_JS') and vals.get('V443_CLEANUP_CSS')
+          assert 'MutationObserver' not in vals['V443_CLEANUP_JS']
+          Path('_v443.js').write_text(vals['V443_CLEANUP_JS'],encoding='utf-8')
+          Path('_v443.css').write_text(vals['V443_CLEANUP_CSS'],encoding='utf-8')
+          print('EXTRACT_V443_OK')
+          PY
+
+      - name: Probar filas fantasma y enlace hash
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install jsdom@26 >/dev/null 2>&1
+          cat > _dom_test.mjs <<'JS'
+          import fs from 'node:fs';
+          import {JSDOM} from 'jsdom';
+          const html=`<!doctype html><html><body>
+            <a id="oldPatientLink" href="#">PACIENTE</a>
+            <div id="modal"><div class="modalbox v492-attention"><div class="attention-form-modal">
+              <section class="v492-clinical-head"><div>PACIENTE</div></section>
+              <div class="v493-alert-band">Advertencia</div>
+              <div id="attentionStatus"></div>
+              <div class="attention-date-card"></div>
+              <div class="service-title enhanced"><span style="display:none">Selecciona la atención</span></div>
+              <div class="service-groups v43103-native-services"><div class="consultation-service-section"><button class="service-card">CONSULTA</button></div><div class="procedures-service-section">PROCEDIMIENTOS</div></div>
+            </div></div></div>
+          </body></html>`;
+          const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'http://127.0.0.1:8766/'});
+          const {window}=dom,D=window.document;
+          window.eval(fs.readFileSync('_v443.js','utf8'));
+          D.dispatchEvent(new window.Event('DOMContentLoaded',{bubbles:true}));
+          await new Promise(r=>setTimeout(r,180));
+          if(D.querySelector('#oldPatientLink').hasAttribute('href'))throw new Error('href # no fue eliminado');
+          if(!D.querySelector('#attentionStatus').classList.contains('v443-attention-empty-hidden'))throw new Error('attentionStatus vacío sigue visible');
+          if(!D.querySelector('.attention-date-card').classList.contains('v443-attention-empty-hidden'))throw new Error('date source vacío sigue visible');
+          if(!D.querySelector('.service-title.enhanced').classList.contains('v443-attention-empty-hidden'))throw new Error('service title legado sigue visible');
+          if(D.querySelector('.service-groups').classList.contains('v443-attention-empty-hidden'))throw new Error('se ocultaron servicios reales');
+          console.log('DOM_V443_OK');
+          JS
+          node _dom_test.mjs
+
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v443/static/index.html _smoke_root/static/index.html
+          cp updates/v443/static/app.js _smoke_root/static/app.js
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8765 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 &)
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(100):
+            time.sleep(.25)
+            try:
+              with urllib.request.urlopen('http://127.0.0.1:8765/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+              if d.get('version')=='4.4.3':ok=True;break
+            except Exception: pass
+          if not ok:
+            print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+            raise SystemExit('backend portable no arrancó')
+          print('PORTABLE_BACKEND_V443_OK')
+          PY
+
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v443 latest.json latest-v3.json
+          if ! git diff --cached --quiet; then git commit -m 'release: publicar v4.4.3 limpieza visual'; fi
+          git pull --rebase origin main
+          git push
