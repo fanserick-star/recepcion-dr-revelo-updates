@@ -1,0 +1,215 @@
+name: Validar y publicar v4.4.16 recuperación local históricos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4416_historical_import/**'
+      - '.github/workflows/publish-v4416-historical-import.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4416-historical-import
+  cancel-in-progress: false
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.16 desde v4.4.15 estable
+        shell: pwsh
+        run: python build/v4416_historical_import/build_release.py
+
+      - name: Guard de release y sintaxis
+        shell: pwsh
+        run: |
+          python tools/release_guard.py --app updates/v4_4_16_historical_import/app.py --manifest updates/v4_4_16_historical_import/update_manifest.json --version 4.4.16
+          python -m py_compile updates/v4_4_16_historical_import/app.py
+          node --check updates/v4_4_16_historical_import/static/app.js
+
+      - name: Guard de privacidad y alcance
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json
+          root=Path('updates/v4_4_16_historical_import')
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          js=(root/'static/app.js').read_text(encoding='utf-8-sig')
+          index=(root/'static/index.html').read_text(encoding='utf-8-sig')
+          latest=json.loads(Path('build/v4416_historical_import/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          assert 'APP_VERSION = "4.4.16"' in app
+          assert '@app.post("/api/historical/import")' in app
+          assert 'LocalSessionLocal() as ldb' in app
+          assert 'len(parsed) < 1000' in app
+          assert 'data-historical-import="1"' in js
+          assert 'FormData()' in js
+          assert '/static/app.js?v=4.4.16' in index
+          forbidden=[]
+          for p in root.rglob('*'):
+              if p.is_file() and p.suffix.lower() in {'.csv','.xlsx','.xls','.db','.sqlite'}:
+                  forbidden.append(str(p))
+          assert not forbidden, forbidden
+          for f in latest['files']:
+              assert '/main/' in f['url']
+              assert 'HISTORICO_PACIENTES' not in f['url']
+          print('V4416_PRIVACY_SCOPE_OK')
+          '@ | python -
+
+      - name: Crear runtime igual al consultorio y sin psycopg
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check --no-input `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('RUNTIME_OK')"
+          $hasPsycopg=& .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'El smoke debe correr sin psycopg' }
+
+      - name: Preparar instalación simulada completa
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'Recepcion-v4416-smoke'
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $base=Join-Path $env:RUNNER_TEMP 'rp-base-v4416'
+          if(Test-Path $base){Remove-Item $base -Recurse -Force}
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src=Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){throw "Falta $name en base limpia"}
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static=Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){throw 'Falta static en base limpia'}
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile=Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse}
+          Copy-Item updates/v4_4_16_historical_import/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item updates/v4_4_16_historical_import/update_manifest.json (Join-Path $root 'update_manifest.json') -Force
+          Copy-Item updates/v4_4_16_historical_import/static/index.html (Join-Path $root 'static\index.html') -Force
+          Copy-Item updates/v4_4_16_historical_import/static/app.js (Join-Path $root 'static\app.js') -Force
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          Get-ChildItem $root -Recurse -File | Where-Object {$_.Name -like 'HISTORICO_PACIENTES*'} | Remove-Item -Force
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke real - importar histórico solo a SQLite local
+        shell: pwsh
+        run: |
+          $listener=[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v4416.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v4416.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 140;$i++){
+              Start-Sleep -Milliseconds 250
+              try{$v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version' -TimeoutSec 1;if([string]$v.version -eq '4.4.16'){$ok=$true;break}}catch{}
+              if($proc.HasExited){break}
+            }
+            if(-not $ok){if(Test-Path $outlog){Get-Content $outlog -Tail 180};if(Test-Path $errlog){Get-Content $errlog -Tail 180};throw 'Backend 4.4.16 no arrancó en 8766'}
+            @'
+          import csv, hashlib, http.client, io, json, urllib.request
+          from pathlib import Path
+          base='127.0.0.1:8766'
+          csv_path=Path(__import__('os').environ['RUNNER_TEMP'])/'historico_sintetico.csv'
+          fields=['source_key','nombre','search_text','cedula','celular','correo','lugar','first_year','last_year','last_visit_date','row_count','aliases','phones','emails','cedulas']
+          with csv_path.open('w',encoding='utf-8-sig',newline='') as f:
+              w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+              for i in range(1200):
+                  name=f'PACIENTE HISTORICO PRUEBA {i:04d}'
+                  w.writerow({'source_key':hashlib.sha1(name.encode()).hexdigest(),'nombre':name,'search_text':name,'cedula':f'{1200000000+i:010d}','celular':'0990000000','correo':'','lugar':'QUEVEDO','first_year':2020,'last_year':2025,'last_visit_date':'2025-08-15','row_count':2,'aliases':name,'phones':'0990000000','emails':'','cedulas':f'{1200000000+i:010d}'})
+          raw=csv_path.read_bytes()
+          boundary='----RP4416Boundary'
+          head=(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="historico_sintetico.csv"\r\nContent-Type: text/csv\r\n\r\n').encode()
+          body=head+raw+f'\r\n--{boundary}--\r\n'.encode()
+          conn=http.client.HTTPConnection('127.0.0.1',8766,timeout=20)
+          conn.request('POST','/api/historical/import',body=body,headers={'Content-Type':f'multipart/form-data; boundary={boundary}','Content-Length':str(len(body))})
+          resp=conn.getresponse();data=json.loads(resp.read().decode());conn.close()
+          assert resp.status==200,(resp.status,data)
+          assert data['loaded']==1200,data
+          with urllib.request.urlopen('http://127.0.0.1:8766/api/historical/stats',timeout=5) as r:stats=json.loads(r.read().decode())
+          assert stats['total']==1200,stats
+          with urllib.request.urlopen('http://127.0.0.1:8766/api/patients?mode=historical&limit=30',timeout=5) as r:rows=json.loads(r.read().decode())
+          assert len(rows)==30,len(rows)
+          assert rows[0].get('historical') is True,rows[0]
+          assert str(rows[0].get('historical_last_visit_date'))[:10]=='2025-08-15',rows[0]
+          print('V4416_LOCAL_HISTORICAL_IMPORT_OK',stats)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\v4416_import_smoke.py
+            & $py $env:RUNNER_TEMP\v4416_import_smoke.py
+            $js=(Invoke-WebRequest 'http://127.0.0.1:8766/static/app.js?v=4.4.16' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $js.Contains('data-historical-import="1"')){throw 'No se sirvió el botón de importación local'}
+            $page=(Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $page.Contains('/static/app.js?v=4.4.16')){throw 'Index no fuerza app.js v4.4.16'}
+            if(Test-Path (Join-Path $env:SMOKE_ROOT 'HISTORICO_PACIENTES_2020_2025.csv')){throw 'El smoke no debe guardar el CSV clínico en la raíz'}
+            Write-Host 'V4416_RUNTIME_IMPORT_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue}
+            $listener.Stop()
+          }
+
+      - name: Publicar payload sin mover todavía el canal
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_16_historical_import
+          git commit -m 'payload: v4.4.16 importación local históricos validada'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar bytes reales desde GitHub Raw
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4416_historical_import/candidate_latest.json
+
+      - name: Mover canal a v4.4.16
+        shell: pwsh
+        run: |
+          Copy-Item build/v4416_historical_import/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4416_historical_import/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          git commit -m 'release: publicar v4.4.16 recuperación local históricos'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar propagación final y SHA remoto
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4416-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4416-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r:raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.16':
+                      out.write_bytes(raw);print('CHANNEL_4416_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else:raise SystemExit('Canal no propagó 4.4.16; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4416.py
+          python $env:RUNNER_TEMP\wait4416.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4416-remote.json
+          Write-Host 'V4416_PUBLISHED_AND_REMOTE_VERIFIED'
