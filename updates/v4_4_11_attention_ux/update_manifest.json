@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.11",
+  "app_version": "4.4.9",
+  "runtime_version": "4.4.9",
+  "launcher_version": "4.3.100-standalone-7",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "static/app.js",
+    "static/index.html",
+    "update_manifest.json"
+  ]
+}
