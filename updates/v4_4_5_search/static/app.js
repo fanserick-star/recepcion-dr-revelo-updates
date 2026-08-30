@@ -1,4 +1,4 @@
-// v4.4.5 — Restaurar búsqueda dentro de Nueva atención.
+// v4.4.5 — Restaurar búsqueda dentro de Nueva atención y limpiar acciones externas.
 (() => {
   'use strict';
 
@@ -32,6 +32,25 @@
     document.head.appendChild(style);
   }
 
+  function attentionModalV445() {
+    return [...document.querySelectorAll('#modal .modalbox,.modal .modalbox,.modalbox')].find(box =>
+      [...box.querySelectorAll('h1,h2,h3')].some(h => String(h.textContent || '').replace(/\s+/g,' ').trim().toLowerCase() === 'nueva atención')
+    ) || null;
+  }
+
+  function cleanAttentionExternalActionsV445() {
+    const box = attentionModalV445();
+    if (!box) return;
+    [...box.querySelectorAll('button,a')].forEach(el => {
+      const text = String(el.textContent || '').replace(/\s+/g,' ').trim().toLowerCase();
+      const onclick = String(el.getAttribute('onclick') || '').toLowerCase();
+      const href = String(el.getAttribute('href') || '').toLowerCase();
+      if (text.includes('facturero móvil') || text.includes('facturero movil') || onclick.includes("openexternalapp('facturero')") || onclick.includes('openexternalapp("facturero")') || href.includes('factureromovil')) {
+        el.remove();
+      }
+    });
+  }
+
   function attentionSearchResultHtmlV445(p) {
     if (typeof isHistoricalPatient === 'function' && isHistoricalPatient(p)) {
       const years = typeof historicalYears === 'function' ? historicalYears(p) : '2020–2025';
@@ -43,6 +62,9 @@
   window.useAttentionPatientV445 = async function(patientId) {
     try {
       await attentionFor(Number(patientId));
+      setTimeout(cleanAttentionExternalActionsV445, 0);
+      setTimeout(cleanAttentionExternalActionsV445, 80);
+      setTimeout(cleanAttentionExternalActionsV445, 220);
     } catch (e) {
       alert(e.message || 'No se pudo abrir la atención.');
     }
@@ -51,6 +73,9 @@
   window.useAttentionHistoricalV445 = async function(historicalId) {
     try {
       await activateHistoricalPatient(Number(historicalId), 'attention');
+      setTimeout(cleanAttentionExternalActionsV445, 0);
+      setTimeout(cleanAttentionExternalActionsV445, 80);
+      setTimeout(cleanAttentionExternalActionsV445, 220);
     } catch (e) {
       alert(e.message || 'No se pudo abrir la ficha histórica.');
     }
@@ -127,6 +152,13 @@
       loadAttentionWeek(false, attentionWeekAnchor);
       setTimeout(() => document.querySelector('#attentionPatientSearchV445')?.focus(), 70);
     };
+
+    const observer = new MutationObserver(() => cleanAttentionExternalActionsV445());
+    observer.observe(document.documentElement, {childList:true, subtree:true});
+    document.addEventListener('click', () => {
+      setTimeout(cleanAttentionExternalActionsV445, 0);
+      setTimeout(cleanAttentionExternalActionsV445, 90);
+    }, true);
   }
 
   function loadStableBaseV445() {
