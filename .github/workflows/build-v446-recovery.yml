@@ -1,0 +1,86 @@
+name: Recuperar y publicar v4.4.6
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v446_recovery/**'
+      - '.github/workflows/build-v446-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  recover-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir recuperación limpia
+        run: python build/v446_recovery/build_v446_recovery.py
+
+      - name: Validar app recuperada
+        run: |
+          cat updates/v4_4_6_recovery/app.part* > _recovered_app.py
+          python -m py_compile _recovered_app.py
+          node --check updates/v4_4_6_recovery/static/app.js
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          stable=b''.join(p.read_bytes() for p in sorted(Path('updates/v464').glob('app.part*'), key=lambda p:int(p.name.split('part')[-1])))
+          assert hashlib.sha256(stable).hexdigest()=='33ba932ef73ae28722c5f8f1a75d439a82cfb4a67adb78d837430522b786f9a8'
+
+          recovered=Path('_recovered_app.py').read_text(encoding='utf-8')
+          assert 'APP_VERSION = "4.4.6"' in recovered
+          assert 'V459_SETTINGS_JS' in recovered
+          assert 'openLinkedAgendaDetail' in recovered
+          assert 'attention-agenda-only' not in recovered
+          assert 'V443_CLEANUP_JS' not in recovered
+          assert 'V443_CLEANUP_CSS' not in recovered
+
+          latest=json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.6'
+          assert latest['app_version']=='4.4.6'
+          paths={x['path'] for x in latest['files']}
+          assert paths=={'ABRIR_RECEPCION.py','app.py','static/index.html','static/app.js','static/app_base.js','update_manifest.json'}
+          forbidden=('data/','offline_cache.db','recepcion.db','.env','BASE DE DATOS')
+          for p in paths:
+              assert not any(x.lower() in p.lower() for x in forbidden), p
+
+          manifest=json.loads(Path('updates/v4_4_6_recovery/update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version']=='4.4.6'
+          assert not any('data/' in p or '.env' in p.lower() or p.endswith('.db') for p in manifest['copy'])
+
+          stub=Path('updates/v4_4_6_recovery/static/app_base.js').read_text(encoding='utf-8')
+          assert 'archivo legado neutralizado' in stub
+          print('RECOVERY_V446_VALIDATED')
+          PY
+
+      - name: Verificar que la interfaz base sea la original del instalador
+        run: |
+          rm -rf _clean_base
+          mkdir _clean_base
+          unzip -q installer_clean/base/clean_base_resources.zip -d _clean_base
+          BASE_INDEX="$(find _clean_base -path '*/static/index.html' -type f | head -n1)"
+          BASE_JS="$(find _clean_base -path '*/static/app.js' -type f | head -n1)"
+          test -n "$BASE_INDEX"
+          test -n "$BASE_JS"
+          cmp "$BASE_INDEX" updates/v4_4_6_recovery/static/index.html
+          cmp "$BASE_JS" updates/v4_4_6_recovery/static/app.js
+          echo PRISTINE_STATIC_OK
+
+      - name: Publicar canal de recuperación
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_6_recovery latest.json latest-v3.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'release: recuperación limpia v4.4.6 desde v4.3.64'
+          fi
+          git pull --rebase origin main
+          git push
