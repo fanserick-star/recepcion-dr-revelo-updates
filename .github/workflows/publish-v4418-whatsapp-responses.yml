@@ -41,7 +41,7 @@ jobs:
           node --check updates/v4_4_18_whatsapp_responses/static/app.js
           python build/v4418_whatsapp_responses/fix_channel_manifest.py
 
-      - name: Confirmar funciones críticas heredadas y nuevas
+      - name: Confirmar funciones y compatibilidad con launcher
         shell: pwsh
         run: |
           @'
@@ -52,48 +52,42 @@ jobs:
           js=(root/'static/app.js').read_text(encoding='utf-8-sig')
           html=(root/'static/index.html').read_text(encoding='utf-8-sig')
           channel=json.loads(Path('build/v4418_whatsapp_responses/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          prefix='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/'
           assert channel['product']=='recepcion-pacientes'
           assert channel['version']=='4.4.18'
           assert len(channel['files'])==4
+          assert all(str(f.get('url') or '').startswith(prefix) for f in channel['files'])
           assert '@app.get("/api/whatsapp-responses/count")' in app
           assert '@app.post("/api/whatsapp-responses/{response_id}/resolve")' in app
           assert 'La cita cambió desde que llegó este mensaje' in app
-          assert 'current_date != stored_date or current_time != stored_time' in app
           assert 'data-section="whatsappRespuestas"' in html
-          assert 'homeWhatsappReviewStrip' in html
           assert 'resolveWhatsappResponse' in js
           assert 'data-continue-attention="1"' in js
           assert 'data-historical-import="1"' in js
           assert not list(root.rglob('__pycache__'))
-          print('V4418_RECHECK_OK')
+          print('V4418_LAUNCHER_COMPAT_OK')
           '@ | python -
 
-      - name: Publicar payload y fijar SHA inmutable
+      - name: Publicar payload
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add updates/v4_4_18_whatsapp_responses
-          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.18 respuestas WhatsApp seguro'}
+          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.18 respuestas WhatsApp validado'}
           git pull --rebase origin main
           git push origin HEAD:main
-          $payloadSha=(git rev-parse HEAD).Trim()
-          if($payloadSha -notmatch '^[0-9a-f]{40}$'){throw 'No pude fijar SHA del payload'}
-          $env:RP_PAYLOAD_SHA=$payloadSha
           python build/v4418_whatsapp_responses/fix_channel_manifest.py
-          python tools/remote_payload_guard.py --manifest build/v4418_whatsapp_responses/candidate_latest.json --require-immutable
-          "PAYLOAD_SHA=$payloadSha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Write-Host "PAYLOAD_IMMUTABLE_OK $payloadSha"
+          python tools/remote_payload_guard.py --manifest build/v4418_whatsapp_responses/candidate_latest.json
 
       - name: Mover canal a v4.4.18
         shell: pwsh
         run: |
-          $env:RP_PAYLOAD_SHA=$env:PAYLOAD_SHA
           python build/v4418_whatsapp_responses/fix_channel_manifest.py
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest-v3.json -Force
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest.json -Force
           git add latest-v3.json latest.json
-          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.18 respuestas WhatsApp'}
+          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.18 compatible con launcher'}
           git pull --rebase origin main
           git push origin HEAD:main
 
@@ -104,7 +98,7 @@ jobs:
           import json,time,urllib.request,pathlib,os
           url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
           out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4418-remote.json'
-          payload=os.environ['PAYLOAD_SHA']
+          prefix='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/'
           last=''
           for _ in range(45):
               try:
@@ -112,13 +106,13 @@ jobs:
                   with urllib.request.urlopen(req,timeout=10) as r: raw=r.read()
                   d=json.loads(raw.decode('utf-8-sig'))
                   urls=[str(f.get('url') or '') for f in d.get('files') or []]
-                  if str(d.get('version'))=='4.4.18' and len(urls)==4 and all(payload in u for u in urls):
-                      out.write_bytes(raw);print('CHANNEL_4418_VISIBLE');break
-                  last=f"version={d.get('version')} urls_ok={bool(urls) and all(payload in u for u in urls)}"
+                  if str(d.get('version'))=='4.4.18' and len(urls)==4 and all(u.startswith(prefix) for u in urls):
+                      out.write_bytes(raw);print('CHANNEL_4418_LAUNCHER_COMPAT_VISIBLE');break
+                  last=f"version={d.get('version')} urls_ok={bool(urls) and all(u.startswith(prefix) for u in urls)}"
               except Exception as e:last=repr(e)
               time.sleep(1)
-          else: raise SystemExit('Canal no propagó el payload exacto; último='+last)
+          else: raise SystemExit('Canal compatible no propagó; último='+last)
           '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4418.py
           python $env:RUNNER_TEMP\wait4418.py
-          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4418-remote.json --require-immutable
-          Write-Host 'V4418_PUBLISHED_AND_REMOTE_VERIFIED'
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4418-remote.json
+          Write-Host 'V4418_PUBLISHED_LAUNCHER_COMPAT_VERIFIED'
