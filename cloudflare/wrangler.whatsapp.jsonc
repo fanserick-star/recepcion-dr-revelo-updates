@@ -1,0 +1,14 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "dr-revelo-whatsapp-cloud",
+  "main": "./whatsapp_worker_v2_6_STANDALONE.js",
+  "compatibility_date": "2026-08-30",
+  "keep_vars": true,
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
