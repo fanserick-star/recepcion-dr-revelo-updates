@@ -1,0 +1,129 @@
+name: Validar y publicar v4.4.7 segura
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v447_recovery/**'
+      - 'tools/release_guard.py'
+      - '.github/workflows/build-v447-safe-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir candidato sin publicar
+        shell: pwsh
+        run: python build/v447_recovery/build_v447.py
+
+      - name: Validación estática obligatoria
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem updates/v4_4_7_recovery/app.part* | Sort-Object { [int]($_.Name -replace '^app\.part','') }
+          $bytes = New-Object System.Collections.Generic.List[byte]
+          foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p.FullName)) }
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'updates/v4_4_7_recovery/app.py'), $bytes.ToArray())
+          python tools/release_guard.py --app updates/v4_4_7_recovery/app.py --manifest updates/v4_4_7_recovery/update_manifest.json --version 4.4.7
+          if(Select-String -Path updates/v4_4_7_recovery/app.py -Pattern '^\s*import\s+psycopg\b' -Quiet){ throw 'psycopg no puede publicarse' }
+          if(-not (Select-String -Path updates/v4_4_7_recovery/app.py -Pattern 'pg8000_dbapi\.connect' -Quiet)){ throw 'Falta pg8000 en la sonda Neon' }
+
+      - name: Crear runtime idéntico al instalador
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('RUNTIME_CONTRACT_OK')"
+          $hasPsycopg = & .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'La prueba debe ejecutarse SIN psycopg para detectar dependencias accidentales' }
+
+      - name: Preparar instalación simulada
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-v447-smoke'
+          if(Test-Path $root){ Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Copy-Item updates/v4_4_7_recovery/app.py (Join-Path $root 'app.py')
+          Copy-Item updates/v4_4_7_recovery/update_manifest.json (Join-Path $root 'update_manifest.json')
+          Copy-Item updates/v4_4_7_recovery/static (Join-Path $root 'static') -Recurse
+          $base = Join-Path $env:RUNNER_TEMP 'rp-base-v447'
+          if(Test-Path $base){ Remove-Item $base -Recurse -Force }
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src = Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){ throw "Falta $name en base limpia" }
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $mobile = Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke test real de backend sin nube
+        shell: pwsh
+        run: |
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $log=Join-Path $env:RUNNER_TEMP 'v447-backend.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $log -RedirectStandardError $log -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 100;$i++){
+              Start-Sleep -Milliseconds 250
+              try {
+                $v=Invoke-RestMethod 'http://127.0.0.1:8000/api/version' -TimeoutSec 1
+                if([string]$v.version -eq '4.4.7'){ $ok=$true; break }
+              } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){
+              if(Test-Path $log){ Get-Content $log -Tail 160 }
+              throw 'El backend candidato NO arrancó con el runtime del consultorio'
+            }
+            $home=Invoke-WebRequest 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 3
+            if($home.StatusCode -ne 200){ throw 'La pantalla principal no respondió HTTP 200' }
+            Write-Host 'BACKEND_REAL_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Verificar manifiesto remoto generado
+        shell: pwsh
+        run: |
+          $latest=Get-Content latest-v3.json -Raw | ConvertFrom-Json
+          if([string]$latest.version -ne '4.4.7'){ throw 'latest-v3 no quedó en 4.4.7' }
+          if([string]$latest.app_version -ne '4.4.7'){ throw 'app_version remoto incorrecto' }
+          $paths=@($latest.files | ForEach-Object { [string]$_.path })
+          foreach($required in @('ABRIR_RECEPCION.py','app.py','static/index.html','static/app.js','static/app_base.js','update_manifest.json')){
+            if($required -notin $paths){ throw "Falta $required en paquete acumulativo" }
+          }
+          if($paths | Where-Object { $_ -eq '.env' -or $_ -like 'data/*' -or $_ -like '.venv/*' }){ throw 'Paquete intenta tocar archivos protegidos' }
+          Write-Host 'REMOTE_MANIFEST_OK'
+
+      - name: Publicar SOLO después de pasar todas las pruebas
+        shell: pwsh
+        run: |
+          Remove-Item updates/v4_4_7_recovery/app.py -Force -ErrorAction SilentlyContinue
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest.json latest-v3.json updates/v4_4_7_recovery
+          if(-not (git diff --cached --quiet)){
+            git commit -m 'release: publicar v4.4.7 después de smoke test real'
+            git pull --rebase origin main
+            git push
+          }
