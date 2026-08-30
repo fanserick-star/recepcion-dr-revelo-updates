@@ -1,28 +1,34 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.11",
-  "app_version": "4.4.9",
-  "runtime_version": "4.4.9",
+  "version": "4.4.12",
+  "app_version": "4.4.12",
+  "runtime_version": "4.4.12",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.11: al buscar en Nueva atención oculta la Agenda y amplía resultados; al limpiar vuelve la Agenda. Quita el aviso vacío de cédula sin eliminar su validación.",
+  "message": "v4.4.12: incluye UX de búsqueda v4.4.11 y corrige el badge de versión heredado 4.4.3. Mantiene RP_PORT dinámico y pg8000.",
   "files": [
     {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_12_badge/app.py",
+      "sha256": "8671bff0cc78f98850a58e609fc449d25e375fe89bbdcf59b3ac4de84cb84f2e",
+      "encoding": "utf-8"
+    },
+    {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_12_badge/static/app.js",
       "sha256": "852ac51d912740b6faa4a0a9d95826a4c5384e7aac8fe6f69b744f8fb081be66",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/static/index.html",
-      "sha256": "39de6d73f782c73540fa7773f207da25a121437309168a71a3eb6e7a62895d02",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_12_badge/static/index.html",
+      "sha256": "0188e42f08bcd00b92acc04bb64d89e968197c499dec398728abde700ccd35ae",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_11_attention_ux/update_manifest.json",
-      "sha256": "edb02dc5f2254f3c1e29e400e6260f93b8d7015a46800d0ef1a8b77db2997524",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_12_badge/update_manifest.json",
+      "sha256": "3139f41cb53174601dffdb00e1fa2398a619e63d2f18b9ca6f4b4ad7f785dd83",
       "encoding": "utf-8"
     }
   ]
