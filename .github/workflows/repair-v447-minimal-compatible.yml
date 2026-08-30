@@ -1,0 +1,153 @@
+name: Recuperar v4.4.7 mínima compatible
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'updates/v4_4_7_recovery/update_manifest_repair.json'
+      - '.github/workflows/repair-v447-minimal-compatible.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-channel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Esperar payload real en GitHub Raw y calcular SHA
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, random, time, urllib.request
+          from pathlib import Path
+
+          owner='fanserick-star'
+          repo='recepcion-dr-revelo-updates'
+          raw=f'https://raw.githubusercontent.com/{owner}/{repo}/main/'
+
+          def fetch(url, attempts=40):
+              last=None
+              for i in range(attempts):
+                  try:
+                      req=urllib.request.Request(url + ('&' if '?' in url else '?') + f'rp_ci={time.time_ns()}_{random.randrange(1_000_000)}', headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-release-guard'})
+                      with urllib.request.urlopen(req, timeout=8) as r:
+                          b=r.read()
+                      return b
+                  except Exception as e:
+                      last=e
+                      time.sleep(min(0.5+i*0.2, 3))
+              raise SystemExit(f'No se pudo descargar {url}: {last}')
+
+          repair_url=raw+'updates/v4_4_7_recovery/update_manifest_repair.json'
+          repair=None
+          for _ in range(40):
+              b=fetch(repair_url, attempts=1)
+              try:
+                  d=json.loads(b.decode('utf-8-sig'))
+              except Exception:
+                  d={}
+              if d.get('repair_channel') == 'v4.4.7-minimal':
+                  repair=b
+                  break
+              time.sleep(1)
+          if repair is None:
+              raise SystemExit('GitHub Raw todavía no expone el manifiesto mínimo correcto')
+
+          parts=[]
+          for n in range(1,8):
+              parts.append(fetch(raw+f'updates/v4_4_7_recovery/app.part{n}'))
+          app=b''.join(parts)
+          app_sha=hashlib.sha256(app).hexdigest()
+          repair_sha=hashlib.sha256(repair).hexdigest()
+
+          # Confirmar que el backend candidato no contiene psycopg activo y sí pg8000.
+          text=app.decode('utf-8-sig')
+          if 'import psycopg\n' in text or 'psycopg.connect' in text:
+              raise SystemExit('El app.py remoto aún contiene psycopg activo')
+          if 'pg8000_dbapi.connect' not in text:
+              raise SystemExit('El app.py remoto no contiene la sonda pg8000 esperada')
+          if 'APP_VERSION = "4.4.7"' not in text and "APP_VERSION = '4.4.7'" not in text:
+              raise SystemExit('APP_VERSION remoto no es 4.4.7')
+
+          latest={
+            'product':'recepcion-pacientes',
+            'version':'4.4.7',
+            'app_version':'4.4.7',
+            'runtime_version':'4.4.7',
+            'mandatory':True,
+            'channel':'files-v3',
+            'message':'v4.4.7 recuperación mínima compatible: corrige el backend sin tocar interfaz ni datos. SHA calculado desde GitHub Raw.',
+            'repair_channel':'v4.4.7-minimal-main',
+            'files':[
+              {
+                'path':'app.py',
+                'parts':[raw+f'updates/v4_4_7_recovery/app.part{n}' for n in range(1,8)],
+                'sha256':app_sha,
+                'encoding':'utf-8'
+              },
+              {
+                'path':'update_manifest.json',
+                'url':repair_url,
+                'sha256':repair_sha,
+                'encoding':'utf-8'
+              }
+            ]
+          }
+          payload=json.dumps(latest, ensure_ascii=False, indent=2)+'\n'
+          Path('latest-v3.json').write_text(payload, encoding='utf-8')
+          Path('latest.json').write_text(payload, encoding='utf-8')
+          Path('/tmp/expected_app_sha').write_text(app_sha)
+          Path('/tmp/expected_manifest_sha').write_text(repair_sha)
+          print('REMOTE_APP_SHA', app_sha)
+          print('REMOTE_REPAIR_MANIFEST_SHA', repair_sha)
+          PY
+
+      - name: Publicar canal mínimo
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest.json latest-v3.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'recovery: publicar v4.4.7 mínima sin tocar interfaz'
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: Confirmar que GitHub Raw ya sirve el manifiesto nuevo
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, random, time, urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          expected_app=open('/tmp/expected_app_sha').read().strip()
+          expected_manifest=open('/tmp/expected_manifest_sha').read().strip()
+          last=None
+          for i in range(60):
+              try:
+                  req=urllib.request.Request(url+f'?rp_verify={time.time_ns()}_{random.randrange(1_000_000)}', headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-release-guard'})
+                  with urllib.request.urlopen(req, timeout=8) as r:
+                      d=json.loads(r.read().decode('utf-8-sig'))
+                  files=d.get('files') or []
+                  if d.get('repair_channel') == 'v4.4.7-minimal-main' and len(files)==2:
+                      by={x.get('path'):x for x in files}
+                      if by.get('app.py',{}).get('sha256')==expected_app and by.get('update_manifest.json',{}).get('sha256')==expected_manifest:
+                          print('RAW_LATEST_READY')
+                          raise SystemExit(0)
+                  last=d
+              except SystemExit:
+                  raise
+              except Exception as e:
+                  last=repr(e)
+              time.sleep(1)
+          raise SystemExit(f'GitHub Raw no propagó el manifiesto nuevo: {last}')
+          PY
