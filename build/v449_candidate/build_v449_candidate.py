@@ -2,18 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = "4.4.9"
-SRC = ROOT / "updates" / "v443"
 OUT = ROOT / "candidates" / "v4_4_9_clean_444"
 
-# app.py sí conservó una huella SHA-256 válida en el canal histórico.
 EXPECTED_APP_SHA = "97ea664ad7bebb8927eea4252e59e1bbb9223f83088d58340a1f701d50f68620"
-# Para los dos archivos visuales usamos la identidad del blob Git histórico,
-# porque los SHA-256 escritos en el manifiesto 4.4.4 fueron calculados antes de
-# una normalización de saltos de línea y no representan los bytes publicados.
 EXPECTED_INDEX_BLOB = "adc8fb4bf8c41ddddbb42a9950c18043882af27f"
 EXPECTED_BASE_JS_BLOB = "7aa78b107556858d9e0d319c7554c6eae57eeca3"
 
@@ -27,8 +23,16 @@ def git_blob_sha(data: bytes) -> str:
     return hashlib.sha1(header + data).hexdigest()
 
 
-def exact_blob(path: Path, expected_blob: str, label: str) -> bytes:
-    raw = path.read_bytes()
+def git_bytes(rel: str) -> bytes:
+    """Lee el blob exacto de Git; evita que Windows convierta LF/CRLF."""
+    try:
+        return subprocess.check_output(["git", "show", f"HEAD:{rel}"], cwd=ROOT)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(f"No se pudo leer blob histórico {rel}: {exc}") from exc
+
+
+def exact_git_blob(rel: str, expected_blob: str, label: str) -> bytes:
+    raw = git_bytes(rel)
     got = git_blob_sha(raw)
     if got != expected_blob:
         raise SystemExit(f"{label} cambió: blob {got}; esperado {expected_blob}")
@@ -36,10 +40,8 @@ def exact_blob(path: Path, expected_blob: str, label: str) -> bytes:
 
 
 def source_app() -> str:
-    parts = sorted(SRC.glob("app.part*"), key=lambda p: int(p.name.split("part")[-1]))
-    if len(parts) != 7:
-        raise SystemExit(f"Fuente v4.4.3 incompleta: {len(parts)} partes")
-    raw = b"".join(p.read_bytes() for p in parts)
+    chunks = [git_bytes(f"updates/v443/app.part{i}") for i in range(1, 8)]
+    raw = b"".join(chunks)
     got = sha256(raw)
     if got != EXPECTED_APP_SHA:
         raise SystemExit(f"app.py fuente no es el publicado en v4.4.4: {got}")
@@ -62,8 +64,6 @@ def patch_app(text: str) -> str:
     new_driver = '''import pg8000.dbapi as pg8000_dbapi\n_POSTGRES_DRIVER = "pg8000"\n'''
     text = replace_once(text, old_driver, new_driver, "driver PostgreSQL")
 
-    # La sonda pg8000 ya estaba en la 4.4.3. Quitamos únicamente el fallback
-    # de psycopg; no alteramos su lógica de conexión a Neon.
     old_probe_fallback = '''    else:\n        with psycopg.connect(raw_url, connect_timeout=12, autocommit=True) as conn:\n            with conn.cursor() as cur:\n                cur.execute("SELECT 1")\n                row = cur.fetchone()\n'''
     text = replace_once(text, old_probe_fallback, "", "fallback psycopg de sonda Neon")
 
@@ -156,8 +156,8 @@ FOLDED_444_SEARCH = r'''
 
 
 def build_frontend() -> tuple[str, str, dict]:
-    index_raw = exact_blob(SRC / "static" / "index.html", EXPECTED_INDEX_BLOB, "index 4.4.3")
-    base_js_raw = exact_blob(SRC / "static" / "app.js", EXPECTED_BASE_JS_BLOB, "app.js 4.4.3")
+    index_raw = exact_git_blob("updates/v443/static/index.html", EXPECTED_INDEX_BLOB, "index 4.4.3")
+    base_js_raw = exact_git_blob("updates/v443/static/app.js", EXPECTED_BASE_JS_BLOB, "app.js 4.4.3")
 
     index = index_raw.decode("utf-8-sig")
     index = replace_once(index, '/static/app.js?v=4.3.34', '/static/app.js?v=4.4.9', "cache-bust app.js")
