@@ -12065,6 +12065,29 @@ def whatsapp_response_resolve(response_id: int, payload: dict, user: User = Depe
         source_id = int(row.get("source_id") or 0)
         if source_type not in {"appointment", "staged"} or source_id <= 0:
             raise HTTPException(409, "No pude vincular esta respuesta con una cita. Revísala y usa Marcar como resuelto.")
+        if row.get("resolved_at") is not None:
+            raise HTTPException(409, "Esta respuesta ya fue resuelta. Actualiza la bandeja antes de continuar.")
+
+        # Seguridad anti-cita-movida: la respuesta quedó ligada a una fecha/hora
+        # concreta cuando llegó. Si recepción movió o cambió la cita después, no
+        # aplicamos un Sí/No viejo sobre el nuevo turno.
+        stored_date = str(row.get("appointment_date") or "")[:10]
+        stored_time = str(row.get("appointment_time") or "")[:5]
+        if source_type == "staged":
+            current_slot = conn.execute(text("""
+                SELECT CAST(fecha AS text) AS d, CAST(hora AS text) AS t
+                FROM public.confirmafy_agenda_items WHERE id=:id
+            """), {"id": source_id}).mappings().first()
+        else:
+            current_slot = conn.execute(text("""
+                SELECT CAST(fecha AS text) AS d, CAST(hora AS text) AS t
+                FROM public.appointments WHERE id=:id
+            """), {"id": source_id}).mappings().first()
+        current_date = str((current_slot or {}).get("d") or "")[:10]
+        current_time = str((current_slot or {}).get("t") or "")[:5]
+        if not current_slot or current_date != stored_date or current_time != stored_time:
+            raise HTTPException(409, "La cita cambió desde que llegó este mensaje. No hice ningún cambio; actualiza y revísala manualmente.")
+
         message_id = f"manual:{int(response_id)}:{int(time.time())}"
         result = str(conn.execute(text("""
             SELECT public.whatsapp_apply_response(:action,:source_type,:source_id,:message_id,:phone) AS result
