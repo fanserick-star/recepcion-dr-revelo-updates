@@ -1,0 +1,129 @@
+name: Validar y publicar v4.4.2
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v442/**'
+      - '.github/workflows/build-v442-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+
+      - name: Construir candidato
+        run: python build/v442/build_v442.py
+
+      - name: Reconstruir y compilar
+        run: |
+          cat updates/v442/app.part* > _ci_app.py
+          cat updates/v442/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+
+      - name: Validar limpieza y regresiones
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          js=Path('updates/v442/static/app.js').read_text(encoding='utf-8')
+          required=[
+            'APP_VERSION = "4.4.2"','TRASH_RETENTION_DAYS = 7',
+            'Actividad local-first estricta','Lectura estrictamente local',
+            'Guarda la Papelera únicamente en SQLite local','Resumen de datos y servicios',
+            '/api/ops/diagnostics','V442_CLEAN_CSS','V43104_ALERT_JS',
+            'Procedimientos y servicios',"price.textContent='$40.00'",'Emitir por lotes'
+          ]
+          for token in required: assert token in app,token
+          forbidden=['/api/patients/{pid}/quick','openPatientQuick','ensurePatientDrawer','patientQuickDrawer','/api/ops/agenda-smart','loadSmartAgenda','maybeDailyBrief','patient-quick-drawer-backdrop','smart-agenda-card']
+          for token in forbidden: assert token not in app,token
+          for token in ['new-patient-callout','attention-start-search','id="aSearch"','function attentionSearch()','function pRow(p)']:
+            assert token not in js,token
+          for token in ['attention-agenda-only','id="attentionWeekBlock"','Selecciona una cita para registrar la atención.','patient-name-button','<span class="service-price">$40.00</span>']:
+            assert token in js,token
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.2'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('STRUCTURE_V442_OK')
+          PY
+
+      - name: Probar Nueva atención directa a Agenda
+        run: |
+          node - <<'JS'
+          const fs=require('fs');
+          const src=fs.readFileSync('updates/v442/static/app.js','utf8');
+          const a=src.indexOf('async function newAttention(){');
+          const b=src.indexOf('function procedureByName(name){',a);
+          if(a<0||b<0)throw new Error('No se pudo extraer newAttention');
+          let captured='';let loaded=false;
+          global.currentPatientSource='';global.attentionWeekAnchor='';
+          global.toISO=()=> '2026-08-29';
+          global.openModal=html=>{captured=html};
+          global.loadAttentionWeek=()=>{loaded=true};
+          eval(src.slice(a,b));
+          Promise.resolve(newAttention()).then(()=>{
+            if(!loaded)throw new Error('No carga Agenda');
+            if(!captured.includes('id="attentionWeekBlock"'))throw new Error('Falta Agenda');
+            if(!captured.includes('Jueves, viernes y sábado'))throw new Error('Falta cabecera de jornada');
+            for(const bad of ['¿Es un paciente nuevo?','Buscar otro paciente','id="aSearch"','new-patient-callout','attention-start-search']){
+              if(captured.includes(bad))throw new Error('Conserva '+bad);
+            }
+            console.log('ATTENTION_AGENDA_ONLY_OK');
+          });
+          JS
+
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v442/static/index.html _smoke_root/static/index.html
+          cp updates/v442/static/app.js _smoke_root/static/app.js
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8765 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(100):
+            time.sleep(.25)
+            try:
+              with urllib.request.urlopen('http://127.0.0.1:8765/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+              if d.get('version')=='4.4.2':ok=True;break
+            except Exception: pass
+          if not ok:
+            print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+            raise SystemExit('backend portable no arrancó')
+          print('PORTABLE_BACKEND_V442_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v442 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.4.2 atención limpia'
+          git pull --rebase origin main
+          git push
