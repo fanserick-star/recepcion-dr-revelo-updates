@@ -1,0 +1,114 @@
+name: Validar y publicar v4.4.11 UX Nueva atención
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4411_attention_ux/**'
+      - '.github/workflows/publish-v4411-attention-ux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4411-attention-ux
+  cancel-in-progress: false
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir parche desde v4.4.10
+        shell: pwsh
+        run: python build/v4411_attention_ux/build_v4411.py
+
+      - name: Validar sintaxis y comportamiento UX
+        shell: pwsh
+        run: |
+          node --check updates/v4_4_11_attention_ux/static/app.js
+          @'
+          import json, subprocess
+          from pathlib import Path
+          root=Path('.')
+          old=subprocess.check_output(['git','show','HEAD:updates/v4_4_10_attention_search/static/app.js']).decode('utf-8-sig')
+          new=(root/'updates/v4_4_11_attention_ux/static/app.js').read_text(encoding='utf-8-sig')
+          assert old.count('function attentionSearch(immediate=false){')==1
+          assert new.count('function attentionSearch(immediate=false){')==1
+          assert "agenda.classList.toggle('hidden',!!active)" in new
+          assert "const active=q.length>=2" in new
+          assert "attentionSearchSeq++" in new
+          assert "'/api/patients?q='+encodeURIComponent(q)+'&limit=18'" in new
+          assert "EMPTY_HINT='Ingresa la cédula para validarla localmente.'" in new
+          assert "status.textContent=''" in new
+          assert "status.classList.add('hidden')" in new
+          assert "validEcuadorianCedula" in new
+          manifest=json.loads((root/'updates/v4_4_11_attention_ux/update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['copy']==['static/app.js','static/index.html','update_manifest.json']
+          assert manifest['app_version']=='4.4.9' and manifest['runtime_version']=='4.4.9'
+          assert 'app.py' not in manifest['copy']
+          print('UX_4411_OK')
+          '@ | python -
+
+      - name: Confirmar backend intacto
+        shell: pwsh
+        run: |
+          @'
+          import hashlib, subprocess
+          b=subprocess.check_output(['git','show','HEAD:updates/v4_4_9_clean_444/app.py'])
+          assert hashlib.sha256(b).hexdigest()=='148e1cd846ec848f8e75dac1eb5baa60f059176966b374a90be2f563afb96133'
+          print('BACKEND_449_UNTOUCHED')
+          '@ | python -
+
+      - name: Publicar payload sin mover canal
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/v4_4_11_attention_ux
+          git commit -m "release: payload v4.4.11 UX Nueva atención"
+          git push origin HEAD:main
+
+      - name: Verificar payload real desde GitHub Raw
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4411_attention_ux/candidate_latest.json
+
+      - name: Publicar canal v4.4.11
+        shell: pwsh
+        run: |
+          Copy-Item build/v4411_attention_ux/candidate_latest.json latest-v3.json -Force
+          git add latest-v3.json
+          git commit -m "release: publicar v4.4.11 UX Nueva atención"
+          git push origin HEAD:main
+
+      - name: Confirmar propagación final
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          last=''
+          for _ in range(18):
+              try:
+                  req=urllib.request.Request(url+f'?rp_ts={time.time_ns()}',headers={'Cache-Control':'no-cache','User-Agent':'RP-v4411-guard'})
+                  with urllib.request.urlopen(req,timeout=12) as r:
+                      data=json.loads(r.read().decode('utf-8-sig'))
+                  if str(data.get('version'))=='4.4.11':
+                      print('CHANNEL_4411_VISIBLE')
+                      break
+                  last=str(data.get('version'))
+              except Exception as e:
+                  last=repr(e)
+              time.sleep(2)
+          else:
+              raise SystemExit('Canal no propagó 4.4.11; último='+last)
+          '@ | python -
+          python tools/remote_payload_guard.py --manifest latest-v3.json
