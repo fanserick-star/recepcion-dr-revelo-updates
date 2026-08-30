@@ -1,0 +1,206 @@
+name: Validar y publicar v4.4.1
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v441/**'
+      - '.github/workflows/build-v441-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+          cat updates/v440/app.part* > _source_v440.py
+
+      - name: Verificar que los textos de 30 días pertenecen solo a v4.4.0
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('_source_v440.py').read_text(encoding='utf-8')
+          a=s.index('V440_OPS_JS = r"""')
+          b=s.index('"""',a+len('V440_OPS_JS = r"""'))
+          pos=[]; start=0
+          while True:
+            i=s.find('30 días',start)
+            if i<0: break
+            pos.append(i); start=i+1
+          assert pos, 'no se encontraron textos v4.4.0'
+          assert all(a<i<b for i in pos), 'hay un texto 30 días fuera del módulo operativo; no se publica'
+          print('TEXT_SCOPE_OK',len(pos))
+          PY
+
+      - name: Construir candidato
+        run: python build/v441/run_final.py
+
+      - name: Reconstruir y compilar
+        run: |
+          cat updates/v441/app.part* > _ci_app.py
+          cat updates/v441/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+
+      - name: Validar local-first y regresiones
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          static=Path('updates/v441/static/app.js').read_text(encoding='utf-8')
+          required=[
+            'APP_VERSION = "4.4.1"','TRASH_RETENTION_DAYS = 7',
+            'Guarda la Papelera únicamente en SQLite local',
+            'Actividad local-first estricta','Lectura estrictamente local',
+            'rp_audit_local_mirror','Resumen de datos y servicios',
+            '/api/patients/{pid}/quick','/api/ops/diagnostics',
+            'V43104_ALERT_JS','Procedimientos y servicios',"price.textContent='$40.00'",
+            'Revisando AZUR','Emitir por lotes'
+          ]
+          for token in required: assert token in app,token
+          forbidden=['TRASH_RETENTION_DAYS = 30','durante 30 días','setTimeout(loadSmartAgenda,0)','function init(){ensureOpsUI();maybeDailyBrief()}']
+          for token in forbidden: assert token not in app,token
+          # Las tres consultas nuevas de uso diario deben ser SQLite explícito.
+          def block(start,end):
+            a=app.index(start); b=app.index(end,a+1); return app[a:b]
+          activity=block('@app.get("/api/ops/activity")','@app.get("/api/patients/{pid}/quick")')
+          trash=block('@app.get("/api/ops/trash")','@app.post("/api/ops/trash/{trash_id}/restore")')
+          quick=block('@app.get("/api/patients/{pid}/quick")','def _ops_smart_target')
+          assert 'LocalSessionLocal()' in activity and 'Depends(get_db)' not in activity
+          assert 'LocalSessionLocal()' in trash and 'Depends(get_db)' not in trash
+          assert 'LocalSessionLocal()' in quick and 'Depends(get_db)' not in quick
+          # Diagnóstico sí puede consultar Neon, pero solo existe detrás de su endpoint manual.
+          assert "onclick=\"runOpsDiagnostics()\"" in app
+          # Nombre del paciente ya no es href=#, evitando 127.0.0.1.../# al pasar el mouse.
+          assert 'class="patient-name-button"' in static
+          assert '<a href="#" onclick="openPatient(${p.id}' not in static
+          # Consulta/procedimientos siguen intactos.
+          assert '<span class="service-price">$40.00</span>' in static
+          assert '<b>Procedimientos y servicios</b>' in static
+          assert '$40 fijo' not in static
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.1'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          ji=next(x for x in latest['files'] if x['path']=='static/app.js')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('updates/v441/static/app.js').read_bytes()).hexdigest()==ji['sha256']
+          print('LOCAL_FIRST_V441_OK')
+          PY
+
+      - name: Extraer JavaScript operativo
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          tree=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          vals={}
+          for node in tree.body:
+            if isinstance(node,ast.Assign):
+              for target in node.targets:
+                if isinstance(target,ast.Name) and target.id in {'V440_OPS_JS','V441_FIX_CSS'}:
+                  vals[target.id]=ast.literal_eval(node.value)
+          assert vals.get('V440_OPS_JS') and vals.get('V441_FIX_CSS')
+          Path('_ops.js').write_text(vals['V440_OPS_JS'],encoding='utf-8')
+          Path('_fix.css').write_text(vals['V441_FIX_CSS'],encoding='utf-8')
+          print('EXTRACT_V441_OK')
+          PY
+          node --check _ops.js
+
+      - name: Probar ficha rápida, diagnóstico integrado y retiro de Agenda inteligente
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install jsdom@26 >/dev/null 2>&1
+          cat > _dom_test.mjs <<'JS'
+          import fs from 'node:fs';
+          import {JSDOM} from 'jsdom';
+          const html=`<!doctype html><html><body>
+          <div id="app"><aside><nav class="side-nav">
+            <button class="nav-btn" data-section="inicio">Inicio</button>
+            <button class="nav-btn" data-section="agenda">Agenda</button>
+            <button class="nav-btn" data-section="pacientes">Pacientes</button>
+            <button class="nav-btn" data-section="config">Configuración</button>
+          </nav></aside><main>
+            <section id="inicio"></section>
+            <section id="agenda" class="hidden"><div class="agenda-native-title-row"><h1>Agenda</h1></div></section>
+            <section id="pacientes" class="hidden"></section>
+            <section id="config" class="hidden"><div class="config-section" data-config-section="sistema"><div class="panel system-status-panel"><div class="config-panel-head"><div><h3>Resumen de datos</h3></div></div><div id="systemStatusGrid"></div></div></div></section>
+          </main></div><div id="modal" class="hidden"></div></body></html>`;
+          const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'http://127.0.0.1:8766/'});
+          const {window}=dom,D=window.document,calls=[];
+          window.$=s=>D.querySelector(s);
+          window.api=async url=>{calls.push(url);if(url.startsWith('/api/ops/activity'))return [];if(url.startsWith('/api/ops/trash'))return [];if(url.includes('/quick'))return {patient:{id:1,nombre:'PACIENTE DE PRUEBA',celular:'0990000000',correo:'p@x.com'},visit_count:1,last_visit:{fecha:'2026-08-29',valor:40},recent_visits:[{fecha:'2026-08-29',valor:40,procedimiento:null}],missing:[]};if(url.startsWith('/api/ops/diagnostics'))return {safe_text:'Recepción v4.4.1',services:{}};return {}};
+          window.show=(id)=>{D.querySelectorAll('main section').forEach(x=>x.classList.add('hidden'));D.querySelector('#'+id)?.classList.remove('hidden')};
+          window.openPatient=async()=>{};window.loadAgenda=async()=>{};window.fmtDate=v=>String(v||'');window.fmtTime=v=>String(v||'');window.money=v=>'$'+Number(v||0).toFixed(2);window.toISO=d=>'2026-08-29';window.confirmDeletion=()=>true;window.singleFlightMutation=async(k,fn)=>fn();window.searchPatients=async()=>{};window.loadWeek=async()=>{};window.refreshPendingBadges=async()=>{};window.closeModal=()=>{};window.refreshVisibleSectionLocal=async()=>{};window.invalidateAttentionWeekCache=()=>{};window.invalidateAgendaSlotCache=()=>{};window.attentionFor=()=>{};window.selectedHomeDate='2026-08-29';
+          window.eval(fs.readFileSync('_ops.js','utf8'));
+          D.dispatchEvent(new window.Event('DOMContentLoaded',{bubbles:true}));
+          await new Promise(r=>setTimeout(r,120));
+          if(D.querySelector('#smartAgendaCard'))throw new Error('Agenda inteligente todavía visible');
+          if(calls.some(x=>x.includes('/api/ops/agenda-smart')))throw new Error('Agenda inteligente hizo consulta automática');
+          const drawer=D.querySelector('#patientQuickDrawer');if(!drawer||drawer.tagName!=='DIV')throw new Error('Drawer no fue aislado del aside principal');
+          await window.openPatientQuick(1);if(!drawer.classList.contains('open'))throw new Error('Ficha rápida no abre');
+          window.closePatientQuick();
+          const panel=D.querySelector('.system-status-panel');if(panel.querySelector('#opsDiagnosticPanel'))throw new Error('Diagnóstico sigue duplicado');
+          if(!panel.querySelector('#opsDiagnosticControls'))throw new Error('Diagnóstico no quedó adjunto al resumen existente');
+          if(panel.querySelector('h3')?.textContent!=='Resumen de datos y servicios')throw new Error('Título integrado incorrecto');
+          if(calls.some(x=>x.includes('/api/ops/diagnostics')))throw new Error('Diagnóstico consultó servicios sin clic');
+          await window.runOpsDiagnostics();
+          if(!calls.some(x=>x.includes('/api/ops/diagnostics')))throw new Error('Botón diagnóstico no funciona');
+          window.show('agenda');await window.loadAgenda();await new Promise(r=>setTimeout(r,30));
+          if(calls.some(x=>x.includes('/api/ops/agenda-smart')))throw new Error('Agenda normal dispara agenda-smart');
+          console.log('DOM_V441_OK');
+          JS
+          node _dom_test.mjs
+
+      - name: Probar backend portable y Papelera local
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v441/static/index.html _smoke_root/static/index.html
+          cp updates/v441/static/app.js _smoke_root/static/app.js
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8766 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request,sqlite3
+          ok=False
+          for _ in range(100):
+            time.sleep(.25)
+            try:
+              with urllib.request.urlopen('http://127.0.0.1:8766/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+              if d.get('version')=='4.4.1':ok=True;break
+            except Exception: pass
+          if not ok:
+            print(open('_smoke.log',encoding='utf-8',errors='replace').read());raise SystemExit('backend portable no arrancó')
+          db=sqlite3.connect('_smoke_data/offline_cache.db')
+          names={r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+          assert 'trash_items' in names and 'audit' in names,names
+          db.close();print('PORTABLE_BACKEND_V441_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+          cmp updates/v440/static/index.html updates/v441/static/index.html
+          cmp <(cat updates/v440/ABRIR_RECEPCION.part*) <(cat updates/v441/ABRIR_RECEPCION.part*)
+
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v441 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.4.1 local-first y correcciones UI'
+          git pull --rebase origin main
+          git push
