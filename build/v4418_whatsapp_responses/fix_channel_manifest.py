@@ -1,13 +1,18 @@
 from __future__ import annotations
 import hashlib
 import json
+import os
+import re
 import shutil
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 OUT=ROOT/'updates/v4_4_18_whatsapp_responses'
 VERSION='4.4.18'
-BASE='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_18_whatsapp_responses'
+ref=str(os.getenv('RP_PAYLOAD_SHA') or 'main').strip()
+if ref!='main' and not re.fullmatch(r'[0-9a-f]{40}',ref):
+    raise SystemExit('RP_PAYLOAD_SHA inválido')
+BASE=f'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/{ref}/updates/v4_4_18_whatsapp_responses'
 
 def sha(path: Path)->str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -45,4 +50,4 @@ channel={
 # Evita que py_compile termine publicando archivos internos de Python.
 for cache in OUT.rglob('__pycache__'):
     shutil.rmtree(cache,ignore_errors=True)
-print('V4418_CHANNEL_MANIFEST_OK')
+print(f'V4418_CHANNEL_MANIFEST_OK ref={ref}')
