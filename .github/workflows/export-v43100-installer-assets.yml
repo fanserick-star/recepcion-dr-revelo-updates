@@ -1,0 +1,39 @@
+name: Export v4.3.100 installer assets
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-v43100-installer-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct v4.3.100 assets
+        run: |
+          mkdir -p export/static
+          cat updates/v43100/ABRIR_RECEPCION.part* > export/ABRIR_RECEPCION.py
+          cat updates/v43100/app.part* > export/app.py
+          cp updates/v43100/static/index.html export/static/index.html
+          cp updates/v43100/update_manifest.json export/update_manifest.json
+          python -m py_compile export/ABRIR_RECEPCION.py export/app.py
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('export')
+          assert '4.3.100' in (root/'ABRIR_RECEPCION.py').read_text(encoding='utf-8')
+          assert 'APP_VERSION = "4.3.100"' in (root/'app.py').read_text(encoding='utf-8')
+          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version']=='4.3.100'
+          for p in [root/'ABRIR_RECEPCION.py',root/'app.py',root/'static/index.html',root/'update_manifest.json']:
+              print(p,hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recepcion-v43100-installer-assets
+          path: export
+          if-no-files-found: error
+          retention-days: 1
