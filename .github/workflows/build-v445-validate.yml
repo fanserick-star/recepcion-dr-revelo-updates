@@ -1,0 +1,59 @@
+name: Validar y publicar v4.4.5
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v445/**'
+      - 'updates/v4_4_5_search/**'
+      - '.github/workflows/build-v445-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Validar JavaScript hotfix
+        run: |
+          node --check updates/v4_4_5_search/static/app.js
+          grep -q 'attentionPatientSearchV445' updates/v4_4_5_search/static/app.js
+          grep -q 'facturero móvil' updates/v4_4_5_search/static/app.js
+          grep -q 'cleanAttentionExternalActionsV445' updates/v4_4_5_search/static/app.js
+
+      - name: Construir manifiestos con SHA256 reales
+        run: python build/v445/build_v445.py
+
+      - name: Validar paquete
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          latest=json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.5'
+          assert latest['app_version']=='4.4.3'
+          assert 'buscador por nombre' in latest['message']
+          assert 'Facturero Móvil' in latest['message']
+          files={x['path']:x for x in latest['files']}
+          assert set(files)=={'ABRIR_RECEPCION.py','app.py','static/index.html','static/app_base.js','static/app.js','update_manifest.json'}
+          assert hashlib.sha256(Path('updates/v4_4_5_search/static/app.js').read_bytes()).hexdigest()==files['static/app.js']['sha256']
+          assert hashlib.sha256(Path('updates/v4_4_5_search/update_manifest.json').read_bytes()).hexdigest()==files['update_manifest.json']['sha256']
+          inner=json.loads(Path('updates/v4_4_5_search/update_manifest.json').read_text(encoding='utf-8'))
+          assert inner['version']=='4.4.5'
+          assert inner['app_version']=='4.4.3'
+          print('V445_OK')
+          PY
+
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest.json latest-v3.json
+          if ! git diff --cached --quiet; then git commit -m 'release: publicar v4.4.5 buscador atención y limpieza facturero'; fi
+          git pull --rebase origin main
+          git push
