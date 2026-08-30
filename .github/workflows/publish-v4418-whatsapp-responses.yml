@@ -68,7 +68,7 @@ jobs:
           print('V4418_RECHECK_OK')
           '@ | python -
 
-      - name: Publicar payload
+      - name: Publicar payload y fijar SHA inmutable
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
@@ -77,14 +77,19 @@ jobs:
           if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.18 respuestas WhatsApp seguro'}
           git pull --rebase origin main
           git push origin HEAD:main
-
-      - name: Verificar bytes reales
-        shell: pwsh
-        run: python tools/remote_payload_guard.py --manifest build/v4418_whatsapp_responses/candidate_latest.json
+          $payloadSha=(git rev-parse HEAD).Trim()
+          if($payloadSha -notmatch '^[0-9a-f]{40}$'){throw 'No pude fijar SHA del payload'}
+          $env:RP_PAYLOAD_SHA=$payloadSha
+          python build/v4418_whatsapp_responses/fix_channel_manifest.py
+          python tools/remote_payload_guard.py --manifest build/v4418_whatsapp_responses/candidate_latest.json --require-immutable
+          "PAYLOAD_SHA=$payloadSha" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "PAYLOAD_IMMUTABLE_OK $payloadSha"
 
       - name: Mover canal a v4.4.18
         shell: pwsh
         run: |
+          $env:RP_PAYLOAD_SHA=$env:PAYLOAD_SHA
+          python build/v4418_whatsapp_responses/fix_channel_manifest.py
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest-v3.json -Force
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest.json -Force
           git add latest-v3.json latest.json
@@ -113,5 +118,5 @@ jobs:
           else: raise SystemExit('Canal no propagó 4.4.18; último='+last)
           '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4418.py
           python $env:RUNNER_TEMP\wait4418.py
-          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4418-remote.json
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4418-remote.json --require-immutable
           Write-Host 'V4418_PUBLISHED_AND_REMOTE_VERIFIED'
