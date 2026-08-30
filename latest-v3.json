@@ -1,34 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.14",
-  "app_version": "4.4.14",
-  "runtime_version": "4.4.14",
+  "version": "4.4.15",
+  "app_version": "4.4.15",
+  "runtime_version": "4.4.15",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.14: evita choque entre Nueva atención y cerrar ficha; históricos muestran mes/año de última atención cuando está disponible.",
+  "message": "v4.4.15: restaura Históricos 2020–2025 como visor completo; ya no oculta pacientes históricos que también tienen ficha actual.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_14_ui_history/app.py",
-      "sha256": "bbe3f4f83de256defa1b179ee9fe0700b00f13fb40bcd11847019acde04f288f",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_14_ui_history/static/app.js",
-      "sha256": "fd0275149094b3aafca6a301ab159aec1320c841da06c222bd051e8930c4be57",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_14_ui_history/static/index.html",
-      "sha256": "4a01fd0b9a7c1a8a43c92ddc34d9a0ffffc2f06684daabfae3cb5d208fa7bb59",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_15_historical_all/app.py",
+      "sha256": "abe71f80747ee339a9ad6b8cf5cc8e7a28557fbceed1aac7301ae2349fc9a0a8",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_14_ui_history/update_manifest.json",
-      "sha256": "703b1eb94ca06444bb9bb2fdd691fc6e7e5535d2a09df09f02fce45d8f3603ad",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_15_historical_all/update_manifest.json",
+      "sha256": "c6ce87e390c88e467b900aff329b6e59412129314e658271281681d81ccefd8d",
       "encoding": "utf-8"
     }
   ]
