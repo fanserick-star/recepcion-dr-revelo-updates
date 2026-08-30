@@ -93,7 +93,7 @@ jobs:
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest-v3.json -Force
           Copy-Item build/v4418_whatsapp_responses/candidate_latest.json latest.json -Force
           git add latest-v3.json latest.json
-          git commit -m 'release: publicar v4.4.18 respuestas WhatsApp'
+          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.18 respuestas WhatsApp'}
           git pull --rebase origin main
           git push origin HEAD:main
 
@@ -104,18 +104,20 @@ jobs:
           import json,time,urllib.request,pathlib,os
           url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
           out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4418-remote.json'
+          payload=os.environ['PAYLOAD_SHA']
           last=''
           for _ in range(45):
               try:
                   req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4418-guard'})
                   with urllib.request.urlopen(req,timeout=10) as r: raw=r.read()
                   d=json.loads(raw.decode('utf-8-sig'))
-                  if str(d.get('version'))=='4.4.18':
+                  urls=[str(f.get('url') or '') for f in d.get('files') or []]
+                  if str(d.get('version'))=='4.4.18' and len(urls)==4 and all(payload in u for u in urls):
                       out.write_bytes(raw);print('CHANNEL_4418_VISIBLE');break
-                  last=str(d.get('version'))
+                  last=f"version={d.get('version')} urls_ok={bool(urls) and all(payload in u for u in urls)}"
               except Exception as e:last=repr(e)
               time.sleep(1)
-          else: raise SystemExit('Canal no propagó 4.4.18; último='+last)
+          else: raise SystemExit('Canal no propagó el payload exacto; último='+last)
           '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4418.py
           python $env:RUNNER_TEMP\wait4418.py
           python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4418-remote.json --require-immutable
