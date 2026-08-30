@@ -1,0 +1,193 @@
+name: Validar y publicar v4.4.8 puerto dinámico
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v448_portfix/**'
+      - '.github/workflows/build-v448-portfix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir candidato mínimo
+        shell: pwsh
+        run: python build/v448_portfix/build_v448.py
+
+      - name: Reconstruir app candidato
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem updates/v4_4_8_portfix/app.part* | Sort-Object { [int]($_.Name -replace '^app\.part','') }
+          $bytes = New-Object System.Collections.Generic.List[byte]
+          foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p.FullName)) }
+          [IO.File]::WriteAllBytes((Join-Path $PWD 'updates/v4_4_8_portfix/app.py'), $bytes.ToArray())
+          python -m py_compile updates/v4_4_8_portfix/app.py
+          if(-not (Select-String -Path updates/v4_4_8_portfix/app.py -SimpleMatch 'os.getenv("RP_PORT", "8000")' -Quiet)){ throw 'RP_PORT no quedó aplicado' }
+          if(Select-String -Path updates/v4_4_8_portfix/app.py -SimpleMatch 'port=8000' -Quiet){ throw 'Quedó puerto 8000 fijo' }
+
+      - name: Crear runtime igual al consultorio
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('RUNTIME_OK')"
+          $hasPsycopg = & .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'Smoke test debe correr sin psycopg' }
+
+      - name: Preparar instalación simulada
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-v448-smoke'
+          if(Test-Path $root){ Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Copy-Item updates/v4_4_8_portfix/app.py (Join-Path $root 'app.py')
+          Copy-Item updates/v4_4_8_portfix/update_manifest.json (Join-Path $root 'update_manifest.json')
+          $base = Join-Path $env:RUNNER_TEMP 'rp-base-v448'
+          if(Test-Path $base){ Remove-Item $base -Recurse -Force }
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src = Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){ throw "Falta $name en base limpia" }
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static = Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){ throw 'Falta static en base limpia' }
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile = Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Prueba obligatoria - 8000 ocupado y RP_PORT 8766
+        shell: pwsh
+        run: |
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v448.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v448.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 100;$i++){
+              Start-Sleep -Milliseconds 250
+              try {
+                $v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version' -TimeoutSec 1
+                if([string]$v.version -eq '4.4.8'){ $ok=$true; break }
+              } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){
+              if(Test-Path $outlog){ Get-Content $outlog -Tail 160 }
+              if(Test-Path $errlog){ Get-Content $errlog -Tail 160 }
+              throw 'REGRESIÓN: backend no respetó RP_PORT=8766 con 8000 ocupado'
+            }
+            Write-Host 'DYNAMIC_PORT_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            $listener.Stop()
+          }
+
+      - name: Publicar payload sin mover canal
+        shell: pwsh
+        run: |
+          Remove-Item updates/v4_4_8_portfix/app.py -Force -ErrorAction SilentlyContinue
+          Remove-Item updates/v4_4_8_portfix/candidate_latest.json -Force -ErrorAction SilentlyContinue
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_8_portfix
+          if(-not (git diff --cached --quiet)){
+            git commit -m 'payload: v4.4.8 puerto dinámico validado'
+            git pull --rebase origin main
+            git push
+          }
+
+      - name: Verificar bytes REALES de GitHub Raw y generar canal
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          @'
+          import hashlib, json, time, urllib.request
+          from pathlib import Path
+          base='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/'
+          names=[f'app.part{i}' for i in range(1,8)]
+          def get(url):
+              req=urllib.request.Request(url+('?rp_ts='+str(time.time_ns())),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-release-check'})
+              with urllib.request.urlopen(req,timeout=10) as r: return r.read()
+          last=None
+          for _ in range(30):
+              try:
+                  chunks=[get(base+n) for n in names]
+                  manifest=get(base+'update_manifest.json')
+                  app=b''.join(chunks)
+                  text=app.decode('utf-8-sig')
+                  compile(text,'app.py','exec')
+                  if 'APP_VERSION = "4.4.8"' not in text or 'os.getenv("RP_PORT", "8000")' not in text or 'port=8000' in text:
+                      raise RuntimeError('payload remoto no contiene portfix esperado')
+                  inner=json.loads(manifest.decode('utf-8-sig'))
+                  if inner.get('version')!='4.4.8': raise RuntimeError('manifest remoto incorrecto')
+                  break
+              except Exception as e:
+                  last=e; time.sleep(1)
+          else: raise SystemExit(f'GitHub Raw no propagó payload válido: {last}')
+          latest={
+            'product':'recepcion-pacientes','version':'4.4.8','app_version':'4.4.8','runtime_version':'4.4.8',
+            'mandatory':True,'channel':'files-v3',
+            'message':'v4.4.8: respeta el puerto libre elegido por el launcher mediante RP_PORT; prueba automática con 8000 ocupado. No toca interfaz ni datos.',
+            'files':[
+              {'path':'app.py','parts':[base+n for n in names],'sha256':hashlib.sha256(app).hexdigest(),'encoding':'utf-8'},
+              {'path':'update_manifest.json','url':base+'update_manifest.json','sha256':hashlib.sha256(manifest).hexdigest(),'encoding':'utf-8'}
+            ]
+          }
+          payload=json.dumps(latest,ensure_ascii=False,indent=2)+'\n'
+          Path('latest-v3.json').write_text(payload,encoding='utf-8')
+          Path('latest.json').write_text(payload,encoding='utf-8')
+          print('REMOTE_SHA_OK',latest['files'][0]['sha256'])
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\publish448.py
+          python $env:RUNNER_TEMP\publish448.py
+
+      - name: Mover canal solo después de SHA remoto verde
+        shell: pwsh
+        run: |
+          git add latest.json latest-v3.json
+          git commit -m 'release: publicar v4.4.8 tras prueba de puerto y SHA remoto'
+          git pull --rebase origin main
+          git push
+
+      - name: Confirmar propagación del manifiesto 4.4.8
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          last=None
+          for _ in range(40):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-release-check'})
+                  with urllib.request.urlopen(req,timeout=8) as r: d=json.loads(r.read().decode('utf-8-sig'))
+                  if d.get('version')=='4.4.8' and [x.get('path') for x in d.get('files',[])]==['app.py','update_manifest.json']:
+                      print('CHANNEL_PROPAGATED_448'); break
+              except Exception as e: last=e
+              time.sleep(1)
+          else: raise SystemExit(f'Canal 4.4.8 no propagó: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait448.py
+          python $env:RUNNER_TEMP\wait448.py
