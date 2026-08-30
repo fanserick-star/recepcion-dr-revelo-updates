@@ -47,6 +47,7 @@ def replace_between(text: str, start: str, end: str, new: str, label: str) -> st
     if a < 0: raise SystemExit(label+': inicio no encontrado')
     b=text.find(end,a+len(start))
     if b < 0: raise SystemExit(label+': fin no encontrado')
+    # El marcador END se conserva porque text[b:] empieza exactamente ahí.
     return text[:a]+new+text[b:]
 
 
@@ -68,9 +69,9 @@ CLEAN_CSS = r'''/* v4.4.2 — Atender directo desde Agenda */
 def patch_static_app(js: str) -> str:
     # Nueva atención queda dedicada a la agenda. El alta/búsqueda de pacientes
     # continúa disponible en su pantalla propia, sin ocupar el flujo de Atender.
-    js=replace_between(js,'async function newAttention(){','function pRow(p){',NEW_ATTENTION+'function pRow(p){','Nueva atención solo agenda')
+    js=replace_between(js,'async function newAttention(){','function pRow(p){',NEW_ATTENTION,'Nueva atención solo agenda')
     # pRow + attentionSearch eran exclusivos del buscador retirado.
-    js=replace_between(js,'function pRow(p){','function procedureByName(name){','function procedureByName(name){','retirar buscador de atención')
+    js=replace_between(js,'function pRow(p){','function procedureByName(name){','', 'retirar buscador de atención')
     required=['async function newAttention()','attention-agenda-only','id="attentionWeekBlock"','Selecciona una cita para registrar la atención.','patient-name-button','Procedimientos y servicios','<span class="service-price">$40.00</span>']
     for token in required:
         if token not in js: raise SystemExit('static app falta '+token)
@@ -87,32 +88,34 @@ def patch_app(s: str) -> str:
     # Retirar por completo endpoints ya descartados: ficha rápida y resumen
     # inteligente. Actividad/Papelera continúan en SQLite local; diagnóstico
     # toca Neon únicamente bajo clic explícito del usuario.
-    s=replace_between(s,'@app.get("/api/patients/{pid}/quick")','@app.get("/api/ops/diagnostics")','@app.get("/api/ops/diagnostics")','endpoints descartados')
+    s=replace_between(s,'@app.get("/api/patients/{pid}/quick")','@app.get("/api/ops/diagnostics")','', 'endpoints descartados')
 
     # Quitar del overlay toda la lógica de drawer + Agenda inteligente.
     s=replace_once(s,'}ensurePatientDrawer();ensureDiagnosticsCard()}','}ensureDiagnosticsCard()}','init sin ficha rápida')
-    s=replace_between(s,' function ensurePatientDrawer(){',' function ensureDiagnosticsCard(){',' function ensureDiagnosticsCard(){','js ficha rápida y agenda inteligente')
+    s=replace_between(s,' function ensurePatientDrawer(){',' function ensureDiagnosticsCard(){','', 'js ficha rápida y agenda inteligente')
     # El resumen diario quedó sin uso desde 4.4.1; se elimina para que no exista
     # ninguna referencia residual al endpoint de Agenda inteligente.
     if ' function maybeDailyBrief(){' in s:
-        s=replace_between(s,' function maybeDailyBrief(){','function init(){ensureOpsUI()}','function init(){ensureOpsUI()}','resumen diario muerto')
+        s=replace_between(s,' function maybeDailyBrief(){','function init(){ensureOpsUI()}','', 'resumen diario muerto')
 
     # Limpiar CSS muerto de ficha rápida/Agenda inteligente del overlay base.
     if '.patient-quick-drawer-backdrop{' in s and '.ops-diagnostic-panel{' in s:
-        s=replace_between(s,'.patient-quick-drawer-backdrop{','.ops-diagnostic-panel{','.ops-diagnostic-panel{','css ficha rápida y agenda inteligente')
+        s=replace_between(s,'.patient-quick-drawer-backdrop{','.ops-diagnostic-panel{','', 'css ficha rápida y agenda inteligente')
     s=s.replace('.smart-agenda-bottom,.ops-diagnostic-grid{grid-template-columns:1fr}', '.ops-diagnostic-grid{grid-template-columns:1fr}')
     s=s.replace('.pq-kpis{grid-template-columns:1fr 1fr 1fr}', '')
     s=s.replace('.patient-quick-drawer{left:auto!important;right:0!important;bottom:auto!important;max-width:94vw!important;margin:0!important;padding:0!important}\n','')
 
     overlay_marker='@app.get("/v460/overlay.css")'
-    inject='V442_CLEAN_CSS = r"""'+CLEAN_CSS+'"""\nV460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\\n" + V442_CLEAN_CSS\n\n'+overlay_marker
-    s=replace_once(s,overlay_marker,inject,'css v442')
+    inject='V442_CLEAN_CSS = r"""'+CLEAN_CSS+'"""\nV460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\\n" + V442_CLEAN_CSS\n\n'
+    s=replace_between(s,overlay_marker,overlay_marker,inject,'css v442') if False else s
+    # Para insertar ANTES del marcador sin duplicarlo usamos replace_once simple.
+    s=replace_once(s,overlay_marker,inject+overlay_marker,'css v442')
 
     compile(s,'app.py','exec')
     required=['APP_VERSION = "4.4.2"','TRASH_RETENTION_DAYS = 7','Actividad local-first estricta','Lectura estrictamente local','Guarda la Papelera únicamente en SQLite local','Resumen de datos y servicios','/api/ops/diagnostics','V442_CLEAN_CSS','V43104_ALERT_JS','Procedimientos y servicios',"price.textContent='$40.00'",'Emitir por lotes']
     for token in required:
         if token not in s: raise SystemExit('app falta '+token)
-    forbidden=['/api/patients/{pid}/quick','openPatientQuick','ensurePatientDrawer','patientQuickDrawer','/api/ops/agenda-smart','loadSmartAgenda','maybeDailyBrief','patient-quick-drawer-backdrop','smart-agenda-card']
+    forbidden=['/api/patients/{pid}/quick','openPatientQuick','ensurePatientDrawer','patientQuickDrawer','/api/ops/agenda-smart','loadSmartAgenda','maybeDailyBrief','patient-quick-drawer-backdrop','smart-agenda-card','@app.get("/api/ops/diagnostics")@app.get']
     for token in forbidden:
         if token in s: raise SystemExit('app conserva '+token)
     return s
