@@ -31,12 +31,15 @@ jobs:
         shell: pwsh
         run: python build/v4412_badge/build_v4412.py
 
-      - name: Validar sintaxis, dependencias y alcance
+      - name: Validar contrato, sintaxis y alcance
         shell: pwsh
         run: |
           python -m py_compile updates/v4_4_12_badge/app.py
           node --check updates/v4_4_12_badge/static/app.js
-          python tools/release_guard.py updates/v4_4_12_badge/app.py
+          python tools/release_guard.py `
+            --app updates/v4_4_12_badge/app.py `
+            --manifest updates/v4_4_12_badge/update_manifest.json `
+            --version 4.4.12
           @'
           from pathlib import Path
           app=Path('updates/v4_4_12_badge/app.py').read_text(encoding='utf-8-sig')
@@ -46,50 +49,98 @@ jobs:
           assert "const VERSION=\\'4.4.3\\';" not in app
           assert 'RP_PORT' in app and 'pg8000' in app
           assert "agenda.classList.toggle('hidden',!!active)" in js
+          assert "const active=q.length>=2" in js
+          assert "attentionSearchSeq++" in js
           assert "EMPTY_HINT='Ingresa la cédula para validarla localmente.'" in js
           assert "status.textContent=''" in js
+          assert "status.classList.add('hidden')" in js
           print('STATIC_AND_BACKEND_SCOPE_OK')
           '@ | python -
 
-      - name: Instalar runtime exacto de producción
+      - name: Crear runtime igual al consultorio y sin psycopg
         shell: pwsh
         run: |
-          python -m pip install --disable-pip-version-check --no-input fastapi==0.115.6 pydantic==1.10.15 uvicorn==0.34.0 SQLAlchemy==2.0.36 pg8000==1.31.2 python-dotenv==1.0.1 python-multipart==0.0.20 anyio
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('RUNTIME_OK')"
+          $hasPsycopg = & .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'El smoke test debe correr sin psycopg' }
 
-      - name: Smoke real con 8000 ocupado y RP_PORT 8766
+      - name: Preparar instalación simulada completa
         shell: pwsh
         run: |
-          @'
-          import json, os, socket, subprocess, sys, time, urllib.request
-          from pathlib import Path
-          root=Path('updates/v4_4_12_badge').resolve()
-          blocker=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-          blocker.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,0)
-          blocker.bind(('127.0.0.1',8000));blocker.listen(1)
-          env=os.environ.copy();env['RP_PORT']='8766';env['RP_FORCE_OFFLINE']='1';env['PYTHONPATH']=str(Path('.').resolve())
-          p=subprocess.Popen([sys.executable,str(root/'app.py')],cwd=str(root),env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
-          try:
-              deadline=time.time()+35;last=''
-              while time.time()<deadline:
-                  if p.poll() is not None:
-                      last=(p.stdout.read() if p.stdout else '')[-5000:]
-                      raise SystemExit('Backend terminó antes de responder: '+last)
-                  try:
-                      with urllib.request.urlopen('http://127.0.0.1:8766/api/version?ts='+str(time.time_ns()),timeout=1.5) as r:
-                          d=json.loads(r.read().decode())
-                      if str(d.get('version'))=='4.4.12':
-                          print('RUNTIME_4412_OK',d)
-                          break
-                      last=repr(d)
-                  except Exception as e:last=repr(e)
-                  time.sleep(.4)
-              else:raise SystemExit('No respondió 4.4.12 en 8766: '+last)
-          finally:
-              p.terminate()
-              try:p.wait(timeout=8)
-              except Exception:p.kill()
-              blocker.close()
-          '@ | python -
+          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-v4412-smoke'
+          if(Test-Path $root){ Remove-Item $root -Recurse -Force }
+          New-Item -ItemType Directory -Force $root | Out-Null
+
+          $base = Join-Path $env:RUNNER_TEMP 'rp-base-v4412'
+          if(Test-Path $base){ Remove-Item $base -Recurse -Force }
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src = Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){ throw "Falta $name en base limpia" }
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static = Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){ throw 'Falta static en base limpia' }
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile = Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
+
+          Copy-Item updates/v4_4_12_badge/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item updates/v4_4_12_badge/update_manifest.json (Join-Path $root 'update_manifest.json') -Force
+          Copy-Item updates/v4_4_12_badge/static/index.html (Join-Path $root 'static\index.html') -Force
+          Copy-Item updates/v4_4_12_badge/static/app.js (Join-Path $root 'static\app.js') -Force
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke real - 8000 ocupado, RP_PORT 8766 y UX v4.4.11
+        shell: pwsh
+        run: |
+          $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v4412.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v4412.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 120;$i++){
+              Start-Sleep -Milliseconds 250
+              try {
+                $v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version?ts=4412' -TimeoutSec 1
+                if([string]$v.version -eq '4.4.12'){ $ok=$true; break }
+              } catch {}
+              if($proc.HasExited){ break }
+            }
+            if(-not $ok){
+              if(Test-Path $outlog){ Get-Content $outlog -Tail 200 }
+              if(Test-Path $errlog){ Get-Content $errlog -Tail 200 }
+              throw 'Backend v4.4.12 no arrancó en 8766'
+            }
+
+            $page=(Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing -TimeoutSec 4).Content
+            foreach($m in @('id="agenda"','id="facturacion"','id="reportes"','id="pacientes"')){
+              if(-not $page.Contains($m)){ throw "La página servida perdió $m" }
+            }
+            $js=(Invoke-WebRequest 'http://127.0.0.1:8766/static/app.js?v=4.4.12' -UseBasicParsing -TimeoutSec 4).Content
+            foreach($m in @("agenda.classList.toggle('hidden',!!active)","const active=q.length>=2","attentionSearchSeq++","EMPTY_HINT='Ingresa la cédula para validarla localmente.'","status.textContent=''")){
+              if(-not $js.Contains($m)){ throw "El JS servido perdió UX requerida: $m" }
+            }
+            $null=Invoke-RestMethod 'http://127.0.0.1:8766/api/patients?q=JUAN' -TimeoutSec 3
+            $null=Invoke-RestMethod 'http://127.0.0.1:8766/api/patients?q=1234' -TimeoutSec 3
+            Write-Host 'V4412_RUNTIME_AND_UX_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            $listener.Stop()
+          }
 
       - name: Publicar payload sin mover canal
         shell: pwsh
@@ -98,6 +149,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add updates/v4_4_12_badge
           git commit -m "release: payload v4.4.12 badge real"
+          git pull --rebase origin main
           git push origin HEAD:main
 
       - name: Verificar payload real desde GitHub Raw
@@ -110,6 +162,7 @@ jobs:
           Copy-Item build/v4412_badge/candidate_latest.json latest-v3.json -Force
           git add latest-v3.json
           git commit -m "release: publicar v4.4.12 badge real"
+          git pull --rebase origin main
           git push origin HEAD:main
 
       - name: Confirmar propagación final
@@ -119,9 +172,9 @@ jobs:
           import json,time,urllib.request
           url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
           last=''
-          for _ in range(18):
+          for _ in range(30):
               try:
-                  req=urllib.request.Request(url+f'?rp_ts={time.time_ns()}',headers={'Cache-Control':'no-cache','User-Agent':'RP-v4412-guard'})
+                  req=urllib.request.Request(url+f'?rp_ts={time.time_ns()}',headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4412-guard'})
                   with urllib.request.urlopen(req,timeout=12) as r:data=json.loads(r.read().decode('utf-8-sig'))
                   if str(data.get('version'))=='4.4.12':
                       print('CHANNEL_4412_VISIBLE');break
