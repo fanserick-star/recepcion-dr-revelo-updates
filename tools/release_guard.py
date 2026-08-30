@@ -16,6 +16,15 @@ ALLOWED_THIRD_PARTY = {
     "sqlalchemy",
     "dotenv",
     "pg8000",
+    "uvicorn",
+    "anyio",
+}
+# Imports usados únicamente en ramas opcionales de Windows/WebView. No son
+# requisito para que el backend arranque; el smoke test real valida que sigan
+# siendo realmente opcionales.
+OPTIONAL_IMPORTS = {
+    "clr",
+    "System",
 }
 LOCAL_MODULES = {
     "azur_client",
@@ -51,7 +60,7 @@ def validate_app(path: Path, expected_version: str) -> None:
         raise SystemExit("Dependencia prohibida/no instalada: " + ", ".join(banned))
 
     stdlib = set(getattr(sys, "stdlib_module_names", ()))
-    unknown = sorted(imports - stdlib - ALLOWED_THIRD_PARTY - LOCAL_MODULES)
+    unknown = sorted(imports - stdlib - ALLOWED_THIRD_PARTY - OPTIONAL_IMPORTS - LOCAL_MODULES)
     if unknown:
         raise SystemExit(
             "app.py introdujo dependencias fuera del contrato del runtime: "
