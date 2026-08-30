@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import tempfile
 import zipfile
@@ -34,17 +35,23 @@ def stable_app_bytes() -> bytes:
 
 def bump_only_version(raw: bytes) -> bytes:
     s = raw.decode("utf-8")
-    replacements = [
-        ('APP_VERSION = "4.3.64"', 'APP_VERSION = "4.4.6"'),
-        ("const VERSION='4.3.64';", "const VERSION='4.4.6';"),
-        ('/v460/overlay.css?v=4.3.64', '/v460/overlay.css?v=4.4.6'),
-        ('/v460/overlay.js?v=4.3.64', '/v460/overlay.js?v=4.4.6'),
-    ]
-    for old, new in replacements:
-        count = s.count(old)
-        if count != 1:
-            raise SystemExit(f"Versión estable inesperada: {old!r} aparece {count} veces")
-        s = s.replace(old, new, 1)
+
+    # APP_VERSION es el único identificador imprescindible para el backend y el
+    # actualizador. Los demás identificadores visuales pueden tener espacios o
+    # comillas distintas según la etapa de build, por eso se cambian por patrón.
+    s, n_app = re.subn(r'APP_VERSION\s*=\s*["\']4\.3\.64["\']', 'APP_VERSION = "4.4.6"', s, count=1)
+    if n_app != 1:
+        raise SystemExit(f"APP_VERSION 4.3.64 aparece {n_app} veces")
+
+    s, n_badge = re.subn(
+        r'(const\s+VERSION\s*=\s*)["\']4\.3\.64["\']',
+        r"\1'4.4.6'",
+        s,
+        count=1,
+    )
+    s = s.replace('/v460/overlay.css?v=4.3.64', '/v460/overlay.css?v=4.4.6')
+    s = s.replace('/v460/overlay.js?v=4.3.64', '/v460/overlay.js?v=4.4.6')
+    print('VERSION_PATCH', {'app': n_app, 'badge': n_badge})
 
     # No se permite arrastrar la limpieza 4.4.3 que originó las regresiones.
     forbidden = ["attention-agenda-only", "V443_CLEANUP_JS", "V443_CLEANUP_CSS"]
@@ -112,9 +119,8 @@ def main() -> None:
     finally:
         shutil.rmtree(temp, ignore_errors=True)
 
-    # app_base.js fue introducido por los hotfix 4.4.x. Lo sobrescribimos con un
-    # archivo inerte para que ningún caché o referencia residual pueda ejecutar
-    # otra copia de la interfaz vieja.
+    # app_base.js fue introducido por los hotfix 4.4.x. Se sobrescribe con un
+    # archivo inerte para impedir que una referencia residual ejecute otra UI.
     (OUT / "static" / "app_base.js").write_text(
         "// v4.4.6 recovery: archivo legado neutralizado; la interfaz usa /static/app.js.\n",
         encoding="utf-8",
