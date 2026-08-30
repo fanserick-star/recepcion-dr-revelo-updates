@@ -89,7 +89,7 @@ def patch_app(text: str) -> str:
 FOLDED_444_SEARCH = r'''
 
 /* v4.4.9 — integra directamente el hotfix v4.4.4 sobre la base real v4.4.3.
-   Ya NO carga app_base.js ni crea un segundo <script>. */
+   El frontend queda contenido en un único archivo JavaScript. */
 ;(() => {
   'use strict';
 
@@ -165,8 +165,9 @@ def build_frontend() -> tuple[str, str, dict]:
     base_js = base_js_raw.decode("utf-8-sig")
     final_js = base_js.rstrip() + FOLDED_444_SEARCH + "\n"
 
-    if "app_base.js" in final_js or "loadStableBase" in final_js:
-        raise SystemExit("El frontend final todavía contiene el wrapper frágil de 4.4.4")
+    # Detecta el patrón ejecutable del wrapper antiguo, no simples comentarios.
+    if "loadStableBase(" in final_js or "/static/app_base.js?" in final_js:
+        raise SystemExit("El frontend final todavía contiene carga dinámica de una segunda capa")
     for marker in ("globalSearchPatients", "Buscar paciente por nombre, cédula, celular o correo", "v449SearchNormalized"):
         if marker not in final_js:
             raise SystemExit(f"Falta marcador del buscador: {marker}")
