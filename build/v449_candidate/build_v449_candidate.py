@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -10,20 +9,29 @@ VERSION = "4.4.9"
 SRC = ROOT / "updates" / "v443"
 OUT = ROOT / "candidates" / "v4_4_9_clean_444"
 
+# app.py sí conservó una huella SHA-256 válida en el canal histórico.
 EXPECTED_APP_SHA = "97ea664ad7bebb8927eea4252e59e1bbb9223f83088d58340a1f701d50f68620"
-EXPECTED_INDEX_SHA = "a512972eb9c1c02c9a8b12551ec1bfd5c8fec0c684b087dfb3d13203da7c14b0"
-EXPECTED_BASE_JS_SHA = "18e94c1513e57b31f2506242d648e59c9fc865fd4db892007d8d994c2ed4e03b"
+# Para los dos archivos visuales usamos la identidad del blob Git histórico,
+# porque los SHA-256 escritos en el manifiesto 4.4.4 fueron calculados antes de
+# una normalización de saltos de línea y no representan los bytes publicados.
+EXPECTED_INDEX_BLOB = "adc8fb4bf8c41ddddbb42a9950c18043882af27f"
+EXPECTED_BASE_JS_BLOB = "7aa78b107556858d9e0d319c7554c6eae57eeca3"
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def exact_bytes(path: Path, expected: str, label: str) -> bytes:
+def git_blob_sha(data: bytes) -> str:
+    header = f"blob {len(data)}\0".encode("ascii")
+    return hashlib.sha1(header + data).hexdigest()
+
+
+def exact_blob(path: Path, expected_blob: str, label: str) -> bytes:
     raw = path.read_bytes()
-    got = sha256(raw)
-    if got != expected:
-        raise SystemExit(f"{label} cambió: {got}; esperado {expected}")
+    got = git_blob_sha(raw)
+    if got != expected_blob:
+        raise SystemExit(f"{label} cambió: blob {got}; esperado {expected_blob}")
     return raw
 
 
@@ -54,8 +62,8 @@ def patch_app(text: str) -> str:
     new_driver = '''import pg8000.dbapi as pg8000_dbapi\n_POSTGRES_DRIVER = "pg8000"\n'''
     text = replace_once(text, old_driver, new_driver, "driver PostgreSQL")
 
-    # El código ya tenía una sonda pg8000 correcta; quitamos únicamente la rama
-    # imposible de psycopg para que una futura publicación no dependa de ese módulo.
+    # La sonda pg8000 ya estaba en la 4.4.3. Quitamos únicamente el fallback
+    # de psycopg; no alteramos su lógica de conexión a Neon.
     old_probe_fallback = '''    else:\n        with psycopg.connect(raw_url, connect_timeout=12, autocommit=True) as conn:\n            with conn.cursor() as cur:\n                cur.execute("SELECT 1")\n                row = cur.fetchone()\n'''
     text = replace_once(text, old_probe_fallback, "", "fallback psycopg de sonda Neon")
 
@@ -66,7 +74,6 @@ def patch_app(text: str) -> str:
     if 'port=LOCAL_HTTP_PORT' not in text:
         raise SystemExit("El backend ya no usa el puerto elegido por el launcher")
 
-    # Marcadores funcionales que deben sobrevivir exactamente desde 4.4.3/4.4.4.
     required = [
         'WHATSAPP_CLOUD_MODE', 'CONFIRMAFY_ATTENDED_ORIGIN', 'BILLING_QUEUE_START_DATE',
         '/api/ops/trash', '/api/ops/activity', 'V460_OVERLAY_JS', 'AZUR_API_KEY',
@@ -148,9 +155,9 @@ FOLDED_444_SEARCH = r'''
 '''
 
 
-def build_frontend() -> tuple[str, str]:
-    index_raw = exact_bytes(SRC / "static" / "index.html", EXPECTED_INDEX_SHA, "index 4.4.3")
-    base_js_raw = exact_bytes(SRC / "static" / "app.js", EXPECTED_BASE_JS_SHA, "app.js 4.4.3")
+def build_frontend() -> tuple[str, str, dict]:
+    index_raw = exact_blob(SRC / "static" / "index.html", EXPECTED_INDEX_BLOB, "index 4.4.3")
+    base_js_raw = exact_blob(SRC / "static" / "app.js", EXPECTED_BASE_JS_BLOB, "app.js 4.4.3")
 
     index = index_raw.decode("utf-8-sig")
     index = replace_once(index, '/static/app.js?v=4.3.34', '/static/app.js?v=4.4.9', "cache-bust app.js")
@@ -166,7 +173,14 @@ def build_frontend() -> tuple[str, str]:
     for marker in ('id="agenda"', 'id="facturacion"', 'id="reportes"', 'id="pacientes"', 'data-config-tab="agenda"'):
         if marker not in index:
             raise SystemExit(f"Se perdió sección visual: {marker}")
-    return index, final_js
+
+    source_meta = {
+        "source_index_blob_sha1": EXPECTED_INDEX_BLOB,
+        "source_index_sha256_actual": sha256(index_raw),
+        "source_base_js_blob_sha1": EXPECTED_BASE_JS_BLOB,
+        "source_base_js_sha256_actual": sha256(base_js_raw),
+    }
+    return index, final_js, source_meta
 
 
 def main() -> None:
@@ -174,7 +188,7 @@ def main() -> None:
     (OUT / "static").mkdir(parents=True, exist_ok=True)
 
     app = patch_app(source_app())
-    index, js = build_frontend()
+    index, js, source_meta = build_frontend()
 
     (OUT / "app.py").write_text(app, encoding="utf-8", newline="")
     (OUT / "static" / "index.html").write_text(index, encoding="utf-8", newline="")
@@ -198,8 +212,7 @@ def main() -> None:
         "source_package": "4.4.4",
         "source_app_version": "4.4.3",
         "source_app_sha256": EXPECTED_APP_SHA,
-        "source_index_sha256": EXPECTED_INDEX_SHA,
-        "source_base_js_sha256": EXPECTED_BASE_JS_SHA,
+        **source_meta,
         "candidate_app_sha256": sha256((OUT / "app.py").read_bytes()),
         "candidate_index_sha256": sha256((OUT / "static" / "index.html").read_bytes()),
         "candidate_js_sha256": sha256((OUT / "static" / "app.js").read_bytes()),
