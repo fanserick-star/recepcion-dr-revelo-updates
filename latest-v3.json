@@ -1,11 +1,11 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.4",
+  "version": "4.4.5",
   "app_version": "4.4.3",
   "runtime_version": "4.4.3",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.4: corrige el buscador superior de Atención/Inicio para volver a buscar por nombre, cédula, celular o correo y fuerza una copia limpia del frontend para evitar caché antigua.",
+  "message": "v4.4.5: restaura en Nueva atención el buscador por nombre, apellido, cédula o celular; mantiene la agenda semanal y elimina el botón Facturero Móvil únicamente del modal clínico.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -46,14 +46,14 @@
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_4_search/static/app.js",
-      "sha256": "969ad9d8540266f9770f3b2bd3f88b5baf3d51d9b7aecc0f062fa4792d871064",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_5_search/static/app.js",
+      "sha256": "720f0cc2d8f4b7b8c7d813a713cfcb2049840e97903b4d8c36378eb87055b0a2",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_4_search/update_manifest.json",
-      "sha256": "ac6bf0e098afba74e13588b1443b253a7dd1c0030500b3b363de6cf59ba0de73",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_5_search/update_manifest.json",
+      "sha256": "1fbc4bdff5bda880fbebc0d1bd2774850e006be70a23237ce69662f9cf945765",
       "encoding": "utf-8"
     }
   ]
