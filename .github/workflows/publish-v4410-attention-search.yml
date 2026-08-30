@@ -35,7 +35,7 @@ jobs:
         shell: pwsh
         run: |
           node --check updates/v4_4_10_attention_search/static/app.js
-          python - <<'PY'
+          @'
           import json, subprocess
           from pathlib import Path
           root=Path('.')
@@ -47,18 +47,20 @@ jobs:
           assert new_js.count('function attentionSearch(')==1
           assert "'/api/patients?q='+encodeURIComponent(q)+'&limit=18'" in new_js
           assert "const q=String(input.value||'').trim().toUpperCase()" in new_js
-          assert 'digitsOnlyInput' not in new_js[new_js.index('function attentionSearch('):new_js.index('function attentionSearch(')+5000]
+          fragment=new_js[new_js.index('function attentionSearch('):new_js.index('function attentionSearch(')+5000]
+          assert 'digitsOnlyInput' not in fragment
+          assert "replace(/[^0-9]/g" not in fragment
           assert new_index.replace('/static/app.js?v=4.4.10','/static/app.js?v=4.4.9',1)==old_index
           manifest=json.loads((root/'updates/v4_4_10_attention_search/update_manifest.json').read_text(encoding='utf-8'))
           assert manifest['copy']==['static/app.js','static/index.html','update_manifest.json']
           assert manifest['app_version']=='4.4.9' and manifest['runtime_version']=='4.4.9'
           print('SCOPE_AND_SYNTAX_OK')
-          PY
+          '@ | python -
 
       - name: Confirmar que el backend 4.4.9 ya soporta búsqueda general
         shell: pwsh
         run: |
-          python - <<'PY'
+          @'
           import subprocess
           text=subprocess.check_output(['git','show','HEAD:updates/v4_4_9_clean_444/app.py']).decode('utf-8-sig')
           start=text.index('def search_patients(')
@@ -67,7 +69,7 @@ jobs:
           for marker in ('Patient.nombre','Patient.cedula','Patient.celular','Patient.correo'):
               assert marker in body, marker
           print('BACKEND_GENERIC_PATIENT_SEARCH_OK')
-          PY
+          '@ | python -
 
       - name: Publicar payload sin mover todavía el canal
         shell: pwsh
@@ -93,7 +95,7 @@ jobs:
       - name: Confirmar propagación y SHA del canal publicado
         shell: pwsh
         run: |
-          python - <<'PY'
+          @'
           import json,time,urllib.request
           url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
           last=''
@@ -111,5 +113,5 @@ jobs:
               time.sleep(2)
           else:
               raise SystemExit('Canal no propagó 4.4.10; último='+last)
-          PY
+          '@ | python -
           python tools/remote_payload_guard.py --manifest latest-v3.json
