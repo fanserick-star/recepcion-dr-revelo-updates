@@ -1,0 +1,177 @@
+name: Validar y publicar v4.4.14 ficha e histórico
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4414_ui_history/**'
+      - '.github/workflows/publish-v4414-ui-history.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4414-ui-history
+  cancel-in-progress: false
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.14 desde v4.4.13 estable
+        shell: pwsh
+        run: python build/v4414_ui_history/build_release.py
+
+      - name: Guard de release y sintaxis
+        shell: pwsh
+        run: |
+          python tools/release_guard.py --app updates/v4_4_14_ui_history/app.py --manifest updates/v4_4_14_ui_history/update_manifest.json --version 4.4.14
+          python -m py_compile updates/v4_4_14_ui_history/app.py
+          node --check updates/v4_4_14_ui_history/static/app.js
+
+      - name: Validar exactamente los dos cambios de UX
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          app=Path('updates/v4_4_14_ui_history/app.py').read_text(encoding='utf-8-sig')
+          js=Path('updates/v4_4_14_ui_history/static/app.js').read_text(encoding='utf-8-sig')
+          index=Path('updates/v4_4_14_ui_history/static/index.html').read_text(encoding='utf-8-sig')
+          assert 'APP_VERSION = "4.4.14"' in app
+          assert 'padding-right:58px' in index
+          assert '.modalbox.v4413-profile-shell>.x{z-index:8}' in index
+          assert 'function historicalLastPeriod' in js
+          assert "'agosto'" in js and "'diciembre'" in js
+          assert 'Última atención histórica: ${period}' in js
+          assert '⚠ Datos incompletos' in js
+          assert 'Historial de Agenda' in js and 'Historial de Facturación' in js
+          assert '/static/app.js?v=4.4.14' in index
+          assert 'billingScope.querySelectorAll' in app
+          assert 'RP_PORT' in app and 'pg8000' in app
+          print('V4414_SCOPE_OK')
+          '@ | python -
+
+      - name: Crear runtime igual al consultorio y sin psycopg
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check --no-input `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          $hasPsycopg=& .\.release-venv\Scripts\python.exe -c "import importlib.util; print('1' if importlib.util.find_spec('psycopg') else '0')"
+          if($hasPsycopg.Trim() -ne '0'){ throw 'El smoke debe correr sin psycopg' }
+
+      - name: Preparar instalación simulada completa
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'Recepcion-v4414-smoke'
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $base=Join-Path $env:RUNNER_TEMP 'rp-base-v4414'
+          if(Test-Path $base){Remove-Item $base -Recurse -Force}
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src=Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){throw "Falta $name en base limpia"}
+            Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $static=Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $static){throw 'Falta static en base limpia'}
+          Copy-Item $static.FullName (Join-Path $root 'static') -Recurse
+          $mobile=Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse}
+          Copy-Item updates/v4_4_14_ui_history/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item updates/v4_4_14_ui_history/update_manifest.json (Join-Path $root 'update_manifest.json') -Force
+          Copy-Item updates/v4_4_14_ui_history/static/index.html (Join-Path $root 'static\index.html') -Force
+          Copy-Item updates/v4_4_14_ui_history/static/app.js (Join-Path $root 'static\app.js') -Force
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          "SMOKE_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Smoke real - 8000 ocupado y frontend v4.4.14 servido
+        shell: pwsh
+        run: |
+          $listener=[System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback,8000)
+          $listener.Start()
+          $env:RP_PORT='8766'
+          $env:RP_FORCE_OFFLINE='1'
+          $env:RP_DATA_DIR=(Join-Path $env:SMOKE_ROOT 'data')
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
+          $py=(Resolve-Path '.release-venv\Scripts\python.exe').Path
+          $outlog=Join-Path $env:RUNNER_TEMP 'v4414.stdout.log'
+          $errlog=Join-Path $env:RUNNER_TEMP 'v4414.stderr.log'
+          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:SMOKE_ROOT 'app.py')) -WorkingDirectory $env:SMOKE_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
+          try {
+            $ok=$false
+            for($i=0;$i -lt 140;$i++){
+              Start-Sleep -Milliseconds 250
+              try{$v=Invoke-RestMethod 'http://127.0.0.1:8766/api/version' -TimeoutSec 1;if([string]$v.version -eq '4.4.14'){$ok=$true;break}}catch{}
+              if($proc.HasExited){break}
+            }
+            if(-not $ok){if(Test-Path $outlog){Get-Content $outlog -Tail 160};if(Test-Path $errlog){Get-Content $errlog -Tail 160};throw 'Backend 4.4.14 no arrancó en 8766'}
+            $js=(Invoke-WebRequest 'http://127.0.0.1:8766/static/app.js?v=4.4.14' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $js.Contains('function historicalLastPeriod')){throw 'No se sirve formato mes/año histórico'}
+            if(-not $js.Contains('⚠ Datos incompletos')){throw 'Se perdieron advertencias de datos'}
+            $page=(Invoke-WebRequest 'http://127.0.0.1:8766/' -UseBasicParsing -TimeoutSec 4).Content
+            if(-not $page.Contains('padding-right:58px')){throw 'No se sirve reserva para botón cerrar'}
+            Write-Host 'V4414_RUNTIME_UI_SMOKE_OK'
+          } finally {
+            if(-not $proc.HasExited){Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue}
+            $listener.Stop()
+          }
+
+      - name: Publicar payload sin mover todavía el canal
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_14_ui_history
+          git commit -m 'payload: v4.4.14 ficha e histórico validados'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar bytes reales desde GitHub Raw
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4414_ui_history/candidate_latest.json
+
+      - name: Mover canal a v4.4.14
+        shell: pwsh
+        run: |
+          Copy-Item build/v4414_ui_history/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4414_ui_history/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          git commit -m 'release: publicar v4.4.14 ficha e histórico'
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar propagación final y SHA remoto
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4414-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4414-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r:raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.14':
+                      out.write_bytes(raw);print('CHANNEL_4414_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else:raise SystemExit('Canal no propagó 4.4.14; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4414.py
+          python $env:RUNNER_TEMP\wait4414.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4414-remote.json
+          Write-Host 'V4414_PUBLISHED_AND_REMOTE_VERIFIED'
