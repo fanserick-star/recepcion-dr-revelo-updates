@@ -1,9 +1,11 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.3",
+  "version": "4.4.4",
+  "app_version": "4.4.3",
+  "runtime_version": "4.4.3",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.3: elimina las dos filas vacías de Nueva atención y neutraliza enlaces internos # residuales que mostraban 127.0.0.1/# al pasar el mouse, sin añadir consultas a Neon.",
+  "message": "v4.4.4: corrige el buscador superior de Atención/Inicio para volver a buscar por nombre, cédula, celular o correo y fuerza una copia limpia del frontend para evitar caché antigua.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -37,15 +39,21 @@
       "encoding": "utf-8"
     },
     {
-      "path": "static/app.js",
+      "path": "static/app_base.js",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/static/app.js",
       "sha256": "18e94c1513e57b31f2506242d648e59c9fc865fd4db892007d8d994c2ed4e03b",
       "encoding": "utf-8"
     },
     {
+      "path": "static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_4_search/static/app.js",
+      "sha256": "969ad9d8540266f9770f3b2bd3f88b5baf3d51d9b7aecc0f062fa4792d871064",
+      "encoding": "utf-8"
+    },
+    {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/update_manifest.json",
-      "sha256": "505af217628f7bf65ed27baebda793874bff8fd2162975cfd484a7f3335bc57e",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_4_search/update_manifest.json",
+      "sha256": "ac6bf0e098afba74e13588b1443b253a7dd1c0030500b3b363de6cf59ba0de73",
       "encoding": "utf-8"
     }
   ]
