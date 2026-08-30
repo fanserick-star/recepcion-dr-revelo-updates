@@ -31,6 +31,7 @@ jobs:
           cat updates/v442/app.part* > _ci_app.py
           cat updates/v442/ABRIR_RECEPCION.part* > _ci_launcher.py
           python -m py_compile _ci_app.py _ci_launcher.py
+          node --check updates/v442/static/app.js
 
       - name: Validar limpieza y regresiones
         run: |
@@ -47,6 +48,7 @@ jobs:
             'Procedimientos y servicios',"price.textContent='$40.00'",'Emitir por lotes'
           ]
           for token in required: assert token in app,token
+          assert app.count('@app.get("/api/ops/diagnostics")')==1
           forbidden=['/api/patients/{pid}/quick','openPatientQuick','ensurePatientDrawer','patientQuickDrawer','/api/ops/agenda-smart','loadSmartAgenda','maybeDailyBrief','patient-quick-drawer-backdrop','smart-agenda-card']
           for token in forbidden: assert token not in app,token
           for token in ['new-patient-callout','attention-start-search','id="aSearch"','function attentionSearch()','function pRow(p)']:
