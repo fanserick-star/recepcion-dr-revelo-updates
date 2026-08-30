@@ -97,8 +97,8 @@ jobs:
               if(Test-Path $errlog){ Get-Content $errlog -Tail 160 }
               throw 'El backend candidato NO arrancó con el runtime del consultorio'
             }
-            $home=Invoke-WebRequest 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 3
-            if($home.StatusCode -ne 200){ throw 'La pantalla principal no respondió HTTP 200' }
+            $pageResponse=Invoke-WebRequest 'http://127.0.0.1:8000/' -UseBasicParsing -TimeoutSec 3
+            if($pageResponse.StatusCode -ne 200){ throw 'La pantalla principal no respondió HTTP 200' }
             Write-Host 'BACKEND_REAL_SMOKE_OK'
           } finally {
             if(-not $proc.HasExited){ Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
