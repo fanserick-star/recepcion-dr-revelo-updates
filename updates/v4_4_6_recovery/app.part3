@@ -1,0 +1,1635 @@
+tity,
+        local_entity_id=local_entity_id,
+        payload=json.dumps(payload, default=str, ensure_ascii=False),
+        username=username,
+    ))
+    return token
+
+
+def get_id_map(db: Session, entity: str, local_id: int) -> Optional[int]:
+    row = db.scalar(select(OfflineIdMap).where(OfflineIdMap.entity == entity, OfflineIdMap.local_id == local_id))
+    return int(row.cloud_id) if row else None
+
+
+def set_id_map(db: Session, entity: str, local_id: int, cloud_id: int):
+    row = db.scalar(select(OfflineIdMap).where(OfflineIdMap.entity == entity, OfflineIdMap.local_id == local_id))
+    if row:
+        row.cloud_id = cloud_id
+    else:
+        db.add(OfflineIdMap(entity=entity, local_id=local_id, cloud_id=cloud_id))
+
+
+def resolve_cloud_id(ldb: Session, entity: str, local_id: int) -> int:
+    return get_id_map(ldb, entity, local_id) or int(local_id)
+
+
+def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[int]:
+    already = cdb.get(SyncOperation, q.token)
+    if already:
+        return already.result_id
+
+    payload = json.loads(q.payload or "{}")
+    result_id: Optional[int] = None
+
+    if q.operation == "patient.create":
+        values = normalize_patient_payload(payload)
+        existing = None
+        if values.get("cedula"):
+            existing = cdb.scalar(select(Patient).where(Patient.cedula == values["cedula"]))
+        if existing:
+            result_id = existing.id
+        else:
+            p = Patient(**values)
+            cdb.add(p)
+            cdb.flush()
+            result_id = p.id
+        audit(cdb, q.username, "sincronizar_paciente_offline", f"Paciente local {q.local_entity_id} -> nube {result_id}")
+
+    elif q.operation == "patient.update":
+        local_id = int(payload.pop("patient_id"))
+        cloud_id = resolve_cloud_id(ldb, "patient", local_id)
+        p = cdb.get(Patient, cloud_id)
+        if not p:
+            raise RuntimeError(f"Paciente {cloud_id} no existe en la nube")
+        values = normalize_patient_payload(payload)
+        if values.get("cedula"):
+            duplicate = cdb.scalar(select(Patient).where(Patient.cedula == values["cedula"], Patient.id != cloud_id))
+            if duplicate:
+                raise RuntimeError(f"La cédula {values['cedula']} ya pertenece a otro paciente")
+        for k, v in values.items():
+            setattr(p, k, v)
+        result_id = cloud_id
+        audit(cdb, q.username, "sincronizar_edicion_paciente_offline", f"Paciente {cloud_id}")
+
+    elif q.operation == "patient.delete":
+        local_id = int(payload["patient_id"])
+        cloud_id = resolve_cloud_id(ldb, "patient", local_id)
+        p = cdb.get(Patient, cloud_id)
+        if p:
+            cdb.delete(p)
+        result_id = cloud_id
+        audit(cdb, q.username, "sincronizar_borrado_paciente_offline", f"Paciente {cloud_id}")
+
+    elif q.operation == "visit.create":
+        local_patient_id = int(payload["patient_id"])
+        cloud_patient_id = resolve_cloud_id(ldb, "patient", local_patient_id)
+        p = cdb.get(Patient, cloud_patient_id)
+        if not p:
+            raise RuntimeError(f"No se encontró paciente {cloud_patient_id} para sincronizar la atención")
+        fecha_val = date.fromisoformat(str(payload["fecha"])[:10])
+        v = Visit(
+            patient_id=cloud_patient_id,
+            fecha=fecha_val,
+            tipo=str(payload["tipo"]),
+            procedimiento=(payload.get("procedimiento") or None),
+            valor=payload.get("valor"),
+            observacion=payload.get("observacion") or None,
+        )
+        cdb.add(v)
+        cdb.flush()
+        result_id = v.id
+        cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
+        audit(cdb, q.username, "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
+
+    elif q.operation == "visit.delete":
+        local_id = int(payload["visit_id"])
+        cloud_id = resolve_cloud_id(ldb, "visit", local_id)
+        v = cdb.get(Visit, cloud_id)
+        if v:
+            cdb.delete(v)
+        result_id = cloud_id
+        audit(cdb, q.username, "sincronizar_borrado_atencion_offline", f"Atención {cloud_id}")
+
+    elif q.operation in {"billing.approve", "billing.pending", "billing.emit"}:
+        local_visit_id = int(payload["visit_id"])
+        cloud_visit_id = resolve_cloud_id(ldb, "visit", local_visit_id)
+        b = cdb.scalar(select(BillingRecord).where(BillingRecord.visit_id == cloud_visit_id))
+        if not b:
+            b = BillingRecord(visit_id=cloud_visit_id, estado="PENDIENTE")
+            cdb.add(b)
+            cdb.flush()
+        if q.operation == "billing.approve":
+            if b.estado != "EMITIDA":
+                b.estado = "APROBADA"
+                b.approved_at = datetime.utcnow()
+                b.numero_factura = None
+                b.emitted_at = None
+        elif q.operation == "billing.pending":
+            if b.estado != "EMITIDA":
+                b.estado = "PENDIENTE"
+                b.approved_at = None
+                b.numero_factura = None
+                b.emitted_at = None
+        else:
+            b.estado = "EMITIDA"
+            b.numero_factura = (payload.get("numero_factura") or "").strip() or None
+            b.emitted_at = datetime.utcnow()
+            if not b.approved_at:
+                b.approved_at = datetime.utcnow()
+        result_id = b.id
+        audit(cdb, q.username, "sincronizar_facturacion_offline", f"Atención {cloud_visit_id}: {b.estado}")
+
+    elif q.operation == "confirmafy_staged.create":
+        source_hash = str(payload.get("source_hash") or "").strip()
+        existing = cdb.scalar(select(ConfirmafyAgendaItem).where(ConfirmafyAgendaItem.source_hash == source_hash)) if source_hash else None
+        if existing:
+            result_id = existing.id
+        else:
+            item = ConfirmafyAgendaItem(
+                nombre=str(payload.get("nombre") or "").strip().upper(),
+                celular=normalize_lookup_phone(str(payload.get("celular") or "")) or None,
+                fecha=date.fromisoformat(str(payload["fecha"])[:10]),
+                hora=str(payload["hora"])[:5], duracion=20, source_hash=source_hash,
+            )
+            cdb.add(item); cdb.flush(); result_id = item.id
+        audit(cdb, q.username, "sincronizar_agenda_confirmafy_offline", f"Cita externa local {q.local_entity_id} -> nube {result_id}")
+
+    elif q.operation == "confirmafy_staged.delete":
+        local_id = int(payload["item_id"])
+        cloud_id = resolve_cloud_id(ldb, "confirmafy_staged", local_id)
+        item = cdb.get(ConfirmafyAgendaItem, cloud_id)
+        if item: cdb.delete(item)
+        result_id = cloud_id
+        audit(cdb, q.username, "sincronizar_agenda_confirmafy_atendida_offline", f"Cita externa {cloud_id}")
+
+    elif q.operation == "appointment.create":
+        local_patient_id = int(payload["patient_id"])
+        cloud_patient_id = resolve_cloud_id(ldb, "patient", local_patient_id)
+        p = cdb.get(Patient, cloud_patient_id)
+        if not p:
+            raise RuntimeError(f"No se encontró paciente {cloud_patient_id} para sincronizar la cita")
+        sync_fecha = date.fromisoformat(str(payload["fecha"])[:10])
+        sync_hora = str(payload["hora"])[:5]
+        origin_value = payload.get("origen") or "REAGENDADO"
+        if origin_value != CONFIRMAFY_ATTENDED_ORIGIN:
+            conflicts = appointment_conflicts(cdb, sync_fecha, sync_hora, 20)
+            if conflicts:
+                raise RuntimeError(occupied_message(sync_fecha, sync_hora, conflicts))
+        a = Appointment(
+            patient_id=cloud_patient_id, fecha=sync_fecha,
+            hora=sync_hora, duracion=20, nota=payload.get("nota") or None,
+            estado=payload.get("estado") or "PENDIENTE", origen=origin_value,
+        )
+        cdb.add(a)
+        cdb.flush()
+        result_id = a.id
+        audit(cdb, q.username, "sincronizar_cita_offline", f"Cita local {q.local_entity_id} -> nube {result_id}")
+
+    elif q.operation == "appointment.update":
+        local_id = int(payload["appointment_id"])
+        cloud_id = resolve_cloud_id(ldb, "appointment", local_id)
+        a = cdb.get(Appointment, cloud_id)
+        if not a:
+            raise RuntimeError(f"Cita {cloud_id} no existe en la nube")
+        sync_fecha = date.fromisoformat(str(payload["fecha"])[:10])
+        sync_hora = str(payload["hora"])[:5]
+        origin_value = payload.get("origen") or a.origen or "REAGENDADO"
+        if origin_value != CONFIRMAFY_ATTENDED_ORIGIN:
+            conflicts = appointment_conflicts(cdb, sync_fecha, sync_hora, 20, cloud_id)
+            if conflicts:
+                raise RuntimeError(occupied_message(sync_fecha, sync_hora, conflicts))
+        local_patient_id = payload.get("patient_id")
+        if local_patient_id is not None:
+            a.patient_id = resolve_cloud_id(ldb, "patient", int(local_patient_id))
+        a.fecha = sync_fecha
+        a.hora = sync_hora
+        a.duracion = 20
+        a.nota = payload.get("nota") or None
+        a.origen = origin_value
+        a.estado = payload.get("estado") or ("ATENDIDO" if origin_value == CONFIRMAFY_ATTENDED_ORIGIN else "PENDIENTE")
+        a.exported_at = None
+        a.loaded_at = None
+        a.updated_at = datetime.utcnow()
+        result_id = a.id
+        audit(cdb, q.username, "sincronizar_reagenda_offline", f"Cita {cloud_id}")
+
+    elif q.operation in {"appointment.export", "appointment.loaded", "appointment.pending"}:
+        local_id = int(payload["appointment_id"])
+        cloud_id = resolve_cloud_id(ldb, "appointment", local_id)
+        a = cdb.get(Appointment, cloud_id)
+        if not a:
+            raise RuntimeError(f"Cita {cloud_id} no existe en la nube")
+        if q.operation == "appointment.export":
+            a.estado = "EXPORTADO"
+            a.exported_at = datetime.utcnow()
+            a.loaded_at = None
+        elif q.operation == "appointment.loaded":
+            a.estado = "CARGADO"
+            if not a.exported_at: a.exported_at = datetime.utcnow()
+            a.loaded_at = datetime.utcnow()
+        else:
+            a.estado = "PENDIENTE"
+            a.exported_at = None
+            a.loaded_at = None
+        a.updated_at = datetime.utcnow()
+        result_id = a.id
+        audit(cdb, q.username, "sincronizar_estado_cita_offline", f"Cita {cloud_id}: {a.estado}")
+
+    elif q.operation == "appointment.cancel":
+        local_id = int(payload["appointment_id"])
+        cloud_id = resolve_cloud_id(ldb, "appointment", local_id)
+        a = cdb.get(Appointment, cloud_id)
+        if not a:
+            raise RuntimeError(f"Cita {cloud_id} no existe en la nube")
+        a.estado = "CANCELADA"
+        a.updated_at = datetime.utcnow()
+        result_id = a.id
+        audit(cdb, q.username, "sincronizar_cancelacion_cita_offline", f"Cita {cloud_id}: CANCELADA")
+
+    elif q.operation == "appointment.delete":
+        local_id = int(payload["appointment_id"])
+        cloud_id = resolve_cloud_id(ldb, "appointment", local_id)
+        a = cdb.get(Appointment, cloud_id)
+        if a: cdb.delete(a)
+        result_id = cloud_id
+        audit(cdb, q.username, "sincronizar_borrado_cita_offline", f"Cita {cloud_id}")
+
+    elif q.operation == "procedure.update":
+        proc_id = int(payload["procedure_id"])
+        p = cdb.get(Procedure, proc_id)
+        if not p:
+            raise RuntimeError(f"Procedimiento {proc_id} no existe en la nube")
+        p.valor_default = payload.get("valor_default")
+        result_id = p.id
+        audit(cdb, q.username, "sincronizar_procedimiento_offline", f"{p.nombre}: {p.valor_default}")
+
+    else:
+        raise RuntimeError(f"Operación offline desconocida: {q.operation}")
+
+    cdb.add(SyncOperation(token=q.token, operation=q.operation, result_id=result_id))
+    return result_id
+
+
+def process_offline_queue(cloud_already_checked: bool = False) -> dict:
+    """Sincroniza cambios locales minimizando sondas y checkouts a Neon."""
+    if not cloud_configured():
+        return {"ok": False, "online": False, "processed": 0, "pending": queue_count(), "errors": queue_errors()}
+    if not cloud_already_checked and not check_cloud(force=True):
+        return {"ok": False, "online": False, "processed": 0, "pending": queue_count(), "errors": queue_errors()}
+
+    if not _sync_lock.acquire(blocking=False):
+        return {"ok": True, "online": True, "processed": 0, "pending": queue_count(), "syncing": True, "errors": queue_errors()}
+
+    processed = 0
+    try:
+        if not ensure_cloud_initialized():
+            return {"ok": False, "online": False, "processed": 0, "pending": queue_count(), "errors": ["No se pudo preparar la conexión con la nube"]}
+
+        # Una sola sesión de Neon para toda la cola: evita un checkout/pre-ping
+        # por cada cambio pendiente. Se confirma cada operación individualmente.
+        with LocalSessionLocal() as ldb, CloudSessionLocal() as cdb:
+            rows = list(ldb.scalars(select(OfflineQueue).order_by(OfflineQueue.id.asc())))
+            for q in rows:
+                try:
+                    result_id = sync_one_operation(q, ldb, cdb)
+                    cdb.commit()
+                    if q.operation == "patient.create" and q.local_entity_id is not None and result_id is not None:
+                        set_id_map(ldb, "patient", int(q.local_entity_id), int(result_id))
+                    if q.operation == "visit.create" and q.local_entity_id is not None and result_id is not None:
+                        set_id_map(ldb, "visit", int(q.local_entity_id), int(result_id))
+                    if q.operation == "appointment.create" and q.local_entity_id is not None and result_id is not None:
+                        set_id_map(ldb, "appointment", int(q.local_entity_id), int(result_id))
+                    if q.operation == "confirmafy_staged.create" and q.local_entity_id is not None and result_id is not None:
+                        set_id_map(ldb, "confirmafy_staged", int(q.local_entity_id), int(result_id))
+                    ldb.delete(q)
+                    ldb.commit()
+                    invalidate_queue_count()
+                    processed += 1
+                except Exception as e:
+                    cdb.rollback()
+                    ldb.rollback()
+                    current = ldb.get(OfflineQueue, q.id)
+                    if current:
+                        current.last_error = str(e)[:500]
+                        ldb.commit()
+                    break
+
+        pending = queue_count(force=True)
+        if pending == 0:
+            # La reconciliación completa sigue siendo necesaria tras modo offline
+            # para alinear IDs locales con los definitivos de la nube.
+            refresh_local_cache(force=True, cloud_already_checked=True)
+            with LocalSessionLocal() as ldb:
+                ldb.execute(delete(OfflineIdMap))
+                ldb.commit()
+        return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
+    finally:
+        _sync_lock.release()
+
+
+# ---------------------------------------------------------------------------
+# API
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="Recepción de Pacientes")
+app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+MOBILE_DIR = os.path.join(BASE_DIR, "mobile")
+if os.path.isdir(MOBILE_DIR):
+    app.mount("/mobile-static", StaticFiles(directory=MOBILE_DIR), name="mobile-static")
+
+
+@app.on_event("startup")
+async def _limit_worker_threads_for_old_pc():
+    """Evita picos de decenas de hilos en una PC de recepción con pocos recursos."""
+    try:
+        import anyio.to_thread
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 8
+    except Exception:
+        pass
+    # Recalcula localmente cualquier recordatorio pendiente creado por una
+    # versión anterior; no llama a Meta ni consulta Neon.
+    _whatsapp_rebase_pending_schedule()
+    # El worker de WhatsApp arranca después de que FastAPI ya está listo y solo
+    # cuando WHATSAPP_ENABLED=1. En la preparación actual permanece apagado.
+    start_whatsapp_worker_if_enabled()
+    # v4.3.34: la Agenda 24/7 vive en GitHub Pages + Neon Data API.
+    # Ya no arrancamos Cloudflare Tunnel ni ningún proceso adicional. Si quedó
+    # uno de una versión anterior, lo cerramos para liberar RAM/CPU.
+    remote_stop_tunnel(DATA_DIR)
+
+
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+class PatientIn(BaseModel):
+    cedula: Optional[str] = None
+    nombre: str
+    fecha_nacimiento: Optional[date] = None
+    celular: Optional[str] = None
+    correo: Optional[str] = None
+    lugar: Optional[str] = None
+    notas: Optional[str] = None
+    extranjero: bool = False
+
+
+class VisitIn(BaseModel):
+    patient_id: int
+    fecha: date = date.today()
+    tipo: Optional[str] = None
+    procedimiento: Optional[str] = None
+    valor: Optional[float] = None
+    observacion: Optional[str] = None
+
+
+class VisitBatchServiceIn(BaseModel):
+    procedimiento: Optional[str] = None
+    valor: Optional[float] = None
+
+
+class VisitBatchIn(BaseModel):
+    patient_id: int
+    fecha: date = date.today()
+    tipo: Optional[str] = None
+    services: list[VisitBatchServiceIn]
+    observacion: Optional[str] = None
+
+
+class BillingGroupIn(BaseModel):
+    patient_id: int
+    fecha: date
+    # Datos alternos solo para esta factura. No modifican la ficha clínica del paciente.
+    factura_otro: bool = False
+    factura_identificacion: Optional[str] = None
+    factura_nombre: Optional[str] = None
+    factura_direccion: Optional[str] = None
+    factura_telefono: Optional[str] = None
+    factura_correo: Optional[str] = None
+
+
+class BillingEmitIn(BillingGroupIn):
+    numero_factura: str
+
+
+class AzurConfigIn(BaseModel):
+    base_url: str
+    api_key: Optional[str] = None
+
+
+class BillingPreferenceIn(BaseModel):
+    enabled: bool = True
+    identificacion: Optional[str] = None
+    nombre: Optional[str] = None
+    direccion: Optional[str] = None
+    telefono: Optional[str] = None
+    correo: Optional[str] = None
+
+
+class MobileAppointmentIn(BaseModel):
+    nombre: str
+    celular: str
+    fecha: date
+    hora: str
+
+
+class MobileRescheduleIn(BaseModel):
+    fecha: date
+    hora: str
+
+
+class MobileUnlinkedUpdateIn(MobileRescheduleIn):
+    nombre: Optional[str] = None
+    celular: Optional[str] = None
+
+
+class AppointmentIn(BaseModel):
+    patient_id: int
+    fecha: date
+    hora: str
+    nota: Optional[str] = None
+
+
+class AppointmentUpdateIn(BaseModel):
+    fecha: date
+    hora: str
+    nota: Optional[str] = None
+
+
+class ConfirmafyAttendedIn(BaseModel):
+    patient_id: int
+
+
+class PasswordIn(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ProcedureIn(BaseModel):
+    nombre: str
+    valor_default: Optional[float] = None
+
+
+class ProcedureValueIn(BaseModel):
+    valor_default: Optional[float] = None
+
+
+class WindowModeIn(BaseModel):
+    mode: str
+
+
+class PreferencesIn(BaseModel):
+    print_mode: Optional[str] = None
+    printer: Optional[str] = None
+    show_blood_pressure: Optional[bool] = None
+    confirm_delete: Optional[bool] = None
+    auto_login: Optional[bool] = None
+
+
+class ReceiptPrintIn(BaseModel):
+    fecha: str
+    nombre: str
+    fecha_nacimiento: Optional[str] = None
+    celular: Optional[str] = None
+    turno: Optional[int] = None
+    is_new: bool = False
+
+
+LAUNCHER_SETTINGS_PATH = os.path.join(DATA_DIR, "launcher_settings.json")
+APP_SETTINGS_PATH = os.path.join(DATA_DIR, "app_settings.json")
+DESKTOP_RUNTIME_STATUS_PATH = os.path.join(DATA_DIR, "desktop_runtime_status.json")
+VALID_WINDOW_MODES = {"AUTO", "WEBVIEW2", "EDGE"}
+EXTERNAL_DESTINATIONS = {
+    "confirmafy": "https://confirmafy.com/app/calendar",
+    "facturero": "https://app.factureromovil.com/documentos/facturas",
+}
+
+
+def _read_json_file(path: str) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            value = json.load(fh)
+            return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+DEFAULT_APP_PREFERENCES = {
+    "print_mode": "PREVIEW",
+    "printer": "",
+    "show_blood_pressure": True,
+    "confirm_delete": True,
+    "auto_login": True,
+}
+VALID_PRINT_MODES = {"PREVIEW", "DIRECT"}
+
+
+def _app_preferences() -> dict:
+    raw = _read_json_file(APP_SETTINGS_PATH)
+    mode = str(raw.get("print_mode") or DEFAULT_APP_PREFERENCES["print_mode"]).strip().upper()
+    if mode not in VALID_PRINT_MODES:
+        mode = "PREVIEW"
+    printer = str(raw.get("printer") or "").strip()
+    show_blood_pressure = raw.get("show_blood_pressure")
+    if not isinstance(show_blood_pressure, bool):
+        show_blood_pressure = True
+    confirm_delete = raw.get("confirm_delete")
+    if not isinstance(confirm_delete, bool):
+        confirm_delete = True
+    auto_login = raw.get("auto_login")
+    if not isinstance(auto_login, bool):
+        auto_login = True
+    return {
+        "print_mode": mode,
+        "printer": printer,
+        "show_blood_pressure": show_blood_pressure,
+        "confirm_delete": confirm_delete,
+        "auto_login": auto_login,
+        "paper_width_mm": 80,
+    }
+
+
+def _save_app_preferences(data: PreferencesIn) -> dict:
+    current = _app_preferences()
+    if data.print_mode is not None:
+        mode = str(data.print_mode or "").strip().upper()
+        if mode not in VALID_PRINT_MODES:
+            raise HTTPException(400, "Modo de impresión no válido")
+        current["print_mode"] = mode
+    if data.printer is not None:
+        current["printer"] = str(data.printer or "").strip()
+    if data.show_blood_pressure is not None:
+        current["show_blood_pressure"] = bool(data.show_blood_pressure)
+    if data.confirm_delete is not None:
+        current["confirm_delete"] = bool(data.confirm_delete)
+    if data.auto_login is not None:
+        current["auto_login"] = bool(data.auto_login)
+    persist = {k: current[k] for k in ("print_mode", "printer", "show_blood_pressure", "confirm_delete", "auto_login")}
+    os.makedirs(os.path.dirname(APP_SETTINGS_PATH), exist_ok=True)
+    tmp = APP_SETTINGS_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(persist, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp, APP_SETTINGS_PATH)
+    return current
+
+
+def _windows_printer_info() -> dict:
+    if os.name != "nt":
+        return {"supported": False, "default_printer": "", "printers": [], "error": "Impresión directa disponible en Windows"}
+    try:
+        import clr  # type: ignore
+        clr.AddReference("System.Drawing")
+        from System.Drawing.Printing import PrinterSettings  # type: ignore
+        settings = PrinterSettings()
+        default = str(settings.PrinterName or "")
+        printers = [str(name) for name in PrinterSettings.InstalledPrinters]
+        return {"supported": True, "default_printer": default, "printers": printers, "error": None}
+    except Exception as exc:
+        return {"supported": False, "default_printer": "", "printers": [], "error": str(exc)}
+
+
+def _print_receipt_windows(payload: ReceiptPrintIn, printer_name: str = "", show_blood_pressure: bool = True) -> str:
+    if os.name != "nt":
+        raise RuntimeError("La impresión directa solo está disponible en Windows")
+    import clr  # type: ignore
+    clr.AddReference("System.Drawing")
+    from System.Drawing import Font, FontStyle, Brushes, Pen, Image, StringFormat, StringAlignment, RectangleF  # type: ignore
+    from System.Drawing.Printing import PrintDocument, PrinterSettings, PaperSize, Margins  # type: ignore
+
+    available = [str(name) for name in PrinterSettings.InstalledPrinters]
+    chosen = str(printer_name or "").strip() or str(PrinterSettings().PrinterName or "")
+    if not chosen:
+        raise RuntimeError("Windows no tiene una impresora predeterminada")
+    if available and chosen not in available:
+        raise RuntimeError(f"La impresora ‘{chosen}’ ya no está disponible")
+
+    doc = PrintDocument()
+    doc.PrinterSettings.PrinterName = chosen
+    if not doc.PrinterSettings.IsValid:
+        raise RuntimeError(f"Windows no puede usar la impresora ‘{chosen}’")
+    doc.DocumentName = "Recibo de consulta médica"
+    doc.OriginAtMargins = True
+    # Las unidades son centésimas de pulgada: 315 ≈ 80 mm. El alto queda
+    # holgado y el driver térmico puede cortar al terminar el contenido.
+    doc.DefaultPageSettings.PaperSize = PaperSize("Recibo 80 mm", 315, 600)
+    doc.DefaultPageSettings.Margins = Margins(8, 8, 8, 8)
+
+    fonts = []
+    image_holder = {"img": None}
+
+    def font(size, bold=False):
+        f = Font("Arial", float(size), FontStyle.Bold if bold else FontStyle.Regular)
+        fonts.append(f)
+        return f
+
+    f_title = font(11, True)
+    f_label = font(7.4, True)
+    f_text = font(8.4, True)
+    f_name = font(9.3, True)
+    f_turn = font(11, True)
+    f_check = font(6.9, True)
+    from System.Drawing import Color  # type: ignore
+    pen = Pen(Color.Black, 1.0)
+
+    def on_print_page(sender, e):
+        g = e.Graphics
+        width = float(e.MarginBounds.Width)
+        y = 0.0
+        center = StringFormat()
+        center.Alignment = StringAlignment.Center
+        center.LineAlignment = StringAlignment.Near
+
+        logo_path = os.path.join(BASE_DIR, "static", "doctor_isotype.png")
+        if os.path.exists(logo_path):
+            try:
+                image_holder["img"] = Image.FromFile(logo_path)
+                g.DrawImage(image_holder["img"], 2.0, 2.0, 38.0, 38.0)
+            except Exception:
+                image_holder["img"] = None
+        g.DrawString("RECIBO DE\nCONSULTA MÉDICA", f_title, Brushes.Black, RectangleF(43.0, 5.0, width - 43.0, 38.0), center)
+        y = 45.0
+        g.DrawLine(pen, 0.0, y, width, y)
+
+        def row(label, value, value_font=None, dotted=False):
+            nonlocal y
+            y += 7.0
+            g.DrawString(str(label), f_label, Brushes.Black, 0.0, y)
+            g.DrawString(str(value or ""), value_font or f_text, Brushes.Black, 86.0, y - 1.0)
+            y += 18.0
+            g.DrawLine(pen, 0.0, y, width, y)
+
+        row("Fecha:", payload.fecha, f_text)
+        y += 7.0
+        g.DrawString("Nombre", f_label, Brushes.Black, RectangleF(0.0, y, width, 14.0), center)
+        y += 13.0
+        name = str(payload.nombre or "SIN NOMBRE").upper()
+        name_fmt = StringFormat(); name_fmt.Alignment = StringAlignment.Center
+        name_size = g.MeasureString(name, f_name, int(width))
+        g.DrawString(name, f_name, Brushes.Black, RectangleF(0.0, y, width, max(24.0, float(name_size.Height) + 3.0)), name_fmt)
+        y += max(22.0, float(name_size.Height) + 5.0)
+        g.DrawLine(pen, 0.0, y, width, y)
+        if payload.is_new and payload.fecha_nacimiento:
+            row("Nacimiento:", payload.fecha_nacimiento, f_text)
+        if show_blood_pressure:
+            y += 7.0
+            g.DrawString("Presión Arterial:", f_label, Brushes.Black, 0.0, y + 5.0)
+            g.DrawRectangle(pen, 105.0, y, 52.0, 22.0)
+            y += 29.0
+            g.DrawLine(pen, 0.0, y, width, y)
+        row("Teléfono:", payload.celular or "Sin registrar", f_text)
+        if payload.turno:
+            row("Turno:", str(payload.turno), f_turn)
+        y += 9.0
+        box = 15.0
+        left_x = 18.0
+        right_x = width / 2 + 8.0
+        for x, label, checked in ((left_x, "PRIMERO", payload.is_new), (right_x, "SUBSECUENTE", not payload.is_new)):
+            g.DrawRectangle(pen, x, y, box, box)
+            if checked:
+                g.DrawString("X", f_text, Brushes.Black, x + 2.0, y - 1.5)
+            g.DrawString(label, f_check, Brushes.Black, x + box + 4.0, y + 2.0)
+        e.HasMorePages = False
+
+    doc.PrintPage += on_print_page
+    try:
+        doc.Print()
+    finally:
+        try:
+            doc.PrintPage -= on_print_page
+        except Exception:
+            pass
+        if image_holder.get("img") is not None:
+            try: image_holder["img"].Dispose()
+            except Exception: pass
+        for f in fonts:
+            try: f.Dispose()
+            except Exception: pass
+        try: pen.Dispose()
+        except Exception: pass
+        try: doc.Dispose()
+        except Exception: pass
+    return chosen
+
+
+def _launcher_window_mode() -> str:
+    mode = str(_read_json_file(LAUNCHER_SETTINGS_PATH).get("window_mode") or "AUTO").strip().upper()
+    return mode if mode in VALID_WINDOW_MODES else "AUTO"
+
+
+def _save_launcher_window_mode(mode: str) -> str:
+    value = str(mode or "").strip().upper()
+    if value not in VALID_WINDOW_MODES:
+        raise HTTPException(400, "Modo de ventana no válido")
+    os.makedirs(os.path.dirname(LAUNCHER_SETTINGS_PATH), exist_ok=True)
+    temp_path = LAUNCHER_SETTINGS_PATH + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as fh:
+        json.dump({"window_mode": value}, fh, ensure_ascii=False, indent=2)
+    os.replace(temp_path, LAUNCHER_SETTINGS_PATH)
+    return value
+
+
+def _edge_executable_path() -> Optional[str]:
+    if os.name != "nt":
+        return None
+    candidates = []
+    for env_name in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA"):
+        root = os.getenv(env_name)
+        if not root:
+            continue
+        candidates.extend([
+            os.path.join(root, "Microsoft", "Edge", "Application", "msedge.exe"),
+            os.path.join(root, "Microsoft", "Edge Beta", "Application", "msedge.exe"),
+        ])
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return shutil.which("msedge") or shutil.which("msedge.exe")
+
+
+def _open_external_destination(target: str) -> str:
+    url = EXTERNAL_DESTINATIONS.get(str(target or "").strip().lower())
+    if not url:
+        raise HTTPException(404, "Destino externo no permitido")
+    try:
+        edge = _edge_executable_path()
+        if edge:
+            subprocess.Popen([edge, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            webbrowser.open(url, new=2)
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo abrir el navegador: {exc}")
+    return url
+
+
+def _desktop_runtime_info() -> dict:
+    status = _read_json_file(DESKTOP_RUNTIME_STATUS_PATH)
+    return {
+        "mode": _launcher_window_mode(),
+        "webview2": status.get("webview2"),
+        "pywebview": status.get("pywebview"),
+        "edge": status.get("edge"),
+        "checked_at": status.get("checked_at"),
+        "message": status.get("message") or "Se comprobará automáticamente al abrir Recepción.",
+        "error": str(status.get("error") or "")[:240],
+    }
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    with open(os.path.join(BASE_DIR, "static", "index.html"), encoding="utf-8") as f:
+        html = f.read()
+    addon = (
+        '<link rel="stylesheet" href="/v458/settings.css?v=4.3.58">'
+        '<script defer src="/v458/settings.js?v=4.3.58"></script>'
+        '<link rel="stylesheet" href="/v459/settings.css?v=4.3.59">'
+        '<script defer src="/v459/settings.js?v=4.3.59"></script>'
+        '<link rel="stylesheet" href="/v460/overlay.css?v=4.4.6">'
+        '<script defer src="/v460/overlay.js?v=4.4.6"></script>'
+    )
+    return html.replace("</head>", addon + "</head>", 1) if "</head>" in html else html + addon
+
+
+@app.get("/api/version")
+def app_version():
+    return {"version": APP_VERSION, "pid": os.getpid()}
+
+
+def _connectivity_payload(configured: Optional[bool] = None, online: Optional[bool] = None, lite: bool = False) -> dict:
+    configured = cloud_configured() if configured is None else bool(configured)
+    with _state_lock:
+        state_online = bool(_state.get("online"))
+        idle = bool(_state.get("client_idle"))
+        last_success_ts = float(_state.get("last_success") or 0)
+        failures = int(_state.get("consecutive_failures") or 0)
+        probe_ms = _state.get("last_probe_ms")
+        last_error = str(_state.get("last_error") or "")[:160]
+    online = state_online if online is None else bool(online)
+    pending = queue_count()
+    base = {
+        "configured": configured,
+        "online": online,
+        "idle": idle,
+        "idle_after_seconds": IDLE_AFTER_SECONDS,
+        "pending": pending,
+        "synced_now": 0,
+        "last_success": datetime.fromtimestamp(last_success_ts).isoformat(timespec="seconds") if last_success_ts else None,
+        "consecutive_failures": failures,
+        "probe_ms": probe_ms,
+        "last_error": last_error,
+    }
+    if lite:
+        # El indicador pasivo no necesita recorrer respaldos ni leer el detalle de
+        # la cola. En la PC vieja esto evita I/O local periódico sin perder el
+        # estado que se muestra en la barra lateral.
+        return base
+    with LocalSessionLocal() as ldb:
+        last_sync = ldb.get(CacheMeta, "last_sync")
+        last_backup = ldb.get(CacheMeta, "last_backup")
+    try:
+        backup_count = len(list(Path(BACKUP_DIR).glob("recepcion_backup_*.db")))
+    except Exception:
+        backup_count = 0
+    base.update({
+        "errors": queue_errors(),
+        "last_sync": last_sync.value if last_sync else None,
+        "last_backup": last_backup.value if last_backup else None,
+        "backup_count": backup_count,
+    })
+    return base
+
+
+@app.get("/api/connectivity")
+def connectivity(force: bool = False, lite: bool = False):
+    configured = cloud_configured()
+    # v4.0: consultar el indicador NO toca Neon. Solo una acción explícita
+    # (Actualizar estado, Reconectar, volver de AFK o una operación real) fuerza
+    # una sonda. Esto permite que Neon entre en suspensión cuando no se usa.
+    if configured and force:
+        with _state_lock:
+            _state["client_idle"] = False
+            _state["last_activity"] = time.time()
+        online = check_cloud(force=True)
+        if online and queue_count() == 0:
+            schedule_local_cache_refresh(force=False, cloud_already_checked=True)
+    else:
+        with _state_lock:
+            online = bool(_state.get("online")) if configured else False
+    return _connectivity_payload(configured=configured, online=online, lite=lite)
+
+
+@app.post("/api/power/idle")
+def enter_power_idle(user: User = Depends(current_user)):
+    # Antes de dormir intentamos proteger cualquier cambio local pendiente una
+    # sola vez. Si no hay Internet, queda seguro en SQLite y no se descarta.
+    sync_result = None
+    pending = queue_count()
+    if pending > 0 and cloud_configured():
+        try:
+            sync_result = process_offline_queue()
+        except Exception:
+            sync_result = None
+    with _state_lock:
+        now = time.time()
+        _state["client_idle"] = True
+        _state["last_activity"] = now
+        _state["idle_since"] = now
+    try:
+        if cloud_engine is not None:
+            cloud_engine.dispose()
+    except Exception:
+        pass
+    payload = _connectivity_payload()
+    payload["idle"] = True
+    if sync_result:
+        payload["sync"] = sync_result
+    return payload
+
+
+@app.post("/api/power/wake")
+def leave_power_idle(user: User = Depends(current_user)):
+    now = time.time()
+    with _state_lock:
+        idle_since = float(_state.get("idle_since") or 0)
+        idle_for = max(0.0, now - idle_since) if idle_since else 0.0
+        _state["client_idle"] = False
+        _state["last_activity"] = now
+        _state["idle_since"] = 0.0
+    configured = cloud_configured()
+    online = check_cloud(force=True) if configured else False
+    sync_result = None
+    if online and queue_count() > 0:
+        sync_result = process_offline_queue(cloud_already_checked=True)
+    refresh_scheduled = False
+    if online and queue_count() == 0:
+        # Si la PC quedó abandonada bastante tiempo (por ejemplo al salir del
+        # consultorio), al volver actualizamos la copia en segundo plano para
+        # incorporar cambios que pudieron hacerse desde otra PC. Pausas cortas
+        # no descargan Neon completa.
+        refresh_scheduled = schedule_local_cache_refresh(force=idle_for >= REMOTE_REFRESH_IDLE_SECONDS, cloud_already_checked=True)
+    payload = _connectivity_payload(configured=configured, online=online)
+    payload["idle_for_seconds"] = round(idle_for)
+    payload["cache_refresh_scheduled"] = bool(refresh_scheduled)
+    if sync_result:
+        payload["sync"] = sync_result
+    return payload
+
+
+@app.get("/api/window-mode")
+def get_window_mode(user: User = Depends(current_user)):
+    return _desktop_runtime_info()
+
+
+@app.post("/api/window-mode")
+def set_window_mode(data: WindowModeIn, user: User = Depends(current_user)):
+    mode = _save_launcher_window_mode(data.mode)
+    info = _desktop_runtime_info()
+    info["mode"] = mode
+    return info
+
+
+@app.get("/api/preferences")
+def get_preferences(user: User = Depends(current_user)):
+    return _app_preferences()
+
+
+@app.post("/api/preferences")
+def set_preferences(data: PreferencesIn, user: User = Depends(current_user)):
+    return _save_app_preferences(data)
+
+
+@app.get("/api/printing/status")
+def printing_status(user: User = Depends(current_user)):
+    info = _windows_printer_info()
+    prefs = _app_preferences()
+    selected = prefs.get("printer") or info.get("default_printer") or ""
+    info.update({
+        "mode": prefs.get("print_mode"),
+        "selected_printer": selected,
+        "paper_width_mm": 80,
+    })
+    return info
+
+
+@app.post("/api/printing/receipt")
+def print_receipt(data: ReceiptPrintIn, user: User = Depends(current_user)):
+    prefs = _app_preferences()
+    printer = str(prefs.get("printer") or "").strip()
+    try:
+        used = _print_receipt_windows(data, printer, bool(prefs.get("show_blood_pressure", True)))
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo imprimir directamente: {exc}")
+    return {"ok": True, "printer": used, "paper_width_mm": 80}
+
+
+@app.get("/api/system-status")
+def system_status(user: User = Depends(current_user)):
+    cloud = connectivity(force=False)
+    runtime = _desktop_runtime_info()
+    printing = _windows_printer_info()
+    prefs = _app_preferences()
+    return {
+        "cloud": cloud,
+        "runtime": runtime,
+        "printing": printing,
+        "preferences": prefs,
+    }
+
+
+@app.post("/api/open-external/{target}")
+def open_external(target: str, user: User = Depends(current_user)):
+    return {"ok": True, "url": _open_external_destination(target)}
+
+
+@app.post("/api/offline/sync")
+def manual_sync(user: User = Depends(current_user)):
+    return process_offline_queue()
+
+
+@app.get("/api/offline/queue")
+def offline_queue_review(user: User = Depends(current_user)):
+    items = queue_review_items()
+    return {"pending": len(items), "items": items}
+
+
+@app.post("/api/offline/queue/retry")
+def offline_queue_retry(user: User = Depends(current_user)):
+    return process_offline_queue()
+
+
+def _queue_dependent_ids(db: Session, target: OfflineQueue) -> list[int]:
+    """Devuelve operaciones posteriores que dependen de un alta local pendiente."""
+    if target.local_entity_id is None:
+        return []
+    local_id = int(target.local_entity_id)
+    kind = None
+    payload_key = None
+    if target.operation == "patient.create":
+        kind, payload_key = "patient", "patient_id"
+    elif target.operation == "visit.create":
+        kind, payload_key = "visit", "visit_id"
+    elif target.operation == "appointment.create":
+        kind, payload_key = "appointment", "appointment_id"
+    else:
+        return []
+
+    deps = []
+    later = list(db.scalars(select(OfflineQueue).where(OfflineQueue.id > target.id).order_by(OfflineQueue.id.asc())))
+    for row in later:
+        try:
+            payload = json.loads(row.payload or "{}")
+        except Exception:
+            payload = {}
+        if payload.get(payload_key) is not None:
+            try:
+                if int(payload.get(payload_key)) == local_id:
+                    deps.append(int(row.id)); continue
+            except Exception:
+                pass
+        if row.entity == kind and row.local_entity_id is not None:
+            try:
+                if int(row.local_entity_id) == local_id:
+                    deps.append(int(row.id))
+            except Exception:
+                pass
+    return deps
+
+
+def _refresh_after_queue_discard() -> bool:
+    """Si ya no hay cola, vuelve a la copia canónica de Neon para quitar cambios locales descartados."""
+    if queue_count(force=True) != 0:
+        return False
+    try:
+        with LocalSessionLocal() as ldb:
+            ldb.execute(delete(OfflineIdMap))
+            ldb.commit()
+    except Exception:
+        pass
+    if cloud_configured() and check_cloud(force=True):
+        return bool(refresh_local_cache(force=True, cloud_already_checked=True))
+    return False
+
+
+@app.delete("/api/offline/queue/{queue_id}")
+def offline_queue_discard_one(queue_id: int, user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede descartar cambios pendientes")
+    with LocalSessionLocal() as db:
+        q = db.get(OfflineQueue, int(queue_id))
+        if not q:
+            raise HTTPException(404, "Ese cambio pendiente ya no existe")
+        deps = _queue_dependent_ids(db, q)
+        if deps:
+            raise HTTPException(409, f"Este cambio tiene {len(deps)} cambio(s) posterior(es) que dependen de él. Descarta primero los posteriores o usa ‘Descartar todos’.")
+        label = q.operation
+        db.delete(q)
+        audit(db, user, "descartar_cambio_offline", f"Cola {queue_id}: {label}")
+        db.commit()
+    invalidate_queue_count()
+    pending = queue_count(force=True)
+    refreshed = _refresh_after_queue_discard() if pending == 0 else False
+    return {"ok": True, "discarded": 1, "pending": pending, "cache_refreshed": refreshed}
+
+
+@app.delete("/api/offline/queue")
+def offline_queue_discard_all(user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede descartar todos los cambios pendientes")
+    with LocalSessionLocal() as db:
+        count = int(db.scalar(select(func.count(OfflineQueue.id))) or 0)
+        db.execute(delete(OfflineQueue))
+        db.execute(delete(OfflineIdMap))
+        audit(db, user, "descartar_todos_cambios_offline", f"{count} cambio(s) descartados")
+        db.commit()
+    invalidate_queue_count()
+    refreshed = _refresh_after_queue_discard()
+    return {"ok": True, "discarded": count, "pending": 0, "cache_refreshed": refreshed}
+
+
+@app.post("/api/connectivity/recover")
+def recover_connectivity(user: User = Depends(current_user)):
+    """Reinicia el pool de Neon, comprueba la nube y sincroniza la cola local."""
+    if not cloud_configured():
+        return {"configured": False, "online": False, "pending": queue_count(), "last_error": "Nube no configurada"}
+    try:
+        cloud_engine.dispose()
+    except Exception:
+        pass
+    online = check_cloud(force=True)
+    sync_result = None
+    if online and queue_count() > 0:
+        sync_result = process_offline_queue(cloud_already_checked=True)
+    status = connectivity(force=False)
+    status["recovery"] = sync_result
+    return status
+
+
+@app.post("/api/backup/now")
+@app.post("/api/data-protection/backup")
+def backup_now(user: User = Depends(current_user)):
+    path = create_local_backup_snapshot(force=True)
+    if not path:
+        raise HTTPException(500, "No se pudo crear el respaldo local")
+    with LocalSessionLocal() as ldb:
+        last_backup = ldb.get(CacheMeta, "last_backup")
+    return {
+        "ok": True,
+        "last_backup": last_backup.value if last_backup else datetime.now().isoformat(timespec="seconds"),
+        "backup_count": len(list(Path(BACKUP_DIR).glob("recepcion_backup_*.db"))),
+    }
+
+
+@app.post("/api/app/restart")
+def restart_app(user: User = Depends(current_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede reiniciar el programa")
+
+    # Reinicio robusto: el helper espera a que el puerto 8000 quede realmente
+    # libre antes de levantar el nuevo backend. Evita que el segundo reinicio
+    # falle por una carrera entre el proceso saliente y el entrante.
+    app_path = os.path.join(BASE_DIR, "app.py")
+    python_exe = sys.executable
+    helper_code = f"""
+import os, subprocess, time, socket
+python_exe = {python_exe!r}
+app_path = {app_path!r}
+base_dir = {BASE_DIR!r}
+deadline = time.time() + 15.0
+while time.time() < deadline:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(0.25)
+    try:
+        busy = sock.connect_ex(('127.0.0.1', 8000)) == 0
+    finally:
+        sock.close()
+    if not busy:
+        break
+    time.sleep(0.25)
+time.sleep(0.25)
+flags = 0
+if os.name == 'nt':
+    flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0) | getattr(subprocess, 'DETACHED_PROCESS', 0)
+env = os.environ.copy()
+env['RP_DESKTOP_LAUNCH'] = '1'
+subprocess.Popen([python_exe, app_path], cwd=base_dir, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags, close_fds=True)
+"""
+    flags = 0
+    if os.name == "nt":
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+    try:
+        subprocess.Popen(
+            [python_exe, "-c", helper_code],
+            cwd=BASE_DIR,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            creationflags=flags, close_fds=True,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"No se pudo preparar el reinicio: {e}")
+
+    old_pid = os.getpid()
+    threading.Timer(0.45, lambda: os._exit(0)).start()
+    return {"ok": True, "version": APP_VERSION, "pid": old_pid}
+
+
+@app.post("/api/login")
+def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
+    try:
+        user = db.scalar(select(User).where(User.username == data.username))
+    except Exception:
+        user = None
+    if not user and not is_offline_db(db):
+        # Si la conexión cayó justo en el login, intentamos cache local.
+        with LocalSessionLocal() as ldb:
+            user = ldb.scalar(select(User).where(User.username == data.username))
+    if not user or not verify_password(data.password, user.password_hash):
+        raise HTTPException(401, "Usuario o contraseña incorrectos")
+    token = secrets.token_urlsafe(32)
+    TOKENS[token] = user.username
+    with _user_cache_lock:
+        _user_cache[user.username] = (time.time(), _user_snapshot(user))
+    response.set_cookie("rp_session", token, httponly=True, samesite="lax", secure=False, max_age=60 * 60 * 12)
+    return {"ok": True, "username": user.username, "offline": is_offline_db(db)}
+
+
+@app.post("/api/logout")
+def logout(request: Request, response: Response):
+    token = request.cookies.get("rp_session")
+    TOKENS.pop(token or "", None)
+    response.delete_cookie("rp_session")
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(user: User = Depends(current_user)):
+    return {"username": user.username, "role": user.role, "auto_login": _auto_login_enabled()}
+
+
+@app.get("/api/bootstrap")
+def bootstrap(anchor: date = date.today(), db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Datos mínimos para abrir Recepción con un solo checkout/conexión a la nube."""
+    proc_rows = list(db.scalars(select(Procedure).where(Procedure.activo == 1).order_by(Procedure.nombre)))
+    last_refresh = effective_cache_refresh_ts()
+    cache_stale = bool(not last_refresh or (time.time() - last_refresh >= CACHE_REFRESH_SECONDS))
+    return {
+        "cache_stale": cache_stale,
+        "home": home_week(anchor=anchor, db=db, user=user),
+        "procedures": [
+            {"id": x.id, "nombre": str(x.nombre or "").upper(), "valor_default": float(x.valor_default) if x.valor_default is not None else None}
+            for x in proc_rows
+        ],
+        "pending": (lambda billing: {
+            "billing": billing["total"],
+            "billing_pending": billing["pending"],
+            "billing_approved": billing["approved"],
+            "agenda": int(db.scalar(select(func.count(Appointment.id)).where(Appointment.estado == "PENDIENTE")) or 0),
+        })(_billing_action_counts(db)),
+    }
+
+
+@app.get("/api/historical/stats")
+def historical_stats(user: User = Depends(current_user)):
+    try:
+        with LocalSessionLocal() as db:
+            total = int(db.scalar(select(func.count(HistoricalPatient.id))) or 0)
+            first = db.scalar(select(func.min(HistoricalPatient.first_year)))
+            last = db.scalar(select(func.max(HistoricalPatient.last_year)))
+            return {"total": total, "first_year": first, "last_year": last, "local_only": True}
+    except Exception:
+        return {"total": 0, "first_year": None, "last_year": None, "local_only": True}
+
+
+@app.get("/api/patients")
+def search_patients(q: str = "", limit: int = 30, mode: str = "", db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Buscador local-first. Sin texto ni filtro no devuelve una lista aleatoria."""
+    lim = min(max(int(limit or 30), 1), 100)
+    raw = " ".join(str(q or "").strip().upper().split())
+    mode = str(mode or "").strip().lower()
+
+    last_visit = (
+        select(func.max(Visit.fecha))
+        .where(Visit.patient_id == Patient.id)
+        .correlate(Patient)
+        .scalar_subquery()
+    )
+
+    if not raw and not mode:
+        return []
+
+    if mode == "historical":
+        try:
+            with LocalSessionLocal() as ldb:
+                linked_keys = _historical_linked_keys(ldb)
+                hist_rows = list(ldb.scalars(
+                    select(HistoricalPatient)
+                    .order_by(HistoricalPatient.last_visit_date.desc().nullslast(), HistoricalPatient.last_year.desc(), HistoricalPatient.nombre)
+                    .limit(min(lim * 4, 120))
+                ))
+                current_rows = list(ldb.scalars(select(Patient)))
+                result = []
+                for h in hist_rows:
+                    if h.source_key in linked_keys:
+                        continue
+                    if _historical_matches_current(h, current_rows):
+                        continue
+                    result.append(historical_dict(h))
+                    if len(result) >= lim:
+                        break
+                return result
+        except Exception:
+            return []
+
+    if mode == "review":
+        return _patient_review_rows(db, lim)
+    if mode == "confirmafy":
+        return _patient_review_rows(db, lim, confirmafy_only=True)
+
+    stmt = select(Patient, last_visit.label("ultima_atencion"))
+    if mode == "recent":
+        stmt = stmt.where(last_visit.is_not(None)).order_by(last_visit.desc(), Patient.id.desc()).limit(lim)
+    elif mode == "incomplete":
+        stmt = stmt.where(or_(
+            Patient.cedula.is_(None), Patient.cedula == "",
+            Patient.celular.is_(None), Patient.celular == "",
+            Patient.correo.is_(None), Patient.correo == "",
+        )).order_by(Patient.nombre).limit(lim)
+    else:
+        if len(raw) < 2:
+            return []
+        tokens = [token for token in normalize_lookup_name(raw).split(" ") if token][:8]
+        for token in tokens:
+            pattern = f"%{token}%"
+            stmt = stmt.where(or_(
+                Patient.cedula.ilike(pattern),
+                Patient.nombre.ilike(pattern),
+                Patient.celular.ilike(pattern),
+                Patient.correo.ilike(pattern),
+            ))
+        stmt = stmt.order_by(Patient.nombre).limit(lim)
+
+    rows = db.execute(stmt).all()
+    current = [{**p_dict(p), "ultima_atencion": ultima, "historical": False} for p, ultima in rows]
+    if raw and not mode:
+        historical = search_historical_patients(raw, limit=min(10, max(4, int(lim // 2) or 4)))
+        result = current + historical
+        # Si una palabra fue dictada con una pequeña diferencia (JHONNY/JHONY),
+        # añadimos coincidencias parecidas al final. Todo ocurre sobre SQLite.
+        name_tokens = [x for x in normalize_lookup_name(raw).split() if len(x) >= 3]
+        if len(name_tokens) >= 2 and len(result) < lim + 6:
+            any_stmt = select(Patient).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in name_tokens[:5]])).limit(100)
+            already_current = {int(x.get("id")) for x in result if x.get("id") is not None}
+            proxy = Patient(id=-1, nombre=raw, cedula=None, celular=None, correo=None, lugar=None, notas=None, fecha_nacimiento=None)
+            fuzzy_current = []
+            for p in db.scalars(any_stmt):
+                if int(p.id) in already_current:
+                    continue
+                score, why = patient_similarity(proxy, p)
+                if score >= 0.74:
+                    fuzzy_current.append(({**p_dict(p), "ultima_atencion": None, "historical": False, "similarity": round(score, 3), "similar_reason": why}, score))
+            fuzzy_current.sort(key=lambda x: (-x[1], str(x[0].get("nombre") or "")))
+            result.extend([x[0] for x in fuzzy_current[:6]])
+            existing_h = {int(x.get("historical_id")) for x in result if x.get("historical_id") is not None}
+            for h in _historical_similarity_candidates(raw, 6):
+                if int(h.get("historical_id") or 0) not in existing_h:
+                    result.append(h)
+        return result[: min(lim + 10, 110)]
+    return current
+
+
+@app.get("/api/patients/similar")
+def similar_patients(name: str, exclude_id: int = 0, limit: int = 8, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Advertencias de identidad calculadas en SQLite; nunca despierta Neon."""
+    raw = " ".join(str(name or "").strip().upper().split())
+    if len(normalize_lookup_name(raw)) < 4:
+        return {"name_quality": patient_name_quality(raw), "word_count": patient_name_word_count(raw), "matches": []}
+    tokens = [x for x in normalize_lookup_name(raw).split() if len(x) >= 3]
+    # Preselección por cualquier palabra para no recorrer toda la tabla en cada tecla.
+    if tokens:
+        stmt = select(Patient).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in tokens[:5]]))
+        candidates = list(db.scalars(stmt.limit(80)))
+    else:
+        candidates = []
+    proxy = Patient(id=-1, nombre=raw, cedula=None, celular=None, correo=None, lugar=None, notas=None, fecha_nacimiento=None)
+    matches = []
+    for p in candidates:
+        if int(p.id) == int(exclude_id or 0):
+            continue
+        score, why = patient_similarity(proxy, p)
+        if score < 0.74:
+            continue
+        matches.append({**p_dict(p), "historical": False, "similarity": round(score, 3), "similar_reason": why})
+    historical_candidates = _historical_similarity_candidates(raw, max(4, int(limit)))
+    if historical_candidates and candidates:
+        try:
+            with LocalSessionLocal() as ldb:
+                hids = [int(x.get("historical_id") or 0) for x in historical_candidates if int(x.get("historical_id") or 0)]
+                hmap = {int(h.id): h for h in ldb.scalars(select(HistoricalPatient).where(HistoricalPatient.id.in_(hids)))} if hids else {}
+            filtered_hist = []
+            for item in historical_candidates:
+                h = hmap.get(int(item.get("historical_id") or 0))
+                # En el modal de atención mostramos la ficha actual una sola vez.
+                # El vínculo histórico pendiente seguirá apareciendo en Pacientes -> Por revisar.
+                if h and any(int(p.id) != int(exclude_id or 0) and _historical_identity_match(h, p)[0] for p in candidates):
+                    continue
+                filtered_hist.append(item)
+            historical_candidates = filtered_hist
+        except Exception:
+            pass
+    matches.extend(historical_candidates)
+    # La lista prioriza fichas actuales; históricos ya vinculados no entran aquí.
+    matches.sort(key=lambda x: (-float(x.get("similarity") or 0), 1 if x.get("historical") else 0, str(x.get("nombre") or "")))
+    dedup = []
+    seen = set()
+    for item in matches:
+        key = ("h", item.get("historical_id")) if item.get("historical") else ("p", item.get("id"))
+        if key in seen:
+            continue
+        seen.add(key); dedup.append(item)
+        if len(dedup) >= min(max(int(limit or 8), 1), 12):
+            break
+    return {"name_quality": patient_name_quality(raw), "word_count": patient_name_word_count(raw), "matches": dedup}
+
+
+@app.get("/api/patients/{pid}/review-detail")
+def patient_review_detail(pid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Detalle local para revisar una posible ficha duplicada sin consultar Neon."""
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    st = _confirmafy_patient_status_map(db, [p]).get(int(pid), {})
+    last = db.scalar(select(func.max(Visit.fecha)).where(Visit.patient_id == pid))
+    tokens = [x for x in normalize_lookup_name(p.nombre).split() if len(x) >= 3]
+    if tokens:
+        stmt = select(Patient).where(Patient.id != pid).where(or_(*[Patient.nombre.ilike(f"%{t}%") for t in tokens[:5]])).limit(100)
+        candidates = list(db.scalars(stmt))
+    else:
+        candidates = []
+    matches = []
+    for other in candidates:
+        score, why = patient_similarity(p, other)
+        if score < 0.72:
+            continue
+        other_last = db.scalar(select(func.max(Visit.fecha)).where(Visit.patient_id == other.id))
+        other_visits = int(db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == other.id)) or 0)
+        matches.append({
+            **p_dict(other), "similarity": round(score, 3), "similar_reason": why,
+            "ultima_atencion": other_last, "visit_count": other_visits,
+        })
+    matches.extend((_historical_review_matches([p]).get(int(pid)) or []))
+    matches.sort(key=lambda x: (-float(x.get("similarity") or 0), 0 if x.get("historical") else 1, str(x.get("nombre") or "")))
+    return {
+        "patient": {**p_dict(p), "ultima_atencion": last, **st},
+        "matches": matches[:10],
+    }
+
+
+@app.post("/api/patients/{pid}/link-historical/{hid}")
+def link_historical_to_patient(pid: int, hid: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Vincula manualmente un registro 2020–2025 con una ficha actual, sin crear paciente."""
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente actual no encontrado")
+    with LocalSessionLocal() as ldb:
+        h = ldb.get(HistoricalPatient, hid)
+        if not h:
+            raise HTTPException(404, "Paciente histórico no encontrado")
+        existing = ldb.get(HistoricalPatientLink, h.source_key)
+        if existing and int(existing.patient_id) != int(pid):
+            other = ldb.get(Patient, int(existing.patient_id))
+            name = other.nombre if other else f"ID {existing.patient_id}"
+            raise HTTPException(409, f"Este histórico ya está vinculado a {name}. Revísalo antes de cambiar el vínculo.")
+        snapshot = {
+            "source_key": h.source_key, "nombre": h.nombre, "cedula": h.cedula, "celular": h.celular,
+            "correo": h.correo, "lugar": h.lugar, "first_year": h.first_year, "last_year": h.last_year,
+            "last_visit_date": h.last_visit_date, "aliases": h.aliases, "phones": h.phones,
+            "emails": h.emails, "cedulas": h.cedulas,
+        }
+
+    hproxy = HistoricalPatient(
+        id=hid, source_key=snapshot["source_key"], nombre=snapshot["nombre"], search_text=snapshot["nombre"],
+        cedula=snapshot["cedula"], celular=snapshot["celular"], correo=snapshot["correo"], lugar=snapshot["lugar"],
+        first_year=int(snapshot["first_year"] or 2020), last_year=int(snapshot["last_year"] or 2025),
+        last_visit_date=snapshot["last_visit_date"], row_count=1, aliases=snapshot["aliases"],
+        phones=snapshot["phones"], emails=snapshot["emails"], cedulas=snapshot["cedulas"],
+    )
+    p_ced = re.sub(r"\D", "", p.cedula or "")
+    h_ceds = {re.sub(r"\D", "", x) for x in (_pipe_values(snapshot["cedulas"]) or ([snapshot["cedula"]] if snapshot["cedula"] else [])) if re.sub(r"\D", "", x)}
+    if p_ced and h_ceds and p_ced not in h_ceds:
+        raise HTTPException(409, "La ficha actual y el histórico tienen cédulas diferentes. No se vinculó nada.")
+    identity_ok, why = _historical_identity_match(hproxy, p)
+    score, labels = _name_similarity(p.nombre, snapshot["nombre"])
+    p_phone = normalize_lookup_phone(p.celular)
+    h_phones = {normalize_lookup_phone(x) for x in (_pipe_values(snapshot["phones"]) or ([snapshot["celular"]] if snapshot["celular"] else []))}
+    same_phone = bool(p_phone and p_phone in h_phones)
+    if not identity_ok and not same_phone and score < 0.70:
+        raise HTTPException(409, "La coincidencia es demasiado baja para vincular estas fichas. Revisa los nombres antes de continuar.")
+
+    changed = False
+    # Solo completamos huecos de datos razonablemente seguros; nunca cambiamos el nombre actual.
+    historical_ced = re.sub(r"\D", "", snapshot["cedula"] or "")
+    if not p.cedula and len(historical_ced) == 10 and valid_ecuadorian_cedula(historical_ced):
+        p.cedula = historical_ced; changed = True
+    for field in ("celular", "correo", "lugar"):
+        incoming = snapshot.get(field)
+        if incoming and not getattr(p, field, None):
+            setattr(p, field, incoming); changed = True
+
+    if changed:
+        if is_offline_db(db):
+            extranjero = bool(p.cedula and not valid_ecuadorian_cedula(str(p.cedula)))
+            add_queue(db, "patient.update", "patient", {
+                "patient_id": int(p.id), "extranjero": extranjero, "cedula": p.cedula, "nombre": p.nombre,
+                "fecha_nacimiento": p.fecha_nacimiento, "celular": p.celular, "correo": p.correo,
+                "lugar": p.lugar, "notas": p.notas,
+            }, user.username, int(p.id))
+            audit(db, user, "vincular_historico_offline", f"Paciente local {p.id} <- histórico {hid}; {why or ','.join(labels[:4])}")
+            db.commit()
+        else:
+            audit(db, user, "vincular_historico", f"Paciente {p.id} <- histórico {hid}; {why or ','.join(labels[:4])}")
+            db.commit(); mirror_patient_to_local(p)
+    else:
+        # El vínculo es puramente local cuando no hay campos vacíos que completar:
+        # no hacemos Audit/COMMIT en Neon solo por ocultar el histórico duplicado.
+        pass
+    _historical_link_patient(snapshot["source_key"], int(p.id))
+    return {
+        "ok": True, "patient": p_dict(p), "historical_id": int(hid),
+        "historical_name": snapshot["nombre"], "data_completed": bool(changed),
+        "last_visit_date": snapshot["last_visit_date"],
+    }
+
+
+@app.post("/api/patients")
+def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    values = normalize_patient_payload(data)
+    if not values["nombre"]:
+        raise HTTPException(400, "El nombre es obligatorio")
+    if values["cedula"]:
+        existing = db.scalar(select(Patient).where(Patient.cedula == values["cedula"]))
+        if existing:
+            raise HTTPException(409, "Ya existe un paciente con esa cédula")
+    p = Patient(**values)
+    db.add(p)
+    db.flush()
+    if is_offline_db(db):
+        add_queue(db, "patient.create", "patient", {"extranjero": bool(data.extranjero), **values}, user.username, p.id)
+        audit(db, user, "crear_paciente_offline", f"Paciente local {p.id}: {p.nombre}")
+        db.commit()
+        result = p_dict(p)
+        result["offline"] = True
+        return result
+    audit(db, user, "crear_paciente", f"Paciente {p.id}: {p.nombre}")
+    db.commit()
+    mirror_patient_to_local(p)
+    result = p_dict(p)
+    result["offline"] = False
+    return result
+
+
+@app.put("/api/patients/{pid}")
+def update_patient(pid: int, data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    p = db.get(Patient, pid)
+    if not p:
+        raise HTTPException(404, "Paciente no encontrado")
+    values = normalize_patient_payload(data)
+    if not values["nombre"]:
+        raise HTTPException(400, "El nombre es obligatorio")
+    if values["cedula"]:
+        existing = db.scalar(select(Patient).where(Patient.cedula == values["cedula"], Patient.id != pid))
+        if existing:
+            raise HTTPException(409, "Ya existe otro paciente con esa cédula")
+    for k, v in values.items():
+        setattr(p, k, v)
+    if is_offline_db(db):
+        add_queue(db, "patient.update", "patient", {"patient_id": pid, "extranjero": bool(data.extranjero), **values}, user.username, pid)
+        audit(db, user, "editar_paciente_offline", f"Paciente local {pid}")
+        db.commit()
+        result = p_dict(p)
+        result["offline"] = True
+        return result
+    audit(db, user, "editar_paciente", f"Paciente {p.id}")
+    db.commit()
+    mirror_patient_to_local(p)
+    result = p_dict(p)
+    result["offline"] = False
+    return result
+
+
+@app.post("/api/patients/{source_id}/link/{target_id}")
+def link_duplicate_patient(source_id: int, target_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Vincula un duplicado sin historial clínico con la ficha correcta.
+
+    Se usa cuando recepción confirma una sugerencia. Nunca fusiona automáticamente
+    dos pacientes con atenciones y no se ejecuta offline, para no dejar una fusión
+    compleja pendiente entre SQLite y Neon.
+    """
+    if source_id == target_id:
+        p = db.get(Patient, target_id)
+        if not p:
+            raise HTTPException(404, "Paciente no encontrado")
+        return {"patient": p_dict(p), "deleted_source": False, "moved_appointments": 0}
+    if is_offline_db(db):
+        raise HTTPException(503, "Para vincular dos fichas necesitas conexión a Internet. No se hizo ningún cambio.")
+    source = db.get(Patient, source_id)
+    target = db.get(Patient, target_id)
+    if not source or not target:
+        raise HTTPException(404, "No se encontró una de las fichas")
+    source_visits = int(db.scalar(select(func.count(Visit.id)).where(Visit.patient_id == source_id)) or 0)
+    if source_visits:
+        raise HTTPException(409, "La ficha que intentas fusionar ya tiene atenciones clínicas. Revísala manualmente para no perder historial.")
+    score, why = patient_similarity(source, target)
+    if score < 0.74:
+        raise HTTPException(409, "Las fichas no tienen una coincidencia suficientemente clara para fusionarlas automáticamente.")
+
+    # Completa solo huecos de la ficha buena; nunca pisa información existente.
+    changed_target = False
+    for field in ("cedula", "celular", "correo", "lugar", "fecha_nacimiento"):
+        incoming = getattr(source, field, None)
+        if incoming and not getattr(target, field, None):
+            setattr(target, field, incoming); changed_target = True
+
+    moved = 0; removed_appointments: list[int] = []; moved_appointments: list[Appointment] = []
+    source_apps = list(db.scalars(select(Appointment).where(Appointment.patient_id == source_id).order_by(Appointment.id)))
+    for a in source_apps:
+        duplicate = db.scalar(select(Appointment).where(
+            Appointment.patient_id == target_id, Appointment.fecha == a.fecha, Appointment.hora == a.hora, Appointment.id != a.id
+        ))
+        if duplicate:
+            removed_appointments.append(int(a.id)); db.delete(a)
+        else:
+            a.patient_id = target_id; moved += 1; moved_appointments.append(a)
+
+    source_name = source.nombre
+    audit(db, user, "vincular_paciente_duplicado", f"{source_id} {source_name} -> {target_id} {target.nombre}; {why}; {moved} citas trasladadas")
+    db.delete(source)
+    db.commit()
+    # Reflejo inmediato en SQLite sin esperar al próximo refresco completo.
+    mirror_patient_to_local(target)
+    for a in moved_appointments:
+        mirror_appointment_to_local(a)
+    for aid in removed_appointments:
+        mirror_delete_appointment_local(aid)
+    mirror_delete_patient_local(source_id)
+    _historical_reassign_links(source_id, target_id)
+    return {
+        "patient": p_dict(target), "deleted_source": True,
+        "moved_appointments": moved, "reason": why, "target_changed": changed_target,
+    }
+
+
+@app.post("/api/patients/{source_id}/merge/{target_id}")
+def merge_patient_confirmed(source_id: int, target_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Fusión manual confirmada por recepción.
+
+    Conserva la ficha target, traslada TODAS las atenciones y citas de source,
+    completa solo campos vacíos y finalmente elimina source. Nunca se ejecuta
+    offline. Si ambas fichas tienen cédulas distintas no permite fusionar hasta
+    revisar ese dato, porque es una contradicción demasiado importante.
+    """
+    if source_id == target_id:
+        raise HTTPException(400, "Selecciona una ficha diferente para fusionar")
+    if is_offline_db(db):
+        raise HTTPException(503, "Para fusionar pacientes necesitas conexión a Internet. No se hizo ningún cambio.")
+    source = db.get(Patient, source_id); target = db.get(Patient, target_id)
+    if not source or not target:
+        raise HTTPException(404, "No se encontró una de las fichas")
+
+    sid = re.sub(r"\s+", "", str(source.cedula or "").upper())
+    tid = re.sub(r"\s+", "", str(target.cedula or "").upper())
+    if sid and tid and sid != tid:
+        raise HTTPException(409, "Las dos fichas tienen identificaciones diferentes. Revisa la cédula antes de fusionarlas.")
+    score, why = patient_similarity(source, target)
+    same_phone = bool(normalize_lookup_phone(source.celular) and normalize_lookup_phone(source.celular) == normalize_lookup_phone(target.celular))
+    same_id = bool(sid and tid and sid == tid)
+    if score < 0.62 and not same_phone and not same_id:
+        raise HTTPException(409, "La coincidencia es demasiado baja para una fusión segura. Revisa los nombres o datos antes de continuar.")
+
+    changed_target

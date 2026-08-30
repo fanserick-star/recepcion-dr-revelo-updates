@@ -1,0 +1,9 @@
+{
+  "parts_count": 7,
+  "pristine_app_js_sha256": "75496e600d82235f2cb342c2e93d66f90db5d72aa21f6ae21a6f56ec3b68fee9",
+  "pristine_index_sha256": "4ce752cf9de4f7be18acabcbe40c2490edff4c99316cabda6d4ecf769b4fbd9d",
+  "recovered_app_sha256": "db09263a9d8f4c62f46cb8346119e55d5d53b3ff585bb24fbd6028bad83a9da7",
+  "source_sha256": "33ba932ef73ae28722c5f8f1a75d439a82cfb4a67adb78d837430522b786f9a8",
+  "source_version": "4.3.64",
+  "version": "4.4.6"
+}

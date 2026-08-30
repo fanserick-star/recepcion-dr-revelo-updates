@@ -1,11 +1,11 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.5",
-  "app_version": "4.4.3",
-  "runtime_version": "4.4.3",
+  "version": "4.4.6",
+  "app_version": "4.4.6",
+  "runtime_version": "4.4.6",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.5: restaura en Nueva atención el buscador por nombre, apellido, cédula o celular; mantiene la agenda semanal y elimina el botón Facturero Móvil únicamente del modal clínico.",
+  "message": "v4.4.6 recuperación limpia: restaura la base estable v4.3.64 y los archivos visuales originales para eliminar la mezcla de versiones en Atención, Agenda y WhatsApp.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
@@ -21,39 +21,39 @@
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/app.part7"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part4",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part5",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part6",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/app.part7"
       ],
-      "sha256": "97ea664ad7bebb8927eea4252e59e1bbb9223f83088d58340a1f701d50f68620",
+      "sha256": "db09263a9d8f4c62f46cb8346119e55d5d53b3ff585bb24fbd6028bad83a9da7",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/static/index.html",
-      "sha256": "a512972eb9c1c02c9a8b12551ec1bfd5c8fec0c684b087dfb3d13203da7c14b0",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/app_base.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v443/static/app.js",
-      "sha256": "18e94c1513e57b31f2506242d648e59c9fc865fd4db892007d8d994c2ed4e03b",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/static/index.html",
+      "sha256": "4ce752cf9de4f7be18acabcbe40c2490edff4c99316cabda6d4ecf769b4fbd9d",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_5_search/static/app.js",
-      "sha256": "720f0cc2d8f4b7b8c7d813a713cfcb2049840e97903b4d8c36378eb87055b0a2",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/static/app.js",
+      "sha256": "75496e600d82235f2cb342c2e93d66f90db5d72aa21f6ae21a6f56ec3b68fee9",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/app_base.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/static/app_base.js",
+      "sha256": "4fbb4c1bda8e2cb2d76130442d4a1b871a920bd4cedc4c684398d44597d02423",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_5_search/update_manifest.json",
-      "sha256": "1fbc4bdff5bda880fbebc0d1bd2774850e006be70a23237ce69662f9cf945765",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_6_recovery/update_manifest.json",
+      "sha256": "750b0a06c5e2bafc38c16911702f795f96a684861b9700f78588e1ac70fbaff3",
       "encoding": "utf-8"
     }
   ]
