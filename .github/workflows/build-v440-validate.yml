@@ -1,0 +1,199 @@
+name: Validar y publicar v4.4.0
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v440/**'
+      - '.github/workflows/build-v440-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+
+      - name: Construir candidato
+        run: python build/v440/build_v440.py
+
+      - name: Reconstruir archivos
+        run: |
+          cat updates/v440/app.part* > _ci_app.py
+          cat updates/v440/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+
+      - name: Validar estructura y regresiones
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          required=[
+            'APP_VERSION = "4.4.0"','class TrashItem(Base):','TRASH_RETENTION_DAYS = 30',
+            '/api/safety/patients/{pid}','/api/safety/visits/{visit_id}',
+            '/api/safety/appointments/{appointment_id}','/api/safety/unlinked/{item_id}',
+            '/api/ops/trash','/api/ops/activity','/api/patients/{pid}/quick',
+            '/api/ops/agenda-smart','/api/ops/diagnostics','V440_OPS_JS','V440_OPS_CSS',
+            'V43104_ALERT_JS','V43103_SERVICES_CSS','Procedimientos y servicios',
+            "price.textContent='$40.00'",'Revisando AZUR','Emitir por lotes',
+            'cloud_schema_ready_v4_4_0_ops_'
+          ]
+          for token in required:
+            assert token in app, token
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.4.0'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          static=Path('updates/v440/static/app.js').read_text(encoding='utf-8')
+          assert '<span class="service-price">$40.00</span>' in static
+          assert '<b>Procedimientos y servicios</b>' in static
+          assert '$40 fijo' not in static
+          print('STATIC_V440_OK')
+          PY
+
+      - name: Extraer interfaz operativa
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          tree=ast.parse(Path('_ci_app.py').read_text(encoding='utf-8'))
+          vals={}
+          for node in tree.body:
+            if isinstance(node,ast.Assign):
+              for target in node.targets:
+                if isinstance(target,ast.Name) and target.id in {'V440_OPS_JS','V440_OPS_CSS'}:
+                  vals[target.id]=ast.literal_eval(node.value)
+          assert vals.get('V440_OPS_JS') and vals.get('V440_OPS_CSS')
+          assert 'MutationObserver' not in vals['V440_OPS_JS']
+          Path('_ops.js').write_text(vals['V440_OPS_JS'],encoding='utf-8')
+          Path('_ops.css').write_text(vals['V440_OPS_CSS'],encoding='utf-8')
+          print('EXTRACT_V440_OK',len(vals['V440_OPS_JS']),len(vals['V440_OPS_CSS']))
+          PY
+
+      - name: Probar interfaz Actividad, Papelera, ficha rápida y Agenda inteligente
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install jsdom@26 >/dev/null 2>&1
+          cat > _dom_test.mjs <<'JS'
+          import fs from 'node:fs';
+          import {JSDOM} from 'jsdom';
+          const html=`<!doctype html><html><body>
+          <div id="app"><aside><nav class="side-nav">
+            <button class="nav-btn" data-section="inicio">Inicio</button>
+            <button class="nav-btn" data-section="agenda">Agenda</button>
+            <button class="nav-btn" data-section="pacientes">Pacientes</button>
+            <button class="nav-btn" data-section="config">Configuración</button>
+          </nav></aside><main>
+            <section id="inicio"></section>
+            <section id="agenda" class="hidden"><div class="agenda-native-title-row"><h1>Agenda</h1></div></section>
+            <section id="pacientes" class="hidden"></section>
+            <section id="config" class="hidden"><div class="config-section" data-config-section="sistema"></div></section>
+          </main></div><div id="modal" class="hidden"></div></body></html>`;
+          const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'http://127.0.0.1:8765/'});
+          const {window}=dom;
+          const D=window.document;
+          window.$=s=>D.querySelector(s);
+          window.api=async url=>{
+            if(url.startsWith('/api/ops/agenda-smart'))return {date:'2026-08-29',is_today:true,total:0,new:0,subsequent:0,attended:0,late_count:0,incomplete_today:0,free_slots:[],next:null};
+            if(url.startsWith('/api/ops/activity'))return [];
+            if(url.startsWith('/api/ops/trash'))return [];
+            if(url.startsWith('/api/ops/diagnostics'))return {safe_text:'Recepción v4.4.0',services:{}};
+            if(url.includes('/quick'))return {patient:{id:1,nombre:'PACIENTE DE PRUEBA'},visit_count:0,recent_visits:[],missing:[]};
+            return {};
+          };
+          window.show=(id)=>{D.querySelectorAll('main section').forEach(x=>x.classList.add('hidden'));D.querySelector('#'+id)?.classList.remove('hidden')};
+          window.openPatient=async()=>{};
+          window.loadAgenda=async()=>{};
+          window.fmtDate=v=>String(v||'');
+          window.fmtTime=v=>String(v||'');
+          window.money=v=>'$'+Number(v||0).toFixed(2);
+          window.toISO=d=>'2026-08-29';
+          window.confirmDeletion=()=>true;
+          window.singleFlightMutation=async(k,fn)=>fn();
+          window.searchPatients=async()=>{};
+          window.loadWeek=async()=>{};
+          window.refreshPendingBadges=async()=>{};
+          window.closeModal=()=>{};
+          window.refreshVisibleSectionLocal=async()=>{};
+          window.invalidateAttentionWeekCache=()=>{};
+          window.invalidateAgendaSlotCache=()=>{};
+          window.attentionFor=()=>{};
+          window.selectedHomeDate='2026-08-29';
+          window.eval(fs.readFileSync('_ops.js','utf8'));
+          D.dispatchEvent(new window.Event('DOMContentLoaded',{bubbles:true}));
+          await new Promise(r=>setTimeout(r,120));
+          if(!D.querySelector('.side-nav [data-section="actividad"]'))throw new Error('Falta navegación Actividad');
+          if(!D.querySelector('#actividad'))throw new Error('Falta sección Actividad');
+          if(!D.querySelector('#opsTrashTab'))throw new Error('Falta pestaña Papelera');
+          if(!D.querySelector('#patientQuickDrawer'))throw new Error('Falta ficha rápida lateral');
+          if(!D.querySelector('#smartAgendaCard'))throw new Error('Falta Agenda inteligente');
+          if(!D.querySelector('#opsDiagnosticPanel'))throw new Error('Falta Revisar sistema');
+          for(const fn of ['loadOpsActivity','loadOpsTrash','restoreTrash','openPatientQuick','loadSmartAgenda','runOpsDiagnostics']){
+            if(typeof window[fn]!=='function')throw new Error('Falta función '+fn);
+          }
+          await window.openPatientQuick(1);
+          if(!D.querySelector('#patientQuickDrawer').classList.contains('open'))throw new Error('Ficha rápida no abre');
+          window.closePatientQuick();
+          window.show('actividad');
+          await new Promise(r=>setTimeout(r,30));
+          if(D.querySelector('#actividad').classList.contains('hidden'))throw new Error('Actividad no abre');
+          console.log('DOM_V440_OK');
+          JS
+          node _dom_test.mjs
+
+      - name: Probar backend portable y tabla Papelera
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v440/static/index.html _smoke_root/static/index.html
+          cp updates/v440/static/app.js _smoke_root/static/app.js
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8765 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request,sqlite3
+          ok=False
+          for _ in range(100):
+            time.sleep(.25)
+            try:
+              with urllib.request.urlopen('http://127.0.0.1:8765/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+              if d.get('version')=='4.4.0':ok=True;break
+            except Exception: pass
+          if not ok:
+            print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+            raise SystemExit('backend portable no arrancó')
+          db=sqlite3.connect('_smoke_data/offline_cache.db')
+          names={r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+          assert 'trash_items' in names,names
+          db.close()
+          print('PORTABLE_BACKEND_V440_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v440 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.4.0 centro operativo'
+          git pull --rebase origin main
+          git push
