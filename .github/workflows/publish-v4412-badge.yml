@@ -1,0 +1,133 @@
+name: Validar y publicar v4.4.12 badge real
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4412_badge/**'
+      - '.github/workflows/publish-v4412-badge.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4412-badge
+  cancel-in-progress: false
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.12 acumulativa
+        shell: pwsh
+        run: python build/v4412_badge/build_v4412.py
+
+      - name: Validar sintaxis, dependencias y alcance
+        shell: pwsh
+        run: |
+          python -m py_compile updates/v4_4_12_badge/app.py
+          node --check updates/v4_4_12_badge/static/app.js
+          python tools/release_guard.py updates/v4_4_12_badge/app.py
+          @'
+          from pathlib import Path
+          app=Path('updates/v4_4_12_badge/app.py').read_text(encoding='utf-8-sig')
+          js=Path('updates/v4_4_12_badge/static/app.js').read_text(encoding='utf-8-sig')
+          assert 'APP_VERSION = "4.4.12"' in app
+          assert "const VERSION=\\'4.4.12\\';" in app
+          assert "const VERSION=\\'4.4.3\\';" not in app
+          assert 'RP_PORT' in app and 'pg8000' in app
+          assert "agenda.classList.toggle('hidden',!!active)" in js
+          assert "EMPTY_HINT='Ingresa la cédula para validarla localmente.'" in js
+          assert "status.textContent=''" in js
+          print('STATIC_AND_BACKEND_SCOPE_OK')
+          '@ | python -
+
+      - name: Instalar runtime exacto de producción
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --no-input fastapi==0.115.6 pydantic==1.10.15 uvicorn==0.34.0 SQLAlchemy==2.0.36 pg8000==1.31.2 python-dotenv==1.0.1 python-multipart==0.0.20 anyio
+
+      - name: Smoke real con 8000 ocupado y RP_PORT 8766
+        shell: pwsh
+        run: |
+          @'
+          import json, os, socket, subprocess, sys, time, urllib.request
+          from pathlib import Path
+          root=Path('updates/v4_4_12_badge').resolve()
+          blocker=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+          blocker.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,0)
+          blocker.bind(('127.0.0.1',8000));blocker.listen(1)
+          env=os.environ.copy();env['RP_PORT']='8766';env['RP_FORCE_OFFLINE']='1';env['PYTHONPATH']=str(Path('.').resolve())
+          p=subprocess.Popen([sys.executable,str(root/'app.py')],cwd=str(root),env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+          try:
+              deadline=time.time()+35;last=''
+              while time.time()<deadline:
+                  if p.poll() is not None:
+                      last=(p.stdout.read() if p.stdout else '')[-5000:]
+                      raise SystemExit('Backend terminó antes de responder: '+last)
+                  try:
+                      with urllib.request.urlopen('http://127.0.0.1:8766/api/version?ts='+str(time.time_ns()),timeout=1.5) as r:
+                          d=json.loads(r.read().decode())
+                      if str(d.get('version'))=='4.4.12':
+                          print('RUNTIME_4412_OK',d)
+                          break
+                      last=repr(d)
+                  except Exception as e:last=repr(e)
+                  time.sleep(.4)
+              else:raise SystemExit('No respondió 4.4.12 en 8766: '+last)
+          finally:
+              p.terminate()
+              try:p.wait(timeout=8)
+              except Exception:p.kill()
+              blocker.close()
+          '@ | python -
+
+      - name: Publicar payload sin mover canal
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/v4_4_12_badge
+          git commit -m "release: payload v4.4.12 badge real"
+          git push origin HEAD:main
+
+      - name: Verificar payload real desde GitHub Raw
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4412_badge/candidate_latest.json
+
+      - name: Publicar canal v4.4.12
+        shell: pwsh
+        run: |
+          Copy-Item build/v4412_badge/candidate_latest.json latest-v3.json -Force
+          git add latest-v3.json
+          git commit -m "release: publicar v4.4.12 badge real"
+          git push origin HEAD:main
+
+      - name: Confirmar propagación final
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          last=''
+          for _ in range(18):
+              try:
+                  req=urllib.request.Request(url+f'?rp_ts={time.time_ns()}',headers={'Cache-Control':'no-cache','User-Agent':'RP-v4412-guard'})
+                  with urllib.request.urlopen(req,timeout=12) as r:data=json.loads(r.read().decode('utf-8-sig'))
+                  if str(data.get('version'))=='4.4.12':
+                      print('CHANNEL_4412_VISIBLE');break
+                  last=str(data.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(2)
+          else:raise SystemExit('Canal no propagó 4.4.12; último='+last)
+          '@ | python -
+          python tools/remote_payload_guard.py --manifest latest-v3.json
