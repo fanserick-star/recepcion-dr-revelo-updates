@@ -67,7 +67,7 @@ def main() -> None:
     mp=OUT/"update_manifest.json"
     mp.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
 
-    latest={
+    candidate={
         "product":"recepcion-pacientes",
         "version":VERSION,
         "app_version":VERSION,
@@ -90,9 +90,7 @@ def main() -> None:
             },
         ],
     }
-    payload=json.dumps(latest,ensure_ascii=False,indent=2)+"\n"
-    (ROOT/"latest-v3.json").write_text(payload,encoding="utf-8")
-    (ROOT/"latest.json").write_text(payload,encoding="utf-8")
+    (OUT/"candidate_latest.json").write_text(json.dumps(candidate,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
     print(json.dumps({"version":VERSION,"app_sha256":sha256_bytes(raw),"parts":len(parts)},sort_keys=True))
 
 
