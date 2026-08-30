@@ -1,0 +1,55 @@
+name: Reparar v4.4.7 y blindar SHA remoto
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/repair-v447-sha.yml'
+      - 'tools/repair_v447_manifest.py'
+      - 'tools/remote_payload_guard.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Reconstruir manifiesto desde bytes del commit
+        run: python tools/repair_v447_manifest.py --ref "$GITHUB_SHA"
+
+      - name: Descargar TODO desde GitHub Raw y verificar SHA
+        run: python tools/remote_payload_guard.py --manifest latest-v3.json --require-immutable
+
+      - name: Comprobar que el canal no toca datos protegidos
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('latest-v3.json').read_text(encoding='utf-8'))
+          assert d['version']=='4.4.7'
+          assert d['app_version']=='4.4.7'
+          assert len(d.get('payload_ref',''))==40
+          paths=[x['path'].replace('\\','/') for x in d['files']]
+          forbidden=[p for p in paths if p=='.env' or p.startswith('data/') or p.startswith('.venv/')]
+          assert not forbidden, forbidden
+          print('CHANNEL_PROTECTION_OK', d['payload_ref'])
+          PY
+
+      - name: Publicar canal SOLO después de SHA remoto verde
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add latest.json latest-v3.json
+          git commit -m 'release: v4.4.7 con SHA remoto verificado e immutable ref'
+          git pull --rebase origin main
+          git push
