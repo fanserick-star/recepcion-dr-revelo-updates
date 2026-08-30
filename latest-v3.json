@@ -1,30 +1,41 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.8",
-  "app_version": "4.4.8",
-  "runtime_version": "4.4.8",
+  "version": "4.4.9",
+  "app_version": "4.4.9",
+  "runtime_version": "4.4.9",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.8: respeta el puerto libre elegido por el launcher mediante RP_PORT; prueba automática con 8000 ocupado. No toca interfaz ni datos.",
+  "payload_ref": "bd37c47e4a64f5c071d0857c5bd6a98251d0b240",
+  "message": "v4.4.9: recupera la interfaz real de v4.4.4 en un solo app.js, neutraliza el app_base.js legado, conserva RP_PORT dinámico y usa pg8000. Payload fijado a commit inmutable y verificado contra GitHub Raw antes de publicar.",
   "files": [
     {
       "path": "app.py",
-      "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part4",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part5",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part6",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/app.part7"
-      ],
-      "sha256": "c5948995e92bb2f62efe010ded4f4d7874582c6ec203eaed72d7c1f89999b783",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bd37c47e4a64f5c071d0857c5bd6a98251d0b240/updates/v4_4_9_clean_444/app.py",
+      "sha256": "148e1cd846ec848f8e75dac1eb5baa60f059176966b374a90be2f563afb96133",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bd37c47e4a64f5c071d0857c5bd6a98251d0b240/updates/v4_4_9_clean_444/static/index.html",
+      "sha256": "e4f743f38cf5117632ab577d8520c9463fa566d5c984d821cc739baf48d8ec51",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bd37c47e4a64f5c071d0857c5bd6a98251d0b240/updates/v4_4_9_clean_444/static/app.js",
+      "sha256": "ddd63ef3613a375c255ed24a17fcfe52e9aa0088df3663bc973bdae755abf4e0",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/app_base.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bd37c47e4a64f5c071d0857c5bd6a98251d0b240/updates/v4_4_9_clean_444/static/app_base.js",
+      "sha256": "90a0b7979193afdef5e4c8a4b4e1e8dba0f81c53fae4faeb65b8ec6735cd6d5f",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_8_portfix/update_manifest.json",
-      "sha256": "a8ee98caafacf54a997c17fd0725d2008c49eb36fd25a7f795a715ee220724f0",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bd37c47e4a64f5c071d0857c5bd6a98251d0b240/updates/v4_4_9_clean_444/update_manifest.json",
+      "sha256": "38c3f6b94651d10de3e738291018715c20b3e6eb69caa5660a84fb9d6bfe83e4",
       "encoding": "utf-8"
     }
   ]
