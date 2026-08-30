@@ -1,0 +1,137 @@
+name: Validar y publicar v4.3.101
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v43101/**'
+      - '.github/workflows/build-v43101-validate.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Guardar huellas no relacionadas
+        run: |
+          git rev-parse HEAD:agenda > _agenda_before.txt
+          git rev-parse HEAD:cloudflare > _cloudflare_before.txt
+      - name: Construir candidato
+        run: python build/v43101/build_v43101.py
+      - name: Reconstruir archivos
+        run: |
+          cat updates/v43101/app.part* > _ci_app.py
+          cat updates/v43101/ABRIR_RECEPCION.part* > _ci_launcher.py
+          python -m py_compile _ci_app.py _ci_launcher.py
+      - name: Validar regresiones estáticas
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          app=Path('_ci_app.py').read_text(encoding='utf-8')
+          assert 'APP_VERSION = "4.3.101"' in app
+          assert "const nativeCards=[...box.querySelectorAll('button.service-card[data-service]')]" in app
+          assert 'button.service-card[data-service="CONSULTA"]' in app
+          assert "c.classList.contains('selected')" in app
+          assert 'V497_ATTENTION_JS' in app
+          assert 'v497-native-consult' in app
+          assert 'Revisando AZUR' in app
+          assert 'Emitir por lotes' in app
+          latest=json.loads(Path('latest.json').read_text(encoding='utf-8'))
+          assert latest['version']=='4.3.101'
+          ai=next(x for x in latest['files'] if x['path']=='app.py')
+          li=next(x for x in latest['files'] if x['path']=='ABRIR_RECEPCION.py')
+          assert hashlib.sha256(Path('_ci_app.py').read_bytes()).hexdigest()==ai['sha256']
+          assert hashlib.sha256(Path('_ci_launcher.py').read_bytes()).hexdigest()==li['sha256']
+          print('STATIC_V43101_OK')
+          PY
+      - name: Extraer JS estructural de Nueva atención
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          src=Path('_ci_app.py').read_text(encoding='utf-8')
+          tree=ast.parse(src)
+          found=None
+          for node in tree.body:
+              if isinstance(node,ast.Assign):
+                  for target in node.targets:
+                      if isinstance(target,ast.Name) and target.id=='V492_ATTENTION_JS':
+                          found=ast.literal_eval(node.value)
+                          break
+              if found is not None: break
+          assert found and 'button.service-card[data-service]' in found
+          Path('_v492.js').write_text(found,encoding='utf-8')
+          print('EXTRACT_V492_OK',len(found))
+          PY
+      - name: Probar DOM real de 10 tarjetas con CONSULTA primera
+        run: |
+          npm init -y >/dev/null 2>&1
+          npm install jsdom@26 >/dev/null 2>&1
+          cat > _dom_test.mjs <<'JS'
+          import fs from 'node:fs';
+          import {JSDOM} from 'jsdom';
+          const procedures=['FULGURACION','CISTOSCOPIA','DILATACION','CIRCUNSICION','INSTILACION','LAVADO','CAMBIO DE SONDA','CISTO Y DILATACION','SERVICIO DE UROLOGIA'];
+          const procButtons=procedures.map((n,i)=>`<button type="button" class="service-card procedure-card" data-service="${n}"><span class="service-icon">▣</span><strong>${n}</strong><span class="service-price">${i===4?'$80.00':'Valor editable'}</span><span class="service-check">✓</span></button>`).join('');
+          const html=`<!doctype html><html><body><div id="modal"><div class="modalbox"><div class="modal-form-heading"><h2>Nueva atención</h2><p>x</p></div><div class="service-title enhanced"><div><b>Selecciona la atención</b></div><span>0 seleccionadas</span></div><div class="service-groups"><div class="service-section consultation-service-section"><div class="service-group-heading"><div><b>Consulta</b><span>Atención médica</span></div></div><div class="service-grid consultation-grid"><button type="button" class="service-card consultation-card" data-service="CONSULTA"><span class="service-icon">✚</span><strong>CONSULTA</strong><span class="service-price">$40 fijo</span><span class="service-check">✓</span></button></div></div><div class="service-section procedures-service-section"><div class="service-group-heading"><div><b>Procedimientos</b></div></div><div class="service-grid">${procButtons}</div></div></div><div id="procedureValuesBox"></div><div class="actions form-actions"><button>Cancelar</button><button>Guardar atención</button></div></div></div></body></html>`;
+          const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true});
+          const {window}=dom;
+          window.eval(fs.readFileSync('_v492.js','utf8'));
+          window.document.dispatchEvent(new window.Event('DOMContentLoaded',{bubbles:true}));
+          window.document.dispatchEvent(new window.MouseEvent('click',{bubbles:true}));
+          await new Promise(r=>setTimeout(r,350));
+          const box=window.document.querySelector('#modal .modalbox');
+          const cards=[...box.querySelectorAll('.v492-services-grid > button.service-card[data-service]')];
+          console.log('SERVICES',cards.map(x=>x.dataset.service).join('|'));
+          if(cards.length!==10) throw new Error(`Se esperaban 10 tarjetas y hay ${cards.length}`);
+          if(cards[0].dataset.service!=='CONSULTA') throw new Error(`Primera tarjeta: ${cards[0].dataset.service}`);
+          const consulta=cards.find(x=>x.dataset.service==='CONSULTA');
+          if(!consulta || !consulta.textContent.includes('$40 fijo')) throw new Error('CONSULTA no conserva $40 fijo');
+          if(!consulta.classList.contains('v492-consult')) throw new Error('CONSULTA no recibió clase visual');
+          const groups=box.querySelector('.service-groups');
+          if(!groups.classList.contains('v492-empty-source')) throw new Error('Contenedor viejo no se ocultó');
+          console.log('DOM_CONSULTA_V43101_OK');
+          JS
+          node _dom_test.mjs
+      - name: Probar backend portable
+        run: |
+          python -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20'
+          rm -rf _smoke_root _smoke_data
+          mkdir -p _smoke_root _smoke_data
+          unzip -q installer_clean/base/clean_base_resources.zip -d _smoke_root
+          cp _ci_app.py _smoke_root/app.py
+          cp updates/v43101/static/index.html _smoke_root/static/index.html
+          (cd _smoke_root && RP_FORCE_OFFLINE=1 RP_PORT=8765 RP_DATA_DIR="$PWD/../_smoke_data" DISABLE_SQLALCHEMY_CEXT_RUNTIME=1 python app.py > ../_smoke.log 2>&1 & echo $! > ../_smoke.pid)
+          python - <<'PY'
+          import json,time,urllib.request
+          ok=False
+          for _ in range(100):
+              time.sleep(.25)
+              try:
+                  with urllib.request.urlopen('http://127.0.0.1:8765/api/version',timeout=1) as r:d=json.loads(r.read().decode())
+                  if d.get('version')=='4.3.101':ok=True;break
+              except Exception: pass
+          if not ok:
+              print(open('_smoke.log',encoding='utf-8',errors='replace').read())
+              raise SystemExit('backend portable no arrancó')
+          print('PORTABLE_BACKEND_V43101_OK')
+          PY
+          kill "$(cat _smoke.pid)" || true
+      - name: Confirmar aislamiento
+        run: |
+          test "$(cat _agenda_before.txt)" = "$(git rev-parse HEAD:agenda)"
+          test "$(cat _cloudflare_before.txt)" = "$(git rev-parse HEAD:cloudflare)"
+          git diff --exit-code -- agenda cloudflare
+      - name: Publicar canal
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v43101 latest.json latest-v3.json
+          git commit -m 'release: publicar v4.3.101 Consulta nativa'
+          git pull --rebase origin main
+          git push
