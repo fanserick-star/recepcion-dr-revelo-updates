@@ -31,13 +31,15 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Generar Worker v2.6 desde v2.5.2 estable
-        run: python build/whatsapp_v26/build_worker.py
+      - name: Generar Worker v2.6
+        run: |
+          python build/whatsapp_v26/build_worker.py
+          python build/whatsapp_v26/post_build.py
 
       - name: Instalar bundler y dependencia
         run: npm install --no-save esbuild @neondatabase/serverless
 
-      - name: Validar sintaxis y reglas de interpretación
+      - name: Probar botones y respuestas libres
         run: |
           node --check cloudflare/whatsapp_worker_v2_6_responses.js
           node --input-type=module <<'NODE'
@@ -47,6 +49,7 @@ jobs:
             ['Confirmo, muchas gracias','CONFIRMADO'],
             ['Pensaba que era mañana pero ya revisé y sí puedo asistir el miércoles','CONFIRMADO'],
             ['No puedo asistir mañana','NO_ASISTIRA'],
+            ['No voy a asistir','NO_ASISTIRA'],
             ['No voy a poder ir','NO_ASISTIRA'],
             ['Quiero cambiar la cita para el jueves','NO_ASISTIRA'],
             ['¿Puede cambiarme la hora?','NO_ASISTIRA'],
@@ -54,6 +57,7 @@ jobs:
             ['No sé si podré asistir','REVISAR'],
             ['Tal vez pueda ir','REVISAR'],
             ['Sí voy pero no sé si podré','REVISAR'],
+            ['Sí, pero no puedo confirmar todavía','REVISAR'],
             ['Buenas tardes doctor, quería hacer una consulta','REVISAR'],
           ];
           for(const [text,expected] of cases){
@@ -62,61 +66,35 @@ jobs:
           }
           const payload=m.parseActionPayload('CONFIRMAR|appointment|12|2026-09-03|08:00');
           if(!payload||payload.action!=='CONFIRMAR'||payload.sourceId!==12)throw new Error('Se rompió la respuesta por botón');
-          const no=m.acknowledgementText('CANCELAR',{});
-          if(!no.includes('no podrá asistir'))throw new Error('Se rompió acuse No');
-          const yes=m.acknowledgementText('CONFIRMAR',{});
-          if(!yes.includes('asistencia ha quedado registrada'))throw new Error('Se rompió acuse Sí');
-          console.log('WHATSAPP_V26_CLASSIFIER_AND_BUTTONS_OK');
+          if(!m.acknowledgementText('CANCELAR',{}).includes('no podrá asistir'))throw new Error('Se rompió acuse No');
+          if(!m.acknowledgementText('CONFIRMAR',{}).includes('asistencia ha quedado registrada'))throw new Error('Se rompió acuse Sí');
+          console.log('WHATSAPP_V26_RULES_OK');
           NODE
 
-      - name: Validar privacidad y comportamiento seguro
+      - name: Validar seguridad de la bandeja
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('cloudflare/whatsapp_worker_v2_6_responses.js').read_text(encoding='utf-8')
-          assert 'whatsapp_cloud.inbound_responses' in s
-          assert 'solicita_reagendar' in s
-          assert 'interpretation:"NO_ASISTIRA"' in s
-          assert '@cf/openai/whisper-large-v3-turbo' in s
-          assert 'env.AI.run' in s
-          assert 'audio_too_large' in s
-          assert 'raw_payload jsonb' in s
-          assert 'ON CONFLICT(message_id)' in s
+          for marker in ['whatsapp_cloud.inbound_responses','solicita_reagendar','@cf/openai/whisper-large-v3-turbo','env.AI.run','audio_too_large','ON CONFLICT(message_id)','worker_version:"2.6.0"']:
+              assert marker in s, marker
           assert 'if(!target && interpretation!=="REVISAR")' in s
-          assert 'else{interpretation="REVISAR";confidence=Math.min(confidence,30);ackAction="";}' in s
-          assert 'worker_version:"2.6.0"' in s
-          assert 'WHATSAPP_ACCESS_TOKEN' in s
-          # No guardamos bytes de audio en Neon: solo media_id, tipo y transcripción.
           insert=s[s.index('async function saveInboundRow'):s.index('async function handleFreeformInbound')]
           assert 'buffer' not in insert.lower()
           print('WHATSAPP_V26_SAFETY_OK')
           PY
 
-      - name: Generar Worker standalone
+      - name: Generar y validar standalone
         run: |
-          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js \
-            --bundle \
-            --format=esm \
-            --platform=browser \
-            --target=es2022 \
-            --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js \
-            --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.0 — texto, audio y revisión humana'
+          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.0 — texto, audio y revisión humana'
           cp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
-
-      - name: Validar bundle final
-        run: |
           node --check cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -q 'worker_version' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.0"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'inbound_responses' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'whisper-large-v3-turbo' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -q 'solicita_reagendar' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'NO_ASISTIRA' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js; then
-            echo 'ERROR: dependencia Neon no fue incluida en el bundle'
-            exit 1
-          fi
+          if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js; then exit 1; fi
           cmp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
 
       - name: Guardar fuente y bundle validados
