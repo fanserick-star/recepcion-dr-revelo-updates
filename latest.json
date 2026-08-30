@@ -1,41 +1,34 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.9",
-  "app_version": "4.4.9",
-  "runtime_version": "4.4.9",
+  "version": "4.4.13",
+  "app_version": "4.4.13",
+  "runtime_version": "4.4.13",
   "mandatory": true,
   "channel": "files-v3",
-  "payload_ref": "bd37c47e4a64f5c071d0857c5bd6a98251d0b240",
-  "message": "v4.4.9: recupera la interfaz real de v4.4.4 en un solo app.js, neutraliza el app_base.js legado, conserva RP_PORT dinámico y usa pg8000. Payload verificado y servido desde /main/ para compatibilidad con el launcher instalado.",
+  "message": "v4.4.13: ficha integral al tocar un paciente, última atención visible en Nueva atención, advertencias de datos incompletos e historial de atenciones, Agenda y Facturación. Corrige POR EMITIR fuera de Facturación.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_9_clean_444/app.py",
-      "sha256": "148e1cd846ec848f8e75dac1eb5baa60f059176966b374a90be2f563afb96133",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_9_clean_444/static/index.html",
-      "sha256": "e4f743f38cf5117632ab577d8520c9463fa566d5c984d821cc739baf48d8ec51",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_13_patient_profile/app.py",
+      "sha256": "4183e3121ca672e71cad0a83915953d80913596de7b5f4256bba4047f11f140a",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_9_clean_444/static/app.js",
-      "sha256": "ddd63ef3613a375c255ed24a17fcfe52e9aa0088df3663bc973bdae755abf4e0",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_13_patient_profile/static/app.js",
+      "sha256": "1d2c8cf88d7aa592b883760a629e288a854f2fdba04105afa7f583390dab1f41",
       "encoding": "utf-8"
     },
     {
-      "path": "static/app_base.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_9_clean_444/static/app_base.js",
-      "sha256": "90a0b7979193afdef5e4c8a4b4e1e8dba0f81c53fae4faeb65b8ec6735cd6d5f",
+      "path": "static/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_13_patient_profile/static/index.html",
+      "sha256": "59ae7e7cfe7d9adb8e949d5b5cba4190b39c0af4ff36903b4b2ac85fec1dcd92",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_9_clean_444/update_manifest.json",
-      "sha256": "38c3f6b94651d10de3e738291018715c20b3e6eb69caa5660a84fb9d6bfe83e4",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_13_patient_profile/update_manifest.json",
+      "sha256": "ac27ca55201b8a3df5a9b5c75a8f1f3b27fa4d3f071c88375996d2a02269f8e6",
       "encoding": "utf-8"
     }
   ]
