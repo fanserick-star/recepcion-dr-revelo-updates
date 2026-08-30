@@ -1,0 +1,31 @@
+{
+  "version": "4.4.18",
+  "created": "2026-08-30",
+  "files": [
+    {
+      "path": "app.py",
+      "sha256": "09e4c44eb49b7de8865b6df208541629f8f9198c9df0bcf9c33b7e215cec204f",
+      "size": 736306,
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_18_whatsapp_responses/app.py"
+    },
+    {
+      "path": "static/app.js",
+      "sha256": "f452000f7ae301d294e8abc4db4df62acb09a22c3d599dce71789de983bf4b74",
+      "size": 229898,
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_18_whatsapp_responses/static/app.js"
+    },
+    {
+      "path": "static/index.html",
+      "sha256": "6fe9601defaa9a03935ecbe35a9f10f6d82735c6e780ed9f6ec749a5978da9ad",
+      "size": 37987,
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_18_whatsapp_responses/static/index.html"
+    }
+  ],
+  "notes": [
+    "Nueva bandeja Respuestas WhatsApp con contador y alerta en Inicio.",
+    "Muestra texto, audios y transcripciones; por defecto enseña solo lo que necesita revisión.",
+    "Permite resolver manualmente como Confirmado, No asistirá o Marcar como resuelto.",
+    "Los mensajes ambiguos nunca modifican una cita automáticamente.",
+    "Compatible con el worker WhatsApp v2.6; conserva todas las funciones previas de v4.4.17."
+  ]
+}
