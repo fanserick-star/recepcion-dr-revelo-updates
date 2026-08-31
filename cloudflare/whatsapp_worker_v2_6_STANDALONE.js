@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.10 — aviso sin emojis
+// Dr. Revelo WhatsApp Cloud Worker v2.6.11 — autoagendamiento público
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5950,6 +5950,168 @@ async function serveInboundAudio(request, env, u) {
     return text("Audio unavailable", 502);
   }
 }
+var BOOKING_ALLOWED_ORIGIN = "https://fanserick-star.github.io";
+var BOOKING_SOURCE_PREFIX = "mobile:autoagenda:";
+var BOOKING_MAX_DAYS = 45;
+var BOOKING_CACHE_SECONDS = 60;
+function bookingToday() {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "America/Guayaquil", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(/* @__PURE__ */ new Date());
+  const x2 = Object.fromEntries(parts.map((p2) => [p2.type, p2.value]));
+  return `${x2.year}-${x2.month}-${x2.day}`;
+}
+function bookingDateObj(v2) {
+  const m2 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v2 || ""));
+  return m2 ? new Date(Date.UTC(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]), 12)) : null;
+}
+function bookingValidDay(v2) {
+  const d2 = bookingDateObj(v2);
+  return !!d2 && [4, 5, 6].includes(d2.getUTCDay());
+}
+function bookingTimes() {
+  const out = [];
+  for (let m2 = 480; m2 <= 1020; m2 += 20) {
+    if (m2 >= 750 && m2 < 840) continue;
+    out.push(`${String(Math.floor(m2 / 60)).padStart(2, "0")}:${String(m2 % 60).padStart(2, "0")}`);
+  }
+  return out;
+}
+var BOOKING_TIMES = new Set(bookingTimes());
+function bookingHeaders(request, extra = {}) {
+  const h = new Headers(extra);
+  h.set("content-type", "application/json; charset=utf-8");
+  h.set("x-content-type-options", "nosniff");
+  const origin = String(request.headers.get("origin") || "");
+  if (origin === BOOKING_ALLOWED_ORIGIN) {
+    h.set("access-control-allow-origin", origin);
+    h.set("vary", "Origin");
+  }
+  return h;
+}
+function bookingJson(request, obj, status = 200, extra = {}) {
+  return new Response(JSON.stringify(obj), { status, headers: bookingHeaders(request, extra) });
+}
+function bookingOptions(request) {
+  const h = bookingHeaders(request);
+  h.set("access-control-allow-methods", "GET, POST, OPTIONS");
+  h.set("access-control-allow-headers", "Content-Type");
+  h.set("access-control-max-age", "86400");
+  h.delete("content-type");
+  return new Response(null, { status: 204, headers: h });
+}
+function bookingOriginAllowed(request) {
+  const origin = String(request.headers.get("origin") || "");
+  return !origin || origin === BOOKING_ALLOWED_ORIGIN;
+}
+function bookingCleanPhone(v2) {
+  let d2 = String(v2 || "").replace(/\D/g, "");
+  if (d2.startsWith("593") && d2.length === 12) d2 = "0" + d2.slice(3);
+  return /^09\d{8}$/.test(d2) ? d2 : "";
+}
+function bookingCleanName(v2) {
+  return String(v2 || "").normalize("NFKC").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 220);
+}
+function bookingDateWithinHorizon(v2) {
+  const today = bookingDateObj(bookingToday()), d2 = bookingDateObj(v2);
+  if (!today || !d2) return false;
+  const days = Math.round((d2 - today) / 864e5);
+  return days >= 0 && days <= BOOKING_MAX_DAYS;
+}
+async function bookingRateAllowed(request) {
+  try {
+    const ip = String(request.headers.get("cf-connecting-ip") || "unknown");
+    const k = await sha256(`booking:${ip}`);
+    const cache = caches.default;
+    const key = new Request(new URL(`/__booking_rate/${k}`, request.url).toString(), { method: "GET" });
+    const old = await cache.match(key);
+    const count = old ? Number(await old.text()) || 0 : 0;
+    if (count >= 6) return false;
+    await cache.put(key, new Response(String(count + 1), { headers: { "Cache-Control": "max-age=60" } }));
+    return true;
+  } catch {
+    return true;
+  }
+}
+async function serveBookingAvailability(request, env, u) {
+  if (request.method === "OPTIONS") return bookingOptions(request);
+  if (request.method !== "GET") return bookingJson(request, { ok: false, error: "M\xE9todo no permitido" }, 405);
+  if (!bookingOriginAllowed(request)) return bookingJson(request, { ok: false, error: "Origen no permitido" }, 403);
+  if (!env.DATABASE_URL) return bookingJson(request, { ok: false, error: "Agenda temporalmente no disponible" }, 503);
+  const from = String(u.searchParams.get("from") || bookingToday()), to = String(u.searchParams.get("to") || "");
+  const a2 = bookingDateObj(from), b2 = bookingDateObj(to);
+  if (!a2 || !b2 || b2 < a2 || Math.round((b2 - a2) / 864e5) > BOOKING_MAX_DAYS) return bookingJson(request, { ok: false, error: "Rango de fechas no v\xE1lido" }, 400);
+  const cache = caches.default;
+  const cacheKey = new Request(`${u.origin}/__booking_cache?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { method: "GET" });
+  const cached = await cache.match(cacheKey);
+  if (cached) {
+    const body = await cached.text();
+    return new Response(body, { status: 200, headers: bookingHeaders(request, { "cache-control": "public, max-age=30", "x-booking-cache": "HIT" }) });
+  }
+  try {
+    const occupied = await withClient(env, async (client) => {
+      const r = await client.query(`SELECT CAST(fecha AS text) fecha,CAST(hora AS text) hora FROM public.appointments
+        WHERE fecha BETWEEN $1::date AND $2::date AND upper(coalesce(estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(origen,'') <> 'CONFIRMAFY_ATENDIDO'
+        UNION
+        SELECT CAST(fecha AS text),CAST(hora AS text) FROM public.confirmafy_agenda_items WHERE fecha BETWEEN $1::date AND $2::date`, [from, to]);
+      return (r.rows || []).map((x2) => ({ date: String(x2.fecha || "").slice(0, 10), time: String(x2.hora || "").slice(0, 5) }));
+    });
+    const payload = JSON.stringify({ ok: true, today: bookingToday(), max_days: BOOKING_MAX_DAYS, days: [4, 5, 6], times: bookingTimes(), occupied });
+    await cache.put(cacheKey, new Response(payload, { headers: { "Cache-Control": `max-age=${BOOKING_CACHE_SECONDS}`, "content-type": "application/json; charset=utf-8" } }));
+    return new Response(payload, { status: 200, headers: bookingHeaders(request, { "cache-control": "public, max-age=30", "x-booking-cache": "MISS" }) });
+  } catch (e) {
+    console.error("booking_availability_failed", e);
+    return bookingJson(request, { ok: false, error: "No se pudo consultar la agenda. Intente nuevamente." }, 503);
+  }
+}
+async function serveBookingCreate(request, env) {
+  if (request.method === "OPTIONS") return bookingOptions(request);
+  if (request.method !== "POST") return bookingJson(request, { ok: false, error: "M\xE9todo no permitido" }, 405);
+  if (!bookingOriginAllowed(request)) return bookingJson(request, { ok: false, error: "Origen no permitido" }, 403);
+  if (!env.DATABASE_URL) return bookingJson(request, { ok: false, error: "Agenda temporalmente no disponible" }, 503);
+  if (!await bookingRateAllowed(request)) return bookingJson(request, { ok: false, error: "Demasiados intentos. Espere un minuto e intente nuevamente." }, 429);
+  let data = {};
+  try {
+    data = await request.json();
+  } catch {
+    return bookingJson(request, { ok: false, error: "Solicitud no v\xE1lida" }, 400);
+  }
+  if (String(data.website || "").trim()) return bookingJson(request, { ok: false, error: "Solicitud no v\xE1lida" }, 400);
+  const name = bookingCleanName(data.name), phone = bookingCleanPhone(data.phone), date = String(data.date || "").slice(0, 10), time = String(data.time || "").slice(0, 5);
+  if (name.length < 5) return bookingJson(request, { ok: false, error: "Ingrese sus apellidos y nombres completos." }, 400);
+  if (!phone) return bookingJson(request, { ok: false, error: "Ingrese un celular ecuatoriano v\xE1lido de 10 d\xEDgitos." }, 400);
+  if (!bookingValidDay(date) || !bookingDateWithinHorizon(date) || !BOOKING_TIMES.has(time)) return bookingJson(request, { ok: false, error: "El horario seleccionado no est\xE1 disponible para autoagendamiento." }, 400);
+  const sourceHash = BOOKING_SOURCE_PREFIX + crypto.randomUUID().replaceAll("-", "").slice(0, 32);
+  try {
+    const row = await withClient(env, async (client) => {
+      await client.query("BEGIN");
+      try {
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${date}|${time}`]);
+        const occ = await client.query(`SELECT 1 FROM (
+          SELECT 1 FROM public.appointments WHERE fecha=$1::date AND hora=$2 AND upper(coalesce(estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(origen,'') <> 'CONFIRMAFY_ATENDIDO'
+          UNION ALL SELECT 1 FROM public.confirmafy_agenda_items WHERE fecha=$1::date AND hora=$2
+        ) z LIMIT 1`, [date, time]);
+        if (occ.rows?.length) {
+          await client.query("ROLLBACK");
+          return null;
+        }
+        const r = await client.query(`INSERT INTO public.confirmafy_agenda_items(nombre,celular,fecha,hora,duracion,source_hash,created_at)
+          VALUES($1,$2,$3::date,$4,20,$5,now()) RETURNING id,CAST(fecha AS text) fecha,CAST(hora AS text) hora,created_at`, [name, phone, date, time, sourceHash]);
+        await client.query("COMMIT");
+        return r.rows?.[0] || null;
+      } catch (e) {
+        try {
+          await client.query("ROLLBACK");
+        } catch {
+        }
+        throw e;
+      }
+    });
+    if (!row) return bookingJson(request, { ok: false, error: "Ese horario acaba de ser reservado. Seleccione otro horario.", code: "SLOT_TAKEN" }, 409);
+    return bookingJson(request, { ok: true, booking_id: Number(row.id || 0), patient_name: name, date: String(row.fecha || date).slice(0, 10), time: String(row.hora || time).slice(0, 5), message: "Su cita qued\xF3 registrada correctamente." }, 201, { "cache-control": "no-store" });
+  } catch (e) {
+    console.error("booking_create_failed", e);
+    return bookingJson(request, { ok: false, error: "No se pudo registrar la cita. Intente nuevamente." }, 503);
+  }
+}
 async function verifyWebhook(request, env) {
   const u = new URL(request.url);
   if (u.searchParams.get("hub.mode") === "subscribe" && u.searchParams.get("hub.verify_token") === env.VERIFY_TOKEN) return text(u.searchParams.get("hub.challenge") || "", 200);
@@ -6014,14 +6176,16 @@ async function receiveWebhook(request, env) {
 var whatsapp_worker_v2_6_responses_default = {
   async fetch(request, env) {
     const u = new URL(request.url);
+    if (u.pathname === "/booking/availability") return serveBookingAvailability(request, env, u);
+    if (u.pathname === "/booking/book") return serveBookingCreate(request, env);
     if (u.pathname === "/media/audio" || u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.10" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.11" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.10", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.11", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", booking: "public_v1", booking_cache_seconds: 60, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
