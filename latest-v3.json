@@ -1,22 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.34",
-  "app_version": "4.4.34",
-  "runtime_version": "4.4.34",
+  "version": "4.4.35",
+  "app_version": "4.4.35",
+  "runtime_version": "4.4.35",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.34: muestra Efectivo/Transferencia directamente en cada ficha POR EMITIR y deja un visto verde en la opción guardada. Conserva el bloqueo antes de AZUR, el código SRI 01/20 y el launcher dinámico. No toca datos, .env ni static.",
+  "message": "v4.4.35: Efectivo/Transferencia aparece dentro de cada ficha POR EMITIR, justo antes de Revisar y emitir. La elección es individual y obligatoria; también vuelve Emitir por lotes, que exige que cada factura tenga su forma de pago. No toca datos, .env ni static.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_34_payment_tick/app.py",
-      "sha256": "03e79eb6076f6982318723078d8e15a8ef69b28bbda8d4442495769c10aad970",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/app.py",
+      "sha256": "dca89f89c660046a19bebd2c157c3fe5b2dba418e1eb18d837e2e3b350ad3b8f",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_34_payment_tick/update_manifest.json",
-      "sha256": "cfb094ce97bbe6090cc5a3220c3266a2361760514c8fc395d8e3def96fb8d920",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/update_manifest.json",
+      "sha256": "9ca4c518c0aa19d76a930fb6e2c8e881e66ce3c50a5da7b3f5cc82fa61e99d03",
       "encoding": "utf-8"
     }
   ]
