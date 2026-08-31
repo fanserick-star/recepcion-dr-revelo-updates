@@ -27,7 +27,11 @@ def main() -> None:
         raise SystemExit("La fuente ya no es v4.4.35")
 
     text = replace_once(src, 'APP_VERSION = "4.4.35"', f'APP_VERSION = "{VERSION}"', "APP_VERSION")
-    text = replace_once(text, "const VERSION='4.4.35';", f"const VERSION='{VERSION}';", "versión overlay")
+    version_marker = "const VERSION='4.4.35';"
+    version_count = text.count(version_marker)
+    if version_count != 2:
+        raise SystemExit(f"versión overlay: esperaba 2 coincidencias y encontró {version_count}")
+    text = text.replace(version_marker, f"const VERSION='{VERSION}';")
 
     # Las fichas POR EMITIR pueden guardar la forma de pago aunque el estado interno
     # de BillingRecord no sea literalmente APROBADA. Solo una factura ya EMITIDA
