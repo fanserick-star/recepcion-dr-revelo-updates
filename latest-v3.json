@@ -1,34 +1,34 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.19",
-  "app_version": "4.4.19",
-  "runtime_version": "4.4.19",
+  "version": "4.4.20",
+  "app_version": "4.4.20",
+  "runtime_version": "4.4.20",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.19: mejora la prueba técnica de WhatsApp para permitir responder por texto o audio y comprobar el acuse automático sin tocar citas reales. La cita temporal permanece oculta y se elimina sola después de 2 horas.",
+  "message": "v4.4.20: corrige la reproducción de audios de respuestas WhatsApp. Los audios nuevos se sirven de forma temporal y protegida mediante Cloudflare, sin depender del token de Meta en la PC y sin guardar el archivo de audio en Neon.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_19_whatsapp_test_retention/app.py",
-      "sha256": "d5f1068c8314af95a8ca6f3aeef58b89847ef4fa98337755efe847c9fc25f06f",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_20_whatsapp_audio_proxy/app.py",
+      "sha256": "bf38903a4311e58046b33b2f7ff062d89ee064689a3a4b7c769da788e0a6fcee",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_19_whatsapp_test_retention/static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_20_whatsapp_audio_proxy/static/app.js",
       "sha256": "f452000f7ae301d294e8abc4db4df62acb09a22c3d599dce71789de983bf4b74",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_19_whatsapp_test_retention/static/index.html",
-      "sha256": "1e6780007eabf3de5d320ecbde2414c29119da927327321749af4414e428ccda",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_20_whatsapp_audio_proxy/static/index.html",
+      "sha256": "b31bf78bae347cf5319114a52b6474f1906b97edd21e96d42293f1e034fa15a3",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_19_whatsapp_test_retention/update_manifest.json",
-      "sha256": "66acfcc1c7f41dfd8bb14e2337887fb624acb563a1d0b7faaa7e76759d48c7ab",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_20_whatsapp_audio_proxy/update_manifest.json",
+      "sha256": "eb96e0c64a5d02a8a5e98b596d159fa39d98eb30e7191a36cac0e7d5eaa3d445",
       "encoding": "utf-8"
     }
   ]
