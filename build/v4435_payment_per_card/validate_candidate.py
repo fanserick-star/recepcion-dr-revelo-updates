@@ -112,6 +112,13 @@ def billing_card_fixture_smoke(v: dict, root: pathlib.Path) -> None:
             page.wait_for_timeout(700)
 
             page.evaluate("""() => {
+              const section=document.querySelector('#facturacion');
+              if(section){
+                section.classList.add('active');
+                section.style.setProperty('display','block','important');
+                section.style.setProperty('visibility','visible','important');
+                section.style.setProperty('opacity','1','important');
+              }
               window.__fixturePayments = new Map();
               window.__batchCalled = false;
               window.__lastAlert = '';
@@ -159,6 +166,7 @@ def billing_card_fixture_smoke(v: dict, root: pathlib.Path) -> None:
               const batch=document.getElementById('btnEmitAll')||document.getElementById('v4435EmitAll');
               return {
                 wrap:!!wrap,
+                wrapVisible:!!(wrap&&wrap.getBoundingClientRect().width>0&&wrap.getBoundingClientRect().height>0),
                 count:buttons.length,
                 labels:buttons.map(b=>String(b.textContent||'').trim()),
                 beforeActions:!!(wrap&&wrap.nextElementSibling?.classList?.contains('billing-actions')),
@@ -169,7 +177,7 @@ def billing_card_fixture_smoke(v: dict, root: pathlib.Path) -> None:
               };
             }""")
             print("BILLING_FIXTURE_INITIAL", json.dumps(initial, ensure_ascii=True))
-            require(initial["wrap"], "No apareció selector dentro de la ficha")
+            require(initial["wrap"] and initial["wrapVisible"], "No apareció visible el selector dentro de la ficha")
             require(initial["count"] == 2, "No aparecen exactamente Efectivo/Transferencia")
             require(any("Efectivo" in x for x in initial["labels"]), "Falta Efectivo")
             require(any("Transferencia" in x for x in initial["labels"]), "Falta Transferencia")
