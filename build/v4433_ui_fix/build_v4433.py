@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,10 +66,21 @@ def main() -> None:
     # 2) El overlay estable tiene su versión visual compilada como 4.4.28. En vez
     # de otro MutationObserver que pelee por el texto, ajustamos ese literal una
     # sola vez en memoria antes de servir /v460/overlay.js.
+    #
+    # 3) v459 arrastra un error previo: q(selector, '#config') pasa un string como
+    # root a querySelector y genera TypeError dos veces al iniciar. Lo corregimos
+    # en memoria sin tocar static ni app_base_4428.py en disco.
     anchor = '''    core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or "") + "\\n" + PAYMENT_CSS
     core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or "") + "\\n" + PAYMENT_JS
 '''
-    replacement = f'''    _overlay_base = core.V460_OVERLAY_JS or ""
+    replacement = f'''    _v459_base = core.V459_SETTINGS_JS or ""
+    _v459_bad_root = "const sub=q('.config-title-row .muted','#config');"
+    _v459_good_root = "const sub=q('.config-title-row .muted',q('#config')||document);"
+    if _v459_bad_root in _v459_base:
+        _v459_base = _v459_base.replace(_v459_bad_root, _v459_good_root, 1)
+    core.V459_SETTINGS_JS = _v459_base
+
+    _overlay_base = core.V460_OVERLAY_JS or ""
     _overlay_version_marker = "const VERSION='4.4.28';"
     if _overlay_version_marker in _overlay_base:
         _overlay_base = _overlay_base.replace(
@@ -81,7 +91,7 @@ def main() -> None:
     core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or "") + "\\n" + PAYMENT_CSS
     core.V460_OVERLAY_JS = _overlay_base + "\\n" + PAYMENT_JS
 '''
-    text = replace_once(text, anchor, replacement, "sincronización segura de versión visual")
+    text = replace_once(text, anchor, replacement, "sincronización segura de recursos frontend")
 
     # Debe seguir siendo el mismo wrapper estable y conservar la protección de pago.
     required = [
@@ -92,6 +102,8 @@ def main() -> None:
         "Antes de emitir, marca Efectivo o Transferencia en la ficha.",
         "core._azur_payload_for_group = _azur_payload_for_group_v4431",
         "window.__v4431BillingPayment",
+        "core.V459_SETTINGS_JS = _v459_base",
+        "_v459_bad_root",
     ]
     for marker in required:
         if marker not in text:
@@ -112,7 +124,7 @@ def main() -> None:
         "launcher_version": "4.3.100-standalone-7-dynamic-port",
         "updater_version": "integrado-en-launcher",
         "copy": ["app.py", "update_manifest.json"],
-        "notes": "Parche mínimo sobre v4.4.31: elimina ciclo de MutationObserver en overlay de pago. No toca launcher, static, .env ni datos.",
+        "notes": "Parche mínimo sobre v4.4.31: elimina ciclo de MutationObserver del overlay de pago y corrige TypeError heredado de v459. No toca launcher, static, .env ni datos.",
     }
     manifest_path = OUT / "update_manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -124,7 +136,7 @@ def main() -> None:
         "runtime_version": VERSION,
         "mandatory": True,
         "channel": "files-v3",
-        "message": "v4.4.33: parche mínimo de pantalla blanca. Elimina el ciclo del overlay de Facturación; conserva forma de pago Efectivo/Transferencia y launcher dinámico v4.4.32. No toca datos, .env, static ni bases.",
+        "message": "v4.4.33: corrige pantalla blanca y dos errores JavaScript silenciosos de Configuración; conserva forma de pago Efectivo/Transferencia y launcher dinámico v4.4.32. No toca datos, .env, static ni bases.",
         "files": [
             {
                 "path": "app.py",
