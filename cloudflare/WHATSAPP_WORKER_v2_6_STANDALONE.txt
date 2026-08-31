@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.3 — confirmación con vínculo robusto
+// Dr. Revelo WhatsApp Cloud Worker v2.6.4 — proxy seguro de audio
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5634,7 +5634,8 @@ async function handleFreeformInbound(env, message) {
         ackAction = "";
       }
     }
-    await saveInboundRow(client, { messageId, phone, messageType: type, rawText, transcription, mediaId, mediaMimeType, interpretation, confidence, target, applyResult, resolved, resolution, rawPayload: { message, audio_error: audioError, intent_reason: intent.reason, template_name: origin?.templateName || "recordatorio_cita" } });
+    const playbackToken = type === "audio" ? crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "") : "";
+    await saveInboundRow(client, { messageId, phone, messageType: type, rawText, transcription, mediaId, mediaMimeType, interpretation, confidence, target, applyResult, resolved, resolution, rawPayload: { message, audio_error: audioError, intent_reason: intent.reason, template_name: origin?.templateName || "recordatorio_cita", playback_token: playbackToken } });
   });
   if (directReply) {
     try {
@@ -5845,6 +5846,58 @@ async function updateStatuses(env, statuses) {
     }
   });
 }
+async function serveInboundAudio(request, env, u) {
+  if (request.method !== "GET") return text("Method not allowed", 405);
+  const messageId = decodeURIComponent(String(u.pathname || "").slice("/media/audio/".length));
+  const token = String(u.searchParams.get("token") || "").trim();
+  if (!messageId || messageId.length > 250 || !/^[A-Za-z0-9._:-]+$/.test(messageId)) return text("Not found", 404);
+  if (!/^[a-f0-9]{64,160}$/i.test(token)) return text("Forbidden", 403);
+  if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN) return text("Audio service unavailable", 503);
+  let row = null;
+  try {
+    row = await withClient(env, async (client) => {
+      const r = await client.query(`SELECT media_id,media_mime_type,raw_payload->>'playback_token' playback_token
+        FROM whatsapp_cloud.inbound_responses
+        WHERE message_id=$1 AND message_type='audio' AND received_at > now()-interval '7 days'
+        LIMIT 1`, [messageId]);
+      return r.rows?.[0] || null;
+    });
+  } catch (e) {
+    console.error("whatsapp_audio_proxy_lookup_failed", e);
+    return text("Audio service unavailable", 503);
+  }
+  const expected = String(row?.playback_token || "");
+  if (!expected || expected.length !== token.length || expected !== token) return text("Forbidden", 403);
+  const mediaId = String(row?.media_id || "").trim();
+  if (!mediaId) return text("Audio unavailable", 404);
+  try {
+    const graph = String(env.GRAPH_VERSION || "v26.0").replace(/^\//, "");
+    const auth = { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` };
+    const metaResp = await fetch(`https://graph.facebook.com/${graph}/${encodeURIComponent(mediaId)}`, { headers: auth });
+    if (!metaResp.ok) return text("Audio unavailable", 502);
+    const meta = await metaResp.json();
+    const mediaUrl = String(meta?.url || "");
+    if (!mediaUrl.startsWith("https://")) return text("Audio unavailable", 502);
+    const headers = { ...auth };
+    const range = String(request.headers.get("range") || "").trim();
+    if (range) headers.Range = range;
+    const mediaResp = await fetch(mediaUrl, { headers });
+    if (!mediaResp.ok && mediaResp.status !== 206) return text("Audio unavailable", 502);
+    const outHeaders = new Headers();
+    outHeaders.set("content-type", String(mediaResp.headers.get("content-type") || row?.media_mime_type || "audio/ogg").split(";", 1)[0]);
+    outHeaders.set("cache-control", "private, no-store, max-age=0");
+    outHeaders.set("accept-ranges", mediaResp.headers.get("accept-ranges") || "bytes");
+    for (const h of ["content-range", "content-length", "etag", "last-modified"]) {
+      const v2 = mediaResp.headers.get(h);
+      if (v2) outHeaders.set(h, v2);
+    }
+    outHeaders.set("x-content-type-options", "nosniff");
+    return new Response(mediaResp.body, { status: mediaResp.status, headers: outHeaders });
+  } catch (e) {
+    console.error("whatsapp_audio_proxy_fetch_failed", e);
+    return text("Audio unavailable", 502);
+  }
+}
 async function verifyWebhook(request, env) {
   const u = new URL(request.url);
   if (u.searchParams.get("hub.mode") === "subscribe" && u.searchParams.get("hub.verify_token") === env.VERIFY_TOKEN) return text(u.searchParams.get("hub.challenge") || "", 200);
@@ -5903,13 +5956,14 @@ async function receiveWebhook(request, env) {
 var whatsapp_worker_v2_6_responses_default = {
   async fetch(request, env) {
     const u = new URL(request.url);
+    if (u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.3" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.4" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.3", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.4", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", audio_proxy: "tokenized_cloudflare", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
