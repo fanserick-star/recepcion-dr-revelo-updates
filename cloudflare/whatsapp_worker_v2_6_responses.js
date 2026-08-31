@@ -82,7 +82,7 @@ async function sendTextMeta(phone,body,env,replyToMessageId=""){
 }
 async function withClient(env,fn){ const c=new Client(env.DATABASE_URL); try{await c.connect(); return await fn(c);} finally{try{await c.end();}catch{}} }
 
-// v2.6.5 — respuestas libres de pacientes (texto + audio) con revisión humana.
+// v2.6.6 — respuestas libres + aviso correcto para mensajes directos.
 let inboundSchemaReady=false;
 function normalizeIntentText(value){
   return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
@@ -250,6 +250,7 @@ async function handleFreeformInbound(env,message){
     catch(e){mediaId=String(message?.audio?.id||"");mediaMimeType=String(message?.audio?.mime_type||"");audioError=String(e?.message||e).slice(0,160);console.error("whatsapp_audio_fetch_failed",e);}
   }
   const intent=classifyInboundText(type==="audio"?transcription:rawText);
+  const hasExplicitContext=Boolean(String(message?.context?.id||"").trim());
   let ackAction="",directReply="";
   await withClient(env,async client=>{
     if(!(await ensureInboundSchema(client)))return;
@@ -261,6 +262,13 @@ async function handleFreeformInbound(env,message){
     const directTarget=await findInboundTarget(client,message,phone);
     const target=directTarget || (origin && origin.templateName==="recordatorio_cita" ? origin : null);
     if(!target){
+      directReply=automaticAssistantNotice(env);
+      return;
+    }
+    // Un mensaje nuevo y conversacional no debe heredarse como respuesta de
+    // confirmación solo porque exista un recordatorio reciente del mismo número.
+    // Las confirmaciones/no-asistencias claras sí pueden usar ese respaldo.
+    if(!hasExplicitContext && ["sin_intencion_clara","sin_texto"].includes(String(intent.reason||""))){
       directReply=automaticAssistantNotice(env);
       return;
     }
@@ -464,7 +472,7 @@ async function receiveWebhook(request,env){
 }
 
 export default {
-  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.4"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.5",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",audio_proxy:"tokenized_cloudflare",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
+  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.6"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.6",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",audio_proxy:"tokenized_cloudflare",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
   async scheduled(_controller,env,ctx){ctx.waitUntil(runScheduler(env));}
 };
 
