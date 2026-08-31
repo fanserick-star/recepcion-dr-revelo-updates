@@ -1,34 +1,34 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.26",
-  "app_version": "4.4.26",
-  "runtime_version": "4.4.26",
+  "version": "4.4.27",
+  "app_version": "4.4.27",
+  "runtime_version": "4.4.27",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.26: optimiza aún más el uso de Neon. Recepción reutiliza el estado de conexión hasta 10 minutos entre operaciones, mantiene todas las pantallas habituales en SQLite local y conserva AFK/sincronización offline. No modifica las bases de datos locales ni el Excel.",
+  "message": "v4.4.27: ultra optimización Neon en Recepción. Volver de pausas cortas ya no despierta Neon; trabaja desde SQLite. La sincronización remota habitual trae solo Agenda/autoagendadas y la reconciliación completa pasa a cada 12 horas o cuando realmente hace falta. Conserva cola offline, AFK y todos los datos locales.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_26_neon_optimization/app.py",
-      "sha256": "669963ec9954c61360acdf00e2d3dde9f59d7d5a7c81cda0f7530d3313638073",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_27_neon_ultra/app.py",
+      "sha256": "cd6cabdc54ec19568cfdab0e128117429dde7e494baf50d2b29e91a405bbd8cd",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_26_neon_optimization/static/app.js",
-      "sha256": "c31b0104bab3976b6f0a7e6a408f93f454c45000a4bf2f1221e296db5527ae4b",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_27_neon_ultra/static/app.js",
+      "sha256": "0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_26_neon_optimization/static/index.html",
-      "sha256": "64aa7274196ffb742554e710a2f78e163f655e66b1719104ca9543876c7baada",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_27_neon_ultra/static/index.html",
+      "sha256": "cf989807e8f64622e05ca99459ac2589412d041ecfc33f93133c591d8cb026d6",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_26_neon_optimization/update_manifest.json",
-      "sha256": "a115c5de811db71e8680cffb81a214d900d653984d2f65b790944d6354488f36",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_27_neon_ultra/update_manifest.json",
+      "sha256": "aa0e94fdcb18fa1424fa56200b591b1e5a8134cd9f1e417671fa73f54314466f",
       "encoding": "utf-8"
     }
   ]
