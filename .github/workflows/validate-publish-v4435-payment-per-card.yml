@@ -1,0 +1,146 @@
+name: Validación final v4.4.35 pago individual por ficha
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-publish-v4435-payment-per-card.yml'
+      - 'build/v4435_payment_per_card/build_v4435.py'
+      - 'build/v4435_payment_per_card/validate_candidate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 1 - Construir parche mínimo 4.4.35 sobre 4.4.34
+        shell: pwsh
+        run: python build/v4435_payment_per_card/build_v4435.py
+
+      - name: 2 - Preparar runtime exacto y navegador Chromium
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' `
+            'playwright==1.55.0'
+          .\.release-venv\Scripts\python.exe -m playwright install chromium
+          .\.release-venv\Scripts\python.exe -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart,playwright; print('RUNTIME_READY')"
+
+      - name: 3 - Pruebas obligatorias de ficha real, lote, arranque, updater y rollback
+        shell: pwsh
+        run: .\.release-venv\Scripts\python.exe build/v4435_payment_per_card/validate_candidate.py
+
+      - name: 4 - Guardar payload validado sin mover todavía el canal
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_35_payment_per_card
+          if(-not (git diff --cached --quiet)){
+            git commit -m 'payload: v4.4.35 validada con pago individual y lote'
+            git pull --rebase origin main
+            git push
+          }
+
+      - name: 5 - Verificar bytes reales propagados por GitHub Raw
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          @'
+          import hashlib,json,pathlib,time,urllib.request
+          base='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/'
+          candidate=json.loads(pathlib.Path('updates/v4_4_35_payment_per_card/candidate_latest.json').read_text(encoding='utf-8'))
+          expected={x['path']:x['sha256'] for x in candidate['files']}
+          def get(name):
+              req=urllib.request.Request(base+name+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-v4435-release'})
+              with urllib.request.urlopen(req,timeout=10) as r:return r.read()
+          last=None
+          for _ in range(60):
+              try:
+                  app=get('app.py');manifest=get('update_manifest.json')
+                  if hashlib.sha256(app).hexdigest()!=expected['app.py']:raise RuntimeError('SHA app no propagó')
+                  if hashlib.sha256(manifest).hexdigest()!=expected['update_manifest.json']:raise RuntimeError('SHA manifest no propagó')
+                  text=app.decode('utf-8-sig');compile(text,'app.py','exec')
+                  checks=[
+                    'APP_VERSION = "4.4.35"',
+                    "window.__v4435BillingPayment=true",
+                    'parseIdentityFromActions',
+                    'identityFromCache',
+                    'foot.insertBefore(wrap,actions)',
+                    'v4435-pay-locked',
+                    '📦 Emitir por lotes',
+                    'batchPreflight',
+                    'listObserver.observe(list,{childList:true,subtree:false})',
+                    '<span class="v4431-check">✓</span><span>💵 Efectivo</span>',
+                    '<span class="v4431-check">✓</span><span>🏦 Transferencia</span>',
+                    'core.V459_SETTINGS_JS = _v459_base',
+                  ]
+                  if not all(x in text for x in checks):raise RuntimeError('Payload remoto perdió marcadores v4.4.35')
+                  if "document.querySelectorAll('.billing-card.aprobada')" in text:raise RuntimeError('Payload remoto conserva selector frágil')
+                  if 'new MutationObserver(()=>' in text:raise RuntimeError('Payload remoto reintrodujo observer global')
+                  print('REMOTE_PAYLOAD_4435_OK');break
+              except Exception as exc:
+                  last=exc;time.sleep(1)
+          else:raise SystemExit(f'Payload remoto no quedó válido: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\verify4435.py
+          python $env:RUNNER_TEMP\verify4435.py
+
+      - name: 6 - Mover canal oficial SOLO después de todo verde
+        shell: pwsh
+        run: |
+          @'
+          import json,pathlib
+          current=json.loads(pathlib.Path('latest-v3.json').read_text(encoding='utf-8'))
+          version=current.get('version')
+          if version not in ('4.4.34','4.4.35'):
+              raise SystemExit(f'Canal cambió inesperadamente durante validación: {version}')
+          candidate_text=pathlib.Path('updates/v4_4_35_payment_per_card/candidate_latest.json').read_text(encoding='utf-8')
+          candidate=json.loads(candidate_text)
+          if candidate.get('version')!='4.4.35':raise SystemExit('Candidato incorrecto')
+          paths=[x.get('path') for x in candidate.get('files',[])]
+          if paths!=['app.py','update_manifest.json']:raise SystemExit(f'Alcance no mínimo: {paths}')
+          pathlib.Path('latest-v3.json').write_text(candidate_text,encoding='utf-8')
+          pathlib.Path('latest.json').write_text(candidate_text,encoding='utf-8')
+          print('CHANNEL_READY_TO_COMMIT')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\channel4435.py
+          python $env:RUNNER_TEMP\channel4435.py
+          git add latest-v3.json latest.json
+          if(-not (git diff --cached --quiet)){
+            git commit -m 'release: v4.4.35 pago individual por ficha tras validación completa'
+            git pull --rebase origin main
+            git push
+          }
+
+      - name: 7 - Confirmar propagación final y alcance del canal
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          last=None
+          for _ in range(60):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-v4435-release'})
+                  with urllib.request.urlopen(req,timeout=8) as r:d=json.loads(r.read().decode('utf-8-sig'))
+                  paths=[x.get('path') for x in d.get('files',[])]
+                  if d.get('version')=='4.4.35' and d.get('app_version')=='4.4.35' and paths==['app.py','update_manifest.json']:
+                      print('CHANNEL_4435_PROPAGATED_OK');break
+                  last=(d.get('version'),d.get('app_version'),paths)
+              except Exception as exc:last=exc
+              time.sleep(1)
+          else:raise SystemExit(f'Canal 4.4.35 no propagó correctamente: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4435.py
+          python $env:RUNNER_TEMP\wait4435.py
