@@ -15,12 +15,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Preparar runtime del consultorio
+      - name: Preparar runtime
         shell: pwsh
         run: |
           python -m venv .ui-venv
@@ -30,131 +29,107 @@ jobs:
             'playwright==1.55.0'
           .\.ui-venv\Scripts\python.exe -m playwright install chromium
 
-      - name: Crear instalación exacta 4.4.31
+      - name: Preparar instalación exacta y prueba de aislamiento
         shell: pwsh
         run: |
-          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-v4431-ui'
+          $root = Join-Path $env:RUNNER_TEMP 'Recepcion-ui-isolate'
           if(Test-Path $root){ Remove-Item $root -Recurse -Force }
           New-Item -ItemType Directory -Force $root | Out-Null
           New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
           Copy-Item updates/v4_4_31_startup_guard/app.py (Join-Path $root 'app.py')
           Copy-Item updates/v4_4_28_overlay_hotfix/app.py (Join-Path $root 'app_base_4428.py')
           Copy-Item updates/v4_4_28_overlay_hotfix/static (Join-Path $root 'static') -Recurse
-
           $base = Join-Path $env:RUNNER_TEMP 'rp-ui-base'
           if(Test-Path $base){ Remove-Item $base -Recurse -Force }
           Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
           foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
-            $src = Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
-            if(-not $src){ throw "Falta $name en base limpia" }
+            $src=Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){ throw "Falta $name" }
             Copy-Item $src.FullName (Join-Path $root $name)
           }
-          $mobile = Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          $mobile=Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
           if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
           "UI_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Smoke real - backend y navegador en el mismo proceso
-        shell: pwsh
-        run: |
           @'
-          import json, os, pathlib, subprocess, sys, time, urllib.request
-          from playwright.sync_api import sync_playwright
+          import json, os, pathlib, subprocess, time, urllib.request
+          from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
 
           root=pathlib.Path(os.environ['UI_ROOT'])
           py=pathlib.Path.cwd()/'.ui-venv'/'Scripts'/'python.exe'
-          diag=pathlib.Path(os.environ['RUNNER_TEMP'])/'v4431-ui-browser'
+          diag=pathlib.Path(os.environ['RUNNER_TEMP'])/'ui-isolate'
           diag.mkdir(parents=True,exist_ok=True)
-          backend_log=diag/'backend.log'
-          env=os.environ.copy()
-          env['RP_FORCE_OFFLINE']='1'
-          env['RP_DATA_DIR']=str(root/'data')
-          env['RP_PORT']='18766'
-          env['DISABLE_SQLALCHEMY_CEXT_RUNTIME']='1'
+          env=os.environ.copy(); env['RP_FORCE_OFFLINE']='1'; env['RP_DATA_DIR']=str(root/'data'); env['RP_PORT']='18766'; env['DISABLE_SQLALCHEMY_CEXT_RUNTIME']='1'
 
-          def get(url, timeout=2):
-              with urllib.request.urlopen(url,timeout=timeout) as r:
-                  return r.status,r.read()
+          def http(url,timeout=4):
+              with urllib.request.urlopen(url,timeout=timeout) as r:return r.status,r.read()
 
-          with backend_log.open('w',encoding='utf-8') as log:
-              proc=subprocess.Popen([str(py),str(root/'app.py')],cwd=str(root),env=env,stdout=log,stderr=log)
-              try:
-                  deadline=time.time()+35
-                  version=None
-                  while time.time()<deadline:
-                      if proc.poll() is not None:
-                          raise SystemExit(f'BACKEND_EXITED_EARLY code={proc.returncode}')
-                      try:
-                          status,body=get('http://127.0.0.1:18766/api/version',1)
-                          version=json.loads(body.decode('utf-8')).get('version')
-                          if status==200 and version=='4.4.31':
-                              break
-                      except Exception:
-                          time.sleep(.25)
-                  else:
-                      raise SystemExit('BACKEND_NO_VERSION')
+          log=(diag/'backend.log').open('w',encoding='utf-8')
+          proc=subprocess.Popen([str(py),str(root/'app.py')],cwd=str(root),env=env,stdout=log,stderr=log)
+          try:
+              end=time.time()+35
+              while time.time()<end:
+                  if proc.poll() is not None: raise SystemExit('BACKEND_EXIT_'+str(proc.returncode))
+                  try:
+                      s,b=http('http://127.0.0.1:18766/api/version',1)
+                      if json.loads(b).get('version')=='4.4.31':break
+                  except Exception:time.sleep(.2)
+              else:raise SystemExit('BACKEND_TIMEOUT')
 
-                  status,home=get('http://127.0.0.1:18766/',5)
-                  status_js,appjs=get('http://127.0.0.1:18766/static/app.js?v=4.4.28',5)
-                  print('HTTP',status,len(home),'JS',status_js,len(appjs),'VERSION',version)
-                  if status!=200 or len(home)<500 or status_js!=200 or len(appjs)<10000:
-                      raise SystemExit('HTTP_ASSETS_INVALID')
+              for path in ['/', '/static/style.css?v=4.4.28','/static/app.js?v=4.4.28','/v458/settings.css?v=4.3.58','/v458/settings.js?v=4.3.58','/v459/settings.css?v=4.3.59','/v459/settings.js?v=4.3.59','/v460/overlay.css?v=4.3.72','/v460/overlay.js?v=4.3.72']:
+                  t=time.perf_counter(); s,b=http('http://127.0.0.1:18766'+path,8); dt=time.perf_counter()-t
+                  print('ASSET',path,'status',s,'bytes',len(b),'seconds',round(dt,3),flush=True)
 
-                  console=[]; page_errors=[]; failed=[]
-                  with sync_playwright() as p:
-                      browser=p.chromium.launch(headless=True)
-                      page=browser.new_page(viewport={'width':1360,'height':840})
-                      page.on('console',lambda msg: console.append({'type':msg.type,'text':msg.text}))
-                      page.on('pageerror',lambda exc: page_errors.append(str(exc)))
-                      page.on('requestfailed',lambda req: failed.append({'url':req.url,'failure':req.failure}))
-                      response=page.goto('http://127.0.0.1:18766/?ci=browser-smoke',wait_until='domcontentloaded',timeout=30000)
-                      page.wait_for_timeout(4500)
-                      body_text=page.locator('body').inner_text(timeout=5000)
-                      metrics=page.evaluate('''() => ({
-                        ready:document.readyState,
-                        bodyChildren:document.body?document.body.children.length:-1,
-                        bodyTextLength:document.body?document.body.innerText.length:-1,
-                        app:!!document.querySelector('#app'),
-                        appChildren:document.querySelector('#app')?document.querySelector('#app').children.length:-1,
-                        scripts:[...document.scripts].map(s=>s.src||'[inline]'),
-                      })''')
-                      report={
-                        'status':response.status if response else None,
-                        'title':page.title(),
-                        'metrics':metrics,
-                        'body_start':body_text[:1000],
-                        'console':console,
-                        'page_errors':page_errors,
-                        'request_failed':failed,
-                      }
-                      (diag/'diagnostic.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-                      (diag/'page.html').write_text(page.content(),encoding='utf-8')
-                      page.screenshot(path=str(diag/'screen.png'),full_page=True)
-                      print(json.dumps(report,ensure_ascii=False,indent=2))
-                      browser.close()
+              def browser_case(p,name,block=None,dom_timeout=10000):
+                  page=p.chromium.launch(headless=True).new_page(viewport={'width':1360,'height':840})
+                  events=[]
+                  page.on('request',lambda r:events.append(['request',r.url,time.time()]))
+                  page.on('response',lambda r:events.append(['response',r.status,r.url,time.time()]))
+                  page.on('requestfinished',lambda r:events.append(['finished',r.url,time.time()]))
+                  page.on('requestfailed',lambda r:events.append(['failed',r.url,str(r.failure),time.time()]))
+                  page.on('pageerror',lambda e:events.append(['pageerror',str(e),time.time()]))
+                  page.on('console',lambda m: events.append(['console-'+m.type,m.text,time.time()]) if m.type in ('error','warning') else None)
+                  if block:
+                      for pattern in block:
+                          page.route(pattern,lambda route:route.fulfill(status=200,content_type='application/javascript',body='/* isolated */'))
+                  ok=True;err=''
+                  try:
+                      page.goto('http://127.0.0.1:18766/?case='+name,wait_until='domcontentloaded',timeout=dom_timeout)
+                  except Exception as e:
+                      ok=False;err=repr(e)
+                  # No evaluamos JS si el hilo principal puede estar bloqueado.
+                  report={'name':name,'domcontentloaded':ok,'error':err,'events':events}
+                  (diag/(name+'.json')).write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+                  print('CASE',name,'DOM',ok,'ERR',err[:220],flush=True)
+                  for ev in events[-40:]:print(' EVT',ev,flush=True)
+                  try:page.context.browser.close()
+                  except Exception:pass
+                  return ok,events
 
-                  if proc.poll() is not None:
-                      raise SystemExit(f'BACKEND_DIED_DURING_BROWSER code={proc.returncode}')
-                  if page_errors:
-                      raise SystemExit('UI_BLANK_REPRODUCED_PAGEERROR')
-                  if failed:
-                      raise SystemExit('UI_BLANK_REPRODUCED_REQUESTFAIL')
-                  if metrics['bodyTextLength']<120:
-                      raise SystemExit(f"UI_BLANK_REPRODUCED_BODY_{metrics['bodyTextLength']}")
-                  print('BROWSER_UI_SMOKE_OK')
-              finally:
-                  if proc.poll() is None:
-                      proc.terminate()
-                      try: proc.wait(timeout=5)
-                      except Exception: proc.kill()
-          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\ui_smoke_same_process.py
-          .\.ui-venv\Scripts\python.exe $env:RUNNER_TEMP\ui_smoke_same_process.py
+              with sync_playwright() as p:
+                  normal,_=browser_case(p,'normal',None,8000)
+                  no460,_=browser_case(p,'no_v460',['**/v460/overlay.js*'],8000)
+                  no459,_=browser_case(p,'no_v459',['**/v459/settings.js*'],8000)
+                  no458,_=browser_case(p,'no_v458',['**/v458/settings.js*'],8000)
+                  noaddons,_=browser_case(p,'no_addon_js',['**/v458/settings.js*','**/v459/settings.js*','**/v460/overlay.js*'],8000)
+              print('RESULTS',json.dumps({'normal':normal,'no_v460':no460,'no_v459':no459,'no_v458':no458,'no_addon_js':noaddons}),flush=True)
+              if normal:
+                  raise SystemExit('NORMAL_DID_NOT_REPRODUCE')
+              if not no460 and not noaddons:
+                  raise SystemExit('NO_SINGLE_ADDON_ISOLATED')
+              print('ISOLATION_OK')
+          finally:
+              if proc.poll() is None:
+                  proc.terminate()
+                  try:proc.wait(5)
+                  except Exception:proc.kill()
+              log.close()
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\isolate_ui.py
+          .\.ui-venv\Scripts\python.exe $env:RUNNER_TEMP\isolate_ui.py
 
-      - name: Mostrar diagnóstico siempre
+      - name: Diagnóstico
         if: always()
         shell: pwsh
         run: |
-          $dir=Join-Path $env:RUNNER_TEMP 'v4431-ui-browser'
-          $d=Join-Path $dir 'diagnostic.json'
-          if(Test-Path $d){ Get-Content $d -Raw }
-          $b=Join-Path $dir 'backend.log'
-          if(Test-Path $b){ Write-Host '--- backend ---'; Get-Content $b -Tail 250 }
+          $d=Join-Path $env:RUNNER_TEMP 'ui-isolate'
+          if(Test-Path $d){ Get-ChildItem $d -File | ForEach-Object { Write-Host "--- $($_.Name) ---"; if($_.Extension -eq '.json'){Get-Content $_.FullName -Raw}else{Get-Content $_.FullName -Tail 120} } }
