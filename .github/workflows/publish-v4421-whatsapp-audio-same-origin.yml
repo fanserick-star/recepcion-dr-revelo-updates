@@ -50,10 +50,10 @@ jobs:
           assert 'proxy_headers["Range"] = range_header' in app
           assert 'Cloudflare no pudo entregar el audio' in app
           start=app.index('@app.get("/api/whatsapp-responses/{response_id}/audio")')
-          end=app.index('@app.post("/api/whatsapp-responses/{response_id}/resolve")',start)
-          segment=app[start:end]
+          segment=app[start:start+14000]
           assert 'status_code=307' not in segment
           assert 'dr-revelo-whatsapp-cloud.drrevelo.workers.dev/media/audio/' in segment
+          assert 'Compatibilidad con audios previos a v2.6.4' in segment
           assert 'preload="metadata"' in js
           assert '/static/app.js?v=4.4.21' in html
           assert channel['version']=='4.4.21'
