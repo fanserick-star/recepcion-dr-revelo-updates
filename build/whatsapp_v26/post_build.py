@@ -47,9 +47,13 @@ new_handle='''  const intent=classifyInboundText(type==="audio"?transcription:ra
 if old_handle not in s: raise SystemExit('No encontré handleFreeformInbound esperado')
 s=s.replace(old_handle,new_handle,1)
 
-# Marcador de parche para las pruebas del workflow.
-if 'automaticAssistantNotice' not in s or 'ASISTENTE_AUTOMATICO' not in s:
-    raise SystemExit('No se aplicó el parche de asistente automático')
+# 3) Identificador de release para poder verificar que Cloudflare recibió este
+#    parche exacto y no solo cualquier build 2.6 anterior.
+s=s.replace('2.6.0','2.6.1')
+s=s.replace('automation:{cita_agendada:', 'inbound_policy:"recordatorio_cita_only",automation:{cita_agendada:', 1)
+
+for marker in ['automaticAssistantNotice','ASISTENTE_AUTOMATICO','recordatorio_cita_only','worker_version:"2.6.1"']:
+    if marker not in s: raise SystemExit(f'Falta marcador final: {marker}')
 
 p.write_text(s,encoding='utf-8',newline='\n')
-print('WHATSAPP_V26_POST_BUILD_OK')
+print('WHATSAPP_V261_POST_BUILD_OK')
