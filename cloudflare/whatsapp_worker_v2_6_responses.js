@@ -144,6 +144,31 @@ async function ensureInboundSchema(client){
     inboundSchemaReady=true;return true;
   }catch(e){console.error("whatsapp_inbound_schema_failed",e);return false;}
 }
+function automaticAssistantNotice(env={}){
+  const doctorPhone=String(env.DOCTOR_CONTACT_PHONE||"0968840690").trim()||"0968840690";
+  return `Hola. Este número corresponde a un asistente automático (IA) del consultorio del Dr. Armando Revelo y se utiliza únicamente para confirmaciones de citas. Para cualquier otra consulta, por favor comuníquese directamente con el consultorio al ${doctorPhone}.`;
+}
+async function findInboundOrigin(client,message,phone){
+  const contextId=String(message?.context?.id||"").trim();
+  if(contextId){
+    const r=await client.query(`SELECT source_type,source_id,template_name,appointment_date::text appointment_date,appointment_time::text appointment_time,patient_name,phone
+      FROM whatsapp_cloud.events WHERE message_id=$1 ORDER BY updated_at DESC LIMIT 1`,[contextId]);
+    if(r.rows?.length){
+      const x=r.rows[0];
+      return {sourceType:String(x.source_type||""),sourceId:Number(x.source_id||0),templateName:String(x.template_name||""),date:String(x.appointment_date||"").slice(0,10),time:String(x.appointment_time||"").slice(0,5),patientName:String(x.patient_name||""),matchMethod:"contexto_mensaje"};
+    }
+  }
+  const normalized=normalizePhone(phone);if(!normalized)return null;
+  const r=await client.query(`SELECT source_type,source_id,template_name,appointment_date::text appointment_date,appointment_time::text appointment_time,patient_name
+    FROM whatsapp_cloud.events
+    WHERE regexp_replace(coalesce(phone,''),'\\D','','g')=$1
+      AND status IN ('SENT','DELIVERED','READ')
+      AND updated_at > now()-interval '7 days'
+    ORDER BY sent_at DESC NULLS LAST,updated_at DESC LIMIT 1`,[normalized]);
+  if(!r.rows?.length)return null;
+  const x=r.rows[0];
+  return {sourceType:String(x.source_type||""),sourceId:Number(x.source_id||0),templateName:String(x.template_name||""),date:String(x.appointment_date||"").slice(0,10),time:String(x.appointment_time||"").slice(0,5),patientName:String(x.patient_name||""),matchMethod:"ultimo_mensaje"};
+}
 async function findInboundTarget(client,message,phone){
   const contextId=String(message?.context?.id||"").trim();
   if(contextId){
@@ -223,9 +248,15 @@ async function handleFreeformInbound(env,message){
     catch(e){mediaId=String(message?.audio?.id||"");mediaMimeType=String(message?.audio?.mime_type||"");audioError=String(e?.message||e).slice(0,160);console.error("whatsapp_audio_fetch_failed",e);}
   }
   const intent=classifyInboundText(type==="audio"?transcription:rawText);
-  let ackAction="";
+  let ackAction="",directReply="";
   await withClient(env,async client=>{
     if(!(await ensureInboundSchema(client)))return;
+    const origin=await findInboundOrigin(client,message,phone);
+    if(origin && origin.templateName && origin.templateName!=="recordatorio_cita"){
+      await saveInboundRow(client,{messageId,phone,messageType:type,rawText,transcription,mediaId,mediaMimeType,interpretation:"REVISAR",confidence:100,target:origin,applyResult:"INFO_ONLY",resolved:true,resolution:"ASISTENTE_AUTOMATICO",rawPayload:{message,audio_error:audioError,intent_reason:"plantilla_solo_informativa",template_name:origin.templateName}});
+      directReply=automaticAssistantNotice(env);
+      return;
+    }
     const target=await findInboundTarget(client,message,phone);
     let interpretation=intent.interpretation,confidence=intent.confidence,applyResult="",resolution="",resolved=false;
     if(!target && interpretation!=="REVISAR"){interpretation="REVISAR";confidence=Math.min(confidence,35);}
@@ -235,8 +266,9 @@ async function handleFreeformInbound(env,message){
       if(responseWasApplied(applyResult)){resolved=true;resolution=action;ackAction=action;}
       else{interpretation="REVISAR";confidence=Math.min(confidence,30);ackAction="";}
     }
-    await saveInboundRow(client,{messageId,phone,messageType:type,rawText,transcription,mediaId,mediaMimeType,interpretation,confidence,target,applyResult,resolved,resolution,rawPayload:{message,audio_error:audioError,intent_reason:intent.reason}});
+    await saveInboundRow(client,{messageId,phone,messageType:type,rawText,transcription,mediaId,mediaMimeType,interpretation,confidence,target,applyResult,resolved,resolution,rawPayload:{message,audio_error:audioError,intent_reason:intent.reason,template_name:origin?.templateName||"recordatorio_cita"}});
   });
+  if(directReply){try{await sendTextMeta(phone,directReply,env,messageId);}catch(e){console.error("whatsapp_assistant_notice_failed",e);}return;}
   if(ackAction){const ack=acknowledgementText(ackAction,env);if(ack){try{await sendTextMeta(phone,ack,env,messageId);}catch(e){console.error("whatsapp_freeform_ack_failed",e);}}}
 }
 async function logButtonInbound(env,message,p,result){
