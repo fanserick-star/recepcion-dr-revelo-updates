@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.33",
+  "app_version": "4.4.33",
+  "runtime_version": "4.4.33",
+  "launcher_version": "4.3.100-standalone-7-dynamic-port",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "app.py",
+    "update_manifest.json"
+  ],
+  "notes": "Parche mínimo sobre v4.4.31: elimina ciclo de MutationObserver del overlay de pago y corrige TypeError heredado de v459. No toca launcher, static, .env ni datos."
+}

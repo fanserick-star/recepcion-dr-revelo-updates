@@ -1,0 +1,23 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.33",
+  "app_version": "4.4.33",
+  "runtime_version": "4.4.33",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.33: corrige pantalla blanca y dos errores JavaScript silenciosos de Configuración; conserva forma de pago Efectivo/Transferencia y launcher dinámico v4.4.32. No toca datos, .env, static ni bases.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_33_ui_fix/app.py",
+      "sha256": "e5fa32ef84745450fd72aad49151146ff8e1c379abe860323074b80668e94fcb",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_33_ui_fix/update_manifest.json",
+      "sha256": "4720c4cb5660b45110abd20c6254dcb0f214403f33d36263b3e1aa556b9cc195",
+      "encoding": "utf-8"
+    }
+  ]
+}
