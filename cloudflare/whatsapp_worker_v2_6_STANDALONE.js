@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.1 — confirmaciones, audio y revisión humana
+// Dr. Revelo WhatsApp Cloud Worker v2.6.2 — bandeja solo de confirmaciones
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5607,11 +5607,15 @@ async function handleFreeformInbound(env, message) {
     if (!await ensureInboundSchema(client)) return;
     const origin = await findInboundOrigin(client, message, phone);
     if (origin && origin.templateName && origin.templateName !== "recordatorio_cita") {
-      await saveInboundRow(client, { messageId, phone, messageType: type, rawText, transcription, mediaId, mediaMimeType, interpretation: "REVISAR", confidence: 100, target: origin, applyResult: "INFO_ONLY", resolved: true, resolution: "ASISTENTE_AUTOMATICO", rawPayload: { message, audio_error: audioError, intent_reason: "plantilla_solo_informativa", template_name: origin.templateName } });
       directReply = automaticAssistantNotice(env);
       return;
     }
     const target = await findInboundTarget(client, message, phone);
+    if (!target && (!origin || origin.templateName !== "recordatorio_cita")) {
+      directReply = automaticAssistantNotice(env);
+      return;
+    }
+    const queueTarget = target || origin;
     let interpretation = intent.interpretation, confidence = intent.confidence, applyResult = "", resolution = "", resolved = false;
     if (!target && interpretation !== "REVISAR") {
       interpretation = "REVISAR";
@@ -5630,7 +5634,7 @@ async function handleFreeformInbound(env, message) {
         ackAction = "";
       }
     }
-    await saveInboundRow(client, { messageId, phone, messageType: type, rawText, transcription, mediaId, mediaMimeType, interpretation, confidence, target, applyResult, resolved, resolution, rawPayload: { message, audio_error: audioError, intent_reason: intent.reason, template_name: origin?.templateName || "recordatorio_cita" } });
+    await saveInboundRow(client, { messageId, phone, messageType: type, rawText, transcription, mediaId, mediaMimeType, interpretation, confidence, target: queueTarget, applyResult, resolved, resolution, rawPayload: { message, audio_error: audioError, intent_reason: intent.reason, template_name: "recordatorio_cita" } });
   });
   if (directReply) {
     try {
@@ -5901,11 +5905,11 @@ var whatsapp_worker_v2_6_responses_default = {
     const u = new URL(request.url);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.1" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.2" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.1", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.2", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
