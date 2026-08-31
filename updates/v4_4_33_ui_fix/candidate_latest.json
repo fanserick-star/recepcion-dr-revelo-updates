@@ -10,13 +10,13 @@
     {
       "path": "app.py",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_33_ui_fix/app.py",
-      "sha256": "e5fa32ef84745450fd72aad49151146ff8e1c379abe860323074b80668e94fcb",
+      "sha256": "0e75fa5b6d2e2d7d1f4cc87057aaaad54d7491a38bb500a50b399af552a1f05a",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_33_ui_fix/update_manifest.json",
-      "sha256": "4720c4cb5660b45110abd20c6254dcb0f214403f33d36263b3e1aa556b9cc195",
+      "sha256": "98b22792f16042d1e522cef761b0e0ad5471dbd3145711f10a4d35fcacce1df1",
       "encoding": "utf-8"
     }
   ]
