@@ -1,0 +1,114 @@
+name: Deploy WhatsApp Worker v2.6.7 ventana confirmacion
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/whatsapp_v267/**'
+      - '.github/workflows/deploy-whatsapp-v267-confirmation-window.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-whatsapp-v267-confirmation-window
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Sincronizar y parchear v2.6.7
+        run: |
+          git pull --rebase origin main
+          python build/whatsapp_v267/patch_worker.py
+          node --check cloudflare/whatsapp_worker_v2_6_responses.js
+
+      - name: Validar ventana de confirmacion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('cloudflare/whatsapp_worker_v2_6_responses.js').read_text(encoding='utf-8')
+          for m in [
+              'worker_version:"2.6.7"',
+              'confirmationWindowState',
+              "interval '2 hours'",
+              'confirmation_window_minutes:120',
+              'WINDOW_CLOSED',
+              'WINDOW_EXPIRED',
+              'automaticAssistantNotice(env)'
+          ]: assert m in s,m
+          block=s[s.index('async function confirmationWindowState'):s.index('async function applyFreeformResponse')]
+          assert 'resolved_at IS NOT NULL' in block
+          assert "appointment_date=$3::date" in block
+          assert "appointment_time::time=$4::time" in block
+          handle=s[s.index('async function handleFreeformInbound'):s.index('async function logButtonInbound')]
+          assert 'const windowState=await confirmationWindowState(client,target,phone)' in handle
+          button=s[s.index('async function applyResponse'):s.index('async function updateStatuses')]
+          assert 'confirmationWindowState(client,p,phone)' in button
+          print('WHATSAPP_V267_WINDOW_OK')
+          PY
+
+      - name: Generar standalone
+        run: |
+          npm install --no-save esbuild @neondatabase/serverless
+          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.7 — ventana de confirmacion 2h'
+          cp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
+          node --check cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+
+      - name: Desplegar en Cloudflare
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
+
+      - name: Verificar produccion
+        run: |
+          set -euo pipefail
+          URL='https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/health'
+          for i in $(seq 1 30); do
+            BODY="$(curl -fsS --max-time 8 -H 'Cache-Control: no-cache' "$URL?ci=$(date +%s%N)" || true)"
+            if BODY="$BODY" node - <<'NODE'
+          try {
+            const d=JSON.parse(process.env.BODY||'{}');
+            if(d.ok===true && d.worker_version==='2.6.7' && d.confirmation_window_minutes===120 && d.inbound_policy==='recordatorio_cita_only') process.exit(0);
+          } catch {}
+          process.exit(1);
+          NODE
+            then
+              echo 'WHATSAPP_WORKER_V267_LIVE_OK'
+              printf '%s\n' "$BODY"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Guardar fuente y bundle validados
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare/whatsapp_worker_v2_6_responses.js cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
+          if git diff --cached --quiet; then
+            echo 'Worker v2.6.7 ya estaba guardado.'
+          else
+            git commit -m 'build: WhatsApp Worker v2.6.7 ventana confirmacion 2h'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
