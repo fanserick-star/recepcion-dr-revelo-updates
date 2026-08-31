@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 BASE_PATH = ROOT / "app_base_4428.py"
-BASE_SHA256 = "e5d3c3a13e9ea89a5b10841e85efe55010b01fe33dfc9cf661e6b5b0ee95af65"
+BASE_SHA256 = "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba"
 BASE_URL = (
     "https://raw.githubusercontent.com/fanserick-star/"
     "recepcion-dr-revelo-updates/main/updates/v4_4_28_overlay_hotfix/app.py"
