@@ -1,0 +1,23 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.35",
+  "app_version": "4.4.35",
+  "runtime_version": "4.4.35",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.35: Efectivo/Transferencia aparece dentro de cada ficha POR EMITIR, justo antes de Revisar y emitir. La elección es individual y obligatoria; también vuelve Emitir por lotes, que exige que cada factura tenga su forma de pago. No toca datos, .env ni static.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/app.py",
+      "sha256": "dca89f89c660046a19bebd2c157c3fe5b2dba418e1eb18d837e2e3b350ad3b8f",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/update_manifest.json",
+      "sha256": "9ca4c518c0aa19d76a930fb6e2c8e881e66ce3c50a5da7b3f5cc82fa61e99d03",
+      "encoding": "utf-8"
+    }
+  ]
+}

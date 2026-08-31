@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.35",
+  "app_version": "4.4.35",
+  "runtime_version": "4.4.35",
+  "launcher_version": "4.3.100-standalone-7-dynamic-port",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "app.py",
+    "update_manifest.json"
+  ],
+  "notes": "Forma de pago individual visible entre TOTAL y acciones de cada factura POR EMITIR; bloquea Revisar y emitir hasta escoger Efectivo/Transferencia y restaura Emitir por lotes con prevalidación individual. No toca launcher, static, .env ni datos."
+}
