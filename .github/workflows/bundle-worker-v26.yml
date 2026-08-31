@@ -1,4 +1,4 @@
-name: Build + Deploy WhatsApp Worker v2.6.2
+name: Build + Deploy WhatsApp Worker v2.6.3
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Generar Worker v2.6.2
+      - name: Generar Worker v2.6.3
         run: |
           python build/whatsapp_v26/build_worker.py
           python build/whatsapp_v26/post_build.py
@@ -55,39 +55,34 @@ jobs:
                 directReply=automaticAssistantNotice(env);
                 return;
               }
-              const target=await findInboundTarget(client,message,phone);
-              if(!target && (!origin || origin.templateName!=="recordatorio_cita")){
+              const directTarget=await findInboundTarget(client,message,phone);
+              const target=directTarget || (origin && origin.templateName==="recordatorio_cita" ? origin : null);
+              if(!target){
                 directReply=automaticAssistantNotice(env);
                 return;
-              }
-              const queueTarget=target||origin;'''
+              }'''
           if old not in s:
-              raise SystemExit('No encontré la rama informativa esperada')
+              raise SystemExit('No encontré la rama de vinculación esperada')
           s=s.replace(old,new,1)
 
-          old_save='''    await saveInboundRow(client,{messageId,phone,messageType:type,rawText,transcription,mediaId,mediaMimeType,interpretation,confidence,target,applyResult,resolved,resolution,rawPayload:{message,audio_error:audioError,intent_reason:intent.reason,template_name:origin?.templateName||"recordatorio_cita"}});'''
-          new_save='''    await saveInboundRow(client,{messageId,phone,messageType:type,rawText,transcription,mediaId,mediaMimeType,interpretation,confidence,target:queueTarget,applyResult,resolved,resolution,rawPayload:{message,audio_error:audioError,intent_reason:intent.reason,template_name:"recordatorio_cita"}});'''
-          if old_save not in s:
-              raise SystemExit('No encontré el guardado de bandeja esperado')
-          s=s.replace(old_save,new_save,1)
-
-          s=s.replace('2.6.1','2.6.2')
+          s=s.replace('2.6.1','2.6.3')
           old_health='inbound_policy:"recordatorio_cita_only",automation:'
           if old_health not in s:
               raise SystemExit('No encontré política de health')
-          s=s.replace(old_health,'inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",automation:',1)
+          s=s.replace(old_health,'inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",automation:',1)
 
           for marker in [
-              'worker_version:"2.6.2"',
+              'worker_version:"2.6.3"',
               'inbound_queue:"confirmation_only"',
-              'const queueTarget=target||origin',
-              'target:queueTarget',
-              'if(!target && (!origin || origin.templateName!=="recordatorio_cita"))'
+              'inbound_target:"origin_fallback"',
+              'const directTarget=await findInboundTarget',
+              'const target=directTarget || (origin && origin.templateName==="recordatorio_cita" ? origin : null)',
+              'if(!target){'
           ]:
               if marker not in s:
-                  raise SystemExit(f'Falta marcador v2.6.2: {marker}')
+                  raise SystemExit(f'Falta marcador v2.6.3: {marker}')
           p.write_text(s,encoding='utf-8',newline='\n')
-          print('WHATSAPP_V262_NO_NOISE_OK')
+          print('WHATSAPP_V263_TARGET_FALLBACK_OK')
           PY
 
       - name: Instalar bundler y dependencia
@@ -100,6 +95,7 @@ jobs:
           const m=await import('./cloudflare/whatsapp_worker_v2_6_responses.js');
           const cases=[
             ['sí doctor ahí estaré','CONFIRMADO'],
+            ['confirmado doctor','CONFIRMADO'],
             ['Confirmo, muchas gracias','CONFIRMADO'],
             ['Pensaba que era mañana pero ya revisé y sí puedo asistir el miércoles','CONFIRMADO'],
             ['No puedo asistir mañana','NO_ASISTIRA'],
@@ -122,42 +118,45 @@ jobs:
           if(!payload||payload.action!=='CONFIRMAR'||payload.sourceId!==12)throw new Error('Se rompió la respuesta por botón');
           if(!m.acknowledgementText('CANCELAR',{}).includes('no podrá asistir'))throw new Error('Se rompió acuse No');
           if(!m.acknowledgementText('CONFIRMAR',{}).includes('asistencia ha quedado registrada'))throw new Error('Se rompió acuse Sí');
-          console.log('WHATSAPP_V262_RULES_OK');
+          console.log('WHATSAPP_V263_RULES_OK');
           NODE
 
-      - name: Validar que la bandeja no reciba mensajes ajenos
+      - name: Validar vinculación y filtro de bandeja
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('cloudflare/whatsapp_worker_v2_6_responses.js').read_text(encoding='utf-8')
           for marker in [
             'whatsapp_cloud.inbound_responses','solicita_reagendar','@cf/openai/whisper-large-v3-turbo',
-            'env.AI.run','audio_too_large','ON CONFLICT(message_id)','worker_version:"2.6.2"',
+            'env.AI.run','audio_too_large','ON CONFLICT(message_id)','worker_version:"2.6.3"',
             'automaticAssistantNotice','origin.templateName!=="recordatorio_cita"',
             'únicamente para confirmaciones de citas','DOCTOR_CONTACT_PHONE',
             'inbound_policy:"recordatorio_cita_only"','inbound_queue:"confirmation_only"',
-            'const queueTarget=target||origin','target:queueTarget'
+            'inbound_target:"origin_fallback"','const directTarget=await findInboundTarget',
+            'const target=directTarget || (origin && origin.templateName==="recordatorio_cita" ? origin : null)'
           ]:
               assert marker in s, marker
-          branch=s[s.index('if(origin && origin.templateName'):s.index('const target=await findInboundTarget')]
+          branch=s[s.index('if(origin && origin.templateName'):s.index('const directTarget=await findInboundTarget')]
           assert 'saveInboundRow' not in branch
-          unrelated=s[s.index('if(!target && (!origin || origin.templateName!=="recordatorio_cita"))'):s.index('const queueTarget=target||origin')]
-          assert 'automaticAssistantNotice' in unrelated
-          assert 'saveInboundRow' not in unrelated
+          fallback=s[s.index('const directTarget=await findInboundTarget'):s.index('let interpretation=intent.interpretation')]
+          assert 'origin.templateName==="recordatorio_cita"' in fallback
+          assert 'automaticAssistantNotice' in fallback
+          # Un recordatorio identificado nunca debe caer a 35% solo porque la segunda búsqueda falló.
+          assert 'const target=directTarget ||' in fallback
           insert=s[s.index('async function saveInboundRow'):s.index('async function handleFreeformInbound')]
           assert 'buffer' not in insert.lower()
-          print('WHATSAPP_V262_QUEUE_FILTER_OK')
+          print('WHATSAPP_V263_TARGET_AND_QUEUE_OK')
           PY
 
       - name: Generar standalone
         run: |
-          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.2 — bandeja solo de confirmaciones'
+          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.3 — confirmación con vínculo robusto'
           cp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
           node --check cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.2"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.3"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'origin_fallback' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'confirmation_only' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'automaticAssistantNotice' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -q 'DOCTOR_CONTACT_PHONE' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'whisper-large-v3-turbo' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'NO_ASISTIRA' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           cmp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
@@ -178,18 +177,18 @@ jobs:
             if BODY="$BODY" node - <<'NODE'
           try {
             const d=JSON.parse(process.env.BODY||'{}');
-            if(d.ok===true && d.worker_version==='2.6.2' && d.inbound_policy==='recordatorio_cita_only' && d.inbound_queue==='confirmation_only') process.exit(0);
+            if(d.ok===true && d.worker_version==='2.6.3' && d.inbound_policy==='recordatorio_cita_only' && d.inbound_queue==='confirmation_only' && d.inbound_target==='origin_fallback') process.exit(0);
           } catch {}
           process.exit(1);
           NODE
             then
-              echo 'WHATSAPP_WORKER_V262_LIVE_OK'
+              echo 'WHATSAPP_WORKER_V263_LIVE_OK'
               printf '%s\n' "$BODY"
               exit 0
             fi
             sleep 2
           done
-          echo 'Cloudflare no confirmó v2.6.2 con la bandeja filtrada.'
+          echo 'Cloudflare no confirmó v2.6.3 con la vinculación esperada.'
           exit 1
 
       - name: Guardar fuente y bundle validados
@@ -198,9 +197,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add cloudflare/whatsapp_worker_v2_6_responses.js cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt cloudflare/whatsapp_inbound_responses_schema.sql
           if git diff --cached --quiet; then
-            echo 'Worker v2.6.2 ya estaba actualizado.'
+            echo 'Worker v2.6.3 ya estaba actualizado.'
           else
-            git commit -m 'build: WhatsApp Worker v2.6.2 filtrado y desplegado'
+            git commit -m 'build: WhatsApp Worker v2.6.3 vinculado y desplegado'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
