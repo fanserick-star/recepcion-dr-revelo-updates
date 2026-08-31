@@ -14,6 +14,11 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def write_utf8_lf(path: Path, text: str) -> None:
+    """Escribe bytes UTF-8 con LF para que el SHA sea idéntico en Windows y GitHub Raw."""
+    path.write_bytes(text.replace("\r\n", "\n").replace("\r", "\n").encode("utf-8"))
+
+
 def replace_once(text: str, old: str, new: str, label: str) -> str:
     count = text.count(old)
     if count != 1:
@@ -93,7 +98,6 @@ def main() -> None:
 '''
     text = replace_once(text, anchor, replacement, "sincronización segura de recursos frontend")
 
-    # Debe seguir siendo el mismo wrapper estable y conservar la protección de pago.
     required = [
         "import app_base_4428 as core",
         "PAYMENT_SENTINELS",
@@ -114,7 +118,7 @@ def main() -> None:
     compile(text, "app.py", "exec")
     OUT.mkdir(parents=True, exist_ok=True)
     app_path = OUT / "app.py"
-    app_path.write_text(text, encoding="utf-8")
+    write_utf8_lf(app_path, text)
 
     manifest = {
         "product": "recepcion-pacientes",
@@ -127,7 +131,8 @@ def main() -> None:
         "notes": "Parche mínimo sobre v4.4.31: elimina ciclo de MutationObserver del overlay de pago y corrige TypeError heredado de v459. No toca launcher, static, .env ni datos.",
     }
     manifest_path = OUT / "update_manifest.json"
-    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    manifest_text = json.dumps(manifest, ensure_ascii=False, indent=2) + "\n"
+    write_utf8_lf(manifest_path, manifest_text)
 
     candidate = {
         "product": "recepcion-pacientes",
@@ -152,7 +157,8 @@ def main() -> None:
             },
         ],
     }
-    (OUT / "candidate_latest.json").write_text(json.dumps(candidate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    candidate_text = json.dumps(candidate, ensure_ascii=False, indent=2) + "\n"
+    write_utf8_lf(OUT / "candidate_latest.json", candidate_text)
     print("V4433_BUILT", sha256(app_path))
 
 
