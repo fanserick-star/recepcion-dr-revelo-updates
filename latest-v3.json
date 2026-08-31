@@ -1,16 +1,16 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.28",
-  "app_version": "4.4.28",
-  "runtime_version": "4.4.28",
+  "version": "4.4.29",
+  "app_version": "4.4.29",
+  "runtime_version": "4.4.29",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.28: corrige el arranque de Recepción después de v4.4.27. Reordena de forma segura el overlay AUTOAGENDADA y conserva íntegra la ultra optimización de Neon. No modifica Excel ni bases SQLite locales.",
+  "message": "v4.4.29: añade Forma de pago obligatoria en Nueva atención. Efectivo se envía a AZUR/SRI como 01 y Transferencia bancaria como 20. No modifica pacientes, citas, facturas históricas, Excel ni bases SQLite.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_28_overlay_hotfix/app.py",
-      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_29_payment_method/app.py",
+      "sha256": "ed1cc2ffb24b586558e35973dd042429f5d6c65ee55042a3f5a3f066bec93ad9",
       "encoding": "utf-8"
     },
     {
@@ -27,8 +27,8 @@
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_28_overlay_hotfix/update_manifest.json",
-      "sha256": "4ea1161568977074cc3f03979fdcddb2af259801cbd4c7c20f5dc7cb5f3d5cae",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_29_payment_method/update_manifest.json",
+      "sha256": "76762f7ec821b6fc315262730f3a52ba7e41d695a86288e39292a122d413c04d",
       "encoding": "utf-8"
     }
   ]
