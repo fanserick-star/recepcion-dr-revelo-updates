@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/validate-publish-v4433-ui-fix-v2.yml'
+      - 'build/v4433_ui_fix/build_v4433.py'
+      - 'build/v4433_ui_fix/validate_candidate.py'
   workflow_dispatch:
 
 permissions:
@@ -74,6 +76,7 @@ jobs:
                   text=app.decode('utf-8-sig');compile(text,'app.py','exec')
                   if 'APP_VERSION = "4.4.33"' not in text:raise RuntimeError('APP_VERSION remoto incorrecto')
                   if 'function fixVersionLabels()' in text:raise RuntimeError('regresión observer presente en remoto')
+                  if '_v459_bad_root' not in text or 'core.V459_SETTINGS_JS = _v459_base' not in text:raise RuntimeError('hotfix v459 no está presente en remoto')
                   print('REMOTE_PAYLOAD_4433_OK');break
               except Exception as exc:
                   last=exc;time.sleep(1)
