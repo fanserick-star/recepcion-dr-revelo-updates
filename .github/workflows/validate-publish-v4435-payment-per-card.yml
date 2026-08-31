@@ -7,6 +7,8 @@ on:
       - '.github/workflows/validate-publish-v4435-payment-per-card.yml'
       - 'build/v4435_payment_per_card/build_v4435.py'
       - 'build/v4435_payment_per_card/validate_candidate.py'
+      - 'build/v4435_payment_per_card/payment.css'
+      - 'build/v4435_payment_per_card/payment.js'
   workflow_dispatch:
 
 permissions:
@@ -83,6 +85,7 @@ jobs:
                     'v4435-pay-locked',
                     '📦 Emitir por lotes',
                     'batchPreflight',
+                    "window.emitAllPendingInvoices",
                     'listObserver.observe(list,{childList:true,subtree:false})',
                     '<span class="v4431-check">✓</span><span>💵 Efectivo</span>',
                     '<span class="v4431-check">✓</span><span>🏦 Transferencia</span>',
