@@ -1,34 +1,34 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.22",
-  "app_version": "4.4.22",
-  "runtime_version": "4.4.22",
+  "version": "4.4.23",
+  "app_version": "4.4.23",
+  "runtime_version": "4.4.23",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.22: reproducción de audios WhatsApp más robusta. Acepta IDs reales de Meta, solicita el audio con URL codificada y lo carga como Blob local en WebView2; si falla, muestra el error real.",
+  "message": "v4.4.23: fusiona Respuestas WhatsApp con la Agenda. Cada cita muestra su estado de confirmación; los casos Por revisar aparecen arriba de la agenda y la ficha de cita incluye mensaje, transcripción, audio, historial y acciones rápidas. La agenda sigue local-first y WhatsApp se carga después con caché para no ralentizar la PC.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_22_whatsapp_audio_blob/app.py",
-      "sha256": "92bbe799c2c549bc778b0b7d3e2b039b07a198235e781b4b14283f49549b4ec9",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_23_agenda_whatsapp/app.py",
+      "sha256": "0f7dece166c1c604c40d481e71a002c733d8ea367e2e2b6e490d0c289bc0c8a1",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_22_whatsapp_audio_blob/static/app.js",
-      "sha256": "bcb1022e8268a45a64046e07656416937660e544f876c7cb2f27e959a20570ae",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_23_agenda_whatsapp/static/app.js",
+      "sha256": "8c0a5771a6e58f6e1d999070a5f71e481cadfa624ee85bbee71dd2fa69fbcbd1",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_22_whatsapp_audio_blob/static/index.html",
-      "sha256": "08ce88840fb6e2cbf275df7138b8e8d1ad7797791c35da0b2e7313124c22aee1",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_23_agenda_whatsapp/static/index.html",
+      "sha256": "1affba7736fb347b5987ad922fbe4670e7a3366e97f920633bc539d46fe7c7f2",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_22_whatsapp_audio_blob/update_manifest.json",
-      "sha256": "65cd8287017164cf58dbc4f28712f6c1549f6330634e3fa4e9da906ab66a484e",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_23_agenda_whatsapp/update_manifest.json",
+      "sha256": "93f5373a179efb8dc197e3e1b55693c94824be025d5aec54eb54ad946f3142a4",
       "encoding": "utf-8"
     }
   ]
