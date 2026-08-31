@@ -1,0 +1,52 @@
+/* v4.4.35 — forma de pago individual, visible antes de emitir */
+.v4431-pay-wrap{
+  display:flex!important;align-items:center;gap:8px;flex-wrap:wrap;
+  width:100%;box-sizing:border-box;margin:8px 0 10px;padding:9px 10px;
+  border:1px solid #d7e2ed;border-radius:11px;background:#f8fbfe;
+}
+.v4431-pay-label{
+  min-width:86px;font-size:8px;font-weight:950;letter-spacing:.055em;
+  color:#687d93;text-transform:uppercase;margin-right:2px
+}
+.v4431-pay-choice{
+  min-height:32px!important;padding:5px 10px!important;border-radius:9px!important;
+  border:1px solid #cfdbe7!important;background:#fff!important;color:#405b75!important;
+  font-size:9px!important;font-weight:900!important;display:inline-flex!important;
+  align-items:center!important;gap:6px!important;box-shadow:none!important;cursor:pointer!important
+}
+.v4431-pay-choice .v4431-check{
+  width:16px;height:16px;border:1.5px solid #a8b7c6;border-radius:50%;
+  display:inline-grid;place-items:center;font-size:10px;line-height:1;
+  color:transparent;background:#fff
+}
+.v4431-pay-choice.selected{
+  border-color:#72ba91!important;background:#eaf8f0!important;color:#24643f!important
+}
+.v4431-pay-choice.selected .v4431-check{
+  border-color:#2f8d59;background:#2f8d59;color:#fff;font-weight:950;
+  box-shadow:0 0 0 2px rgba(47,141,89,.12)
+}
+.v4431-pay-choice.selected span:last-child{font-weight:950}
+.v4431-pay-wrap.required{
+  border-color:#dfa743!important;background:#fff8e9!important;
+  box-shadow:0 0 0 3px rgba(223,167,67,.12)
+}
+.v4431-pay-wrap.required .v4431-pay-label{color:#9b6900}
+.v4431-pay-saving{opacity:.58;pointer-events:none}
+.billing-card .v4435-pay-locked{
+  opacity:.55!important;filter:saturate(.6);cursor:not-allowed!important
+}
+.v4435-batch-button{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  visibility:visible!important;opacity:1!important
+}
+.v4431-startup-toast{
+  position:fixed;right:16px;bottom:16px;z-index:10060;padding:8px 11px;
+  border-radius:10px;background:#1f405f;color:#fff;font-size:9px;font-weight:800;
+  box-shadow:0 8px 26px rgba(18,43,66,.22)
+}
+@media(max-width:720px){
+  .v4431-pay-wrap{width:100%;margin:7px 0 9px}
+  .v4431-pay-label{width:100%;min-width:0}
+  .v4431-pay-choice{flex:1;justify-content:center}
+}
