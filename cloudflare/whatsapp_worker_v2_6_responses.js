@@ -283,6 +283,10 @@ async function handleFreeformInbound(env,message){
   const intent=classifyInboundText(type==="audio"?transcription:rawText);
   const hasExplicitContext=Boolean(String(message?.context?.id||"").trim());
   let ackAction="",directReply="";
+  if(!hasExplicitContext && ["sin_intencion_clara","sin_texto"].includes(String(intent.reason||""))){
+    try{await sendTextMeta(phone,automaticAssistantNotice(env),env,messageId);}catch(e){console.error("whatsapp_direct_fast_notice_failed",e);}
+    return;
+  }
   await withClient(env,async client=>{
     if(!(await ensureInboundSchema(client)))return;
     const origin=await findInboundOrigin(client,message,phone);
@@ -344,10 +348,12 @@ WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,p.nombre patient_name,p.celular phone,a.fecha,a.hora,a.created_at,a.estado,a.origen,NULL::text source_hash
   FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
   WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO') AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+    AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
   SELECT 'staged'::text,c.id,c.nombre,c.celular,c.fecha,c.hora,c.created_at,'PENDIENTE'::text,'MOVIL'::text,c.source_hash::text
   FROM public.confirmafy_agenda_items c
   WHERE coalesce(c.source_hash,'') <> ''
+    AND c.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
 ), ev AS (
   SELECT b.*, 'recordatorio_cita'::text kind,
          GREATEST(
@@ -438,7 +444,16 @@ function extractPayload(message){ if(message?.type==="button")return String(mess
 function parseActionPayload(payload){ const p=String(payload||"").split("|"); if(p.length<5)return null; const action=String(p[0]).toUpperCase(),sourceType=String(p[1]).toLowerCase(),sourceId=Number.parseInt(p[2],10),date=String(p[3]),time=String(p[4]).slice(0,5); if(!["CONFIRMAR","CANCELAR","TEST_CONFIRMAR","TEST_CANCELAR"].includes(action)||!["appointment","staged","linked"].includes(sourceType)||!Number.isInteger(sourceId)||sourceId<=0||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time))return null; return {action,sourceType:sourceType==="linked"?"appointment":sourceType,sourceId,date,time}; }
 async function currentSlot(client,p){ const q=p.sourceType==="staged"?`SELECT fecha::text d,hora::text t,source_hash::text source_hash FROM public.confirmafy_agenda_items WHERE id=$1`:`SELECT fecha::text d,hora::text t,NULL::text source_hash FROM public.appointments WHERE id=$1`; const r=await client.query(q,[p.sourceId]); if(!r.rows?.length)return null; const sourceHash=String(r.rows[0].source_hash||""); return {date:String(r.rows[0].d).slice(0,10),time:String(r.rows[0].t).slice(0,5),isTest:sourceHash.startsWith(CLOUD_TEST_PREFIX)}; }
 async function applyResponse(env,p,messageId,phone){ return withClient(env,async client=>{const windowState=await confirmationWindowState(client,p,phone); if(!windowState.open)return windowState.reason==="resuelta"?"WINDOW_CLOSED":"WINDOW_EXPIRED"; const slot=await currentSlot(client,p); if(!slot)return "NOT_FOUND"; if(slot.date!==p.date||slot.time!==p.time)return "STALE"; if(slot.isTest){ if(["CONFIRMAR","TEST_CONFIRMAR"].includes(p.action))return "TEST_CONFIRMED"; if(["CANCELAR","TEST_CANCELAR"].includes(p.action))return "TEST_CANCELLED"; return "IGNORED_TEST_ACTION"; } if(p.action.startsWith("TEST_"))return "IGNORED_TEST_ACTION"; const r=await client.query(`SELECT public.whatsapp_apply_response($1,$2,$3,$4,$5) AS result`,[p.action,p.sourceType,p.sourceId,String(messageId||""),String(phone||"")]); return String(r.rows?.[0]?.result||"UNKNOWN");}); }
-async function updateStatuses(env,statuses){ if(!statuses?.length)return; await withClient(env,async client=>{for(const s of statuses){const mid=String(s.id||""); if(!mid)continue; const st=String(s.status||"").toLowerCase(); const err=s.errors?.[0]||{}; if(st==="delivered")await client.query(`UPDATE whatsapp_cloud.events SET status='DELIVERED',delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="read")await client.query(`UPDATE whatsapp_cloud.events SET status='READ',read_at=COALESCE(read_at,now()),delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="failed")await client.query(`UPDATE whatsapp_cloud.events SET status='FAILED',error_code=$2,error_text=$3,updated_at=now() WHERE message_id=$1`,[mid,String(err.code||""),String(err.title||err.message||"Meta reportó fallo").slice(0,1500)]); else if(st==="sent")await client.query(`UPDATE whatsapp_cloud.events SET status=CASE WHEN status='SENDING' THEN 'SENT' ELSE status END,sent_at=COALESCE(sent_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); }}); }
+async function updateStatuses(env,statuses){
+  const failed=(statuses||[]).filter(s=>String(s?.status||'').toLowerCase()==='failed'&&String(s?.id||'').trim());
+  if(!failed.length)return;
+  await withClient(env,async client=>{
+    for(const s of failed){
+      const mid=String(s.id||'').trim(),err=s.errors?.[0]||{};
+      await client.query(`UPDATE whatsapp_cloud.events SET status='FAILED',error_code=$2,error_text=$3,updated_at=now() WHERE message_id=$1`,[mid,String(err.code||''),String(err.title||err.message||'Meta reportó fallo').slice(0,1500)]);
+    }
+  });
+}
 async function serveInboundAudio(request,env,u){
   if(request.method!=="GET")return text("Method not allowed",405);
   // v2.6.5: Meta puede usar caracteres de codificación fuera de la regex antigua.
@@ -540,7 +555,7 @@ async function serveBookingAvailability(request,env,u){
     return new Response(payload,{status:200,headers:bookingHeaders(request,{"cache-control":"public, max-age=30","x-booking-cache":"MISS"})});
   }catch(e){console.error("booking_availability_failed",e);return bookingJson(request,{ok:false,error:"No se pudo consultar la agenda. Intente nuevamente."},503);}
 }
-async function serveBookingCreate(request,env){
+async function serveBookingCreate(request,env,ctx){
   if(request.method==="OPTIONS")return bookingOptions(request);if(request.method!=="POST")return bookingJson(request,{ok:false,error:"Método no permitido"},405);
   if(!bookingOriginAllowed(request))return bookingJson(request,{ok:false,error:"Origen no permitido"},403);
   if(!env.DATABASE_URL)return bookingJson(request,{ok:false,error:"Agenda temporalmente no disponible"},503);
@@ -568,6 +583,7 @@ async function serveBookingCreate(request,env){
       }catch(e){try{await client.query("ROLLBACK");}catch{}throw e;}
     });
     if(!row)return bookingJson(request,{ok:false,error:"Ese horario acaba de ser reservado. Seleccione otro horario.",code:"SLOT_TAKEN"},409);
+    if(ctx?.waitUntil)ctx.waitUntil(runScheduler(env).catch(e=>console.error("booking_confirmation_background_failed",e)));
     return bookingJson(request,{ok:true,booking_id:Number(row.id||0),patient_name:name,date:String(row.fecha||date).slice(0,10),time:String(row.hora||time).slice(0,5),message:"Su cita quedó registrada correctamente."},201,{"cache-control":"no-store"});
   }catch(e){console.error("booking_create_failed",e);return bookingJson(request,{ok:false,error:"No se pudo registrar la cita. Intente nuevamente."},503);}
 }
@@ -602,7 +618,7 @@ async function receiveWebhook(request,env){
 }
 
 export default {
-  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/booking/availability")return serveBookingAvailability(request,env,u);if(u.pathname==="/booking/book")return serveBookingCreate(request,env);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.13"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.13",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",confirmation_window_minutes:120,audio_proxy:"tokenized_cloudflare",booking:"public_v1",booking_cache_seconds:60,booking_confirmation:"cita_agendada_within_5m",assistant_booking_link:"enabled",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
+  async fetch(request,env,ctx){const u=new URL(request.url);if(u.pathname==="/booking/availability")return serveBookingAvailability(request,env,u);if(u.pathname==="/booking/book")return serveBookingCreate(request,env,ctx);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.14"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.14",scheduler:"business_window_30m",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",confirmation_window_minutes:120,audio_proxy:"tokenized_cloudflare",neon_optimization:"v1",status_persistence:"failed_only",direct_message_fast_path:true,booking:"public_v1",booking_cache_seconds:60,booking_confirmation:"cita_agendada_immediate",assistant_booking_link:"enabled",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
   async scheduled(_controller,env,ctx){ctx.waitUntil(runScheduler(env));}
 };
 
