@@ -49,7 +49,9 @@ jobs:
           assert 'request: Request' in app
           assert 'proxy_headers["Range"] = range_header' in app
           assert 'Cloudflare no pudo entregar el audio' in app
-          segment=app[app.index('@app.get("/api/whatsapp-responses/{response_id}/audio")'):app.index('@app.post("/api/whatsapp-responses/{response_id}/resolve")')]
+          start=app.index('@app.get("/api/whatsapp-responses/{response_id}/audio")')
+          end=app.index('@app.post("/api/whatsapp-responses/{response_id}/resolve")',start)
+          segment=app[start:end]
           assert 'status_code=307' not in segment
           assert 'dr-revelo-whatsapp-cloud.drrevelo.workers.dev/media/audio/' in segment
           assert 'preload="metadata"' in js
