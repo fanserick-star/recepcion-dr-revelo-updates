@@ -101,7 +101,7 @@ def server_pending_state_smoke(runtime_python: pathlib.Path, root: pathlib.Path)
         '''m.core.audit=lambda *a,**k: None\n'''
         '''m.core.mirror_visit_to_local=lambda *a,**k: None\n'''
         '''route=next(r.endpoint for r in m.app.routes if getattr(r,"path","")=="/api/billing/payment-method" and "POST" in getattr(r,"methods",set()))\n'''
-        '''data=m.BillingPaymentMethodIn(patient_id=777,fecha=date(2026,8,31),payment_method="TRANSFERENCIA")\n'''
+        '''data=m.BillingPaymentMethodIn.construct(patient_id=777,fecha=date(2026,8,31),payment_method="TRANSFERENCIA")\n'''
         '''out=route(data=data,db=db,user=object())\n'''
         '''assert out["payment_method"]=="TRANSFERENCIA",out\n'''
         '''assert out["sri_payment_code"]=="20",out\n'''
@@ -236,12 +236,10 @@ def billing_fixture(v: dict, root: pathlib.Path) -> None:
             require(changed["alert"] == "", f"Apareció alerta al cambiar método: {changed['alert']}")
             require(changed["saved"] and changed["saved"][0][1] == "TRANSFERENCIA", "Transferencia no quedó guardada")
 
-            # Redecorar no debe perder la selección guardada.
             page.evaluate("window.__v4435BillingPaymentTest?.decorate()")
             page.wait_for_timeout(80)
             require(page.locator('.v4431-pay-choice[data-pay="TRANSFERENCIA"]').get_attribute('class').find('selected') >= 0, "Se perdió Transferencia al redecorar")
 
-            # Segunda ficha sin tocar: Efectivo debe ser su selección efectiva y el lote debe poder continuar.
             page.evaluate("""() => {
               document.querySelector('#billingList').insertAdjacentHTML('beforeend',`
                 <article class="billing-card pendiente">
