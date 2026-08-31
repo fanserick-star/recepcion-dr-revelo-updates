@@ -165,7 +165,7 @@
       alert(`Antes de emitir por lotes, selecciona Efectivo o Transferencia individualmente en ${missing.length} factura${missing.length===1?'':'s'}.`);
       return;
     }
-    if(typeof emitAllPendingInvoices==='function')return emitAllPendingInvoices();
+    if(typeof window.emitAllPendingInvoices==='function')return window.emitAllPendingInvoices();
     alert('La emisión por lotes no está disponible en esta instalación.');
   }
 
