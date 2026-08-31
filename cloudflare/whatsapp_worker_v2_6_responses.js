@@ -65,7 +65,7 @@ function acknowledgementText(action,env={}){
 }
 function responseWasApplied(result){
   const r=String(result||"").trim().toUpperCase();
-  if(!r || ["NOT_FOUND","STALE","UNKNOWN"].includes(r)) return false;
+  if(!r || ["NOT_FOUND","STALE","UNKNOWN","WINDOW_CLOSED","WINDOW_EXPIRED"].includes(r)) return false;
   if(r.startsWith("ERROR") || r.startsWith("INVALID")) return false;
   return true;
 }
@@ -82,7 +82,7 @@ async function sendTextMeta(phone,body,env,replyToMessageId=""){
 }
 async function withClient(env,fn){ const c=new Client(env.DATABASE_URL); try{await c.connect(); return await fn(c);} finally{try{await c.end();}catch{}} }
 
-// v2.6.6 — respuestas libres + aviso correcto para mensajes directos.
+// v2.6.7 — ventana de confirmación: cierra al resolver o a las 2 horas.
 let inboundSchemaReady=false;
 function normalizeIntentText(value){
   return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9ñ]+/g," ").replace(/\s+/g," ").trim();
@@ -191,6 +191,36 @@ async function findInboundTarget(client,message,phone){
   if(b && (String(a.source_type)!==String(b.source_type)||Number(a.source_id)!==Number(b.source_id)||String(a.appointment_date).slice(0,10)!==String(b.appointment_date).slice(0,10)||String(a.appointment_time).slice(0,5)!==String(b.appointment_time).slice(0,5)))return null;
   return {sourceType:String(a.source_type||""),sourceId:Number(a.source_id||0),date:String(a.appointment_date||"").slice(0,10),time:String(a.appointment_time||"").slice(0,5),patientName:String(a.patient_name||""),matchMethod:"ultimo_recordatorio"};
 }
+async function confirmationWindowState(client,target,phone=""){
+  if(!target||!["appointment","staged"].includes(String(target.sourceType||""))||!Number.isInteger(Number(target.sourceId))||Number(target.sourceId)<=0)return {open:false,reason:"sin_target"};
+  const normalized=normalizePhone(phone);
+  const r=await client.query(`WITH ev AS (
+    SELECT COALESCE(sent_at,updated_at) opened_at
+    FROM whatsapp_cloud.events
+    WHERE template_name='recordatorio_cita'
+      AND source_type=$1 AND source_id=$2
+      AND appointment_date=$3::date AND appointment_time::time=$4::time
+      AND ($5='' OR regexp_replace(coalesce(phone,''),'\\D','','g')=$5)
+      AND status IN ('SENT','DELIVERED','READ')
+    ORDER BY sent_at DESC NULLS LAST,updated_at DESC
+    LIMIT 1
+  )
+  SELECT opened_at,
+         (opened_at > now()-interval '2 hours') AS fresh,
+         EXISTS(
+           SELECT 1 FROM whatsapp_cloud.inbound_responses ir
+           WHERE ir.source_type=$1 AND ir.source_id=$2
+             AND ir.appointment_date=$3::date AND ir.appointment_time::time=$4::time
+             AND ir.resolved_at IS NOT NULL
+             AND ir.received_at >= ev.opened_at - interval '1 minute'
+         ) AS resolved
+  FROM ev`,[String(target.sourceType),Number(target.sourceId),String(target.date||"").slice(0,10),String(target.time||"").slice(0,5),normalized]);
+  if(!r.rows?.length)return {open:false,reason:"sin_recordatorio"};
+  const row=r.rows[0];
+  if(row.resolved)return {open:false,reason:"resuelta",openedAt:row.opened_at};
+  if(!row.fresh)return {open:false,reason:"expirada",openedAt:row.opened_at};
+  return {open:true,reason:"abierta",openedAt:row.opened_at};
+}
 async function applyFreeformResponse(client,target,action,messageId,phone){
   if(!target||!["appointment","staged"].includes(target.sourceType)||!Number.isInteger(target.sourceId)||target.sourceId<=0)return "NOT_FOUND";
   const q=target.sourceType==="staged"?`SELECT fecha::text d,hora::text t,source_hash::text source_hash FROM public.confirmafy_agenda_items WHERE id=$1`:`SELECT fecha::text d,hora::text t,NULL::text source_hash FROM public.appointments WHERE id=$1`;
@@ -272,6 +302,11 @@ async function handleFreeformInbound(env,message){
       directReply=automaticAssistantNotice(env);
       return;
     }
+    const windowState=await confirmationWindowState(client,target,phone);
+    if(!windowState.open){
+      directReply=automaticAssistantNotice(env);
+      return;
+    }
     let interpretation=intent.interpretation,confidence=intent.confidence,applyResult="",resolution="",resolved=false;
     if(!target && interpretation!=="REVISAR"){interpretation="REVISAR";confidence=Math.min(confidence,35);}
     if(target && interpretation!=="REVISAR"){
@@ -290,6 +325,7 @@ async function handleFreeformInbound(env,message){
 }
 async function logButtonInbound(env,message,p,result){
   if(!p||p.action.startsWith("TEST_"))return;
+  if(["WINDOW_CLOSED","WINDOW_EXPIRED"].includes(String(result||"").toUpperCase()))return;
   try{await withClient(env,async client=>{
     if(!(await ensureInboundSchema(client)))return;
     let target=await findInboundTarget(client,message,message?.from||"");
@@ -395,7 +431,7 @@ async function runScheduler(env){
 function extractPayload(message){ if(message?.type==="button")return String(message.button?.payload||""); if(message?.type==="interactive"&&message.interactive?.type==="button_reply")return String(message.interactive.button_reply?.id||""); return ""; }
 function parseActionPayload(payload){ const p=String(payload||"").split("|"); if(p.length<5)return null; const action=String(p[0]).toUpperCase(),sourceType=String(p[1]).toLowerCase(),sourceId=Number.parseInt(p[2],10),date=String(p[3]),time=String(p[4]).slice(0,5); if(!["CONFIRMAR","CANCELAR","TEST_CONFIRMAR","TEST_CANCELAR"].includes(action)||!["appointment","staged","linked"].includes(sourceType)||!Number.isInteger(sourceId)||sourceId<=0||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!/^\d{2}:\d{2}$/.test(time))return null; return {action,sourceType:sourceType==="linked"?"appointment":sourceType,sourceId,date,time}; }
 async function currentSlot(client,p){ const q=p.sourceType==="staged"?`SELECT fecha::text d,hora::text t,source_hash::text source_hash FROM public.confirmafy_agenda_items WHERE id=$1`:`SELECT fecha::text d,hora::text t,NULL::text source_hash FROM public.appointments WHERE id=$1`; const r=await client.query(q,[p.sourceId]); if(!r.rows?.length)return null; const sourceHash=String(r.rows[0].source_hash||""); return {date:String(r.rows[0].d).slice(0,10),time:String(r.rows[0].t).slice(0,5),isTest:sourceHash.startsWith(CLOUD_TEST_PREFIX)}; }
-async function applyResponse(env,p,messageId,phone){ return withClient(env,async client=>{const slot=await currentSlot(client,p); if(!slot)return "NOT_FOUND"; if(slot.date!==p.date||slot.time!==p.time)return "STALE"; if(slot.isTest){ if(["CONFIRMAR","TEST_CONFIRMAR"].includes(p.action))return "TEST_CONFIRMED"; if(["CANCELAR","TEST_CANCELAR"].includes(p.action))return "TEST_CANCELLED"; return "IGNORED_TEST_ACTION"; } if(p.action.startsWith("TEST_"))return "IGNORED_TEST_ACTION"; const r=await client.query(`SELECT public.whatsapp_apply_response($1,$2,$3,$4,$5) AS result`,[p.action,p.sourceType,p.sourceId,String(messageId||""),String(phone||"")]); return String(r.rows?.[0]?.result||"UNKNOWN");}); }
+async function applyResponse(env,p,messageId,phone){ return withClient(env,async client=>{const windowState=await confirmationWindowState(client,p,phone); if(!windowState.open)return windowState.reason==="resuelta"?"WINDOW_CLOSED":"WINDOW_EXPIRED"; const slot=await currentSlot(client,p); if(!slot)return "NOT_FOUND"; if(slot.date!==p.date||slot.time!==p.time)return "STALE"; if(slot.isTest){ if(["CONFIRMAR","TEST_CONFIRMAR"].includes(p.action))return "TEST_CONFIRMED"; if(["CANCELAR","TEST_CANCELAR"].includes(p.action))return "TEST_CANCELLED"; return "IGNORED_TEST_ACTION"; } if(p.action.startsWith("TEST_"))return "IGNORED_TEST_ACTION"; const r=await client.query(`SELECT public.whatsapp_apply_response($1,$2,$3,$4,$5) AS result`,[p.action,p.sourceType,p.sourceId,String(messageId||""),String(phone||"")]); return String(r.rows?.[0]?.result||"UNKNOWN");}); }
 async function updateStatuses(env,statuses){ if(!statuses?.length)return; await withClient(env,async client=>{for(const s of statuses){const mid=String(s.id||""); if(!mid)continue; const st=String(s.status||"").toLowerCase(); const err=s.errors?.[0]||{}; if(st==="delivered")await client.query(`UPDATE whatsapp_cloud.events SET status='DELIVERED',delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="read")await client.query(`UPDATE whatsapp_cloud.events SET status='READ',read_at=COALESCE(read_at,now()),delivered_at=COALESCE(delivered_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); else if(st==="failed")await client.query(`UPDATE whatsapp_cloud.events SET status='FAILED',error_code=$2,error_text=$3,updated_at=now() WHERE message_id=$1`,[mid,String(err.code||""),String(err.title||err.message||"Meta reportó fallo").slice(0,1500)]); else if(st==="sent")await client.query(`UPDATE whatsapp_cloud.events SET status=CASE WHEN status='SENDING' THEN 'SENT' ELSE status END,sent_at=COALESCE(sent_at,now()),updated_at=now() WHERE message_id=$1`,[mid]); }}); }
 async function serveInboundAudio(request,env,u){
   if(request.method!=="GET")return text("Method not allowed",405);
@@ -460,6 +496,8 @@ async function receiveWebhook(request,env){
       if(responseWasApplied(result)){
         const ackAction=result==="TEST_CONFIRMED"?"TEST_CONFIRMAR":result==="TEST_CANCELLED"?"TEST_CANCELAR":p.action;
         const ack=acknowledgementText(ackAction,env);if(ack){try{await sendTextMeta(phone,ack,env,messageId);}catch(e){console.error("whatsapp_ack_failed",e);}}
+      }else if(["WINDOW_CLOSED","WINDOW_EXPIRED"].includes(String(result||"").toUpperCase())){
+        try{await sendTextMeta(phone,automaticAssistantNotice(env),env,messageId);}catch(e){console.error("whatsapp_closed_window_notice_failed",e);}
       }
       await logButtonInbound(env,m,p,result);
       continue;
@@ -472,7 +510,7 @@ async function receiveWebhook(request,env){
 }
 
 export default {
-  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.6"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.6",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",audio_proxy:"tokenized_cloudflare",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
+  async fetch(request,env){const u=new URL(request.url);if(u.pathname==="/media/audio"||u.pathname.startsWith("/media/audio/"))return serveInboundAudio(request,env,u);if(u.pathname==="/header.jpg"){const source=String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL||DEFAULT_HEADER_IMAGE_URL).trim();const r=await fetch(source,{headers:{"User-Agent":"Dr-Revelo-WhatsApp-Worker/2.6.7"}});if(!r.ok)return text("Header unavailable",502);return new Response(r.body,{status:200,headers:{"content-type":r.headers.get("content-type")||"image/jpeg","cache-control":"public, max-age=3600"}});}if(u.pathname==="/health")return json({ok:true,service:"dr-revelo-whatsapp-cloud",worker_version:"2.6.7",scheduler:"*/5 * * * *",header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL),inbound_policy:"recordatorio_cita_only",inbound_queue:"confirmation_only",inbound_target:"origin_fallback",confirmation_window_minutes:120,audio_proxy:"tokenized_cloudflare",automation:{cita_agendada:enabled(env.ENABLE_CITA_AGENDADA),recordatorio_cita:enabled(env.ENABLE_RECORDATORIO_CITA),recordatorio_hoy:enabled(env.ENABLE_RECORDATORIO_HOY)}});if(u.pathname==="/run"&&request.method==="POST"){if(!env.ADMIN_TOKEN||request.headers.get("authorization")!==`Bearer ${env.ADMIN_TOKEN}`)return text("Forbidden",403);return json(await runScheduler(env));}if(u.pathname!=="/webhook")return text("Not found",404);if(!env.DATABASE_URL||!env.VERIFY_TOKEN||!env.META_APP_SECRET)return text("Webhook not configured",503);if(request.method==="GET")return verifyWebhook(request,env);if(request.method==="POST")return receiveWebhook(request,env);return text("Method not allowed",405);},
   async scheduled(_controller,env,ctx){ctx.waitUntil(runScheduler(env));}
 };
 

@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.6 — aviso para mensajes directos
+// Dr. Revelo WhatsApp Cloud Worker v2.6.7 — ventana de confirmacion 2h
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5344,7 +5344,7 @@ function acknowledgementText(action, env = {}) {
 }
 function responseWasApplied(result) {
   const r = String(result || "").trim().toUpperCase();
-  if (!r || ["NOT_FOUND", "STALE", "UNKNOWN"].includes(r)) return false;
+  if (!r || ["NOT_FOUND", "STALE", "UNKNOWN", "WINDOW_CLOSED", "WINDOW_EXPIRED"].includes(r)) return false;
   if (r.startsWith("ERROR") || r.startsWith("INVALID")) return false;
   return true;
 }
@@ -5502,6 +5502,36 @@ async function findInboundTarget(client, message, phone) {
   if (b2 && (String(a2.source_type) !== String(b2.source_type) || Number(a2.source_id) !== Number(b2.source_id) || String(a2.appointment_date).slice(0, 10) !== String(b2.appointment_date).slice(0, 10) || String(a2.appointment_time).slice(0, 5) !== String(b2.appointment_time).slice(0, 5))) return null;
   return { sourceType: String(a2.source_type || ""), sourceId: Number(a2.source_id || 0), date: String(a2.appointment_date || "").slice(0, 10), time: String(a2.appointment_time || "").slice(0, 5), patientName: String(a2.patient_name || ""), matchMethod: "ultimo_recordatorio" };
 }
+async function confirmationWindowState(client, target, phone = "") {
+  if (!target || !["appointment", "staged"].includes(String(target.sourceType || "")) || !Number.isInteger(Number(target.sourceId)) || Number(target.sourceId) <= 0) return { open: false, reason: "sin_target" };
+  const normalized = normalizePhone(phone);
+  const r = await client.query(`WITH ev AS (
+    SELECT COALESCE(sent_at,updated_at) opened_at
+    FROM whatsapp_cloud.events
+    WHERE template_name='recordatorio_cita'
+      AND source_type=$1 AND source_id=$2
+      AND appointment_date=$3::date AND appointment_time::time=$4::time
+      AND ($5='' OR regexp_replace(coalesce(phone,''),'\\D','','g')=$5)
+      AND status IN ('SENT','DELIVERED','READ')
+    ORDER BY sent_at DESC NULLS LAST,updated_at DESC
+    LIMIT 1
+  )
+  SELECT opened_at,
+         (opened_at > now()-interval '2 hours') AS fresh,
+         EXISTS(
+           SELECT 1 FROM whatsapp_cloud.inbound_responses ir
+           WHERE ir.source_type=$1 AND ir.source_id=$2
+             AND ir.appointment_date=$3::date AND ir.appointment_time::time=$4::time
+             AND ir.resolved_at IS NOT NULL
+             AND ir.received_at >= ev.opened_at - interval '1 minute'
+         ) AS resolved
+  FROM ev`, [String(target.sourceType), Number(target.sourceId), String(target.date || "").slice(0, 10), String(target.time || "").slice(0, 5), normalized]);
+  if (!r.rows?.length) return { open: false, reason: "sin_recordatorio" };
+  const row = r.rows[0];
+  if (row.resolved) return { open: false, reason: "resuelta", openedAt: row.opened_at };
+  if (!row.fresh) return { open: false, reason: "expirada", openedAt: row.opened_at };
+  return { open: true, reason: "abierta", openedAt: row.opened_at };
+}
 async function applyFreeformResponse(client, target, action, messageId, phone) {
   if (!target || !["appointment", "staged"].includes(target.sourceType) || !Number.isInteger(target.sourceId) || target.sourceId <= 0) return "NOT_FOUND";
   const q = target.sourceType === "staged" ? `SELECT fecha::text d,hora::text t,source_hash::text source_hash FROM public.confirmafy_agenda_items WHERE id=$1` : `SELECT fecha::text d,hora::text t,NULL::text source_hash FROM public.appointments WHERE id=$1`;
@@ -5621,6 +5651,11 @@ async function handleFreeformInbound(env, message) {
       directReply = automaticAssistantNotice(env);
       return;
     }
+    const windowState = await confirmationWindowState(client, target, phone);
+    if (!windowState.open) {
+      directReply = automaticAssistantNotice(env);
+      return;
+    }
     let interpretation = intent.interpretation, confidence = intent.confidence, applyResult = "", resolution = "", resolved = false;
     if (!target && interpretation !== "REVISAR") {
       interpretation = "REVISAR";
@@ -5663,6 +5698,7 @@ async function handleFreeformInbound(env, message) {
 }
 async function logButtonInbound(env, message, p2, result) {
   if (!p2 || p2.action.startsWith("TEST_")) return;
+  if (["WINDOW_CLOSED", "WINDOW_EXPIRED"].includes(String(result || "").toUpperCase())) return;
   try {
     await withClient(env, async (client) => {
       if (!await ensureInboundSchema(client)) return;
@@ -5823,6 +5859,8 @@ async function currentSlot(client, p2) {
 }
 async function applyResponse(env, p2, messageId, phone) {
   return withClient(env, async (client) => {
+    const windowState = await confirmationWindowState(client, p2, phone);
+    if (!windowState.open) return windowState.reason === "resuelta" ? "WINDOW_CLOSED" : "WINDOW_EXPIRED";
     const slot = await currentSlot(client, p2);
     if (!slot) return "NOT_FOUND";
     if (slot.date !== p2.date || slot.time !== p2.time) return "STALE";
@@ -5944,6 +5982,12 @@ async function receiveWebhook(request, env) {
             console.error("whatsapp_ack_failed", e);
           }
         }
+      } else if (["WINDOW_CLOSED", "WINDOW_EXPIRED"].includes(String(result || "").toUpperCase())) {
+        try {
+          await sendTextMeta(phone, automaticAssistantNotice(env), env, messageId);
+        } catch (e) {
+          console.error("whatsapp_closed_window_notice_failed", e);
+        }
       }
       await logButtonInbound(env, m2, p2, result);
       continue;
@@ -5964,11 +6008,11 @@ var whatsapp_worker_v2_6_responses_default = {
     if (u.pathname === "/media/audio" || u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.6" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.7" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.6", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", audio_proxy: "tokenized_cloudflare", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.7", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
