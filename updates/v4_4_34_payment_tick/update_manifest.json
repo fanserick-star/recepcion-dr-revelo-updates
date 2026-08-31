@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.34",
+  "app_version": "4.4.34",
+  "runtime_version": "4.4.34",
+  "launcher_version": "4.3.100-standalone-7-dynamic-port",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "app.py",
+    "update_manifest.json"
+  ],
+  "notes": "Parche mínimo sobre v4.4.33: muestra la forma de pago también en fichas POR EMITIR y deja un visto verde persistente en Efectivo o Transferencia. No toca launcher, static, .env ni datos."
+}
