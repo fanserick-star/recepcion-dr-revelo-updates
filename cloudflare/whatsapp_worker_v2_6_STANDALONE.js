@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.12 — cita_agendada para autoagendamiento
+// Dr. Revelo WhatsApp Cloud Worker v2.6.13 — enlace público de autoagendamiento
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5453,13 +5453,17 @@ async function ensureInboundSchema(client) {
 }
 function automaticAssistantNotice(env = {}) {
   const doctorPhone = String(env.DOCTOR_CONTACT_PHONE || "0968840690").trim() || "0968840690";
+  const bookingUrl = String(env.PUBLIC_BOOKING_URL || "https://fanserick-star.github.io/recepcion-dr-revelo-updates/agendar.html").trim() || "https://fanserick-star.github.io/recepcion-dr-revelo-updates/agendar.html";
   return `*Hola.*
 
 Este es el *Asistente Virtual de Confirmaciones* del consultorio del *Dr. Armando Revelo*.
 
-Este n\xFAmero se utiliza *exclusivamente para confirmar o informar que no podr\xE1 asistir a una cita m\xE9dica.*
+Este n\xFAmero se utiliza principalmente para la gesti\xF3n y confirmaci\xF3n de citas m\xE9dicas.
 
-Para agendar, reagendar o realizar cualquier otra consulta, por favor comun\xEDquese directamente con el Doctor:
+*Para agendar una nueva cita en l\xEDnea:*
+${bookingUrl}
+
+Si necesita *reagendar, cancelar o realizar otra consulta*, por favor comun\xEDquese directamente con el Doctor:
 *${doctorPhone}*
 
 Gracias por su comprensi\xF3n.`;
@@ -6186,11 +6190,11 @@ var whatsapp_worker_v2_6_responses_default = {
     if (u.pathname === "/media/audio" || u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.12" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.13" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.12", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_within_5m", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.13", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_within_5m", assistant_booking_link: "enabled", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
