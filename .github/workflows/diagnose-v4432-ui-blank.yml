@@ -53,111 +53,108 @@ jobs:
           if($mobile){ Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse }
           "UI_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
-      - name: Arrancar backend 4.4.31
-        shell: pwsh
-        run: |
-          $env:RP_FORCE_OFFLINE='1'
-          $env:RP_DATA_DIR=(Join-Path $env:UI_ROOT 'data')
-          $env:RP_PORT='18766'
-          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME='1'
-          $py=(Resolve-Path '.ui-venv\Scripts\python.exe').Path
-          $outlog=Join-Path $env:RUNNER_TEMP 'v4431-ui.stdout.log'
-          $errlog=Join-Path $env:RUNNER_TEMP 'v4431-ui.stderr.log'
-          $proc=Start-Process -FilePath $py -ArgumentList @((Join-Path $env:UI_ROOT 'app.py')) -WorkingDirectory $env:UI_ROOT -RedirectStandardOutput $outlog -RedirectStandardError $errlog -PassThru -WindowStyle Hidden
-          $proc.Id | Out-File (Join-Path $env:RUNNER_TEMP 'v4431-ui.pid') -Encoding ascii
-          $ok=$false
-          for($i=0;$i -lt 120;$i++){
-            Start-Sleep -Milliseconds 250
-            try {
-              $v=Invoke-RestMethod 'http://127.0.0.1:18766/api/version' -TimeoutSec 1
-              if([string]$v.version -eq '4.4.31'){ $ok=$true; break }
-            } catch {}
-            if($proc.HasExited){ break }
-          }
-          if(-not $ok){
-            if(Test-Path $outlog){ Get-Content $outlog -Tail 200 }
-            if(Test-Path $errlog){ Get-Content $errlog -Tail 200 }
-            throw 'Backend 4.4.31 no arrancó'
-          }
-          $homeResp=Invoke-WebRequest 'http://127.0.0.1:18766/' -UseBasicParsing -TimeoutSec 5
-          Write-Host "HOME_HTTP=$($homeResp.StatusCode) bytes=$($homeResp.RawContentLength)"
-          if($homeResp.StatusCode -ne 200 -or $homeResp.RawContentLength -lt 500){ throw 'HTML principal inválido' }
-          $jsResp=Invoke-WebRequest 'http://127.0.0.1:18766/static/app.js?v=4.4.28' -UseBasicParsing -TimeoutSec 5
-          Write-Host "APP_JS_HTTP=$($jsResp.StatusCode) bytes=$($jsResp.RawContentLength)"
-          if($jsResp.StatusCode -ne 200 -or $jsResp.RawContentLength -lt 10000){ throw 'app.js no se sirve correctamente' }
-
-      - name: Abrir interfaz con navegador real y capturar errores JS
+      - name: Smoke real - backend y navegador en el mismo proceso
         shell: pwsh
         run: |
           @'
-          import json, os, pathlib
+          import json, os, pathlib, subprocess, sys, time, urllib.request
           from playwright.sync_api import sync_playwright
 
-          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'v4431-ui-browser'
-          out.mkdir(parents=True, exist_ok=True)
-          console=[]
-          page_errors=[]
-          requests_failed=[]
-          with sync_playwright() as p:
-              browser=p.chromium.launch(headless=True)
-              page=browser.new_page(viewport={"width":1360,"height":840})
-              page.on('console', lambda msg: console.append({"type":msg.type,"text":msg.text}))
-              page.on('pageerror', lambda exc: page_errors.append(str(exc)))
-              page.on('requestfailed', lambda req: requests_failed.append({"url":req.url,"failure":req.failure}))
-              response=page.goto('http://127.0.0.1:18766/', wait_until='domcontentloaded', timeout=30000)
-              page.wait_for_timeout(3500)
-              title=page.title()
-              body_text=page.locator('body').inner_text(timeout=5000)
-              html=page.content()
-              metrics=page.evaluate('''() => ({
-                ready: document.readyState,
-                bodyChildren: document.body ? document.body.children.length : -1,
-                bodyTextLength: document.body ? document.body.innerText.length : -1,
-                app: !!document.querySelector('#app'),
-                appChildren: document.querySelector('#app') ? document.querySelector('#app').children.length : -1,
-                scripts: [...document.scripts].map(s=>s.src || '[inline]'),
-              })''')
-              page.screenshot(path=str(out/'screen.png'), full_page=True)
-              (out/'page.html').write_text(html,encoding='utf-8')
-              (out/'body.txt').write_text(body_text,encoding='utf-8')
-              (out/'diagnostic.json').write_text(json.dumps({
-                'status': response.status if response else None,
-                'title': title,
-                'metrics': metrics,
-                'console': console,
-                'page_errors': page_errors,
-                'request_failed': requests_failed,
-              },ensure_ascii=False,indent=2),encoding='utf-8')
-              print('TITLE',title)
-              print('METRICS',json.dumps(metrics,ensure_ascii=False))
-              print('BODY_START',repr(body_text[:500]))
-              print('PAGE_ERRORS',json.dumps(page_errors,ensure_ascii=False))
-              print('FAILED_REQ',json.dumps(requests_failed,ensure_ascii=False))
-              print('CONSOLE_ERRORS',json.dumps([x for x in console if x['type'] in ('error','warning')],ensure_ascii=False))
-              browser.close()
+          root=pathlib.Path(os.environ['UI_ROOT'])
+          py=pathlib.Path.cwd()/'.ui-venv'/'Scripts'/'python.exe'
+          diag=pathlib.Path(os.environ['RUNNER_TEMP'])/'v4431-ui-browser'
+          diag.mkdir(parents=True,exist_ok=True)
+          backend_log=diag/'backend.log'
+          env=os.environ.copy()
+          env['RP_FORCE_OFFLINE']='1'
+          env['RP_DATA_DIR']=str(root/'data')
+          env['RP_PORT']='18766'
+          env['DISABLE_SQLALCHEMY_CEXT_RUNTIME']='1'
 
-          if page_errors:
-              raise SystemExit('UI_BLANK_REPRODUCED: JavaScript lanzó excepción')
-          if requests_failed:
-              raise SystemExit('UI_BLANK_REPRODUCED: fallaron recursos del navegador')
-          if metrics['bodyTextLength'] < 120:
-              raise SystemExit(f"UI_BLANK_REPRODUCED: bodyTextLength={metrics['bodyTextLength']}")
-          print('BROWSER_UI_SMOKE_OK')
-          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\ui_smoke.py
-          .\.ui-venv\Scripts\python.exe $env:RUNNER_TEMP\ui_smoke.py
+          def get(url, timeout=2):
+              with urllib.request.urlopen(url,timeout=timeout) as r:
+                  return r.status,r.read()
+
+          with backend_log.open('w',encoding='utf-8') as log:
+              proc=subprocess.Popen([str(py),str(root/'app.py')],cwd=str(root),env=env,stdout=log,stderr=log)
+              try:
+                  deadline=time.time()+35
+                  version=None
+                  while time.time()<deadline:
+                      if proc.poll() is not None:
+                          raise SystemExit(f'BACKEND_EXITED_EARLY code={proc.returncode}')
+                      try:
+                          status,body=get('http://127.0.0.1:18766/api/version',1)
+                          version=json.loads(body.decode('utf-8')).get('version')
+                          if status==200 and version=='4.4.31':
+                              break
+                      except Exception:
+                          time.sleep(.25)
+                  else:
+                      raise SystemExit('BACKEND_NO_VERSION')
+
+                  status,home=get('http://127.0.0.1:18766/',5)
+                  status_js,appjs=get('http://127.0.0.1:18766/static/app.js?v=4.4.28',5)
+                  print('HTTP',status,len(home),'JS',status_js,len(appjs),'VERSION',version)
+                  if status!=200 or len(home)<500 or status_js!=200 or len(appjs)<10000:
+                      raise SystemExit('HTTP_ASSETS_INVALID')
+
+                  console=[]; page_errors=[]; failed=[]
+                  with sync_playwright() as p:
+                      browser=p.chromium.launch(headless=True)
+                      page=browser.new_page(viewport={'width':1360,'height':840})
+                      page.on('console',lambda msg: console.append({'type':msg.type,'text':msg.text}))
+                      page.on('pageerror',lambda exc: page_errors.append(str(exc)))
+                      page.on('requestfailed',lambda req: failed.append({'url':req.url,'failure':req.failure}))
+                      response=page.goto('http://127.0.0.1:18766/?ci=browser-smoke',wait_until='domcontentloaded',timeout=30000)
+                      page.wait_for_timeout(4500)
+                      body_text=page.locator('body').inner_text(timeout=5000)
+                      metrics=page.evaluate('''() => ({
+                        ready:document.readyState,
+                        bodyChildren:document.body?document.body.children.length:-1,
+                        bodyTextLength:document.body?document.body.innerText.length:-1,
+                        app:!!document.querySelector('#app'),
+                        appChildren:document.querySelector('#app')?document.querySelector('#app').children.length:-1,
+                        scripts:[...document.scripts].map(s=>s.src||'[inline]'),
+                      })''')
+                      report={
+                        'status':response.status if response else None,
+                        'title':page.title(),
+                        'metrics':metrics,
+                        'body_start':body_text[:1000],
+                        'console':console,
+                        'page_errors':page_errors,
+                        'request_failed':failed,
+                      }
+                      (diag/'diagnostic.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+                      (diag/'page.html').write_text(page.content(),encoding='utf-8')
+                      page.screenshot(path=str(diag/'screen.png'),full_page=True)
+                      print(json.dumps(report,ensure_ascii=False,indent=2))
+                      browser.close()
+
+                  if proc.poll() is not None:
+                      raise SystemExit(f'BACKEND_DIED_DURING_BROWSER code={proc.returncode}')
+                  if page_errors:
+                      raise SystemExit('UI_BLANK_REPRODUCED_PAGEERROR')
+                  if failed:
+                      raise SystemExit('UI_BLANK_REPRODUCED_REQUESTFAIL')
+                  if metrics['bodyTextLength']<120:
+                      raise SystemExit(f"UI_BLANK_REPRODUCED_BODY_{metrics['bodyTextLength']}")
+                  print('BROWSER_UI_SMOKE_OK')
+              finally:
+                  if proc.poll() is None:
+                      proc.terminate()
+                      try: proc.wait(timeout=5)
+                      except Exception: proc.kill()
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\ui_smoke_same_process.py
+          .\.ui-venv\Scripts\python.exe $env:RUNNER_TEMP\ui_smoke_same_process.py
 
       - name: Mostrar diagnóstico siempre
         if: always()
         shell: pwsh
         run: |
-          $d=Join-Path $env:RUNNER_TEMP 'v4431-ui-browser\diagnostic.json'
+          $dir=Join-Path $env:RUNNER_TEMP 'v4431-ui-browser'
+          $d=Join-Path $dir 'diagnostic.json'
           if(Test-Path $d){ Get-Content $d -Raw }
-          $outlog=Join-Path $env:RUNNER_TEMP 'v4431-ui.stdout.log'
-          $errlog=Join-Path $env:RUNNER_TEMP 'v4431-ui.stderr.log'
-          if(Test-Path $outlog){ Write-Host '--- backend stdout ---'; Get-Content $outlog -Tail 200 }
-          if(Test-Path $errlog){ Write-Host '--- backend stderr ---'; Get-Content $errlog -Tail 200 }
-          $pidfile=Join-Path $env:RUNNER_TEMP 'v4431-ui.pid'
-          if(Test-Path $pidfile){
-            $p=[int](Get-Content $pidfile -Raw)
-            Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
-          }
+          $b=Join-Path $dir 'backend.log'
+          if(Test-Path $b){ Write-Host '--- backend ---'; Get-Content $b -Tail 250 }
