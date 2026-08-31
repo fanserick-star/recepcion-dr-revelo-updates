@@ -1,4 +1,4 @@
-name: Bundle WhatsApp Worker v2.6.0
+name: Build + Deploy WhatsApp Worker v2.6.1
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - 'build/whatsapp_v26/**'
       - 'cloudflare/whatsapp_worker_v2_5_reglas_y_pruebas.js'
       - 'cloudflare/whatsapp_inbound_responses_schema.sql'
+      - 'cloudflare/wrangler.whatsapp.jsonc'
       - '.github/workflows/bundle-worker-v26.yml'
   workflow_dispatch:
 
@@ -14,12 +15,16 @@ permissions:
   contents: write
 
 concurrency:
-  group: bundle-whatsapp-worker-v26
+  group: bundle-deploy-whatsapp-worker-v26
   cancel-in-progress: false
 
 jobs:
-  bundle:
+  bundle-deploy:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CI: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,7 +36,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Generar Worker v2.6
+      - name: Generar Worker v2.6.1
         run: |
           python build/whatsapp_v26/build_worker.py
           python build/whatsapp_v26/post_build.py
@@ -39,7 +44,7 @@ jobs:
       - name: Instalar bundler y dependencia
         run: npm install --no-save esbuild @neondatabase/serverless
 
-      - name: Probar botones y respuestas libres
+      - name: Probar botones, IA y política de plantillas
         run: |
           node --check cloudflare/whatsapp_worker_v2_6_responses.js
           node --input-type=module <<'NODE'
@@ -68,34 +73,71 @@ jobs:
           if(!payload||payload.action!=='CONFIRMAR'||payload.sourceId!==12)throw new Error('Se rompió la respuesta por botón');
           if(!m.acknowledgementText('CANCELAR',{}).includes('no podrá asistir'))throw new Error('Se rompió acuse No');
           if(!m.acknowledgementText('CONFIRMAR',{}).includes('asistencia ha quedado registrada'))throw new Error('Se rompió acuse Sí');
-          console.log('WHATSAPP_V26_RULES_OK');
+          console.log('WHATSAPP_V261_RULES_OK');
           NODE
 
-      - name: Validar seguridad de la bandeja
+      - name: Validar seguridad de la bandeja y aviso automático
         run: |
           python - <<'PY'
           from pathlib import Path
           s=Path('cloudflare/whatsapp_worker_v2_6_responses.js').read_text(encoding='utf-8')
-          for marker in ['whatsapp_cloud.inbound_responses','solicita_reagendar','@cf/openai/whisper-large-v3-turbo','env.AI.run','audio_too_large','ON CONFLICT(message_id)','worker_version:"2.6.0"']:
+          for marker in [
+            'whatsapp_cloud.inbound_responses','solicita_reagendar','@cf/openai/whisper-large-v3-turbo',
+            'env.AI.run','audio_too_large','ON CONFLICT(message_id)','worker_version:"2.6.1"',
+            'automaticAssistantNotice','ASISTENTE_AUTOMATICO','origin.templateName!=="recordatorio_cita"',
+            'únicamente para confirmaciones de citas','DOCTOR_CONTACT_PHONE','inbound_policy:"recordatorio_cita_only"'
+          ]:
               assert marker in s, marker
-          assert 'if(!target && interpretation!=="REVISAR")' in s
+          # El camino informativo de las otras plantillas no llama a applyFreeformResponse.
+          block=s[s.index('if(origin && origin.templateName'):s.index('const target=await findInboundTarget')]
+          assert 'applyFreeformResponse' not in block
           insert=s[s.index('async function saveInboundRow'):s.index('async function handleFreeformInbound')]
           assert 'buffer' not in insert.lower()
-          print('WHATSAPP_V26_SAFETY_OK')
+          print('WHATSAPP_V261_SAFETY_OK')
           PY
 
-      - name: Generar y validar standalone
+      - name: Generar standalone
         run: |
-          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.0 — texto, audio y revisión humana'
+          npx esbuild cloudflare/whatsapp_worker_v2_6_responses.js --bundle --format=esm --platform=browser --target=es2022 --outfile=cloudflare/whatsapp_worker_v2_6_STANDALONE.js --banner:js='// Dr. Revelo WhatsApp Cloud Worker v2.6.1 — confirmaciones, audio y revisión humana'
           cp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
           node --check cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.0"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -q 'inbound_responses' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -Eq 'worker_version[[:space:]]*:[[:space:]]*"2\.6\.1"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'recordatorio_cita_only' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'automaticAssistantNotice' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
+          grep -q 'DOCTOR_CONTACT_PHONE' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'whisper-large-v3-turbo' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
           grep -q 'NO_ASISTIRA' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          grep -q 'TEST_CONFIRMAR' cloudflare/whatsapp_worker_v2_6_STANDALONE.js
-          if grep -q 'from "@neondatabase/serverless"' cloudflare/whatsapp_worker_v2_6_STANDALONE.js; then exit 1; fi
           cmp cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt
+
+      - name: Desplegar automáticamente en Cloudflare
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
+
+      - name: Verificar parche exacto en producción
+        run: |
+          set -euo pipefail
+          URL='https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/health'
+          for i in $(seq 1 30); do
+            BODY="$(curl -fsS --max-time 8 -H 'Cache-Control: no-cache' "$URL?ci=$(date +%s%N)" || true)"
+            if BODY="$BODY" node - <<'NODE'
+          try {
+            const d=JSON.parse(process.env.BODY||'{}');
+            if(d.ok===true && d.worker_version==='2.6.1' && d.inbound_policy==='recordatorio_cita_only') process.exit(0);
+          } catch {}
+          process.exit(1);
+          NODE
+            then
+              echo 'WHATSAPP_WORKER_V261_LIVE_OK'
+              printf '%s\n' "$BODY"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Cloudflare no confirmó v2.6.1 con la política esperada.'
+          exit 1
 
       - name: Guardar fuente y bundle validados
         run: |
@@ -103,9 +145,9 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add cloudflare/whatsapp_worker_v2_6_responses.js cloudflare/whatsapp_worker_v2_6_STANDALONE.js cloudflare/WHATSAPP_WORKER_v2_6_STANDALONE.txt cloudflare/whatsapp_inbound_responses_schema.sql
           if git diff --cached --quiet; then
-            echo 'Worker v2.6 ya estaba actualizado.'
+            echo 'Worker v2.6.1 ya estaba actualizado.'
           else
-            git commit -m 'build: WhatsApp Worker v2.6.0 validado'
+            git commit -m 'build: WhatsApp Worker v2.6.1 validado y desplegado'
             git pull --rebase origin main
             git push origin HEAD:main
           fi
