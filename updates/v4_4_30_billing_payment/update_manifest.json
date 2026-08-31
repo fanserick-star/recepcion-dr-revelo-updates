@@ -1,0 +1,10 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.30",
+  "app_version": "4.4.30",
+  "runtime_version": "4.4.30",
+  "built_at": "2026-08-31T20:10:00Z",
+  "relative_dir": "v4_4_30_billing_payment",
+  "source": "files-v3",
+  "notes": "Forma de pago en Facturación: visto de Efectivo o Transferencia antes de emitir; corrige distintivo visual de versión."
+}
