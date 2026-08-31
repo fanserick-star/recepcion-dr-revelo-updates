@@ -1,0 +1,23 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.36",
+  "app_version": "4.4.36",
+  "runtime_version": "4.4.36",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.36: Efectivo queda marcado por defecto en cada ficha POR EMITIR; Transferencia se cambia manualmente sin alertas de aprobación. La factura usa SRI 01 por defecto y SRI 20 si se cambia a transferencia. No toca launcher, datos, .env ni static.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_36_default_cash/app.py",
+      "sha256": "2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_36_default_cash/update_manifest.json",
+      "sha256": "c1b81e876df3a0cb1e0dbf7fbe4477c95d5f6c080c39f9afe6fb6929010dd5ac",
+      "encoding": "utf-8"
+    }
+  ]
+}

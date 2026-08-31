@@ -1,0 +1,13 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.36",
+  "app_version": "4.4.36",
+  "runtime_version": "4.4.36",
+  "launcher_version": "4.3.100-standalone-7-dynamic-port",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "app.py",
+    "update_manifest.json"
+  ],
+  "notes": "Efectivo queda seleccionado por defecto en cada ficha POR EMITIR (SRI 01). Transferencia se cambia manualmente sin exigir estado APROBADA. No toca launcher, static, .env ni datos."
+}
