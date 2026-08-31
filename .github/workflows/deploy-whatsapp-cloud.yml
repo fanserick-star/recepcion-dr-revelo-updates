@@ -28,42 +28,33 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Verificar autorización de Cloudflare
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN" || { echo 'Falta CLOUDFLARE_API_TOKEN'; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo 'Falta CLOUDFLARE_ACCOUNT_ID'; exit 1; }
-          echo 'Credenciales de despliegue presentes (valores ocultos).'
-
-      - name: Validar Worker v2.6 antes de publicar
+      - name: Validar Worker v2.6.1 antes de publicar
         shell: bash
         run: |
           set -euo pipefail
           FILE='cloudflare/whatsapp_worker_v2_6_STANDALONE.js'
           test -s "$FILE"
-          grep -q '2.6.0' "$FILE"
+          grep -q '2.6.1' "$FILE"
+          grep -q 'recordatorio_cita_only' "$FILE"
+          grep -q 'automaticAssistantNotice' "$FILE"
+          grep -q 'DOCTOR_CONTACT_PHONE' "$FILE"
           grep -q 'whisper-large-v3-turbo' "$FILE"
-          grep -q 'inbound_responses' "$FILE"
-          grep -q 'NO_ASISTIRA' "$FILE"
-          grep -q 'TEST_CONFIRMAR' "$FILE"
-          echo 'Worker v2.6 validado.'
-
       - name: Desplegar en dr-revelo-whatsapp-cloud
         shell: bash
         run: |
           set -euo pipefail
-          npx --yes wrangler@4 deploy \
-            --config cloudflare/wrangler.whatsapp.jsonc \
-            --keep-vars
-
-      - name: Verificar versión publicada
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
+      - name: Verificar versión y política publicada
         shell: bash
         run: |
           set -euo pipefail
@@ -73,16 +64,16 @@ jobs:
             if BODY="$BODY" node - <<'NODE'
           try {
             const d = JSON.parse(process.env.BODY || '{}');
-            if (d.ok === true && d.service === 'dr-revelo-whatsapp-cloud' && d.worker_version === '2.6.0') process.exit(0);
+            if (d.ok === true && d.service === 'dr-revelo-whatsapp-cloud' && d.worker_version === '2.6.1' && d.inbound_policy === 'recordatorio_cita_only') process.exit(0);
           } catch {}
           process.exit(1);
           NODE
             then
-              echo 'WHATSAPP_WORKER_V26_LIVE_OK'
+              echo 'WHATSAPP_WORKER_V261_LIVE_OK'
               printf '%s\n' "$BODY"
               exit 0
             fi
             sleep 2
           done
-          echo 'El despliegue terminó, pero /health no confirmó v2.6.0 a tiempo.'
+          echo 'El despliegue terminó, pero /health no confirmó v2.6.1 a tiempo.'
           exit 1
