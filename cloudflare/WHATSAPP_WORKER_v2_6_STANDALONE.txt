@@ -5504,11 +5504,13 @@ async function findInboundTarget(client, message, phone) {
 }
 async function applyFreeformResponse(client, target, action, messageId, phone) {
   if (!target || !["appointment", "staged"].includes(target.sourceType) || !Number.isInteger(target.sourceId) || target.sourceId <= 0) return "NOT_FOUND";
-  const q = target.sourceType === "staged" ? `SELECT fecha::text d,hora::text t FROM public.confirmafy_agenda_items WHERE id=$1` : `SELECT fecha::text d,hora::text t FROM public.appointments WHERE id=$1`;
+  const q = target.sourceType === "staged" ? `SELECT fecha::text d,hora::text t,source_hash::text source_hash FROM public.confirmafy_agenda_items WHERE id=$1` : `SELECT fecha::text d,hora::text t,NULL::text source_hash FROM public.appointments WHERE id=$1`;
   const slot = await client.query(q, [target.sourceId]);
   if (!slot.rows?.length) return "NOT_FOUND";
   const d2 = String(slot.rows[0].d || "").slice(0, 10), t = String(slot.rows[0].t || "").slice(0, 5);
   if (d2 !== target.date || t !== target.time) return "STALE";
+  const isTest = String(slot.rows[0].source_hash || "").startsWith(CLOUD_TEST_PREFIX);
+  if (isTest) return action === "CONFIRMAR" ? "TEST_CONFIRMED" : "TEST_CANCELLED";
   const r = await client.query(`SELECT public.whatsapp_apply_response($1,$2,$3,$4,$5) AS result`, [action, target.sourceType, target.sourceId, String(messageId || ""), String(phone || "")]);
   return String(r.rows?.[0]?.result || "UNKNOWN");
 }
@@ -5621,7 +5623,7 @@ async function handleFreeformInbound(env, message) {
       if (responseWasApplied(applyResult)) {
         resolved = true;
         resolution = action;
-        ackAction = action;
+        ackAction = applyResult === "TEST_CONFIRMED" ? "TEST_CONFIRMAR" : applyResult === "TEST_CANCELLED" ? "TEST_CANCELAR" : action;
       } else {
         interpretation = "REVISAR";
         confidence = Math.min(confidence, 30);
