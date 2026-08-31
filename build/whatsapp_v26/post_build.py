@@ -54,11 +54,20 @@ new_handle='''  const intent=classifyInboundText(type==="audio"?transcription:ra
 if old_handle not in s: raise SystemExit('No encontré handleFreeformInbound esperado')
 s=s.replace(old_handle,new_handle,1)
 
-# 4) Identificador de release para verificar el parche exacto en Cloudflare.
+# 4) El texto de prueba debe servir igual para botón, texto o audio.
+yes_old='Prueba recibida: el botón Sí funciona correctamente. No se modificó ninguna cita real.'
+yes_new='Prueba recibida: la confirmación se procesó correctamente. No se modificó ninguna cita real.'
+no_old='Prueba recibida: el botón No funciona correctamente. No se modificó ninguna cita real.'
+no_new='Prueba recibida: la respuesta de no asistencia se procesó correctamente. No se modificó ninguna cita real.'
+if yes_old not in s or no_old not in s:
+    raise SystemExit('No encontré los mensajes técnicos de prueba esperados')
+s=s.replace(yes_old,yes_new,1).replace(no_old,no_new,1)
+
+# 5) Identificador de release para verificar el parche exacto en Cloudflare.
 s=s.replace('2.6.0','2.6.1')
 s=s.replace('automation:{cita_agendada:', 'inbound_policy:"recordatorio_cita_only",automation:{cita_agendada:', 1)
 
-for marker in ['automaticAssistantNotice','ASISTENTE_AUTOMATICO','recordatorio_cita_only','worker_version:"2.6.1"','TEST_CONFIRMED','source_hash::text source_hash']:
+for marker in ['automaticAssistantNotice','ASISTENTE_AUTOMATICO','recordatorio_cita_only','worker_version:"2.6.1"','TEST_CONFIRMED','source_hash::text source_hash','la confirmación se procesó correctamente','la respuesta de no asistencia se procesó correctamente']:
     if marker not in s: raise SystemExit(f'Falta marcador final: {marker}')
 
 p.write_text(s,encoding='utf-8',newline='\n')
