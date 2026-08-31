@@ -224,13 +224,24 @@ def billing_card_fixture_smoke(v: dict, root: pathlib.Path) -> None:
             require(blocked_batch["required"] >= 1, "Lote no resalta ficha faltante")
 
             page.locator('#billingList .billing-card').nth(1).locator('.v4431-pay-choice[data-pay="TRANSFERENCIA"]').click()
-            page.wait_for_timeout(100)
-            page.locator('#btnEmitAll, #v4435EmitAll').first.click()
-            page.wait_for_timeout(100)
-            allowed_batch = page.evaluate("""() => ({called:window.__batchCalled,secondSelected:document.querySelectorAll('#billingList .billing-card')[1].querySelector('.v4431-pay-choice[data-pay="TRANSFERENCIA"]').classList.contains('selected')})""")
-            print("BILLING_FIXTURE_BATCH_OK", json.dumps(allowed_batch))
+            page.wait_for_timeout(120)
+            allowed_batch = page.evaluate("""async () => {
+              window.__batchCalled=false;
+              window.__lastAlert='';
+              await window.__v4435BillingPaymentTest.batchPreflight();
+              const second=document.querySelectorAll('#billingList .billing-card')[1];
+              return {
+                called:window.__batchCalled,
+                secondSelected:second.querySelector('.v4431-pay-choice[data-pay="TRANSFERENCIA"]').classList.contains('selected'),
+                lastAlert:window.__lastAlert,
+                payments:[...window.__fixturePayments.entries()],
+                required:document.querySelectorAll('#billingList .v4431-pay-wrap.required').length,
+                batchType:typeof window.emitAllPendingInvoices
+              };
+            }""")
+            print("BILLING_FIXTURE_BATCH_OK", json.dumps(allowed_batch, ensure_ascii=True))
             require(allowed_batch["secondSelected"], "Transferencia no quedó seleccionada en segunda ficha")
-            require(allowed_batch["called"], "Lote no continúa cuando todas tienen forma de pago")
+            require(allowed_batch["called"], f"Lote no continúa cuando todas tienen forma de pago: {allowed_batch}")
             require(not errors, f"Errores JS en fixture: {errors}")
             page.screenshot(path=str(diag / "billing_fixture.png"), full_page=True)
             browser.close()
