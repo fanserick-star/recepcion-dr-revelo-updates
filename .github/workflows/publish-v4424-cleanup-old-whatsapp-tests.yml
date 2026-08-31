@@ -1,0 +1,114 @@
+name: Publicar v4.4.24 limpieza pruebas WhatsApp
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4424_cleanup_old_whatsapp_tests/**'
+      - '.github/workflows/publish-v4424-cleanup-old-whatsapp-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4424-cleanup-old-whatsapp-tests
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.24 desde v4.4.23
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          python build/v4424_cleanup_old_whatsapp_tests/build_release.py
+          python -m py_compile updates/v4_4_24_cleanup_old_whatsapp_tests/app.py
+          node --check updates/v4_4_24_cleanup_old_whatsapp_tests/static/app.js
+
+      - name: Validar limpieza segura
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json
+          root=Path('updates/v4_4_24_cleanup_old_whatsapp_tests')
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          js=(root/'static/app.js').read_text(encoding='utf-8-sig')
+          html=(root/'static/index.html').read_text(encoding='utf-8-sig')
+          channel=json.loads(Path('build/v4424_cleanup_old_whatsapp_tests/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          assert 'APP_VERSION = "4.4.24"' in app
+          assert 'WA_TEST_CLEANUP_PHONE_V4424 = "593967841449"' in app
+          assert '@app.post("/api/whatsapp-responses/cleanup-old-tests")' in app
+          assert "upper(coalesce(interpretation,'')) = 'REVISAR'" in app
+          assert "resolution = 'RESUELTO'" in app
+          assert 'received_at < :cutoff' in app
+          assert "UPDATE whatsapp_cloud.inbound_responses" in app
+          assert 'UPDATE appointments' not in app[app.index('WA_TEST_CLEANUP_PHONE_V4424'):app.index('@app.get("/api/whatsapp-responses/count")')]
+          assert 'cleanupOldWhatsappTestsOnce' in js
+          assert "rp-v4424-wa-old-tests-cleaned" in js
+          assert '/static/app.js?v=4.4.24' in html
+          assert channel['version']=='4.4.24'
+          assert all('/main/' in f['url'] for f in channel['files'])
+          for p in root.rglob('*'):
+              if p.is_file() and p.suffix.lower() in {'.csv','.xlsx','.xls','.db','.sqlite'}:
+                  raise AssertionError(f'Dato no permitido en payload: {p}')
+          print('V4424_CLEANUP_SCOPE_OK')
+          '@ | python -
+
+      - name: Publicar payload
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r --ignore-unmatch updates/v4_4_24_cleanup_old_whatsapp_tests/__pycache__
+          git add updates/v4_4_24_cleanup_old_whatsapp_tests
+          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.24 limpiar pruebas WhatsApp antiguas'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar payload remoto
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4424_cleanup_old_whatsapp_tests/candidate_latest.json
+
+      - name: Mover canal a v4.4.24
+        shell: pwsh
+        run: |
+          Copy-Item build/v4424_cleanup_old_whatsapp_tests/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4424_cleanup_old_whatsapp_tests/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.24 limpieza pruebas WhatsApp'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar canal final
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4424-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4424-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r: raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.24':
+                      out.write_bytes(raw);print('CHANNEL_4424_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else: raise SystemExit('Canal no propagó 4.4.24; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4424.py
+          python $env:RUNNER_TEMP\wait4424.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4424-remote.json
+          Write-Host 'V4424_PUBLISHED_AND_VERIFIED'
