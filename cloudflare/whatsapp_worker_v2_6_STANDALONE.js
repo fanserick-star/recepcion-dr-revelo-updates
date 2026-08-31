@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.11 — autoagendamiento público
+// Dr. Revelo WhatsApp Cloud Worker v2.6.12 — cita_agendada para autoagendamiento
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5754,9 +5754,14 @@ WITH base AS (
   WHERE $3::boolean
     AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
     AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
-    AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
-          - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
-    AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
+    AND (
+      coalesce(b.source_hash,'') LIKE 'mobile:autoagenda:%'
+      OR (
+        ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
+              - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
+        AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)
+      )
+    )
   UNION ALL
   SELECT b.*,
          CASE
@@ -6181,11 +6186,11 @@ var whatsapp_worker_v2_6_responses_default = {
     if (u.pathname === "/media/audio" || u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.11" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.12" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.11", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", booking: "public_v1", booking_cache_seconds: 60, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.12", scheduler: "*/5 * * * *", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_within_5m", automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
