@@ -1,0 +1,12 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.32",
+  "app_version": "4.4.31",
+  "runtime_version": "4.4.31",
+  "launcher_version": "4.4.32-dynamic-port-patch-1",
+  "updater_version": "integrado-en-launcher",
+  "copy": [
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json"
+  ]
+}
