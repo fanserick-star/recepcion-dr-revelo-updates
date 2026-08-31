@@ -1,0 +1,10 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.31",
+  "app_version": "4.4.31",
+  "runtime_version": "4.4.31",
+  "built_at": "2026-08-31T20:25:00Z",
+  "relative_dir": "v4_4_31_startup_guard",
+  "source": "files-v3",
+  "notes": "Arranque blindado: base estable directa + mejoras fail-open. Forma de pago en Facturación antes de emitir."
+}
