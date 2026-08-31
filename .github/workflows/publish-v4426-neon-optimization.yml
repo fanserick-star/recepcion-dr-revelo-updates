@@ -1,0 +1,110 @@
+name: Publicar v4.4.26 optimizacion Neon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4426_neon_optimization/**'
+      - '.github/workflows/publish-v4426-neon-optimization.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4426-neon-optimization
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.26 desde v4.4.25
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          python build/v4426_neon_optimization/build_release.py
+          python -m py_compile updates/v4_4_26_neon_optimization/app.py
+          node --check updates/v4_4_26_neon_optimization/static/app.js
+
+      - name: Validar ahorro Neon local-first
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json
+          root=Path('updates/v4_4_26_neon_optimization')
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          html=(root/'static/index.html').read_text(encoding='utf-8-sig')
+          channel=json.loads(Path('build/v4426_neon_optimization/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          assert 'APP_VERSION = "4.4.26"' in app
+          assert 'CLOUD_CHECK_SECONDS = 600.0' in app
+          assert 'CACHE_REFRESH_SECONDS = 3600' in app
+          assert 'IDLE_AFTER_SECONDS = 300' in app
+          assert 'client_idle' in app
+          assert '@app.get("/api/auto-bookings/recent")' in app
+          assert 'source": "sqlite-local"' in app
+          assert '/static/app.js?v=4.4.26' in html
+          assert channel['version']=='4.4.26'
+          assert all('/main/' in f['url'] for f in channel['files'])
+          for p in root.rglob('*'):
+              if p.is_file() and p.suffix.lower() in {'.csv','.xlsx','.xls','.db','.sqlite'}:
+                  raise AssertionError(f'Dato no permitido en payload: {p}')
+          print('V4426_NEON_LOCAL_FIRST_OK')
+          '@ | python -
+
+      - name: Publicar payload
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r --ignore-unmatch updates/v4_4_26_neon_optimization/__pycache__
+          git add updates/v4_4_26_neon_optimization
+          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.26 optimizacion Neon'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar payload remoto
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4426_neon_optimization/candidate_latest.json
+
+      - name: Mover canal a v4.4.26
+        shell: pwsh
+        run: |
+          Copy-Item build/v4426_neon_optimization/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4426_neon_optimization/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.26 optimizacion Neon'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar canal final
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4426-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4426-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r: raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.26':
+                      out.write_bytes(raw);print('CHANNEL_4426_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else: raise SystemExit('Canal no propagó 4.4.26; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4426.py
+          python $env:RUNNER_TEMP\wait4426.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4426-remote.json
+          Write-Host 'V4426_PUBLISHED_AND_VERIFIED'
