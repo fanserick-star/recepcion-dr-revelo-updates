@@ -1,0 +1,132 @@
+name: Publicar v4.4.27 ultra optimizacion Neon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4427_neon_ultra/**'
+      - '.github/workflows/publish-v4427-neon-ultra.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4427-neon-ultra
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Construir v4.4.27 desde v4.4.26
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          python build/v4427_neon_ultra/build_release.py
+          python -m py_compile updates/v4_4_27_neon_ultra/app.py
+          node --check updates/v4_4_27_neon_ultra/static/app.js
+
+      - name: Validar ultra ahorro Neon
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json
+          root=Path('updates/v4_4_27_neon_ultra')
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          js=(root/'static/app.js').read_text(encoding='utf-8-sig')
+          html=(root/'static/index.html').read_text(encoding='utf-8-sig')
+          channel=json.loads(Path('build/v4427_neon_ultra/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          assert 'APP_VERSION = "4.4.27"' in app
+          assert 'CACHE_REFRESH_SECONDS = 12 * 60 * 60' in app
+          assert 'AGENDA_CACHE_REFRESH_SECONDS = 30 * 60' in app
+          assert 'def refresh_remote_agenda_cache(' in app
+          assert 'def schedule_remote_agenda_refresh(' in app
+          assert 'cloud_wake_needed = bool(configured and (pending > 0 or idle_for >= REMOTE_REFRESH_IDLE_SECONDS))' in app
+          assert 'cloud_wake_skipped' in app
+          assert 'cache_refresh_kind' in app
+          assert 'cache_meta_set(ldb, "last_agenda_sync"' in app
+          assert 'Abriendo la copia local · Neon solo se usará si realmente hace falta' in js
+          assert '/static/app.js?v=4.4.27' in html
+          assert channel['version']=='4.4.27'
+          assert all('/main/' in f['url'] for f in channel['files'])
+
+          # El refresco ligero de Agenda no puede releer tablas clínicas completas.
+          start=app.index('def refresh_remote_agenda_cache(')
+          end=app.index('def schedule_remote_agenda_refresh(',start)
+          light=app[start:end]
+          assert 'select(Appointment)' in light
+          assert 'select(ConfirmafyAgendaItem)' in light
+          for forbidden in ['select(Patient)','select(Visit)','select(BillingRecord)','select(AzurEmission)','select(BillingPreference)','select(Procedure)','select(User)']:
+              assert forbidden not in light, forbidden
+
+          # Volver de AFK corto no puede ejecutar un check_cloud forzado de forma incondicional.
+          start=app.index('@app.post("/api/power/wake")')
+          end=app.index('@app.get("/api/window-mode")',start)
+          wake=app[start:end]
+          assert 'check_cloud(force=True) if cloud_wake_needed else cached_online' in wake
+          assert 'online = check_cloud(force=True) if configured else False' not in wake
+
+          # El payload de actualización jamás lleva bases locales ni Excel.
+          for p in root.rglob('*'):
+              if p.is_file() and p.suffix.lower() in {'.csv','.xlsx','.xls','.db','.sqlite'}:
+                  raise AssertionError(f'Dato no permitido en payload: {p}')
+          print('V4427_NEON_ULTRA_OK')
+          '@ | python -
+
+      - name: Publicar payload
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r --ignore-unmatch updates/v4_4_27_neon_ultra/__pycache__
+          git add updates/v4_4_27_neon_ultra
+          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.27 ultra optimizacion Neon'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Verificar payload remoto
+        shell: pwsh
+        run: python tools/remote_payload_guard.py --manifest build/v4427_neon_ultra/candidate_latest.json
+
+      - name: Mover canal a v4.4.27
+        shell: pwsh
+        run: |
+          Copy-Item build/v4427_neon_ultra/candidate_latest.json latest-v3.json -Force
+          Copy-Item build/v4427_neon_ultra/candidate_latest.json latest.json -Force
+          git add latest-v3.json latest.json
+          if(-not (git diff --cached --quiet)){git commit -m 'release: publicar v4.4.27 ultra optimizacion Neon'}
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Confirmar canal final
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request,pathlib,os
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'latest-v4427-remote.json'
+          last=''
+          for _ in range(45):
+              try:
+                  req=urllib.request.Request(url+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'RP-v4427-guard'})
+                  with urllib.request.urlopen(req,timeout=10) as r: raw=r.read()
+                  d=json.loads(raw.decode('utf-8-sig'))
+                  if str(d.get('version'))=='4.4.27':
+                      out.write_bytes(raw);print('CHANNEL_4427_VISIBLE');break
+                  last=str(d.get('version'))
+              except Exception as e:last=repr(e)
+              time.sleep(1)
+          else: raise SystemExit('Canal no propagó 4.4.27; último='+last)
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\wait4427.py
+          python $env:RUNNER_TEMP\wait4427.py
+          python tools/remote_payload_guard.py --manifest $env:RUNNER_TEMP\latest-v4427-remote.json
+          Write-Host 'V4427_PUBLISHED_AND_VERIFIED'
