@@ -1,16 +1,16 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.29",
-  "app_version": "4.4.29",
-  "runtime_version": "4.4.29",
+  "version": "4.4.30",
+  "app_version": "4.4.30",
+  "runtime_version": "4.4.30",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.29: añade Forma de pago obligatoria en Nueva atención. Efectivo se envía a AZUR/SRI como 01 y Transferencia bancaria como 20. No modifica pacientes, citas, facturas históricas, Excel ni bases SQLite.",
+  "message": "v4.4.30: mueve la forma de pago a Facturación. En cada ficha APROBADA se marca con un visto Efectivo (SRI 01) o Transferencia (SRI 20) antes de emitir en AZUR. Corrige además el distintivo visual de versión. No modifica pacientes, citas, facturas históricas, Excel ni bases SQLite.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_29_payment_method/app.py",
-      "sha256": "ed1cc2ffb24b586558e35973dd042429f5d6c65ee55042a3f5a3f066bec93ad9",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_30_billing_payment/app.py",
+      "sha256": "5f39fc4047909c60431e620787711b5692273862560f4eae58d77f8005683852",
       "encoding": "utf-8"
     },
     {
@@ -27,8 +27,8 @@
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_29_payment_method/update_manifest.json",
-      "sha256": "76762f7ec821b6fc315262730f3a52ba7e41d695a86288e39292a122d413c04d",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_30_billing_payment/update_manifest.json",
+      "sha256": "7806291d2204b099499b57942cd246f5dee5facbd108ec848986b851a628fbe3",
       "encoding": "utf-8"
     }
   ]
