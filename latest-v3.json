@@ -1,16 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.30",
-  "app_version": "4.4.30",
-  "runtime_version": "4.4.30",
+  "version": "4.4.31",
+  "app_version": "4.4.31",
+  "runtime_version": "4.4.31",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.30: mueve la forma de pago a Facturación. En cada ficha APROBADA se marca con un visto Efectivo (SRI 01) o Transferencia (SRI 20) antes de emitir en AZUR. Corrige además el distintivo visual de versión. No modifica pacientes, citas, facturas históricas, Excel ni bases SQLite.",
+  "message": "v4.4.31: rescate y arranque blindado. El programa vuelve a una base estable directa, sin encadenar versiones; las mejoras quedan fail-open para que un fallo funcional no deje la ventana en blanco. La forma de pago se selecciona en Facturación antes de emitir: Efectivo SRI 01 o Transferencia SRI 20. No modifica pacientes, citas, facturas históricas, Excel ni bases SQLite.",
   "files": [
     {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_28_overlay_hotfix/app.py",
+      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+      "encoding": "utf-8"
+    },
+    {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_30_billing_payment/app.py",
-      "sha256": "5f39fc4047909c60431e620787711b5692273862560f4eae58d77f8005683852",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_31_startup_guard/app.py",
+      "sha256": "e4019a6b3ad75da50b000fa7691e43b233d8696b8863e8509f089993442c8389",
       "encoding": "utf-8"
     },
     {
@@ -27,8 +33,8 @@
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_30_billing_payment/update_manifest.json",
-      "sha256": "7806291d2204b099499b57942cd246f5dee5facbd108ec848986b851a628fbe3",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_31_startup_guard/update_manifest.json",
+      "sha256": "59c18e220f4eb049df379c813676c9020226a3cd6243b9065e56de005ed09966",
       "encoding": "utf-8"
     }
   ]
