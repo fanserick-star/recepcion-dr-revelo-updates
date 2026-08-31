@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Recepción de Pacientes</title>
+  <link rel="icon" type="image/x-icon" href="/static/doctor_icon.ico?v=4.3.97">
+  <link rel="shortcut icon" type="image/x-icon" href="/static/doctor_icon.ico?v=4.3.97">
+  <link rel="stylesheet" href="/static/style.css?v=4.3.34">
+
+<style id="v4413-patient-profile-css">
+.v4413-attention-result{display:flex;align-items:center;gap:14px;padding:13px 10px;border-bottom:1px solid #e6edf5;cursor:pointer;transition:background .12s ease,border-color .12s ease;border-radius:10px}.v4413-attention-result:hover,.v4413-attention-result:focus{background:#f4f8ff;outline:none}.v4413-result-main{min-width:0;flex:1;display:grid;gap:5px}.v4413-result-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.v4413-result-name-row>b{font-size:14px;color:#17263d}.v4413-result-meta{font-size:11px;color:#637995}.v4413-result-last{font-size:12px;color:#245b91}.v4413-result-last.empty{color:#7a8898;font-weight:700}.v4413-result-last.historical{color:#87651d}.v4413-result-warning{font-size:9px;font-weight:900;color:#9a6400;background:#fff5d7;border:1px solid #f0d68e;border-radius:999px;padding:3px 7px}.v4413-result-chevron{font-size:27px;color:#8aa4c3;font-weight:300}.modalbox.v4413-profile-shell{width:min(930px,96vw)!important;max-width:930px!important;max-height:92vh!important;overflow:auto!important}.v4413-patient-profile{display:grid;gap:14px}.v4413-profile-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding-right:58px}.modalbox.v4413-profile-shell>.x{z-index:8}.v4413-profile-name>span{font-size:9px;font-weight:950;letter-spacing:.08em;color:#5e7da0}.v4413-profile-name h2{margin:3px 0 7px;font-size:24px;color:#172b46}.v4413-profile-identity{display:flex;gap:8px;flex-wrap:wrap;color:#627892;font-size:11px}.v4413-profile-identity>*{background:#f2f6fb;border-radius:999px;padding:4px 8px}.v4413-profile-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.v4413-profile-warning,.v4413-profile-complete{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;border-radius:13px;padding:10px 12px}.v4413-profile-warning{background:#fff7df;border:1px solid #f0d58a;color:#6f5311}.v4413-profile-complete{grid-template-columns:auto 1fr;background:#eef9f2;border:1px solid #c9e9d3;color:#2c6740}.v4413-profile-warning b,.v4413-profile-complete b{display:block;font-size:12px}.v4413-profile-warning small,.v4413-profile-complete small{display:block;font-size:10px;margin-top:2px}.v4413-warning-icon{font-size:20px}.v4413-profile-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.v4413-profile-kpis>div{border:1px solid #dce6f1;background:#f8fbff;border-radius:12px;padding:10px}.v4413-profile-kpis span{display:block;font-size:9px;font-weight:850;text-transform:uppercase;color:#70849b}.v4413-profile-kpis b{display:block;margin-top:4px;font-size:15px;color:#17385f}.v4413-profile-tabs{display:flex;gap:5px;border-bottom:1px solid #dde6ef;padding-bottom:7px;overflow:auto}.v4413-profile-tabs button{border:0;background:transparent;padding:8px 11px;border-radius:9px;font-weight:800;color:#5a708b;white-space:nowrap}.v4413-profile-tabs button.active{background:#eaf3ff;color:#245b96}.v4413-profile-tabs button span{display:inline-flex;min-width:20px;justify-content:center;background:#fff;border-radius:999px;margin-left:4px;padding:1px 5px;font-size:9px}.v4413-profile-panels>section{padding-top:2px}.v4413-data-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.v4413-data-grid>div{border:1px solid #e2e9f1;border-radius:11px;padding:10px 12px}.v4413-data-grid span{display:block;font-size:9px;font-weight:850;text-transform:uppercase;color:#72849a}.v4413-data-grid b{display:block;margin-top:4px;font-size:12px;color:#263a53;overflow-wrap:anywhere}.v4413-profile-notes{margin-top:9px;padding:10px 12px;border-radius:11px;background:#f7f8fa}.v4413-profile-notes span{font-size:9px;font-weight:900;color:#6b7c90;text-transform:uppercase}.v4413-profile-notes p{margin:4px 0 0;font-size:11px;color:#394b60}.v4413-profile-section-title,.v4413-profile-subhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 9px}.v4413-profile-section-title h3{margin:0;font-size:15px;color:#243950}.v4413-profile-section-title span,.v4413-profile-subhead span{font-size:10px;color:#788a9d}.v4413-profile-subhead{margin-top:14px;border-bottom:1px solid #e6edf4;padding-bottom:6px}.v4413-profile-subhead>b{font-size:11px;color:#354c67}.v4413-profile-timeline{display:grid;gap:7px}.v4413-timeline-row{display:grid;grid-template-columns:125px minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid #e2e9f1;border-radius:11px;padding:9px 11px;background:#fff}.v4413-timeline-date b,.v4413-timeline-date span,.v4413-timeline-main strong,.v4413-timeline-main small{display:block}.v4413-timeline-date b{font-size:11px;color:#2d4867}.v4413-timeline-date span{font-size:10px;color:#75889e;margin-top:2px}.v4413-timeline-main strong{font-size:11px;color:#263d57}.v4413-timeline-main small{font-size:9px;color:#73869b;margin-top:2px}.v4413-invoice-state{border-radius:999px;padding:4px 7px;font-size:8px;font-weight:900}.v4413-invoice-state.ok{background:#e9f7ee;color:#297246}.v4413-invoice-state.wait{background:#edf4ff;color:#426c9d}.v4413-invoice-state.bad{background:#fff0ef;color:#9c4a44}.v4413-profile-money{font-size:12px;color:#254b76}.v4413-profile-empty{padding:18px;border:1px dashed #cfdae6;border-radius:11px;text-align:center;color:#71849a;font-size:11px}@media(max-width:720px){.v4413-profile-head{display:grid;padding-right:48px}.v4413-profile-actions{justify-content:flex-start}.v4413-profile-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.v4413-data-grid{grid-template-columns:1fr}.v4413-timeline-row{grid-template-columns:100px minmax(0,1fr)}.v4413-timeline-row>:last-child{grid-column:2}.v4413-profile-warning{grid-template-columns:auto 1fr}.v4413-profile-warning button{grid-column:1/-1}.modalbox.v4413-profile-shell{width:97vw!important}}
+</style>
+
+
+<style id="v4417-continue-attention-style">
+#modal .v4417-continue-wrap{margin-top:18px;padding-top:16px;border-top:1px solid #dbe6f2}
+#modal .v4417-continue-attention{display:block;width:100%;min-height:58px;border:0;border-radius:14px;background:#198754;color:#fff;font-size:16px;font-weight:900;letter-spacing:.02em;box-shadow:0 8px 20px rgba(25,135,84,.22);cursor:pointer}
+#modal .v4417-continue-attention:hover{filter:brightness(.96)}
+#modal .v4417-continue-attention:focus-visible{outline:3px solid rgba(25,135,84,.25);outline-offset:3px}
+</style>
+<style id="v4418-whatsapp-responses-style">
+.whatsapp-responses-nav-btn .nav-count-badge{margin-left:auto}.wa-home-review-strip{margin:0 0 13px}.wa-home-review-card{width:100%;display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:12px;align-items:center;text-align:left;border:1px solid #efc85a;border-radius:14px;background:linear-gradient(135deg,#fff9df,#fff4bf);padding:11px 13px;color:#5c470b;cursor:pointer;box-shadow:0 3px 12px rgba(122,91,10,.06)}.wa-home-review-icon{display:grid;place-items:center;width:34px;height:34px;border-radius:11px;background:#f2b923;color:#fff;font-size:22px;font-weight:950}.wa-home-review-card small{display:block;font-size:8px;letter-spacing:.09em;font-weight:950;color:#9b7511}.wa-home-review-card b{display:block;margin-top:2px;font-size:12px}.wa-home-review-card em{display:block;margin-top:2px;font-size:9px;font-style:normal;color:#84691e}.wa-home-review-arrow{font-size:27px;color:#b18c22}.wa-responses-page{max-width:1180px}.wa-page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:14px}.wa-page-head h1{margin:3px 0 4px}.wa-page-head p{margin:0;color:#6d7f94;font-size:11px}.wa-page-head>button{min-height:36px}.wa-response-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 10px}.wa-response-filters{display:flex;gap:6px;flex-wrap:wrap}.wa-response-filters button{border:1px solid #d8e2ed;background:#fff;color:#60758d;border-radius:999px;padding:7px 11px;font-size:9px;font-weight:850}.wa-response-filters button.active{background:#eaf4ef;border-color:#add3be;color:#2d6d49}.wa-response-summary{display:flex;gap:6px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.wa-summary-pill{display:inline-flex;gap:5px;align-items:center;border:1px solid #dae4ee;background:#fff;border-radius:999px;padding:5px 9px;font-size:8.5px;color:#65788e}.wa-summary-pill.review{border-color:#efd584;background:#fff9e5;color:#7f6314}.wa-response-panel{padding:0!important;overflow:hidden}.wa-response-list{display:grid}.wa-response-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto 20px;gap:11px;align-items:center;width:100%;padding:12px 13px;border:0;border-bottom:1px solid #e5ecf3;background:#fff;text-align:left;cursor:pointer}.wa-response-row:last-child{border-bottom:0}.wa-response-row:hover{background:#f8fbfe}.wa-response-row.needs-review{background:#fffdf7}.wa-response-type{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#eef3f8;color:#60758c;font-size:11px;font-weight:950}.wa-response-type.audio{background:#edf8f2;color:#2e7851;font-size:17px}.wa-response-main{min-width:0;display:grid;gap:3px}.wa-response-name{font-size:12px;font-weight:900;color:#243a54}.wa-response-message{font-size:10px;color:#4d627a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wa-response-meta{font-size:8.5px;color:#8493a4}.wa-response-state{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:5px 8px;font-size:8.5px;font-weight:900;white-space:nowrap}.wa-response-state b{display:grid;place-items:center;width:16px;height:16px;border-radius:50%;font-size:10px}.wa-response-state.confirmed{background:#eaf8ef;color:#2e7249}.wa-response-state.confirmed b{background:#56a677;color:#fff}.wa-response-state.no-show{background:#fff0ef;color:#914943}.wa-response-state.no-show b{background:#c96c64;color:#fff}.wa-response-state.review{background:#fff6d9;color:#7e6112}.wa-response-state.review b{background:#e2ac23;color:#fff}.wa-response-chevron{font-size:24px;color:#98a9ba}.wa-response-empty,.wa-response-loading{padding:36px 20px;text-align:center;color:#728397}.wa-response-empty>span{display:block;font-size:25px;margin-bottom:7px}.wa-response-empty b{display:block;color:#354d68;font-size:12px}.wa-response-empty p{margin:5px auto 0;max-width:520px;font-size:9.5px}.wa-review-modal{display:grid;gap:13px;min-width:min(650px,82vw)}.wa-review-modal-head{display:flex;justify-content:space-between;gap:15px;align-items:flex-start;padding-right:35px}.wa-modal-eyebrow{font-size:8px;font-weight:950;letter-spacing:.08em;color:#6d88a4}.wa-review-modal-head h2{margin:3px 0 4px;font-size:21px;color:#203750}.wa-review-modal-head p{margin:0;font-size:10px;color:#73869b}.wa-message-card{border:1px solid #dfe7ef;border-radius:13px;background:#f8fafc;padding:12px 13px}.wa-message-card>span{font-size:8px;font-weight:950;letter-spacing:.07em;color:#71869c}.wa-message-card p{margin:6px 0 0;font-size:12px;line-height:1.48;color:#2c4057;white-space:pre-wrap}.wa-audio-card{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,360px);gap:12px;align-items:center;border:1px solid #cde4d6;border-radius:13px;background:#f2faf5;padding:11px 12px}.wa-audio-card b,.wa-audio-card span{display:block}.wa-audio-card b{font-size:11px;color:#2b6545}.wa-audio-card span{font-size:8.5px;color:#6d8878;margin-top:3px}.wa-audio-card audio{width:100%;height:35px}.wa-review-details{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.wa-review-details>div{border:1px solid #e2e9f1;border-radius:10px;padding:8px}.wa-review-details span,.wa-review-details b{display:block}.wa-review-details span{font-size:7.5px;font-weight:850;color:#7b8ca0;text-transform:uppercase}.wa-review-details b{margin-top:3px;font-size:9.5px;color:#30475f;overflow-wrap:anywhere}.wa-link-warning{border:1px solid #efd388;border-radius:11px;background:#fff8df;color:#725711;padding:9px 11px;font-size:9.5px}.wa-review-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;border-top:1px solid #e1e8ef;padding-top:12px}.wa-review-actions button{min-height:38px;padding:8px 13px;border-radius:10px;font-weight:850}.wa-confirm-btn{background:#198754!important;color:#fff!important}.wa-no-btn{border-color:#e0a49f!important;background:#fff5f4!important;color:#954c46!important}.wa-resolved-btn{margin-left:auto}.wa-response-state.muted{background:#f0f3f6;color:#6f8091}@media(max-width:760px){.wa-page-head{display:grid}.wa-response-toolbar{align-items:flex-start;display:grid}.wa-response-summary{justify-content:flex-start}.wa-response-row{grid-template-columns:38px minmax(0,1fr) 18px}.wa-response-state{grid-column:2;width:max-content}.wa-response-chevron{grid-column:3;grid-row:1/3}.wa-review-modal{min-width:0}.wa-review-modal-head{display:grid}.wa-review-details{grid-template-columns:repeat(2,minmax(0,1fr))}.wa-audio-card{grid-template-columns:1fr}.wa-review-actions{display:grid;grid-template-columns:1fr}.wa-review-actions button,.wa-resolved-btn{width:100%;margin-left:0}}
+</style>
+</head>
+<body>
+<div id="login" class="center-card hidden">
+  <div class="login-brand">
+    <img class="login-full-logo-img" src="/static/doctor_full_logo.png" alt="Dr. Armando Revelo">
+    <div><h1>Recepción de Pacientes</h1><p>Ingresa para continuar</p></div>
+  </div>
+  <input id="lu" placeholder="Usuario" value="admin">
+  <input id="lp" type="password" placeholder="Contraseña">
+  <button class="primary login-button" onclick="login()">Ingresar</button>
+  <small>Primera vez: admin / Cambiar123!</small>
+  <div id="loginErr" class="err"></div>
+</div>
+
+<div id="app" class="hidden">
+  <aside>
+    <div class="brand brand-wide">
+      <img class="doctor-brand-isotype" src="/static/doctor_isotype.png" alt="Dr. Armando Revelo">
+      <div class="brand-copy"><b>Recepción</b><span>Dr. Armando Revelo</span><small>Consultorio de Urología</small></div>
+    </div>
+    <nav class="side-nav">
+      <button class="nav-btn active" data-section="inicio" onclick="show('inicio')"><span class="nav-icon">⌂</span><span>Inicio</span></button>
+      <button class="nav-btn agenda-nav-btn" data-section="agenda" onclick="show('agenda')"><span class="nav-icon nav-brand-icon whatsapp"><img src="/static/whatsapp_mark.svg" alt=""></span><span>Agenda</span></button>
+      <button class="nav-btn billing-nav-btn" data-section="facturacion" onclick="show('facturacion')"><span class="nav-icon nav-brand-icon azur"><img src="/static/azur_mark.svg" alt=""></span><span>Facturación</span><span id="billingNavBadge" class="nav-count-badge hidden">0</span></button>
+      <button class="nav-btn" data-section="reportes" onclick="show('reportes')"><span class="nav-icon">▥</span><span>Reportes</span></button>
+      <button class="nav-btn" data-section="pacientes" onclick="show('pacientes')"><span class="nav-icon">👥</span><span>Pacientes</span></button>
+      <button class="nav-btn whatsapp-responses-nav-btn" data-section="whatsappRespuestas" onclick="show('whatsappRespuestas')"><span class="nav-icon nav-brand-icon whatsapp"><img src="/static/whatsapp_mark.svg" alt=""></span><span>Respuestas WhatsApp</span><span id="whatsappResponsesNavBadge" class="nav-count-badge hidden">0</span></button>
+      <button class="nav-btn" data-section="config" onclick="show('config')"><span class="nav-icon">⚙</span><span>Configuración</span></button>
+    </nav>
+    <button id="connectionBadge" class="connection-badge sidebar-status local" onclick="openProtectionStatus()" title="Abrir Conexión y respaldo"><span class="connection-dot"></span><span class="connection-label">Comprobando…</span></button>
+    <button id="logoutBtn" class="logout nav-btn hidden" onclick="logout()"><span class="nav-icon">↪</span><span>Salir</span></button>
+  </aside>
+
+  <main>
+    <div class="global-toolbar">
+      <div class="global-search-wrap">
+        <span class="global-search-icon">⌕</span>
+        <input id="globalSearch" class="uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Buscar paciente por nombre, cédula, celular o correo…" oninput="upperSearchInput(this);globalSearchPatients()" onfocus="globalSearchPatients(true)">
+        <button class="global-search-clear hidden" id="globalSearchClear" onclick="clearGlobalSearch()">×</button>
+        <div id="globalSearchResults" class="global-search-results hidden"></div>
+      </div>
+    </div>
+    <section id="inicio">
+      <div class="home-title-row">
+        <div class="page-heading"><span class="page-eyebrow">RECEPCIÓN DEL CONSULTORIO</span><h1>Inicio</h1><p>Atenciones del día y resumen de la semana.</p></div>
+        <div class="home-actions"><button class="primary new-attention-main" onclick="newAttention()"><span class="plus">＋</span> Nueva atención</button></div>
+      </div>
+      <div id="homeWhatsappReviewStrip" class="wa-home-review-strip hidden"></div>
+      <div id="homePendingStrip" class="home-pending-strip hidden"></div>
+      <div id="homeWeekNav" class="home-week-nav"></div>
+      <div id="weekCards" class="week-cards"></div>
+      <div id="weekSummary" class="week-summary"></div>
+      <div id="selectedDayTitle" class="selected-day-title"></div>
+      <div id="todayTable"></div>
+    </section>
+
+    <section id="pacientes" class="hidden">
+      <div class="patients-page-head"><div><h1>Pacientes</h1><p>Busca solo cuando lo necesites. La base completa no se carga al entrar.</p></div><button class="primary" onclick="newPatient()">+ Nuevo paciente</button></div>
+      <div class="patient-search-bar patient-search-clean">
+        <input id="search" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CÉDULA, APELLIDOS Y NOMBRES, CELULAR O CORREO" oninput="upperSearchInput(this);searchPatients()">
+      </div>
+      <div class="patient-quick-filters" role="group" aria-label="Filtros rápidos de pacientes">
+        <button data-patient-filter="recent" onclick="loadPatientFilter('recent',this)">Recientes</button>
+        <button data-patient-filter="incomplete" onclick="loadPatientFilter('incomplete',this)">Datos incompletos</button>
+        <button data-patient-filter="historical" onclick="loadPatientFilter('historical',this)">Históricos 2020–2025</button>
+        <button data-patient-filter="review" onclick="loadPatientFilter('review',this)">Por revisar</button>
+      </div>
+      <div id="patientResults" class="results patient-results-list"><div class="patients-empty-state"><span>⌕</span><b>Encuentra un paciente</b><p>Escribe al menos 2 caracteres o usa uno de los filtros de arriba.</p></div></div>
+    </section>
+
+    <section id="agenda" class="hidden">
+      <div class="agenda-native-title-row">
+        <div class="section-title-with-brand"><div><div class="title-brand-line"><h1>Agenda</h1><span class="section-brand-chip whatsapp"><img src="/static/whatsapp_mark.svg" alt="">WhatsApp</span></div><p class="muted">Toca un horario disponible para agendar · jueves, viernes y sábado · citas de 20 minutos.</p></div></div>
+
+      </div>
+      <div class="agenda-native-weekbar">
+        <div class="agenda-browser-stack">
+          <div class="agenda-month-row">
+            <label class="agenda-month-jump agenda-month-inline"><span>IR A MES</span><input id="agendaNativeMonth" type="month" onchange="jumpNativeAgendaMonth(this.value)"></label>
+            <button class="agenda-month-next" onclick="moveNativeAgendaMonth(1)" title="Mes siguiente">Mes ›</button>
+          </div>
+          <div class="agenda-week-row">
+            <label class="agenda-week-jump"><span>IR A SEMANA</span><input id="agendaNativeWeekDate" type="date" onchange="jumpNativeAgendaWeek(this.value)"></label>
+            <div class="agenda-week-current"><span>SEMANA VISIBLE</span><b id="agendaNativeWeekLabel">Cargando…</b></div>
+            <button class="agenda-week-today" onclick="nativeAgendaToday()" title="Volver a la semana actual">Esta semana</button>
+            <button class="agenda-week-next" onclick="moveNativeAgendaWeek(1)" title="Semana siguiente">Semana ›</button>
+          </div>
+        </div>
+        <div class="agenda-native-legend"><span><i class="dot pending"></i>Pendiente</span><span><i class="dot confirmed"></i>Confirmada</span><span><i class="dot rescheduled"></i>Reagendada</span><span><i class="dot cancelled"></i>No asistirá</span></div>
+      </div>
+      <div id="agendaNativeGrid" class="agenda-native-grid"><div class="panel muted">Cargando agenda…</div></div>
+      <div class="agenda-native-footnote">Las citas creadas desde el teléfono pueden quedar sin ficha vinculada hasta que el paciente sea atendido. Borrar una cita libera el horario; no borra la ficha clínica.</div>
+    </section>
+
+    <section id="facturacion" class="hidden">
+      <div class="billing-title-row">
+        <div><div class="title-brand-line"><h1>Facturación</h1><span class="section-brand-chip azur"><img src="/static/azur_mark.svg" alt="AZUR"></span></div><p class="muted">Revisa, aprueba y emite directamente en AZUR.</p></div>
+        <div class="billing-title-actions"><button class="primary-soft" onclick="reviewNextBilling()">▶ Siguiente pendiente</button><button class="primary" onclick="emitAllPendingInvoices()">⚡ Emitir todas las pendientes</button><button class="external-billing-link" onclick="openAzurConfig()">AZUR</button></div>
+      </div>
+      <div class="billing-filters billing-queue-filter">
+        <div><b>Cola de facturación</b><span>Abre directamente en pendientes, sin elegir fechas.</span></div>
+        <label>Estado <select id="bEstado"><option value="PENDIENTE" selected>Pendientes</option><option value="APROBADA">Aprobadas</option><option value="EMITIDA">Emitidas</option></select></label>
+        <button onclick="loadBilling()">↻ Actualizar</button>
+      </div>
+      <div id="billingSummary" class="billing-summary"></div>
+      <div id="billingList" class="billing-list"></div>
+    </section>
+
+    <section id="reportes" class="hidden">
+      <div class="report-title-row">
+        <div><h1>Reportes</h1><p class="muted">Resumen claro para revisar un día, una semana, un mes o cualquier período.</p></div>
+        <div class="report-quick-actions"><button onclick="reportThisMonth()">Este mes</button><button onclick="reportPreviousMonth()">Mes anterior</button></div>
+      </div>
+      <div class="filters report-filters">
+        <label>Desde <input type="date" id="rDesde"></label>
+        <label>Hasta <input type="date" id="rHasta"></label>
+        <button class="primary" onclick="loadReport()">Consultar</button>
+        <button class="excel-export-btn" onclick="exportExcel()">⬇ Exportar Excel</button>
+        <button onclick="exportCsv()">CSV simple</button>
+      </div>
+      <div id="reportSummary" class="report-kpis"></div>
+      <div id="reportComparison" class="panel report-comparison hidden"></div>
+      <div class="report-grid">
+        <div class="panel report-panel"><div class="report-panel-title"><h3>Totales por atención</h3><span>Cuántas se hicieron y cuánto sumaron</span></div><div id="reportServices"></div></div>
+        <div class="panel report-panel"><div class="report-panel-title"><h3>Resumen por día</h3><span>Pacientes y valores del período</span></div><div id="reportDaily"></div></div>
+      </div>
+      <div class="panel report-panel report-detail-panel"><div class="report-panel-title"><h3>Detalle del período</h3><span>Paciente por paciente</span></div><div id="reportTable"></div></div>
+    </section>
+
+    <section id="whatsappRespuestas" class="hidden wa-responses-page">
+      <div class="wa-page-head">
+        <div><span class="page-eyebrow">WHATSAPP DEL CONSULTORIO</span><h1>Respuestas WhatsApp</h1><p>Solo necesitas intervenir cuando un mensaje no pudo interpretarse con seguridad.</p></div>
+        <button onclick="loadWhatsappResponses(whatsappResponseScope,true)">↻ Actualizar</button>
+      </div>
+      <div class="wa-response-toolbar">
+        <div class="wa-response-filters" role="group" aria-label="Filtros de respuestas WhatsApp">
+          <button class="active" data-wa-response-scope="review" onclick="setWhatsappResponseScope('review',this)">Por revisar</button>
+          <button data-wa-response-scope="all" onclick="setWhatsappResponseScope('all',this)">Todas</button>
+          <button data-wa-response-scope="resolved" onclick="setWhatsappResponseScope('resolved',this)">Resueltas</button>
+        </div>
+        <div id="whatsappResponseSummary" class="wa-response-summary"></div>
+      </div>
+      <div class="panel wa-response-panel"><div id="whatsappResponseList"><div class="wa-response-loading">Cargando respuestas de WhatsApp…</div></div></div>
+    </section>
+
+    <section id="config" class="hidden">
+      <div class="config-title-row"><div><h1>Configuración</h1><p class="muted">Cada ajuste está agrupado según lo que necesitas hacer.</p></div></div>
+      <div class="config-tabs" role="tablist" aria-label="Secciones de configuración">
+        <button class="active" data-config-tab="general" onclick="showConfigTab('general',this)">Recepción</button>
+        <button data-config-tab="agenda" onclick="showConfigTab('agenda',this)">Agenda y WhatsApp</button>
+        <button data-config-tab="procedimientos" onclick="showConfigTab('procedimientos',this)">Servicios y precios</button>
+        <button data-config-tab="facturacion" onclick="showConfigTab('facturacion',this)">Facturación AZUR</button>
+        <button data-config-tab="sistema" onclick="showConfigTab('sistema',this)">Conexión y respaldo</button>
+        <button data-config-tab="actualizaciones" onclick="showConfigTab('actualizaciones',this)">Programa</button>
+      </div>
+
+      <div class="config-section" data-config-section="general">
+        <div class="panel receipt-settings-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Recibos e impresora</h3><p class="muted">Elige cómo salen los recibos de consulta y qué impresora usar.</p></div><span class="receipt-format-pill">80 mm</span></div>
+          <div class="receipt-settings-grid">
+            <label><span>Cómo imprimir</span><select id="printModeSelect"><option value="PREVIEW">Mostrar vista previa</option><option value="DIRECT">Imprimir directamente</option></select><small>La vista previa permite revisar antes de imprimir.</small></label>
+            <label><span>Impresora de recibos</span><select id="printerSelect"><option value="">Predeterminada de Windows</option></select><small id="printerStatusText">Buscando impresoras…</small></label>
+            <label class="receipt-pressure-setting"><span>Dato opcional del recibo</span><div class="receipt-toggle-row"><b>Mostrar presión arterial</b><input id="showBloodPressureToggle" type="checkbox" checked></div></label>
+          </div>
+          <div class="actions"><button class="primary-soft" onclick="saveReceiptSettings()">Guardar recibos e impresora</button></div>
+        </div>
+        <div class="panel behavior-settings-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Inicio y seguridad</h3><p class="muted">Preferencias de esta PC de recepción.</p></div></div>
+          <div class="compact-toggle-grid"><label class="switch-setting"><div><b>Abrir sin pedir contraseña</b><small>Entra directamente al programa en esta PC.</small></div><input id="autoLoginToggle" type="checkbox" checked></label><label class="switch-setting"><div><b>Preguntar antes de borrar</b><small>Evita eliminar pacientes, atenciones o citas por accidente.</small></div><input id="confirmDeleteToggle" type="checkbox" checked></label></div>
+          <div class="actions"><button onclick="saveBehaviorSettings()">Guardar preferencias</button></div>
+        </div>
+      </div>
+
+      <div class="config-section hidden" data-config-section="agenda">
+        <div class="panel compact-config-panel remote-agenda-panel">
+          <div class="config-panel-head"><div><h3>☁️ Agenda Web 24/7</h3><p class="muted">Un solo enlace de consulta. El modo agendador se habilita únicamente en tus dispositivos.</p></div><span id="cloudAgendaPill" class="performance-pill">24/7</span></div>
+          <div class="config-help-strip"><b>Doctor:</b> solo consulta. <b>Tu dispositivo:</b> puede guardar en privado el modo agendador y cambiar con un botón sutil dentro de la web.</div>
+          <div id="cloudAgendaLinks" class="mobile-link-box">Preparando Agenda Web…</div>
+          <div class="actions remote-agenda-actions"><button onclick="loadMobileConfigLinks(true)">↻ Verificar con Neon</button><button class="danger-lite" onclick="rotateMobileLinks()">🔑 Regenerar acceso</button></div>
+        </div>
+        <div class="panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Mensajes de WhatsApp</h3><p class="muted">Estado de la automatización y de las entregas recientes a pacientes.</p></div><span id="whatsappStatusPill" class="performance-pill">Cargando</span></div>
+          <div class="config-help-strip whatsapp-help"><b>Confirmación:</b> 8:00 AM del día anterior. <b>Recordatorio final:</b> 2 horas antes cuando la plantilla esté aprobada.</div>
+          <div id="whatsappStatusText" class="desktop-runtime-status">Consultando estado…</div>
+          <div class="wa-delivery-head"><b>Últimos 7 días</b><button id="waDeliveryRefreshBtn" onclick="loadWhatsappCloudStatus(true)">↻ Actualizar mensajes</button></div>
+          <div id="whatsappDeliverySummary" class="wa-delivery-summary"><span>Sin consultar todavía.</span></div>
+          <div id="whatsappDeliveryList" class="wa-delivery-list"></div>
+        </div>
+        <div class="panel compact-config-panel whatsapp-test-panel">
+          <div class="config-panel-head"><div><h3>🧪 Pruebas de mensajes</h3><p class="muted">Prueba cualquiera de las tres plantillas sin activar envíos automáticos locales.</p></div><span id="whatsappTestPill" class="performance-pill">MANUAL</span></div>
+          <div class="config-help-strip"><b>Idiomas:</b> recordatorio_cita conserva el idioma ya aprobado por Meta; cita_agendada y recordatorio_hoy usan Español (Ecuador).</div>
+          <div class="whatsapp-test-grid">
+            <label><span>Mensaje a probar</span><select id="waTestTemplate"><option value="recordatorio_cita">Confirmación · recordatorio_cita</option><option value="cita_agendada">Cita agendada · cita_agendada</option><option value="recordatorio_hoy">Recordatorio de hoy · recordatorio_hoy</option></select></label>
+            <label><span>Número de prueba</span><input id="waTestPhone" inputmode="tel" autocomplete="off" placeholder="09xxxxxxxx"><small>Se recuerda en esta PC y no se publica en GitHub.</small></label>
+            <label><span>Nombre de prueba</span><input id="waTestName" autocomplete="off" value="Prueba" maxlength="80"></label>
+            <label><span>Fecha mostrada</span><input id="waTestDate" type="date"></label>
+            <label><span>Hora mostrada</span><input id="waTestTime" type="time" value="15:00" step="60"></label>
+          </div>
+          <div id="whatsappTestResult" class="desktop-runtime-status">No se ha enviado ninguna prueba.</div>
+          <div class="actions"><button id="waTestSendBtn" class="primary-soft" onclick="sendWhatsappTest()">📨 Enviar mensaje de prueba</button></div>
+          <div class="config-info-note"><b>Prueba aislada</b><span>No crea citas, no modifica pacientes y no enciende el worker local. Si una plantilla sigue pendiente en Meta, Meta la rechazará sin afectar producción.</span></div>
+        </div>
+      </div>
+
+      <div class="config-section hidden" data-config-section="procedimientos">
+        <div class="panel procedure-values-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Servicios y precios</h3><p class="muted">Aquí se administran los procedimientos disponibles y su valor predeterminado.</p></div></div>
+          <div class="config-help-strip">Los cambios afectan las nuevas atenciones. El historial anterior conserva sus valores originales.</div>
+          <div id="procList"></div>
+          <div class="compact-add-procedure"><input id="procName" class="uppercase-name" placeholder="Nuevo servicio o procedimiento" oninput="upperNameInput(this)"><input id="procValue" type="number" step="0.01" placeholder="Valor"><button class="primary-soft" onclick="addProcedure()">Agregar</button></div>
+        </div>
+      </div>
+
+      <div class="config-section hidden" data-config-section="facturacion">
+        <div id="azurConfigPanel" class="panel azur-config-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Conexión con AZUR</h3><p class="muted">Datos técnicos para que Facturación pueda emitir comprobantes electrónicos.</p></div><span id="azurStatusPill" class="performance-pill">Sin configurar</span></div>
+          <div class="config-help-strip">Normalmente solo se configura una vez. La API key se guarda únicamente en el archivo <b>.env</b> de esta PC.</div>
+          <div class="azur-settings-grid"><label><span>Dirección de AZUR</span><input id="azurBaseUrl" type="url" placeholder="https://azur.com.ec" autocomplete="off"></label><label><span>API key</span><input id="azurApiKey" type="password" placeholder="Dejar vacío para conservar la guardada" autocomplete="new-password"><small id="azurKeyHint">No hay API key guardada.</small></label></div>
+          <div id="azurConnectionResult" class="desktop-runtime-status">Puedes probar la conexión sin emitir ninguna factura.</div>
+          <div class="actions"><button class="primary-soft" onclick="saveAzurConfig()">Guardar AZUR</button><button onclick="testAzurConnection()">🔌 Probar conexión</button></div>
+        </div>
+      </div>
+
+      <div class="config-section hidden" data-config-section="sistema">
+        <div class="config-two-col config-connection-grid">
+          <div id="protectionPanel" class="panel protection-panel compact-config-panel">
+            <div class="config-panel-head"><div><h3>Conexión y sincronización</h3><p class="muted">Si aparece “Sin Internet”, el programa sigue trabajando con la copia de esta PC.</p></div><button onclick="refreshProtectionStatus(true)">Actualizar estado</button></div>
+            <div id="protectionStatus" class="protection-status">Cargando…</div>
+            <div id="syncQueuePanel" class="sync-queue-panel hidden"></div>
+            <div class="actions"><button id="recoverCloudBtn" class="primary-soft" onclick="recoverCloudNow()">🔄 Reconectar ahora</button><button id="backupNowBtn" onclick="createBackupNow()">🛡 Crear respaldo local</button></div>
+          </div>
+          <div class="panel system-status-panel compact-config-panel">
+            <div class="config-panel-head"><div><h3>Resumen de datos</h3><p class="muted">Estado de Neon, la copia local y los cambios pendientes.</p></div><button onclick="loadSystemStatus()">Actualizar</button></div>
+            <div id="systemStatusGrid" class="system-status-grid system-status-simple"><div class="system-status-loading">Cargando estado…</div></div>
+          </div>
+        </div>
+        <div class="config-info-note"><b>¿Qué pasa si se va Internet?</b><span>Puedes seguir trabajando. Los cambios se guardan en esta PC y se sincronizan automáticamente cuando vuelve la conexión.</span></div>
+      </div>
+
+      <div class="config-section hidden" data-config-section="actualizaciones">
+        <div class="panel performance-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Ventana y rendimiento</h3><p class="muted">Cómo se abre Recepción y cómo ahorra recursos en la PC del consultorio.</p></div><span class="performance-pill">⚡ Liviano</span></div>
+          <div class="performance-settings-grid"><label class="window-mode-setting"><span>Forma de abrir Recepción</span><select id="windowModeSelect"><option value="AUTO">Automático (recomendado)</option><option value="WEBVIEW2">Ventana ligera WebView2</option><option value="EDGE">Edge en modo aplicación</option></select><small>Automático usa la opción más liviana disponible.</small></label><div class="afk-setting-card"><span>Ahorro de Neon</span><b>Automático · después de 5 minutos</b><small>Cuando nadie usa el programa, deja de consultar la nube hasta que vuelvas.</small></div></div>
+          <div id="desktopRuntimeStatus" class="desktop-runtime-status">Comprobando el modo de ventana…</div>
+          <div class="actions"><button class="primary-soft" onclick="saveWindowMode()">Guardar modo de ventana</button></div>
+        </div>
+        <div class="panel updater-panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Actualizaciones del programa</h3><p class="muted">Las nuevas versiones se aplican automáticamente. El ZIP manual sirve como respaldo.</p></div><span id="currentVersionBadge" class="version-badge">v4.3.34</span></div>
+          <div class="update-drop-row"><input id="updatePackage" type="file" accept=".zip,application/zip"><button class="primary" onclick="applyUpdatePackage()">Aplicar ZIP manual</button><button onclick="restartReception()">↻ Reiniciar Recepción</button></div>
+          <div id="updateStatus" class="muted update-status">Sistema de actualización automática activo.</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modalbox"><button class="x" onclick="closeModal()">×</button><div id="modalBody"></div></div></div>
+<script src="/static/app.js?v=4.4.22"></script>
+</body>
+</html>
