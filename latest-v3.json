@@ -1,22 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.35",
-  "app_version": "4.4.35",
-  "runtime_version": "4.4.35",
+  "version": "4.4.36",
+  "app_version": "4.4.36",
+  "runtime_version": "4.4.36",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.35: Efectivo/Transferencia aparece dentro de cada ficha POR EMITIR, justo antes de Revisar y emitir. La elección es individual y obligatoria; también vuelve Emitir por lotes, que exige que cada factura tenga su forma de pago. No toca datos, .env ni static.",
+  "message": "v4.4.36: Efectivo queda marcado por defecto en cada ficha POR EMITIR; Transferencia se cambia manualmente sin alertas de aprobación. La factura usa SRI 01 por defecto y SRI 20 si se cambia a transferencia. No toca launcher, datos, .env ni static.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/app.py",
-      "sha256": "dca89f89c660046a19bebd2c157c3fe5b2dba418e1eb18d837e2e3b350ad3b8f",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_36_default_cash/app.py",
+      "sha256": "2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_35_payment_per_card/update_manifest.json",
-      "sha256": "9ca4c518c0aa19d76a930fb6e2c8e881e66ce3c50a5da7b3f5cc82fa61e99d03",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_36_default_cash/update_manifest.json",
+      "sha256": "c1b81e876df3a0cb1e0dbf7fbe4477c95d5f6c080c39f9afe6fb6929010dd5ac",
       "encoding": "utf-8"
     }
   ]
