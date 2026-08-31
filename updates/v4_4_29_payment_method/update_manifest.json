@@ -1,0 +1,10 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.29",
+  "app_version": "4.4.29",
+  "runtime_version": "4.4.29",
+  "built_at": "2026-08-31T19:30:00Z",
+  "relative_dir": "v4_4_29_payment_method",
+  "source": "files-v3",
+  "notes": "Forma de pago obligatoria en Nueva atención: Efectivo (SRI 01) o Transferencia (SRI 20)."
+}
