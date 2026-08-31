@@ -1,0 +1,70 @@
+name: Diagnosticar stack JS v4.4.33
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-v4433-pageerror-stack.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stack:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Construir y preparar runtime
+        shell: pwsh
+        run: |
+          python build/v4433_ui_fix/build_v4433.py
+          python -m venv .diag-venv
+          .\.diag-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' 'playwright==1.55.0'
+          .\.diag-venv\Scripts\python.exe -m playwright install chromium
+      - name: Capturar stack real del navegador
+        shell: pwsh
+        run: |
+          @'
+          import importlib.util,json,os,pathlib,subprocess,tempfile,time
+          from playwright.sync_api import sync_playwright
+          repo=pathlib.Path.cwd()
+          spec=importlib.util.spec_from_file_location('validator',repo/'build/v4433_ui_fix/validate_candidate.py')
+          v=importlib.util.module_from_spec(spec);spec.loader.exec_module(v)
+          td=tempfile.TemporaryDirectory();root=pathlib.Path(td.name)/'install';v.prepare_install(root,v.OUT/'app.py')
+          port=v.choose_free_port(18820)
+          env=os.environ.copy();env.update(RP_FORCE_OFFLINE='1',RP_DATA_DIR=str(root/'data'),RP_PORT=str(port),DISABLE_SQLALCHEMY_CEXT_RUNTIME='1')
+          log=open(pathlib.Path(os.environ['RUNNER_TEMP'])/'stack-backend.log','w',encoding='utf-8')
+          proc=subprocess.Popen([os.sys.executable,str(root/'app.py')],cwd=str(root),env=env,stdout=log,stderr=log)
+          try:
+            end=time.time()+35
+            while time.time()<end:
+              try:
+                s,b=v.get_bytes(port,'/api/version',1)
+                if json.loads(b).get('version')=='4.4.33':break
+              except:time.sleep(.2)
+            else:raise SystemExit('backend timeout')
+            errors=[]
+            with sync_playwright() as p:
+              browser=p.chromium.launch(headless=True);page=browser.new_page()
+              def onerr(e):
+                errors.append({'message':getattr(e,'message',str(e)),'name':getattr(e,'name',''),'stack':getattr(e,'stack','')})
+              page.on('pageerror',onerr)
+              page.goto(f'http://127.0.0.1:{port}/?diag=stack',wait_until='domcontentloaded',timeout=10000)
+              page.wait_for_timeout(2500)
+              print('ERROR_COUNT',len(errors))
+              print(json.dumps(errors,ensure_ascii=True,indent=2))
+              browser.close()
+            if not errors:raise SystemExit('No se reprodujo error JS restante')
+          finally:
+            if proc.poll() is None:
+              proc.terminate()
+              try:proc.wait(5)
+              except:proc.kill()
+            log.close();td.cleanup()
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\stack4433.py
+          .\.diag-venv\Scripts\python.exe $env:RUNNER_TEMP\stack4433.py
