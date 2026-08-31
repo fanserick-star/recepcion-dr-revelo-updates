@@ -5336,8 +5336,8 @@ async function sendMeta(c, env) {
 function acknowledgementText(action, env = {}) {
   const a2 = String(action || "").toUpperCase();
   const doctorPhone = String(env.DOCTOR_CONTACT_PHONE || "0968840690").trim() || "0968840690";
-  if (a2 === "TEST_CONFIRMAR") return "Prueba recibida: el bot\xF3n S\xED funciona correctamente. No se modific\xF3 ninguna cita real.";
-  if (a2 === "TEST_CANCELAR") return "Prueba recibida: el bot\xF3n No funciona correctamente. No se modific\xF3 ninguna cita real.";
+  if (a2 === "TEST_CONFIRMAR") return "Prueba recibida: la confirmaci\xF3n se proces\xF3 correctamente. No se modific\xF3 ninguna cita real.";
+  if (a2 === "TEST_CANCELAR") return "Prueba recibida: la respuesta de no asistencia se proces\xF3 correctamente. No se modific\xF3 ninguna cita real.";
   if (a2 === "CONFIRMAR") return "Gracias por confirmar su cita con el Dr. Armando Revelo. Su asistencia ha quedado registrada. Lo esperamos en la fecha y hora indicadas.";
   if (a2 === "CANCELAR") return `Gracias por informarnos. Hemos registrado que no podr\xE1 asistir a su cita. Para reagendar, por favor comun\xEDquese directamente con el consultorio del Dr. Armando Revelo al ${doctorPhone}.`;
   return "";
