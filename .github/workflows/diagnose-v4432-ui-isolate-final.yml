@@ -1,0 +1,102 @@
+name: Aislar pantalla blanca sobre instalación completa
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-v4432-ui-isolate-final.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Preparar runtime
+        shell: pwsh
+        run: |
+          python -m venv .ui-venv
+          .\.ui-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' 'playwright==1.55.0'
+          .\.ui-venv\Scripts\python.exe -m playwright install chromium
+      - name: Simular actualización real y aislar
+        shell: pwsh
+        run: |
+          $root=Join-Path $env:RUNNER_TEMP 'Recepcion-ui-full'
+          if(Test-Path $root){Remove-Item $root -Recurse -Force}
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $base=Join-Path $env:RUNNER_TEMP 'rp-ui-base'
+          if(Test-Path $base){Remove-Item $base -Recurse -Force}
+          Expand-Archive installer_clean/base/clean_base_resources.zip -DestinationPath $base -Force
+          foreach($name in @('azur_client.py','whatsapp_client.py','remote_agenda.py')){
+            $src=Get-ChildItem $base -Recurse -File -Filter $name | Select-Object -First 1
+            if(-not $src){throw "Falta $name"};Copy-Item $src.FullName (Join-Path $root $name)
+          }
+          $baseStatic=Get-ChildItem $base -Recurse -Directory -Filter static | Select-Object -First 1
+          if(-not $baseStatic){throw 'Falta static en base limpia'}
+          Copy-Item $baseStatic.FullName (Join-Path $root 'static') -Recurse
+          $mobile=Get-ChildItem $base -Recurse -Directory -Filter mobile | Select-Object -First 1
+          if($mobile){Copy-Item $mobile.FullName (Join-Path $root 'mobile') -Recurse}
+          New-Item -ItemType Directory -Force (Join-Path $root 'data') | Out-Null
+          # Esto reproduce la actualización 4.4.31: reemplaza solo lo que publicó el canal.
+          Copy-Item updates/v4_4_31_startup_guard/app.py (Join-Path $root 'app.py') -Force
+          Copy-Item updates/v4_4_28_overlay_hotfix/app.py (Join-Path $root 'app_base_4428.py') -Force
+          Copy-Item updates/v4_4_28_overlay_hotfix/static/app.js (Join-Path $root 'static/app.js') -Force
+          Copy-Item updates/v4_4_28_overlay_hotfix/static/index.html (Join-Path $root 'static/index.html') -Force
+          $env:UI_ROOT=$root
+          @'
+          import json,os,pathlib,subprocess,time,urllib.request
+          from playwright.sync_api import sync_playwright
+          root=pathlib.Path(os.environ['UI_ROOT']);py=pathlib.Path.cwd()/'.ui-venv'/'Scripts'/'python.exe'
+          env=os.environ.copy();env.update(RP_FORCE_OFFLINE='1',RP_DATA_DIR=str(root/'data'),RP_PORT='18766',DISABLE_SQLALCHEMY_CEXT_RUNTIME='1')
+          def get(path,t=6):
+            with urllib.request.urlopen('http://127.0.0.1:18766'+path,timeout=t) as r:return r.status,r.read()
+          log=open(pathlib.Path(os.environ['RUNNER_TEMP'])/'ui-full-backend.log','w',encoding='utf-8')
+          proc=subprocess.Popen([str(py),str(root/'app.py')],cwd=str(root),env=env,stdout=log,stderr=log)
+          try:
+            deadline=time.time()+35
+            while time.time()<deadline:
+              if proc.poll() is not None:raise SystemExit('BACKEND_EXIT')
+              try:
+                if json.loads(get('/api/version',1)[1]).get('version')=='4.4.31':break
+              except:time.sleep(.2)
+            else:raise SystemExit('BACKEND_TIMEOUT')
+            assets=['/','/static/style.css?v=4.3.34','/static/app.js?v=4.4.28','/v458/settings.css?v=4.3.58','/v458/settings.js?v=4.3.58','/v459/settings.css?v=4.3.59','/v459/settings.js?v=4.3.59','/v460/overlay.css?v=4.3.72','/v460/overlay.js?v=4.3.72']
+            for path in assets:
+              t=time.perf_counter();s,b=get(path);print('ASSET',path,s,len(b),round(time.perf_counter()-t,3),flush=True)
+            def case(p,name,blocked=()):
+              browser=p.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1360,'height':840});ev=[]
+              page.on('request',lambda r:ev.append(('REQ',r.url)))
+              page.on('response',lambda r:ev.append(('RESP',r.status,r.url)))
+              page.on('requestfinished',lambda r:ev.append(('DONE',r.url)))
+              page.on('requestfailed',lambda r:ev.append(('FAIL',r.url,str(r.failure))))
+              page.on('pageerror',lambda e:ev.append(('JSERR',str(e))))
+              for pat in blocked:page.route(pat,lambda route:route.fulfill(status=200,content_type='application/javascript',body='/* isolated */'))
+              ok=True;err=''
+              try:page.goto('http://127.0.0.1:18766/?case='+name,wait_until='domcontentloaded',timeout=7000)
+              except Exception as e:ok=False;err=str(e)
+              print('CASE',name,'DOM',ok,'ERR',err[:140],flush=True)
+              for x in ev:print('EVENT',name,x,flush=True)
+              browser.close();return ok
+            with sync_playwright() as p:
+              r={
+                'normal':case(p,'normal'),
+                'no_v460':case(p,'no_v460',('**/v460/overlay.js*',)),
+                'no_v459':case(p,'no_v459',('**/v459/settings.js*',)),
+                'no_v458':case(p,'no_v458',('**/v458/settings.js*',)),
+                'no_all':case(p,'no_all',('**/v458/settings.js*','**/v459/settings.js*','**/v460/overlay.js*')),
+              }
+            print('RESULTS',json.dumps(r),flush=True)
+            if r['normal']:raise SystemExit('NORMAL_UNEXPECTEDLY_OK')
+            if not any(r[k] for k in ('no_v460','no_v459','no_v458','no_all')):raise SystemExit('NOT_ISOLATED')
+          finally:
+            if proc.poll() is None:
+              proc.terminate()
+              try:proc.wait(4)
+              except:proc.kill()
+            log.close()
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\isolate_full.py
+          .\.ui-venv\Scripts\python.exe $env:RUNNER_TEMP\isolate_full.py
