@@ -26,6 +26,14 @@ def main() -> None:
     src = SOURCE.read_text(encoding="utf-8")
     css = (HERE / "payment.css").read_text(encoding="utf-8").rstrip()
     js = (HERE / "payment.js").read_text(encoding="utf-8").rstrip()
+    # El overlay estable ocultaba #btnEmitAll. Inline !important garantiza que
+    # el botón restaurado sea visible cuando se abre Facturación.
+    js = replace_once(
+        js,
+        "    btn.hidden=false;",
+        "    btn.hidden=false;\n    btn.style.setProperty('display','inline-flex','important');\n    btn.style.setProperty('visibility','visible','important');\n    btn.style.setProperty('opacity','1','important');",
+        "visibilidad de Emitir por lotes",
+    )
     if 'APP_VERSION = "4.4.34"' not in src:
         raise SystemExit("La fuente ya no es v4.4.34")
 
@@ -41,8 +49,6 @@ def main() -> None:
     js_block = '    PAYMENT_JS = r"""\n' + js + '\n"""\n\n'
     text = text[:js_start] + js_block + text[js_end:]
 
-    # Tras reemplazar PAYMENT_JS, queda una sola referencia vieja: la versión
-    # que el wrapper coloca dentro del overlay estable v4.4.28.
     text = replace_once(text, "const VERSION='4.4.34';", f"const VERSION='{VERSION}';", "versión overlay")
 
     required = [
@@ -60,6 +66,7 @@ def main() -> None:
         "v4435-pay-locked",
         "📦 Emitir por lotes",
         "batchPreflight",
+        "style.setProperty('display','inline-flex','important')",
         "listObserver.observe(list,{childList:true,subtree:false})",
         "Antes de emitir, selecciona Efectivo o Transferencia en esta ficha.",
         "core._azur_payload_for_group = _azur_payload_for_group_v4431",
