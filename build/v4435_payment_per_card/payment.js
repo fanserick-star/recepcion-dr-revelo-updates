@@ -165,12 +165,21 @@
       alert(`Antes de emitir por lotes, selecciona Efectivo o Transferencia individualmente en ${missing.length} factura${missing.length===1?'':'s'}.`);
       return;
     }
-    if(typeof window.emitAllPendingInvoices==='function')return window.emitAllPendingInvoices();
+    const batchFn=(typeof window.emitAllPendingInvoices==='function')
+      ?window.emitAllPendingInvoices
+      :(typeof emitAllPendingInvoices==='function'?emitAllPendingInvoices:null);
+    if(batchFn)return batchFn();
     alert('La emisión por lotes no está disponible en esta instalación.');
   }
 
   function ensureBatchButton(){
     let btn=document.getElementById('btnEmitAll')||document.getElementById('v4435EmitAll');
+    if(btn&&!btn.__v4435BatchClean){
+      const clean=btn.cloneNode(true);
+      clean.__v4435BatchClean=true;
+      btn.replaceWith(clean);
+      btn=clean;
+    }
     if(!btn){
       const host=document.querySelector('#facturacion .billing-title-actions')
         ||document.querySelector('#facturacion .page-title-actions')
@@ -179,8 +188,11 @@
       btn=document.createElement('button');
       btn.id='v4435EmitAll';
       btn.className='btn small secondary';
+      btn.__v4435BatchClean=true;
       host.appendChild(btn);
     }
+    btn.type='button';
+    btn.disabled=false;
     btn.hidden=false;
     btn.classList.add('v4435-batch-button');
     btn.textContent='📦 Emitir por lotes';
