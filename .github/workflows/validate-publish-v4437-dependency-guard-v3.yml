@@ -1,0 +1,147 @@
+name: Validación final v4.4.37 fijada y blindada
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-publish-v4437-dependency-guard-v3.yml'
+      - 'build/v4437_dependency_guard/build_v4437_v3.py'
+      - 'build/v4437_dependency_guard/validate_v4437_v3.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+
+      - name: 1 - Construir desde commits publicados exactos, no desde checkout mutable
+        shell: pwsh
+        run: python build/v4437_dependency_guard/build_v4437_v3.py
+
+      - name: 2 - Contrato SHA, acumulativo, dependencia obligatoria y puertos dinámicos
+        shell: pwsh
+        run: |
+          @'
+          import ast,hashlib,json,pathlib
+          o=pathlib.Path('updates/v4_4_37_dependency_guard')
+          c=json.loads((o/'candidate_latest.json').read_text(encoding='utf-8'));m=json.loads((o/'update_manifest.json').read_text(encoding='utf-8'))
+          req=['ABRIR_RECEPCION.py','app_base_4428.py','app.py','static/app.js','static/index.html','update_manifest.json']
+          assert [x['path'] for x in c['files']]==req and m['copy']==req
+          assert m['required_dependencies']==['app_base_4428.py']
+          assert c['version']=='4.4.37' and c['app_version']=='4.4.36'
+          assert hashlib.sha256((o/'app.py').read_bytes()).hexdigest()=='2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e'
+          assert hashlib.sha256((o/'app_base_4428.py').read_bytes()).hexdigest()=='e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba'
+          app=(o/'app.py').read_text(encoding='utf-8-sig');imports={a.name.split('.',1)[0] for n in ast.walk(ast.parse(app)) if isinstance(n,ast.Import) for a in n.names};assert 'app_base_4428' in imports
+          launcher=b''.join((o/f'ABRIR_RECEPCION.part{i}').read_bytes() for i in range(1,5));compile(launcher.decode('utf-8-sig'),'launcher','exec');t=launcher.decode('utf-8-sig')
+          assert 'LAUNCHER_VERSION = "4.4.32-dynamic-port-patch-1"' in t and '_choose_app_port' in t and 'env["RP_PORT"] = str(APP_PORT)' in t
+          assert '_rp_v4437_required_files' in t and 'Actualización incompleta: app.py requiere archivo(s) no incluidos' in t
+          print('V4437_STATIC_CONTRACT_OK')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\c4437.py
+          python $env:RUNNER_TEMP\c4437.py
+
+      - name: 3 - Reproducir fallo real, salto 4.4.36 roto, autoreparación misma versión, corrupción, rechazo futuro, puertos y rollback/selftests
+        shell: pwsh
+        run: python build/v4437_dependency_guard/validate_v4437_v3.py
+
+      - name: 4 - Instalar runtime exacto y Chromium para repetir UI real
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check `
+            'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' `
+            'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' 'playwright==1.55.0'
+          .\.release-venv\Scripts\python.exe -m playwright install chromium
+
+      - name: 5 - Repetir batería funcional 4.4.36 con los bytes PINNED que se instalarán
+        shell: pwsh
+        run: |
+          Copy-Item -Force updates\v4_4_37_dependency_guard\app.py updates\v4_4_36_default_cash\app.py
+          try {
+            .\.release-venv\Scripts\python.exe build/v4436_default_cash/validate_candidate.py
+          } finally {
+            git checkout -- updates/v4_4_36_default_cash/app.py
+          }
+
+      - name: 6 - Verificar alcance y datos protegidos
+        shell: pwsh
+        run: |
+          @'
+          import json,pathlib
+          c=json.loads(pathlib.Path('updates/v4_4_37_dependency_guard/candidate_latest.json').read_text(encoding='utf-8'))
+          paths=[x['path'] for x in c['files']];req=['ABRIR_RECEPCION.py','app_base_4428.py','app.py','static/app.js','static/index.html','update_manifest.json'];assert paths==req
+          protected=['.env','data','.venv','BASE DE DATOS 2026.xlsx','offline_cache.db','recepcion.db'];assert not any(any(p==x or p.startswith(x+'/') for x in protected) for p in paths)
+          print('PROTECTED_SCOPE_OK')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\scope4437.py
+          python $env:RUNNER_TEMP\scope4437.py
+
+      - name: 7 - Commit payload validado, canal todavía en 4.4.36
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]';git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add updates/v4_4_37_dependency_guard
+          if(-not (git diff --cached --quiet)){git commit -m 'payload: v4.4.37 dependency guard fijado y validado';git pull --rebase origin main;git push}
+
+      - name: 8 - Descargar TODOS los bytes desde GitHub Raw y comparar SHA
+        shell: pwsh
+        run: |
+          git pull --rebase origin main
+          @'
+          import hashlib,json,pathlib,time,urllib.request
+          c=json.loads(pathlib.Path('updates/v4_4_37_dependency_guard/candidate_latest.json').read_text(encoding='utf-8'))
+          def get(u):
+            r=urllib.request.Request(u+('?' if '?' not in u else '&')+'rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-v4437-final'});return urllib.request.urlopen(r,timeout=12).read()
+          last=None
+          for _ in range(60):
+            try:
+              for x in c['files']:
+                b=b''.join(get(u) for u in (x.get('parts') or [x['url']]))
+                if hashlib.sha256(b).hexdigest()!=x['sha256']:raise RuntimeError('SHA '+x['path'])
+                if x['path'].endswith('.py'):compile(b.decode('utf-8-sig'),x['path'],'exec')
+              print('RAW_ALL_SHA_OK');break
+            except Exception as e:last=e;time.sleep(1)
+          else:raise SystemExit(f'Payload Raw inválido: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\raw4437.py
+          python $env:RUNNER_TEMP\raw4437.py
+
+      - name: 9 - Repetir reparación completa después de que payload Raw ya existe
+        shell: pwsh
+        run: python build/v4437_dependency_guard/validate_v4437_v3.py
+
+      - name: 10 - Publicar canal SOLO ahora
+        shell: pwsh
+        run: |
+          @'
+          import json,pathlib
+          cur=json.loads(pathlib.Path('latest-v3.json').read_text(encoding='utf-8'));assert cur.get('version') in ('4.4.36','4.4.37')
+          p=pathlib.Path('updates/v4_4_37_dependency_guard/candidate_latest.json');text=p.read_text(encoding='utf-8');c=json.loads(text)
+          req=['ABRIR_RECEPCION.py','app_base_4428.py','app.py','static/app.js','static/index.html','update_manifest.json']
+          assert c['version']=='4.4.37' and c['app_version']=='4.4.36' and [x['path'] for x in c['files']]==req
+          pathlib.Path('latest-v3.json').write_text(text,encoding='utf-8');pathlib.Path('latest.json').write_text(text,encoding='utf-8');print('CHANNEL_READY')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\publish4437.py
+          python $env:RUNNER_TEMP\publish4437.py
+          git add latest-v3.json latest.json
+          if(-not (git diff --cached --quiet)){git commit -m 'release: v4.4.37 blindaje permanente de dependencias';git pull --rebase origin main;git push}
+
+      - name: 11 - Confirmar canal final propagado y acumulativo
+        shell: pwsh
+        run: |
+          @'
+          import json,time,urllib.request
+          u='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json';reqp=['ABRIR_RECEPCION.py','app_base_4428.py','app.py','static/app.js','static/index.html','update_manifest.json'];last=None
+          for _ in range(60):
+            try:
+              r=urllib.request.Request(u+'?rp_ts='+str(time.time_ns()),headers={'Cache-Control':'no-cache','Pragma':'no-cache','User-Agent':'Recepcion-v4437-final'});d=json.loads(urllib.request.urlopen(r,timeout=10).read().decode('utf-8-sig'))
+              if d.get('version')=='4.4.37' and d.get('app_version')=='4.4.36' and [x.get('path') for x in d.get('files',[])]==reqp:print('CHANNEL_V4437_FINAL_OK');break
+              last=d
+            except Exception as e:last=e
+            time.sleep(1)
+          else:raise SystemExit(f'Canal no propagó: {last}')
+          '@ | Set-Content -Encoding utf8 $env:RUNNER_TEMP\final4437.py
+          python $env:RUNNER_TEMP\final4437.py
