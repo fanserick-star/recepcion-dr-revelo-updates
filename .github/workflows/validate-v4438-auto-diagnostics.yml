@@ -6,7 +6,9 @@ on:
     paths:
       - '.github/workflows/validate-v4438-auto-diagnostics.yml'
       - 'build/v4438_auto_diagnostics/build_v4438.py'
+      - 'build/v4438_auto_diagnostics/build_v4438_v2.py'
       - 'build/v4438_auto_diagnostics/validate_v4438.py'
+      - 'build/v4438_auto_diagnostics/validate_v4438_v2.py'
   workflow_dispatch:
 
 permissions:
@@ -23,9 +25,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Construir candidato sobre v4.4.37 exacta
-        run: python build/v4438_auto_diagnostics/build_v4438.py
+        run: python build/v4438_auto_diagnostics/build_v4438_v2.py
       - name: Probar privacidad cola dedupe puertos dependencias y updater
-        run: python build/v4438_auto_diagnostics/validate_v4438.py
+        run: python build/v4438_auto_diagnostics/validate_v4438_v2.py
       - name: Preparar runtime y Chromium
         shell: pwsh
         run: |
