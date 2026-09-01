@@ -1,0 +1,25 @@
+name: Publish v4.4.41 private diagnostics
+
+on:
+  push:
+    paths:
+      - "build/v4441_diag_reader/publish_v4441.py"
+      - ".github/workflows/publish-v4441-diag-reader.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Rebuild, revalidate and publish only after Raw verification
+        shell: pwsh
+        run: |
+          python build/v4441_diag_reader/publish_v4441.py
