@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "cloudflare" / "whatsapp_worker_v2_6_STANDALONE.js"
 OUT = ROOT / "cloudflare" / "WHATSAPP_WORKER_v2_6_15_DIAGNOSTICS_STANDALONE.js"
-EXPECTED_SOURCE_SHA = "f8290214e6f3500de082e54aba5b7722354397de4b6a39006ba968ae82e2d2e"
+EXPECTED_SOURCE_BLOB = "f8290214e6f3500de082e54aba5b7722354397de"
 
 
 def sha(data: bytes) -> str:
@@ -96,8 +97,9 @@ async function serveDiagnosticRead(request, env, u) {
 
 
 def build() -> None:
+    actual_blob = subprocess.check_output(["git", "rev-parse", "HEAD:cloudflare/whatsapp_worker_v2_6_STANDALONE.js"], cwd=ROOT, text=True).strip()
+    require(actual_blob == EXPECTED_SOURCE_BLOB, "El Worker fuente 2.6.14 cambió; revisar antes de parchear")
     raw = SOURCE.read_bytes()
-    require(sha(raw) == EXPECTED_SOURCE_SHA, "El Worker fuente 2.6.14 cambió; revisar antes de parchear")
     text = raw.decode("utf-8")
     marker = "var whatsapp_worker_v2_6_responses_default = {\n"
     require(text.count(marker) == 1, "No se encontró el objeto principal del Worker")
