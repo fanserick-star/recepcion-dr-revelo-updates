@@ -100,7 +100,7 @@ def build() -> None:
     actual_blob = subprocess.check_output(["git", "rev-parse", "HEAD:cloudflare/whatsapp_worker_v2_6_STANDALONE.js"], cwd=ROOT, text=True).strip()
     require(actual_blob == EXPECTED_SOURCE_BLOB, "El Worker fuente 2.6.14 cambió; revisar antes de parchear")
     raw = SOURCE.read_bytes()
-    text = raw.decode("utf-8")
+    text = raw.decode("utf-8").replace("\r\n", "\n")
     marker = "var whatsapp_worker_v2_6_responses_default = {\n"
     require(text.count(marker) == 1, "No se encontró el objeto principal del Worker")
     text = text.replace(marker, BRIDGE + "\n" + marker, 1)
@@ -120,7 +120,7 @@ def build() -> None:
     require("DIAGNOSTIC_LEGACY_DEADLINE" in text, "Falta compatibilidad temporal controlada")
     require("public.rp_diagnostics_incidents" in text, "Falta lectura desde tabla privada")
     require("machine_hash" not in BRIDGE and "metadata_json" not in BRIDGE and "signature" not in BRIDGE, "El puente expone campos innecesarios")
-    OUT.write_text(text, encoding="utf-8")
+    OUT.write_text(text, encoding="utf-8", newline="\n")
     print("BUILD_WORKER_DIAG_READER_OK")
     print("WORKER_SHA", sha(OUT.read_bytes()))
 
