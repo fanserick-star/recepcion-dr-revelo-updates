@@ -1,51 +1,51 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.39",
+  "version": "4.4.40",
   "app_version": "4.4.36",
   "runtime_version": "4.4.36",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.39: corrige el transporte del diagnóstico automático sin cambiar la app funcional. El launcher acepta las mismas variantes de URL PostgreSQL que Recepción, elimina parámetros de arranque extra que Neon puede rechazar y usa timeout/SSL conservadores. Los INC pendientes de v4.4.38 permanecen en data y se reintentan al siguiente arranque. El mensaje de cola ya no culpa necesariamente a Internet. Conserva puertos dinámicos, RP_PORT, guardia de dependencias, sanitización y paquete acumulativo. No modifica .env, data, pacientes, citas, facturas ni bases locales.",
+  "message": "v4.4.40: transporte diagnóstico resiliente. Mantiene el envío directo a Neon, agrega drivers alternos y un segundo intento obligatorio mediante el Python de .venv, evitando depender del intérprete con que se abrió el launcher. Los INC pendientes permanecen en data y se reintentan. No cambia app.py, facturación, agenda, .env ni bases locales.",
   "files": [
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/ABRIR_RECEPCION.part4"
       ],
-      "sha256": "acad51902adc1160253dfccc9a77b144e801b8ab1cc744ab1fdbcd9c532523c2",
+      "sha256": "abb10be2f7b4ca0c25def6f9c1b1da795d3a68ea65d1672340498d24c8d7abfc",
       "encoding": "utf-8"
     },
     {
       "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/app_base_4428.py",
       "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
       "encoding": "utf-8"
     },
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/app.py",
       "sha256": "2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e",
       "encoding": "utf-8"
     },
     {
       "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/static/app.js",
       "sha256": "0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90",
       "encoding": "utf-8"
     },
     {
       "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/static/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/static/index.html",
       "sha256": "16d30060a0be19215e612c4ba897e801873dd359712e90d4dc14e32513b25728",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_39_diag_transport/update_manifest.json",
-      "sha256": "b210333f9ded985ec0e52c7d98c97ab0d15da08342d600b495ecca55e90deaa6",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_40_diag_transport_resilient/update_manifest.json",
+      "sha256": "a73238fe76b93b1f0b09237ec8367207999b4fb17d6bf11959bd7de062e1a4bb",
       "encoding": "utf-8"
     }
   ]
