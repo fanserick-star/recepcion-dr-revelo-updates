@@ -1,0 +1,27 @@
+name: Publicar v4.4.40 transporte diagnóstico resiliente
+
+on:
+  push:
+    paths:
+      - 'build/v4440_diag_transport_resilient/publish_v4440.py'
+      - '.github/workflows/publish-v4440-diag-transport-resilient.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reconstruir candidato exacto
+        run: python build/v4440_diag_transport_resilient/build_v4440.py
+      - name: Repetir transporte, privacidad, cola, puertos y selftests
+        run: python build/v4440_diag_transport_resilient/validate_v4440.py
+      - name: Publicar payload, verificar Raw y recién entonces mover canal
+        run: python build/v4440_diag_transport_resilient/publish_v4440.py
