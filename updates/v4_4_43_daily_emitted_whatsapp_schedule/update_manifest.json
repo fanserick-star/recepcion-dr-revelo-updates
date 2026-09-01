@@ -1,0 +1,25 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.43",
+  "app_version": "4.4.43",
+  "runtime_version": "4.4.43",
+  "launcher_version": "4.4.42-dynamic-port-file-python-dependency-guard-1",
+  "updater_version": "integrado-en-launcher",
+  "required_dependencies": [
+    "app_base_4428.py"
+  ],
+  "required_python_packages": [
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    }
+  ],
+  "copy": [
+    "ABRIR_RECEPCION.py",
+    "app_base_4428.py",
+    "app.py",
+    "static/app.js",
+    "static/index.html",
+    "update_manifest.json"
+  ]
+}

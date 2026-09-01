@@ -1,0 +1,453 @@
+# v4.4.38 — diagnóstico automático privado de fallos fatales
+# ---------------------------------------------------------------------------
+# Solo se ejecuta cuando Recepción NO puede arrancar (o para reenviar una cola
+# pendiente). No sube .env, SQLite, Excel, pacientes, citas ni facturas.
+# Antes de salir de la PC los textos pasan por sanitización de secretos/PII.
+_RP_DIAGNOSTICS_VERSION = "4.4.41-private-neon-capability-1"
+_RP_DIAGNOSTIC_TABLE = "rp_diagnostics_incidents"
+_RP_DIAGNOSTIC_DEDUPE_SECONDS = 1800
+
+
+def _rp_diag_enabled() -> bool:
+    raw = str(os.getenv("RP_DIAGNOSTICS_ENABLED", "1") or "1").strip().lower()
+    return raw not in {"0", "false", "no", "off", "disabled"}
+
+
+def _rp_diag_sanitize(value: object) -> str:
+    text = str(value or "")
+    try:
+        text = text.replace(str(ROOT), "[APP_ROOT]")
+    except Exception:
+        pass
+    # Credenciales/URLs de base de datos completas.
+    text = re.sub(r"(?i)postgres(?:ql)?://[^\\s\\'\\\"<>\\]]+", "[DATABASE_URL_REDACTADA]", text)
+    # Cabeceras y claves comunes.
+    text = re.sub(
+        r"(?i)\\b(database_url|neon_database_url|password|passwd|secret|token|api[_-]?key|authorization)\\b\\s*[:=]\\s*([^\\s,;|]+)",
+        lambda m: f"{m.group(1)}=[REDACTADO]",
+        text,
+    )
+    text = re.sub(r"(?i)\\bBearer\\s+[A-Za-z0-9._~+\\/=-]+", "Bearer [REDACTADO]", text)
+    # Correos.
+    text = re.sub(r"(?i)\\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}\\b", "[CORREO_REDACTADO]", text)
+    # Usuario de Windows en rutas.
+    text = re.sub(r"(?i)C:\\\\Users\\\\[^\\\\\\r\\n\\t ]+", r"C:\\Users\\[USUARIO]", text)
+    # Campos que podrían contener datos de pacientes.
+    text = re.sub(
+        r"(?i)\\b(c[eé]dula|ruc|correo|e-?mail|celular|tel[eé]fono|patient_id|patient|cliente)\\b\\s*[:=]\\s*[^,\\r\\n|]+",
+        lambda m: m.group(1) + "=[REDACTADO]",
+        text,
+    )
+    # Cédulas, teléfonos, RUC, IDs largos. Puertos/líneas cortas no se alteran.
+    text = re.sub(r"(?<!\\d)\\d{7,20}(?!\\d)", "[NUMERO_REDACTADO]", text)
+
+    def _ip_repl(match):
+        ip = match.group(0)
+        return ip if ip.startswith("127.") else "[IP_REDACTADA]"
+
+    text = re.sub(r"(?<!\\d)(?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d)", _ip_repl, text)
+    return text
+
+
+def _rp_diag_read_tail(path: Path, *, max_bytes: int = 131072, max_lines: int = 350, max_chars: int = 48000) -> str:
+    try:
+        if not path.is_file():
+            return ""
+        size = path.stat().st_size
+        with path.open("rb") as fh:
+            start = max(0, size - max_bytes)
+            fh.seek(start)
+            raw = fh.read(max_bytes)
+        text = raw.decode("utf-8", errors="replace")
+        if start > 0 and "\n" in text:
+            text = text.split("\n", 1)[1]
+        text = "\n".join(text.splitlines()[-max_lines:])
+        return _rp_diag_sanitize(text)[-max_chars:]
+    except Exception as exc:
+        return "[No se pudo leer log: " + _rp_diag_sanitize(type(exc).__name__) + "]"
+
+
+def _rp_diag_connection_url() -> str:
+    for key in ("DATABASE_URL", "NEON_DATABASE_URL"):
+        value = str(os.getenv(key, "") or "").strip()
+        if value:
+            return value
+    env_path = ROOT / ".env"
+    if not env_path.is_file():
+        return ""
+    try:
+        for line in env_path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            if key.strip() in {"DATABASE_URL", "NEON_DATABASE_URL"}:
+                return value.strip().strip('"').strip("'")
+    except Exception:
+        return ""
+    return ""
+
+
+def _rp_diag_db_connect():
+    """Abre Neon con el primer driver disponible; no depende de un único driver."""
+    url = _rp_diag_connection_url()
+    if not url:
+        raise RuntimeError("Conexión privada de diagnóstico no configurada")
+    parts = urllib.parse.urlsplit(url)
+    scheme = parts.scheme.lower()
+    if scheme not in {"postgres", "postgresql", "postgresql+pg8000", "postgresql+psycopg", "postgresql+psycopg2"}:
+        raise RuntimeError("Esquema de base privada no compatible")
+    base_scheme = scheme.split("+", 1)[0]
+    clean_parts = parts._replace(scheme=base_scheme)
+    user = urllib.parse.unquote(parts.username or "")
+    password = urllib.parse.unquote(parts.password or "")
+    host = parts.hostname or ""
+    database = urllib.parse.unquote((parts.path or "/").lstrip("/")) or "neondb"
+    if not user or not password or not host:
+        raise RuntimeError("Conexión privada incompleta")
+
+    failures = []
+    try:
+        from pg8000 import dbapi as _pg8000
+        import ssl as _ssl
+        return _pg8000.connect(
+            user=user, password=password, host=host, port=int(parts.port or 5432),
+            database=database, ssl_context=_ssl.create_default_context(), timeout=12,
+        )
+    except Exception as exc:
+        failures.append("pg8000:" + type(exc).__name__)
+
+    dsn = urllib.parse.urlunsplit(clean_parts)
+    try:
+        import psycopg as _psycopg
+        return _psycopg.connect(dsn, connect_timeout=12)
+    except Exception as exc:
+        failures.append("psycopg:" + type(exc).__name__)
+
+    try:
+        import psycopg2 as _psycopg2
+        # psycopg2 puede no entender channel_binding en versiones antiguas.
+        q = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+             if str(k).lower() != "channel_binding"]
+        dsn2 = urllib.parse.urlunsplit((base_scheme, parts.netloc, parts.path, urllib.parse.urlencode(q), parts.fragment))
+        return _psycopg2.connect(dsn2, connect_timeout=12)
+    except Exception as exc:
+        failures.append("psycopg2:" + type(exc).__name__)
+
+    raise RuntimeError("No se pudo abrir transporte Neon [" + ", ".join(failures) + "]")
+
+
+def _rp_diag_paths() -> tuple[Path, Path, Path]:
+    data = _data_dir(ROOT)
+    return data / "diagnostic_outbox", data / "diagnostic_last.json", data / "last_diagnostic_incident.txt"
+
+
+def _rp_diag_machine_hash() -> str:
+    seed = (str(os.getenv("COMPUTERNAME", "")) + "|" + str(ROOT)).encode("utf-8", errors="ignore")
+    return hashlib.sha256(seed).hexdigest()[:20]
+
+
+def _rp_diag_update_state() -> str:
+    path = _data_dir(ROOT) / "auto_update_state.json"
+    return _rp_diag_read_tail(path, max_bytes=32768, max_lines=120, max_chars=16000)
+
+
+def _rp_diag_build_payload(stage: str, exc: BaseException) -> dict:
+    launcher_log = _rp_diag_read_tail(_data_dir(ROOT) / "launcher_errors.log")
+    backend_log = _rp_diag_read_tail(_data_dir(ROOT) / "backend_startup.log")
+    err = _rp_diag_sanitize(str(exc) or repr(exc))[:6000]
+    error_class = _rp_diag_sanitize(type(exc).__name__)[:120]
+    clean_stage = re.sub(r"[^a-zA-Z0-9_.:-]+", "_", str(stage or "launcher_fatal"))[:80]
+    signature_source = (clean_stage + "|" + error_class + "|" + err + "|" + backend_log[-5000:]).encode("utf-8", errors="ignore")
+    signature = hashlib.sha256(signature_source).hexdigest()
+    now_epoch = int(time.time())
+    suffix = hashlib.sha256(os.urandom(32)).hexdigest()[:32].upper()
+    incident_id = "INC-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(now_epoch)) + "-" + suffix
+    metadata = {
+        "diagnostics_version": _RP_DIAGNOSTICS_VERSION,
+        "port": int(APP_PORT or 0),
+        "python": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+        "platform": os.name,
+        "source_epoch": now_epoch,
+    }
+    return {
+        "incident_id": incident_id,
+        "created_epoch": now_epoch,
+        "package_version": _local_package_version(ROOT),
+        "app_version": _installed_app_version(ROOT),
+        "launcher_version": str(LAUNCHER_VERSION),
+        "stage": clean_stage,
+        "error_class": error_class,
+        "error_message": err,
+        "signature": signature,
+        "launcher_log": launcher_log,
+        "backend_log": backend_log,
+        "update_state": _rp_diag_update_state(),
+        "machine_hash": _rp_diag_machine_hash(),
+        "metadata": metadata,
+    }
+
+
+def _rp_diag_upload_payload_direct(payload: dict) -> None:
+    conn = _rp_diag_db_connect()
+    cur = None
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS rp_diagnostics_incidents (
+                incident_id VARCHAR(64) PRIMARY KEY,
+                received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                source_created_epoch BIGINT,
+                package_version VARCHAR(32),
+                app_version VARCHAR(32),
+                launcher_version VARCHAR(120),
+                stage VARCHAR(80),
+                error_class VARCHAR(120),
+                error_message TEXT,
+                signature VARCHAR(64),
+                launcher_log TEXT,
+                backend_log TEXT,
+                update_state TEXT,
+                machine_hash VARCHAR(64),
+                metadata_json TEXT
+            )"""
+        )
+        cur.execute(
+            """INSERT INTO rp_diagnostics_incidents (
+                incident_id, source_created_epoch, package_version, app_version,
+                launcher_version, stage, error_class, error_message, signature,
+                launcher_log, backend_log, update_state, machine_hash, metadata_json
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (incident_id) DO UPDATE SET
+                received_at=NOW(), error_message=EXCLUDED.error_message,
+                launcher_log=EXCLUDED.launcher_log, backend_log=EXCLUDED.backend_log,
+                update_state=EXCLUDED.update_state, metadata_json=EXCLUDED.metadata_json""",
+            (
+                str(payload.get("incident_id") or ""), int(payload.get("created_epoch") or 0),
+                str(payload.get("package_version") or "")[:32], str(payload.get("app_version") or "")[:32],
+                str(payload.get("launcher_version") or "")[:120], str(payload.get("stage") or "")[:80],
+                str(payload.get("error_class") or "")[:120], str(payload.get("error_message") or "")[:6000],
+                str(payload.get("signature") or "")[:64], str(payload.get("launcher_log") or "")[:48000],
+                str(payload.get("backend_log") or "")[:48000], str(payload.get("update_state") or "")[:16000],
+                str(payload.get("machine_hash") or "")[:64],
+                json.dumps(payload.get("metadata") or {}, ensure_ascii=False, separators=(",", ":"))[:8000],
+            ),
+        )
+        conn.commit()
+    finally:
+        try:
+            if cur is not None: cur.close()
+        except Exception:
+            pass
+        try: conn.close()
+        except Exception: pass
+
+
+def _rp_diag_upload_via_venv(payload: dict) -> None:
+    """Segundo camino: ejecuta el mismo uploader con el Python real de .venv."""
+    outbox, _, _ = _rp_diag_paths()
+    outbox.mkdir(parents=True, exist_ok=True)
+    incident = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(payload.get("incident_id") or "INC"))[:80]
+    temp = outbox / (".transport_" + incident + "_" + str(os.getpid()) + ".json")
+    _rp_diag_save_json(temp, payload)
+    try:
+        py = _python_exe(windowless=False)
+        flags = _hidden_flags()
+        proc = subprocess.run(
+            [str(py), str(ROOT / "ABRIR_RECEPCION.py"), "--diag-upload-file", str(temp)],
+            cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, timeout=28, check=False, creationflags=flags,
+        )
+        if proc.returncode != 0:
+            marker = (proc.stderr or proc.stdout or "").strip().splitlines()[-1:] or ["sin-detalle"]
+            safe = re.sub(r"[^A-Za-z0-9_.:-]+", "_", marker[0])[:120]
+            raise RuntimeError("Uploader .venv falló: " + safe)
+    finally:
+        try: temp.unlink(missing_ok=True)
+        except Exception: pass
+
+
+def _rp_diag_upload_payload(payload: dict) -> None:
+    first = None
+    try:
+        _rp_diag_upload_payload_direct(payload)
+        return
+    except Exception as exc:
+        first = exc
+    try:
+        _rp_diag_upload_via_venv(payload)
+        return
+    except Exception as second:
+        raise RuntimeError(
+            "Transporte diagnóstico agotó rutas [directo=" + type(first).__name__ +
+            ", venv=" + type(second).__name__ + "]"
+        ) from second
+
+
+def _rp_diag_load_json(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8-sig"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def _rp_diag_save_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(path.name + ".tmp")
+    temp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    os.replace(temp, path)
+
+
+def _rp_diag_mark_last(payload: dict, status: str) -> dict:
+    _, last_path, id_path = _rp_diag_paths()
+    result = {
+        "incident_id": str(payload.get("incident_id") or ""),
+        "signature": str(payload.get("signature") or ""),
+        "created_epoch": int(payload.get("created_epoch") or time.time()),
+        "status": str(status),
+    }
+    try:
+        _rp_diag_save_json(last_path, result)
+        id_path.parent.mkdir(parents=True, exist_ok=True)
+        id_path.write_text(result["incident_id"] + "\n", encoding="utf-8")
+    except Exception:
+        pass
+    return result
+
+
+def _rp_diag_flush_outbox(max_items: int = 3) -> int:
+    if not _rp_diag_enabled():
+        return 0
+    outbox, last_path, _ = _rp_diag_paths()
+    if not outbox.is_dir():
+        return 0
+    sent = 0
+    for path in sorted(outbox.glob("INC-*.json"))[:max(0, int(max_items))]:
+        try:
+            payload = _rp_diag_load_json(path)
+            if not payload.get("incident_id"):
+                path.unlink(missing_ok=True)
+                continue
+            _rp_diag_upload_payload(payload)
+            path.unlink(missing_ok=True)
+            sent += 1
+            last = _rp_diag_load_json(last_path)
+            if last.get("incident_id") == payload.get("incident_id"):
+                _rp_diag_mark_last(payload, "sent")
+        except Exception as exc:
+            _log("Diagnóstico pendiente no enviado: " + _rp_diag_sanitize(type(exc).__name__ + ": " + str(exc)), ROOT)
+            break
+    return sent
+
+
+def _rp_diag_report(stage: str, exc: BaseException) -> dict:
+    if not _rp_diag_enabled():
+        return {"incident_id": "", "status": "disabled"}
+    payload = _rp_diag_build_payload(stage, exc)
+    outbox, last_path, _ = _rp_diag_paths()
+    last = _rp_diag_load_json(last_path)
+    if (
+        last.get("signature") == payload.get("signature")
+        and int(payload["created_epoch"]) - int(last.get("created_epoch") or 0) <= _RP_DIAGNOSTIC_DEDUPE_SECONDS
+        and last.get("incident_id")
+    ):
+        # Evita inundar Neon si el usuario intenta abrir varias veces el mismo fallo.
+        _rp_diag_flush_outbox(max_items=3)
+        refreshed = _rp_diag_load_json(last_path)
+        return refreshed or last
+
+    outbox.mkdir(parents=True, exist_ok=True)
+    queued = outbox / (payload["incident_id"] + ".json")
+    _rp_diag_save_json(queued, payload)
+    status = "queued"
+    try:
+        _rp_diag_upload_payload(payload)
+        queued.unlink(missing_ok=True)
+        status = "sent"
+    except Exception as upload_exc:
+        # Nunca registrar credenciales ni URL: solo tipo/mensaje ya sanitizado.
+        _log("Diagnóstico en cola: " + _rp_diag_sanitize(type(upload_exc).__name__ + ": " + str(upload_exc)), ROOT)
+    return _rp_diag_mark_last(payload, status)
+
+
+def _rp_diag_message(base: str, result: dict) -> str:
+    incident = str((result or {}).get("incident_id") or "").strip()
+    status = str((result or {}).get("status") or "")
+    if not incident:
+        return base
+    if status == "sent":
+        return base + "\n\nDiagnóstico enviado automáticamente: " + incident
+    return base + "\n\nDiagnóstico preparado: " + incident + "\nQuedó guardado localmente y se reintentará automáticamente en el próximo arranque."
+
+
+
+# v4.4.38 privacy filter revision 2 — probado con secretos y PII sintéticos.
+def _rp_diag_sanitize(value: object) -> str:
+    text = str(value or "")
+    try:
+        text = text.replace(str(ROOT), "[APP_ROOT]")
+    except Exception:
+        pass
+
+    # 1) Credenciales completas de Postgres/Neon antes de cualquier otro filtro.
+    text = re.sub(r"(?i)postgres(?:ql)?://[^\s'\"<>\]]+", "[DATABASE_URL_REDACTADA]", text)
+
+    # 2) Bearer completo antes de redacción genérica de Authorization.
+    text = re.sub(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+", "Bearer [REDACTADO]", text)
+
+    # 3) Claves/secretos comunes key=value o key:value.
+    text = re.sub(
+        r"(?i)\b(database_url|neon_database_url|password|passwd|secret|token|api[_-]?key|authorization)\b\s*[:=]\s*([^\s,;|]+)",
+        lambda m: f"{m.group(1)}=[REDACTADO]",
+        text,
+    )
+
+    # 4) Correo electrónico.
+    text = re.sub(r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", "[CORREO_REDACTADO]", text)
+
+    # 5) Usuario de Windows en rutas; conserva el resto del path útil para traceback.
+    text = re.sub(r"(?i)C:\\Users\\[^\\\r\n\t ]+", r"C:\\Users\\[USUARIO]", text)
+
+    # 6) Campos que pueden contener PII explícita.
+    text = re.sub(
+        r"(?i)\b(c[eé]dula|ruc|correo|e-?mail|celular|tel[eé]fono|patient_id|patient|cliente)\b\s*[:=]\s*[^,\r\n|]+",
+        lambda m: m.group(1) + "=[REDACTADO]",
+        text,
+    )
+
+    # 7) Cédulas, teléfonos, RUC e identificadores numéricos largos.
+    text = re.sub(r"(?<!\d)\d{7,20}(?!\d)", "[NUMERO_REDACTADO]", text)
+
+    # 8) IP no-loopback.
+    def _ip_repl(match):
+        ip = match.group(0)
+        return ip if ip.startswith("127.") else "[IP_REDACTADA]"
+    text = re.sub(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", _ip_repl, text)
+    return text
+
+
+if __name__ == "__main__":
+    if "--diag-upload-file" in sys.argv:
+        i = sys.argv.index("--diag-upload-file")
+        try:
+            payload = _rp_diag_load_json(Path(sys.argv[i + 1]))
+            if not payload.get("incident_id"):
+                raise RuntimeError("payload_sin_incident_id")
+            _rp_diag_upload_payload_direct(payload)
+            raise SystemExit(0)
+        except SystemExit:
+            raise
+        except Exception as exc:
+            # Nunca imprimir el mensaje del driver: podría contener host/usuario.
+            sys.stderr.write("DIAG_UPLOAD_ERROR:" + type(exc).__name__ + "\n")
+            raise SystemExit(73)
+    if "--self-test-mutex-holder" in sys.argv:
+        i = sys.argv.index("--self-test-mutex-holder")
+        raise SystemExit(_selftest_mutex_holder(sys.argv[i + 1], sys.argv[i + 2]))
+    if "--self-test-mutex-probe" in sys.argv:
+        i = sys.argv.index("--self-test-mutex-probe")
+        raise SystemExit(_selftest_mutex_probe(sys.argv[i + 1]))
+    if "--self-test-core" in sys.argv:
+        raise SystemExit(run_self_tests())
+    main()
