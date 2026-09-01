@@ -1,0 +1,19 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.39",
+  "app_version": "4.4.36",
+  "runtime_version": "4.4.36",
+  "launcher_version": "4.4.39-dynamic-port-dependency-diagnostics-transport-1",
+  "updater_version": "integrado-en-launcher",
+  "required_dependencies": [
+    "app_base_4428.py"
+  ],
+  "copy": [
+    "ABRIR_RECEPCION.py",
+    "app_base_4428.py",
+    "app.py",
+    "static/app.js",
+    "static/index.html",
+    "update_manifest.json"
+  ]
+}
