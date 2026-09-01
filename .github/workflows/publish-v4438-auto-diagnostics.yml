@@ -1,0 +1,27 @@
+name: Publicar v4.4.38 diagnóstico privado
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/publish-v4438-auto-diagnostics.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Reconstruir exactamente el candidato validado
+        run: python build/v4438_auto_diagnostics/build_v4438_v2.py
+      - name: Repetir privacidad cola dedupe updater puertos y selftests
+        run: python build/v4438_auto_diagnostics/validate_v4438_v2.py
+      - name: Publicar payload verificar Raw y recién entonces mover canal
+        run: python build/v4438_auto_diagnostics/publish_v4438.py
