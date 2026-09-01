@@ -1,0 +1,24 @@
+name: Publish v4.4.42 Python dependency guard
+
+on:
+  push:
+    paths:
+      - "build/v4442_python_dependency_guard/publish_v4442.py"
+      - ".github/workflows/publish-v4442-python-dependency-guard.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Rebuild revalidate Raw-check and publish
+        shell: pwsh
+        run: python build/v4442_python_dependency_guard/publish_v4442.py
