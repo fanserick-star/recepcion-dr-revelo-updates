@@ -1,0 +1,413 @@
+
+) -> dict:
+    stage, staged = _stage_update(
+        remote, root, attempts=attempts, timeout=timeout, allow_test_sources=allow_test_sources
+    )
+    backup, existed = _make_backup(root, staged, str(remote["version"]))
+    ordered = sorted(staged, key=lambda e: e["rel"].lower() == "update_manifest.json")
+    applied = 0
+    try:
+        for entry in ordered:
+            rel = entry["rel"]
+            dest = _safe_target(root, rel)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            temp = dest.with_name(dest.name + f".new_{os.getpid()}_{time.time_ns()}")
+            shutil.copyfile(entry["stage"], temp)
+            os.replace(temp, dest)
+            applied += 1
+            if test_fail_after is not None and applied >= test_fail_after:
+                raise RuntimeError("Fallo simulado para probar rollback")
+        _validate_installed(remote, root, staged)
+        return {
+            "backup": str(backup),
+            "paths": [e["rel"] for e in staged],
+        }
+    except Exception:
+        _rollback(root, backup, staged, existed)
+        raise
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+def check_and_apply_update(
+    root: Path = ROOT,
+    manifest_url: str = DEFAULT_MANIFEST_URL,
+    *,
+    attempts: int = 3,
+    timeout: float = 8.0,
+    allow_test_sources: bool = False,
+) -> dict:
+    local_version = _local_package_version(root)
+    coherent = _installation_consistent(root)
+    try:
+        remote = _fetch_manifest(manifest_url, attempts=attempts, timeout=timeout)
+    except Exception as exc:
+        _write_state(
+            root,
+            last_check_ok=False,
+            last_error=str(exc),
+            local_version=local_version,
+            local_app_version=_installed_app_version(root),
+            installation_consistent=coherent,
+        )
+        if coherent:
+            return {"ok": True, "updated": False, "deferred": True, "error": str(exc)}
+        return {"ok": False, "updated": False, "blocked": True, "error": str(exc)}
+
+    remote_version = str(remote.get("version") or "").strip()
+    should_apply = _vtuple(remote_version) > _vtuple(local_version) or (
+        remote_version == local_version and not coherent
+    )
+
+    if not should_apply:
+        _write_state(
+            root,
+            last_check_ok=True,
+            last_error="",
+            local_version=local_version,
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=coherent,
+        )
+        return {"ok": True, "updated": False, "version": local_version}
+
+    try:
+        result = _apply_remote(
+            remote, root, attempts=attempts, timeout=timeout, allow_test_sources=allow_test_sources
+        )
+        _write_state(
+            root,
+            last_check_ok=True,
+            last_error="",
+            local_version=remote_version,
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=_installation_consistent(root),
+            last_installed_version=remote_version,
+            last_backup=result.get("backup", ""),
+        )
+        return {
+            "ok": True,
+            "updated": True,
+            "version": remote_version,
+            "paths": result.get("paths", []),
+            "backup": result.get("backup"),
+        }
+    except Exception as exc:
+        _log("Actualización falló y se revirtió: " + repr(exc), root)
+        _write_state(
+            root,
+            last_check_ok=False,
+            last_error=str(exc),
+            local_version=_local_package_version(root),
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=_installation_consistent(root),
+        )
+        if _installation_consistent(root):
+            return {"ok": True, "updated": False, "deferred": True, "error": str(exc)}
+        return {"ok": False, "updated": False, "blocked": True, "error": str(exc)}
+
+
+def _running_version(timeout: float = 1.0) -> str | None:
+    try:
+        with urllib.request.urlopen(VERSION_URL + f"?ts={time.time_ns()}", timeout=timeout) as r:
+            data = json.loads(r.read().decode("utf-8"))
+            return str(data.get("version") or "")
+    except Exception:
+        return None
+
+
+def _hidden_flags() -> int:
+    return getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
+
+def _set_app_port(port: int) -> int:
+    global APP_PORT, URL, VERSION_URL
+    APP_PORT = int(port)
+    URL = f"http://127.0.0.1:{APP_PORT}"
+    VERSION_URL = URL + "/api/version"
+    return APP_PORT
+
+
+def _port_file() -> Path:
+    return _data_dir(ROOT) / "local_port.txt"
+
+
+def _read_saved_port() -> int | None:
+    try:
+        value = int(_port_file().read_text(encoding="utf-8").strip())
+        return value if 1024 <= value <= 65535 else None
+    except Exception:
+        return None
+
+
+def _save_port(port: int) -> None:
+    try:
+        path = _port_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(int(port)), encoding="utf-8")
+    except Exception as exc:
+        _log("No se pudo guardar el puerto local: " + repr(exc))
+
+
+def _can_bind_port(port: int) -> bool:
+    # Primero comprobamos si ya hay un listener accesible en loopback. En Windows
+    # un bind a 0.0.0.0 puede no detectar correctamente un listener ligado solo
+    # a 127.0.0.1, así que usamos ambas comprobaciones.
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(0.20)
+        if probe.connect_ex(("127.0.0.1", int(port))) == 0:
+            return False
+    except Exception:
+        pass
+    finally:
+        try: probe.close()
+        except Exception: pass
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        sock.bind(("0.0.0.0", int(port)))
+        return True
+    except OSError:
+        return False
+    finally:
+        try: sock.close()
+        except Exception: pass
+
+
+def _choose_app_port(force_new: bool = False) -> int:
+    """Elige un puerto de Recepción sin cerrar ni interferir con programas ajenos."""
+    saved = _read_saved_port()
+    if saved and not force_new:
+        _set_app_port(saved)
+        # Si responde /api/version es nuestra copia ya levantada; se conserva.
+        if _running_version(timeout=0.30) is not None:
+            return saved
+        if _can_bind_port(saved):
+            return saved
+
+    candidates = []
+    if not force_new:
+        candidates.append(8000)
+    candidates.extend(range(8765, 8800))
+    candidates.extend(range(18000, 18021))
+    current = int(APP_PORT or 0)
+    for port in candidates:
+        if force_new and int(port) == current:
+            continue
+        if _can_bind_port(port):
+            _set_app_port(port)
+            _save_port(port)
+            _log(f"Puerto local seleccionado: {port}")
+            return port
+    raise RuntimeError("No se encontró un puerto local libre para Recepción")
+
+
+def _port_pids(port: int | None = None) -> list[int]:
+    if os.name != "nt":
+        return []
+    wanted = str(int(port or APP_PORT))
+    pids = set()
+    try:
+        proc = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True,
+            timeout=6, check=False, creationflags=_hidden_flags(),
+        )
+        for line in (proc.stdout or "").splitlines():
+            parts = line.split()
+            if len(parts) < 4 or parts[0].upper() != "TCP":
+                continue
+            local = parts[1].strip()
+            if local.rsplit(":", 1)[-1] != wanted:
+                continue
+            try: pid = int(parts[-1])
+            except Exception: continue
+            if pid > 0 and pid != os.getpid(): pids.add(pid)
+    except Exception as exc:
+        _log(f"No se pudo leer netstat para puerto {wanted}: {exc!r}")
+    return sorted(pids)
+
+
+def _listening_pid() -> int | None:
+    pids = _port_pids()
+    return pids[0] if pids else None
+
+
+def _wait_app_port_free(seconds: float = 7.0) -> bool:
+    deadline = time.time() + max(0.5, float(seconds))
+    while time.time() < deadline:
+        if not _port_pids(): return True
+        time.sleep(0.15)
+    return not _port_pids()
+
+
+def _stop_server() -> None:
+    if os.name != "nt": return
+    pids = _port_pids()
+    if not pids: return
+    # Nunca matamos un proceso desconocido. Solo cerramos el dueño del puerto si
+    # ese puerto está respondiendo como Recepción.
+    if _running_version(timeout=0.45) is None:
+        _log(f"Puerto {APP_PORT} ocupado por proceso ajeno; se conservará y se elegirá otro puerto")
+        return
+    for _round in range(4):
+        pids = _port_pids()
+        if not pids: return
+        for pid in pids:
+            try:
+                proc = subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=8, check=False, creationflags=_hidden_flags(),
+                )
+                if proc.returncode not in (0,128):
+                    _log(f"taskkill PID {pid} devolvió {proc.returncode}")
+            except Exception as exc:
+                _log(f"No se pudo cerrar PID {pid} del puerto {APP_PORT}: {exc!r}")
+        if _wait_app_port_free(2.5): return
+    remaining=_port_pids()
+    if remaining:
+        raise RuntimeError(f"No se pudo liberar el puerto local {APP_PORT}. Procesos: " + ", ".join(map(str,remaining)))
+
+def _python_exe(windowless: bool = True) -> Path:
+    candidates = []
+    if windowless:
+        candidates.append(ROOT / ".venv" / "Scripts" / "pythonw.exe")
+    candidates.append(ROOT / ".venv" / "Scripts" / "python.exe")
+    for p in candidates:
+        if p.exists():
+            return p
+    raise FileNotFoundError("No se encontró Python dentro de .venv\\Scripts.")
+
+
+def _start_server() -> None:
+    # Si el puerto guardado fue tomado por un programa ajeno, NO lo cerramos:
+    # elegimos otro puerto y actualizamos URL/VERSION_URL antes de arrancar.
+    if os.name == "nt" and _port_pids():
+        if _running_version(timeout=0.45) is not None:
+            _stop_server()
+        else:
+            _choose_app_port(force_new=True)
+    if os.name == "nt" and _port_pids():
+        raise RuntimeError(f"El puerto local {APP_PORT} sigue ocupado")
+    py = _python_exe(windowless=True)
+    env = os.environ.copy()
+    env["RP_DESKTOP_LAUNCH"] = "1"
+    env["DISABLE_SQLALCHEMY_CEXT_RUNTIME"] = "1"
+    env["RP_PORT"] = str(APP_PORT)
+    d = _data_dir(ROOT)
+    d.mkdir(parents=True, exist_ok=True)
+    log_path = d / "backend_startup.log"
+    fh = open(log_path, "a", encoding="utf-8")
+    fh.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando app.py en puerto {APP_PORT}\n")
+    fh.flush()
+    flags = _hidden_flags()
+    if os.name == "nt": flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    subprocess.Popen(
+        [str(py), str(ROOT / "app.py")], cwd=str(ROOT), env=env,
+        stdin=subprocess.DEVNULL, stdout=fh, stderr=fh,
+        creationflags=flags, close_fds=True,
+    )
+
+def _wait_server(expected: str, seconds: float, splash=None) -> bool:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        if _running_version(timeout=0.8) == expected:
+            return True
+        if splash:
+            splash.pump()
+        time.sleep(0.2)
+    return False
+
+
+def _set_windows_identity() -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+        except Exception:
+            pass
+
+
+def _enum_visible_windows():
+    if os.name != "nt":
+        return []
+    found = []
+    user32 = ctypes.windll.user32
+    PROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    @PROC
+    def cb(hwnd, _):
+        try:
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            n = user32.GetWindowTextLengthW(hwnd)
+            if n <= 0:
+                return True
+            buf = ctypes.create_unicode_buffer(n + 1)
+            user32.GetWindowTextW(hwnd, buf, n + 1)
+            title = buf.value.strip()
+            if title:
+                found.append((hwnd, title))
+        except Exception:
+            pass
+        return True
+
+    user32.EnumWindows(cb, 0)
+    return found
+
+
+def _focus_existing_window() -> bool:
+    if os.name != "nt":
+        return False
+    user32 = ctypes.windll.user32
+    for hwnd, title in _enum_visible_windows():
+        low = title.lower()
+        if "recepción dr. armando revelo" in low or "recepcion dr. armando revelo" in low:
+            try:
+                user32.ShowWindow(hwnd, 9)
+                user32.SetForegroundWindow(hwnd)
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def _acquire_mutex(name: str = MUTEX_NAME):
+    if os.name != "nt":
+        return None, False
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, name)
+    already = kernel32.GetLastError() == 183
+    return handle, already
+
+
+def _release_mutex(handle) -> None:
+    if os.name == "nt" and handle:
+        try:
+            ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            pass
+
+
+class Splash:
+    def __init__(self):
+        self.root = None
+        self.label = None
+        self.detail = None
+        self.elapsed = None
+        self.canvas = None
+        self.started = time.monotonic()
+        self.phase = self.started
+        self.spin = 0
+        self.warned = False
+        try:
+            import tkinter as tk
+
+            root = tk.Tk()
+            root.overrideredirect(True)
+            root.attributes("-topmost", True)
+            w, h = 470, 220
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            root.geom

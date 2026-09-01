@@ -1,0 +1,253 @@
+           ok("clean_update")
+
+            r2 = check_and_apply_update(root, base + "/manifest", attempts=1, timeout=2, allow_test_sources=True)
+            assert r2["ok"] and not r2["updated"]
+            ok("second_open_no_redownload")
+        finally:
+            server.shutdown()
+            server.server_close()
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        old = (root / "ABRIR_RECEPCION.py").read_bytes()
+        server, base = _test_server({})
+        try:
+            manifest, payload, inner = _remote_test_files(base, bad_sha=True)
+            server.RequestHandlerClass.files = {
+                "/manifest": (json.dumps(manifest).encode(), "application/json"),
+                "/payload": (payload, "text/plain"),
+                "/inner": (inner, "application/json"),
+            }
+            r = check_and_apply_update(root, base + "/manifest", attempts=1, timeout=2, allow_test_sources=True)
+            assert r["ok"] and r.get("deferred") and (root / "ABRIR_RECEPCION.py").read_bytes() == old
+            ok("sha_mismatch_keeps_local")
+        finally:
+            server.shutdown(); server.server_close()
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        old = (root / "ABRIR_RECEPCION.py").read_bytes()
+        server, base = _test_server({})
+        try:
+            invalid = b"def broken(:\n"
+            inner = json.dumps({
+                "product": PRODUCT,
+                "version": "4.3.57",
+                "app_version": "4.3.54",
+                "runtime_version": "4.3.54",
+                "copy": ["update_manifest.json", "ABRIR_RECEPCION.py"],
+            }, ensure_ascii=False, indent=2).encode()
+            manifest = {
+                "product": PRODUCT,
+                "version": "4.3.57",
+                "files": [
+                    {"path": "ABRIR_RECEPCION.py", "url": base + "/payload",
+                     "sha256": hashlib.sha256(invalid).hexdigest(), "encoding": "utf-8"},
+                    {"path": "update_manifest.json", "url": base + "/inner",
+                     "sha256": hashlib.sha256(inner).hexdigest(), "encoding": "utf-8"},
+                ],
+            }
+            server.RequestHandlerClass.files = {
+                "/manifest": (json.dumps(manifest).encode(), "application/json"),
+                "/payload": (invalid, "text/plain"),
+                "/inner": (inner, "application/json"),
+            }
+            r = check_and_apply_update(
+                root, base + "/manifest", attempts=1, timeout=2, allow_test_sources=True
+            )
+            assert r["ok"] and r.get("deferred") and (root / "ABRIR_RECEPCION.py").read_bytes() == old
+            ok("invalid_python_keeps_local")
+        finally:
+            server.shutdown(); server.server_close()
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        server, base = _test_server({})
+        try:
+            manifest, payload, inner = _remote_test_files(base, protected=True)
+            server.RequestHandlerClass.files = {
+                "/manifest": (json.dumps(manifest).encode(), "application/json"),
+                "/payload": (payload, "text/plain"),
+                "/inner": (inner, "application/json"),
+            }
+            r = check_and_apply_update(root, base + "/manifest", attempts=1, timeout=2, allow_test_sources=True)
+            assert r["ok"] and r.get("deferred") and not (root / "data" / "evil.txt").exists()
+            ok("protected_paths")
+        finally:
+            server.shutdown(); server.server_close()
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        old_launcher = (root / "ABRIR_RECEPCION.py").read_bytes()
+        old_manifest = (root / "update_manifest.json").read_bytes()
+        server, base = _test_server({})
+        try:
+            manifest, payload, inner = _remote_test_files(base)
+            server.RequestHandlerClass.files = {
+                "/manifest": (json.dumps(manifest).encode(), "application/json"),
+                "/payload": (payload, "text/plain"),
+                "/inner": (inner, "application/json"),
+            }
+            remote = _fetch_manifest(base + "/manifest", attempts=1, timeout=2)
+            try:
+                _apply_remote(remote, root, attempts=1, timeout=2, test_fail_after=1, allow_test_sources=True)
+                raise AssertionError("rollback test did not fail")
+            except RuntimeError as exc:
+                assert "Fallo simulado" in str(exc)
+            assert (root / "ABRIR_RECEPCION.py").read_bytes() == old_launcher
+            assert (root / "update_manifest.json").read_bytes() == old_manifest
+            ok("rollback")
+        finally:
+            server.shutdown(); server.server_close()
+
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td) / "install"
+        _write_test_install(root)
+        r = check_and_apply_update(root, "http://127.0.0.1:9/nope", attempts=1, timeout=0.2)
+        assert r["ok"] and r.get("deferred") and _installation_consistent(root)
+        ok("offline_local_start_allowed")
+
+    # Static architecture checks.
+    import ast
+    source = Path(__file__).read_text(encoding="utf-8-sig")
+    tree = ast.parse(source)
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module)
+    assert not ({"AUTOACTUALIZAR", "_AUTOACTUALIZAR_31", "_ABRIR_RECEPCION_451"} & imported)
+    ok("no_auxiliary_imports")
+
+    if os.name == "nt":
+        name = MUTEX_NAME + "_SELFTEST_" + str(os.getpid()) + "_" + str(time.time_ns())
+        with tempfile.TemporaryDirectory() as mtd:
+            ready = str(Path(mtd) / "ready.txt")
+            holder = subprocess.Popen(
+                [sys.executable, str(Path(__file__)), "--self-test-mutex-holder", name, ready],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            deadline = time.time() + 5
+            while time.time() < deadline and not Path(ready).exists():
+                if holder.poll() is not None:
+                    break
+                time.sleep(0.05)
+            assert Path(ready).exists(), "holder no adquirió mutex"
+            probe = subprocess.run(
+                [sys.executable, str(Path(__file__)), "--self-test-mutex-probe", name],
+                capture_output=True, text=True, timeout=5,
+            )
+            assert probe.returncode == 0, f"segundo proceso no detectó mutex: {probe.returncode}"
+            holder.wait(timeout=8)
+            assert holder.returncode == 0
+            ok("windows_two_process_single_instance")
+    else:
+        print("SKIP windows_two_process_single_instance (not Windows)")
+
+    print(f"SELFTEST OK: {len(passed)} pruebas")
+    return 0
+
+
+
+# ---------------------------------------------------------------------------
+# v4.4.37 — guardia permanente de dependencias del runtime
+# ---------------------------------------------------------------------------
+# Parche mínimo sobre el launcher dinámico 4.4.32. No cambia selección de
+# puertos, RP_PORT, mutex, WebView/Edge ni el flujo de arranque.
+_RP_V4437_OLD_INSTALLATION_CONSISTENT = _installation_consistent
+_RP_V4437_OLD_STAGE_UPDATE = _stage_update
+
+
+def _rp_v4437_required_files(root: Path = ROOT) -> list[str]:
+    try: manifest = _local_manifest(root)
+    except Exception: manifest = {}
+    values = manifest.get("required_dependencies") or []
+    if not isinstance(values, list): return []
+    out=[]
+    for value in values:
+        rel=str(value or "").replace("\\","/").lstrip("/")
+        if rel and rel not in out: out.append(rel)
+    return out
+
+
+def _rp_v4437_app_local_imports(app_path: Path) -> set[str]:
+    try:
+        tree=ast.parse(app_path.read_text(encoding="utf-8-sig"),filename=str(app_path))
+    except Exception:
+        return set()
+    result=set()
+    for node in ast.walk(tree):
+        if isinstance(node,ast.Import):
+            for alias in node.names:
+                name=str(alias.name or "").split(".",1)[0]
+                if name.startswith("app_"): result.add(name+".py")
+        elif isinstance(node,ast.ImportFrom) and node.module:
+            name=str(node.module).split(".",1)[0]
+            if name.startswith("app_"): result.add(name+".py")
+    return result
+
+
+def _rp_v4437_dependency_file_ok(path: Path) -> bool:
+    if not path.is_file(): return False
+    if path.suffix.lower()==".py":
+        try: compile(path.read_text(encoding="utf-8-sig"),str(path),"exec")
+        except Exception: return False
+    return True
+
+
+def _installation_consistent(root: Path = ROOT) -> bool:
+    if not _RP_V4437_OLD_INSTALLATION_CONSISTENT(root): return False
+    required=set(_rp_v4437_required_files(root))
+    required.update(_rp_v4437_app_local_imports(root/"app.py"))
+    for rel in required:
+        try: target=_safe_target(root,rel)
+        except Exception: return False
+        if not _rp_v4437_dependency_file_ok(target):
+            _log(f"Dependencia obligatoria ausente o dañada: {rel}",root)
+            return False
+    return True
+
+
+def _stage_update(remote: dict, root: Path = ROOT, *, attempts: int = 3,
+                  timeout: float = 10.0, allow_test_sources: bool = False):
+    stage,staged=_RP_V4437_OLD_STAGE_UPDATE(remote,root,attempts=attempts,timeout=timeout,
+                                            allow_test_sources=allow_test_sources)
+    try:
+        paths={str(x.get("rel") or "").replace("\\","/") for x in staged}
+        staged_app=stage/"app.py"
+        if staged_app.is_file():
+            imports=_rp_v4437_app_local_imports(staged_app)
+            missing=sorted(rel for rel in imports if rel not in paths)
+            if missing:
+                raise RuntimeError("Actualización incompleta: app.py requiere archivo(s) no incluidos en el manifiesto: "+", ".join(missing))
+        inner=stage/"update_manifest.json"
+        if inner.is_file():
+            data=json.loads(inner.read_text(encoding="utf-8-sig"));req=data.get("required_dependencies") or []
+            if not isinstance(req,list): raise RuntimeError("required_dependencies debe ser una lista")
+            absent=[]
+            for value in req:
+                rel=str(value or "").replace("\\","/").lstrip("/")
+                if rel and rel not in paths: absent.append(rel)
+            if absent:
+                raise RuntimeError("Manifest de actualización incompleto; faltan dependencias obligatorias: "+", ".join(sorted(set(absent))))
+        return stage,staged
+    except Exception:
+        shutil.rmtree(stage,ignore_errors=True)
+        raise
+
+
+if __name__ == "__main__":
+    if "--self-test-mutex-holder" in sys.argv:
+        i = sys.argv.index("--self-test-mutex-holder")
+        raise SystemExit(_selftest_mutex_holder(sys.argv[i + 1], sys.argv[i + 2]))
+    if "--self-test-mutex-probe" in sys.argv:
+        i = sys.argv.index("--self-test-mutex-probe")
+        raise SystemExit(_selftest_mutex_probe(sys.argv[i + 1]))
+    if "--self-test-core" in sys.argv:
+        raise SystemExit(run_self_tests())
+    main()

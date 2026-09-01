@@ -1,0 +1,52 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.37",
+  "app_version": "4.4.36",
+  "runtime_version": "4.4.36",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.37: reparación acumulativa y guardia permanente de dependencias. Recupera instalaciones que saltaron desde versiones antiguas y quedaron sin app_base_4428.py. El release fija sus propios bytes desde los commits publicados de 4.4.28, 4.4.32 y 4.4.36; conserva el launcher dinámico de puertos/RP_PORT y rechaza antes de instalar un app.py que requiera módulos app_* ausentes. Una dependencia obligatoria faltante o corrupta se detecta y se autorepara incluso en la misma versión. No modifica .env, data, pacientes, citas, facturas ni bases de datos.",
+  "files": [
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/ABRIR_RECEPCION.part4"
+      ],
+      "sha256": "b7b95250a3d517c8993b16a911f4b357124a55787ab757499a749e7d40c84ec4",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/app_base_4428.py",
+      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/app.py",
+      "sha256": "2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/static/app.js",
+      "sha256": "0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "static/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/static/index.html",
+      "sha256": "16d30060a0be19215e612c4ba897e801873dd359712e90d4dc14e32513b25728",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_37_dependency_guard/update_manifest.json",
+      "sha256": "cf0346f2f352565bae3bfc18b74c01ad17b46f4f84a4a47c7b7c945987f1d348",
+      "encoding": "utf-8"
+    }
+  ]
+}
