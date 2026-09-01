@@ -23,6 +23,20 @@ jobs:
         shell: pwsh
         run: |
           python build/v4441_diag_reader/validate_v4441.py
+      - name: Prepare functional runtime and Chromium
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check "fastapi==0.115.6" "pydantic==1.10.15" "uvicorn==0.34.0" "SQLAlchemy==2.0.36" "pg8000==1.31.2" "python-dotenv==1.0.1" "python-multipart==0.0.20" "playwright==1.55.0"
+          .\.release-venv\Scripts\python.exe -m playwright install chromium
+      - name: Repeat real v4.4.36 browser and billing tests
+        shell: pwsh
+        run: |
+          .\.release-venv\Scripts\python.exe build/v4436_default_cash/validate_candidate.py
+      - name: Verify functional bytes are unchanged
+        shell: pwsh
+        run: |
+          python -c "import hashlib,pathlib; p=pathlib.Path('updates/v4_4_41_diag_reader'); checks={'app.py':'2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e','app_base_4428.py':'e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba','static/app.js':'0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90','static/index.html':'16d30060a0be19215e612c4ba897e801873dd359712e90d4dc14e32513b25728'}; [(lambda g,e,n: (_ for _ in ()).throw(AssertionError(n)) if g!=e else None)(hashlib.sha256((p/n).read_bytes()).hexdigest(),e,n) for n,e in checks.items()]; print('FUNCTIONAL_BYTES_V4441_OK')"
       - uses: actions/upload-artifact@v4
         with:
           name: v4441-private-diagnostics
