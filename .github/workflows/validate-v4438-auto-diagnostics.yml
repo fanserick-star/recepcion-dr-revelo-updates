@@ -1,0 +1,45 @@
+name: Validar v4.4.38 diagnóstico automático privado
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-v4438-auto-diagnostics.yml'
+      - 'build/v4438_auto_diagnostics/build_v4438.py'
+      - 'build/v4438_auto_diagnostics/validate_v4438.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Construir candidato sobre v4.4.37 exacta
+        run: python build/v4438_auto_diagnostics/build_v4438.py
+      - name: Probar privacidad cola dedupe puertos dependencias y updater
+        run: python build/v4438_auto_diagnostics/validate_v4438.py
+      - name: Preparar runtime y Chromium
+        shell: pwsh
+        run: |
+          python -m venv .release-venv
+          .\.release-venv\Scripts\python.exe -m pip install --disable-pip-version-check 'fastapi==0.115.6' 'pydantic==1.10.15' 'uvicorn==0.34.0' 'SQLAlchemy==2.0.36' 'pg8000==1.31.2' 'python-dotenv==1.0.1' 'python-multipart==0.0.20' 'playwright==1.55.0'
+          .\.release-venv\Scripts\python.exe -m playwright install chromium
+      - name: Repetir pruebas funcionales reales de app 4.4.36
+        run: .\.release-venv\Scripts\python.exe build/v4436_default_cash/validate_candidate.py
+      - name: Verificar bytes funcionales intactos
+        shell: pwsh
+        run: |
+          python -c "import hashlib,pathlib; p=pathlib.Path('updates/v4_4_38_auto_diagnostics'); assert hashlib.sha256((p/'app.py').read_bytes()).hexdigest()=='2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e'; assert hashlib.sha256((p/'app_base_4428.py').read_bytes()).hexdigest()=='e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba'; print('FUNCTIONAL_BYTES_OK')"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v4438-validated-payload
+          path: updates/v4_4_38_auto_diagnostics
+          if-no-files-found: error
