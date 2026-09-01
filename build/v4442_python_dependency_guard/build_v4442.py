@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+OUT = ROOT / "updates" / "v4_4_42_python_dependency_guard"
+OUT.mkdir(parents=True, exist_ok=True)
+
+SOURCE_REF = "19b72ae6768a0476d27ea081f033857afc22c5e6"
+SOURCE_PREFIX = "updates/v4_4_41_diag_reader"
+VERSION = "4.4.42"
+APP_VERSION = "4.4.36"
+SOURCE_LAUNCHER_SHA = "8fd298db9769e6968bda80108d965eaf562a3975436f4604492501659af84b1a"
+EXPECTED = {
+    "app_base_4428.py": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+    "app.py": "2d8c6bac37a603c911b9fca6848e839b00b6b7975cf13fd9c3088c4542e4508e",
+    "static/app.js": "0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90",
+    "static/index.html": "16d30060a0be19215e612c4ba897e801873dd359712e90d4dc14e32513b25728",
+}
+
+
+def sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def dump(obj: dict) -> bytes:
+    return (json.dumps(obj, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+
+def require(cond: bool, msg: str) -> None:
+    if not cond:
+        raise RuntimeError(msg)
+
+
+def git_bytes(path: str) -> bytes:
+    return subprocess.check_output(["git", "show", f"{SOURCE_REF}:{SOURCE_PREFIX}/{path}"], cwd=ROOT)
+
+
+PY_GUARD = r'''
+# ---------------------------------------------------------------------------
+# v4.4.42 — guardia permanente de paquetes Python del runtime
+# ---------------------------------------------------------------------------
+def _rp_required_python_packages(root: Path = ROOT) -> list[dict]:
+    try:
+        manifest = _local_manifest(root)
+    except Exception:
+        manifest = {}
+    values = manifest.get("required_python_packages") or []
+    if not isinstance(values, list):
+        return []
+    out = []
+    seen = set()
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        module = str(item.get("import") or "").strip()
+        spec = str(item.get("pip") or "").strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", module):
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:==[A-Za-z0-9_.+!-]+)?", spec):
+            continue
+        if module in seen:
+            continue
+        seen.add(module)
+        out.append({"import": module, "pip": spec})
+    return out
+
+
+def _rp_python_import_ok(python_exe: Path, module: str) -> bool:
+    try:
+        proc = subprocess.run(
+            [str(python_exe), "-c", "import importlib; importlib.import_module(" + repr(module) + ")"],
+            cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=20, check=False, creationflags=_hidden_flags(),
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def _rp_ensure_python_runtime(root: Path = ROOT, python_exe: Path | None = None) -> list[str]:
+    required = _rp_required_python_packages(root)
+    if not required:
+        return []
+    py = Path(python_exe) if python_exe is not None else Path(_python_exe(windowless=False))
+    if not py.is_file():
+        raise RuntimeError("No se encontró el Python de .venv para reparar dependencias.")
+    repaired = []
+    for item in required:
+        module = item["import"]
+        spec = item["pip"]
+        if _rp_python_import_ok(py, module):
+            continue
+        _log("Dependencia Python ausente; reparación automática: " + module, root)
+        try:
+            proc = subprocess.run(
+                [str(py), "-m", "pip", "install", "--disable-pip-version-check", "--no-input", spec],
+                cwd=str(root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=180, check=False, creationflags=_hidden_flags(),
+            )
+        except Exception as exc:
+            raise RuntimeError("No se pudo reparar la dependencia Python " + module + ": " + type(exc).__name__) from exc
+        if proc.returncode != 0 or not _rp_python_import_ok(py, module):
+            raise RuntimeError("No se pudo reparar la dependencia Python obligatoria: " + module)
+        repaired.append(module)
+        _log("Dependencia Python reparada correctamente: " + module, root)
+    return repaired
+'''
+
+
+def split_four(text: str) -> list[bytes]:
+    lines = text.splitlines(keepends=True)
+    target = max(1, len(text) // 4)
+    chunks, buf, n = [], [], 0
+    for line in lines:
+        if len(chunks) < 3 and buf and n + len(line) > target:
+            chunks.append("".join(buf).encode("utf-8")); buf=[]; n=0
+        buf.append(line); n += len(line)
+    chunks.append("".join(buf).encode("utf-8"))
+    while len(chunks) < 4:
+        chunks.append(b"")
+    require(len(chunks) == 4 and b"".join(chunks).decode("utf-8") == text, "Partición launcher inválida")
+    return chunks
+
+
+def build() -> None:
+    old_launcher = b"".join(git_bytes(f"ABRIR_RECEPCION.part{i}") for i in range(1, 5))
+    require(sha(old_launcher) == SOURCE_LAUNCHER_SHA, "Launcher 4.4.41 fuente no coincide")
+    text = old_launcher.decode("utf-8-sig")
+
+    old_ver = 'LAUNCHER_VERSION = "4.4.41-dynamic-port-dependency-diagnostics-private-reader-1"'
+    new_ver = 'LAUNCHER_VERSION = "4.4.42-dynamic-port-file-python-dependency-guard-1"'
+    require(text.count(old_ver) == 1, "Versión launcher fuente cambió")
+    text = text.replace(old_ver, new_ver, 1)
+
+    anchor = "\ndef main() -> None:\n"
+    require(text.count(anchor) == 1, "No se encontró main para insertar guardia Python")
+    text = text.replace(anchor, "\n" + PY_GUARD + anchor, 1)
+
+    call_anchor = '''        expected = _expected_app_version(ROOT)\n'''
+    call_patch = '''        splash.set("Verificando componentes…", "Comprobando dependencias Python")\n        repaired_python = _rp_ensure_python_runtime(ROOT)\n        if repaired_python:\n            splash.set("Componentes reparados", "Preparando el inicio local")\n\n        expected = _expected_app_version(ROOT)\n'''
+    require(text.count(call_anchor) == 1, "Punto de llamada de guardia Python cambió")
+    text = text.replace(call_anchor, call_patch, 1)
+
+    compile(text, "ABRIR_RECEPCION.py", "exec")
+    require("_rp_ensure_python_runtime" in text and "required_python_packages" in text, "Falta guardia Python")
+    require("_rp_diag_upload_via_venv" in text and "_rp_v4437_required_files" in text and "_choose_app_port" in text, "Se perdió blindaje previo")
+
+    parts = split_four(text)
+    for i, data in enumerate(parts, 1):
+        (OUT / f"ABRIR_RECEPCION.part{i}").write_bytes(data)
+
+    fixed = {}
+    for rel, expected in EXPECTED.items():
+        data = git_bytes(rel)
+        require(sha(data) == expected, f"Bytes funcionales cambiaron: {rel}")
+        target = OUT / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        fixed[rel] = data
+
+    paths = ["ABRIR_RECEPCION.py", "app_base_4428.py", "app.py", "static/app.js", "static/index.html", "update_manifest.json"]
+    inner = {
+        "product":"recepcion-pacientes","version":VERSION,"app_version":APP_VERSION,"runtime_version":APP_VERSION,
+        "launcher_version":"4.4.42-dynamic-port-file-python-dependency-guard-1","updater_version":"integrado-en-launcher",
+        "required_dependencies":["app_base_4428.py"],
+        "required_python_packages":[{"import":"pg8000","pip":"pg8000==1.31.2"}],
+        "copy":paths,
+    }
+    inner_bytes = dump(inner)
+    (OUT / "update_manifest.json").write_bytes(inner_bytes)
+
+    raw = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_42_python_dependency_guard/"
+    launcher = b"".join(parts)
+    files = [
+        {"path":"ABRIR_RECEPCION.py","parts":[raw+f"ABRIR_RECEPCION.part{i}" for i in range(1,5)],"sha256":sha(launcher),"encoding":"utf-8"},
+        {"path":"app_base_4428.py","url":raw+"app_base_4428.py","sha256":sha(fixed["app_base_4428.py"]),"encoding":"utf-8"},
+        {"path":"app.py","url":raw+"app.py","sha256":sha(fixed["app.py"]),"encoding":"utf-8"},
+        {"path":"static/app.js","url":raw+"static/app.js","sha256":sha(fixed["static/app.js"]),"encoding":"utf-8"},
+        {"path":"static/index.html","url":raw+"static/index.html","sha256":sha(fixed["static/index.html"]),"encoding":"utf-8"},
+        {"path":"update_manifest.json","url":raw+"update_manifest.json","sha256":sha(inner_bytes),"encoding":"utf-8"},
+    ]
+    candidate = {
+        "product":"recepcion-pacientes","version":VERSION,"app_version":APP_VERSION,"runtime_version":APP_VERSION,
+        "mandatory":True,"channel":"files-v3",
+        "message":"v4.4.42: reparación automática de dependencias Python. Corrige el fallo real detectado por INC (pg8000 ausente en .venv) y añade una guardia declarativa permanente: el launcher comprueba required_python_packages antes del backend y repara paquetes faltantes con pip usando exactamente el Python de .venv. Conserva app 4.4.36, puertos dinámicos, guardia de archivos y diagnóstico automático. No modifica .env, data, pacientes, citas, facturas ni bases locales.",
+        "files":files,
+    }
+    (OUT / "candidate_latest.json").write_bytes(dump(candidate))
+    print("BUILD_V4442_OK")
+    print("LAUNCHER_SHA", sha(launcher))
+
+
+if __name__ == "__main__":
+    build()
