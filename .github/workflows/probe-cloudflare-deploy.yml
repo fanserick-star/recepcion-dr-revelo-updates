@@ -1,0 +1,22 @@
+name: Probe Cloudflare deploy credentials
+
+on:
+  push:
+    paths:
+      - ".github/workflows/probe-cloudflare-deploy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check whether deployment credentials already exist
+        shell: bash
+        run: |
+          if [ -n "$CF_API_TOKEN" ]; then echo "CLOUDFLARE_API_TOKEN=PRESENT"; else echo "CLOUDFLARE_API_TOKEN=MISSING"; fi
+          if [ -n "$CF_ACCOUNT_ID" ]; then echo "CLOUDFLARE_ACCOUNT_ID=PRESENT"; else echo "CLOUDFLARE_ACCOUNT_ID=MISSING"; fi
