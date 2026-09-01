@@ -1,0 +1,478 @@
+from __future__ import annotations
+
+import ast
+import ctypes
+import hashlib
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import traceback
+import urllib.parse
+import urllib.request
+import webbrowser
+import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+import socket
+
+LAUNCHER_VERSION = "4.4.40-dynamic-port-dependency-diagnostics-resilient-1"
+PRODUCT = "recepcion-pacientes"
+DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json"
+APP_PORT = 8000
+URL = f"http://127.0.0.1:{APP_PORT}"
+VERSION_URL = URL + "/api/version"
+TITLE = "Recepción Dr. Armando Revelo"
+APP_USER_MODEL_ID = "DrArmandoRevelo.Recepcion"
+MUTEX_NAME = "DrArmandoRevelo_Recepcion_Launcher_v2"
+OFFICIAL_RAW_PREFIX = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/"
+ROOT = Path(__file__).resolve().parent
+
+PROTECTED_TOP = {"data", ".venv"}
+PROTECTED_FILES = {".env", "BASE DE DATOS 2026.xlsx"}
+
+
+def _data_dir(root: Path = ROOT) -> Path:
+    raw = (os.getenv("RP_DATA_DIR") or "").strip()
+    if not raw and (root / ".env").exists():
+        try:
+            for line in (root / ".env").read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+                if line.strip().startswith("RP_DATA_DIR="):
+                    raw = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+        except Exception:
+            pass
+    if not raw:
+        return root / "data"
+    p = Path(os.path.expandvars(os.path.expanduser(raw)))
+    return p if p.is_absolute() else root / p
+
+
+def _log(message: str, root: Path = ROOT) -> None:
+    try:
+        d = _data_dir(root)
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / "launcher_errors.log"
+        with p.open("a", encoding="utf-8") as fh:
+            fh.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+        if p.stat().st_size > 768 * 1024:
+            lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()[-900:]
+            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _write_state(root: Path = ROOT, **values) -> None:
+    try:
+        d = _data_dir(root)
+        d.mkdir(parents=True, exist_ok=True)
+        p = d / "auto_update_state.json"
+        old = {}
+        if p.exists():
+            try:
+                old = json.loads(p.read_text(encoding="utf-8-sig"))
+            except Exception:
+                old = {}
+        old.update(values)
+        old["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(old, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, p)
+    except Exception:
+        pass
+
+
+def _vtuple(value: str) -> tuple[int, ...]:
+    out = []
+    for part in str(value or "0").split("."):
+        m = re.match(r"^(\d+)", part)
+        out.append(int(m.group(1)) if m else 0)
+    return tuple((out + [0, 0, 0, 0])[:4])
+
+
+def _load_json(path: Path) -> dict:
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    if not isinstance(data, dict):
+        raise RuntimeError(f"JSON inválido: {path.name}")
+    return data
+
+
+def _local_manifest(root: Path = ROOT) -> dict:
+    p = root / "update_manifest.json"
+    return _load_json(p) if p.exists() else {}
+
+
+def _local_package_version(root: Path = ROOT) -> str:
+    return str(_local_manifest(root).get("version") or "0.0.0").strip()
+
+
+def _installed_app_version(root: Path = ROOT) -> str:
+    try:
+        text = (root / "app.py").read_text(encoding="utf-8-sig", errors="ignore")
+        m = re.search(r'(?m)^\s*APP_VERSION\s*=\s*["\']([^"\']+)["\']', text)
+        return m.group(1).strip() if m else ""
+    except Exception:
+        return ""
+
+
+def _expected_app_version(root: Path = ROOT) -> str:
+    m = _local_manifest(root)
+    return str(m.get("app_version") or m.get("runtime_version") or m.get("version") or "").strip()
+
+
+def _installation_consistent(root: Path = ROOT) -> bool:
+    try:
+        m = _local_manifest(root)
+        expected = str(m.get("app_version") or m.get("runtime_version") or "").strip()
+        if expected:
+            return _installed_app_version(root) == expected
+        return (root / "app.py").is_file()
+    except Exception:
+        return False
+
+
+def _cache_bust(url: str) -> str:
+    parts = urllib.parse.urlsplit(url)
+    q = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+    q.append(("rp_ts", str(time.time_ns())))
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(q), parts.fragment))
+
+
+def _fetch_bytes(url: str, *, attempts: int = 3, timeout: float = 8.0) -> bytes:
+    last = None
+    for i in range(max(1, attempts)):
+        try:
+            req = urllib.request.Request(
+                _cache_bust(url),
+                headers={
+                    "User-Agent": f"Recepcion-Dr-Revelo-Standalone/{LAUNCHER_VERSION}",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                if getattr(r, "status", 200) != 200:
+                    raise RuntimeError(f"HTTP {getattr(r, 'status', '?')}")
+                return r.read()
+        except Exception as exc:
+            last = exc
+            if i + 1 < attempts:
+                time.sleep(0.35 * (i + 1))
+    raise RuntimeError(f"No se pudo descargar {url}: {last}")
+
+
+def _fetch_manifest(url: str = DEFAULT_MANIFEST_URL, *, attempts: int = 3, timeout: float = 8.0) -> dict:
+    data = json.loads(_fetch_bytes(url, attempts=attempts, timeout=timeout).decode("utf-8-sig"))
+    if not isinstance(data, dict):
+        raise RuntimeError("Manifest remoto inválido")
+    if data.get("product") != PRODUCT:
+        raise RuntimeError("Producto remoto inválido")
+    version = str(data.get("version") or "").strip()
+    files = data.get("files")
+    if not version or not isinstance(files, list) or not files:
+        raise RuntimeError("Manifest remoto incompleto")
+    return data
+
+
+def _safe_target(root: Path, relative: str) -> Path:
+    rel = str(relative or "").replace("\\", "/").lstrip("/")
+    parts = [p for p in rel.split("/") if p]
+    if not parts or any(p in {".", ".."} for p in parts):
+        raise RuntimeError(f"Ruta de actualización inválida: {relative!r}")
+    if parts[0].lower() in {x.lower() for x in PROTECTED_TOP}:
+        raise RuntimeError(f"Ruta protegida: {relative}")
+    if len(parts) == 1 and parts[0].lower() in {x.lower() for x in PROTECTED_FILES}:
+        raise RuntimeError(f"Archivo protegido: {relative}")
+    dest = (root / Path(*parts)).resolve()
+    rr = root.resolve()
+    if dest != rr and rr not in dest.parents:
+        raise RuntimeError(f"Ruta fuera de la instalación: {relative}")
+    return dest
+
+
+def _payload_urls(item: dict) -> list[str]:
+    urls = item.get("parts") or ([item.get("url")] if item.get("url") else [])
+    urls = [str(u).strip() for u in urls if str(u or "").strip()]
+    if not urls:
+        raise RuntimeError(f"{item.get('path')}: no tiene URL")
+    return urls
+
+
+def _download_item(
+    item: dict,
+    *,
+    attempts: int = 3,
+    timeout: float = 10.0,
+    allow_test_sources: bool = False,
+) -> bytes:
+    urls = _payload_urls(item)
+    if not allow_test_sources:
+        for u in urls:
+            if not u.startswith(OFFICIAL_RAW_PREFIX):
+                raise RuntimeError(f"Fuente de actualización no autorizada: {u}")
+    payload = b"".join(_fetch_bytes(u, attempts=attempts, timeout=timeout) for u in urls)
+    expected = str(item.get("sha256") or "").lower().strip()
+    got = hashlib.sha256(payload).hexdigest()
+    if not expected or got != expected:
+        raise RuntimeError(f"SHA inválido para {item.get('path')}: {got} != {expected or '[vacío]'}")
+    return payload
+
+
+def _validate_payload(target_rel: str, payload: bytes, remote: dict) -> None:
+    lower = target_rel.lower()
+    if lower.endswith(".py"):
+        try:
+            source_text = payload.decode("utf-8-sig")
+            compile(source_text, target_rel, "exec")
+        except Exception as exc:
+            raise RuntimeError(f"{target_rel} no compila: {exc}") from exc
+
+        if lower == "abrir_recepcion.py":
+            tree = ast.parse(source_text)
+            imported = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.add(node.module)
+            banned = {"AUTOACTUALIZAR", "_AUTOACTUALIZAR_31", "_ABRIR_RECEPCION_451"}
+            bad = banned & imported
+            if bad:
+                raise RuntimeError(
+                    "El launcher publicado depende de módulos auxiliares prohibidos: " + ", ".join(sorted(bad))
+                )
+
+    if lower == "app.py":
+        text = payload.decode("utf-8-sig", errors="ignore")
+        expected_app = str(remote.get("app_version") or remote.get("runtime_version") or remote.get("version") or "").strip()
+        if expected_app and not re.search(
+            rf'(?m)^\s*APP_VERSION\s*=\s*["\']{re.escape(expected_app)}["\']', text
+        ):
+            raise RuntimeError(f"app.py no declara APP_VERSION {expected_app}")
+
+    if lower == "update_manifest.json":
+        inner = json.loads(payload.decode("utf-8-sig"))
+        if str(inner.get("version") or "").strip() != str(remote.get("version") or "").strip():
+            raise RuntimeError("update_manifest.json no coincide con la versión remota")
+        av = str(inner.get("app_version") or "").strip()
+        rv = str(inner.get("runtime_version") or "").strip()
+        if av and rv and av != rv:
+            raise RuntimeError("app_version y runtime_version difieren")
+        if av and _vtuple(av) > _vtuple(str(remote.get("version") or "")):
+            raise RuntimeError("app_version no puede superar package version")
+
+
+def _stage_update(
+    remote: dict,
+    root: Path = ROOT,
+    *,
+    attempts: int = 3,
+    timeout: float = 10.0,
+    allow_test_sources: bool = False,
+) -> tuple[Path, list[dict]]:
+    data = _data_dir(root)
+    stage = data / "update_staging" / f"v{remote['version'].replace('.', '_')}_{time.time_ns()}"
+    stage.mkdir(parents=True, exist_ok=False)
+    staged = []
+    seen = set()
+    try:
+        for item in remote.get("files") or []:
+            rel = str(item.get("path") or "").replace("\\", "/").lstrip("/")
+            if rel in seen:
+                raise RuntimeError(f"Ruta duplicada: {rel}")
+            seen.add(rel)
+            _safe_target(root, rel)
+            payload = _download_item(
+                item, attempts=attempts, timeout=timeout, allow_test_sources=allow_test_sources
+            )
+            _validate_payload(rel, payload, remote)
+            sp = stage / rel
+            sp.parent.mkdir(parents=True, exist_ok=True)
+            sp.write_bytes(payload)
+            staged.append({"rel": rel, "stage": sp, "sha256": str(item.get("sha256") or "").lower()})
+        return stage, staged
+    except Exception:
+        shutil.rmtree(stage, ignore_errors=True)
+        raise
+
+
+def _make_backup(root: Path, staged: list[dict], version: str) -> tuple[Path, set[str]]:
+    d = _data_dir(root) / "update_backups"
+    d.mkdir(parents=True, exist_ok=True)
+    backup = d / f"auto_antes_v{version.replace('.', '_')}_{time.strftime('%Y%m%d_%H%M%S')}_{time.time_ns()}.zip"
+    existed = set()
+    with zipfile.ZipFile(backup, "w", zipfile.ZIP_DEFLATED) as z:
+        for entry in staged:
+            rel = entry["rel"]
+            dest = _safe_target(root, rel)
+            if dest.is_file():
+                z.write(dest, rel)
+                existed.add(rel)
+    return backup, existed
+
+def _rollback(root: Path, backup: Path, staged: list[dict], existed: set[str]) -> None:
+    for entry in staged:
+        rel = entry["rel"]
+        dest = _safe_target(root, rel)
+        if rel not in existed:
+            try:
+                if dest.exists():
+                    dest.unlink()
+            except Exception:
+                pass
+    if backup.exists():
+        with zipfile.ZipFile(backup, "r") as z:
+            for name in z.namelist():
+                dest = _safe_target(root, name)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                temp = dest.with_name(dest.name + ".rollback_tmp")
+                temp.write_bytes(z.read(name))
+                os.replace(temp, dest)
+
+
+def _validate_installed(remote: dict, root: Path, staged: list[dict]) -> None:
+    for entry in staged:
+        dest = _safe_target(root, entry["rel"])
+        if not dest.is_file():
+            raise RuntimeError(f"Falta archivo tras actualizar: {entry['rel']}")
+        got = hashlib.sha256(dest.read_bytes()).hexdigest()
+        if got != entry["sha256"]:
+            raise RuntimeError(f"SHA local incorrecto tras actualizar: {entry['rel']}")
+        if entry["rel"].lower().endswith(".py"):
+            compile(dest.read_text(encoding="utf-8-sig"), entry["rel"], "exec")
+
+    local = _local_manifest(root)
+    if str(local.get("version") or "").strip() != str(remote.get("version") or "").strip():
+        raise RuntimeError("El manifest local no quedó en la versión remota")
+    expected_app = str(local.get("app_version") or local.get("runtime_version") or "").strip()
+    if expected_app and _installed_app_version(root) != expected_app:
+        raise RuntimeError(
+            f"app.py quedó en {_installed_app_version(root) or '[sin versión]'}; se esperaba {expected_app}"
+        )
+
+
+def _apply_remote(
+    remote: dict,
+    root: Path = ROOT,
+    *,
+    attempts: int = 3,
+    timeout: float = 10.0,
+    test_fail_after: int | None = None,
+    allow_test_sources: bool = False,
+) -> dict:
+    stage, staged = _stage_update(
+        remote, root, attempts=attempts, timeout=timeout, allow_test_sources=allow_test_sources
+    )
+    backup, existed = _make_backup(root, staged, str(remote["version"]))
+    ordered = sorted(staged, key=lambda e: e["rel"].lower() == "update_manifest.json")
+    applied = 0
+    try:
+        for entry in ordered:
+            rel = entry["rel"]
+            dest = _safe_target(root, rel)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            temp = dest.with_name(dest.name + f".new_{os.getpid()}_{time.time_ns()}")
+            shutil.copyfile(entry["stage"], temp)
+            os.replace(temp, dest)
+            applied += 1
+            if test_fail_after is not None and applied >= test_fail_after:
+                raise RuntimeError("Fallo simulado para probar rollback")
+        _validate_installed(remote, root, staged)
+        return {
+            "backup": str(backup),
+            "paths": [e["rel"] for e in staged],
+        }
+    except Exception:
+        _rollback(root, backup, staged, existed)
+        raise
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
+def check_and_apply_update(
+    root: Path = ROOT,
+    manifest_url: str = DEFAULT_MANIFEST_URL,
+    *,
+    attempts: int = 3,
+    timeout: float = 8.0,
+    allow_test_sources: bool = False,
+) -> dict:
+    local_version = _local_package_version(root)
+    coherent = _installation_consistent(root)
+    try:
+        remote = _fetch_manifest(manifest_url, attempts=attempts, timeout=timeout)
+    except Exception as exc:
+        _write_state(
+            root,
+            last_check_ok=False,
+            last_error=str(exc),
+            local_version=local_version,
+            local_app_version=_installed_app_version(root),
+            installation_consistent=coherent,
+        )
+        if coherent:
+            return {"ok": True, "updated": False, "deferred": True, "error": str(exc)}
+        return {"ok": False, "updated": False, "blocked": True, "error": str(exc)}
+
+    remote_version = str(remote.get("version") or "").strip()
+    should_apply = _vtuple(remote_version) > _vtuple(local_version) or (
+        remote_version == local_version and not coherent
+    )
+
+    if not should_apply:
+        _write_state(
+            root,
+            last_check_ok=True,
+            last_error="",
+            local_version=local_version,
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=coherent,
+        )
+        return {"ok": True, "updated": False, "version": local_version}
+
+    try:
+        result = _apply_remote(
+            remote, root, attempts=attempts, timeout=timeout, allow_test_sources=allow_test_sources
+        )
+        _write_state(
+            root,
+            last_check_ok=True,
+            last_error="",
+            local_version=remote_version,
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=_installation_consistent(root),
+            last_installed_version=remote_version,
+            last_backup=result.get("backup", ""),
+        )
+        return {
+            "ok": True,
+            "updated": True,
+            "version": remote_version,
+            "paths": result.get("paths", []),
+            "backup": result.get("backup"),
+        }
+    except Exception as exc:
+        _log("Actualización falló y se revirtió: " + repr(exc), root)
+        _write_state(
+            root,
+            last_check_ok=False,
+            last_error=str(exc),
+            local_version=_local_package_version(root),
+            local_app_version=_installed_app_version(root),
+            remote_version=remote_version,
+            installation_consistent=_installation_consistent(root),
+        )
+        if _installation_consistent(root):
+            return {"ok": True, "updated": False, "deferred": True, "error": str(exc)}
+        return {"ok": False, "updated": False, "blocked": True, "error": str(exc)}
+
+
