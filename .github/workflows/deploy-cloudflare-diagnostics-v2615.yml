@@ -1,0 +1,106 @@
+name: Deploy Cloudflare diagnostics v2.6.15
+
+on:
+  push:
+    paths:
+      - ".github/workflows/deploy-cloudflare-diagnostics-v2615.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: dr-revelo-whatsapp-cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify credentials and Worker exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@latest deployments status --name "$WORKER_NAME" --json > /tmp/before.json
+          python - <<'PY'
+          import json
+          p=json.load(open('/tmp/before.json','r',encoding='utf-8'))
+          print('CLOUDFLARE_WORKER_FOUND')
+          print('STATUS_TYPE', type(p).__name__)
+          PY
+
+      - name: Dry-run new Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@latest deploy cloudflare/WHATSAPP_WORKER_v2_6_15_DIAGNOSTICS_STANDALONE.js \
+            --name "$WORKER_NAME" \
+            --compatibility-date 2026-09-01 \
+            --keep-vars \
+            --dry-run \
+            --outdir /tmp/cf-dry-run
+          test -n "$(find /tmp/cf-dry-run -type f -print -quit)"
+          echo "CLOUDFLARE_DRY_RUN_OK"
+
+      - name: Deploy v2.6.15 preserving dashboard variables
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@latest deploy cloudflare/WHATSAPP_WORKER_v2_6_15_DIAGNOSTICS_STANDALONE.js \
+            --name "$WORKER_NAME" \
+            --compatibility-date 2026-09-01 \
+            --keep-vars 2>&1 | tee /tmp/deploy.log
+          URL=$(grep -Eo 'https://[A-Za-z0-9._-]+\.workers\.dev' /tmp/deploy.log | tail -1 || true)
+          if [ -z "$URL" ]; then
+            SUB=$(curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" \
+              | python -c "import sys,json; print((json.load(sys.stdin).get('result') or {}).get('subdomain',''))")
+            test -n "$SUB"
+            URL="https://$WORKER_NAME.$SUB.workers.dev"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "DEPLOYED_WORKER_URL=$URL"
+
+      - name: Verify live health
+        id: health
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="${{ steps.deploy.outputs.url }}"
+          OK=0
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 15 "$URL/health" -o /tmp/health.json; then
+              if python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
+          assert d.get('worker_version') == '2.6.15', d
+          assert d.get('diagnostics_read') == 'capability_v1', d
+          print('CLOUDFLARE_HEALTH_V2615_OK')
+          PY
+              then OK=1; break; fi
+            fi
+            sleep 5
+          done
+          if [ "$OK" != "1" ]; then
+            echo "Health verification failed" >&2
+            exit 44
+          fi
+          echo "worker_url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Roll back automatically if verification failed
+        if: failure() && steps.deploy.outcome == 'success'
+        shell: bash
+        run: |
+          echo "Verification failed; restoring v2.6.14"
+          npx --yes wrangler@latest deploy cloudflare/whatsapp_worker_v2_6_STANDALONE.js \
+            --name "$WORKER_NAME" \
+            --compatibility-date 2026-09-01 \
+            --keep-vars
+          echo "CLOUDFLARE_ROLLBACK_V2614_DONE"
