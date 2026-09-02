@@ -1,0 +1,148 @@
+name: Deploy WhatsApp Worker v2.6.21 AM PM parser
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/whatsapp_v2621_ampm_parser/**'
+      - '.github/workflows/deploy-whatsapp-v2621-ampm-parser.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-whatsapp-v2621-ampm-parser
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: dr-revelo-whatsapp-cloud
+      WORKER_URL: https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Construir y validar Worker v2.6.21
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          python build/whatsapp_v2621_ampm_parser/build_worker_v2621.py
+          cp cloudflare/WHATSAPP_WORKER_v2_6_21_AMPM_PARSER_STANDALONE.js /tmp/worker-v2621.js
+          python - <<'PY'
+          import os, pathlib, re
+          p=pathlib.Path('/tmp/worker-v2621.js')
+          s=p.read_text(encoding='utf-8')
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID'].strip()
+          assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
+          assert s.count('__CF_ACCOUNT_ID__') == 1
+          s=s.replace('__CF_ACCOUNT_ID__', account)
+          p.write_text(s, encoding='utf-8')
+          for x in [
+            'worker_version: "2.6.21"',
+            'autoagenda_time_parser: "ampm_v2"',
+            'autoagenda_week_guard: "monday_sunday_v1"',
+            'autoagenda_enrollment: "one_time_v1"',
+            'autoagenda_ui: "emoji_v1"',
+            'const meridiem = m[4] || "";',
+            'Jueves 9y20 o Jueves 11am',
+            'SAME_WEEK_APPOINTMENT',
+            'diagnostics_export: "cf_token_aesgcm_v1"'
+          ]: assert x in s, x
+          print('WORKER_V2621_PATCHED_OK')
+          PY
+          cp /tmp/worker-v2621.js /tmp/worker-v2621.mjs
+          node --check /tmp/worker-v2621.mjs
+
+      - name: Probar formatos AM PM y formatos históricos
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const assert = require('assert');
+          const re = /^(domingo|lunes|martes|miercoles|jueves|viernes|sabado)\s+(\d{1,2})(?:\s*(?:y|:|\.)\s*(\d{1,2}))?\s*(?:(a|p)\s*\.?\s*m\.?)?$/;
+          function parseClock(s){
+            const m=re.exec(s.toLowerCase().replace(/\s+/g,' ').trim());
+            if(!m) return null;
+            let h=Number(m[2]); const min=m[3]==null?0:Number(m[3]); const mer=m[4]||'';
+            if(min<0||min>59) return null;
+            if(mer){
+              if(h<1||h>12) return null;
+              if(mer==='a') h=h===12?0:h;
+              else h=h===12?12:h+12;
+            } else if(h>=1&&h<=5) h+=12;
+            return `${String(h).padStart(2,'0')}:${String(min).padStart(2,'0')}`;
+          }
+          const cases = new Map([
+            ['jueves 11am','11:00'],
+            ['jueves 11 am','11:00'],
+            ['jueves 11a.m.','11:00'],
+            ['jueves 11 a. m.','11:00'],
+            ['jueves 11:00am','11:00'],
+            ['jueves 3pm','15:00'],
+            ['jueves 3:20 pm','15:20'],
+            ['jueves 12pm','12:00'],
+            ['jueves 12am','00:00'],
+            ['jueves 9y20','09:20'],
+            ['jueves 9:20','09:20'],
+            ['jueves 9.20','09:20'],
+            ['jueves 3y20','15:20']
+          ]);
+          for(const [input,want] of cases){ assert.strictEqual(parseClock(input),want,input); }
+          assert.strictEqual(parseClock('jueves 13pm'),null);
+          assert.strictEqual(parseClock('jueves once am'),null);
+          console.log('AMPM_PARSER_CASES_OK', cases.size);
+          NODE
+
+      - name: Dry-run v2.6.21
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@latest deploy /tmp/worker-v2621.js --name "$WORKER_NAME" --compatibility-date 2026-09-01 --keep-vars --dry-run --outdir /tmp/cf-v2621-dry
+          test -n "$(find /tmp/cf-v2621-dry -type f -print -quit)"
+
+      - name: Desplegar v2.6.21 preservando variables
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@latest deploy /tmp/worker-v2621.js --name "$WORKER_NAME" --compatibility-date 2026-09-01 --keep-vars
+
+      - name: Verificar producción
+        shell: bash
+        run: |
+          set -euo pipefail
+          OK=0
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$WORKER_URL/health?ci=$(date +%s%N)" -o /tmp/health.json; then
+              if python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
+          assert d.get('ok') is True, d
+          assert d.get('worker_version') == '2.6.21', d
+          assert d.get('autoagenda_time_parser') == 'ampm_v2', d
+          assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
+          assert d.get('autoagenda_forward') == 'authorized_v1', d
+          assert d.get('autoagenda_enrollment') == 'one_time_v1', d
+          assert d.get('autoagenda_ui') == 'emoji_v1', d
+          assert d.get('diagnostics_read') == 'capability_v1', d
+          assert d.get('diagnostics_export') == 'cf_token_aesgcm_v1', d
+          print('HEALTH_V2621_OK')
+          PY
+              then OK=1; break; fi
+            fi
+            sleep 3
+          done
+          test "$OK" = "1"
+          cat /tmp/health.json
