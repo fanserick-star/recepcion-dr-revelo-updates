@@ -1,0 +1,38 @@
+name: Publish v4.4.44 weekly guard + cloud sync
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "build/v4444_weekly_appointment_guard/build_v4444_cloud_sync.py"
+      - "build/v4444_weekly_appointment_guard/validate_v4444_cloud_sync.py"
+      - "build/v4444_weekly_appointment_guard/publish_v4444_cloud_sync.py"
+      - ".github/workflows/publish-v4444-weekly-guard-cloud-sync.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4444-weekly-guard-cloud-sync
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install runtime and Chromium
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check "fastapi==0.115.6" "pydantic==1.10.15" "uvicorn==0.34.0" "SQLAlchemy==2.0.36" "pg8000==1.31.2" "python-dotenv==1.0.1" "python-multipart==0.0.20" "playwright==1.55.0" "pywebview==5.4"
+          python -m playwright install chromium
+      - name: Validate and publish v4.4.44
+        shell: pwsh
+        run: |
+          python build/v4444_weekly_appointment_guard/publish_v4444_cloud_sync.py
