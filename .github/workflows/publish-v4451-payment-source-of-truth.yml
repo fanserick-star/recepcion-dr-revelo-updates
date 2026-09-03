@@ -1,0 +1,31 @@
+name: Publish v4.4.51 payment source of truth
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-v4451-payment-source-of-truth.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4451-payment-source-of-truth
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate and publish v4.4.51
+        shell: pwsh
+        run: |
+          python build/v4451_payment_source_of_truth/publish_v4451.py
