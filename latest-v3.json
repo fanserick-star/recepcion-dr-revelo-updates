@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.48",
-  "app_version": "4.4.48",
-  "runtime_version": "4.4.48",
+  "version": "4.4.49",
+  "app_version": "4.4.49",
+  "runtime_version": "4.4.49",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.48: paquete de recuperación compatible con el actualizador 4.4.43. Incluye explícitamente app_base_4428.py junto con app.py, el launcher reparado y el manifest, porque el actualizador antiguo rechaza cualquier app.py cuya dependencia local no venga en el mismo paquete. Conserva todos los arreglos funcionales de 4.4.47 y no modifica .env, data, SQLite ni Excel.",
+  "message": "v4.4.49: Agenda abre desde SQLite sin esperar a Neon y actualiza Cloud en segundo plano; las citas con patient_id actualizan la ficha existente antes de atender en vez de crear otra; y Cita agendada deja de mostrar una hora UTC falsa. Conserva protección semanal, identidad por celular y todos los arreglos 4.4.48.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/app.py",
-      "sha256": "ac22d74c1ca2a9d57de103b0cb2c5723acfa3bbf59492fef3a79cf9a0003845b",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/app.py",
+      "sha256": "effbf483738d3f9a83bc783533663fa2968580a859c2d9b7a08684605cfb013b",
       "encoding": "utf-8"
     },
     {
       "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/app_base_4428.py",
       "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
       "encoding": "utf-8"
     },
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/ABRIR_RECEPCION.part4"
       ],
       "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/update_manifest.json",
-      "sha256": "fe28193aa85cafb0c1386abaca0c8551a057dde7d513c19589564d59ef0454eb",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_49_agenda_flow_speed/update_manifest.json",
+      "sha256": "f2727ff2e9cf479143e7c45fc30bbfed1ac3eb5d5f097e01a2de549719406e44",
       "encoding": "utf-8"
     }
   ]
