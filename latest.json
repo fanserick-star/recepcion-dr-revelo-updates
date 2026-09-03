@@ -1,33 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.47",
-  "app_version": "4.4.47",
-  "runtime_version": "4.4.47",
+  "version": "4.4.48",
+  "app_version": "4.4.48",
+  "runtime_version": "4.4.48",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.47: corrige el actualizador que podía quedarse atrapado en 4.4.43 cuando el backend anterior seguía vivo. Ahora siempre comprueba y aplica la actualización antes de reutilizar una ventana existente. Conserva todos los arreglos 4.4.46 de Agenda Cloud/WhatsApp, identidad por celular y protección semanal. No modifica .env, data, SQLite, Excel ni la base estable.",
+  "message": "v4.4.48: paquete de recuperación compatible con el actualizador 4.4.43. Incluye explícitamente app_base_4428.py junto con app.py, el launcher reparado y el manifest, porque el actualizador antiguo rechaza cualquier app.py cuya dependencia local no venga en el mismo paquete. Conserva todos los arreglos funcionales de 4.4.47 y no modifica .env, data, SQLite ni Excel.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/app.py",
-      "sha256": "2657308bd94dbda719c52df893707235e02d9dd051112c1a5a0ae6f7187b864d",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/app.py",
+      "sha256": "ac22d74c1ca2a9d57de103b0cb2c5723acfa3bbf59492fef3a79cf9a0003845b",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/app_base_4428.py",
+      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
       "encoding": "utf-8"
     },
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/ABRIR_RECEPCION.part4"
       ],
-      "sha256": "dcbbc359ee9697d8b532ac2d62c8af571e3b1ba93c743224a083ae81e19b8c84",
+      "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/update_manifest.json",
-      "sha256": "21df379d908001fe9a1a5ca344c8166dfcab199797761d1d6f9d8a09284ba433",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_48_dependency_recovery/update_manifest.json",
+      "sha256": "fe28193aa85cafb0c1386abaca0c8551a057dde7d513c19589564d59ef0454eb",
       "encoding": "utf-8"
     }
   ]
