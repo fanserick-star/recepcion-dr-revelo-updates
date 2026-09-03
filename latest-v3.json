@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.51",
-  "app_version": "4.4.51",
-  "runtime_version": "4.4.51",
+  "version": "4.4.52",
+  "app_version": "4.4.52",
+  "runtime_version": "4.4.52",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.51: Nueva atención exige Efectivo o Transferencia sin opción preseleccionada; el método se guarda con la atención y Facturación lo hereda automáticamente; se elimina el falso Efectivo visual y SRI ya no asume un método inexistente. Conserva todos los arreglos de v4.4.50.",
+  "message": "v4.4.52: Nueva cita ya no crea fichas de paciente. El botón pasa a Crear cita nueva y permite reservar solo con apellidos/nombres y celular; la cita queda sin ficha vinculada y la identidad se resuelve al atender. Conserva protección de horario y guardia semanal por celular, además de todos los arreglos de v4.4.51.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/app.py",
-      "sha256": "a0df557f8d051082afbdaaba7a4e8fab286f15d806d5a380f88f9916612cb9a6",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/app.py",
+      "sha256": "6b6abb86883b769b9b262bddec25397a69b5913cad7dfe8f2bc8e7f7be4e4807",
       "encoding": "utf-8"
     },
     {
       "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/app_base_4428.py",
       "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
       "encoding": "utf-8"
     },
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/ABRIR_RECEPCION.part4"
       ],
       "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_51_payment_source_of_truth/update_manifest.json",
-      "sha256": "276dbfa888cc3f0a1d3afec5ae76f6bc55f1eccb81709c989eefc47076a87f2c",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_52_quick_unlinked_appointment/update_manifest.json",
+      "sha256": "ddeabf014011569c6f8ee800823fb550873b971d738e91effc165849782ae269",
       "encoding": "utf-8"
     }
   ]
