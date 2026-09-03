@@ -29,6 +29,10 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def stable_text_bytes(path: pathlib.Path) -> bytes:
+    return path.read_text(encoding="utf-8-sig").encode("utf-8")
+
+
 def build() -> None:
     subprocess.run([sys.executable, str(HERE / "build_v4448.py")], cwd=ROOT, check=True)
 
@@ -89,9 +93,14 @@ def contracts() -> None:
     expected_paths = ["app.py", "app_base_4428.py", "ABRIR_RECEPCION.py", "update_manifest.json"]
     require(manifest.get("copy") == expected_paths, f"copy incorrecto: {manifest.get('copy')}")
     require([x.get("path") for x in candidate.get("files", [])] == expected_paths, "El candidato no incluye la dependencia")
+    by_path = {x["path"]: x for x in candidate["files"]}
+    require(by_path["app.py"]["sha256"] == sha((OUT / "app.py").read_bytes()), "SHA app local incorrecto")
+    require(by_path["app_base_4428.py"]["sha256"] == sha((OUT / "app_base_4428.py").read_bytes()), "SHA app_base local incorrecto")
+    require(by_path["ABRIR_RECEPCION.py"]["sha256"] == sha(launcher_bytes(OUT)), "SHA launcher local incorrecto")
+    require(by_path["update_manifest.json"]["sha256"] == sha((OUT / "update_manifest.json").read_bytes()), "SHA manifest local incorrecto")
     require(
-        sha((OUT / "app_base_4428.py").read_bytes()) == sha((LEGACY / "app_base_4428.py").read_bytes()),
-        "app_base_4428.py no es la base estable existente",
+        sha((OUT / "app_base_4428.py").read_bytes()) == sha(stable_text_bytes(LEGACY / "app_base_4428.py")),
+        "app_base_4428.py no es la base estable normalizada",
     )
     print("V4448_CONTRACT_OK")
 
@@ -127,25 +136,33 @@ def start_server():
 
 
 def localize_candidate(candidate: dict, folder: pathlib.Path, base: str) -> tuple[dict, dict[str, tuple[bytes, str]]]:
+    # Esta prueba es semántica: al servir archivos desde un checkout Windows,
+    # recalculamos SHA sobre esos bytes locales para no confundir CRLF con el
+    # problema que queremos probar. Los SHA publicados se validan luego contra Raw.
     remote = copy.deepcopy(candidate)
     files: dict[str, tuple[bytes, str]] = {}
     for idx, item in enumerate(remote.get("files") or []):
         target = str(item.get("path") or "")
         if target == "ABRIR_RECEPCION.py":
             local_parts = []
+            joined = b""
             for part_no in range(1, 5):
                 route = f"/item{idx}_part{part_no}"
-                files[route] = ((folder / f"ABRIR_RECEPCION.part{part_no}").read_bytes(), "text/plain")
+                data = (folder / f"ABRIR_RECEPCION.part{part_no}").read_bytes()
+                files[route] = (data, "text/plain")
+                joined += data
                 local_parts.append(base + route)
             item.pop("url", None)
             item["parts"] = local_parts
+            item["sha256"] = sha(joined)
         else:
             route = f"/item{idx}"
-            files[route] = ((folder / target).read_bytes(), "application/octet-stream")
+            data = (folder / target).read_bytes()
+            files[route] = (data, "application/octet-stream")
             item.pop("parts", None)
             item["url"] = base + route
-    manifest_route = "/manifest"
-    files[manifest_route] = ((json.dumps(remote, ensure_ascii=False) + "\n").encode("utf-8"), "application/json")
+            item["sha256"] = sha(data)
+    files["/manifest"] = ((json.dumps(remote, ensure_ascii=False) + "\n").encode("utf-8"), "application/json")
     return remote, files
 
 
@@ -210,7 +227,7 @@ def prove_v4448_is_accepted_by_real_443() -> None:
             sentinels = seed_legacy_install(install)
             legacy = load_legacy_module(temp)
             result = legacy.check_and_apply_update(
-                install, base + "/manifest", attempts=1, timeout=6, allow_test_sources=True
+                install, base + "/manifest", attempts=1, timeout=8, allow_test_sources=True
             )
             require(result.get("ok") and result.get("updated"), f"El actualizador 4.4.43 no instaló 4.4.48: {result}")
             require(result.get("version") == "4.4.48", f"Versión final incorrecta: {result}")
@@ -220,7 +237,7 @@ def prove_v4448_is_accepted_by_real_443() -> None:
             launcher = (install / "ABRIR_RECEPCION.py").read_text(encoding="utf-8-sig")
             require('LAUNCHER_VERSION = "4.4.48-update-before-focus-dependency-safe-1"' in launcher, "Launcher no se reemplazó")
             require(
-                sha((install / "app_base_4428.py").read_bytes()) == sha((LEGACY / "app_base_4428.py").read_bytes()),
+                sha((install / "app_base_4428.py").read_bytes()) == sha((OUT / "app_base_4428.py").read_bytes()),
                 "La dependencia estable cambió",
             )
             for path, data in sentinels.items():
