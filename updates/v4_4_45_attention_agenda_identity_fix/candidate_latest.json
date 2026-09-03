@@ -1,0 +1,23 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.45",
+  "app_version": "4.4.45",
+  "runtime_version": "4.4.45",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.45: Nueva atención actualiza al abrir las citas de la semana desde Agenda Cloud/WhatsApp para que no falte ningún paciente. Al atender una cita sin vincular, si su celular ya corresponde a una ficha existente, la muestra primero para reutilizarla y completar sus datos sin crear duplicados. Incluye la protección semanal de citas de v4.4.44. No cambia tablas, .env, data, launcher ni bases locales y conserva el funcionamiento offline.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/app.py",
+      "sha256": "59d074befb07c7b7b0ffb5ebfc00eed193b8cd367589bf79c12eeeb215d09527",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/update_manifest.json",
+      "sha256": "18f40ddd476ed40df6c71c29cd8d89b36517d63240133ebd89b7f11089996416",
+      "encoding": "utf-8"
+    }
+  ]
+}
