@@ -31,6 +31,12 @@ def split_text(text: str, count: int = 4) -> list[str]:
     return [text[cuts[i]:cuts[i + 1]] for i in range(count)]
 
 
+def stable_text_bytes(path: Path) -> bytes:
+    # read_text normaliza CRLF/LF en cualquier runner; el payload queda siempre LF,
+    # igual que Raw GitHub. Así el SHA no depende del checkout de Windows.
+    return path.read_text(encoding="utf-8-sig").encode("utf-8")
+
+
 def build_app() -> bytes:
     text = (SOURCE / "app.py").read_text(encoding="utf-8-sig")
     require('APP_VERSION = "4.4.47"' in text, "La base app no es 4.4.47")
@@ -79,7 +85,7 @@ def build_launcher() -> bytes:
 def main() -> None:
     app = build_app()
     launcher = build_launcher()
-    app_base = (LEGACY / "app_base_4428.py").read_bytes()
+    app_base = stable_text_bytes(LEGACY / "app_base_4428.py")
     compile(app_base.decode("utf-8-sig"), "app_base_4428.py", "exec")
 
     OUT.mkdir(parents=True, exist_ok=True)
