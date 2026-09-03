@@ -1,51 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.43",
-  "app_version": "4.4.43",
-  "runtime_version": "4.4.43",
+  "version": "4.4.45",
+  "app_version": "4.4.45",
+  "runtime_version": "4.4.45",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.43: Facturación EMITIDAS abre mostrando solo Hoy y permite cambiar a Últimos 7 días. En Agenda, los mensajes WhatsApp PROGRAMADOS muestran debajo la fecha y hora exactas calculadas por el mismo due_at de la automatización. Conserva Efectivo por defecto, emisión AZUR, diagnóstico automático, puertos dinámicos y reparación de pg8000. No modifica .env, data, pacientes, citas, facturas ni bases locales.",
+  "message": "v4.4.45: Nueva atención actualiza al abrir las citas de la semana desde Agenda Cloud/WhatsApp para que no falte ningún paciente. Al atender una cita sin vincular, si su celular ya corresponde a una ficha existente, la muestra primero para reutilizarla y completar sus datos sin crear duplicados. Incluye la protección semanal de citas de v4.4.44. No cambia tablas, .env, data, launcher ni bases locales y conserva el funcionamiento offline.",
   "files": [
     {
-      "path": "ABRIR_RECEPCION.py",
-      "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/ABRIR_RECEPCION.part4"
-      ],
-      "sha256": "39ee0e178c9f86387b220905f2f8612f6c61e721a928fd8ed3ca514a639b007e",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/app_base_4428.py",
-      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
-      "encoding": "utf-8"
-    },
-    {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/app.py",
-      "sha256": "5bebead7606bfaea8cf04f83b657f8511a167a16506ae4c0d096df606786ec19",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/app.js",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/static/app.js",
-      "sha256": "0657c3b76721df2e28ec812856a2fc25944d2908382b13fbf3f115dad3e18d90",
-      "encoding": "utf-8"
-    },
-    {
-      "path": "static/index.html",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/static/index.html",
-      "sha256": "16d30060a0be19215e612c4ba897e801873dd359712e90d4dc14e32513b25728",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/app.py",
+      "sha256": "59d074befb07c7b7b0ffb5ebfc00eed193b8cd367589bf79c12eeeb215d09527",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_43_daily_emitted_whatsapp_schedule/update_manifest.json",
-      "sha256": "e5a549999bb0ddeb8ebea79865fd91a90114a0fa382eeee2580d8c24bfe39674",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/update_manifest.json",
+      "sha256": "18f40ddd476ed40df6c71c29cd8d89b36517d63240133ebd89b7f11089996416",
       "encoding": "utf-8"
     }
   ]
