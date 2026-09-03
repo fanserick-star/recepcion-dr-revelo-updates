@@ -1,0 +1,31 @@
+name: Publish v4.4.52 quick unlinked appointment
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-v4452-quick-unlinked-appointment.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4452-quick-unlinked-appointment
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate and publish v4.4.52
+        shell: pwsh
+        run: |
+          python build/v4452_quick_unlinked_appointment/publish_v4452.py
