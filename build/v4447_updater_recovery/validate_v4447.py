@@ -40,8 +40,10 @@ def contracts() -> None:
         'APP_VERSION = "4.4.47"',
         '/api/agenda/appointments/guarded',
         'window.__v4445StagedIdentityFix',
-        'window.__v4446PhoneGuard',
-        'CELULAR YA REGISTRADO',
+        '/api/identity/phone-owner',
+        'window.__v4446PhoneDuplicateGuard',
+        'stopIfDuplicate',
+        'Este celular ya está registrado',
     ):
         require(marker in app, f"Falta contrato acumulativo: {marker}")
 
@@ -90,8 +92,6 @@ def lifecycle_regression() -> None:
         launcher_path.write_bytes(launcher_bytes())
         mod = load_launcher_module(launcher_path)
 
-        # Caso exacto del bug: backend ya vivo + ventana local existente. Antes
-        # v4.4.43 hacía focus y RETURN antes de consultar latest-v3.json.
         events = []
         mod._set_windows_identity = lambda: None
         mod._choose_app_port = lambda force_new=False: 8000
@@ -111,8 +111,6 @@ def lifecycle_regression() -> None:
         require(events.index("update") < events.index("focus"), f"Se enfocó antes de actualizar: {events}")
         require("open" not in events, "Debió reutilizar la ventana ya actualizada")
 
-        # Si el backend que quedó vivo es 4.4.43, NO se reutiliza: tras comprobar
-        # el canal debe cerrarse y arrancarse con la versión esperada.
         events.clear()
         mod._running_version = lambda timeout=1.0: "4.4.43"
         mod._focus_existing_window = lambda: events.append("focus") or True
@@ -125,8 +123,6 @@ def lifecycle_regression() -> None:
         require("focus" not in events, f"Reutilizó ventana 4.4.43: {events}")
         require("stop" in events and "start" in events and "open" in events, f"No reinició backend viejo: {events}")
 
-        # Cuando el update instala el propio launcher, el proceso viejo debe
-        # relanzar inmediatamente el archivo nuevo antes de seguir.
         events.clear()
         mod.check_and_apply_update = lambda root: events.append("update") or {
             "ok": True, "updated": True, "version": "4.4.47", "paths": ["ABRIR_RECEPCION.py", "app.py", "update_manifest.json"]
