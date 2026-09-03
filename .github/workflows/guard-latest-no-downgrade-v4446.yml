@@ -1,0 +1,67 @@
+name: Guard stable channel no downgrade below v4.4.46
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "latest.json"
+      - "latest-v3.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: guard-stable-channel-version
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore v4.4.46 only if channel was downgraded
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import subprocess
+
+          root = pathlib.Path('.')
+          floor = (4, 4, 46)
+
+          def ver(v):
+              parts=[]
+              for x in str(v or '0').split('.'):
+                  try: parts.append(int(x))
+                  except Exception: parts.append(0)
+              return tuple(parts)
+
+          current = json.loads((root/'latest.json').read_text(encoding='utf-8-sig'))
+          current_v = ver(current.get('version'))
+          print('CURRENT', current.get('version'))
+          if current_v >= floor:
+              print('CHANNEL_OK_NO_ACTION')
+              raise SystemExit(0)
+
+          safe_path = root/'updates'/'v4_4_46_phone_guard'/'candidate_latest.json'
+          safe = json.loads(safe_path.read_text(encoding='utf-8-sig'))
+          if ver(safe.get('version')) != floor:
+              raise RuntimeError('Pinned safe candidate is not v4.4.46')
+
+          payload = json.dumps(safe, ensure_ascii=False, indent=2) + '\n'
+          (root/'latest.json').write_text(payload, encoding='utf-8')
+          (root/'latest-v3.json').write_text(payload, encoding='utf-8')
+
+          subprocess.run(['git','config','user.name','github-actions[bot]'], check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git','add','latest.json','latest-v3.json'], check=True)
+          subprocess.run(['git','commit','-m','fix: restaurar canal estable v4.4.46 tras downgrade'], check=True)
+          subprocess.run(['git','pull','--rebase','origin','main'], check=True)
+          subprocess.run(['git','push','origin','HEAD:main'], check=True)
+          print('CHANNEL_RESTORED_V4446')
+          PY
