@@ -143,7 +143,10 @@ def inherited_selftests() -> None:
             print(proc.stdout)
             print(proc.stderr)
         require(proc.returncode == 0, f"Self-tests heredados fallaron: {proc.returncode}")
-        require("ALL PASS" in proc.stdout, "Self-tests no reportaron ALL PASS")
+        require("PASS clean_update" in proc.stdout, "Falta self-test clean_update")
+        require("PASS rollback" in proc.stdout, "Falta self-test rollback")
+        require("PASS offline_local_start_allowed" in proc.stdout, "Falta self-test offline")
+        require("SELFTEST OK:" in proc.stdout and "pruebas" in proc.stdout, "Falta resumen real de self-tests")
     print("V4447_INHERITED_UPDATER_SELFTESTS_OK")
 
 
