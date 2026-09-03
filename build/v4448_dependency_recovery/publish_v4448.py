@@ -80,8 +80,8 @@ def wait_payload(item: dict, attempts: int = 50) -> bytes:
 
 
 def raw_legacy_acceptance(candidate: dict) -> None:
-    # Esta es la barrera que faltaba en publicaciones anteriores: usa el código
-    # del updater 4.4.43 real contra los bytes Raw reales que recibirá la PC.
+    # Barrera final: usa el updater 4.4.43 real contra los bytes Raw reales que
+    # descargará la PC. latest-v3 todavía NO se ha movido en este punto.
     with tempfile.TemporaryDirectory() as td:
         temp = pathlib.Path(td)
         install = temp / "install"
@@ -97,8 +97,7 @@ def raw_legacy_acceptance(candidate: dict) -> None:
             "Updater 4.4.43 no reemplazó el launcher",
         )
         require(
-            sha((install / "app_base_4428.py").read_bytes())
-            == sha((validation.LEGACY / "app_base_4428.py").read_bytes()),
+            sha((install / "app_base_4428.py").read_bytes()) == sha((OUT / "app_base_4428.py").read_bytes()),
             "Updater 4.4.43 alteró la dependencia estable",
         )
         for path, data in sentinels.items():
@@ -157,7 +156,7 @@ def main() -> None:
         if item["path"] == "app.py":
             require('APP_VERSION = "4.4.48"' in data.decode("utf-8-sig"), "Raw app incorrecta")
         elif item["path"] == "app_base_4428.py":
-            require(sha(data) == sha((validation.LEGACY / "app_base_4428.py").read_bytes()), "Raw app_base no es la estable")
+            require(sha(data) == sha((OUT / "app_base_4428.py").read_bytes()), "Raw app_base no coincide con el payload construido")
         elif item["path"] == "ABRIR_RECEPCION.py":
             text = data.decode("utf-8-sig")
             require(
