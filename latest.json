@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.53",
-  "app_version": "4.4.53",
-  "runtime_version": "4.4.53",
+  "version": "4.4.54",
+  "app_version": "4.4.54",
+  "runtime_version": "4.4.54",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.53: Crear cita nueva toma correctamente la fecha y hora ya seleccionadas usando los mismos controles globales del guardado estable. Conserva todo v4.4.52.",
+  "message": "v4.4.54: Crear cita nueva conserva la fecha y hora directamente desde el clic del horario libre, sin depender del contenido del modal. Conserva todos los arreglos de v4.4.53.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/app.py",
-      "sha256": "fca4c7983ddb975aca99a767f21468919d54e50948a5559a6d5cc5e992ed7555",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/app.py",
+      "sha256": "4035761ff2840b48d0ca1a38541c3de63a293abb9b6953293b9feac155ecc7cd",
       "encoding": "utf-8"
     },
     {
       "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/app_base_4428.py",
       "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
       "encoding": "utf-8"
     },
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/ABRIR_RECEPCION.part4"
       ],
       "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_53_slot_capture_fix/update_manifest.json",
-      "sha256": "92d987f9f79ac80d5b4ade5eea110fa93b6807e97b2a4ac2cfc758cb2d0a4ef1",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_54_slot_event_capture/update_manifest.json",
+      "sha256": "04dc3f2c762e698d7075e0b485b2d23b5796cf5e9cab0465bce89276bb1559b9",
       "encoding": "utf-8"
     }
   ]
