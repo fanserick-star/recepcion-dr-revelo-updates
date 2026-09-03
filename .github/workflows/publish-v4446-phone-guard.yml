@@ -1,0 +1,39 @@
+name: Publish v4.4.46 phone guard verified release
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "build/v4446_phone_guard/PUBLISH_TRIGGER"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-recepcion-stable
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install focused browser validation
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check "playwright==1.55.0"
+          python -m playwright install chromium
+      - name: Validate and publish v4.4.46
+        shell: pwsh
+        run: |
+          python build/v4446_phone_guard/publish_v4446.py
