@@ -45,6 +45,21 @@ def fetch(url: str, attempts: int = 18) -> bytes:
     raise RuntimeError(f"Raw GitHub no propagó {url}: {last}")
 
 
+def wait_latest(expected: str, attempts: int = 24) -> dict:
+    url = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest.json"
+    last = None
+    for i in range(attempts):
+        try:
+            data = json.loads(fetch(url, attempts=2).decode("utf-8-sig"))
+            last = data
+            if data.get("version") == expected and data.get("app_version") == expected:
+                return data
+        except Exception as exc:
+            last = exc
+        time.sleep(min(3.0, 0.6 + i * 0.25))
+    raise RuntimeError(f"latest.json no propagó {expected}: {last!r}")
+
+
 def version_tuple(value: object) -> tuple[int, ...]:
     out = []
     for part in str(value or "0").split("."):
@@ -101,10 +116,8 @@ def main() -> None:
         git("pull", "--rebase", "origin", "main")
         git("push", "origin", "HEAD:main")
 
-    # 4) Verificación final del canal ya propagado.
-    remote_latest = json.loads(fetch("https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest.json").decode("utf-8-sig"))
-    require(remote_latest.get("version") == VERSION, f"latest.json no propagó {VERSION}")
-    require(remote_latest.get("app_version") == VERSION, "app_version publicado incorrecto")
+    # 4) Verificación final tolerante a los segundos de caché/propagación de Raw.
+    remote_latest = wait_latest(VERSION)
     require("Nueva atención" in str(remote_latest.get("message") or ""), "El mensaje de release no describe el arreglo")
     remote_paths = [x.get("path") for x in remote_latest.get("files", [])]
     require(remote_paths == ["app.py", "update_manifest.json"], f"Canal publicado toca archivos de más: {remote_paths}")
