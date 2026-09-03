@@ -1,22 +1,33 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.46",
-  "app_version": "4.4.46",
-  "runtime_version": "4.4.46",
+  "version": "4.4.47",
+  "app_version": "4.4.47",
+  "runtime_version": "4.4.47",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.46: conserva la agenda completa Cloud/WhatsApp y la reutilización de ficha por celular de v4.4.45, más la protección semanal de citas. Corrige el caso restante de Nueva atención: al Completar datos o editar una ficha, el celular vuelve a comprobarse contra otros pacientes; si ya está registrado muestra la advertencia y no guarda silenciosamente. El propio número del paciente se excluye para no generar falsos avisos. No cambia tablas, .env, data, launcher, base ni archivos estáticos.",
+  "message": "v4.4.47: corrige el actualizador que podía quedarse atrapado en 4.4.43 cuando el backend anterior seguía vivo. Ahora siempre comprueba y aplica la actualización antes de reutilizar una ventana existente. Conserva todos los arreglos 4.4.46 de Agenda Cloud/WhatsApp, identidad por celular y protección semanal. No modifica .env, data, SQLite, Excel ni la base estable.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_46_phone_guard/app.py",
-      "sha256": "708cbe94616d7f6c62d9051dae9dd8e28650b691ef9f71b8c4d9072901b3fba0",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/app.py",
+      "sha256": "2657308bd94dbda719c52df893707235e02d9dd051112c1a5a0ae6f7187b864d",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/ABRIR_RECEPCION.part4"
+      ],
+      "sha256": "dcbbc359ee9697d8b532ac2d62c8af571e3b1ba93c743224a083ae81e19b8c84",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_46_phone_guard/update_manifest.json",
-      "sha256": "1760df32449c9aeb26107e18b5e040a67637ee3e1f98d38aff3804a98092d834",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_47_updater_recovery/update_manifest.json",
+      "sha256": "21df379d908001fe9a1a5ca344c8166dfcab199797761d1d6f9d8a09284ba433",
       "encoding": "utf-8"
     }
   ]
