@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/publish-v4453-slot-capture-fix.yml"
+      - "build/v4453_slot_capture_fix/**"
 
 permissions:
   contents: write
