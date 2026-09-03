@@ -26,8 +26,6 @@ def dump(obj: dict) -> bytes:
 
 
 def split_text(text: str, count: int = 4) -> list[str]:
-    # Se divide por caracteres, nunca por bytes, para conservar UTF-8 válido en
-    # cada parte. Al concatenar los bytes descargados se reconstruye el launcher.
     n = len(text)
     cuts = [round(n * i / count) for i in range(count + 1)]
     return [text[cuts[i]:cuts[i + 1]] for i in range(count)]
@@ -42,8 +40,10 @@ def build_app() -> bytes:
     for marker in (
         '/api/agenda/appointments/guarded',
         'window.__v4445StagedIdentityFix',
-        'window.__v4446PhoneGuard',
-        'CELULAR YA REGISTRADO',
+        '/api/identity/phone-owner',
+        'window.__v4446PhoneDuplicateGuard',
+        'stopIfDuplicate',
+        'Este celular ya está registrado',
     ):
         require(marker in text, f"Se perdió arreglo acumulativo: {marker}")
     return text.encode("utf-8")
