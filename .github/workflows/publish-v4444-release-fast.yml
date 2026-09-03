@@ -1,4 +1,4 @@
-name: Publish v4.4.44 fast verified release
+name: Publish v4.4.44 all fixes verified release
 
 on:
   workflow_dispatch:
@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/publish-v4444-release-fast.yml"
+      - "build/v4444_weekly_appointment_guard/build_v4444.py"
+      - "build/v4444_weekly_appointment_guard/build_v4444_cloud_sync.py"
+      - "build/v4444_weekly_appointment_guard/validate_v4444.py"
+      - "build/v4444_weekly_appointment_guard/validate_v4444_release_fast.py"
+      - "build/v4444_weekly_appointment_guard/publish_v4444_release_fast.py"
 
 permissions:
   contents: write
@@ -30,7 +35,7 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check "playwright==1.55.0"
           python -m playwright install chromium
-      - name: Validate focused contracts and publish v4.4.44
+      - name: Validate all fixes and publish v4.4.44
         shell: pwsh
         run: |
           python build/v4444_weekly_appointment_guard/publish_v4444_release_fast.py
