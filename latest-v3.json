@@ -1,22 +1,22 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.45",
-  "app_version": "4.4.45",
-  "runtime_version": "4.4.45",
+  "version": "4.4.46",
+  "app_version": "4.4.46",
+  "runtime_version": "4.4.46",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.45: Nueva atención actualiza al abrir las citas de la semana desde Agenda Cloud/WhatsApp para que no falte ningún paciente. Al atender una cita sin vincular, si su celular ya corresponde a una ficha existente, la muestra primero para reutilizarla y completar sus datos sin crear duplicados. Incluye la protección semanal de citas de v4.4.44. No cambia tablas, .env, data, launcher ni bases locales y conserva el funcionamiento offline.",
+  "message": "v4.4.46: conserva la agenda completa Cloud/WhatsApp y la reutilización de ficha por celular de v4.4.45, más la protección semanal de citas. Corrige el caso restante de Nueva atención: al Completar datos o editar una ficha, el celular vuelve a comprobarse contra otros pacientes; si ya está registrado muestra la advertencia y no guarda silenciosamente. El propio número del paciente se excluye para no generar falsos avisos. No cambia tablas, .env, data, launcher, base ni archivos estáticos.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/app.py",
-      "sha256": "59d074befb07c7b7b0ffb5ebfc00eed193b8cd367589bf79c12eeeb215d09527",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_46_phone_guard/app.py",
+      "sha256": "708cbe94616d7f6c62d9051dae9dd8e28650b691ef9f71b8c4d9072901b3fba0",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_45_attention_agenda_identity_fix/update_manifest.json",
-      "sha256": "18f40ddd476ed40df6c71c29cd8d89b36517d63240133ebd89b7f11089996416",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_46_phone_guard/update_manifest.json",
+      "sha256": "1760df32449c9aeb26107e18b5e040a67637ee3e1f98d38aff3804a98092d834",
       "encoding": "utf-8"
     }
   ]
