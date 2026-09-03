@@ -71,9 +71,9 @@ def build_launcher() -> bytes:
 
     compile(text, "ABRIR_RECEPCION.py", "exec")
     main = text[text.index("def main() -> None:"):text.index("\ndef _selftest_mutex_holder", text.index("def main() -> None:"))]
-    require(main.index("result = check_and_apply_update(ROOT)") < main.index("if current == expected and _focus_existing_window()"), "El foco sigue antes del update")
-    before_update = main[:main.index("result = check_and_apply_update(ROOT)")]
-    require("_focus_existing_window()" not in before_update.split("if already:", 1)[-1], "Hay un foco prematuro después de adquirir mutex")
+    require(main.index("result = check_and_apply_update(ROOT)") < main.index("if current == expected and _focus_existing_window()"), "El foco de sesión quedó antes del update")
+    require("if _running_version(timeout=0.45) is not None and _focus_existing_window()" not in main, "Sigue presente el atajo viejo")
+    require(main.count("_focus_existing_window()") == 2, "El main debe enfocar solo por mutex activo o después del update")
     return text.encode("utf-8")
 
 
