@@ -29,3 +29,4 @@ jobs:
         shell: pwsh
         run: |
           python build/v4447_updater_recovery/publish_v4447.py
+          # Run 2: behavioral markers corrected; publication only after all checks pass.
