@@ -29,4 +29,4 @@ jobs:
         shell: pwsh
         run: |
           python build/v4447_updater_recovery/publish_v4447.py
-          # Run 3: mutex focus is allowed; stale-backend focus remains forbidden before update.
+          # Final run: inherited updater self-tests validate their real PASS/SELFTEST OK output.
