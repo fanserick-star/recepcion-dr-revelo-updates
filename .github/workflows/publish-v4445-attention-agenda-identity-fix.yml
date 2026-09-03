@@ -1,0 +1,59 @@
+name: Publish v4.4.45 attention agenda identity fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4445_attention_agenda_identity_fix/**'
+      - '.github/workflows/publish-v4445-attention-agenda-identity-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4445-attention-agenda-identity-fix
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validar y publicar v4.4.45
+        shell: bash
+        run: |
+          set -euo pipefail
+          python build/v4445_attention_agenda_identity_fix/publish_v4445.py
+      - name: Confirmar canal público
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, time, urllib.request
+          url='https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest.json'
+          last=None
+          for i in range(20):
+              try:
+                  req=urllib.request.Request(url+'?ci='+str(time.time_ns()),headers={'Cache-Control':'no-cache'})
+                  with urllib.request.urlopen(req,timeout=15) as r:
+                      d=json.load(r)
+                  if d.get('version')=='4.4.45' and d.get('app_version')=='4.4.45':
+                      assert [x.get('path') for x in d.get('files',[])]==['app.py','update_manifest.json'], d
+                      print('PUBLIC_V4445_OK')
+                      break
+                  last=d
+              except Exception as e:
+                  last=e
+              time.sleep(2)
+          else:
+              raise SystemExit(f'latest.json no confirmó 4.4.45: {last!r}')
+          PY
