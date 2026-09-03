@@ -28,4 +28,4 @@ jobs:
       - name: Validate and publish v4.4.49
         shell: pwsh
         run: |
-          python build/v4449_agenda_flow_speed/publish_v4449.py
+          python build/v4449_agenda_flow_speed/publish_v4449_run2.py
