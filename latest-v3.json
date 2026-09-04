@@ -1,39 +1,39 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.55",
-  "app_version": "4.4.55",
-  "runtime_version": "4.4.55",
+  "version": "4.4.56",
+  "app_version": "4.4.56",
+  "runtime_version": "4.4.56",
   "mandatory": true,
   "channel": "files-v3",
-  "message": "v4.4.55: fecha de nacimiento acepta dd/mm/aaaa o aaaa-mm-dd sin invertir día/mes y los errores de validación se muestran de forma legible. Conserva todo v4.4.54.",
+  "message": "v4.4.56: corrige el origen de [object Object] al crear pacientes, captura el error real de FastAPI y permite normalizar dd/mm/aaaa antes de la validación de fecha. Conserva todo v4.4.55.",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/app.py",
-      "sha256": "6e5a1c21b645d8e978cd6026b1ab1cea772e5bcc3e851c091f27da2fb7f4f6af",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/app.py",
+      "sha256": "9e62a0a847bd4cd8a517bbcdcd1bc0ee7bd14e7a3e57e9727a0f53818a067ca3",
       "encoding": "utf-8"
     },
     {
       "path": "app_base_4428.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/app_base_4428.py",
-      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/app_base_4428.py",
+      "sha256": "b7b903a0657063a85fa36c17880bbf8f938763ee90260718885833967cd738d0",
       "encoding": "utf-8"
     },
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part1",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part2",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part3",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part4"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/ABRIR_RECEPCION.part4"
       ],
       "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
       "encoding": "utf-8"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/update_manifest.json",
-      "sha256": "c7c0e75770bb98e55d12b534a8ec2297e84275265f7e51cfa782fcc2bf3eecb2",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_56_patient_validation_origin_fix/update_manifest.json",
+      "sha256": "e35afcec32bac9c16a3beb44a60c602e1729d03569d42eee7382ec142e01cb3f",
       "encoding": "utf-8"
     }
   ]
