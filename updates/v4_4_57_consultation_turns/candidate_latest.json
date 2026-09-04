@@ -1,0 +1,40 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.57",
+  "app_version": "4.4.57",
+  "runtime_version": "4.4.57",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.57: los turnos se numeran solo por consultas médicas. Los procedimientos aislados siguen visibles pero no consumen N.º; consulta + procedimientos cuenta un único turno. Reportes usan la misma regla. Conserva todo v4.4.56.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/app.py",
+      "sha256": "a2f5ef9bc0633c1a37cb864f697bfef9dac8175bdf9feabeaffd3b62fd9f64a7",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/app_base_4428.py",
+      "sha256": "3aa2623d2fc3eca8ce961f7410e9b30db42b5fe979eb8760478d6126cc95ed4a",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/ABRIR_RECEPCION.part4"
+      ],
+      "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_57_consultation_turns/update_manifest.json",
+      "sha256": "b23c6b2cc0053027aaf105e357149f488d590d83d64f427c304796088679d7d0",
+      "encoding": "utf-8"
+    }
+  ]
+}
