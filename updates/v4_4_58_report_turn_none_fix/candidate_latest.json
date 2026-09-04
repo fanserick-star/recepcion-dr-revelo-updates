@@ -1,0 +1,40 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.58",
+  "app_version": "4.4.58",
+  "runtime_version": "4.4.58",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.58: corrige Reportes cuando hay pacientes con solo procedimientos y por tanto sin numero de turno. Conserva turnos solo para consultas de v4.4.57 y todo v4.4.56.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/app.py",
+      "sha256": "a4fbd06bd83c9a902169dc99ef71c367edc8ed57f77b8cc8c15a813d536baad0",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/app_base_4428.py",
+      "sha256": "5d8f1e622d7c62af81f0bde7df51d3680bd5855a59c4a264cfda5275378f2551",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/ABRIR_RECEPCION.part4"
+      ],
+      "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_58_report_turn_none_fix/update_manifest.json",
+      "sha256": "dd498cf68a335334470f491e04041fdc8bd7c8021e9bc581218a76c09c8fb3c2",
+      "encoding": "utf-8"
+    }
+  ]
+}
