@@ -1,0 +1,32 @@
+name: Publish v4.4.55 patient DOB error guard
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-v4455-patient-dob-error-guard.yml"
+      - "build/v4455_patient_dob_error_guard/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4455-patient-dob-error-guard
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate and publish v4.4.55
+        shell: pwsh
+        run: |
+          python build/v4455_patient_dob_error_guard/publish_v4455.py
