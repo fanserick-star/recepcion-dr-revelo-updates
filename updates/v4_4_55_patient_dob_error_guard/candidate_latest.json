@@ -1,0 +1,40 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.55",
+  "app_version": "4.4.55",
+  "runtime_version": "4.4.55",
+  "mandatory": true,
+  "channel": "files-v3",
+  "message": "v4.4.55: fecha de nacimiento acepta dd/mm/aaaa o aaaa-mm-dd sin invertir día/mes y los errores de validación se muestran de forma legible. Conserva todo v4.4.54.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/app.py",
+      "sha256": "6e5a1c21b645d8e978cd6026b1ab1cea772e5bcc3e851c091f27da2fb7f4f6af",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "app_base_4428.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/app_base_4428.py",
+      "sha256": "e5d3d96b9289169aa52524e8cc2f5f0ec9567c8da5e11d482151b12fc8ff85ba",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "ABRIR_RECEPCION.py",
+      "parts": [
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part1",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part2",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part3",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/ABRIR_RECEPCION.part4"
+      ],
+      "sha256": "5b0da4dc6e67591ab807613bb01025aacada1a59367501977a3eb54da4c6e8be",
+      "encoding": "utf-8"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_55_patient_dob_error_guard/update_manifest.json",
+      "sha256": "c7c0e75770bb98e55d12b534a8ec2297e84275265f7e51cfa782fcc2bf3eecb2",
+      "encoding": "utf-8"
+    }
+  ]
+}
