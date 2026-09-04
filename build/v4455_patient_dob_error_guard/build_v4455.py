@@ -108,10 +108,14 @@ FEATURE_PATCH = r'''
     if(typeof detail==='string'&&detail.trim())return detail.trim();
     if(detail&&typeof detail==='object'){
       if(typeof detail.msg==='string')return detail.msg;
-      try{const s=JSON.stringify(detail);if(s&&s!=='{}')return s}catch(_e){}
+      try{const s=JSON.stringify(detail);if(s&&s!=='{}'&&!s.includes('[object Object]'))return s}catch(_e){}
     }
-    if(typeof value?.message==='string'&&value.message.trim()&&value.message.trim()!=='[object Object]')return value.message.trim();
-    try{const s=JSON.stringify(value);if(s&&s!=='{}')return s}catch(_e){}
+    if(typeof value?.message==='string'){
+      const m=value.message.trim();
+      if(m&&m!=='[object Object]')return m;
+      if(m==='[object Object]')return 'No se pudo guardar. Revisa los datos e inténtalo nuevamente.';
+    }
+    try{const s=JSON.stringify(value);if(s&&s!=='{}'&&!s.includes('[object Object]'))return s}catch(_e){}
     return 'No se pudo guardar. Revisa los datos e inténtalo nuevamente.';
   }
 
