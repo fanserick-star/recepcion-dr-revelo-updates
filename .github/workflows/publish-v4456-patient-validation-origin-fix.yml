@@ -1,0 +1,26 @@
+name: Publish v4.4.56 patient validation origin fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4456_patient_validation_origin_fix/**'
+      - '.github/workflows/publish-v4456-patient-validation-origin-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate and publish v4.4.56
+        run: python build/v4456_patient_validation_origin_fix/publish_v4456.py
