@@ -1,0 +1,25 @@
+name: Publish v4.4.58 report turn none fix
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'build/v4458_report_turn_none_fix/**'
+      - '.github/workflows/publish-v4458-report-turn-none-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate and publish v4.4.58
+        run: python build/v4458_report_turn_none_fix/publish_v4458.py
