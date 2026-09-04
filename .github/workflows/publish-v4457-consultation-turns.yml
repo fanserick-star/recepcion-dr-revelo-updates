@@ -1,0 +1,29 @@
+name: Publish v4.4.57 consultation turns
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'build/v4457_consultation_turns/**'
+      - '.github/workflows/publish-v4457-consultation-turns.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-v4457-consultation-turns
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate and publish v4.4.57
+        run: python build/v4457_consultation_turns/publish_v4457.py
