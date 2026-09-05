@@ -55,12 +55,33 @@ jobs:
           print(json.dumps(safe, indent=2, ensure_ascii=False, sort_keys=True))
           PY
 
-      - name: Inspect Cloudflare cron triggers
+      - name: Inspect Cloudflare binding names only
         shell: bash
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
+          curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME/script-settings" \
+            -o /tmp/settings.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/settings.json','r',encoding='utf-8'))
+          r=d.get('result') or {}
+          bindings=r.get('bindings') or []
+          safe=[]
+          for b in bindings:
+            if isinstance(b,dict):
+              safe.append({'name':b.get('name'),'type':b.get('type')})
+          print(json.dumps({'success':d.get('success'),'bindings':sorted(safe,key=lambda x:str(x.get('name'))),'errors':d.get('errors')}, indent=2, ensure_ascii=False))
+          PY
+
+      - name: Inspect Cloudflare cron triggers
+        shell: bash
+        run: |
+          set -euo pipefail
           curl -fsS --max-time 20 \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H 'Content-Type: application/json' \
