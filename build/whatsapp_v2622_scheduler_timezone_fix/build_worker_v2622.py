@@ -32,20 +32,24 @@ def main() -> None:
     # public.appointments.created_at es timestamp WITHOUT time zone y la app lo
     # guarda en UTC. El scheduler anterior lo interpretaba directamente como
     # America/Guayaquil, desplazando el envío inmediato +5 horas.
-    old_due = "         b.created_at AT TIME ZONE 'America/Guayaquil',"
-    new_due = "         b.created_at AT TIME ZONE 'UTC',"
-    require(text.count(old_due) == 1, "due_at de cita_agendada cambió inesperadamente")
-    text = text.replace(old_due, new_due, 1)
+    #
+    # En el Worker bundled la indentación puede variar entre builds, así que el
+    # hotfix reemplaza las expresiones SQL semánticas, no espacios concretos.
+    legacy = "b.created_at AT TIME ZONE 'America/Guayaquil'"
+    legacy_count = text.count(legacy)
+    require(legacy_count == 3, f"created_at legacy esperado 3 veces, encontrado {legacy_count}")
 
-    old_lead = "          - (b.created_at AT TIME ZONE 'America/Guayaquil') >= interval '24 hours'"
-    new_lead = "          - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'"
-    require(text.count(old_lead) == 1, "cálculo de anticipación cambió inesperadamente")
-    text = text.replace(old_lead, new_lead, 1)
+    # La regla de día sí necesita fecha CALENDARIO de Ecuador: primero adjunta UTC
+    # al timestamp almacenado y después convierte ese instante a Guayaquil.
+    legacy_local_date = f"({legacy})::date"
+    fixed_local_date = "((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date"
+    require(text.count(legacy_local_date) == 1, "regla de fecha local cambió inesperadamente")
+    text = text.replace(legacy_local_date, fixed_local_date, 1)
 
-    old_date = "    AND (b.created_at AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)"
-    new_date = "    AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha - 1)"
-    require(text.count(old_date) == 1, "regla de fecha local cambió inesperadamente")
-    text = text.replace(old_date, new_date, 1)
+    # Las dos expresiones restantes son instantes (due_at y anticipación), por lo
+    # que solo deben interpretar created_at como UTC, sin sumar/restar 5 horas.
+    require(text.count(legacy) == 2, "due_at/anticipación no quedaron identificados de forma única")
+    text = text.replace(legacy, "b.created_at AT TIME ZONE 'UTC'")
 
     health_anchor = 'autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0'
     require(text.count(health_anchor) == 1, "Health v2.6.21 cambió")
@@ -63,7 +67,7 @@ def main() -> None:
         'worker_version: "2.6.22"',
         'scheduler_created_at_timezone: "utc_storage_v1"',
         "b.created_at AT TIME ZONE 'UTC'",
-        "((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date",
+        fixed_local_date,
         'autoagenda_time_parser: "ampm_v2"',
         'autoagenda_week_guard: "monday_sunday_v1"',
         'autoagenda_enrollment: "one_time_v1"',
@@ -73,9 +77,7 @@ def main() -> None:
     ]:
         require(needle in text, f"Falta validación: {needle}")
 
-    require("b.created_at AT TIME ZONE 'America/Guayaquil'," not in text, "Quedó due_at con zona incorrecta")
-    require("- (b.created_at AT TIME ZONE 'America/Guayaquil') >= interval '24 hours'" not in text, "Quedó anticipación con zona incorrecta")
-
+    require(legacy not in text, "Quedó una interpretación incorrecta de created_at")
     OUT.write_text(text, encoding="utf-8", newline="\n")
     print("BUILD_WORKER_V2622_OK")
     print("WORKER_SHA", sha(OUT.read_bytes()))
