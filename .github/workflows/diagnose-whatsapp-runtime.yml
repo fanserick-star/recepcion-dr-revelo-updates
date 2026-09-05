@@ -33,7 +33,9 @@ jobs:
           SRC=cloudflare/WHATSAPP_WORKER_v2_6_21_AMPM_PARSER_STANDALONE.js
           echo '=== scheduler hooks ==='
           grep -n -E 'scheduled\(|scheduled:|runScheduler\(|/health|scheduler' "$SRC" | tail -n 80 || true
-          echo '=== end scheduler hooks ==='
+          echo '=== fetch route context ==='
+          sed -n '6658,6688p' "$SRC"
+          echo '=== end route context ==='
 
       - name: Read production health
         shell: bash
