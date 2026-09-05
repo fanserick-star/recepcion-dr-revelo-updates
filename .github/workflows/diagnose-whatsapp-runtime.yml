@@ -36,6 +36,12 @@ jobs:
           echo '=== fetch route context ==='
           sed -n '6658,6688p' "$SRC"
           echo '=== end route context ==='
+          echo '=== admin token references outside generated build outputs ==='
+          grep -R -n -E 'ADMIN_TOKEN|/run' . \
+            --exclude='WHATSAPP_WORKER_v2_6_21_AMPM_PARSER_STANDALONE.js' \
+            --exclude-dir='.git' \
+            --exclude-dir='__pycache__' | head -n 120 || true
+          echo '=== end admin references ==='
 
       - name: Read production health
         shell: bash
