@@ -1,0 +1,27 @@
+name: Diagnose WhatsApp scheduler candidate query
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-whatsapp-due-query.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build current Worker and print scheduler candidate query
+        shell: bash
+        run: |
+          set -euo pipefail
+          python build/whatsapp_v2621_ampm_parser/build_worker_v2621.py >/tmp/build.log
+          SRC=cloudflare/WHATSAPP_WORKER_v2_6_21_AMPM_PARSER_STANDALONE.js
+          sed -n '5700,5865p' "$SRC"
