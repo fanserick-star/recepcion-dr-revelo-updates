@@ -20,6 +20,19 @@ def sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def scheduler_excerpt(text: str) -> str:
+    start = text.find("async function dueCandidates")
+    if start >= 0:
+        end = text.find("function materializeCandidate", start)
+        if end < 0:
+            end = min(len(text), start + 7000)
+        return text[start:end]
+    i = text.find("cita_agendada")
+    if i >= 0:
+        return text[max(0, i - 3000):min(len(text), i + 5000)]
+    return "SCHEDULER_EXCERPT_NOT_FOUND"
+
+
 def main() -> None:
     subprocess.run([sys.executable, str(V2621_BUILDER)], cwd=ROOT, check=True)
     text = SOURCE.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -29,25 +42,18 @@ def main() -> None:
     require('autoagenda_week_guard: "monday_sunday_v1"' in text, "Falta guardia semanal")
     require('diagnostics_export: "cf_token_aesgcm_v1"' in text, "Falta diagnóstico cifrado")
 
-    # public.appointments.created_at es timestamp WITHOUT time zone y la app lo
-    # guarda en UTC. El scheduler anterior lo interpretaba directamente como
-    # America/Guayaquil, desplazando el envío inmediato +5 horas.
-    #
-    # En el Worker bundled la indentación puede variar entre builds, así que el
-    # hotfix reemplaza las expresiones SQL semánticas, no espacios concretos.
     legacy = "b.created_at AT TIME ZONE 'America/Guayaquil'"
     legacy_count = text.count(legacy)
+    if legacy_count != 3:
+        print("=== SCHEDULER_SQL_DIAGNOSTIC_BEGIN ===")
+        print(scheduler_excerpt(text))
+        print("=== SCHEDULER_SQL_DIAGNOSTIC_END ===")
     require(legacy_count == 3, f"created_at legacy esperado 3 veces, encontrado {legacy_count}")
 
-    # La regla de día sí necesita fecha CALENDARIO de Ecuador: primero adjunta UTC
-    # al timestamp almacenado y después convierte ese instante a Guayaquil.
     legacy_local_date = f"({legacy})::date"
     fixed_local_date = "((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date"
     require(text.count(legacy_local_date) == 1, "regla de fecha local cambió inesperadamente")
     text = text.replace(legacy_local_date, fixed_local_date, 1)
-
-    # Las dos expresiones restantes son instantes (due_at y anticipación), por lo
-    # que solo deben interpretar created_at como UTC, sin sumar/restar 5 horas.
     require(text.count(legacy) == 2, "due_at/anticipación no quedaron identificados de forma única")
     text = text.replace(legacy, "b.created_at AT TIME ZONE 'UTC'")
 
