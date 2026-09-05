@@ -1,0 +1,65 @@
+name: Diagnose WhatsApp runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-whatsapp-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: dr-revelo-whatsapp-cloud
+      WORKER_URL: https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build current v2.6.21 source and inspect scheduler hooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python build/whatsapp_v2621_ampm_parser/build_worker_v2621.py >/tmp/build.log
+          cat /tmp/build.log
+          SRC=cloudflare/WHATSAPP_WORKER_v2_6_21_AMPM_PARSER_STANDALONE.js
+          echo '=== scheduler hooks ==='
+          grep -n -E 'scheduled\(|scheduled:|runScheduler\(|/health|scheduler' "$SRC" | tail -n 80 || true
+          echo '=== end scheduler hooks ==='
+
+      - name: Read production health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 -H 'Cache-Control: no-cache' "$WORKER_URL/health?diag=$(date +%s%N)" -o /tmp/health.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
+          safe={k:v for k,v in d.items() if not any(x in k.lower() for x in ('token','secret','password','database','key'))}
+          print(json.dumps(safe, indent=2, ensure_ascii=False, sort_keys=True))
+          PY
+
+      - name: Inspect Cloudflare cron triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME/schedules" \
+            -o /tmp/schedules.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/schedules.json','r',encoding='utf-8'))
+          print(json.dumps({'success':d.get('success'), 'result':d.get('result'), 'errors':d.get('errors')}, indent=2, ensure_ascii=False))
+          PY
