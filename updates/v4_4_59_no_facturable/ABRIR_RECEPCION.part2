@@ -1,0 +1,535 @@
+> None:
+    try:
+        path = _port_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(str(int(port)), encoding="utf-8")
+    except Exception as exc:
+        _log("No se pudo guardar el puerto local: " + repr(exc))
+
+
+def _can_bind_port(port: int) -> bool:
+    # Primero comprobamos si ya hay un listener accesible en loopback. En Windows
+    # un bind a 0.0.0.0 puede no detectar correctamente un listener ligado solo
+    # a 127.0.0.1, así que usamos ambas comprobaciones.
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.settimeout(0.20)
+        if probe.connect_ex(("127.0.0.1", int(port))) == 0:
+            return False
+    except Exception:
+        pass
+    finally:
+        try: probe.close()
+        except Exception: pass
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
+        sock.bind(("0.0.0.0", int(port)))
+        return True
+    except OSError:
+        return False
+    finally:
+        try: sock.close()
+        except Exception: pass
+
+
+def _choose_app_port(force_new: bool = False) -> int:
+    """Elige un puerto de Recepción sin cerrar ni interferir con programas ajenos."""
+    saved = _read_saved_port()
+    if saved and not force_new:
+        _set_app_port(saved)
+        # Si responde /api/version es nuestra copia ya levantada; se conserva.
+        if _running_version(timeout=0.30) is not None:
+            return saved
+        if _can_bind_port(saved):
+            return saved
+
+    candidates = []
+    if not force_new:
+        candidates.append(8000)
+    candidates.extend(range(8765, 8800))
+    candidates.extend(range(18000, 18021))
+    current = int(APP_PORT or 0)
+    for port in candidates:
+        if force_new and int(port) == current:
+            continue
+        if _can_bind_port(port):
+            _set_app_port(port)
+            _save_port(port)
+            _log(f"Puerto local seleccionado: {port}")
+            return port
+    raise RuntimeError("No se encontró un puerto local libre para Recepción")
+
+
+def _port_pids(port: int | None = None) -> list[int]:
+    if os.name != "nt":
+        return []
+    wanted = str(int(port or APP_PORT))
+    pids = set()
+    try:
+        proc = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"], capture_output=True, text=True,
+            timeout=6, check=False, creationflags=_hidden_flags(),
+        )
+        for line in (proc.stdout or "").splitlines():
+            parts = line.split()
+            if len(parts) < 4 or parts[0].upper() != "TCP":
+                continue
+            local = parts[1].strip()
+            if local.rsplit(":", 1)[-1] != wanted:
+                continue
+            try: pid = int(parts[-1])
+            except Exception: continue
+            if pid > 0 and pid != os.getpid(): pids.add(pid)
+    except Exception as exc:
+        _log(f"No se pudo leer netstat para puerto {wanted}: {exc!r}")
+    return sorted(pids)
+
+
+def _listening_pid() -> int | None:
+    pids = _port_pids()
+    return pids[0] if pids else None
+
+
+def _wait_app_port_free(seconds: float = 7.0) -> bool:
+    deadline = time.time() + max(0.5, float(seconds))
+    while time.time() < deadline:
+        if not _port_pids(): return True
+        time.sleep(0.15)
+    return not _port_pids()
+
+
+def _stop_server() -> None:
+    if os.name != "nt": return
+    pids = _port_pids()
+    if not pids: return
+    # Nunca matamos un proceso desconocido. Solo cerramos el dueño del puerto si
+    # ese puerto está respondiendo como Recepción.
+    if _running_version(timeout=0.45) is None:
+        _log(f"Puerto {APP_PORT} ocupado por proceso ajeno; se conservará y se elegirá otro puerto")
+        return
+    for _round in range(4):
+        pids = _port_pids()
+        if not pids: return
+        for pid in pids:
+            try:
+                proc = subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    timeout=8, check=False, creationflags=_hidden_flags(),
+                )
+                if proc.returncode not in (0,128):
+                    _log(f"taskkill PID {pid} devolvió {proc.returncode}")
+            except Exception as exc:
+                _log(f"No se pudo cerrar PID {pid} del puerto {APP_PORT}: {exc!r}")
+        if _wait_app_port_free(2.5): return
+    remaining=_port_pids()
+    if remaining:
+        raise RuntimeError(f"No se pudo liberar el puerto local {APP_PORT}. Procesos: " + ", ".join(map(str,remaining)))
+
+def _python_exe(windowless: bool = True) -> Path:
+    candidates = []
+    if windowless:
+        candidates.append(ROOT / ".venv" / "Scripts" / "pythonw.exe")
+    candidates.append(ROOT / ".venv" / "Scripts" / "python.exe")
+    for p in candidates:
+        if p.exists():
+            return p
+    raise FileNotFoundError("No se encontró Python dentro de .venv\\Scripts.")
+
+
+def _start_server() -> None:
+    # Si el puerto guardado fue tomado por un programa ajeno, NO lo cerramos:
+    # elegimos otro puerto y actualizamos URL/VERSION_URL antes de arrancar.
+    if os.name == "nt" and _port_pids():
+        if _running_version(timeout=0.45) is not None:
+            _stop_server()
+        else:
+            _choose_app_port(force_new=True)
+    if os.name == "nt" and _port_pids():
+        raise RuntimeError(f"El puerto local {APP_PORT} sigue ocupado")
+    py = _python_exe(windowless=True)
+    env = os.environ.copy()
+    env["RP_DESKTOP_LAUNCH"] = "1"
+    env["DISABLE_SQLALCHEMY_CEXT_RUNTIME"] = "1"
+    env["RP_PORT"] = str(APP_PORT)
+    d = _data_dir(ROOT)
+    d.mkdir(parents=True, exist_ok=True)
+    log_path = d / "backend_startup.log"
+    fh = open(log_path, "a", encoding="utf-8")
+    fh.write(f"\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando app.py en puerto {APP_PORT}\n")
+    fh.flush()
+    flags = _hidden_flags()
+    if os.name == "nt": flags |= getattr(subprocess, "DETACHED_PROCESS", 0)
+    subprocess.Popen(
+        [str(py), str(ROOT / "app.py")], cwd=str(ROOT), env=env,
+        stdin=subprocess.DEVNULL, stdout=fh, stderr=fh,
+        creationflags=flags, close_fds=True,
+    )
+
+def _wait_server(expected: str, seconds: float, splash=None) -> bool:
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        if _running_version(timeout=0.8) == expected:
+            return True
+        if splash:
+            splash.pump()
+        time.sleep(0.2)
+    return False
+
+
+def _set_windows_identity() -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+        except Exception:
+            pass
+
+
+def _enum_visible_windows():
+    if os.name != "nt":
+        return []
+    found = []
+    user32 = ctypes.windll.user32
+    PROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+    @PROC
+    def cb(hwnd, _):
+        try:
+            if not user32.IsWindowVisible(hwnd):
+                return True
+            n = user32.GetWindowTextLengthW(hwnd)
+            if n <= 0:
+                return True
+            buf = ctypes.create_unicode_buffer(n + 1)
+            user32.GetWindowTextW(hwnd, buf, n + 1)
+            title = buf.value.strip()
+            if title:
+                found.append((hwnd, title))
+        except Exception:
+            pass
+        return True
+
+    user32.EnumWindows(cb, 0)
+    return found
+
+
+def _focus_existing_window() -> bool:
+    if os.name != "nt":
+        return False
+    user32 = ctypes.windll.user32
+    for hwnd, title in _enum_visible_windows():
+        low = title.lower()
+        if "recepción dr. armando revelo" in low or "recepcion dr. armando revelo" in low:
+            try:
+                user32.ShowWindow(hwnd, 9)
+                user32.SetForegroundWindow(hwnd)
+                return True
+            except Exception:
+                pass
+    return False
+
+
+def _acquire_mutex(name: str = MUTEX_NAME):
+    if os.name != "nt":
+        return None, False
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.CreateMutexW(None, False, name)
+    already = kernel32.GetLastError() == 183
+    return handle, already
+
+
+def _release_mutex(handle) -> None:
+    if os.name == "nt" and handle:
+        try:
+            ctypes.windll.kernel32.CloseHandle(handle)
+        except Exception:
+            pass
+
+
+class Splash:
+    def __init__(self):
+        self.root = None
+        self.label = None
+        self.detail = None
+        self.elapsed = None
+        self.canvas = None
+        self.started = time.monotonic()
+        self.phase = self.started
+        self.spin = 0
+        self.warned = False
+        try:
+            import tkinter as tk
+
+            root = tk.Tk()
+            root.overrideredirect(True)
+            root.attributes("-topmost", True)
+            w, h = 470, 220
+            sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+            root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+            root.configure(bg="#13213c")
+
+            outer = tk.Frame(root, bg="#13213c", padx=24, pady=19)
+            outer.pack(fill="both", expand=True)
+            top = tk.Frame(outer, bg="#13213c")
+            top.pack(fill="x")
+
+            c = tk.Canvas(top, width=58, height=58, bg="#13213c", highlightthickness=0)
+            c.pack(side="left", padx=(0, 13))
+            try:
+                logo = tk.PhotoImage(file=str(ROOT / "static" / "doctor_isotype.png")).subsample(5, 5)
+                c.create_image(29, 29, image=logo)
+                c._doctor_logo = logo
+            except Exception:
+                c.create_oval(5, 5, 53, 53, outline="#8fb5ff", width=2)
+                c.create_text(29, 29, text="+", font=("Segoe UI", 22, "bold"), fill="#ffffff")
+
+            titles = tk.Frame(top, bg="#13213c")
+            titles.pack(side="left", fill="x", expand=True)
+            tk.Label(titles, text="RECEPCIÓN", font=("Segoe UI", 10, "bold"),
+                     fg="#8fb5ff", bg="#13213c").pack(anchor="w")
+            tk.Label(titles, text="Dr. Armando Revelo", font=("Segoe UI", 18, "bold"),
+                     fg="white", bg="#13213c").pack(anchor="w", pady=(1, 0))
+
+            body = tk.Frame(outer, bg="#13213c")
+            body.pack(fill="x", pady=(17, 0))
+            self.label = tk.Label(body, text="Abriendo Recepción…", font=("Segoe UI", 11, "bold"),
+                                  fg="white", bg="#13213c")
+            self.label.pack(anchor="w")
+            self.detail = tk.Label(body, text="Preparando sistema", font=("Segoe UI", 9),
+                                   fg="#b9c8df", bg="#13213c")
+            self.detail.pack(anchor="w", pady=(4, 0))
+            self.elapsed = tk.Label(body, text="", font=("Segoe UI", 8),
+                                    fg="#7f93b0", bg="#13213c")
+            self.elapsed.pack(anchor="w", pady=(5, 0))
+            self.canvas = tk.Canvas(outer, width=420, height=4, bg="#233653", highlightthickness=0)
+            self.canvas.pack(fill="x", pady=(12, 0))
+            root.update_idletasks()
+            root.update()
+            self.root = root
+        except Exception:
+            self.root = None
+
+    def set(self, text: str, detail: str = ""):
+        self.phase = time.monotonic()
+        self.warned = False
+        try:
+            if self.label:
+                self.label.config(text=text)
+            if self.detail:
+                self.detail.config(text=detail)
+        except Exception:
+            pass
+        self.pump()
+
+    def pump(self):
+        try:
+            now = time.monotonic()
+            if self.elapsed and now - self.started >= 2:
+                self.elapsed.config(text=f"{now - self.started:.0f} s")
+            if self.detail and now - self.phase >= 8 and not self.warned:
+                self.warned = True
+                self.detail.config(text="Está tardando más de lo normal; seguimos intentando…")
+            if self.canvas:
+                self.spin = (self.spin + 1) % 32
+                self.canvas.delete("progress")
+                full = max(1, int(self.canvas.winfo_width() or 420))
+                width = max(70, full // 4)
+                x = int((self.spin / 31.0) * (full + width)) - width
+                self.canvas.create_rectangle(x, 0, min(full, x + width), 4,
+                                             fill="#5f9cff", outline="", tags="progress")
+            if self.root:
+                self.root.update_idletasks()
+                self.root.update()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            if self.root:
+                self.root.destroy()
+        except Exception:
+            pass
+        self.root = None
+
+
+def _open_webview() -> bool:
+    try:
+        import webview
+    except Exception as exc:
+        _log("pywebview no disponible: " + repr(exc))
+        return False
+
+    kwargs = {
+        "gui": "edgechromium",
+        "debug": False,
+        "private_mode": False,
+        "storage_path": str(_data_dir(ROOT) / "webview_profile"),
+    }
+    icon = ROOT / "static" / "doctor_icon.ico"
+    if icon.exists():
+        kwargs["icon"] = str(icon)
+
+    try:
+        try:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True, maximized=True,
+            )
+            maximize_after = False
+        except TypeError:
+            window = webview.create_window(
+                TITLE, URL, width=1360, height=840, min_size=(900, 620),
+                resizable=True, text_select=True,
+            )
+            maximize_after = True
+
+        if maximize_after:
+            def on_start():
+                try:
+                    time.sleep(0.15)
+                    window.maximize()
+                except Exception:
+                    pass
+            webview.start(on_start, **kwargs)
+        else:
+            webview.start(**kwargs)
+        return True
+    except Exception as exc:
+        _log("WebView2 falló: " + repr(exc) + " | " + traceback.format_exc(limit=4).replace("\n", " | "))
+        return False
+
+
+def _edge_exe() -> Path | None:
+    if os.name != "nt":
+        return None
+    candidates = [
+        Path(os.environ.get("PROGRAMFILES(X86)", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+        Path(os.environ.get("PROGRAMFILES", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+    ]
+    for p in candidates:
+        if str(p) and p.exists():
+            return p
+    return None
+
+
+def _open_fallback() -> None:
+    edge = _edge_exe()
+    if edge:
+        try:
+            subprocess.Popen(
+                [str(edge), f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"],
+                cwd=str(ROOT),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=_hidden_flags(),
+            )
+            return
+        except Exception as exc:
+            _log("Fallback Edge falló: " + repr(exc))
+    webbrowser.open(URL, new=2)
+
+
+def _message(text: str) -> None:
+    if os.name == "nt":
+        try:
+            ctypes.windll.user32.MessageBoxW(0, text, TITLE, 0x10)
+            return
+        except Exception:
+            pass
+    print(text, file=sys.stderr)
+
+
+def _relaunch_updated_launcher() -> None:
+    """Abre el launcher recién escrito en disco y deja terminar el proceso viejo."""
+    py = _python_exe(windowless=True)
+    env = os.environ.copy()
+    env["RP_PORT"] = str(APP_PORT)
+    flags = _hidden_flags()
+    if os.name == "nt":
+        flags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    subprocess.Popen(
+        [str(py), str(ROOT / "ABRIR_RECEPCION.py")],
+        cwd=str(ROOT),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=flags,
+        close_fds=True,
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# v4.4.42 — guardia permanente de paquetes Python del runtime
+# ---------------------------------------------------------------------------
+def _rp_required_python_packages(root: Path = ROOT) -> list[dict]:
+    try:
+        manifest = _local_manifest(root)
+    except Exception:
+        manifest = {}
+    values = manifest.get("required_python_packages") or []
+    if not isinstance(values, list):
+        return []
+    out = []
+    seen = set()
+    for item in values:
+        if not isinstance(item, dict):
+            continue
+        module = str(item.get("import") or "").strip()
+        spec = str(item.get("pip") or "").strip()
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.]*", module):
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+(?:==[A-Za-z0-9_.+!-]+)?", spec):
+            continue
+        if module in seen:
+            continue
+        seen.add(module)
+        out.append({"import": module, "pip": spec})
+    return out
+
+
+def _rp_python_import_ok(python_exe: Path, module: str) -> bool:
+    try:
+        proc = subprocess.run(
+            [str(python_exe), "-c", "import importlib; importlib.import_module(" + repr(module) + ")"],
+            cwd=str(ROOT), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            timeout=20, check=False, creationflags=_hidden_flags(),
+        )
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def _rp_ensure_python_runtime(root: Path = ROOT, python_exe: Path | None = None) -> list[str]:
+    required = _rp_required_python_packages(root)
+    if not required:
+        return []
+    py = Path(python_exe) if python_exe is not None else Path(_python_exe(windowless=False))
+    if not py.is_file():
+        raise RuntimeError("No se encontró el Python de .venv para reparar dependencias.")
+    repaired = []
+    for item in required:
+        module = item["import"]
+        spec = item["pip"]
+        if _rp_python_import_ok(py, module):
+            continue
+        _log("Dependencia Python ausente; reparación automática: " + module, root)
+        try:
+            proc = subprocess.run(
+                [str(py), "-m", "pip", "install", "--disable-pip-version-check", "--no-input", spec],
+                cwd=str(root), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                timeout=180, check=False, creationflags=_hidden_flags(),
+            )
+        except Exception as exc:
+            raise RuntimeError("No se pudo reparar la dependencia Python " + module + ": " + type(exc).__name__) from exc
+        if proc.returncode != 0 or not _rp_python_import_ok(py, module):
+            raise RuntimeError("No se pudo reparar la dependencia Python obligatoria: " + module)
+        repaired.append(module)
+        _log("Dependencia Python reparada correctamente: " + module, root)
+    return repaired
+
+def main() -> None:
+    _set_windows_identity()
+    _choose_app_port(
