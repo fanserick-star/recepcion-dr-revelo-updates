@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'release_candidate.json'
+      - '.gitattributes'
+      - 'tools/release_gate.py'
+      - '.github/workflows/release-gate.yml'
   workflow_dispatch:
 
 permissions:
@@ -39,6 +42,36 @@ jobs:
 
       - name: Construir candidato y calcular hashes automáticamente
         run: python tools/release_gate.py prepare
+
+      - name: Verificar bytes públicos y SHA reales de GitHub
+        shell: powershell
+        run: |
+          @'
+          import hashlib
+          import json
+          import urllib.request
+          from pathlib import Path
+
+          manifest = json.loads(Path('.release_gate/candidate_latest.json').read_text(encoding='utf-8-sig'))
+          for item in manifest.get('files') or []:
+              # Este archivo lo genera el gate en esta misma ejecución y se publica
+              # junto con latest; los demás ya deben existir públicamente tal como
+              # los descargará el launcher de la PC real.
+              if item.get('path') == 'update_manifest.json':
+                  continue
+              urls = item.get('parts') or ([item.get('url')] if item.get('url') else [])
+              if not urls:
+                  raise SystemExit(f"Sin URL pública: {item.get('path')}")
+              payload = b''.join(urllib.request.urlopen(url, timeout=30).read() for url in urls)
+              got = hashlib.sha256(payload).hexdigest()
+              expected = str(item.get('sha256') or '')
+              if got != expected:
+                  raise SystemExit(
+                      f"SHA público inválido para {item.get('path')}: {got} != {expected}"
+                  )
+              print('PUBLIC_SHA_OK', item.get('path'), got)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Los bytes públicos no coinciden con el manifest candidato' }
 
       - name: Validar JavaScript embebido
         shell: powershell
