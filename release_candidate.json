@@ -1,13 +1,14 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.59",
-  "app_version": "4.4.59",
-  "runtime_version": "4.4.59",
-  "folder": "updates/v4_4_59_no_facturable",
+  "version": "4.4.60",
+  "app_version": "4.4.60",
+  "runtime_version": "4.4.60",
+  "folder": "updates/v4_4_60_rescue_direct_app",
   "mandatory": true,
-  "message": "v4.4.59: permite marcar pacientes sin cédula como No facturables. Salen de Por emitir y de los recordatorios, permanecen guardados y pueden volver a pendientes. No modifica Nueva atención ni facturas emitidas.",
+  "message": "v4.4.60: rescate de arranque para Windows. Mantiene No facturables y evita el reimport doble del backend durante el inicio.",
   "launcher_version": "4.4.48-update-before-focus-dependency-safe-1",
   "required_dependencies": [
+    "app_patch_4459.py",
     "app_prev_4458.py",
     "app_base_4428.py"
   ],
@@ -19,6 +20,7 @@
   ],
   "copy": [
     "app.py",
+    "app_patch_4459.py",
     "app_prev_4458.py",
     "app_base_4428.py",
     "ABRIR_RECEPCION.py",
@@ -28,6 +30,10 @@
     {
       "path": "app.py",
       "source": "app.py"
+    },
+    {
+      "path": "app_patch_4459.py",
+      "source": "app_patch_4459.py"
     },
     {
       "path": "app_prev_4458.py",
