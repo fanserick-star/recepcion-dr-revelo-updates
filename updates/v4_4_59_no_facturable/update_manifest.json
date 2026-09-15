@@ -4,7 +4,7 @@
   "app_version": "4.4.59",
   "runtime_version": "4.4.59",
   "launcher_version": "4.4.48-update-before-focus-dependency-safe-1",
-  "updater_version": "integrado-en-launcher-update-before-focus",
+  "updater_version": "release-gate-v1",
   "required_dependencies": [
     "app_prev_4458.py",
     "app_base_4428.py"
