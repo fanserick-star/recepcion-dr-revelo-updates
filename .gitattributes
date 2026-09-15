@@ -1,4 +1,7 @@
 # Payloads y metadata de integridad: conservar exactamente los bytes del repositorio en todos los SO.
+# Los .py del canal deben quedar siempre en LF: raw.githubusercontent entrega los bytes del blob Git,
+# y así el SHA calculado por el gate de Windows coincide con lo que descarga el launcher.
+updates/**/*.py text eol=lf
 updates/**/app.part* -text
 updates/**/ABRIR_RECEPCION.part* -text
 updates/**/update_manifest.json -text
