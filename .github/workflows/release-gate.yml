@@ -10,8 +10,9 @@ on:
 permissions:
   contents: write
 
+# Un solo proceso puede publicar el canal a la vez.
 concurrency:
-  group: recepcion-release-gate
+  group: recepcion-update-channel
   cancel-in-progress: false
 
 jobs:
@@ -67,4 +68,12 @@ jobs:
           }
           $version = (Get-Content release_candidate.json -Raw | ConvertFrom-Json).version
           git commit -m "release: promover v$version tras gate completo [skip ci]"
+
+          # El candidato pudo coincidir con otro commit no relacionado. Rebasamos
+          # el commit ya validado sobre el HEAD actual para no publicar por fuerza
+          # ni perder cambios. El gate sigue siendo el único escritor de latest.
+          git fetch origin main
+          git rebase origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo rebasar la publicación sobre main; latest queda sin cambios.' }
           git push origin HEAD:main
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo publicar el canal; latest queda en la versión anterior.' }

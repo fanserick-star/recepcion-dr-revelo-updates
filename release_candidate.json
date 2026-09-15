@@ -5,6 +5,7 @@
   "runtime_version": "4.4.60",
   "folder": "updates/v4_4_60_rescue_direct_app",
   "mandatory": true,
+  "gate_revision": 3,
   "message": "v4.4.60: rescate de arranque para Windows. Mantiene No facturables y evita el reimport doble del backend durante el inicio.",
   "launcher_version": "4.4.48-update-before-focus-dependency-safe-1",
   "required_dependencies": [
@@ -27,22 +28,10 @@
     "update_manifest.json"
   ],
   "files": [
-    {
-      "path": "app.py",
-      "source": "app.py"
-    },
-    {
-      "path": "app_patch_4459.py",
-      "source": "app_patch_4459.py"
-    },
-    {
-      "path": "app_prev_4458.py",
-      "source": "app_prev_4458.py"
-    },
-    {
-      "path": "app_base_4428.py",
-      "source": "app_base_4428.py"
-    },
+    {"path": "app.py", "source": "app.py"},
+    {"path": "app_patch_4459.py", "source": "app_patch_4459.py"},
+    {"path": "app_prev_4458.py", "source": "app_prev_4458.py"},
+    {"path": "app_base_4428.py", "source": "app_base_4428.py"},
     {
       "path": "ABRIR_RECEPCION.py",
       "parts": [
@@ -52,9 +41,6 @@
         "ABRIR_RECEPCION.part4"
       ]
     },
-    {
-      "path": "update_manifest.json",
-      "generated": true
-    }
+    {"path": "update_manifest.json", "generated": true}
   ]
 }
