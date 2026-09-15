@@ -1,0 +1,27 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.4.60",
+  "app_version": "4.4.60",
+  "runtime_version": "4.4.60",
+  "launcher_version": "4.4.48-update-before-focus-dependency-safe-1",
+  "updater_version": "release-gate-v1",
+  "required_dependencies": [
+    "app_patch_4459.py",
+    "app_prev_4458.py",
+    "app_base_4428.py"
+  ],
+  "required_python_packages": [
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "app_patch_4459.py",
+    "app_prev_4458.py",
+    "app_base_4428.py",
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json"
+  ]
+}
