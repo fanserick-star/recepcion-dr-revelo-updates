@@ -206,3 +206,17 @@ except Exception as exc:
 @app.get("/api/v4459/non-billable-health")
 def v4459_health(user=core.Depends(core.current_user)):
     return {"ok": PATCH_BOOT_OK, "version": APP_VERSION, "error": PATCH_BOOT_ERROR, "schema_migration": False, "attention_changed": False}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=core.LOCAL_HTTP_PORT,
+        reload=False,
+        access_log=False,
+        log_level="warning",
+        workers=1,
+    )
