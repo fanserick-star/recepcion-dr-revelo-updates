@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.62",
-  "app_version": "4.4.62",
-  "runtime_version": "4.4.62",
+  "version": "4.4.63",
+  "app_version": "4.4.63",
+  "runtime_version": "4.4.63",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.62: uniforma PRIMERO y SUBSECUENTE en el recibo térmico de 80 mm: mismo tamaño de cuadro, misma letra, mismo tamaño y misma alineación. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.63: iguala la impresión automática del recibo a la vista previa grande y evita que SUBSECUENTE se corte en 80 mm. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_62_receipt_uniform/app.py",
-      "sha256": "94f38c9728b94d6dec2e2cdcd261cfbef262c0f91f709f33d84404c208966713"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_63_receipt_match_preview/app.py",
+      "sha256": "535f2af6fc6cf345bbc2e60d84c680f79d5071dea56a19b25573d0e0ecd35304"
+    },
+    {
+      "path": "app_patch_4463.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_63_receipt_match_preview/app_patch_4463.py",
+      "sha256": "4f829d5ef7ced160894ce3fe86576708ad2fefdf9632d8121b489bca590dfe70"
     },
     {
       "path": "app_patch_4462.py",
@@ -57,8 +63,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_62_receipt_uniform/update_manifest.json",
-      "sha256": "2038ab11f4f04235f08d058f0b907a025681bb4e107574455f3fd92751603601"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_63_receipt_match_preview/update_manifest.json",
+      "sha256": "6ba9859d002a4eadedca45a98091855917e4035d1ac9f70735304bf224e42671"
     }
   ]
 }
