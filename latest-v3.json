@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.60",
-  "app_version": "4.4.60",
-  "runtime_version": "4.4.60",
+  "version": "4.4.61",
+  "app_version": "4.4.61",
+  "runtime_version": "4.4.61",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.60: rescate de arranque para Windows. Mantiene No facturables y evita el reimport doble del backend durante el inicio.",
+  "message": "v4.4.61: ajusta el recibo térmico de 80 mm para Crome CRM-308: logo más visible y texto SUBSECUENTE completo. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_60_rescue_direct_app/app.py",
-      "sha256": "7e98223c883fb0aa0409c157d8a375afce8c93356d2fb8f85aacd3c427d66b38"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_61_receipt_crm308/app.py",
+      "sha256": "ad7de6cac6cb507152cf26adebc3c08a6d9c5358c00d6fa7a0d41d4496a010a0"
+    },
+    {
+      "path": "app_patch_4461.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_61_receipt_crm308/app_patch_4461.py",
+      "sha256": "fcf2d2d16603a4e3d53ba9624d6ddfa274956b36e10100e92b08e09e19a0800b"
     },
     {
       "path": "app_patch_4459.py",
@@ -45,8 +51,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_60_rescue_direct_app/update_manifest.json",
-      "sha256": "eef6540710f5f5abb754f098e9fa41c7a96b909abe46bcc3ba7ed4d377a45c19"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_61_receipt_crm308/update_manifest.json",
+      "sha256": "d8dafdd0a56361bd435992b0eb61186819a694558603ee91dc91a42aa22120ce"
     }
   ]
 }
