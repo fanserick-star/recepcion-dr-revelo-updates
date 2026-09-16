@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.61",
-  "app_version": "4.4.61",
-  "runtime_version": "4.4.61",
+  "version": "4.4.62",
+  "app_version": "4.4.62",
+  "runtime_version": "4.4.62",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.61: ajusta el recibo térmico de 80 mm para Crome CRM-308: logo más visible y texto SUBSECUENTE completo. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.62: uniforma PRIMERO y SUBSECUENTE en el recibo térmico de 80 mm: mismo tamaño de cuadro, misma letra, mismo tamaño y misma alineación. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_61_receipt_crm308/app.py",
-      "sha256": "ad7de6cac6cb507152cf26adebc3c08a6d9c5358c00d6fa7a0d41d4496a010a0"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_62_receipt_uniform/app.py",
+      "sha256": "94f38c9728b94d6dec2e2cdcd261cfbef262c0f91f709f33d84404c208966713"
+    },
+    {
+      "path": "app_patch_4462.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_62_receipt_uniform/app_patch_4462.py",
+      "sha256": "cfbfd7dd8e1bdc25e6188c0d74cb2713a3fe379e8db45bc372dc8b3e5b430176"
     },
     {
       "path": "app_patch_4461.py",
@@ -51,8 +57,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_61_receipt_crm308/update_manifest.json",
-      "sha256": "d8dafdd0a56361bd435992b0eb61186819a694558603ee91dc91a42aa22120ce"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_62_receipt_uniform/update_manifest.json",
+      "sha256": "2038ab11f4f04235f08d058f0b907a025681bb4e107574455f3fd92751603601"
     }
   ]
 }
