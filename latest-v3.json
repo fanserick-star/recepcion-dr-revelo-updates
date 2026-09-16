@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.63",
-  "app_version": "4.4.63",
-  "runtime_version": "4.4.63",
+  "version": "4.4.64",
+  "app_version": "4.4.64",
+  "runtime_version": "4.4.64",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.63: iguala la impresión automática del recibo a la vista previa grande y evita que SUBSECUENTE se corte en 80 mm. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.64: recibo térmico CRM-308 sin marco lateral y con margen lógico 0; aprovecha el ancho de 80 mm y reserva espacio para que SUBSECUENTE salga completo. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_63_receipt_match_preview/app.py",
-      "sha256": "535f2af6fc6cf345bbc2e60d84c680f79d5071dea56a19b25573d0e0ecd35304"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_64_receipt_edge_to_edge/app.py",
+      "sha256": "554bb00f87bba507569b60d2f3d0ee91f1ae86ad562a378712a4045fa9511dcf"
+    },
+    {
+      "path": "app_patch_4464.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_64_receipt_edge_to_edge/app_patch_4464.py",
+      "sha256": "1b3c87fc3739baf1c3d23e1267135356e071e3e9ae9b461382b90f73332eb754"
     },
     {
       "path": "app_patch_4463.py",
@@ -63,8 +69,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_63_receipt_match_preview/update_manifest.json",
-      "sha256": "6ba9859d002a4eadedca45a98091855917e4035d1ac9f70735304bf224e42671"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_64_receipt_edge_to_edge/update_manifest.json",
+      "sha256": "2acc08ce0d27ff811f1527e6ce252e8583623ee7eb9378cb28ff581eb1a063ba"
     }
   ]
 }
