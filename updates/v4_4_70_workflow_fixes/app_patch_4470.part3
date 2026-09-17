@@ -1,0 +1,150 @@
+    const attach=()=>{
+      const input=document.querySelector('#fCel');
+      if(!input||input.dataset.v4470PhoneWatcher)return;
+      input.dataset.v4470PhoneWatcher='1';
+      let timer=0;
+      const run=()=>{clearTimeout(timer);timer=setTimeout(passivePhoneWarning,330)};
+      input.addEventListener('input',run);
+      input.addEventListener('blur',run);
+      setTimeout(run,80);
+    };
+    const mo=new MutationObserver(attach);
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    attach();
+  }
+
+  function busyOverlay(message){
+    document.querySelector('.v4470-busy')?.remove();
+    const el=document.createElement('div');
+    el.className='v4470-busy';
+    el.innerHTML=`<div class="v4470-busy-card"><div class="v4470-spinner"></div><b>${message}</b><small>Espera un momento…</small></div>`;
+    document.body.appendChild(el);
+    return el;
+  }
+  function busyText(el,message){
+    const b=el?.querySelector('b');if(b)b.textContent=message;
+  }
+  function hideBusy(el){try{el?.remove()}catch(_e){}}
+  function toast(message,warn=false){
+    document.querySelector('.v4470-toast')?.remove();
+    const el=document.createElement('div');
+    el.className='v4470-toast'+(warn?' warn':'');
+    el.textContent=message;
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(),5200);
+  }
+
+  function goHome(){
+    try{if(typeof window.closeModal==='function')window.closeModal()}catch(_e){}
+    const els=[...document.querySelectorAll('nav button,nav a,.sidebar button,.sidebar a,.menu button,.menu a,button,a')];
+    const home=els.find(el=>norm(el.textContent)==='INICIO');
+    if(home){try{home.click();return}catch(_e){}}
+    for(const id of ['inicio','home']){
+      try{if(typeof window.show==='function'){window.show(id);return}}catch(_e){}
+    }
+  }
+
+  function installAttentionFlow(){
+    if(typeof window.saveAttention!=='function'){setTimeout(installAttentionFlow,120);return}
+    if(window.saveAttention.__v4470AutoPrint)return;
+    const stableSave=window.saveAttention;
+
+    const patched=async function(patientId){
+      if(attentionBusy)return;
+      attentionBusy=true;
+      let savedBatch=null;
+      const overlay=busyOverlay('Guardando atención e imprimiendo recibo…');
+      const apiBefore=window.api;
+      const globalBefore=(()=>{try{return api}catch(_e){return null}})();
+
+      const capture=async function(url,opt={}){
+        const result=await apiBefore.apply(this,arguments);
+        const u=String(url||'');
+        if(u==='/api/visits/batch-payment'||u==='/api/visits/batch'){
+          if(result&&typeof result==='object')savedBatch=result;
+        }
+        return result;
+      };
+      capture.__v4470Capture=true;
+
+      try{
+        window.api=capture;
+        try{api=capture}catch(_e){}
+        await stableSave.apply(this,arguments);
+      }catch(err){
+        hideBusy(overlay);
+        attentionBusy=false;
+        throw err;
+      }finally{
+        window.api=apiBefore;
+        try{api=globalBefore||apiBefore}catch(_e){}
+      }
+
+      try{
+        if(!savedBatch||savedBatch.ok===false){
+          hideBusy(overlay);
+          attentionBusy=false;
+          return;
+        }
+
+        const items=Array.isArray(savedBatch.items)?savedBatch.items:[];
+        const consult=items.find(v=>!text(v?.procedimiento));
+        let printResult=null;
+
+        if(consult&&Number(consult.id||0)>0){
+          busyText(overlay,'Atención guardada. Imprimiendo recibo…');
+          try{
+            printResult=await apiBefore(
+              '/api/v4470/print-visit/'+Number(consult.id),
+              {method:'POST',body:'{}'}
+            );
+          }catch(e){
+            printResult={
+              printed:false,
+              message:'Atención guardada. No se pudo imprimir el recibo; puedes reimprimirlo desde Inicio.'
+            };
+          }
+        }
+
+        goHome();
+        try{
+          if(typeof window.invalidateAttentionWeekCache==='function')window.invalidateAttentionWeekCache();
+          if(typeof window.loadWeek==='function'){
+            const d=text(consult?.fecha||items[0]?.fecha||'').slice(0,10);
+            Promise.resolve(window.loadWeek(d||undefined,d||undefined)).catch(()=>{});
+          }
+          if(typeof window.refreshPendingBadges==='function')Promise.resolve(window.refreshPendingBadges()).catch(()=>{});
+        }catch(_e){}
+
+        hideBusy(overlay);
+        if(consult){
+          if(printResult?.printed){
+            toast('✓ Atención guardada. Recibo enviado a la impresora.');
+          }else{
+            toast('✓ Atención guardada. ⚠ No se pudo imprimir el recibo; puedes reimprimirlo desde Inicio.',true);
+          }
+        }else{
+          toast('✓ Atención guardada.');
+        }
+      }finally{
+        attentionBusy=false;
+      }
+    };
+    patched.__v4470AutoPrint=true;
+    patched.__v4470Stable=stableSave;
+    window.saveAttention=patched;
+  }
+
+  async function renderProcedureManager(){
+    const sec=document.querySelector('[data-config-section="procedimientos"]');
+    if(!sec||procBusy)return;
+    procBusy=true;
+    try{
+      const call=window.api;
+      if(typeof call!=='function')return;
+      const rows=await call('/api/procedures');
+      let box=sec.querySelector('#v4470ProcedureManager');
+      if(!box){
+        box=document.createElement('div');
+        box.id='v4470ProcedureManager';
+        box.className='v4470-proc-manager';
