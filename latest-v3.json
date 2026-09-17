@@ -1,23 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.71",
-  "app_version": "4.4.71",
-  "runtime_version": "4.4.71",
+  "version": "4.4.72",
+  "app_version": "4.4.72",
+  "runtime_version": "4.4.72",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.71: después de guardar una atención vuelve de inmediato a Inicio y deja la impresión del recibo continuar en segundo plano; muestra el estado de impresión en un aviso sin bloquear la interfaz. Mantiene las correcciones de v4.4.70 y el diseño de recibo v4.4.69.",
+  "message": "v4.4.72: corrige la pantalla blanca de v4.4.71 y conserva el guardado rápido: tras confirmar la atención vuelve a Inicio y la impresión continúa en segundo plano. Mantiene celulares compartidos, eliminación/archivo seguro de servicios y precios, versión visible y el diseño de recibo v4.4.69.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_71_fast_print/app.py",
-      "sha256": "db309357691465614ea469e3f37ddd754ae35834478195d7f190b0b9dbc3dcd8"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_72_white_screen_hotfix/app.py",
+      "sha256": "03b0459defc73020b430ffa1dc0c235992975a77aa9dd27db9978b86b4329185"
     },
     {
-      "path": "app_patch_4471.py",
+      "path": "app_patch_4472.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_71_fast_print/app_patch_4471.py",
-      "sha256": "50a1f4cdd5dd87a825cc2e1fa59f047323a826b7835e07c52eb83406a4abf25e"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_72_white_screen_hotfix/app_patch_4472.py",
+      "sha256": "33d2d48c0667cb55cb434d08f18ad405036ca9a68fcd44b4934a6d292fba203c"
     },
     {
       "path": "app_patch_4470.py",
@@ -116,8 +116,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_71_fast_print/update_manifest.json",
-      "sha256": "1b90303445273bf2e081c350ff87c36ea9452012fa7b67dea93d0494a8e02bd4"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_72_white_screen_hotfix/update_manifest.json",
+      "sha256": "b6cc5450a4df3af5211fc5bb9497eaad61848ed14d196fd98644463bed591616"
     }
   ]
 }
