@@ -1,0 +1,135 @@
+        sec.appendChild(box);
+      }
+      const list=(Array.isArray(rows)?rows:[]);
+      box.innerHTML=`<div class="v4470-proc-manager-head"><div><h4>Eliminar servicios</h4><small>Si un servicio ya tiene historial, se archiva y las atenciones antiguas se conservan.</small></div></div>
+        <div class="v4470-proc-list">${list.map(p=>`<div class="v4470-proc-row" data-id="${Number(p.id)}"><b>${text(p.nombre)}</b><span>${p.valor_default==null?'Sin precio':'$'+Number(p.valor_default).toFixed(2)}</span><button type="button" class="v4470-proc-delete" data-delete="${Number(p.id)}">Eliminar</button></div>`).join('')||'<small>No hay servicios activos.</small>'}</div>`;
+      box.querySelectorAll('[data-delete]').forEach(btn=>btn.addEventListener('click',async()=>{
+        const id=Number(btn.dataset.delete||0);
+        const row=list.find(x=>Number(x.id)===id);
+        if(!id)return;
+        if(!confirm(`¿Eliminar "${text(row?.nombre)||'este servicio'}"?\n\nSi tiene atenciones anteriores, se archivará para no alterar el historial.`))return;
+        btn.disabled=true;
+        try{
+          const d=await call('/api/procedures/'+id,{method:'DELETE'});
+          toast(d?.message||'Servicio eliminado.');
+          try{if(typeof window.loadProcedures==='function')await window.loadProcedures()}catch(_e){}
+          await sleep(60);
+          box.remove();
+          renderProcedureManager();
+        }catch(e){
+          alert(e?.message||e);
+          btn.disabled=false;
+        }
+      }));
+    }catch(_e){
+      // No invade la pantalla con un error si la PC está temporalmente offline.
+    }finally{
+      procBusy=false;
+    }
+  }
+
+  function installProcedureManager(){
+    const attempt=()=>{
+      const sec=document.querySelector('[data-config-section="procedimientos"]');
+      if(sec&&!sec.querySelector('#v4470ProcedureManager'))renderProcedureManager();
+      if(typeof window.loadProcedures==='function'&&!window.loadProcedures.__v4470Manager){
+        const stable=window.loadProcedures;
+        const wrapped=async function(){
+          const r=await stable.apply(this,arguments);
+          setTimeout(renderProcedureManager,40);
+          return r;
+        };
+        wrapped.__v4470Manager=true;
+        window.loadProcedures=wrapped;
+      }
+    };
+    const mo=new MutationObserver(()=>setTimeout(attempt,30));
+    mo.observe(document.documentElement,{childList:true,subtree:true});
+    attempt();
+  }
+
+  function paintVersion(){
+    const expected='v'+VERSION;
+    document.querySelectorAll('.v460-version,#currentVersionBadge').forEach(el=>{
+      if(text(el.textContent)!==expected)el.textContent=expected;
+    });
+    const badge=document.querySelector('#connectionBadge');
+    if(badge){
+      let v=badge.querySelector('.v460-version');
+      if(!v){
+        v=document.createElement('span');
+        v.className='v460-version';
+        badge.appendChild(v);
+      }
+      if(text(v.textContent)!==expected)v.textContent=expected;
+    }
+  }
+  function installVersionPainter(){
+    let scheduled=false;
+    const run=()=>{
+      if(scheduled)return;scheduled=true;
+      setTimeout(()=>{scheduled=false;paintVersion()},20);
+    };
+    const mo=new MutationObserver(run);
+    mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+    paintVersion();
+    setTimeout(paintVersion,250);
+    setTimeout(paintVersion,900);
+  }
+
+  function boot(){
+    installPhoneSharing();
+    installPhoneWatcher();
+    installAttentionFlow();
+    installProcedureManager();
+    installVersionPainter();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
+"""
+
+    core.V460_OVERLAY_CSS = (
+        (getattr(core, "V460_OVERLAY_CSS", "") or "") + "\n" + V4470_CSS
+    )
+    core.V460_OVERLAY_JS = (
+        (getattr(core, "V460_OVERLAY_JS", "") or "") + "\n" + V4470_JS
+    )
+
+    PATCH_BOOT_OK = True
+except Exception as exc:
+    PATCH_BOOT_ERROR = f"{type(exc).__name__}: {exc}"
+    try:
+        core.logging.getLogger(__name__).error(
+            "v4.4.70 workflow patch failed: %s", PATCH_BOOT_ERROR
+        )
+    except Exception:
+        pass
+
+
+@app.get("/api/v4470/health")
+def v4470_health(user=core.Depends(core.current_user)):
+    return {
+        "ok": PATCH_BOOT_OK,
+        "version": APP_VERSION,
+        "error": PATCH_BOOT_ERROR,
+        "shared_phone_allowed": True,
+        "automatic_receipt_after_consultation": True,
+        "attention_survives_printer_error": True,
+        "procedure_delete_manager": True,
+        "dynamic_version_badge": True,
+        "receipt_design": "v4.4.69",
+    }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=core.LOCAL_HTTP_PORT,
+        reload=False,
+        access_log=False,
+        log_level="warning",
+        workers=1,
+    )
