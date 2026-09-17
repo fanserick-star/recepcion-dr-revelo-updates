@@ -1,0 +1,150 @@
+from __future__ import annotations
+
+# v4.4.70 — flujo de atención e identidad más práctico para recepción.
+# - Un celular puede pertenecer a varias personas (familias/matrimonios): avisa, no bloquea.
+# - Al guardar una CONSULTA imprime automáticamente el recibo y vuelve a Inicio.
+# - Si la impresora falla, la atención ya guardada NO se revierte.
+# - Agrega una administración confiable para eliminar/archivar servicios y precios.
+# - La versión junto a "En línea" se pinta desde la versión real de esta capa.
+# - Conserva intacto el recibo térmico v4.4.69 aprobado visualmente.
+
+import app_patch_4469 as previous
+
+core = previous.core
+app = previous.app
+APP_VERSION = "4.4.70"
+
+# Propagar la versión por toda la cadena para evitar rótulos/endpoints con
+# constantes viejas de capas anteriores.
+_mod = previous
+_seen = set()
+for _ in range(20):
+    if _mod is None or id(_mod) in _seen:
+        break
+    _seen.add(id(_mod))
+    try:
+        _mod.APP_VERSION = APP_VERSION
+    except Exception:
+        pass
+    _mod = getattr(_mod, "previous", None)
+core.APP_VERSION = APP_VERSION
+
+PATCH_BOOT_OK = False
+PATCH_BOOT_ERROR = ""
+
+try:
+    class _V4470PrintVisitIn(core.BaseModel):
+        pass
+
+    def _v4470_is_consultation(visit) -> bool:
+        return not str(getattr(visit, "procedimiento", None) or "").strip()
+
+    def _v4470_consultation_turn(db, visit) -> int | None:
+        rows = list(db.scalars(
+            core.select(core.Visit)
+            .where(core.Visit.fecha == visit.fecha)
+            .order_by(core.Visit.id)
+        ))
+        first_by_patient = {}
+        for row in rows:
+            if not _v4470_is_consultation(row):
+                continue
+            first_by_patient.setdefault(int(row.patient_id), int(row.id))
+        ordered = [
+            pid for pid, _first_id in
+            sorted(first_by_patient.items(), key=lambda item: item[1])
+        ]
+        try:
+            return ordered.index(int(visit.patient_id)) + 1
+        except ValueError:
+            return None
+
+    def _v4470_is_first_consultation(db, visit) -> bool:
+        prior = int(db.scalar(
+            core.select(core.func.count(core.Visit.id)).where(
+                core.Visit.patient_id == int(visit.patient_id),
+                core.Visit.id < int(visit.id),
+                core.func.length(
+                    core.func.trim(core.func.coalesce(core.Visit.procedimiento, ""))
+                ) == 0,
+            )
+        ) or 0)
+        return prior == 0
+
+    @app.post("/api/v4470/print-visit/{visit_id}")
+    def v4470_print_visit(
+        visit_id: int,
+        data: _V4470PrintVisitIn,
+        db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user),
+    ):
+        """Imprime solo si el registro guardado es una consulta médica.
+
+        Esta llamada ocurre DESPUÉS de guardar la atención. Cualquier error de
+        impresora se devuelve como estado y nunca deshace la atención clínica.
+        """
+        visit = db.get(core.Visit, int(visit_id))
+        if not visit:
+            return {
+                "ok": True,
+                "printed": False,
+                "reason": "visit_not_found",
+                "message": "Atención guardada, pero no se encontró el registro para imprimir.",
+            }
+        if not _v4470_is_consultation(visit):
+            return {
+                "ok": True,
+                "printed": False,
+                "reason": "procedure_only",
+                "message": "Atención guardada. Los procedimientos no generan recibo.",
+            }
+
+        patient = db.get(core.Patient, int(visit.patient_id))
+        if not patient:
+            return {
+                "ok": True,
+                "printed": False,
+                "reason": "patient_not_found",
+                "message": "Atención guardada, pero no se encontró el paciente para imprimir.",
+            }
+
+        turn = _v4470_consultation_turn(db, visit)
+        is_new = _v4470_is_first_consultation(db, visit)
+        birth = None
+        if getattr(patient, "fecha_nacimiento", None):
+            try:
+                birth = patient.fecha_nacimiento.strftime("%d/%m/%Y")
+            except Exception:
+                birth = str(patient.fecha_nacimiento)
+
+        payload = core.ReceiptPrintIn(
+            fecha=visit.fecha.strftime("%d/%m/%Y"),
+            nombre=str(patient.nombre or "").strip().upper(),
+            fecha_nacimiento=birth,
+            celular=str(patient.celular or "").strip() or None,
+            turno=turn,
+            is_new=is_new,
+        )
+        prefs = core._app_preferences()
+        printer = str(prefs.get("printer") or "").strip()
+        try:
+            used = core._print_receipt_windows(
+                payload,
+                printer,
+                bool(prefs.get("show_blood_pressure", True)),
+            )
+            return {
+                "ok": True,
+                "printed": True,
+                "printer": used,
+                "turno": turn,
+                "message": "Atención guardada. Recibo enviado a la impresora.",
+            }
+        except Exception as exc:
+            try:
+                core.logging.getLogger(__name__).warning(
+                    "v4.4.70: atención %s guardada, impresión falló: %s",
+                    visit_id, exc,
+                )
+            except Exception:
+                pass
