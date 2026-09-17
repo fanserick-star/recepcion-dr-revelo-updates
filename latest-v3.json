@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.64",
-  "app_version": "4.4.64",
-  "runtime_version": "4.4.64",
+  "version": "4.4.65",
+  "app_version": "4.4.65",
+  "runtime_version": "4.4.65",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.64: recibo térmico CRM-308 sin marco lateral y con margen lógico 0; aprovecha el ancho de 80 mm y reserva espacio para que SUBSECUENTE salga completo. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.65: unifica el recibo de vista previa y la impresión automática, usa ancho seguro para que no se corte SUBSECUENTE, optimiza Arial Bold para 203 dpi y convierte el isotipo del doctor a blanco/negro de alto contraste al imprimir. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_64_receipt_edge_to_edge/app.py",
-      "sha256": "554bb00f87bba507569b60d2f3d0ee91f1ae86ad562a378712a4045fa9511dcf"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_65_receipt_unified/app.py",
+      "sha256": "8dc1fdf5fe1c349c0159697e7fb7ccea3d6eee6d2dd17533dbc0bfe51fe869a7"
+    },
+    {
+      "path": "app_patch_4465.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_65_receipt_unified/app_patch_4465.py",
+      "sha256": "2f2cb6950ee99f307656cd6c7aefdd19d0722e573504791514629d99c89da933"
     },
     {
       "path": "app_patch_4464.py",
@@ -69,8 +75,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_64_receipt_edge_to_edge/update_manifest.json",
-      "sha256": "2acc08ce0d27ff811f1527e6ce252e8583623ee7eb9378cb28ff581eb1a063ba"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_65_receipt_unified/update_manifest.json",
+      "sha256": "44c3ae76c9e85b413043618de8aa8ed5300a34f9857add873e8cef4548f2187d"
     }
   ]
 }
