@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.73",
-  "app_version": "4.4.73",
-  "runtime_version": "4.4.73",
+  "version": "4.4.74",
+  "app_version": "4.4.74",
+  "runtime_version": "4.4.74",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.73: recuperación estable de la interfaz. Vuelve a la base confirmada de v4.4.70 y no carga los cambios de interfaz de v4.4.71/v4.4.72 que causaron pantalla blanca. Conserva celulares compartidos, impresión automática, eliminación/archivo seguro de servicios y precios, versión visible y el diseño de recibo v4.4.69.",
+  "message": "v4.4.74: mejora de velocidad sobre la base estable 4.4.73. No toca el flujo visual ni reemplaza Guardar atención: únicamente pone la impresión térmica en una cola local de un solo worker, para que después de confirmar el guardado la interfaz vuelva a Inicio sin esperar al spooler de Windows. Conserva todas las correcciones de v4.4.70 y el recibo v4.4.69.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_73_stable_recovery/app.py",
-      "sha256": "4fc07eb3c456bed7bf85853a99e4341afd86ff1896fd7f1ff9d2c3eb63c26672"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_74_async_print_stable/app.py",
+      "sha256": "04e67d9b7e8a0a2fa3f223e524ed73133e1431a381000911de45d84f37038bf5"
+    },
+    {
+      "path": "app_patch_4474.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_74_async_print_stable/app_patch_4474.py",
+      "sha256": "ba349da92fa82c23a5eeda4db60be3697fcbfab937adf6e17bff25bc2bede821"
     },
     {
       "path": "app_patch_4473.py",
@@ -116,8 +122,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_73_stable_recovery/update_manifest.json",
-      "sha256": "1bc498c4fbc8359f5660c9ac45b5c353dba98851f41d910f52eefaa02a6fcee6"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_74_async_print_stable/update_manifest.json",
+      "sha256": "32c031980750e8beb94748395e208a84b1b0001488eb8c7eccd91e48bbdee358"
     }
   ]
 }
