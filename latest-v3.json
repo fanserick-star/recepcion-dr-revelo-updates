@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.68",
-  "app_version": "4.4.68",
-  "runtime_version": "4.4.68",
+  "version": "4.4.69",
+  "app_version": "4.4.69",
+  "runtime_version": "4.4.69",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.68: recibo más grande y largo, con título y nombre más grandes y en negrita, letras generales aumentadas y más separación vertical; mantiene 72 mm de ancho seguro para no cortar la hoja, vista previa e impresión automática idénticas y sin marco exterior. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.69: conserva el diseño grande de 4.4.68, aprovecha mejor el ancho útil del cabezal térmico y desplaza el recibo aproximadamente 1.5 mm hacia la izquierda; vista previa e impresión automática siguen siendo idénticas, sin aumentar el ancho físico seguro de 72 mm. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_68_receipt_large_long/app.py",
-      "sha256": "d587f86b02539a7faeef64e6be3be4be918566e424a1ce7ebaa307c2a5128949"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_69_receipt_left_wide/app.py",
+      "sha256": "5813b8452ce8e51fe9694b6b1dfdbf6b31f422c0ea2bb2e1c3c545b2204aa6cb"
+    },
+    {
+      "path": "app_patch_4469.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_69_receipt_left_wide/app_patch_4469.py",
+      "sha256": "bd86bd3f33315ae76e8503f68ee6a548ae09a0ce130a0e0224ac63f6daef533e"
     },
     {
       "path": "app_patch_4468.py",
@@ -93,8 +99,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_68_receipt_large_long/update_manifest.json",
-      "sha256": "8382d8e3792a84b72ef5daa9cd04427ed3e619ed1c67492007db47d3ecfb0130"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_69_receipt_left_wide/update_manifest.json",
+      "sha256": "3ba4cafe4e8cf71a6ddf64e1309a465de9c86d0862ca5755cc4a7516dc21ee81"
     }
   ]
 }
