@@ -43,6 +43,8 @@ try:
             for yy in range(src.Height):
                 for xx in range(src.Width):
                     c = src.GetPixel(xx, yy)
+                    # El PNG original tiene fondo blanco y figura verde/azul.
+                    # Todo píxel claramente distinto de blanco se imprime negro.
                     is_ink = c.A > 20 and min(c.R, c.G, c.B) < 238
                     out.SetPixel(xx, yy, Color.Black if is_ink else Color.White)
             return out
@@ -90,6 +92,7 @@ try:
             fonts.append(f)
             return f
 
+        # Arial Bold: trazos gruesos y abiertos, muy legibles a 203 dpi.
         f_title = font(12.0, True)
         f_label = font(8.8, True)
         f_value = font(10.2, True)
@@ -106,6 +109,7 @@ try:
 
         def on_print_page(sender, e):
             g = e.Graphics
+            # 1-bit/GridFit evita grises y bordes blandos en térmica 203 dpi.
             try:
                 g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit
                 g.InterpolationMode = InterpolationMode.NearestNeighbor
@@ -114,6 +118,8 @@ try:
                 pass
 
             page_w = float(e.PageBounds.Width)
+            # Zona segura: 6 px por lado. Visualmente casi sin margen, pero evita
+            # que el driver POS-80C/CRM-308 recorte el último carácter.
             outer_left = 6.0
             outer_right = max(outer_left + 240.0, page_w - 8.0)
             outer_w = outer_right - outer_left
@@ -126,6 +132,7 @@ try:
             center.Alignment = StringAlignment.Center
             center.LineAlignment = StringAlignment.Near
 
+            # Encabezado: misma jerarquía visual de la vista previa.
             logo_path = os.path.join(core.BASE_DIR, "static", "doctor_isotype.png")
             if os.path.exists(logo_path):
                 try:
@@ -165,6 +172,7 @@ try:
 
             draw_row("Fecha:", payload.fecha, 83.0, f_value, 29.0)
 
+            # Nombre: APELLIDOS / NOMBRES, como el diseño de vista previa.
             y += 8.0
             g.DrawString("Nombre", f_name_label, Brushes.Black, RectangleF(inner_left, y, inner_w, 13.0), center)
             y += 13.0
@@ -178,6 +186,7 @@ try:
             g.DrawLine(solid_pen, inner_left, y, inner_right, y)
 
             if bool(payload.is_new) and payload.fecha_nacimiento:
+                # Se mantiene el texto completo, pero con posición calculada para 70-72 mm útiles.
                 draw_row("Fecha de nacimiento:", payload.fecha_nacimiento, 142.0, f_value, 32.0)
 
             if show_blood_pressure:
@@ -195,6 +204,7 @@ try:
             if payload.turno:
                 draw_row("Turno:", str(payload.turno), 91.0, f_turn, 32.0)
 
+            # Dos columnas reales: evita cualquier corte independientemente de la medición GDI.
             y += 12.0
             box = 19.0
             gap = 5.0
@@ -204,6 +214,7 @@ try:
             def draw_option(col_left, label, checked):
                 label_w = float(g.MeasureString(label, f_status).Width)
                 group_w = box + gap + label_w
+                # Se centra, pero nunca sale de su propia columna.
                 x = col_left + max(0.0, (col_w - group_w) / 2.0)
                 max_x = col_left + col_w - group_w
                 x = min(x, max_x)
@@ -217,6 +228,7 @@ try:
             draw_option(inner_left + col_w + col_gap, "SUBSECUENTE", not bool(payload.is_new))
             y += box + 10.0
 
+            # Marco completo como el recibo de vista previa, pero dentro de la zona imprimible.
             g.DrawRectangle(border_pen, outer_left, 3.0, outer_w, max(20.0, y + 4.0))
             e.HasMorePages = False
 
@@ -252,6 +264,7 @@ try:
 
     core._print_receipt_windows = _print_receipt_windows_v4465
 
+    # Vista previa/diálogo: mismo ancho seguro, Arial Bold y misma distribución.
     PREVIEW_FIX_JS = r"""
 ;(()=>{
   if(window.__v4465ReceiptPreview)return;
