@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-# v4.4.70 — flujo automático de atención, celular compartido, servicios y versión.
+# v4.4.70 — teléfonos compartidos, guardado+impresión automática,
+# eliminación de servicios y versión visual sincronizada.
 import app_patch_4470 as patched
 
 core = patched.core
