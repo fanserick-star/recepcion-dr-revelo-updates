@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.76",
-  "app_version": "4.4.76",
-  "runtime_version": "4.4.76",
+  "version": "4.4.77",
+  "app_version": "4.4.77",
+  "runtime_version": "4.4.77",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.76: corrige Facturación cuando un paciente fue eliminado: deja de aparecer en Por emitir y conserva sus comprobantes ya emitidos en el historial. Emitidas separa facturas distintas del mismo paciente/día y avisa antes de generar otra factura el mismo día. Además protege atenciones ya facturadas y simplifica Servicios y precios a un solo panel para agregar, editar precio, buscar y eliminar/archivar.",
+  "message": "v4.4.77: agrega en cada factura de Por emitir la opción Quitar de Por emitir. La acción no borra al paciente ni la atención: solo descarta la pre-factura y la excluye de futuros envíos a AZUR. Si ya fue enviada a AZUR, el servidor bloquea la eliminación. Conserva todas las correcciones de v4.4.76.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_76_billing_services_coherence/app.py",
-      "sha256": "50297d12248b2b6ecdb2325db7ed6ab8d3a894cdeb0929ce25198fb7d6c7d1af"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_77_discard_pending_billing/app.py",
+      "sha256": "fe064ca09cc0c8d0299c9dd3a9217928ed1f231f4dcc9f345df73abc2c76c151"
+    },
+    {
+      "path": "app_patch_4477.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_77_discard_pending_billing/app_patch_4477.py",
+      "sha256": "043b1e4349c384ff94f0b8c80113b51b87e5e13c0b89d8e37912628103e1cb89"
     },
     {
       "path": "app_patch_4476.py",
@@ -134,8 +140,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_76_billing_services_coherence/update_manifest.json",
-      "sha256": "da634a077301b657f7d90782718acdb619058a7ef9c6eee30dfd7ef8d255a57b"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_77_discard_pending_billing/update_manifest.json",
+      "sha256": "395d4f3db8d1cdc3ba4061cd9afa33096a477ee5fd9c28bee77eac60ee12bbd2"
     }
   ]
 }
