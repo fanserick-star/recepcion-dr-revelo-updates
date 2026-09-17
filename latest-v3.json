@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.77",
-  "app_version": "4.4.77",
-  "runtime_version": "4.4.77",
+  "version": "4.4.78",
+  "app_version": "4.4.78",
+  "runtime_version": "4.4.78",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.77: agrega en cada factura de Por emitir la opción Quitar de Por emitir. La acción no borra al paciente ni la atención: solo descarta la pre-factura y la excluye de futuros envíos a AZUR. Si ya fue enviada a AZUR, el servidor bloquea la eliminación. Conserva todas las correcciones de v4.4.76.",
+  "message": "v4.4.78: hace visible de forma fiable el botón Quitar de Por emitir después de renderizar cada tarjeta y estabiliza el número de versión junto a En línea para que no alterne entre versiones heredadas. Conserva el descarte seguro de v4.4.77 y todas las correcciones anteriores.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_77_discard_pending_billing/app.py",
-      "sha256": "fe064ca09cc0c8d0299c9dd3a9217928ed1f231f4dcc9f345df73abc2c76c151"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_78_visible_discard_stable_version/app.py",
+      "sha256": "93482616ea7dc94ff43f95573da7f207c7d8b761e2f62612a4106507ca81f1be"
+    },
+    {
+      "path": "app_patch_4478.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_78_visible_discard_stable_version/app_patch_4478.py",
+      "sha256": "9a3d3b71be226e51bca599d89b32decd55754b37d2c03063d4238fea606423aa"
     },
     {
       "path": "app_patch_4477.py",
@@ -140,8 +146,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_77_discard_pending_billing/update_manifest.json",
-      "sha256": "395d4f3db8d1cdc3ba4061cd9afa33096a477ee5fd9c28bee77eac60ee12bbd2"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_78_visible_discard_stable_version/update_manifest.json",
+      "sha256": "0df61112573e2b4dd04443d9890a0dc190d0457a87e865c6b660014018768cff"
     }
   ]
 }
