@@ -1,0 +1,150 @@
+            return {
+                "ok": True,
+                "printed": False,
+                "reason": "printer_error",
+                "turno": turn,
+                "error": str(exc)[:240],
+                "message": "Atención guardada. No se pudo imprimir el recibo; puedes reimprimirlo desde Inicio.",
+            }
+
+    @app.get("/api/v4470/version")
+    def v4470_version(user=core.Depends(core.current_user)):
+        return {"version": APP_VERSION}
+
+    V4470_CSS = r"""
+.v4470-busy{
+  position:fixed;inset:0;z-index:2147483500;background:rgba(245,249,253,.94);
+  display:grid;place-items:center;padding:24px;backdrop-filter:blur(2px)
+}
+.v4470-busy-card{
+  min-width:290px;max-width:430px;padding:24px 26px;border-radius:18px;background:#fff;
+  border:1px solid #d9e5ef;box-shadow:0 18px 55px rgba(28,58,85,.18);
+  text-align:center;color:#27445f
+}
+.v4470-spinner{
+  width:42px;height:42px;margin:0 auto 14px;border:4px solid #d9e7f2;
+  border-top-color:#3e789f;border-radius:50%;animation:v4470spin .8s linear infinite
+}
+@keyframes v4470spin{to{transform:rotate(360deg)}}
+.v4470-busy-card b{display:block;font-size:15px;line-height:1.25;margin-bottom:5px}
+.v4470-busy-card small{display:block;font-size:11px;color:#70859a}
+.v4470-toast{
+  position:fixed;right:18px;bottom:18px;z-index:2147483501;max-width:420px;
+  padding:12px 14px;border-radius:12px;background:#225f42;color:#fff;
+  box-shadow:0 10px 30px rgba(25,62,45,.24);font-size:12px;font-weight:800
+}
+.v4470-toast.warn{background:#8a6419}
+.v4470-phone-shared{
+  margin-top:6px;padding:7px 9px;border:1px solid #dfc36e;border-radius:9px;
+  background:#fff9e8;color:#705617;font-size:10px;line-height:1.35
+}
+.v4470-phone-shared b{display:block;margin-bottom:2px}
+.v4470-proc-manager{
+  margin-top:14px;padding:13px;border:1px solid #d6e1eb;border-radius:13px;background:#fbfdff
+}
+.v4470-proc-manager-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:9px}
+.v4470-proc-manager-head h4{margin:0;font-size:13px;color:#294b68}
+.v4470-proc-manager-head small{display:block;margin-top:2px;color:#71869a}
+.v4470-proc-list{display:grid;gap:6px}
+.v4470-proc-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:9px;align-items:center;
+  padding:8px 9px;border:1px solid #e2eaf1;border-radius:10px;background:#fff
+}
+.v4470-proc-row b{font-size:11px;color:#314f68}
+.v4470-proc-row span{font-size:11px;font-weight:800;color:#577087;white-space:nowrap}
+.v4470-proc-delete{
+  border:1px solid #dfb3b3!important;background:#fff6f6!important;color:#9a3838!important;
+  border-radius:8px!important;padding:6px 9px!important;font-size:10px!important;font-weight:900!important
+}
+@media(max-width:640px){
+  .v4470-proc-row{grid-template-columns:minmax(0,1fr) auto}
+  .v4470-proc-row span{grid-column:1}
+}
+"""
+
+    V4470_JS = r"""
+;(()=>{
+  if(window.__v4470WorkflowFix)return;
+  window.__v4470WorkflowFix=true;
+  const VERSION='4.4.70';
+  let attentionBusy=false;
+  let procBusy=false;
+
+  const text=v=>String(v??'').replace(/\s+/g,' ').trim();
+  const norm=v=>text(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  const phoneKey=v=>{
+    let d=String(v||'').replace(/\D/g,'');
+    if(d.length===12&&d.startsWith('593'))d='0'+d.slice(3);
+    return d;
+  };
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  function baseApi(){
+    const fn=window.api;
+    return fn?.__v4470Base||fn;
+  }
+
+  function installPhoneSharing(){
+    if(typeof window.api!=='function'){setTimeout(installPhoneSharing,120);return}
+    if(window.api.__v4470SharedPhone)return;
+    const stable=window.api;
+    const shim=async function(url,opt={}){
+      const u=String(url||'');
+      // La antigua v4.4.46 utilizaba este endpoint como BLOQUEO. Desde 4.4.70
+      // el teléfono es dato de contacto compartible, por lo que esa guardia
+      // siempre deja continuar. La advertencia pasiva se pinta aparte.
+      if(u.startsWith('/api/identity/phone-owner')){
+        return {duplicate:false,patient:null,normalized:''};
+      }
+      return stable.apply(this,arguments);
+    };
+    shim.__v4470SharedPhone=true;
+    shim.__v4470Base=stable;
+    window.api=shim;
+    try{api=shim}catch(_e){}
+  }
+
+  function currentPatientId(){
+    const modal=document.querySelector('#modal,.modal,.modal-backdrop')||document;
+    const attrs=[...modal.querySelectorAll('button[onclick],a[onclick]')]
+      .map(x=>String(x.getAttribute('onclick')||''));
+    for(const raw of attrs){
+      const m=/(?:savePatient|savePatientAndReturnToAttention|editPatientFromAttention)\s*\(\s*(\d+)/.exec(raw);
+      if(m)return Number(m[1]||0);
+    }
+    return 0;
+  }
+
+  async function passivePhoneWarning(){
+    const input=document.querySelector('#fCel');
+    if(!input)return;
+    const host=input.closest('.form-field')||input.parentElement;
+    host?.querySelector('.v4470-phone-shared')?.remove();
+    const wanted=phoneKey(input.value);
+    if(wanted.length<9)return;
+    const call=baseApi();if(typeof call!=='function')return;
+    let rows=[];
+    try{
+      const variants=[wanted];
+      if(wanted.length===10&&wanted.startsWith('0'))variants.push('593'+wanted.slice(1));
+      const batches=await Promise.all(variants.map(q=>
+        call('/api/patients?q='+encodeURIComponent(q)+'&limit=30').catch(()=>[])
+      ));
+      rows=batches.flat();
+    }catch(_e){return}
+    const exclude=currentPatientId();
+    const found=new Map();
+    for(const p of rows){
+      if(!p||Number(p.id||0)<=0||Number(p.id)===exclude)continue;
+      if(phoneKey(p.celular)===wanted)found.set(Number(p.id),p);
+    }
+    const hits=[...found.values()];
+    if(!hits.length||!host)return;
+    const names=hits.slice(0,3).map(p=>text(p.nombre)||'Paciente').join(', ');
+    const note=document.createElement('div');
+    note.className='v4470-phone-shared';
+    note.innerHTML=`<b>ℹ Celular compartido</b>Este número también está registrado para ${names}. Puedes guardarlo igualmente si corresponde a esta persona.`;
+    host.appendChild(note);
+  }
+
+  function installPhoneWatcher(){
