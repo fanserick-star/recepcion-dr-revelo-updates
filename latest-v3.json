@@ -1,17 +1,23 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.4.66",
-  "app_version": "4.4.66",
-  "runtime_version": "4.4.66",
+  "version": "4.4.67",
+  "app_version": "4.4.67",
+  "runtime_version": "4.4.67",
   "mandatory": true,
   "channel": "files-v3-gated",
-  "message": "v4.4.66: la vista previa y la impresión automática usan exactamente el mismo recibo raster de 72 mm; corrige diferencias de tamaño, evita el corte de SUBSECUENTE y recorta/convierte el isotipo a blanco y negro para térmica de 203 dpi. No modifica datos, agenda ni facturación.",
+  "message": "v4.4.67: recibo más grande y legible como el formato anterior, sin marco exterior (sin línea vertical izquierda ni línea inferior), manteniendo vista previa e impresión automática exactamente iguales y SUBSECUENTE completo. No modifica datos, agenda ni facturación.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_66_receipt_raster/app.py",
-      "sha256": "9ee560c3dbc483225b11567a14429a6d2f8e0d091200e56f1d51ae543f0fdffd"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_67_receipt_large_clean/app.py",
+      "sha256": "dd99d4469a1ac9465ea01b7ff02c66aed2fcf388a5ce25cf773bab7d2a8110ec"
+    },
+    {
+      "path": "app_patch_4467.py",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_67_receipt_large_clean/app_patch_4467.py",
+      "sha256": "8ce12f1e5f16baaf5e45a3094c5dd6704f1c71384415950ba370072ea9a41809"
     },
     {
       "path": "app_patch_4466.py",
@@ -59,7 +65,7 @@
       "path": "app_prev_4458.py",
       "encoding": "utf-8",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_60_rescue_direct_app/app_prev_4458.py",
-      "sha256": "a4fbd06bd83c9a902169dc99ef71c367edc8ed57f77b8cc8c15a813d536baad0"
+      "sha256": "a4fbd06bd83c59f43d32812ed8431018775f26f7792745d50185201702e60a19"
     },
     {
       "path": "app_base_4428.py",
@@ -81,8 +87,8 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_66_receipt_raster/update_manifest.json",
-      "sha256": "f6c476ac4dfdfe679af0940c16ec47748ca6c68ebb8702b7fafbb247c7100637"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_4_67_receipt_large_clean/update_manifest.json",
+      "sha256": "f62105f9b2d03df9a2f0e2e0e269f9ebeac371871c25ad1e9849422df6422e1f"
     }
   ]
 }
