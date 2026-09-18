@@ -207,6 +207,20 @@ try:
     notifyDataphonePending();
   },true);
 
+  // Facturación tampoco permite registrar tarjeta manualmente.
+  document.addEventListener('click',event=>{
+    const paymentButton=event.target?.closest?.(
+      '#billingList .v4504-billchoices [data-bm]'
+    );
+    if(!paymentButton)return;
+    const method=String(paymentButton.dataset.bm||'');
+    if(method!=='TARJETA_DEBITO'&&method!=='TARJETA_CREDITO')return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    notifyDataphonePending();
+  },true);
+
   // En Pago mixto, por ahora solo Efectivo + Transferencia.
   document.addEventListener('change',event=>{
     const select=event.target;
