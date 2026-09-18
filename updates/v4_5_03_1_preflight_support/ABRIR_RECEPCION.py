@@ -25,7 +25,7 @@ import socket
 
 LAUNCHER_VERSION = "4.5.3.1-safe-preflight-support-copy-2"
 PRODUCT = "recepcion-pacientes"
-DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json"
+DEFAULT_MANIFEST_URL = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v4.json"
 APP_PORT = 8000
 URL = f"http://127.0.0.1:{APP_PORT}"
 VERSION_URL = URL + "/api/version"
