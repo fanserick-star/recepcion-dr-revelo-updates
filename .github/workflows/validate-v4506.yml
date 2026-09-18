@@ -1,0 +1,52 @@
+name: Validate v4.5.6 release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'updates/v4_5_06_bendo_config/**'
+      - '.github/workflows/validate-v4506.yml'
+  pull_request:
+    paths:
+      - 'updates/v4_5_06_bendo_config/**'
+      - '.github/workflows/validate-v4506.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile v4.5.6
+        run: |
+          python -m py_compile updates/v4_5_06_bendo_config/app_patch_4506.py
+          python -m py_compile updates/v4_5_06_bendo_config/app.py
+      - name: Static safety checks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('updates/v4_5_06_bendo_config/app_patch_4506.py')
+          s=p.read_text(encoding='utf-8')
+          checks={
+            'version':'APP_VERSION = "4.5.6"' in s,
+            'bendo':'"model": "Bendo Smart"' in s,
+            'config_tab':'data-config-section="dataphone"' in s or "dataset.configSection='dataphone'" in s,
+            'consult_fix':'consultation-service-section' in s,
+            'no_charge_test':'Bendo respondió correctamente. No se generó ningún cobro.' in s,
+            'no_schema':'database_schema_changes": False' in s,
+            'no_neon':'neon_writes_added": False' in s,
+            'no_azur':'azur_contract_changes": False' in s,
+            'manual_card_off':'manual_card_entry": False' in s,
+          }
+          bad=[k for k,v in checks.items() if not v]
+          if bad:
+            raise SystemExit('Missing checks: '+', '.join(bad))
+          print('v4.5.6 checks OK')
+          PY
