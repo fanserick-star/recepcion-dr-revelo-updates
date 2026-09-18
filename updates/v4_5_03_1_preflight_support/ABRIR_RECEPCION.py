@@ -2726,3 +2726,5 @@ if __name__ == "__main__":
     if "--self-test-core" in sys.argv:
         raise SystemExit(run_self_tests())
     main()
+
+# CI validation v4 channel.
