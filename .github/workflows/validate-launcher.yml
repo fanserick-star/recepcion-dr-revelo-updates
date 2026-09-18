@@ -6,6 +6,10 @@ on:
     paths:
       - 'updates/**/ABRIR_RECEPCION.py'
       - '.github/workflows/validate-launcher.yml'
+  pull_request:
+    paths:
+      - 'updates/**/ABRIR_RECEPCION.py'
+      - '.github/workflows/validate-launcher.yml'
   workflow_dispatch:
 
 permissions:
