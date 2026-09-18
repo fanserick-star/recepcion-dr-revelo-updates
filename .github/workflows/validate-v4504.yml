@@ -6,6 +6,10 @@ on:
     paths:
       - 'updates/v4_5_04_dataphone_ready/**'
       - '.github/workflows/validate-v4504.yml'
+  pull_request:
+    paths:
+      - 'updates/v4_5_04_dataphone_ready/**'
+      - '.github/workflows/validate-v4504.yml'
   workflow_dispatch:
 
 permissions:
