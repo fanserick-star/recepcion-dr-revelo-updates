@@ -1241,7 +1241,17 @@ def main() -> None:
                 if not _wait_server(expected, 16.0, splash):
                     backup_path = str(result.get("backup") or "") if isinstance(result, dict) else ""
                     updated_list = list(result.get("paths") or []) if isinstance(result, dict) else []
-                    if result.get("updated") and backup_path:
+                    # Si la actualización reemplazó también este launcher, el proceso
+                    # anterior ya terminó. Recuperamos entonces el último respaldo
+                    # guardado en auto_update_state.json.
+                    if not backup_path:
+                        try:
+                            st = _load_json(_data_dir(ROOT) / "auto_update_state.json")
+                            if str(st.get("last_installed_version") or "") == str(expected or ""):
+                                backup_path = str(st.get("last_backup") or "")
+                        except Exception:
+                            backup_path = ""
+                    if backup_path:
                         splash.set("Recuperando versión anterior…", "La actualización nueva no inició; restaurando automáticamente")
                         _stop_server()
                         if not _restore_update_backup(ROOT, backup_path, updated_list):
