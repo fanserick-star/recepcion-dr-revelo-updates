@@ -7,6 +7,7 @@ from __future__ import annotations
 # - Dirección: 2 líneas.
 # - Teléfono: 1 línea.
 # - Correo (opcional): 1 línea.
+# - Mantiene separación cómoda entre cada etiqueta y su línea para escribir.
 # - Conserva el botón únicamente dentro de "Otra persona o empresa".
 # - No cambia BD, Neon, AZUR, Agenda, atenciones, recibos ni comprobantes.
 
@@ -129,12 +130,14 @@ def _print_billing_data_form_windows_v4490(printer_name: str = "") -> str:
 
         def field(label: str, lines: int = 1):
             nonlocal y
-            y += 10.0
+            y += 11.0
             g.DrawString(label, f_label, Brushes.Black, 0.0, y)
-            y += 20.0
+            # Deja aire suficiente para escribir: la primera línea no queda
+            # pegada al texto del campo.
+            y += 27.0
             for _ in range(lines):
                 draw_line(g, y, width - 4.0, 0.0, width - 4.0)
-                y += 20.0
+                y += 22.0
 
         field("CÉDULA / RUC:")
         field("NOMBRE / RAZÓN SOCIAL:")
