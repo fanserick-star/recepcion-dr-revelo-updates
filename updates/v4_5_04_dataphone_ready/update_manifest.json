@@ -3,7 +3,7 @@
   "version": "4.5.4",
   "app_version": "4.5.4",
   "runtime_version": "4.5.4",
-  "launcher_version": "4.5.3-safe-preflight-visual-1",
+  "launcher_version": "4.5.3.1-safe-preflight-support-copy-2",
   "updater_version": "release-gate-v2-mandatory",
   "required_dependencies": [
     "app_patch_4504.py",
@@ -118,7 +118,7 @@
     "download_only_changed_files": true,
     "visual_four_stage_splash": true,
     "copy_diagnostic_button": true,
-    "clinical_runtime_changes": false,
+    "clinical_runtime_changes": true,
     "dataphone_ready": true,
     "payment_methods": [
       "EFECTIVO",
@@ -142,6 +142,8 @@
     "day_payment_strip": true,
     "pending_badges": true,
     "cash_closing": false,
-    "new_tables": false
+    "new_tables": false,
+    "launcher_version_required": "4.5.3.1-safe-preflight-support-copy-2",
+    "isolated_preflight_support_modules": true
   }
 }
