@@ -1,0 +1,43 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.5.0",
+  "app_version": "4.5.0",
+  "runtime_version": "4.5.0",
+  "launcher_version": "4.5.0-clean-runtime-startup-rollback-1",
+  "updater_version": "release-gate-v2-mandatory",
+  "required_dependencies": [
+    "maintenance_4500.py",
+    "printing_4500.py",
+    "runtime_4500.py",
+    "runtime_pack_a_4500.py",
+    "runtime_pack_b_4500.py",
+    "app_base_4428.py"
+  ],
+  "required_python_packages": [
+    {"import":"pg8000","pip":"pg8000==1.31.2"}
+  ],
+  "copy": [
+    "app.py",
+    "maintenance_4500.py",
+    "printing_4500.py",
+    "runtime_4500.py",
+    "runtime_pack_a_4500.py",
+    "runtime_pack_b_4500.py",
+    "app_base_4428.py",
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "runtime_consolidated": true,
+    "legacy_patch_chain_distributed": false,
+    "maintenance_tab": true,
+    "printer_test": true,
+    "safe_cleanup": true,
+    "startup_rollback": true,
+    "database_changes": false,
+    "neon_writes_added": false,
+    "receipt_layout_version": "4.4.69",
+    "payment_proof_layout_version": "4.4.88",
+    "billing_form_layout_version": "4.4.91"
+  }
+}
