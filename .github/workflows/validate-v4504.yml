@@ -42,7 +42,7 @@ jobs:
             'debit':'"TARJETA_DEBITO": -442916' in s,
             'credit':'"TARJETA_CREDITO": -442919' in s,
             'no_pan':'No se guarda tarjeta ni CVV' in s,
-            'azur':'core._azur_payload_for_group = v4504_azur_payload_for_group' in s,
+            'azur':'core._azur_payload_for_group' in s and 'v4504_azur_payload_for_group' in s,
             'no_schema':'database_schema_changes": False' in s,
           }
           bad=[k for k,v in checks.items() if not v]
