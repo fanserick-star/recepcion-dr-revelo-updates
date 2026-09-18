@@ -533,10 +533,8 @@ try:
     _strip_redundant_overlay_js()
     core.V460_OVERLAY_CSS = (getattr(core, "V460_OVERLAY_CSS", "") or "") + "\n" + V4500_CSS
     core.V460_OVERLAY_JS = (getattr(core, "V460_OVERLAY_JS", "") or "") + "\n" + V4500_JS
-    try:
-        safe_housekeeping()
-    except Exception:
-        pass
+    # La limpieza queda manual. No borramos cachés al arrancar porque la PC
+    # antigua se beneficia de conservar bytecode entre aperturas.
     PATCH_BOOT_OK = True
 except Exception as exc:
     PATCH_BOOT_ERROR = f"{type(exc).__name__}: {exc}"
