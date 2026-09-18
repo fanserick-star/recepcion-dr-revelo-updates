@@ -312,7 +312,6 @@ def _stage_update(
         raise
 
 
-def _make_backup(
 def _make_backup(root: Path, staged: list[dict], version: str) -> tuple[Path, set[str]]:
     d = _data_dir(root) / "update_backups"
     d.mkdir(parents=True, exist_ok=True)
@@ -824,7 +823,6 @@ def check_and_apply_update(
         }
 
 
-def _running_version(
 def _running_version(timeout: float = 1.0) -> str | None:
     try:
         with urllib.request.urlopen(VERSION_URL + f"?ts={time.time_ns()}", timeout=timeout) as r:
@@ -1366,8 +1364,6 @@ class Splash:
 
 
 def _open_webview() -> bool:
-
-def _open_webview() -> bool:
     try:
         import webview
     except Exception as exc:
@@ -1861,7 +1857,6 @@ def main() -> None:
         _release_mutex(handle)
 
 
-def _selftest_mutex_holder(
 def _selftest_mutex_holder(name: str, ready_file: str) -> int:
     handle, already = _acquire_mutex(name)
     if already:
