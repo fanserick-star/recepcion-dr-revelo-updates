@@ -318,26 +318,57 @@ def _edge_exe() -> str | None:
     return None
 
 
-def _open_ui(server: subprocess.Popen) -> None:
+def _open_ui(server: subprocess.Popen) -> bool:
+    """Abre la interfaz; True significa que al cerrar la ventana se cierra el backend."""
     try:
         import webview
-        window = webview.create_window(TITLE, URL, width=1460, height=920, min_size=(1024, 700), text_select=True)
-        webview.start(gui="edgechromium", debug=False, private_mode=False)
-        return
+        kwargs = {
+            "gui": "edgechromium",
+            "debug": False,
+            "private_mode": False,
+            "storage_path": str(_data_dir() / "webview_profile"),
+        }
+        icon = ROOT / "doctor_logo.ico"
+        if icon.is_file():
+            kwargs["icon"] = str(icon)
+        try:
+            window = webview.create_window(
+                TITLE, URL, width=1460, height=920, min_size=(1024, 700),
+                resizable=True, text_select=True, maximized=True,
+            )
+            maximize_after = False
+        except TypeError:
+            window = webview.create_window(
+                TITLE, URL, width=1460, height=920, min_size=(1024, 700),
+                resizable=True, text_select=True,
+            )
+            maximize_after = True
+        if maximize_after:
+            def _maximize():
+                try:
+                    time.sleep(0.15)
+                    window.maximize()
+                except Exception:
+                    pass
+            webview.start(_maximize, **kwargs)
+        else:
+            webview.start(**kwargs)
+        return True
     except Exception as exc:
-        _log("WebView no disponible: " + repr(exc))
+        _log("WebView2 no disponible: " + repr(exc))
     edge = _edge_exe()
     if edge:
         try:
-            subprocess.Popen([edge, f"--app={URL}", "--start-maximized"], creationflags=_hidden_flags())
-            while server.poll() is None:
-                time.sleep(2)
-            return
+            subprocess.Popen(
+                [edge, f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"],
+                cwd=str(ROOT), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=_hidden_flags(),
+            )
+            return False
         except Exception as exc:
             _log("Edge app falló: " + repr(exc))
-    webbrowser.open(URL)
-    while server.poll() is None:
-        time.sleep(2)
+    webbrowser.open(URL, new=2)
+    return False
 
 
 def _acquire_mutex():
@@ -396,10 +427,17 @@ def main() -> None:
         # An update can replace requirements after the initial dependency check.
         _ensure_dependencies()
         if _port_open(APP_PORT) and _api_version():
-            webbrowser.open(URL)
+            # Ya existe un backend residente (p. ej. fallback Edge previo).
+            edge = _edge_exe()
+            if edge:
+                subprocess.Popen([edge, f"--app={URL}", "--start-maximized", "--disable-background-mode", "--no-first-run"], creationflags=_hidden_flags())
+            else:
+                webbrowser.open(URL, new=2)
             return
         server = _start_server()
-        _open_ui(server)
+        close_server_on_exit = _open_ui(server)
+        if not close_server_on_exit:
+            server = None
     except Exception as exc:
         _log("Fallo fatal: " + repr(exc))
         _message("No se pudo abrir Historia Clínica.\n\n" + str(exc) + "\n\nRevise data\\launcher.log si necesita más detalle.")
