@@ -1,4 +1,29 @@
- Clínica</strong><small>{DOCTOR_NAME}</small></div>
+    return sorted(rows, key=score)[:limit]
+
+
+def clean_legacy_id(value):
+    raw = str(value or "").strip()
+    if not raw or re.fullmatch(r"[Xx\s.-]+", raw):
+        return ""
+    return raw
+
+
+def sex_label(value):
+    v = str(value or "").strip().upper()
+    if v == "M": return "Masculino"
+    if v == "F": return "Femenino"
+    return value or ""
+
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    return f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css">{extra_head}</head>
+<body class="cp-remaster-app">
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo" src="/static/doctor_logo.png" alt="Logo del Dr. Armando Revelo">
+    <div class="brand-copy"><strong>Historia Clínica</strong><small>{DOCTOR_NAME}</small></div>
   </div>
   <nav aria-label="Navegación principal">
     <a class="{'active' if active=='inicio' else ''}" href="/">Inicio</a>
@@ -86,7 +111,7 @@ def home():
             if r["clinical_patient_id"]:
                 action = f"<a class='mini-btn' href='/paciente/{e(r['clinical_patient_id'])}/nueva?queue_id={e(r['id'])}'>{action_label}</a>"
             else:
-                action = f"<a class='mini-btn warn-link' href='/cola/{e(r['id'])}/vincular'>Vincular</a>"
+                action = "<span class='badge warn'>Por vincular</span>"
             queued = e((r["queued_at"] or "")[-8:-3])
             parts.append(
                 f"<div class='queue-row'><div class='queue-avatar'>{e((r['display_name'] or '?')[:1])}</div>"
@@ -132,33 +157,27 @@ def home():
         recent_html = "<div class='recent-empty'>Los pacientes que abra aparecerán aquí para volver rápidamente.</div>"
         continue_button = "<span class='home-action disabled subtle'>Continuar último paciente</span>"
 
-    sync_status = get_sync_status(ROOT / "data")
-    cloud_online = bool(sync_status.get("enabled") and sync_status.get("online"))
-    cloud_state = str(sync_status.get("state") or "local_only")
-    cloud_message = str(sync_status.get("message") or ("Nube sincronizada" if cloud_online else "Trabajando localmente"))
-    pending_sync = int(sync_status.get("pending") or 0)
-    if cloud_online:
-        cloud_class, cloud_mark = "ok", "✓"
-        cloud_detail = cloud_message + (f" · {pending_sync} pendiente{'s' if pending_sync != 1 else ''}" if pending_sync else "")
-    elif sync_status.get("enabled"):
-        cloud_class, cloud_mark = "pending", "↻"
-        cloud_detail = cloud_message
+    cloud = get_sync_status(ROOT / "data")
+    if cloud.get("state") == "synced" and cloud.get("online"):
+        cloud_class = "ok"
+        cloud_mark = "✓"
+        cloud_text = "Sincronizada"
+    elif cloud.get("configured"):
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = cloud.get("message") or "Sincronizando…"
     else:
-        cloud_class, cloud_mark = "pending", "•"
-        cloud_detail = "Configuración de nube pendiente"
-    backup_dir = ROOT / "data" / "backups"
-    backups = sorted(backup_dir.glob("historia_clinica_*.db"), key=lambda x: x.stat().st_mtime, reverse=True) if backup_dir.exists() else []
-    if backups:
-        backup_class, backup_mark = "ok", "✓"
-        backup_detail = "Copia local " + datetime.fromtimestamp(backups[0].stat().st_mtime).strftime("%d/%m %H:%M")
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = "Pendiente de configurar"
+    if cloud.get("backup_ok"):
+        backup_class = "ok"
+        backup_mark = "✓"
+        backup_text = "Respaldo local diario activo"
     else:
-        backup_class, backup_mark = "pending", "•"
-        backup_detail = "Se creará automáticamente"
-    system_status_html = f"""
-        <div class='system-status ok'><span class='status-mark'>✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
-        <div class='system-status {cloud_class}'><span class='status-mark'>{cloud_mark}</span><span><b>Nube Neon</b><small>{e(cloud_detail)}</small></span></div>
-        <div class='system-status {backup_class}'><span class='status-mark'>{backup_mark}</span><span><b>Respaldo local</b><small>{e(backup_detail)}</small></span></div>
-    """
+        backup_class = "pending"
+        backup_mark = "•"
+        backup_text = "Preparando respaldo"
 
     body = f"""
 <section class="home-heading home-heading-v107">
@@ -192,7 +211,11 @@ def home():
     </section>
     <section class="panel system-panel">
       <div class="system-panel-head"><div><span class="eyebrow">ESTADO DEL SISTEMA</span><h2>Todo lo importante, de un vistazo</h2></div></div>
-      <div class="system-status-grid">{system_status_html}</div>
+      <div class="system-status-grid">
+        <div class="system-status ok"><span class="status-mark">✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
+        <div class="system-status {cloud_class}"><span class="status-mark">{cloud_mark}</span><span><b>Nube</b><small>{e(cloud_text)}</small></span></div>
+        <div class="system-status {backup_class}"><span class="status-mark">{backup_mark}</span><span><b>Respaldo</b><small>{e(backup_text)}</small></span></div>
+      </div>
     </section>
   </aside>
 </section>
@@ -224,51 +247,8 @@ def api_patient_search(q: str = Query(default="", max_length=120), limit: int = 
     return JSONResponse(result)
 
 
-@app.get("/cola/{queue_id}/vincular", response_class=HTMLResponse)
-def link_queue_patient_page(queue_id: str, q: str = Query(default="", max_length=120)):
-    with db() as conn:
-        item = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
-        if not item:
-            raise HTTPException(404, "Paciente en espera no encontrado")
-        rows = search_patients(conn, q.strip(), limit=30) if q.strip() else []
-    matches = "".join(
-        f"""<div class='patient-row queue-link-row'><div class='avatar'>{e((r['name'] or '?')[:1])}</div><div class='patient-main'><b>{e(r['name'])}</b><span>{e(clean_legacy_id(r['national_id']) or 'Sin identificación')} · {e(r['phone'] or 'Sin teléfono')}</span></div><form method='post' action='/cola/{e(queue_id)}/vincular/{e(r['id'])}'><button class='primary' type='submit'>Usar esta ficha</button></form></div>"""
-        for r in rows
-    )
-    if q.strip() and not rows:
-        matches = "<div class='empty'><strong>No encontré coincidencias.</strong><span>Puede buscar con los nombres en otro orden o crear una ficha nueva.</span></div>"
-    elif not q.strip():
-        matches = "<div class='empty'><strong>Busque la ficha correcta.</strong><span>Escriba parte del nombre, identificación o teléfono.</span></div>"
-    body = f"""
-<a class='back cp-back' href='/'>← Volver al inicio</a>
-<section class='page-head'><span class='eyebrow'>VINCULAR PACIENTE</span><h1>{e(item['display_name'])}</h1><p>Recepción envió este paciente sin una coincidencia segura. Elija la ficha correcta una sola vez.</p></section>
-<section class='search-card compact'><form method='get' action='/cola/{e(queue_id)}/vincular'><div class='searchbox'><input name='q' value='{e(q)}' autofocus autocomplete='off' placeholder='Nombre, identificación o teléfono'><button>Buscar</button></div></form></section>
-<section class='panel'><div class='panel-title'><h2>Coincidencias</h2><a class='primary btn-link' href='/pacientes/nuevo?queue_id={e(queue_id)}'>+ Crear paciente nuevo</a></div>{matches}</section>
-"""
-    return base("Vincular paciente", body, "inicio")
 
-
-@app.post("/cola/{queue_id}/vincular/{patient_id}")
-def link_queue_patient(queue_id: str, patient_id: str):
-    with db() as conn:
-        item = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
-        patient = conn.execute("SELECT id,name FROM patients WHERE id=?", (patient_id,)).fetchone()
-        if not item or not patient:
-            raise HTTPException(404)
-        stamp = now_iso()
-        conn.execute("UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? WHERE id=?", (patient_id, stamp, queue_id))
-        if item["reception_patient_id"]:
-            conn.execute("""INSERT INTO patient_links(reception_patient_id,clinical_patient_id,matched_by,verified,verified_at,created_at,updated_at)
-                          VALUES(?,?,?,?,?,?,?) ON CONFLICT(reception_patient_id) DO UPDATE SET
-                          clinical_patient_id=excluded.clinical_patient_id,matched_by=excluded.matched_by,verified=excluded.verified,verified_at=excluded.verified_at,updated_at=excluded.updated_at""",
-                         (item["reception_patient_id"], patient_id, "manual", 1, stamp, stamp, stamp))
-        audit(conn, "link_reception_patient", "patient", patient_id, {"queue_id": queue_id, "display_name": item["display_name"]})
-        conn.commit()
-    SYNC_SERVICE.wake()
-    return RedirectResponse(f"/paciente/{patient_id}/nueva?queue_id={queue_id}", status_code=303)
-
-
-def render_new_patient_form(values=None, error="", queue_id=""):
+def render_new_patient_form(values=None, error=""):
     values = values or {}
     def v(key):
         return e(values.get(key, ""))
@@ -283,7 +263,6 @@ def render_new_patient_form(values=None, error="", queue_id=""):
   </div>
   {error_html}
   <form method='post' action='/pacientes/nuevo' class='new-patient-form' autocomplete='off'>
-    <input type='hidden' name='queue_id' value='{e(queue_id)}'>
     <fieldset>
       <legend>Datos principales</legend>
       <label class='span-2'>Apellidos y nombres <input name='name' value='{v("name")}' maxlength='180' required autofocus placeholder='APELLIDOS Y NOMBRES'></label>
@@ -323,11 +302,45 @@ def render_new_patient_form(values=None, error="", queue_id=""):
 
 
 @app.get("/pacientes/nuevo", response_class=HTMLResponse)
-def new_patient_page(queue_id: str = ""):
-    values = {}
-    if queue_id:
-        with db() as conn:
-            qrow = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
-            if qrow:
-                values = {"name": qrow["display_name"] or "", "national_id": qrow["identification"] or ""}
-   
+def new_patient_page():
+    return base("Nuevo paciente", render_new_patient_form(), "pacientes")
+
+
+@app.post("/pacientes/nuevo", response_class=HTMLResponse)
+async def create_patient(request: Request):
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    parsed = parse_qs(raw, keep_blank_values=True)
+    values = {k: (parsed.get(k, [""])[0] or "").strip() for k in (
+        "name", "birth_date", "sex", "civil_status", "national_id", "phone", "address", "email", "insurer", "notes", "alert"
+    )}
+    name = re.sub(r"\s+", " ", values["name"]).strip().upper()
+    values["name"] = name
+    if not name:
+        return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "El nombre del paciente es obligatorio."), "pacientes"), status_code=400)
+    birth = values["birth_date"]
+    if birth:
+        try:
+            datetime.strptime(birth, "%Y-%m-%d")
+        except ValueError:
+            return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "La fecha de nacimiento no es válida."), "pacientes"), status_code=400)
+    national_id = values["national_id"]
+    with db() as conn:
+        if national_id:
+            exact = conn.execute(
+                "SELECT id,name FROM patients WHERE national_id_search=? LIMIT 1",
+                (normalize_search(national_id),),
+            ).fetchone()
+            if exact:
+                msg = f"Ya existe un paciente con esa identificación: {exact['name']}. Revise la ficha antes de crear otro registro."
+                return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, msg), "pacientes"), status_code=409)
+        pid, stamp = new_id(), now_iso()
+        digest = hashlib.sha256(f"{pid}|{name}|{stamp}".encode("utf-8")).hexdigest()
+        conn.execute(
+            """INSERT INTO patients(id,legacy_patient_id,name,name_search,birth_date,sex,civil_status,address,phone,next_appointment_legacy,national_id,national_id_search,legacy_notes,legacy_photo,legacy_alert,email,insurer,legacy_no_depurable,source,source_record_hash,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (pid, None, name, normalize_search(name), birth or None, values["sex"] or None, values["civil_status"] or None,
+             values["address"] or None, values["phone"] or None, None, national_id or None, normalize_search(national_id) if national_id else "",
+             values["notes"] or None, None, values["alert"] or None, values["email"] or None, values["insurer"] or None,
+             0, "historia_clinica", digest, stamp, stamp),
+        )
+        audit(conn, "create", "patient", pid, {"name": name})
