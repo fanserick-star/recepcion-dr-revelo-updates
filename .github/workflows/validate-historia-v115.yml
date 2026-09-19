@@ -1,0 +1,32 @@
+name: Validate Historia v1.1.5 shortcut branding
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/v1_1_5_shortcut_branding/**"
+      - ".github/workflows/validate-historia-v115.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild candidate exactly as updater sees it
+        shell: pwsh
+        run: |
+          $p = "historia-clinica/updates/v1_1_5_shortcut_branding"
+          Get-Content "$p/app.py.part01","$p/app.py.part02","$p/app.py.part03","$p/app.py.part04" -Raw | Set-Content -NoNewline app.py
+          Copy-Item "$p/ABRIR_HISTORIA_CLINICA.py" ABRIR_HISTORIA_CLINICA.py
+          Copy-Item "$p/update_manifest.json" update_manifest.json
+          Copy-Item "$p/doctor_icon.b64" doctor_icon.b64
+      - name: Python syntax and release invariants
+        shell: pwsh
+        run: |
+          python -m py_compile app.py ABRIR_HISTORIA_CLINICA.py
+          python -c "import json; m=json.load(open('update_manifest.json',encoding='utf-8')); assert m['version']=='1.1.5'; assert m['app_version']=='1.1.5'; assert 'INICIAR.bat' in m['required_dependencies']; assert 'static/doctor_icon.b64' in m['required_dependencies']"
+          python -c "import pathlib; s=pathlib.Path('ABRIR_HISTORIA_CLINICA.py').read_text(encoding='utf-8'); assert 'APP_USER_MODEL_ID = \"DrArmandoRevelo.HistoriaClinica\"' in s; assert 'shortcut_target=\"INICIAR.bat\"' in s; assert '_ensure_windows_shortcuts()' in s"
+          python -c "import base64,pathlib; b=base64.b64decode(pathlib.Path('doctor_icon.b64').read_text().strip(),validate=True); assert b[:4]==b'\x00\x00\x01\x00'; assert len(b)>10000"
