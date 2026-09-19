@@ -1,0 +1,36 @@
+name: Validate Historia v1.1.6 native shortcut
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/v1_1_6_native_shortcut/**"
+      - ".github/workflows/validate-historia-v116.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rebuild candidate
+        shell: pwsh
+        run: |
+          $p = "historia-clinica/updates/v1_1_6_native_shortcut"
+          $parts = 1..4 | ForEach-Object { Get-Content ("$p/app.py.part{0:d2}" -f $_) -Raw }
+          [IO.File]::WriteAllText("app.py", ($parts -join ""), [Text.UTF8Encoding]::new($false))
+          Copy-Item "$p/ABRIR_HISTORIA_CLINICA.py" .
+          Copy-Item "$p/update_manifest.json" .
+          $b64 = ((1..4 | ForEach-Object { Get-Content ("$p/HistoriaClinica_Dr_Revelo.exe.b64.part{0:d2}" -f $_) -Raw }) -join "")
+          [IO.File]::WriteAllText("HistoriaClinica_Dr_Revelo.exe.b64",$b64,[Text.ASCIIEncoding]::new())
+          [IO.File]::WriteAllBytes("HistoriaClinica_Dr_Revelo.exe",[Convert]::FromBase64String($b64))
+      - name: Validate Python and native payload
+        shell: pwsh
+        run: |
+          python -m py_compile app.py ABRIR_HISTORIA_CLINICA.py
+          python -c "import json; m=json.load(open('update_manifest.json',encoding='utf-8')); assert m['version']=='1.1.6'; assert m['app_version']=='1.1.6'; assert 'static/HistoriaClinica_Dr_Revelo.exe.b64' in m['required_dependencies']"
+          python -c "import pathlib; s=pathlib.Path('app.py').read_text(encoding='utf-8'); assert 'APP_VERSION = \"1.1.6\"' in s; assert '/api/system/shortcut' in s; assert 'Crear / reparar acceso directo' in s"
+          python -c "import pathlib; s=pathlib.Path('ABRIR_HISTORIA_CLINICA.py').read_text(encoding='utf-8'); assert '1.1.6-native-branding-1' in s; assert 'HistoriaClinica_Dr_Revelo.exe' in s; assert 'DrArmandoRevelo.HistoriaClinica' in s"
+          python -c "import pathlib; b=pathlib.Path('HistoriaClinica_Dr_Revelo.exe').read_bytes(); assert b[:2]==b'MZ'; assert len(b)>100000"
