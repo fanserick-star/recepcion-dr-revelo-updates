@@ -1,0 +1,84 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.3.0",
+  "app_version": "1.3.0",
+  "runtime_version": "1.3.0",
+  "mandatory": true,
+  "launcher_version": "2.0.0-transactional-1",
+  "updater_version": "historia-transactional-v3-doctor-safety",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "static/style.css",
+    "INICIAR.bat",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "INICIAR.bat",
+    "static/style.css",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "full_webview_required": true,
+    "browser_fallback": false,
+    "transactional_updater_v2": true,
+    "real_runtime_smoke_test": true,
+    "github_actions_result": "success",
+    "home_button_large_left": true,
+    "clinical_input_uppercase": true,
+    "server_side_uppercase": true,
+    "quick_phrases_uppercase_on_insert": true,
+    "clinical_text_bolder": true,
+    "historical_text_bolder_without_rewriting_legacy": true,
+    "autosave_debounce_ms": 900,
+    "autosave_continuous_interval_ms": 5000,
+    "pagehide_keepalive_save": true,
+    "open_consultation_navigation_guard": true,
+    "finalize_and_return_home": true,
+    "pending_consultation_home_banner": true,
+    "reception_cancel_over_lan": true,
+    "reception_restore_over_lan": true,
+    "cancelled_queue_draft_cleanup": true,
+    "signed_history_protected": true,
+    "queue_duplicate_cleanup": true,
+    "manual_remove_from_waiting_room": true,
+    "afk_real": true,
+    "afk_seconds": 300,
+    "lan_hybrid": true,
+    "cloud_fallback": true,
+    "local_first": true,
+    "database_schema_changes": false
+  }
+}
