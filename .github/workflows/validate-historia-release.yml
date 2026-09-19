@@ -1,0 +1,49 @@
+name: Validate Historia release
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/**"
+      - "latest-historia*.json"
+      - ".github/workflows/validate-historia-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate launcher syntax
+        shell: pwsh
+        run: |
+          python -m py_compile "historia-clinica/updates/v1_1_13_launcher_rescue/ABRIR_HISTORIA_CLINICA.py"
+      - name: Assemble and validate Historia v1.2.1
+        shell: pwsh
+        run: |
+          $parts = @(
+            "historia-clinica/updates/v1_2_1_layout_hotfix/app.py.part01",
+            "historia-clinica/updates/v1_2_1_layout_hotfix/app.py.part02",
+            "historia-clinica/updates/v1_1_6_native_shortcut/app.py.part03",
+            "historia-clinica/updates/v1_1_6_native_shortcut/app.py.part04"
+          )
+          $bytes = New-Object System.Collections.Generic.List[byte]
+          foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p)) }
+          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_121.py",$bytes.ToArray())
+          python -m py_compile "$env:TEMP\historia_app_121.py"
+          python -m py_compile "historia-clinica/updates/v1_2_0_lan_hybrid/lan_bridge.py"
+          python -m py_compile "historia-clinica/updates/v1_2_1_layout_hotfix/cloud_presence_patch.py"
+      - name: Validate CSS structure
+        shell: pwsh
+        run: |
+          $css = Get-Content "historia-clinica/updates/v1_2_1_layout_hotfix/style.css" -Raw
+          $opens = ([regex]::Matches($css,[regex]::Escape("/*"))).Count
+          $closes = ([regex]::Matches($css,[regex]::Escape("*/"))).Count
+          if($opens -ne $closes){ throw "CSS comments unbalanced: $opens / $closes" }
+          $bo = ([regex]::Matches($css,[regex]::Escape("{"))).Count
+          $bc = ([regex]::Matches($css,[regex]::Escape("}"))).Count
+          if($bo -ne $bc){ throw "CSS braces unbalanced: $bo / $bc" }
+          if(-not $css.Contains(".home-workspace")){ throw "Missing home-workspace styles" }
+          if(-not $css.Contains(".system-status-grid")){ throw "Missing system-status-grid styles" }
