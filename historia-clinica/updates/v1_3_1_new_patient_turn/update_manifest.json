@@ -1,0 +1,76 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.3.1",
+  "app_version": "1.3.1",
+  "runtime_version": "1.3.1",
+  "mandatory": true,
+  "launcher_version": "2.0.0-transactional-1",
+  "updater_version": "historia-transactional-v3-new-patient-turn",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "static/style.css",
+    "INICIAR.bat",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "INICIAR.bat",
+    "static/style.css",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "full_webview_required": true,
+    "browser_fallback": false,
+    "transactional_updater_v2": true,
+    "real_runtime_smoke_test": true,
+    "github_actions_result": "success",
+    "new_patient_auto_create_from_reception": true,
+    "new_patient_exact_identification_reuse": true,
+    "new_patient_no_name_autolink": true,
+    "new_patient_auto_link_to_reception": true,
+    "new_patient_single_creation_smoke_test": true,
+    "queue_turn_number_visible": true,
+    "consultation_turn_number_visible": true,
+    "new_patient_high_visibility_badge": true,
+    "signed_history_protected": true,
+    "autosave": true,
+    "clinical_input_uppercase": true,
+    "afk_real": true,
+    "lan_hybrid": true,
+    "cloud_fallback": true,
+    "local_first": true,
+    "database_schema_changes": false
+  }
+}
