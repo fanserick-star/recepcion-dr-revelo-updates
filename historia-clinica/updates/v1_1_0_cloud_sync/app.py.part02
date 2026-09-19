@@ -1,0 +1,333 @@
+ Clínica</strong><small>{DOCTOR_NAME}</small></div>
+  </div>
+  <nav aria-label="Navegación principal">
+    <a class="{'active' if active=='inicio' else ''}" href="/">Inicio</a>
+    <a class="{'active' if active=='pacientes' else ''}" href="/pacientes">Pacientes</a>
+    <a class="{'active' if active=='macros' else ''}" href="/macros">Frases rápidas</a>
+    <a class="nav-new-patient" href="/pacientes/nuevo">+ Nuevo paciente</a>
+  </nav>
+</header>
+<main>{body}</main>
+<footer><span>Historia Clínica v1.0.7</span><span>Base local protegida · Migrada de Consulta Práctica</span></footer>
+<div id="app-toast" class="app-toast" role="status" aria-live="polite" hidden></div>
+<script>
+(()=>{{
+  const toast=document.getElementById('app-toast'); let toastTimer=0;
+  window.showAppToast=(message,type='info')=>{{if(!toast)return;clearTimeout(toastTimer);toast.textContent=String(message||'');toast.className='app-toast '+type;toast.hidden=false;toastTimer=setTimeout(()=>{{toast.hidden=true}},3600)}};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+  document.querySelectorAll('[data-live-patient-search]').forEach(box=>{{
+    const input=box.querySelector('input[name="q"]'), menu=box.querySelector('.live-search-results');
+    if(!input||!menu)return;
+    let timer=0, controller=null, active=-1;
+    const hide=()=>{{menu.hidden=true;menu.innerHTML='';active=-1}};
+    const select=(idx)=>{{const items=[...menu.querySelectorAll('a')];items.forEach(x=>x.classList.remove('active'));if(items[idx]){{active=idx;items[idx].classList.add('active');items[idx].scrollIntoView({{block:'nearest'}})}}}};
+    const run=()=>{{
+      clearTimeout(timer);
+      const q=input.value.trim();
+      if(q.length<2){{hide();return}}
+      timer=setTimeout(async()=>{{
+        try{{
+          controller?.abort(); controller=new AbortController();
+          const r=await fetch('/api/pacientes/buscar?q='+encodeURIComponent(q)+'&limit=8',{{signal:controller.signal}});
+          if(!r.ok)return hide();
+          const data=await r.json();
+          if(!data.length){{menu.innerHTML='<div class="live-empty">No encontré coincidencias</div>';menu.hidden=false;return}}
+          menu.innerHTML=data.map(x=>`<a href="${{esc(x.href)}}"><span class="live-avatar">${{esc((x.name||'?').slice(0,1))}}</span><span class="live-copy"><b>${{esc(x.name)}}</b><small>${{esc(x.detail)}}</small></span><span class="live-count">${{x.records}} reg.</span></a>`).join('');
+          menu.hidden=false; active=-1;
+        }}catch(err){{if(err.name!=='AbortError')hide()}}
+      }},170);
+    }};
+    input.addEventListener('input',run);
+    input.addEventListener('keydown',ev=>{{
+      if(menu.hidden)return; const items=[...menu.querySelectorAll('a')];
+      if(ev.key==='ArrowDown'){{ev.preventDefault();select(Math.min(active+1,items.length-1))}}
+      else if(ev.key==='ArrowUp'){{ev.preventDefault();select(Math.max(active-1,0))}}
+      else if(ev.key==='Enter'&&active>=0&&items[active]){{ev.preventDefault();location.href=items[active].href}}
+      else if(ev.key==='Escape')hide();
+    }});
+    input.addEventListener('focus',()=>{{if(input.value.trim().length>=2)run()}});
+    document.addEventListener('click',ev=>{{if(!box.contains(ev.target))hide()}});
+  }});
+}})();
+</script>
+{extra_script}</body></html>"""
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    hour = now.hour
+    greeting = "Buenos días" if hour < 12 else ("Buenas tardes" if hour < 19 else "Buenas noches")
+    with db() as conn:
+        patient_count = conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
+        encounter_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status!='draft'").fetchone()[0]
+        today_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status='signed' AND source='historia_clinica' AND encounter_date=?", (today,)).fetchone()[0]
+        queue = conn.execute("""
+            SELECT * FROM waiting_queue WHERE status IN ('waiting','in_consultation')
+            ORDER BY CASE status WHEN 'in_consultation' THEN 0 ELSE 1 END, queued_at ASC LIMIT 20
+        """).fetchall()
+        recent = conn.execute("""
+            SELECT p.id,p.name,p.birth_date,p.sex,MAX(a.occurred_at) AS last_opened
+            FROM audit_log a
+            JOIN patients p ON p.id=a.entity_id
+            WHERE a.action='view' AND a.entity_type='patient'
+            GROUP BY p.id,p.name,p.birth_date,p.sex
+            ORDER BY last_opened DESC
+            LIMIT 6
+        """).fetchall()
+
+    queue_count = len(queue)
+    if queue:
+        parts = []
+        for r in queue:
+            status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"
+            action_label = "Continuar" if r["status"] == "in_consultation" else "Atender"
+            if r["clinical_patient_id"]:
+                action = f"<a class='mini-btn' href='/paciente/{e(r['clinical_patient_id'])}/nueva?queue_id={e(r['id'])}'>{action_label}</a>"
+            else:
+                action = f"<a class='mini-btn warn-link' href='/cola/{e(r['id'])}/vincular'>Vincular</a>"
+            queued = e((r["queued_at"] or "")[-8:-3])
+            parts.append(
+                f"<div class='queue-row'><div class='queue-avatar'>{e((r['display_name'] or '?')[:1])}</div>"
+                f"<span><b>{e(r['display_name'])}</b><small>{e(r['attention_type'] or 'Consulta')} · {status_text}</small></span>"
+                f"<time>{queued}</time>{action}</div>"
+            )
+        qhtml = "".join(parts)
+    else:
+        qhtml = "<div class='empty queue-empty'><div class='empty-icon'>✓</div><strong>No hay pacientes en espera</strong><span>Cuando Recepción envíe un paciente al pulsar Atender, aparecerá aquí automáticamente.</span></div>"
+
+    next_row = next((r for r in queue if r["clinical_patient_id"] and r["status"] == "waiting"), None)
+    if next_row is None:
+        next_row = next((r for r in queue if r["clinical_patient_id"]), None)
+    next_button = (
+        f"<a class='home-action primary' href='/paciente/{e(next_row['clinical_patient_id'])}/nueva?queue_id={e(next_row['id'])}'>Atender siguiente</a>"
+        if next_row else "<span class='home-action disabled'>Atender siguiente</span>"
+    )
+
+    if recent:
+        recent_parts = []
+        for r in recent:
+            detail = []
+            if r["birth_date"]:
+                age = age_from_birth(r["birth_date"])
+                if age is not None:
+                    detail.append(f"{age} años")
+            sx = sex_label(r["sex"])
+            if sx:
+                detail.append(sx)
+            try:
+                opened = datetime.fromisoformat(r["last_opened"]).strftime("%H:%M")
+            except Exception:
+                opened = ""
+            suffix = (" · " + " · ".join(detail)) if detail else ""
+            recent_parts.append(
+                f"<a class='recent-row' href='/paciente/{e(r['id'])}'><span class='recent-avatar'>{e((r['name'] or '?')[:1])}</span>"
+                f"<span class='recent-copy'><b>{e(r['name'])}</b><small>Abierto {e(opened)}{e(suffix)}</small></span><span class='recent-arrow'>›</span></a>"
+            )
+        recent_html = "".join(recent_parts)
+        last_patient = recent[0]
+        continue_button = f"<a class='home-action secondary' href='/paciente/{e(last_patient['id'])}'>Continuar último paciente</a>"
+    else:
+        recent_html = "<div class='recent-empty'>Los pacientes que abra aparecerán aquí para volver rápidamente.</div>"
+        continue_button = "<span class='home-action disabled subtle'>Continuar último paciente</span>"
+
+    sync_status = get_sync_status(ROOT / "data")
+    cloud_online = bool(sync_status.get("enabled") and sync_status.get("online"))
+    cloud_state = str(sync_status.get("state") or "local_only")
+    cloud_message = str(sync_status.get("message") or ("Nube sincronizada" if cloud_online else "Trabajando localmente"))
+    pending_sync = int(sync_status.get("pending") or 0)
+    if cloud_online:
+        cloud_class, cloud_mark = "ok", "✓"
+        cloud_detail = cloud_message + (f" · {pending_sync} pendiente{'s' if pending_sync != 1 else ''}" if pending_sync else "")
+    elif sync_status.get("enabled"):
+        cloud_class, cloud_mark = "pending", "↻"
+        cloud_detail = cloud_message
+    else:
+        cloud_class, cloud_mark = "pending", "•"
+        cloud_detail = "Configuración de nube pendiente"
+    backup_dir = ROOT / "data" / "backups"
+    backups = sorted(backup_dir.glob("historia_clinica_*.db"), key=lambda x: x.stat().st_mtime, reverse=True) if backup_dir.exists() else []
+    if backups:
+        backup_class, backup_mark = "ok", "✓"
+        backup_detail = "Copia local " + datetime.fromtimestamp(backups[0].stat().st_mtime).strftime("%d/%m %H:%M")
+    else:
+        backup_class, backup_mark = "pending", "•"
+        backup_detail = "Se creará automáticamente"
+    system_status_html = f"""
+        <div class='system-status ok'><span class='status-mark'>✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
+        <div class='system-status {cloud_class}'><span class='status-mark'>{cloud_mark}</span><span><b>Nube Neon</b><small>{e(cloud_detail)}</small></span></div>
+        <div class='system-status {backup_class}'><span class='status-mark'>{backup_mark}</span><span><b>Respaldo local</b><small>{e(backup_detail)}</small></span></div>
+    """
+
+    body = f"""
+<section class="home-heading home-heading-v107">
+  <div><span class="eyebrow">PANEL MÉDICO</span><h1>{greeting}, Dr. Revelo</h1><p>Acceda a una historia clínica o continúe con el siguiente paciente.</p></div>
+  <div class="stats">
+    <div><span>Pacientes</span><strong>{patient_count:,}</strong></div>
+    <div><span>Historias</span><strong>{encounter_count:,}</strong></div>
+    <div><span>Atendidos hoy</span><strong>{today_count}</strong></div>
+    <div><span>En espera</span><strong>{queue_count}</strong></div>
+  </div>
+</section>
+<section class="search-card home-search home-search-v107">
+  <div class="home-search-line">
+    <div class="patient-live-search" data-live-patient-search>
+      <form action="/pacientes" method="get"><label class="sr-only">Buscar historia clínica</label><div class="searchbox"><input name="q" autofocus autocomplete="off" placeholder="Escriba nombres en cualquier orden, identificación o teléfono"><button>Buscar paciente</button></div></form>
+      <div class="live-search-results" hidden></div>
+    </div>
+    <a class="new-patient-home" href="/pacientes/nuevo">+ Nuevo paciente</a>
+  </div>
+  <p class="search-help">Puede escribir, por ejemplo, <b>CARLOS BRAVO</b> aunque la ficha esté registrada como BRAVO BURBANO CARLOS EMILIO.</p>
+</section>
+<section class="home-workspace">
+  <section class="panel queue-panel home-queue-v107">
+    <div class="panel-title"><div><span class="dot"></span><div><h2>Pacientes en espera</h2><p>{queue_count} paciente{'s' if queue_count!=1 else ''} en la cola del doctor</p></div></div>{next_button}</div>
+    <div class="home-scroll-region">{qhtml}</div>
+  </section>
+  <aside class="home-side-stack">
+    <section class="panel recent-panel">
+      <div class="panel-title compact"><div><div><h2>Pacientes recientes</h2><p>Acceso rápido a las últimas fichas abiertas</p></div></div>{continue_button}</div>
+      <div class="recent-list">{recent_html}</div>
+    </section>
+    <section class="panel system-panel">
+      <div class="system-panel-head"><div><span class="eyebrow">ESTADO DEL SISTEMA</span><h2>Todo lo importante, de un vistazo</h2></div></div>
+      <div class="system-status-grid">{system_status_html}</div>
+    </section>
+  </aside>
+</section>
+"""
+    return base("Inicio", body, "inicio")
+
+
+@app.get("/api/pacientes/buscar")
+def api_patient_search(q: str = Query(default="", max_length=120), limit: int = Query(default=8, ge=1, le=20)):
+    with db() as conn:
+        rows = search_patients(conn, q, limit=limit)
+    result = []
+    for r in rows:
+        ident = clean_legacy_id(r["national_id"])
+        pieces = []
+        if ident:
+            pieces.append(f"ID {ident}")
+        if r["phone"]:
+            pieces.append(str(r["phone"]))
+        if r["birth_date"]:
+            pieces.append(human_date(r["birth_date"]))
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "detail": " · ".join(pieces) if pieces else "Sin datos de contacto registrados",
+            "records": int(r["n_hist"] or 0),
+            "href": f"/paciente/{r['id']}",
+        })
+    return JSONResponse(result)
+
+
+@app.get("/cola/{queue_id}/vincular", response_class=HTMLResponse)
+def link_queue_patient_page(queue_id: str, q: str = Query(default="", max_length=120)):
+    with db() as conn:
+        item = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
+        if not item:
+            raise HTTPException(404, "Paciente en espera no encontrado")
+        rows = search_patients(conn, q.strip(), limit=30) if q.strip() else []
+    matches = "".join(
+        f"""<div class='patient-row queue-link-row'><div class='avatar'>{e((r['name'] or '?')[:1])}</div><div class='patient-main'><b>{e(r['name'])}</b><span>{e(clean_legacy_id(r['national_id']) or 'Sin identificación')} · {e(r['phone'] or 'Sin teléfono')}</span></div><form method='post' action='/cola/{e(queue_id)}/vincular/{e(r['id'])}'><button class='primary' type='submit'>Usar esta ficha</button></form></div>"""
+        for r in rows
+    )
+    if q.strip() and not rows:
+        matches = "<div class='empty'><strong>No encontré coincidencias.</strong><span>Puede buscar con los nombres en otro orden o crear una ficha nueva.</span></div>"
+    elif not q.strip():
+        matches = "<div class='empty'><strong>Busque la ficha correcta.</strong><span>Escriba parte del nombre, identificación o teléfono.</span></div>"
+    body = f"""
+<a class='back cp-back' href='/'>← Volver al inicio</a>
+<section class='page-head'><span class='eyebrow'>VINCULAR PACIENTE</span><h1>{e(item['display_name'])}</h1><p>Recepción envió este paciente sin una coincidencia segura. Elija la ficha correcta una sola vez.</p></section>
+<section class='search-card compact'><form method='get' action='/cola/{e(queue_id)}/vincular'><div class='searchbox'><input name='q' value='{e(q)}' autofocus autocomplete='off' placeholder='Nombre, identificación o teléfono'><button>Buscar</button></div></form></section>
+<section class='panel'><div class='panel-title'><h2>Coincidencias</h2><a class='primary btn-link' href='/pacientes/nuevo?queue_id={e(queue_id)}'>+ Crear paciente nuevo</a></div>{matches}</section>
+"""
+    return base("Vincular paciente", body, "inicio")
+
+
+@app.post("/cola/{queue_id}/vincular/{patient_id}")
+def link_queue_patient(queue_id: str, patient_id: str):
+    with db() as conn:
+        item = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
+        patient = conn.execute("SELECT id,name FROM patients WHERE id=?", (patient_id,)).fetchone()
+        if not item or not patient:
+            raise HTTPException(404)
+        stamp = now_iso()
+        conn.execute("UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? WHERE id=?", (patient_id, stamp, queue_id))
+        if item["reception_patient_id"]:
+            conn.execute("""INSERT INTO patient_links(reception_patient_id,clinical_patient_id,matched_by,verified,verified_at,created_at,updated_at)
+                          VALUES(?,?,?,?,?,?,?) ON CONFLICT(reception_patient_id) DO UPDATE SET
+                          clinical_patient_id=excluded.clinical_patient_id,matched_by=excluded.matched_by,verified=excluded.verified,verified_at=excluded.verified_at,updated_at=excluded.updated_at""",
+                         (item["reception_patient_id"], patient_id, "manual", 1, stamp, stamp, stamp))
+        audit(conn, "link_reception_patient", "patient", patient_id, {"queue_id": queue_id, "display_name": item["display_name"]})
+        conn.commit()
+    SYNC_SERVICE.wake()
+    return RedirectResponse(f"/paciente/{patient_id}/nueva?queue_id={queue_id}", status_code=303)
+
+
+def render_new_patient_form(values=None, error="", queue_id=""):
+    values = values or {}
+    def v(key):
+        return e(values.get(key, ""))
+    error_html = f"<div class='form-error'><strong>No se pudo guardar el paciente.</strong><span>{e(error)}</span></div>" if error else ""
+    sex = str(values.get("sex", "") or "").upper()
+    civil = str(values.get("civil_status", "") or "").upper()
+    return f"""
+<a class='back cp-back' href='/pacientes'>← Volver a pacientes</a>
+<section class='new-patient-shell'>
+  <div class='new-patient-title'>
+    <div><span class='eyebrow'>IDENTIFICACIÓN</span><h1>Nuevo paciente</h1><p>Registre los datos disponibles. La identificación no es obligatoria.</p></div>
+  </div>
+  {error_html}
+  <form method='post' action='/pacientes/nuevo' class='new-patient-form' autocomplete='off'>
+    <input type='hidden' name='queue_id' value='{e(queue_id)}'>
+    <fieldset>
+      <legend>Datos principales</legend>
+      <label class='span-2'>Apellidos y nombres <input name='name' value='{v("name")}' maxlength='180' required autofocus placeholder='APELLIDOS Y NOMBRES'></label>
+      <label>Fecha de nacimiento <input type='date' name='birth_date' value='{v("birth_date")}'></label>
+      <label>Sexo
+        <select name='sex'>
+          <option value='' {'selected' if not sex else ''}>No registrado</option>
+          <option value='M' {'selected' if sex=='M' else ''}>Masculino</option>
+          <option value='F' {'selected' if sex=='F' else ''}>Femenino</option>
+        </select>
+      </label>
+      <label>Estado civil
+        <select name='civil_status'>
+          <option value='' {'selected' if not civil else ''}>No registrado</option>
+          <option value='S' {'selected' if civil=='S' else ''}>Soltero/a</option>
+          <option value='C' {'selected' if civil=='C' else ''}>Casado/a</option>
+          <option value='D' {'selected' if civil=='D' else ''}>Divorciado/a</option>
+          <option value='V' {'selected' if civil=='V' else ''}>Viudo/a</option>
+          <option value='U' {'selected' if civil=='U' else ''}>Unión libre</option>
+        </select>
+      </label>
+      <label>Identificación <input name='national_id' value='{v("national_id")}' maxlength='40' placeholder='Opcional'></label>
+      <label>Teléfono <input name='phone' value='{v("phone")}' maxlength='80' placeholder='Opcional'></label>
+    </fieldset>
+    <fieldset>
+      <legend>Contacto y otros datos</legend>
+      <label class='span-2'>Domicilio <textarea name='address' rows='3' placeholder='Dirección del paciente'>{v("address")}</textarea></label>
+      <label>Email <input type='email' name='email' value='{v("email")}' maxlength='160' placeholder='Opcional'></label>
+      <label>Aseguradora <input name='insurer' value='{v("insurer")}' maxlength='160' placeholder='Opcional'></label>
+      <label class='span-2'>Otros datos / observaciones <textarea name='notes' rows='4' placeholder='Información adicional que convenga conservar'>{v("notes")}</textarea></label>
+      <label class='span-2'>Alerta clínica <textarea name='alert' rows='3' placeholder='Solo si existe una alerta importante'>{v("alert")}</textarea></label>
+    </fieldset>
+    <div class='new-patient-actions'><a class='secondary btn-link' href='/pacientes'>Cancelar</a><button class='primary' type='submit'>Guardar paciente</button></div>
+  </form>
+</section>
+"""
+
+
+@app.get("/pacientes/nuevo", response_class=HTMLResponse)
+def new_patient_page(queue_id: str = ""):
+    values = {}
+    if queue_id:
+        with db() as conn:
+            qrow = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
+            if qrow:
+                values = {"name": qrow["display_name"] or "", "national_id": qrow["identification"] or ""}
+    return 
