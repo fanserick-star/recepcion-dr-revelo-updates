@@ -1,4 +1,4 @@
- single-note'><span>Historia / evolución</span><textarea id='clinical-note' autofocus rows='22' placeholder='Escriba aquí la consulta, evolución, hallazgos, diagnóstico, tratamiento e indicaciones…'>{e(note_value)}</textarea></label>
+ain-note single-note'><span>Historia / evolución</span><textarea id='clinical-note' autofocus rows='22' placeholder='Escriba aquí la consulta, evolución, hallazgos, diagnóstico, tratamiento e indicaciones…'>{e(note_value)}</textarea></label>
   <div class='editor-footer'><div class='autosave-help'>Los cambios se guardan automáticamente.</div><div class='editor-actions'><button id='save-now' class='secondary'>Guardar</button><button id='sign-note' class='primary finish-btn'>Finalizar consulta</button></div></div>
 </div>
 {previous_panel}
