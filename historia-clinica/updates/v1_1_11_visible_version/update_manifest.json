@@ -1,0 +1,62 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.1.11",
+  "app_version": "1.1.11",
+  "runtime_version": "1.1.11",
+  "mandatory": true,
+  "launcher_version": "1.1.10-full-webview-1",
+  "updater_version": "historia-release-gate-v9-visible-version",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "requirements.txt",
+    "static/style.css",
+    "INICIAR.bat",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "requirements.txt",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "INICIAR.bat",
+    "static/style.css",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "full_webview_required": true,
+    "browser_fallback": false,
+    "visible_runtime_version": true,
+    "version_source": "APP_VERSION backend-rendered",
+    "version_location": "topbar",
+    "cloud_sync_progress_live": true,
+    "doctor_presence_heartbeat_seconds": 240,
+    "permanent_install_recommended": "C:\\Historia Clinica Dr Revelo",
+    "database_schema_changes": false
+  }
+}
