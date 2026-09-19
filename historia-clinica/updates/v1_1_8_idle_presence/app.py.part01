@@ -19,6 +19,8 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_status
+import cloud_presence_patch
+cloud_presence_patch.install()
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "historia_clinica.db"
