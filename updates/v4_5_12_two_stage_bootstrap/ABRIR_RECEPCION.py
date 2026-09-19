@@ -1802,12 +1802,20 @@ def main() -> None:
             return
 
         if result.get("quarantined"):
+            try:
+                _rp_diag_report("update_quarantined", RuntimeError(str(result.get("error") or "candidata en cuarentena")))
+            except Exception:
+                pass
             splash.set(
                 "Actualización en cuarentena",
                 "La versión candidata falló previamente; abriendo la última versión estable",
             )
             time.sleep(0.35)
         elif result.get("candidate_failed"):
+            try:
+                _rp_diag_report("update_candidate_failed", RuntimeError(str(result.get("error") or "candidata rechazada")))
+            except Exception:
+                pass
             splash.set(
                 "Actualización descartada de forma segura",
                 "La copia de prueba falló; tu versión estable no fue reemplazada",
