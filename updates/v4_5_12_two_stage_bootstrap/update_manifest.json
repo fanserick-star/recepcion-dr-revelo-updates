@@ -1,0 +1,68 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.5.12",
+  "app_version": "4.5.7",
+  "runtime_version": "4.5.7",
+  "launcher_version": "4.5.12-two-stage-autoupdate-1",
+  "updater_version": "two-stage-channel-v1",
+  "required_dependencies": [
+    "app_patch_4507.py",
+    "app_patch_4506.py",
+    "app_patch_4505.py",
+    "app_patch_4504.py",
+    "app_patch_4502.py",
+    "app_patch_4501.py",
+    "app_patch_4491.py",
+    "app_patch_4490.py",
+    "app_patch_4489.py",
+    "app_patch_4488.py",
+    "app_patch_4487.py",
+    "app_patch_4486.py",
+    "app_patch_4485.py",
+    "app_patch_4484.py",
+    "app_patch_4483.py",
+    "app_patch_4482.py",
+    "app_patch_4481.py",
+    "app_patch_4480.py",
+    "app_patch_4479.py",
+    "app_patch_4478.py",
+    "app_patch_4477.py",
+    "app_patch_4476.py",
+    "app_patch_4475.py",
+    "app_patch_4474.py",
+    "app_patch_4473.py",
+    "app_patch_4470.py",
+    "app_patch_4469.py",
+    "app_patch_4468.py",
+    "app_patch_4467.py",
+    "app_patch_4466.py",
+    "app_patch_4465.py",
+    "app_patch_4464.py",
+    "app_patch_4463.py",
+    "app_patch_4462.py",
+    "app_patch_4461.py",
+    "app_patch_4459.py",
+    "app_prev_4458.py",
+    "app_base_4428.py"
+  ],
+  "required_python_packages": [
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    }
+  ],
+  "copy": [
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "bootstrap_only": true,
+    "bootstrap_target_runtime": "4.5.13",
+    "runtime_channel": "latest-v4-runtime.json",
+    "automatic_updates_only": true,
+    "protects_data": true,
+    "protects_env": true,
+    "protects_excel": true,
+    "reason": "Separar la actualización del launcher de la actualización del runtime para que una candidata de app no pueda bloquear la mejora del updater."
+  }
+}
