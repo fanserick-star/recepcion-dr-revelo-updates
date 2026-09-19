@@ -190,6 +190,7 @@ class LanService:
             conn.commit()
 
         self._last_handoff_at = stamp
+        self._last_error = ""
         self._touch_reception(remote_ip)
         try:
             if self.sync_service is not None:
@@ -207,7 +208,7 @@ class LanService:
 
     def status(self) -> dict:
         return {
-            "ok": self._httpd is not None and not bool(self._last_error),
+            "ok": self._httpd is not None,
             "product": PRODUCT,
             "version": self.app_version,
             "port": LAN_HTTP_PORT,
