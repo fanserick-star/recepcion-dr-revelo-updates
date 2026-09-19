@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -7,61 +8,27 @@ import sqlite3
 import ssl
 import threading
 import time
-import traceback
 import urllib.parse
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-APP_VERSION = "1.1.0"
-
-_TABLE_SPECS: dict[str, dict[str, Any]] = {
-    "patients": {
-        "pk": "id",
-        "columns": [
-            "id", "legacy_patient_id", "name", "name_search", "birth_date", "sex", "civil_status",
-            "address", "phone", "next_appointment_legacy", "national_id", "national_id_search",
-            "legacy_notes", "legacy_photo", "legacy_alert", "email", "insurer", "legacy_no_depurable",
-            "source", "source_record_hash", "created_at", "updated_at",
-        ],
-    },
-    "encounters": {
-        "pk": "id",
-        "columns": [
-            "id", "patient_id", "legacy_history_id", "legacy_patient_id", "encounter_date", "encounter_time",
-            "clinical_note", "diagnosis", "treatment", "legacy_images", "legacy_history_t", "first_time",
-            "legacy_no_depurable", "responsible", "source", "is_legacy_locked", "source_record_hash",
-            "created_at", "updated_at", "note_status", "signed_at", "signed_by", "copied_from_encounter_id",
-            "queue_id", "created_by",
-        ],
-    },
-    "patient_links": {
-        "pk": "reception_patient_id",
-        "columns": [
-            "reception_patient_id", "clinical_patient_id", "matched_by", "verified", "verified_at",
-            "created_at", "updated_at",
-        ],
-    },
-    "waiting_queue": {
-        "pk": "id",
-        "columns": [
-            "id", "reception_event_id", "reception_patient_id", "clinical_patient_id", "display_name",
-            "identification", "attention_type", "queued_at", "status", "started_at", "completed_at",
-            "source", "created_at", "updated_at",
-        ],
-    },
-    "encounter_addenda": {
-        "pk": "id",
-        "columns": ["id", "encounter_id", "text", "created_at", "actor"],
-    },
-    "macros": {
-        "pk": "id",
-        "columns": ["id", "label", "text", "created_at", "updated_at"],
-    },
+BIDIRECTIONAL_TABLES = {
+    "patients": "id",
+    "encounters": "id",
+    "patient_links": "reception_patient_id",
+    "waiting_queue": "id",
+    "encounter_addenda": "id",
+    "macros": "id",
 }
+PUSH_ONLY_TABLES = {
+    "audit_log": "id",
+    "encounter_revisions": "id",
+}
+ALL_SYNC_TABLES = {**BIDIRECTIONAL_TABLES, **PUSH_ONLY_TABLES}
 
-_SYNC_TABLES = tuple(_TABLE_SPECS)
+_STATUS_LOCK = threading.Lock()
+_SERVICE = None
 
 
 def _now_iso() -> str:
@@ -69,394 +36,433 @@ def _now_iso() -> str:
 
 
 def _utc_iso() -> str:
-    return datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def _safe_json_write(path: Path, data: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def load_env_file(path: Path) -> dict[str, str]:
-    out: dict[str, str] = {}
+def _load_env(root: Path) -> dict[str, str]:
+    values = dict(os.environ)
+    path = root / ".env"
     if not path.is_file():
-        return out
-    for raw in path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        out[k.strip()] = v.strip().strip('"').strip("'")
-    return out
+        return values
+    try:
+        for raw in path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in values:
+                values[key] = value
+    except Exception:
+        pass
+    return values
 
 
-def _env_value(root: Path, key: str, default: str = "") -> str:
-    value = (os.getenv(key) or "").strip()
-    if value:
-        return value
-    return load_env_file(root / ".env").get(key, default).strip()
+def _status_path(data_dir: Path) -> Path:
+    return data_dir / "sync_status.json"
 
 
-def _connect_pg(url: str):
-    from pg8000 import dbapi as pg8000
-
-    parts = urllib.parse.urlsplit(url)
-    if parts.scheme not in {"postgres", "postgresql"}:
-        raise RuntimeError("DATABASE_URL de Historia Clínica no es PostgreSQL")
-    user = urllib.parse.unquote(parts.username or "")
-    password = urllib.parse.unquote(parts.password or "")
-    host = parts.hostname or ""
-    database = urllib.parse.unquote((parts.path or "/").lstrip("/")) or "neondb"
-    if not (user and password and host):
-        raise RuntimeError("DATABASE_URL de Historia Clínica incompleta")
-    return pg8000.connect(
-        user=user,
-        password=password,
-        host=host,
-        port=int(parts.port or 5432),
-        database=database,
-        ssl_context=ssl.create_default_context(),
-        timeout=12,
-    )
+def _write_status(data_dir: Path, **values) -> dict:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    path = _status_path(data_dir)
+    with _STATUS_LOCK:
+        old = {}
+        if path.is_file():
+            try:
+                old = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                old = {}
+        old.update(values)
+        old["updated_at"] = _now_iso()
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(old, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+        return old
 
 
-def _sqlite(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path, timeout=20)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys=ON")
-    conn.execute("PRAGMA busy_timeout=10000")
-    return conn
+def get_sync_status(data_dir: Path) -> dict:
+    path = _status_path(data_dir)
+    if not path.is_file():
+        return {
+            "state": "pending",
+            "online": False,
+            "configured": False,
+            "message": "Preparando sincronización",
+            "last_sync": "",
+            "last_backup": "",
+            "pending": 0,
+        }
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {"state": "error", "online": False, "configured": False, "message": "Estado de nube no disponible"}
+
+
+def _device_id(data_dir: Path) -> str:
+    path = data_dir / "device_id.txt"
+    if path.is_file():
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+            if value:
+                return value
+        except Exception:
+            pass
+    value = str(uuid.uuid4())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+    return value
 
 
 def ensure_local_sync_schema(db_path: Path) -> None:
-    with _sqlite(db_path) as conn:
-        conn.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS sync_control (
-              key TEXT PRIMARY KEY,
-              value TEXT NOT NULL
-            );
-            INSERT OR IGNORE INTO sync_control(key,value) VALUES('suppress_outbox','0');
-
-            CREATE TABLE IF NOT EXISTS sync_outbox (
-              entity_type TEXT NOT NULL,
-              entity_id TEXT NOT NULL,
-              operation TEXT NOT NULL DEFAULT 'upsert',
-              queued_at TEXT NOT NULL,
-              attempts INTEGER NOT NULL DEFAULT 0,
-              last_error TEXT,
-              PRIMARY KEY(entity_type, entity_id)
-            );
-
-            CREATE TABLE IF NOT EXISTS sync_state (
-              key TEXT PRIMARY KEY,
-              value TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_sync_outbox_queued ON sync_outbox(queued_at);
-            """
-        )
-        for table, spec in _TABLE_SPECS.items():
-            pk = spec["pk"]
-            for suffix, timing, ref, op in (
-                ("ai", "AFTER INSERT", "NEW", "upsert"),
-                ("au", "AFTER UPDATE", "NEW", "upsert"),
-                ("ad", "AFTER DELETE", "OLD", "delete"),
-            ):
-                conn.execute(f"DROP TRIGGER IF EXISTS sync_{table}_{suffix}")
-                conn.execute(
-                    f"""
-                    CREATE TRIGGER sync_{table}_{suffix} {timing} ON {table}
-                    WHEN COALESCE((SELECT value FROM sync_control WHERE key='suppress_outbox'),'0')!='1'
+    conn = sqlite3.connect(db_path, timeout=20)
+    try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("CREATE TABLE IF NOT EXISTS sync_dirty(table_name TEXT NOT NULL,row_key TEXT NOT NULL,changed_at TEXT NOT NULL,PRIMARY KEY(table_name,row_key))")
+        conn.execute("CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('sync_applying_remote','0')")
+        for table, key in ALL_SYNC_TABLES.items():
+            qtable = table.replace('"','')
+            qkey = key.replace('"','')
+            for op, suffix in (("INSERT", "ai"), ("UPDATE", "au"), ("DELETE", "ad")):
+                trig = f"sync_{qtable}_{suffix}"
+                ref = "OLD" if op == "DELETE" else "NEW"
+                conn.execute(f"DROP TRIGGER IF EXISTS {trig}")
+                conn.execute(f"""
+                    CREATE TRIGGER {trig} AFTER {op} ON {qtable}
+                    WHEN COALESCE((SELECT value FROM meta WHERE key='sync_applying_remote'),'0')!='1'
                     BEGIN
-                      INSERT INTO sync_outbox(entity_type,entity_id,operation,queued_at,attempts,last_error)
-                      VALUES('{table}', CAST({ref}.{pk} AS TEXT), '{op}', datetime('now','localtime'), 0, NULL)
-                      ON CONFLICT(entity_type,entity_id) DO UPDATE SET
-                        operation=excluded.operation, queued_at=excluded.queued_at, attempts=0, last_error=NULL;
+                      INSERT INTO sync_dirty(table_name,row_key,changed_at)
+                      VALUES('{qtable}',CAST({ref}.{qkey} AS TEXT),datetime('now'))
+                      ON CONFLICT(table_name,row_key) DO UPDATE SET changed_at=excluded.changed_at;
                     END
-                    """
+                """)
+        seeded = conn.execute("SELECT value FROM sync_state WHERE key='initial_seeded'").fetchone()
+        if not seeded:
+            for table, key in ALL_SYNC_TABLES.items():
+                conn.execute(
+                    f"INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at) SELECT ?,CAST({key} AS TEXT),datetime('now') FROM {table}",
+                    (table,),
                 )
-
-        # Audit log uses its integer local id; the cloud key is namespaced by device_id.
-        for suffix, timing, ref in (("ai", "AFTER INSERT", "NEW"), ("au", "AFTER UPDATE", "NEW")):
-            conn.execute(f"DROP TRIGGER IF EXISTS sync_audit_log_{suffix}")
-            conn.execute(
-                f"""
-                CREATE TRIGGER sync_audit_log_{suffix} {timing} ON audit_log
-                WHEN COALESCE((SELECT value FROM sync_control WHERE key='suppress_outbox'),'0')!='1'
-                BEGIN
-                  INSERT INTO sync_outbox(entity_type,entity_id,operation,queued_at,attempts,last_error)
-                  VALUES('audit_log', CAST({ref}.id AS TEXT), 'upsert', datetime('now','localtime'), 0, NULL)
-                  ON CONFLICT(entity_type,entity_id) DO UPDATE SET
-                    operation='upsert', queued_at=excluded.queued_at, attempts=0, last_error=NULL;
-                END
-                """
-            )
-
-        for suffix, timing, ref in (("ai", "AFTER INSERT", "NEW"), ("au", "AFTER UPDATE", "NEW")):
-            conn.execute(f"DROP TRIGGER IF EXISTS sync_encounter_revisions_{suffix}")
-            conn.execute(
-                f"""
-                CREATE TRIGGER sync_encounter_revisions_{suffix} {timing} ON encounter_revisions
-                WHEN COALESCE((SELECT value FROM sync_control WHERE key='suppress_outbox'),'0')!='1'
-                BEGIN
-                  INSERT INTO sync_outbox(entity_type,entity_id,operation,queued_at,attempts,last_error)
-                  VALUES('encounter_revisions', CAST({ref}.id AS TEXT), 'upsert', datetime('now','localtime'), 0, NULL)
-                  ON CONFLICT(entity_type,entity_id) DO UPDATE SET
-                    operation='upsert', queued_at=excluded.queued_at, attempts=0, last_error=NULL;
-                END
-                """
-            )
+            conn.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('initial_seeded','1')")
         conn.commit()
+    finally:
+        conn.close()
 
 
-def _state_get(conn: sqlite3.Connection, key: str, default: str = "") -> str:
-    row = conn.execute("SELECT value FROM sync_state WHERE key=?", (key,)).fetchone()
-    return str(row[0]) if row else default
+def _sqlite_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
 
 
-def _state_set(conn: sqlite3.Connection, key: str, value: Any) -> None:
-    conn.execute(
-        "INSERT INTO sync_state(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-        (key, str(value)),
+def _backup_database(db_path: Path, data_dir: Path) -> str:
+    backups = data_dir / "backups"
+    backups.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d")
+    target = backups / f"historia_clinica_{stamp}.db"
+    if target.is_file() and target.stat().st_size > 0:
+        return str(target)
+    tmp = target.with_suffix(".tmp")
+    src = sqlite3.connect(db_path, timeout=20)
+    dst = sqlite3.connect(tmp)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close(); src.close()
+    os.replace(tmp, target)
+    old = sorted(backups.glob("historia_clinica_*.db"), key=lambda p: p.name, reverse=True)
+    for path in old[14:]:
+        try: path.unlink()
+        except Exception: pass
+    return str(target)
+
+
+def _pg_connect(url: str):
+    try:
+        from pg8000 import dbapi as pg
+    except Exception as exc:
+        raise RuntimeError("Falta pg8000. Cierra y vuelve a abrir para completar la instalación.") from exc
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in {"postgresql", "postgres"}:
+        raise RuntimeError("HISTORIA_DATABASE_URL inválida")
+    query = dict(urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
+    timeout = int(query.get("connect_timeout") or 12)
+    return pg.connect(
+        user=urllib.parse.unquote(parts.username or ""),
+        password=urllib.parse.unquote(parts.password or ""),
+        host=parts.hostname or "",
+        port=int(parts.port or 5432),
+        database=urllib.parse.unquote((parts.path or "/neondb").lstrip("/")) or "neondb",
+        ssl_context=ssl.create_default_context(),
+        timeout=timeout,
     )
 
 
-def get_device_id(db_path: Path) -> str:
-    with _sqlite(db_path) as conn:
-        device_id = _state_get(conn, "device_id")
-        if not device_id:
-            device_id = str(uuid.uuid4())
-            _state_set(conn, "device_id", device_id)
-            conn.commit()
-        return device_id
+def _dict_rows(cursor):
+    names = [d[0] for d in cursor.description]
+    return [dict(zip(names, row)) for row in cursor.fetchall()]
 
 
-def get_sync_status(data_dir: Path) -> dict[str, Any]:
-    path = data_dir / "sync_status.json"
-    if not path.is_file():
-        return {
-            "enabled": False,
-            "online": False,
-            "state": "local_only",
-            "message": "Nube pendiente de configurar",
-            "pending": 0,
-            "last_success": "",
-            "last_error": "",
-            "bootstrap_complete": False,
-        }
-    try:
-        data = json.loads(path.read_text(encoding="utf-8-sig"))
-        return data if isinstance(data, dict) else {}
-    except Exception:
-        return {"enabled": False, "online": False, "state": "error", "message": "Estado de nube no disponible"}
+def _remote_now(cur) -> str:
+    cur.execute("SELECT now()::text")
+    return str(cur.fetchone()[0])
 
 
-def create_rotating_backup(db_path: Path, data_dir: Path, keep: int = 14) -> Path | None:
-    if not db_path.is_file():
-        return None
-    backup_dir = data_dir / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    today = datetime.now().strftime("%Y-%m-%d")
-    target = backup_dir / f"historia_clinica_{today}.db"
-    if not target.exists():
-        src = sqlite3.connect(db_path)
-        dst = sqlite3.connect(target)
-        try:
-            src.backup(dst)
-        finally:
-            dst.close(); src.close()
-    old = sorted(backup_dir.glob("historia_clinica_*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for p in old[max(1, int(keep)):]:
-        try:
-            p.unlink()
-        except Exception:
-            pass
-    return target
-
-
-def _normalize_search(value: Any) -> str:
-    import unicodedata, re
-    text = unicodedata.normalize("NFKD", str(value or "")).encode("ascii", "ignore").decode("ascii")
-    text = re.sub(r"[^A-Za-z0-9]+", " ", text.upper()).strip()
-    return " ".join(text.split())
-
-
-def _upsert_cloud(cursor, table: str, values: dict[str, Any]) -> None:
-    spec = _TABLE_SPECS[table]
-    cols = spec["columns"]
-    pk = spec["pk"]
-    actual = {c: values.get(c) for c in cols}
-    placeholders = ",".join(["%s"] * len(cols))
-    assignments = ",".join(f"{c}=EXCLUDED.{c}" for c in cols if c != pk)
-    sql = f"INSERT INTO {table} ({','.join(cols)}) VALUES ({placeholders}) ON CONFLICT ({pk}) DO UPDATE SET {assignments}"
-    cursor.execute(sql, tuple(actual[c] for c in cols))
-
-
-def _delete_cloud(cursor, table: str, entity_id: str) -> None:
-    spec = _TABLE_SPECS[table]
-    cursor.execute(f"DELETE FROM {table} WHERE {spec['pk']}=%s", (entity_id,))
-
-
-def _load_local_entity(conn: sqlite3.Connection, table: str, entity_id: str) -> dict[str, Any] | None:
-    if table in _TABLE_SPECS:
-        pk = _TABLE_SPECS[table]["pk"]
-        row = conn.execute(f"SELECT * FROM {table} WHERE {pk}=?", (entity_id,)).fetchone()
-        return dict(row) if row else None
-    if table == "audit_log":
-        row = conn.execute("SELECT * FROM audit_log WHERE id=?", (entity_id,)).fetchone()
-        return dict(row) if row else None
-    if table == "encounter_revisions":
-        row = conn.execute("SELECT * FROM encounter_revisions WHERE id=?", (entity_id,)).fetchone()
-        return dict(row) if row else None
-    return None
-
-
-def _push_special(cursor, table: str, row: dict[str, Any], device_id: str) -> None:
-    if table == "audit_log":
-        cloud_id = f"{device_id}:{row['id']}"
-        cursor.execute(
-            """INSERT INTO audit_log(id,occurred_at,actor,action,entity_type,entity_id,details_json,device_id)
-               VALUES(%s,%s,%s,%s,%s,%s,%s,%s)
-               ON CONFLICT(id) DO UPDATE SET occurred_at=EXCLUDED.occurred_at,actor=EXCLUDED.actor,
-                 action=EXCLUDED.action,entity_type=EXCLUDED.entity_type,entity_id=EXCLUDED.entity_id,
-                 details_json=EXCLUDED.details_json,device_id=EXCLUDED.device_id""",
-            (cloud_id, row.get("occurred_at"), row.get("actor"), row.get("action"), row.get("entity_type"),
-             row.get("entity_id"), row.get("details_json"), device_id),
-        )
-        return
-    if table == "encounter_revisions":
-        source_key = f"{device_id}:{row['id']}"
-        cursor.execute(
-            """INSERT INTO encounter_revisions(source_key,encounter_id,revision_no,saved_at,actor,clinical_note,diagnosis,treatment,reason)
-               VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)
-               ON CONFLICT(source_key) DO UPDATE SET encounter_id=EXCLUDED.encounter_id,revision_no=EXCLUDED.revision_no,
-                 saved_at=EXCLUDED.saved_at,actor=EXCLUDED.actor,clinical_note=EXCLUDED.clinical_note,
-                 diagnosis=EXCLUDED.diagnosis,treatment=EXCLUDED.treatment,reason=EXCLUDED.reason""",
-            (source_key, row.get("encounter_id"), row.get("revision_no"), row.get("saved_at"), row.get("actor"),
-             row.get("clinical_note"), row.get("diagnosis"), row.get("treatment"), row.get("reason")),
-        )
-        return
-    raise RuntimeError(f"Entidad especial no soportada: {table}")
-
-
-def _bootstrap_table(sqlite_conn: sqlite3.Connection, pg_cursor, table: str, device_id: str, progress_cb) -> int:
-    total = sqlite_conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-    done = 0
-    if table in _TABLE_SPECS:
-        rows = sqlite_conn.execute(f"SELECT * FROM {table}").fetchall()
-        for row in rows:
-            _upsert_cloud(pg_cursor, table, dict(row))
-            done += 1
-            if done % 100 == 0:
-                progress_cb(table, done, total)
-    elif table == "audit_log":
-        rows = sqlite_conn.execute("SELECT * FROM audit_log").fetchall()
-        for row in rows:
-            _push_special(pg_cursor, table, dict(row), device_id)
-            done += 1
-            if done % 100 == 0: progress_cb(table, done, total)
-    elif table == "encounter_revisions":
-        rows = sqlite_conn.execute("SELECT * FROM encounter_revisions").fetchall()
-        for row in rows:
-            _push_special(pg_cursor, table, dict(row), device_id)
-            done += 1
-            if done % 100 == 0: progress_cb(table, done, total)
-    progress_cb(table, done, total)
-    return done
-
-
-def _parse_cloud_ts(value: Any) -> str:
+def _normalize_remote_value(value):
     if value is None:
-        return ""
-    if isinstance(value, datetime):
+        return None
+    if isinstance(value, (datetime,)):
         return value.isoformat()
-    return str(value)
-
-
-def _apply_cloud_rows(db_path: Path, table: str, columns: list[str], rows: list[tuple[Any, ...]]) -> int:
-    if not rows:
-        return 0
-    spec = _TABLE_SPECS[table]
-    local_cols = spec["columns"]
-    pk = spec["pk"]
-    positions = {name: idx for idx, name in enumerate(columns)}
-    with _sqlite(db_path) as conn:
-        conn.execute("UPDATE sync_control SET value='1' WHERE key='suppress_outbox'")
-        try:
-            for raw in rows:
-                row = {c: raw[positions[c]] if c in positions else None for c in local_cols}
-                # Waiting queue can arrive without a clinical link. Resolve safely.
-                if table == "waiting_queue" and not row.get("clinical_patient_id"):
-                    reception_id = str(row.get("reception_patient_id") or "")
-                    if reception_id:
-                        link = conn.execute("SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=?", (reception_id,)).fetchone()
-                        if link:
-                            row["clinical_patient_id"] = link[0]
-                    if not row.get("clinical_patient_id") and row.get("identification"):
-                        key = _normalize_search(row.get("identification"))
-                        matches = conn.execute("SELECT id FROM patients WHERE national_id_search=? LIMIT 2", (key,)).fetchall()
-                        if len(matches) == 1:
-                            patient_id = matches[0][0]
-                            row["clinical_patient_id"] = patient_id
-                            stamp = _now_iso()
-                            conn.execute(
-                                """INSERT INTO patient_links(reception_patient_id,clinical_patient_id,matched_by,verified,verified_at,created_at,updated_at)
-                                   VALUES(?,?,?,?,?,?,?) ON CONFLICT(reception_patient_id) DO UPDATE SET
-                                   clinical_patient_id=excluded.clinical_patient_id,matched_by=excluded.matched_by,
-                                   verified=excluded.verified,verified_at=excluded.verified_at,updated_at=excluded.updated_at""",
-                                (reception_id, patient_id, "national_id", 1, stamp, stamp, stamp),
-                            )
-                vals = [row.get(c) for c in local_cols]
-                placeholders = ",".join("?" for _ in local_cols)
-                assignments = ",".join(f"{c}=excluded.{c}" for c in local_cols if c != pk)
-                conn.execute(
-                    f"INSERT INTO {table} ({','.join(local_cols)}) VALUES ({placeholders}) ON CONFLICT({pk}) DO UPDATE SET {assignments}",
-                    vals,
-                )
-        finally:
-            conn.execute("UPDATE sync_control SET value='0' WHERE key='suppress_outbox'")
-            # Newly auto-created links should be sent back to the cloud for future queue items.
-            if table == "waiting_queue":
-                links = conn.execute(
-                    """SELECT reception_patient_id FROM patient_links
-                       WHERE matched_by='national_id' AND reception_patient_id NOT IN
-                       (SELECT entity_id FROM sync_outbox WHERE entity_type='patient_links')"""
-                ).fetchall()
-                stamp = _now_iso()
-                for link in links:
-                    conn.execute(
-                        """INSERT INTO sync_outbox(entity_type,entity_id,operation,queued_at,attempts,last_error)
-                           VALUES('patient_links',?,'upsert',?,0,NULL)
-                           ON CONFLICT(entity_type,entity_id) DO UPDATE SET operation='upsert',queued_at=excluded.queued_at,attempts=0,last_error=NULL""",
-                        (str(link[0]), stamp),
-                    )
-            conn.commit()
-    return len(rows)
+    return value
 
 
 class CloudSyncService:
     def __init__(self, root: Path, db_path: Path):
         self.root = Path(root)
         self.db_path = Path(db_path)
-        self.data_dir = self.db_path.parent
-        self.status_path = self.data_dir / "sync_status.json"
+        self.data_dir = self.root / "data"
+        self.env = _load_env(self.root)
+        self.url = (self.env.get("HISTORIA_DATABASE_URL") or "").strip()
+        self.enabled = str(self.env.get("HISTORIA_SYNC_ENABLED", "1")).strip().lower() not in {"0","false","no","off"}
+        self.device_id = _device_id(self.data_dir)
         self._stop = threading.Event()
         self._wake = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._thread = None
         self._last_activity = time.monotonic()
-        self._lock = threading.Lock()
-        self._running_cycle = False
-        self.device_id = get_device_id(self.db_path)
-        self.database_url = _env_value(self.root, "HISTORIA_DATABASE_URL") or _env_value(self.root, "DATABASE_URL")
-        self.enabled = bool(self.database_url)
-        self._write_status(
-            enabled=self.enabled,
-            online=False,
-            state="ready" if self.enabled else "local_only",
-            message="Nube lista para sincronizar" if self.enabled else "Nube pendiente de configurar",
+        self._last_pull_monotonic = 0.0
+        _write_status(
+            self.data_dir,
+            configured=bool(self.url and self.enabled), online=False,
+            state="pending" if self.url and self.enabled else "disabled",
+            message="Nube preparada" if self.url and self.enabled else "Nube no configurada",
+            device_id=self.device_id,
         )
 
-    d
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="historia-cloud-sync", daemon=True)
+        self._thread.start()
+        self._wake.set()
+
+    def stop(self):
+        self._stop.set(); self._wake.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=3)
+
+    def wake(self):
+        self._wake.set()
+
+    def mark_activity(self):
+        self._last_activity = time.monotonic()
+        self._wake.set()
+
+    def _pending(self, conn: sqlite3.Connection) -> int:
+        return int(conn.execute("SELECT COUNT(*) FROM sync_dirty").fetchone()[0])
+
+    def _get_state(self, conn: sqlite3.Connection, key: str, default=""):
+        row = conn.execute("SELECT value FROM sync_state WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def _set_state(self, conn: sqlite3.Connection, key: str, value: str):
+        conn.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)", (key, str(value)))
+
+    def _run(self):
+        try:
+            backup = _backup_database(self.db_path, self.data_dir)
+            _write_status(self.data_dir, last_backup=backup, backup_ok=True)
+        except Exception as exc:
+            _write_status(self.data_dir, backup_ok=False, backup_error=type(exc).__name__)
+        if not self.enabled or not self.url:
+            return
+        while not self._stop.is_set():
+            try:
+                self._cycle()
+            except Exception as exc:
+                _write_status(
+                    self.data_dir, state="offline", online=False,
+                    message="Trabajando localmente; la nube se reintentará",
+                    last_error=f"{type(exc).__name__}: {str(exc)[:180]}",
+                )
+            self._wake.wait(timeout=30)
+            self._wake.clear()
+
+    def _cycle(self):
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        try:
+            pending = self._pending(sconn)
+            active = (time.monotonic() - self._last_activity) < 300
+            pull_due = active and (time.monotonic() - self._last_pull_monotonic >= 90)
+            if pending == 0 and not pull_due:
+                _write_status(self.data_dir, pending=0)
+                return
+        finally:
+            sconn.close()
+
+        pg = _pg_connect(self.url)
+        try:
+            pg.autocommit = False
+            cur = pg.cursor()
+            remote_now = _remote_now(cur)
+            pg.commit()
+            pulled = self._pull(pg, remote_now) if pull_due else 0
+            pushed = self._push(pg)
+            self._register_device(pg)
+            pg.commit()
+            if pull_due:
+                self._last_pull_monotonic = time.monotonic()
+            sconn = sqlite3.connect(self.db_path, timeout=20)
+            try:
+                pending_after = self._pending(sconn)
+            finally:
+                sconn.close()
+            _write_status(
+                self.data_dir, state="synced" if pending_after == 0 else "syncing", online=True, configured=True,
+                message="Nube sincronizada" if pending_after == 0 else f"Subiendo respaldo… {pending_after} pendientes", last_sync=_now_iso(),
+                pending=pending_after, last_pushed=pushed, last_pulled=pulled,
+                last_error="",
+            )
+            if pending_after > 0:
+                self._wake.set()
+        finally:
+            try: pg.close()
+            except Exception: pass
+
+    def _register_device(self, pg):
+        cur = pg.cursor(); stamp = _now_iso()
+        cur.execute(
+            """INSERT INTO devices(id,display_name,first_seen_at,last_seen_at,app_version)
+               VALUES(%s,%s,%s,%s,%s)
+               ON CONFLICT(id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,app_version=EXCLUDED.app_version""",
+            (self.device_id, os.getenv("COMPUTERNAME") or "PC Historia Clínica", stamp, stamp, "1.1.0"),
+        )
+
+    def _push(self, pg) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pushed = 0
+        completed = []
+        try:
+            items = sconn.execute("""
+                SELECT table_name,row_key FROM sync_dirty
+                ORDER BY CASE table_name
+                  WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
+                  WHEN 'waiting_queue' THEN 4 WHEN 'encounter_addenda' THEN 5 WHEN 'macros' THEN 6
+                  WHEN 'audit_log' THEN 7 WHEN 'encounter_revisions' THEN 8 ELSE 99 END,
+                  changed_at, row_key
+                LIMIT 750
+            """).fetchall()
+            for item in items:
+                table, key = item["table_name"], item["row_key"]
+                if table not in ALL_SYNC_TABLES:
+                    completed.append((table,key)); continue
+                pk = ALL_SYNC_TABLES[table]
+                row = sconn.execute(f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=?", (key,)).fetchone()
+                cur = pg.cursor()
+                if row is None:
+                    if table in BIDIRECTIONAL_TABLES:
+                        cur.execute(f"UPDATE {table} SET deleted_at=%s WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
+                    completed.append((table,key)); pushed += 1
+                    continue
+                data = dict(row)
+                if table == "audit_log":
+                    data["id"] = f"{self.device_id}:{row['id']}"
+                    data["device_id"] = self.device_id
+                    columns = ["id","occurred_at","actor","action","entity_type","entity_id","details_json","device_id"]
+                    vals = [data.get(c) for c in columns]
+                    cur.execute(
+                        "INSERT INTO audit_log("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(id) DO NOTHING",
+                        vals,
+                    )
+                elif table == "encounter_revisions":
+                    source_key = f"{self.device_id}:{row['id']}"
+                    columns = ["source_key","encounter_id","revision_no","saved_at","actor","clinical_note","diagnosis","treatment","reason"]
+                    vals = [source_key] + [data.get(c) for c in columns[1:]]
+                    cur.execute(
+                        "INSERT INTO encounter_revisions("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(source_key) DO NOTHING",
+                        vals,
+                    )
+                else:
+                    remote_cols = self._remote_columns_for(table, data)
+                    columns = [c for c in remote_cols if c in data and c not in {"cloud_updated_at","deleted_at"}]
+                    vals = [data.get(c) for c in columns]
+                    updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
+                    sql = f"INSERT INTO {table}({','.join(columns)}) VALUES({','.join(['%s']*len(columns))}) ON CONFLICT({pk}) DO UPDATE SET {','.join(updates)},deleted_at=NULL"
+                    cur.execute(sql, vals)
+                completed.append((table,key)); pushed += 1
+            pg.commit()
+            if completed:
+                sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=?", completed)
+                sconn.commit()
+            return pushed
+        except Exception:
+            try: pg.rollback()
+            except Exception: pass
+            raise
+        finally:
+            sconn.close()
+
+    def _remote_columns_for(self, table: str, data: dict) -> list[str]:
+        # Cloud schema mirrors the local columns plus cloud_updated_at/deleted_at.
+        return list(data.keys())
+
+    def _pull(self, pg, remote_now: str) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pulled = 0
+        try:
+            last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
+            sconn.execute("UPDATE meta SET value='1' WHERE key='sync_applying_remote'")
+            sconn.commit()
+            for table, pk in BIDIRECTIONAL_TABLES.items():
+                cur = pg.cursor()
+                cur.execute(
+                    f"SELECT * FROM {table} WHERE cloud_updated_at>%s::timestamptz AND cloud_updated_at<=%s::timestamptz ORDER BY cloud_updated_at LIMIT 2000",
+                    (last_pull, remote_now),
+                )
+                rows = _dict_rows(cur)
+                local_cols = set(_sqlite_columns(sconn, table))
+                for remote in rows:
+                    key = remote.get(pk)
+                    if key is None:
+                        continue
+                    if remote.get("deleted_at"):
+                        # Do not physically delete patients/encounters; hide remote deletions only where safe.
+                        if table in {"macros","waiting_queue","patient_links","encounter_addenda"}:
+                            sconn.execute(f"DELETE FROM {table} WHERE CAST({pk} AS TEXT)=?", (str(key),))
+                        continue
+                    data = {k: _normalize_remote_value(v) for k,v in remote.items() if k in local_cols}
+                    cols = list(data.keys())
+                    if not cols:
+                        continue
+                    placeholders = ",".join(["?"]*len(cols))
+                    updates = ",".join([f"{c}=excluded.{c}" for c in cols if c != pk])
+                    if updates:
+                        sql = f"INSERT INTO {table}({','.join(cols)}) VALUES({placeholders}) ON CONFLICT({pk}) DO UPDATE SET {updates}"
+                    else:
+                        sql = f"INSERT OR IGNORE INTO {table}({','.join(cols)}) VALUES({placeholders})"
+                    sconn.execute(sql, [data[c] for c in cols])
+                    pulled += 1
+            self._set_state(sconn, "last_pull", remote_now)
+            sconn.execute("UPDATE meta SET value='0' WHERE key='sync_applying_remote'")
+            sconn.commit()
+            return pulled
+        except Exception:
+            try:
+                sconn.execute("UPDATE meta SET value='0' WHERE key='sync_applying_remote'")
+                sconn.commit()
+            except Exception:
+                pass
+            raise
+        finally:
+            sconn.close()
+
+
+def build_sync_service(root: Path, db_path: Path) -> CloudSyncService:
+    global _SERVICE
+    if _SERVICE is None:
+        _SERVICE = CloudSyncService(root, db_path)
+    return _SERVICE
+
