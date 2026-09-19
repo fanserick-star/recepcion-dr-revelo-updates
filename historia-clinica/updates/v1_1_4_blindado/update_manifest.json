@@ -1,0 +1,50 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.1.4",
+  "app_version": "1.1.4",
+  "runtime_version": "1.1.4",
+  "launcher_version": "1.1.4-safe-gate-1",
+  "updater_version": "historia-release-gate-v2-blindado",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "requirements.txt",
+    "static/style.css"
+  ],
+  "required_python_packages": [
+    {"import": "fastapi", "pip": "fastapi==0.128.2"},
+    {"import": "uvicorn", "pip": "uvicorn==0.48.0"},
+    {"import": "pg8000", "pip": "pg8000>=1.31,<2"},
+    {"import": "webview", "pip": "pywebview>=5.4,<7"}
+  ],
+  "copy": [
+    "app.py",
+    "cloud_sync.py",
+    "requirements.txt",
+    "static/style.css",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "download_only_changed_files": true,
+    "sha256_validation": true,
+    "python_syntax_preflight": true,
+    "isolated_trial_boot": true,
+    "candidate_quarantine_after_failures": 2,
+    "rollback_backups_retained": 3,
+    "automatic_rollback_after_startup_failure": true,
+    "last_known_good_tracking": true,
+    "required_dependency_guard": true,
+    "required_python_package_guard": true,
+    "dynamic_port_fallback": true,
+    "single_instance_guard": true,
+    "visible_four_stage_splash": true,
+    "copy_diagnostic_button": true,
+    "launcher_self_relaunch_after_update": true,
+    "update_before_focus_when_mandatory": true,
+    "cloud_sync_progress_live": true,
+    "queue_live_refresh": true
+  }
+}
