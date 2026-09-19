@@ -1,4 +1,4 @@
-base("Nuevo paciente", render_new_patient_form(values, queue_id=queue_id), "pacientes")
+ return base("Nuevo paciente", render_new_patient_form(values, queue_id=queue_id), "pacientes")
 
 
 @app.post("/pacientes/nuevo", response_class=HTMLResponse)
@@ -292,4 +292,4 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
 <div class='editor-main clinical-editor'>
   <div class='editor-section-head'><div><h2>Nueva consulta</h2></div><div class='date-fields'><label>Fecha<input id='enc-date' type='date' value='{e(date_value)}'></label><label>Hora<input id='enc-time' type='time' value='{e(time_value)}'></label></div></div>
   <div class='consult-tools'><button id='toggle-macros' class='secondary'>Frases rápidas</button></div>
-  <label class='editor-field main-note
+  <label class='editor-field m
