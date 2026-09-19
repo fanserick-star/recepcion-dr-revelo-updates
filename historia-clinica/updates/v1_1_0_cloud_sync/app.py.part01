@@ -291,6 +291,7 @@ def _legacy_year_number(raw):
         return None
     if len(raw) == 2:
         return 2000 + value
+    # El programa contiene años digitados como 005, 010 o 026.
     if len(raw) == 3 and raw.startswith("0"):
         return 2000 + int(raw[-2:])
     if len(raw) == 4:
@@ -309,6 +310,8 @@ def _valid_calendar_date(day, month, year=None):
         except ValueError:
             return False
     else:
+        # Sin año no podemos validar 29/febrero con exactitud; febrero se
+        # admite hasta 29 y el resto usa sus límites naturales.
         max_days = (31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
         if day > max_days[month - 1]:
             return False
@@ -345,6 +348,12 @@ def legacy_date_markers(value):
 
 
 def segment_legacy_history(value, encounter_date=""):
+    """Divide visualmente una nota antigua usando las fechas escritas dentro.
+
+    El texto fuente permanece intacto en encounters.clinical_note. El orden es
+    exactamente el orden del documento, incluso si una fecha fue digitada con
+    un año equivocado o quedó cronológicamente fuera de orden.
+    """
     text, markers = legacy_date_markers(value)
     if not markers:
         return []
@@ -376,6 +385,12 @@ def segment_legacy_history(value, encounter_date=""):
 
 
 def render_legacy_segments(value, encounter_date=""):
+    """Renderiza el historial antiguo por fechas, mostrando lo más reciente primero.
+
+    La segmentación sigue siendo únicamente visual: el texto fuente no se
+    modifica. Fechas con año conocido se ordenan de forma descendente; las
+    fechas sin año se conservan al final en su orden original.
+    """
     segments = segment_legacy_history(value, encounter_date)
     if not segments:
         return "", 0, 0
@@ -396,6 +411,8 @@ def render_legacy_segments(value, encounter_date=""):
     ordered = [item for _, item in sorted(enumerate(segments), key=sort_key, reverse=True)]
     cards = []
     for item in ordered:
+        # El doctor solo necesita la fecha y el contenido que escribió.
+        # No mostramos etiquetas técnicas de detección ni la grafía original.
         content = e(item["content"]).replace("\n", "<br>") if item["content"] else "<em>Sin texto registrado</em>"
         cards.append(f"""
         <section class='legacy-segment compact'>
@@ -444,6 +461,7 @@ def human_date(text):
 
 
 def normalize_search(value):
+    """Normaliza búsquedas para permitir nombres en cualquier orden y sin tildes."""
     raw = unicodedata.normalize("NFD", str(value or ""))
     raw = "".join(ch for ch in raw if unicodedata.category(ch) != "Mn")
     raw = raw.upper()
@@ -488,6 +506,7 @@ def _name_rank(name_search, query_norm):
             score += 4
         else:
             score += 20
+    # Favorece coincidencias con menos palabras extra, sin exigir el orden escrito.
     score += max(0, len(n_tokens) - len(q_tokens))
     return score
 
@@ -569,4 +588,4 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
 <header class="topbar">
   <div class="brand">
     <img class="brand-logo" src="/static/doctor_logo.png" alt="Logo del Dr. Armando Revelo">
-    <div class="brand-copy"><strong>Historia 
+    <div class="brand-copy"><strong>Historia
