@@ -100,7 +100,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
     lastActivityPing=now;
     fetch('/api/activity',{method:'POST',cache:'no-store',keepalive:true}).catch(()=>{});
   };
-  ['pointerdown','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,()=>pingActivity(false),{passive:true}));
+  ['pointerdown','pointermove','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,()=>pingActivity(false),{passive:true}));
   window.addEventListener('focus',()=>pingActivity(true));
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)pingActivity(true)});
   window.showAppToast=(message,type='info')=>{{if(!toast)return;clearTimeout(toastTimer);toast.textContent=String(message||'');toast.className='app-toast '+type;toast.hidden=false;toastTimer=setTimeout(()=>{{toast.hidden=true}},3600)}};
@@ -354,7 +354,7 @@ def home():
             status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"
             action_label = "Continuar" if r["status"] == "in_consultation" else ("Atender" if r["clinical_patient_id"] else "Vincular y atender")
             attention_label = _queue_display_type(r)
-            attention_key = normalize_search(attention_label).replace(" ", "-") or "consulta"
+            attention_key = normalize_search(attention_label).lower().replace(" ", "-") or "consulta"
             queued = e((r["queued_at"] or "")[-8:-3])
             href = f"/cola/{e(r['id'])}/atender"
             parts.append(
