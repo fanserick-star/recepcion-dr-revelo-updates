@@ -8,7 +8,7 @@
   </nav>
 </header>
 <main>{body}</main>
-<footer><span>Historia Clínica v1.0.7</span><span>Base local protegida · Migrada de Consulta Práctica</span></footer>
+<footer><span>Historia Clínica v{APP_VERSION}</span><span>Base local protegida · Migrada de Consulta Práctica</span></footer>
 <div id="app-toast" class="app-toast" role="status" aria-live="polite" hidden></div>
 <script>
 (()=>{{
@@ -330,4 +330,4 @@ def new_patient_page(queue_id: str = ""):
             qrow = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
             if qrow:
                 values = {"name": qrow["display_name"] or "", "national_id": qrow["identification"] or ""}
-    return 
+   
