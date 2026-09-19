@@ -1,0 +1,3 @@
+Historia Clinica v1.2.0 LAN hibrida
+LAN local para presencia y cola inmediata; Neon permanece como respaldo.
+No contiene credenciales.
