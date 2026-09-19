@@ -1,0 +1,37 @@
+name: Build Historia native launcher
+
+on:
+  push:
+    paths:
+      - "historia-clinica/native/HistoriaClinicaLauncher.c"
+      - ".github/workflows/build-historia-native-launcher.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode icon
+        shell: pwsh
+        run: |
+          $b64 = Get-Content "historia-clinica/updates/v1_1_5_shortcut_branding/doctor_icon.b64" -Raw
+          [IO.File]::WriteAllBytes("doctor_icon.ico",[Convert]::FromBase64String($b64.Trim()))
+          Set-Content -Path "HistoriaClinicaLauncher.rc" -Value '1 ICON "doctor_icon.ico"' -Encoding ascii
+      - name: Build launcher
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%i"
+          call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat"
+          rc /nologo HistoriaClinicaLauncher.rc
+          cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:HistoriaClinica_Dr_Revelo.exe historia-clinica\native\HistoriaClinicaLauncher.c HistoriaClinicaLauncher.res ole32.lib shell32.lib propsys.lib
+      - name: Upload launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: historia-native-launcher
+          path: HistoriaClinica_Dr_Revelo.exe
+          if-no-files-found: error
+          retention-days: 7
