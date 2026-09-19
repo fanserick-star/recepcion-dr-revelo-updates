@@ -1,59 +1,5 @@
- return base("Nuevo paciente", render_new_patient_form(values, queue_id=queue_id), "pacientes")
-
-
-@app.post("/pacientes/nuevo", response_class=HTMLResponse)
-async def create_patient(request: Request):
-    raw = (await request.body()).decode("utf-8", errors="replace")
-    parsed = parse_qs(raw, keep_blank_values=True)
-    values = {k: (parsed.get(k, [""])[0] or "").strip() for k in (
-        "name", "birth_date", "sex", "civil_status", "national_id", "phone", "address", "email", "insurer", "notes", "alert"
-    )}
-    queue_id = (parsed.get("queue_id", [""])[0] or "").strip()
-    name = re.sub(r"\s+", " ", values["name"]).strip().upper()
-    values["name"] = name
-    if not name:
-        return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "El nombre del paciente es obligatorio.", queue_id), "pacientes"), status_code=400)
-    birth = values["birth_date"]
-    if birth:
-        try:
-            datetime.strptime(birth, "%Y-%m-%d")
-        except ValueError:
-            return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "La fecha de nacimiento no es válida.", queue_id), "pacientes"), status_code=400)
-    national_id = values["national_id"]
-    with db() as conn:
-        if national_id:
-            exact = conn.execute(
-                "SELECT id,name FROM patients WHERE national_id_search=? LIMIT 1",
-                (normalize_search(national_id),),
-            ).fetchone()
-            if exact:
-                msg = f"Ya existe un paciente con esa identificación: {exact['name']}. Revise la ficha antes de crear otro registro."
-                return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, msg, queue_id), "pacientes"), status_code=409)
-        pid, stamp = new_id(), now_iso()
-        digest = hashlib.sha256(f"{pid}|{name}|{stamp}".encode("utf-8")).hexdigest()
-        conn.execute(
-            """INSERT INTO patients(id,legacy_patient_id,name,name_search,birth_date,sex,civil_status,address,phone,next_appointment_legacy,national_id,national_id_search,legacy_notes,legacy_photo,legacy_alert,email,insurer,legacy_no_depurable,source,source_record_hash,created_at,updated_at)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (pid, None, name, normalize_search(name), birth or None, values["sex"] or None, values["civil_status"] or None,
-             values["address"] or None, values["phone"] or None, None, national_id or None, normalize_search(national_id) if national_id else "",
-             values["notes"] or None, None, values["alert"] or None, values["email"] or None, values["insurer"] or None,
-             0, "historia_clinica", digest, stamp, stamp),
-        )
-        audit(conn, "create", "patient", pid, {"name": name})
-        if queue_id:
-            qrow = conn.execute("SELECT * FROM waiting_queue WHERE id=?", (queue_id,)).fetchone()
-            if qrow:
-                stamp2 = now_iso()
-                conn.execute("UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? WHERE id=?", (pid, stamp2, queue_id))
-                if qrow["reception_patient_id"]:
-                    conn.execute("""INSERT INTO patient_links(reception_patient_id,clinical_patient_id,matched_by,verified,verified_at,created_at,updated_at)
-                                  VALUES(?,?,?,?,?,?,?) ON CONFLICT(reception_patient_id) DO UPDATE SET
-                                  clinical_patient_id=excluded.clinical_patient_id,matched_by=excluded.matched_by,verified=excluded.verified,verified_at=excluded.verified_at,updated_at=excluded.updated_at""",
-                                 (qrow["reception_patient_id"], pid, "manual_new_patient", 1, stamp2, stamp2, stamp2))
         conn.commit()
-    SYNC_SERVICE.wake()
-    target = f"/paciente/{pid}/nueva?queue_id={queue_id}" if queue_id else f"/paciente/{pid}"
-    return RedirectResponse(target, status_code=303)
+    return RedirectResponse(f"/paciente/{pid}", status_code=303)
 
 
 @app.get("/pacientes", response_class=HTMLResponse)
@@ -292,4 +238,20 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
 <div class='editor-main clinical-editor'>
   <div class='editor-section-head'><div><h2>Nueva consulta</h2></div><div class='date-fields'><label>Fecha<input id='enc-date' type='date' value='{e(date_value)}'></label><label>Hora<input id='enc-time' type='time' value='{e(time_value)}'></label></div></div>
   <div class='consult-tools'><button id='toggle-macros' class='secondary'>Frases rápidas</button></div>
-  <label class='editor-field m
+  <label class='editor-field main-note single-note'><span>Historia / evolución</span><textarea id='clinical-note' autofocus rows='22' placeholder='Escriba aquí la consulta, evolución, hallazgos, diagnóstico, tratamiento e indicaciones…'>{e(note_value)}</textarea></label>
+  <div class='editor-footer'><div class='autosave-help'>Los cambios se guardan automáticamente.</div><div class='editor-actions'><button id='save-now' class='secondary'>Guardar</button><button id='sign-note' class='primary finish-btn'>Finalizar consulta</button></div></div>
+</div>
+{previous_panel}
+</section>
+<aside id='macro-panel' class='macro-panel macro-drawer' hidden><div class='macro-head'><div><span class='section-kicker'>Apoyo de escritura</span><strong>Frases rápidas</strong></div><div class='macro-head-actions'><a href='/macros' target='_blank'>Administrar</a><button id='close-macros' class='drawer-close' type='button' aria-label='Cerrar'>×</button></div></div><p>Haga clic en el campo donde desea insertar la frase y luego selecciónela.</p><div id='macro-list'></div></aside>
+<div id='finalize-modal' class='modal-backdrop clinical-confirm' hidden><div class='modal'><span class='section-kicker'>FINALIZAR ATENCIÓN</span><h3>¿Finalizar esta consulta?</h3><p>La consulta quedará cerrada. Si después necesita aclarar algo, se agregará como nota complementaria sin alterar el registro original.</p><div class='modal-actions'><button class='secondary' id='cancel-finalize' type='button'>Seguir editando</button><button class='primary' id='confirm-finalize' type='button'>Finalizar consulta</button></div></div></div>
+"""
+    script = f"""<script>
+const PATIENT_ID={json.dumps(patient_id)}, QUEUE_ID={json.dumps(queue_id)}, PREVIOUS={previous_json}, MACROS={macros_json};
+let encounterId={json.dumps(working['id'] if working else '')} || null, timer=null, dirty=false, lastFocused=document.getElementById('clinical-note');
+const state=document.getElementById('save-state');
+{{const el=document.getElementById('clinical-note');el.addEventListener('focus',()=>lastFocused=el);el.addEventListener('input',changed)}}
+['enc-date','enc-time'].forEach(id=>document.getElementById(id).addEventListener('change',changed));
+function changed(){{dirty=true;state.textContent='Guardando cambios…';state.className='save-state saving';clearTimeout(timer);timer=setTimeout(()=>save(false),900)}}
+async function save(manual=false){{if(!dirty && encounterId){{if(manual){{state.textContent='Todo guardado';state.className='save-state saved'}}return encounterId}}state.textContent='Guardando…';state.className='save-state saving';
+const payload={{encounter_id:encounterId,patient_id:PATIENT_ID,queue_id:QUEUE_ID,encounter_date:document.getElementById('enc-date').value,encounter_time:document.getElementById('enc-time').value,clinical_note:document.getElementById('clinical-note').value,manual_snapshot:manual}};
