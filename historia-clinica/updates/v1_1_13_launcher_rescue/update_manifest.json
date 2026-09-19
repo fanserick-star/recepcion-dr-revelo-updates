@@ -1,0 +1,45 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.1.13",
+  "app_version": "1.1.12",
+  "runtime_version": "1.1.12",
+  "mandatory": true,
+  "launcher_version": "2.0.0-transactional-1",
+  "updater_version": "launcher-rescue-v1",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "requirements.txt",
+    "ABRIR_HISTORIA_CLINICA.py"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "ABRIR_HISTORIA_CLINICA.py",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "rescue_only": true,
+    "app_unchanged": true,
+    "protected_data": true,
+    "protected_env": true,
+    "next_channel": "latest-historia-runtime.json",
+    "reason": "replace legacy preflight updater with transactional updater v2"
+  }
+}
