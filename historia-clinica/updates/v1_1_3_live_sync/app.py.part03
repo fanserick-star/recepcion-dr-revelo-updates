@@ -1,0 +1,274 @@
+          <option value='U' {'selected' if civil=='U' else ''}>Unión libre</option>
+        </select>
+      </label>
+      <label>Identificación <input name='national_id' value='{v("national_id")}' maxlength='40' placeholder='Opcional'></label>
+      <label>Teléfono <input name='phone' value='{v("phone")}' maxlength='80' placeholder='Opcional'></label>
+    </fieldset>
+    <fieldset>
+      <legend>Contacto y otros datos</legend>
+      <label class='span-2'>Domicilio <textarea name='address' rows='3' placeholder='Dirección del paciente'>{v("address")}</textarea></label>
+      <label>Email <input type='email' name='email' value='{v("email")}' maxlength='160' placeholder='Opcional'></label>
+      <label>Aseguradora <input name='insurer' value='{v("insurer")}' maxlength='160' placeholder='Opcional'></label>
+      <label class='span-2'>Otros datos / observaciones <textarea name='notes' rows='4' placeholder='Información adicional que convenga conservar'>{v("notes")}</textarea></label>
+      <label class='span-2'>Alerta clínica <textarea name='alert' rows='3' placeholder='Solo si existe una alerta importante'>{v("alert")}</textarea></label>
+    </fieldset>
+    <div class='new-patient-actions'><a class='secondary btn-link' href='/pacientes'>Cancelar</a><button class='primary' type='submit'>Guardar paciente</button></div>
+  </form>
+</section>
+"""
+
+
+@app.get("/pacientes/nuevo", response_class=HTMLResponse)
+def new_patient_page():
+    return base("Nuevo paciente", render_new_patient_form(), "pacientes")
+
+
+@app.post("/pacientes/nuevo", response_class=HTMLResponse)
+async def create_patient(request: Request):
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    parsed = parse_qs(raw, keep_blank_values=True)
+    values = {k: (parsed.get(k, [""])[0] or "").strip() for k in (
+        "name", "birth_date", "sex", "civil_status", "national_id", "phone", "address", "email", "insurer", "notes", "alert"
+    )}
+    name = re.sub(r"\s+", " ", values["name"]).strip().upper()
+    values["name"] = name
+    if not name:
+        return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "El nombre del paciente es obligatorio."), "pacientes"), status_code=400)
+    birth = values["birth_date"]
+    if birth:
+        try:
+            datetime.strptime(birth, "%Y-%m-%d")
+        except ValueError:
+            return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, "La fecha de nacimiento no es válida."), "pacientes"), status_code=400)
+    national_id = values["national_id"]
+    with db() as conn:
+        if national_id:
+            exact = conn.execute(
+                "SELECT id,name FROM patients WHERE national_id_search=? LIMIT 1",
+                (normalize_search(national_id),),
+            ).fetchone()
+            if exact:
+                msg = f"Ya existe un paciente con esa identificación: {exact['name']}. Revise la ficha antes de crear otro registro."
+                return HTMLResponse(base("Nuevo paciente", render_new_patient_form(values, msg), "pacientes"), status_code=409)
+        pid, stamp = new_id(), now_iso()
+        digest = hashlib.sha256(f"{pid}|{name}|{stamp}".encode("utf-8")).hexdigest()
+        conn.execute(
+            """INSERT INTO patients(id,legacy_patient_id,name,name_search,birth_date,sex,civil_status,address,phone,next_appointment_legacy,national_id,national_id_search,legacy_notes,legacy_photo,legacy_alert,email,insurer,legacy_no_depurable,source,source_record_hash,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (pid, None, name, normalize_search(name), birth or None, values["sex"] or None, values["civil_status"] or None,
+             values["address"] or None, values["phone"] or None, None, national_id or None, normalize_search(national_id) if national_id else "",
+             values["notes"] or None, None, values["alert"] or None, values["email"] or None, values["insurer"] or None,
+             0, "historia_clinica", digest, stamp, stamp),
+        )
+        audit(conn, "create", "patient", pid, {"name": name})
+        conn.commit()
+    return RedirectResponse(f"/paciente/{pid}", status_code=303)
+
+
+@app.get("/pacientes", response_class=HTMLResponse)
+def patients(q: str = Query(default="", max_length=120)):
+    term = q.strip()
+    with db() as conn:
+        rows = search_patients(conn, term, limit=100) if term else []
+    cards = "".join(
+        f"""<a class="patient-row" href="/paciente/{e(r['id'])}"><div class="avatar">{e((r['name'] or '?')[:1])}</div><div class="patient-main"><b>{e(r['name'])}</b><span>{e(clean_legacy_id(r['national_id']) or 'Sin identificación')} · {e(r['phone'] or 'Sin teléfono')}</span></div><div class="patient-meta"><strong>{r['n_hist']}</strong><span>registro{'s' if r['n_hist']!=1 else ''}</span></div><div class="chev">›</div></a>"""
+        for r in rows
+    )
+    if term and not rows:
+        cards = "<div class='empty'><strong>No encontré pacientes.</strong><span>Pruebe con nombres en otro orden, parte de un apellido, identificación o teléfono.</span></div>"
+    elif not term:
+        cards = "<div class='empty'><strong>Empiece a escribir para buscar.</strong><span>Los resultados aparecen mientras escribe y los nombres pueden ponerse en cualquier orden.</span></div>"
+    body = f"""
+<section class="page-head page-head-with-action"><div><span class="eyebrow">PACIENTES</span><h1>Buscar historia clínica</h1><p>Búsqueda flexible por nombres, apellidos, identificación, teléfono o fecha de nacimiento.</p></div><a class="primary btn-link new-patient-btn" href="/pacientes/nuevo">+ Nuevo paciente</a></section>
+<section class="search-card compact"><div class="patient-live-search" data-live-patient-search><form action="/pacientes" method="get"><div class="searchbox"><input name="q" value="{e(q)}" autofocus autocomplete="off" placeholder="Ej.: CARLOS BRAVO, BRAVO CARLOS, 099…"><button>Buscar</button></div></form><div class="live-search-results" hidden></div><p class="search-help">No importa el orden de los nombres. También puede escribir solo una parte de cada apellido.</p></div></section>
+<section class="panel"><div class="panel-title"><h2>{len(rows) if term else ''} {'resultado' if len(rows)==1 else 'resultados' if term else 'Pacientes'}</h2>{'<span class="pill">Máximo 100</span>' if len(rows)==100 else ''}</div>{cards}</section>
+"""
+    return base("Pacientes", body, "pacientes")
+
+
+def render_history_card(h, addenda, open_by_default=False):
+    note = display_text(h["clinical_note"])
+    status = h["note_status"] or ("legacy" if h["is_legacy_locked"] else "signed")
+    segment_html, detected_dates, _segment_count = render_legacy_segments(h["clinical_note"], h["encounter_date"]) if status == "legacy" else ("", 0, 0)
+    if detected_dates:
+        note_block = f"<div class='legacy-segments history-legacy-segments'>{segment_html}</div>"
+    else:
+        note_block = note or '<em>Sin texto</em>'
+    add_html = "".join(
+        f"<div class='addendum'><div><strong>Nota complementaria</strong><time>{e(human_dt(a['created_at']))}</time></div><p>{display_text(a['text'])}</p></div>" for a in addenda
+    )
+    actions = f"<a class='text-btn' href='/encuentro/{e(h['id'])}/imprimir' target='_blank'>Imprimir</a>"
+    # Los registros importados permanecen de solo lectura. Las notas nuevas sí
+    # admiten complementos sin alterar el contenido firmado.
+    if status == "signed":
+        actions += f"<button class='text-btn js-addendum' data-id='{e(h['id'])}'>Añadir nota complementaria</button>"
+    summary_title = clean_title(h["clinical_note"], "Registro clínico")
+    date_label = human_date(h["encounter_date"]) or h["encounter_date"] or "Sin fecha"
+    time_label = (h["encounter_time"] or "")[:5]
+    origin = "Registro histórico" if status == "legacy" else "Consulta registrada"
+    return f"""
+<article class="history-card cp-history-card{' open' if open_by_default else ''}">
+  <button class="history-toggle cp-history-toggle" onclick="this.parentElement.classList.toggle('open')">
+    <div class="cp-history-toggle-main">
+      <div class="cp-history-date"><span>Fecha de consulta:</span><strong>{e(date_label)}</strong>{f'<time>{e(time_label)}</time>' if time_label else ''}</div>
+      <b>{e(summary_title)}</b>
+      <small>{origin}</small>
+    </div>
+    <span class="cp-chevron">⌄</span>
+  </button>
+  <div class="history-content cp-history-content">
+    <div class='history-actions'>{actions}</div>
+    <div class="cp-note-frame">
+      <div class="cp-note-title">Historia / evolución</div>
+      <div class="cp-note-body">{note_block}</div>
+    </div>
+    {add_html}
+  </div>
+</article>
+"""
+
+
+@app.get("/paciente/{patient_id}", response_class=HTMLResponse)
+def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
+    term = histq.strip()
+    with db() as conn:
+        p = conn.execute("SELECT * FROM patients WHERE id=?", (patient_id,)).fetchone()
+        if not p: raise HTTPException(404)
+        all_histories = conn.execute(
+            "SELECT * FROM encounters WHERE patient_id=? AND note_status!='draft' ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC",
+            (patient_id,),
+        ).fetchall()
+        if term:
+            like = f"%{term}%"
+            histories = conn.execute("""
+                SELECT * FROM encounters WHERE patient_id=? AND
+                note_status!='draft' AND (clinical_note LIKE ? OR legacy_history_t LIKE ?)
+                ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC
+            """, (patient_id, like, like)).fetchall()
+        else:
+            histories = all_histories
+        total_histories = len(all_histories)
+        active_edit = conn.execute("SELECT id,updated_at FROM encounters WHERE patient_id=? AND note_status='draft' ORDER BY updated_at DESC LIMIT 1", (patient_id,)).fetchone()
+        last_signed = all_histories[0] if all_histories else None
+        addenda_rows = conn.execute("SELECT * FROM encounter_addenda WHERE encounter_id IN (SELECT id FROM encounters WHERE patient_id=?) ORDER BY created_at", (patient_id,)).fetchall()
+        audit(conn, "view", "patient", patient_id)
+        conn.commit()
+
+    addenda_by = {}
+    for a in addenda_rows:
+        addenda_by.setdefault(a["encounter_id"], []).append(a)
+
+    age = age_from_birth(p["birth_date"])
+    ident = clean_legacy_id(p["national_id"])
+    alert_text = rtf_to_text(p["legacy_alert"] or "").strip()
+    alert_html = f"<section class='alert-card patient-alert'><strong>Alerta clínica</strong><span>{display_text(alert_text)}</span></section>" if alert_text else ""
+
+    timeline = "".join(render_history_card(h, addenda_by.get(h["id"], []), open_by_default=(i == 0)) for i, h in enumerate(histories))
+    last_date = human_date(last_signed["encounter_date"]) if last_signed else "Sin registros"
+
+    action = (
+        f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva?encounter_id={e(active_edit["id"])}">Continuar consulta</a>'
+        if active_edit else
+        f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva">+ Nueva consulta</a>'
+    )
+
+    def value_or_empty(value, transform=False):
+        if not value:
+            return "<span class='cp-empty-value'>No registrado</span>"
+        return display_text(value) if transform else e(value)
+
+    body = f"""
+<div class="legacy-remaster">
+<a class="back cp-back" href="/pacientes">← Volver a pacientes</a>
+<section class="cp-patient-card">
+  <div class="cp-box-caption">Identificación</div>
+  <div class="cp-patient-topline">
+    <div class="cp-name-field"><label>Nombre:</label><div>{e(p['name'])}</div></div>
+    <div class="cp-short-field"><label>Sexo:</label><div>{e(sex_label(p['sex']) or '—')}</div></div>
+    <div class="cp-short-field age"><label>Edad:</label><div>{e(str(age) + ' años') if age else '—'}</div></div>
+    <div class="cp-id-field"><label>ID Num:</label><div>{value_or_empty(ident)}</div></div>
+    <div class="cp-patient-action">{action}</div>
+  </div>
+  <div class="cp-patient-grid">
+    <div class="cp-data-field"><label>Fecha de nacimiento</label><div>{value_or_empty(human_date(p['birth_date']))}</div></div>
+    <div class="cp-data-field"><label>Teléfono</label><div>{value_or_empty(p['phone'])}</div></div>
+    <div class="cp-data-field wide"><label>Domicilio</label><div>{value_or_empty(p['address'], True)}</div></div>
+    <div class="cp-data-field"><label>Estado civil</label><div>{value_or_empty(p['civil_status'])}</div></div>
+    <div class="cp-data-field"><label>Email</label><div>{value_or_empty(p['email'])}</div></div>
+    <div class="cp-data-field wide"><label>Aseguradora</label><div>{value_or_empty(p['insurer'])}</div></div>
+  </div>
+  {f'<div class="cp-observations"><label>Otros datos / observaciones</label><div>{display_text(p["legacy_notes"])}</div></div>' if p['legacy_notes'] else ''}
+</section>
+{alert_html}
+<section class="cp-history-window">
+  <div class="cp-history-window-head">
+    <div class="cp-history-titlebar"><span>Historia Clínica:</span></div>
+    <div class="cp-history-summary"><span>Último control</span><strong>{e(last_date)}</strong></div>
+    <div class="cp-history-summary"><span>Número de registros</span><strong>{total_histories}</strong></div>
+  </div>
+  <div class="cp-history-tools">
+    <div><strong>Historial del paciente</strong><span>Los controles más recientes aparecen primero.</span></div>
+    <form class='history-search cp-history-search' method='get'><input name='histq' value='{e(histq)}' placeholder='Buscar dentro del historial clínico…'><button>Buscar</button>{f"<a href='/paciente/{e(patient_id)}'>Limpiar</a>" if term else ''}</form>
+  </div>
+  <section class="timeline cp-timeline">{timeline if timeline else '<div class="empty"><strong>No hay registros que coincidan.</strong><span>Pruebe otra palabra o limpie la búsqueda.</span></div>'}</section>
+</section>
+<div id='addendum-modal' class='modal-backdrop' hidden><div class='modal'><h3>Nota complementaria</h3><p>La consulta original queda intacta. Esta nota se agregará con fecha y hora.</p><textarea id='addendum-text' rows='7' placeholder='Escriba la aclaración o complemento…'></textarea><div class='modal-actions'><button class='secondary' id='cancel-addendum'>Cancelar</button><button class='primary' id='save-addendum'>Guardar complemento</button></div></div></div>
+</div>
+"""
+    script = """<script>
+let addendumId=null; const modal=document.getElementById('addendum-modal');
+document.querySelectorAll('.js-addendum').forEach(b=>b.addEventListener('click',()=>{addendumId=b.dataset.id;modal.hidden=false;document.getElementById('addendum-text').focus()}));
+document.getElementById('cancel-addendum')?.addEventListener('click',()=>{modal.hidden=true;document.getElementById('addendum-text').value=''})
+document.getElementById('save-addendum')?.addEventListener('click',async()=>{const text=document.getElementById('addendum-text').value.trim();if(!text)return;const r=await fetch('/encuentro/'+addendumId+'/addendum',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});if(r.ok) location.reload(); else showAppToast('No se pudo guardar la nota complementaria.','error')});
+</script>"""
+    return base(p["name"], body, "pacientes", extra_script=script)
+
+
+@app.get("/paciente/{patient_id}/nueva", response_class=HTMLResponse)
+def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""):
+    with db() as conn:
+        p = conn.execute("SELECT * FROM patients WHERE id=?", (patient_id,)).fetchone()
+        if not p: raise HTTPException(404)
+        working = None
+        if encounter_id:
+            working = conn.execute("SELECT * FROM encounters WHERE id=? AND patient_id=?", (encounter_id, patient_id)).fetchone()
+            if not working or working["note_status"] != "draft": raise HTTPException(404)
+        else:
+            # Recuperación silenciosa: una consulta no finalizada nunca se pierde,
+            # pero no se presenta al doctor como un sistema de "borradores".
+            working = conn.execute("SELECT * FROM encounters WHERE patient_id=? AND note_status='draft' ORDER BY updated_at DESC LIMIT 1", (patient_id,)).fetchone()
+        previous = conn.execute("SELECT * FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') ORDER BY encounter_date DESC, encounter_time DESC, updated_at DESC LIMIT 1", (patient_id,)).fetchone()
+        macros = conn.execute("SELECT * FROM macros ORDER BY label COLLATE NOCASE").fetchall()
+    dt = datetime.now()
+    date_value = working["encounter_date"] if working else dt.strftime("%Y-%m-%d")
+    time_value = working["encounter_time"] if working else dt.strftime("%H:%M")
+    note_value = rtf_to_text(working["clinical_note"]) if working else ""
+    age = age_from_birth(p["birth_date"])
+    info = []
+    if age: info.append(f"{age} años")
+    if p["sex"]: info.append(e(p["sex"]))
+    if p["national_id"]: info.append("ID " + e(p["national_id"]))
+    if p["phone"]: info.append(e(p["phone"]))
+    previous_json = json.dumps({
+        "id": previous["id"] if previous else None,
+        "note": rtf_to_text(previous["clinical_note"]) if previous else "",
+        "date": previous["encounter_date"] if previous else "",
+        "time": previous["encounter_time"] if previous else "",
+        "source": previous["source"] if previous else "",
+    }, ensure_ascii=False)
+    macros_json = json.dumps([{"label":m["label"],"text":m["text"]} for m in macros], ensure_ascii=False)
+    recovered = bool(working)
+    if previous:
+        previous_is_legacy = previous["source"] == "legacy_consulta_practica"
+        segment_html, detected_dates, segment_count = render_legacy_segments(previous["clinical_note"], previous["encounter_date"]) if previous_is_legacy else ("", 0, 0)
+        if previous_is_legacy and detected_dates:
+            history_reference = f"<div class='legacy-segments'>{segment_html}</div>"
+        else:
+            previous_text = display_text(previous["clinical_note"]) or "<em>Sin texto registrado</em>"
+            history_reference = f"""
+            <section class='legacy-segment compact'>
+              <div class='legacy-segment-date'><strong>{e(previous['encounter_date'])}</strong>{f"<span>{e(previous['encounter_time'])}</span>" if previous['encounter_time'] else ''}</div>
+              <div class='legacy-segment-body'>{previous_text}</div>
+            </section>
+            """
+        previous_panel 
