@@ -1,0 +1,51 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.5.16",
+  "app_version": "4.5.16",
+  "runtime_version": "4.5.16",
+  "launcher_version": "4.5.16-unified-channel-1",
+  "updater_version": "unified-channel-v1",
+  "required_dependencies": [
+    "app.py",
+    "app_patch_4516.py",
+    "app_patch_4511.py",
+    "app_patch_4510.py",
+    "app_patch_4509.py",
+    "app_patch_4508.py",
+    "historia_bridge.py",
+    "ABRIR_RECEPCION.py"
+  ],
+  "required_python_packages": [
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "app_patch_4516.py",
+    "app_patch_4511.py",
+    "app_patch_4510.py",
+    "app_patch_4509.py",
+    "app_patch_4508.py",
+    "historia_bridge.py",
+    "ABRIR_RECEPCION.py",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "unified_legacy_and_current_channels": true,
+    "legacy_latest_v3_rescue": true,
+    "current_latest_v4_rescue": true,
+    "direct_runtime_update": true,
+    "visual_version_dynamic": true,
+    "historia_bridge_preserved": true,
+    "bendo_manual_flow_preserved": true,
+    "protected_data": true,
+    "protected_env": true,
+    "protected_excel": true,
+    "sha256_validation": true,
+    "isolated_trial_boot": true,
+    "rollback": true,
+    "automatic_updates_only": true
+  }
+}
