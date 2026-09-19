@@ -177,14 +177,8 @@ def _candidate_hosts() -> list[str]:
     if env_host:
         values.append(env_host)
 
-    try:
-        cloud = _ORIGINAL_STATUS()
-        device = str(cloud.get("doctor_device") or "").strip()
-        if device:
-            values.append(device)
-    except Exception:
-        pass
-
+    # No consultamos Neon durante el sondeo LAN. Esto mantiene el monitor
+    # local liviano y evita tráfico de nube cada pocos segundos.
     values.extend(_arp_candidates())
 
     out = []
