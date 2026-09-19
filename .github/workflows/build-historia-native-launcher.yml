@@ -27,7 +27,7 @@ jobs:
           for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSROOT=%%i"
           call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat"
           rc /nologo HistoriaClinicaLauncher.rc
-          cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:HistoriaClinica_Dr_Revelo.exe historia-clinica\native\HistoriaClinicaLauncher.c HistoriaClinicaLauncher.res ole32.lib shell32.lib propsys.lib
+          cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:HistoriaClinica_Dr_Revelo.exe historia-clinica\native\HistoriaClinicaLauncher.c HistoriaClinicaLauncher.res ole32.lib shell32.lib user32.lib
       - name: Upload launcher
         uses: actions/upload-artifact@v4
         with:
