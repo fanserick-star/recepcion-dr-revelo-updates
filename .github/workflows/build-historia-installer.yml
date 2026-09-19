@@ -25,9 +25,10 @@ jobs:
           call "%VSROOT%\VC\Auxiliary\Build\vcvars64.bat"
           cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:Historia_Clinica_Dr_Revelo_Setup_Bootstrap.exe historia-clinica\installer\bootstrap.c user32.lib shell32.lib ole32.lib
           cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:Vincular_Recepcion_Historia_Bootstrap.exe historia-clinica\installer\link_reception.c user32.lib shell32.lib /link /MANIFESTUAC:"level='requireAdministrator' uiAccess='false'"
-          cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:REPARAR_HISTORIA_CLINICA.exe historia-clinica\installer\repair_launcher.c user32.lib shell32.lib ole32.lib
+          cl /nologo /O2 /DUNICODE /D_UNICODE /MT /Fe:REPARAR_HISTORIA_CLINICA.exe historia-clinica\installer\repair_launcher.c user32.lib shell32.lib ole32.lib > repair-build.log 2>&1
 
       - name: Upload bootstrap
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: historia-clinica-native-tools
@@ -35,5 +36,6 @@ jobs:
             Historia_Clinica_Dr_Revelo_Setup_Bootstrap.exe
             Vincular_Recepcion_Historia_Bootstrap.exe
             REPARAR_HISTORIA_CLINICA.exe
-          if-no-files-found: error
+            repair-build.log
+          if-no-files-found: warn
           retention-days: 7
