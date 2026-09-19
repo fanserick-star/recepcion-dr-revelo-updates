@@ -1,0 +1,81 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.1.6",
+  "app_version": "1.1.6",
+  "runtime_version": "1.1.6",
+  "launcher_version": "1.1.6-native-branding-1",
+  "updater_version": "historia-release-gate-v4-native-launcher",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "requirements.txt",
+    "static/style.css",
+    "INICIAR.bat",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000>=1.31,<2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview>=5.4,<7"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "static/style.css",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "download_only_changed_files": true,
+    "sha256_validation": true,
+    "python_syntax_preflight": true,
+    "isolated_trial_boot": true,
+    "candidate_quarantine_after_failures": 2,
+    "rollback_backups_retained": 3,
+    "automatic_rollback_after_startup_failure": true,
+    "last_known_good_tracking": true,
+    "required_dependency_guard": true,
+    "required_python_package_guard": true,
+    "dynamic_port_fallback": true,
+    "single_instance_guard": true,
+    "visible_four_stage_splash": true,
+    "copy_diagnostic_button": true,
+    "launcher_self_relaunch_after_update": true,
+    "update_before_focus_when_mandatory": true,
+    "cloud_sync_progress_live": true,
+    "queue_live_refresh": true,
+    "automatic_updates_only": true,
+    "shortcut_self_heal": true,
+    "shortcut_target": "HistoriaClinica_Dr_Revelo.exe",
+    "desktop_shortcut_branding": true,
+    "start_menu_shortcut_branding": true,
+    "taskbar_app_user_model_id": "DrArmandoRevelo.HistoriaClinica",
+    "taskbar_icon_branding": true,
+    "icon_cache_refresh": true,
+    "wrong_shortcut_cleanup": true,
+    "shortcut_button": true,
+    "native_launcher": true,
+    "native_launcher_filename": "HistoriaClinica_Dr_Revelo.exe",
+    "native_launcher_embedded_icon": true,
+    "shortcut_app_user_model_id": "DrArmandoRevelo.HistoriaClinica",
+    "taskbar_python_icon_fix": true,
+    "sync_now_button": true,
+    "open_program_folder_button": true
+  }
+}
