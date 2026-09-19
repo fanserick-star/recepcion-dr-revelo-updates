@@ -11,11 +11,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_service, get_sync_status
-
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
+from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_status
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "data" / "historia_clinica.db"
@@ -113,19 +113,19 @@ SYNC_SERVICE = build_sync_service(ROOT, DB_PATH)
 
 
 @app.on_event("startup")
-def _startup_sync_service():
+def _startup_cloud_sync():
     SYNC_SERVICE.start()
     SYNC_SERVICE.mark_activity()
 
 
 @app.on_event("shutdown")
-def _shutdown_sync_service():
+def _shutdown_cloud_sync():
     SYNC_SERVICE.stop()
 
 
 @app.middleware("http")
-async def _cloud_activity_middleware(request: Request, call_next):
-    if request.url.path not in {"/favicon.ico"}:
+async def _cloud_activity(request: Request, call_next):
+    if request.url.path not in {"/favicon.ico", "/api/sync/status"}:
         SYNC_SERVICE.mark_activity()
     return await call_next(request)
 
@@ -136,15 +136,16 @@ def api_version():
     return JSONResponse({"version": APP_VERSION, "cloud": status.get("state"), "online": bool(status.get("online"))})
 
 
-@app.post("/api/sync/now")
-def api_sync_now():
-    SYNC_SERVICE.wake()
-    return JSONResponse({"ok": True})
-
-
 @app.get("/api/sync/status")
 def api_sync_status():
     return JSONResponse(get_sync_status(ROOT / "data"))
+
+
+@app.post("/api/sync/now")
+def api_sync_now():
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return JSONResponse({"ok": True})
 
 
 # Consulta Práctica guarda muchas notas antiguas como RTF (Rich Text Format).
@@ -562,30 +563,3 @@ def search_patients(conn, raw_query, limit=100):
         if birth_iso and r["birth_date"] == birth_iso:
             s = min(s, 1)
         return (s, normalize_search(r["name"]))
-
-    return sorted(rows, key=score)[:limit]
-
-
-def clean_legacy_id(value):
-    raw = str(value or "").strip()
-    if not raw or re.fullmatch(r"[Xx\s.-]+", raw):
-        return ""
-    return raw
-
-
-def sex_label(value):
-    v = str(value or "").strip().upper()
-    if v == "M": return "Masculino"
-    if v == "F": return "Femenino"
-    return value or ""
-
-
-def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
-    return f"""<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css">{extra_head}</head>
-<body class="cp-remaster-app">
-<header class="topbar">
-  <div class="brand">
-    <img class="brand-logo" src="/static/doctor_logo.png" alt="Logo del Dr. Armando Revelo">
-    <div class="brand-copy"><strong>Historia
