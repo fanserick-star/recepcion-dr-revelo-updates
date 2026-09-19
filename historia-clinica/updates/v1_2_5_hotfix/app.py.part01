@@ -1,0 +1,606 @@
+from __future__ import annotations
+
+import base64
+import hashlib
+import os
+import subprocess
+import html
+import json
+import re
+import sqlite3
+import unicodedata
+import uuid
+from datetime import datetime
+from pathlib import Path
+from urllib.parse import parse_qs
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
+from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_status
+import cloud_presence_patch
+cloud_presence_patch.install()
+
+ROOT = Path(__file__).resolve().parent
+DB_PATH = ROOT / "data" / "historia_clinica.db"
+DOCTOR_NAME = "Dr. Armando Revelo"
+APP_VERSION = "1.2.5"
+
+app = FastAPI(title="Historia Clínica", docs_url=None, redoc_url=None)
+app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+
+
+
+
+def _native_launcher_path() -> Path:
+    return ROOT / "HistoriaClinica_Dr_Revelo.exe"
+
+
+def _ensure_native_launcher() -> Path:
+    """Reconstruye el launcher nativo firmado por hash desde el payload actualizable."""
+    target = _native_launcher_path()
+    source = ROOT / "static" / "HistoriaClinica_Dr_Revelo.exe.b64"
+    if not source.is_file():
+        raise RuntimeError("El componente de acceso directo todavía no está instalado.")
+    try:
+        raw = base64.b64decode(source.read_text(encoding="ascii").strip(), validate=True)
+    except Exception as exc:
+        raise RuntimeError("El componente de acceso directo está dañado.") from exc
+    if len(raw) < 20000 or raw[:2] != b"MZ":
+        raise RuntimeError("El launcher nativo no es válido.")
+    current = target.read_bytes() if target.is_file() else b""
+    if hashlib.sha256(current).digest() != hashlib.sha256(raw).digest():
+        tmp = target.with_suffix(".exe.new")
+        tmp.write_bytes(raw)
+        os.replace(tmp, target)
+    return target
+
+
+def _repair_shortcut_native() -> dict:
+    if os.name != "nt":
+        return {"ok": False, "message": "Esta herramienta solo se usa en Windows."}
+    exe = _ensure_native_launcher()
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    proc = subprocess.run(
+        [str(exe), "--repair-shortcut"],
+        cwd=str(ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=20,
+        check=False,
+        creationflags=flags,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"Windows devolvió código {proc.returncode} al reparar el acceso directo.")
+    return {"ok": True, "message": "Acceso directo e icono reparados correctamente."}
+
+
+def db():
+    conn = sqlite3.connect(DB_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
+def now_iso():
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def new_id():
+    return str(uuid.uuid4())
+
+
+def e(value):
+    return html.escape("" if value is None else str(value))
+
+
+def audit(conn, action, entity_type, entity_id=None, details=None, actor=DOCTOR_NAME):
+    conn.execute(
+        "INSERT INTO audit_log(occurred_at,actor,action,entity_type,entity_id,details_json) VALUES(?,?,?,?,?,?)",
+        (now_iso(), actor, action, entity_type, entity_id, json.dumps(details or {}, ensure_ascii=False)),
+    )
+
+
+def ensure_column(conn, table, col, ddl):
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if col not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
+
+def ensure_schema():
+    with db() as conn:
+        ensure_column(conn, "encounters", "note_status", "note_status TEXT NOT NULL DEFAULT 'signed'")
+        ensure_column(conn, "encounters", "signed_at", "signed_at TEXT")
+        ensure_column(conn, "encounters", "signed_by", "signed_by TEXT")
+        ensure_column(conn, "encounters", "copied_from_encounter_id", "copied_from_encounter_id TEXT")
+        ensure_column(conn, "encounters", "queue_id", "queue_id TEXT")
+        ensure_column(conn, "encounters", "created_by", "created_by TEXT")
+        conn.execute("UPDATE encounters SET note_status='legacy' WHERE source='legacy_consulta_practica' AND note_status!='legacy'")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS encounter_revisions (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+              revision_no INTEGER NOT NULL,
+              saved_at TEXT NOT NULL,
+              actor TEXT,
+              clinical_note TEXT,
+              diagnosis TEXT,
+              treatment TEXT,
+              reason TEXT,
+              UNIQUE(encounter_id, revision_no)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS encounter_addenda (
+              id TEXT PRIMARY KEY,
+              encounter_id TEXT NOT NULL REFERENCES encounters(id) ON DELETE CASCADE,
+              text TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              actor TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_addenda_encounter ON encounter_addenda(encounter_id, created_at)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS macros (
+              id TEXT PRIMARY KEY,
+              label TEXT NOT NULL UNIQUE,
+              text TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_encounters_status ON encounters(note_status, updated_at DESC)")
+        conn.execute("INSERT OR REPLACE INTO meta(key,value) VALUES('app_version',?)", (APP_VERSION,))
+        conn.commit()
+
+
+ensure_schema()
+ensure_local_sync_schema(DB_PATH)
+SYNC_SERVICE = build_sync_service(ROOT, DB_PATH)
+
+import lan_bridge
+LAN_SERVICE = lan_bridge.install(app, ROOT, DB_PATH, APP_VERSION, SYNC_SERVICE)
+
+
+@app.on_event("startup")
+def _startup_cloud_sync():
+    SYNC_SERVICE.start()
+    SYNC_SERVICE.mark_activity()
+
+
+@app.on_event("shutdown")
+def _shutdown_cloud_sync():
+    SYNC_SERVICE.stop()
+
+
+@app.middleware("http")
+async def _cloud_activity(request: Request, call_next):
+    """
+    Sólo la actividad humana/real mantiene despierta la nube.
+    Los sondeos automáticos de estado, cola y LAN son locales y NO deben
+    impedir que Historia entre en AFK.
+    """
+    path = request.url.path
+    method = request.method.upper()
+    if path != "/api/activity":
+        if method in {"POST", "PUT", "PATCH", "DELETE"}:
+            SYNC_SERVICE.mark_activity()
+        elif method == "GET" and not (
+            path.startswith("/api/")
+            or path.startswith("/static/")
+            or path == "/favicon.ico"
+        ):
+            SYNC_SERVICE.mark_activity()
+    return await call_next(request)
+
+
+@app.post("/api/activity")
+def api_user_activity():
+    SYNC_SERVICE.mark_activity()
+    return JSONResponse({"ok": True})
+
+
+
+
+@app.post("/api/system/shortcut")
+def api_repair_shortcut():
+    try:
+        return JSONResponse(_repair_shortcut_native())
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+@app.post("/api/system/open-folder")
+def api_open_program_folder():
+    if os.name != "nt":
+        return JSONResponse({"ok": False, "message": "Disponible solo en Windows."}, status_code=400)
+    try:
+        os.startfile(str(ROOT))
+        return JSONResponse({"ok": True, "message": "Carpeta del programa abierta."})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "message": str(exc)}, status_code=500)
+
+
+@app.get("/api/version")
+def api_version():
+    status = get_sync_status(ROOT / "data")
+    return JSONResponse({"product": "historia-clinica-dr-revelo", "version": APP_VERSION, "cloud": status.get("state"), "online": bool(status.get("online"))})
+
+
+@app.get("/api/sync/status")
+def api_sync_status():
+    return JSONResponse(get_sync_status(ROOT / "data"))
+
+
+@app.post("/api/sync/now")
+def api_sync_now():
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return JSONResponse({"ok": True})
+
+
+# Consulta Práctica guarda muchas notas antiguas como RTF (Rich Text Format).
+_RTF_TOKEN_RE = re.compile(
+    r"\\([a-zA-Z]+)(-?\d+)? ?"
+    r"|\\'([0-9a-fA-F]{2})"
+    r"|\\([^a-zA-Z0-9])"
+    r"|([{}])"
+    r"|([\r\n]+)"
+    r"|([^\\{}\r\n]+)",
+    re.MULTILINE,
+)
+_RTF_DESTINATIONS = {
+    "fonttbl", "colortbl", "datastore", "themedata", "stylesheet", "info",
+    "pict", "object", "header", "headerl", "headerr", "footer", "footerl",
+    "footerr", "generator", "filetbl", "listtable", "listoverridetable",
+    "rsidtbl", "xmlnstbl", "latentstyles", "colorschememapping",
+}
+_RTF_SPECIAL = {
+    "par": "\n", "line": "\n", "tab": "\t", "emdash": "—", "endash": "–",
+    "bullet": "•", "lquote": "‘", "rquote": "’", "ldblquote": "“", "rdblquote": "”",
+    "~": "\u00a0", "-": "\u00ad", "_": "\u2011",
+}
+
+
+def rtf_to_text(value):
+    if value is None:
+        return ""
+    text = str(value)
+    if not text.lstrip().startswith("{\\rtf"):
+        return text
+    out, stack = [], []
+    ignorable, ucskip, curskip = False, 1, 0
+    for m in _RTF_TOKEN_RE.finditer(text):
+        word, arg, hexchar, symbol, brace, newline, plain = m.groups()
+        if brace:
+            if brace == "{":
+                stack.append((ignorable, ucskip))
+            elif stack:
+                ignorable, ucskip = stack.pop()
+            curskip = 0
+            continue
+        if symbol:
+            if symbol == "*":
+                ignorable = True
+            elif not ignorable:
+                if symbol in "{}\\": out.append(symbol)
+                elif symbol == "~": out.append("\u00a0")
+                elif symbol == "_": out.append("\u2011")
+            continue
+        if word:
+            w = word.lower()
+            if w in _RTF_DESTINATIONS:
+                ignorable = True
+                continue
+            if ignorable: continue
+            if w == "uc" and arg is not None:
+                try: ucskip = max(0, int(arg))
+                except ValueError: ucskip = 1
+                continue
+            if w == "u" and arg is not None:
+                try:
+                    n = int(arg)
+                    if n < 0: n += 65536
+                    out.append(chr(n)); curskip = ucskip
+                except (ValueError, OverflowError):
+                    pass
+                continue
+            special = _RTF_SPECIAL.get(w)
+            if special is not None: out.append(special)
+            continue
+        if hexchar:
+            if ignorable: continue
+            if curskip:
+                curskip -= 1; continue
+            try: out.append(bytes([int(hexchar, 16)]).decode("cp1252"))
+            except Exception: out.append("?")
+            continue
+        if newline:
+            continue
+        if plain and not ignorable:
+            if curskip:
+                skip = min(curskip, len(plain)); plain = plain[skip:]; curskip -= skip
+            if plain: out.append(plain)
+    cleaned = "".join(out).replace("\r\n", "\n").replace("\r", "\n")
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def display_text(value):
+    return e(rtf_to_text(value)).replace("\n", "<br>")
+
+
+# Consulta Práctica permitió acumular años de evoluciones dentro de un solo
+# registro. Muchas de esas evoluciones fueron separadas manualmente por el
+# doctor escribiendo la fecha en el propio texto. Esta capa detecta esas fechas
+# SOLO para presentación; nunca reescribe ni fragmenta el registro original.
+_LEGACY_MONTHS = {
+    "ENE": 1, "ENERO": 1,
+    "FEB": 2, "FEBRERO": 2,
+    "MAR": 3, "MARZO": 3,
+    "ABR": 4, "ABRIL": 4,
+    "MAY": 5, "MAYO": 5,
+    "JUN": 6, "JUNIO": 6,
+    "JUL": 7, "JULIO": 7,
+    "AGO": 8, "AGOSTO": 8,
+    "SEP": 9, "SEPT": 9, "SEPTIEMBRE": 9, "SET": 9, "SETIEMBRE": 9,
+    "OCT": 10, "OCTUBRE": 10,
+    "NOV": 11, "NOVIEMBRE": 11,
+    "DIC": 12, "DICIEMBRE": 12,
+}
+_LEGACY_MONTH_RE = (
+    r"(?:ENE(?:RO)?|FEB(?:RERO)?|MAR(?:ZO)?|ABR(?:IL)?|MAY(?:O)?|"
+    r"JUN(?:IO)?|JUL(?:IO)?|AGO(?:STO)?|SEP(?:T(?:IEMBRE)?)?|"
+    r"SET(?:IEMBRE)?|OCT(?:UBRE)?|N[O0]V(?:IEMBRE)?|DIC(?:IEMBRE)?)"
+)
+_LEGACY_DATE_RE = re.compile(
+    rf"""(?ix)
+    (?<!\d)(?:
+      (?P<wd>\d{{1,2}})\s*(?:[-/.]\s*|\s+DE\s+|\s+)
+      (?P<wm>{_LEGACY_MONTH_RE})
+      (?:\s*(?:[-/.]\s*|\s+DE(?:L)?\s+|\s+)(?P<wy>\d{{2,4}}))?
+      |
+      (?P<nd>\d{{1,2}})\s*[-/.]\s*(?P<nm>\d{{1,2}})\s*[-/.]\s*(?P<ny>\d{{2,4}})
+    )(?!\d)
+    """
+)
+
+
+def _legacy_month_number(raw):
+    if not raw:
+        return None
+    token = raw.upper().replace("0", "O").strip().rstrip(".")
+    return _LEGACY_MONTHS.get(token)
+
+
+def _legacy_year_number(raw):
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        return None
+    if len(raw) == 2:
+        return 2000 + value
+    # El programa contiene años digitados como 005, 010 o 026.
+    if len(raw) == 3 and raw.startswith("0"):
+        return 2000 + int(raw[-2:])
+    if len(raw) == 4:
+        return value
+    return None
+
+
+def _valid_calendar_date(day, month, year=None):
+    if not (1 <= day <= 31 and 1 <= month <= 12):
+        return False
+    if year is not None:
+        if not (1900 <= year <= 2099):
+            return False
+        try:
+            datetime(year, month, day)
+        except ValueError:
+            return False
+    else:
+        # Sin año no podemos validar 29/febrero con exactitud; febrero se
+        # admite hasta 29 y el resto usa sus límites naturales.
+        max_days = (31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+        if day > max_days[month - 1]:
+            return False
+    return True
+
+
+def _normalize_legacy_marker(match):
+    if match.group("wd"):
+        day = int(match.group("wd"))
+        month = _legacy_month_number(match.group("wm"))
+        year = _legacy_year_number(match.group("wy"))
+    else:
+        day = int(match.group("nd"))
+        month = int(match.group("nm"))
+        year = _legacy_year_number(match.group("ny"))
+    if not month or not _valid_calendar_date(day, month, year):
+        return None
+    raw = re.sub(r"\s+", " ", match.group(0).strip())
+    normalized = f"{day:02d}/{month:02d}/{year:04d}" if year else None
+    return {
+        "start": match.start(), "end": match.end(), "raw": raw,
+        "day": day, "month": month, "year": year, "normalized": normalized,
+    }
+
+
+def legacy_date_markers(value):
+    text = rtf_to_text(value)
+    markers = []
+    for match in _LEGACY_DATE_RE.finditer(text):
+        marker = _normalize_legacy_marker(match)
+        if marker:
+            markers.append(marker)
+    return text, markers
+
+
+def segment_legacy_history(value, encounter_date=""):
+    """Divide visualmente una nota antigua usando las fechas escritas dentro.
+
+    El texto fuente permanece intacto en encounters.clinical_note. El orden es
+    exactamente el orden del documento, incluso si una fecha fue digitada con
+    un año equivocado o quedó cronológicamente fuera de orden.
+    """
+    text, markers = legacy_date_markers(value)
+    if not markers:
+        return []
+    segments = []
+    prefix = text[:markers[0]["start"]].strip(" \t\r\n-–—")
+    if prefix:
+        try:
+            root_label = datetime.strptime(encounter_date, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except Exception:
+            root_label = encounter_date or "Registro inicial"
+        segments.append({
+            "label": root_label,
+            "raw": "Fecha del registro original",
+            "content": prefix,
+            "kind": "base",
+            "normalized": root_label if encounter_date else None,
+        })
+    for idx, marker in enumerate(markers):
+        next_start = markers[idx + 1]["start"] if idx + 1 < len(markers) else len(text)
+        content = text[marker["end"]:next_start].strip(" \t\r\n-–—")
+        segments.append({
+            "label": marker["normalized"] or marker["raw"].upper(),
+            "raw": marker["raw"],
+            "content": content,
+            "kind": "detected",
+            "normalized": marker["normalized"],
+        })
+    return segments
+
+
+def render_legacy_segments(value, encounter_date=""):
+    """Renderiza el historial antiguo por fechas, mostrando lo más reciente primero.
+
+    La segmentación sigue siendo únicamente visual: el texto fuente no se
+    modifica. Fechas con año conocido se ordenan de forma descendente; las
+    fechas sin año se conservan al final en su orden original.
+    """
+    segments = segment_legacy_history(value, encounter_date)
+    if not segments:
+        return "", 0, 0
+
+    detected = sum(1 for item in segments if item["kind"] == "detected")
+
+    def sort_key(pair):
+        idx, item = pair
+        label = item.get("normalized")
+        if label:
+            try:
+                dt = datetime.strptime(label, "%d/%m/%Y")
+                return (1, dt.toordinal(), -idx)
+            except Exception:
+                pass
+        return (0, 0, -idx)
+
+    ordered = [item for _, item in sorted(enumerate(segments), key=sort_key, reverse=True)]
+    cards = []
+    for item in ordered:
+        # El doctor solo necesita la fecha y el contenido que escribió.
+        # No mostramos etiquetas técnicas de detección ni la grafía original.
+        content = e(item["content"]).replace("\n", "<br>") if item["content"] else "<em>Sin texto registrado</em>"
+        cards.append(f"""
+        <section class='legacy-segment compact'>
+          <div class='legacy-segment-date'><strong>{e(item['label'])}</strong></div>
+          <div class='legacy-segment-body'>{content}</div>
+        </section>""")
+    return "".join(cards), detected, len(segments)
+
+
+def clean_title(value, fallback="Consulta"):
+    text = rtf_to_text(value).strip()
+    if not text:
+        return fallback
+    first = next((x.strip() for x in text.splitlines() if x.strip()), fallback)
+    return first[:110]
+
+
+def age_from_birth(date_text):
+    if not date_text: return ""
+    try:
+        born = datetime.strptime(date_text, "%Y-%m-%d").date()
+        today = datetime.now().date()
+        return str(today.year - born.year - ((today.month, today.day) < (born.month, born.day)))
+    except Exception:
+        return ""
+
+
+def human_dt(text):
+    if not text: return ""
+    try:
+        dt = datetime.fromisoformat(text)
+        return dt.strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        return text
+
+
+def human_date(text):
+    if not text:
+        return ""
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text, fmt).strftime("%d/%m/%Y")
+        except Exception:
+            pass
+    return str(text)
+
+
+def normalize_search(value):
+    """Normaliza búsquedas para permitir nombres en cualquier orden y sin tildes."""
+    raw = unicodedata.normalize("NFD", str(value or ""))
+    raw = "".join(ch for ch in raw if unicodedata.category(ch) != "Mn")
+    raw = raw.upper()
+    raw = re.sub(r"[^A-Z0-9]+", " ", raw)
+    return re.sub(r"\s+", " ", raw).strip()
+
+
+def _birth_from_query(raw):
+    digits = re.sub(r"\D", "", raw or "")
+    if len(digits) != 8:
+        return ""
+    candidates = []
+    if 1900 <= int(digits[:4]) <= 2100:
+        candidates.append(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
+    candidates.append(f"{digits[4:8]}-{digits[2:4]}-{digits[:2]}")
+    for candidate in candidates:
+        try:
+            datetime.strptime(candidate, "%Y-%m-%d")
+            return candidate
+        except Exception:
+            pass
+    return ""
+
+
+def _name_rank(name_search, query_norm):
+    name_norm = normalize_search(name_search)
+    if not query_norm:
+        return 9999
+    if name_norm == query_norm:
+        return 0
+    if name_norm.startswith(query_norm):
+        return 4
+    q_tokens = query_norm.split()
+    n_tokens = name_norm.split()
+    score = 10
+    for qt in q_tokens:
+        if qt in n_tokens:
+            score += 0
+        elif any(nt.startswith(qt) for nt in n_tokens):
+            score += 2
+        elif any(qt in nt for nt in n_tokens):
+            score += 4
+        else:
+            score += 20
+    # Favorece coincidencias con menos palabras extra, sin exigir el orden escrito.
+    score += max(0, len(n_toke
