@@ -1,20 +1,3 @@
-ain-note single-note'><span>Historia / evolución</span><textarea id='clinical-note' autofocus rows='22' placeholder='Escriba aquí la consulta, evolución, hallazgos, diagnóstico, tratamiento e indicaciones…'>{e(note_value)}</textarea></label>
-  <div class='editor-footer'><div class='autosave-help'>Los cambios se guardan automáticamente.</div><div class='editor-actions'><button id='save-now' class='secondary'>Guardar</button><button id='sign-note' class='primary finish-btn'>Finalizar consulta</button></div></div>
-</div>
-{previous_panel}
-</section>
-<aside id='macro-panel' class='macro-panel macro-drawer' hidden><div class='macro-head'><div><span class='section-kicker'>Apoyo de escritura</span><strong>Frases rápidas</strong></div><div class='macro-head-actions'><a href='/macros' target='_blank'>Administrar</a><button id='close-macros' class='drawer-close' type='button' aria-label='Cerrar'>×</button></div></div><p>Haga clic en el campo donde desea insertar la frase y luego selecciónela.</p><div id='macro-list'></div></aside>
-<div id='finalize-modal' class='modal-backdrop clinical-confirm' hidden><div class='modal'><span class='section-kicker'>FINALIZAR ATENCIÓN</span><h3>¿Finalizar esta consulta?</h3><p>La consulta quedará cerrada. Si después necesita aclarar algo, se agregará como nota complementaria sin alterar el registro original.</p><div class='modal-actions'><button class='secondary' id='cancel-finalize' type='button'>Seguir editando</button><button class='primary' id='confirm-finalize' type='button'>Finalizar consulta</button></div></div></div>
-"""
-    script = f"""<script>
-const PATIENT_ID={json.dumps(patient_id)}, QUEUE_ID={json.dumps(queue_id)}, PREVIOUS={previous_json}, MACROS={macros_json};
-let encounterId={json.dumps(working['id'] if working else '')} || null, timer=null, dirty=false, lastFocused=document.getElementById('clinical-note');
-const state=document.getElementById('save-state');
-{{const el=document.getElementById('clinical-note');el.addEventListener('focus',()=>lastFocused=el);el.addEventListener('input',changed)}}
-['enc-date','enc-time'].forEach(id=>document.getElementById(id).addEventListener('change',changed));
-function changed(){{dirty=true;state.textContent='Guardando cambios…';state.className='save-state saving';clearTimeout(timer);timer=setTimeout(()=>save(false),900)}}
-async function save(manual=false){{if(!dirty && encounterId){{if(manual){{state.textContent='Todo guardado';state.className='save-state saved'}}return encounterId}}state.textContent='Guardando…';state.className='save-state saving';
-const payload={{encounter_id:encounterId,patient_id:PATIENT_ID,queue_id:QUEUE_ID,encounter_date:document.getElementById('enc-date').value,encounter_time:document.getElementById('enc-time').value,clinical_note:document.getElementById('clinical-note').value,manual_snapshot:manual}};
 try{{const r=await fetch('/api/encounters/save',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});if(!r.ok)throw 0;const j=await r.json();encounterId=j.encounter_id;dirty=false;state.textContent='Guardado '+new Date().toLocaleTimeString([],{{hour:'2-digit',minute:'2-digit'}});state.className='save-state saved';return encounterId}}catch(e){{state.textContent='No se pudo guardar';state.className='save-state error';throw e}}}}
 document.getElementById('save-now').addEventListener('click',async()=>{{dirty=true;await save(true)}});
 document.addEventListener('keydown',async e=>{{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){{e.preventDefault();dirty=true;await save(true)}}}});
