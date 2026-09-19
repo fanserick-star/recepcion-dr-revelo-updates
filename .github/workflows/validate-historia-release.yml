@@ -26,21 +26,21 @@ jobs:
         run: |
           python -m py_compile "historia-clinica/updates/v1_1_13_launcher_rescue/ABRIR_HISTORIA_CLINICA.py"
 
-      - name: Assemble and validate Historia v1.3.0
+      - name: Assemble and validate Historia v1.3.1
         shell: pwsh
         run: |
           $parts = @(
-            "historia-clinica/updates/v1_3_0_doctor_safety/app.py.part01",
-            "historia-clinica/updates/v1_3_0_doctor_safety/app.py.part02",
-            "historia-clinica/updates/v1_3_0_doctor_safety/app.py.part03",
-            "historia-clinica/updates/v1_3_0_doctor_safety/app.py.part04"
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part01",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04"
           )
           $bytes = New-Object System.Collections.Generic.List[byte]
           foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p)) }
-          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_130.py",$bytes.ToArray())
-          python -m py_compile "$env:TEMP\historia_app_130.py"
-          python -m py_compile "historia-clinica/updates/v1_2_0_lan_hybrid/lan_bridge.py"
-          python -m py_compile "historia-clinica/updates/v1_3_0_doctor_safety/cloud_presence_patch.py"
+          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_131.py",$bytes.ToArray())
+          python -m py_compile "$env:TEMP\historia_app_131.py"
+          python -m py_compile "historia-clinica/updates/v1_3_1_new_patient_turn/lan_bridge.py"
+          python -m py_compile "historia-clinica/updates/v1_3_1_new_patient_turn/cloud_presence_patch.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/historia_bridge.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/historia_lan_transport.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/app_patch_4522.py"
@@ -49,7 +49,7 @@ jobs:
       - name: Validate CSS structure
         shell: pwsh
         run: |
-          $css = Get-Content "historia-clinica/updates/v1_3_0_doctor_safety/style.css" -Raw
+          $css = Get-Content "historia-clinica/updates/v1_3_1_new_patient_turn/style.css" -Raw
           $opens = ([regex]::Matches($css,[regex]::Escape("/*"))).Count
           $closes = ([regex]::Matches($css,[regex]::Escape("*/"))).Count
           if($opens -ne $closes){ throw "CSS comments unbalanced: $opens / $closes" }
@@ -67,5 +67,5 @@ jobs:
       - name: Smoke test real Historia import
         shell: pwsh
         run: |
-          python "historia-clinica/tests/smoke_runtime_130.py"
+          python "historia-clinica/tests/smoke_runtime_131.py"
           python "updates/v4_5_22_historia_delete_sync/smoke_bridge_cancel.py"
