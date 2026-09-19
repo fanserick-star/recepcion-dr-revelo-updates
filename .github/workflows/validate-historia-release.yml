@@ -23,26 +23,26 @@ jobs:
         run: |
           python -m py_compile "historia-clinica/updates/v1_1_13_launcher_rescue/ABRIR_HISTORIA_CLINICA.py"
 
-      - name: Assemble and validate Historia v1.2.5
+      - name: Assemble and validate Historia v1.2.6
         shell: pwsh
         run: |
           $parts = @(
-            "historia-clinica/updates/v1_2_5_hotfix/app.py.part01",
-            "historia-clinica/updates/v1_2_5_hotfix/app.py.part02",
-            "historia-clinica/updates/v1_2_5_hotfix/app.py.part03",
-            "historia-clinica/updates/v1_2_5_hotfix/app.py.part04"
+            "historia-clinica/updates/v1_2_6_queue_cleanup/app.py.part01",
+            "historia-clinica/updates/v1_2_6_queue_cleanup/app.py.part02",
+            "historia-clinica/updates/v1_2_6_queue_cleanup/app.py.part03",
+            "historia-clinica/updates/v1_2_6_queue_cleanup/app.py.part04"
           )
           $bytes = New-Object System.Collections.Generic.List[byte]
           foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p)) }
-          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_125.py",$bytes.ToArray())
-          python -m py_compile "$env:TEMP\historia_app_125.py"
+          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_126.py",$bytes.ToArray())
+          python -m py_compile "$env:TEMP\historia_app_126.py"
           python -m py_compile "historia-clinica/updates/v1_2_0_lan_hybrid/lan_bridge.py"
-          python -m py_compile "historia-clinica/updates/v1_2_5_hotfix/cloud_presence_patch.py"
+          python -m py_compile "historia-clinica/updates/v1_2_6_queue_cleanup/cloud_presence_patch.py"
 
       - name: Validate CSS structure
         shell: pwsh
         run: |
-          $css = Get-Content "historia-clinica/updates/v1_2_5_hotfix/style.css" -Raw
+          $css = Get-Content "historia-clinica/updates/v1_2_6_queue_cleanup/style.css" -Raw
           $opens = ([regex]::Matches($css,[regex]::Escape("/*"))).Count
           $closes = ([regex]::Matches($css,[regex]::Escape("*/"))).Count
           if($opens -ne $closes){ throw "CSS comments unbalanced: $opens / $closes" }
@@ -60,4 +60,4 @@ jobs:
       - name: Smoke test real Historia import
         shell: pwsh
         run: |
-          python "historia-clinica/tests/smoke_runtime_125.py"
+          python "historia-clinica/tests/smoke_runtime_126.py"
