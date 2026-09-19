@@ -24,23 +24,23 @@ jobs:
         shell: pwsh
         run: |
           $parts = @(
-            "historia-clinica/updates/v1_2_2_queue_click/app.py.part01",
-            "historia-clinica/updates/v1_2_2_queue_click/app.py.part02",
-            "historia-clinica/updates/v1_1_6_native_shortcut/app.py.part03",
-            "historia-clinica/updates/v1_1_6_native_shortcut/app.py.part04"
+            "historia-clinica/updates/v1_2_3_doctor_usability/app.py.part01",
+            "historia-clinica/updates/v1_2_3_doctor_usability/app.py.part02",
+            "historia-clinica/updates/v1_2_3_doctor_usability/app.py.part03",
+            "historia-clinica/updates/v1_2_3_doctor_usability/app.py.part04"
           )
           $bytes = New-Object System.Collections.Generic.List[byte]
           foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p)) }
-          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_122.py",$bytes.ToArray())
-          python -m py_compile "$env:TEMP\historia_app_122.py"
+          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_123.py",$bytes.ToArray())
+          python -m py_compile "$env:TEMP\historia_app_123.py"
           python -m py_compile "historia-clinica/updates/v1_2_0_lan_hybrid/lan_bridge.py"
-          python -m py_compile "historia-clinica/updates/v1_2_2_queue_click/cloud_presence_patch.py"
+          python -m py_compile "historia-clinica/updates/v1_2_3_doctor_usability/cloud_presence_patch.py"
           python -m py_compile "updates/v4_5_21_historia_attention_type/app_patch_4521.py"
           python -m py_compile "updates/v4_5_21_historia_attention_type/app.py"
       - name: Validate CSS structure
         shell: pwsh
         run: |
-          $css = Get-Content "historia-clinica/updates/v1_2_2_queue_click/style.css" -Raw
+          $css = Get-Content "historia-clinica/updates/v1_2_3_doctor_usability/style.css" -Raw
           $opens = ([regex]::Matches($css,[regex]::Escape("/*"))).Count
           $closes = ([regex]::Matches($css,[regex]::Escape("*/"))).Count
           if($opens -ne $closes){ throw "CSS comments unbalanced: $opens / $closes" }
