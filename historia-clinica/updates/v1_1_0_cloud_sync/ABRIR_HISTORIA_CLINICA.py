@@ -104,6 +104,8 @@ def _fetch_manifest() -> dict:
 
 
 def _local_version() -> str:
+    # app.py es la fuente de verdad: así el launcher no depende de reemplazar
+    # update_manifest.json y nunca toca archivos de datos/configuración privada.
     try:
         text = (ROOT / "app.py").read_text(encoding="utf-8-sig", errors="ignore")
         m = re.search(r'(?m)^\s*APP_VERSION\s*=\s*["\']([^"\']+)', text)
@@ -319,7 +321,7 @@ def _edge_exe() -> str | None:
 def _open_ui(server: subprocess.Popen) -> None:
     try:
         import webview
-        webview.create_window(TITLE, URL, width=1460, height=920, min_size=(1024, 700), text_select=True)
+        window = webview.create_window(TITLE, URL, width=1460, height=920, min_size=(1024, 700), text_select=True)
         webview.start(gui="edgechromium", debug=False, private_mode=False)
         return
     except Exception as exc:
@@ -391,6 +393,7 @@ def main() -> None:
     try:
         _ensure_dependencies()
         _check_and_update()
+        # An update can replace requirements after the initial dependency check.
         _ensure_dependencies()
         if _port_open(APP_PORT) and _api_version():
             webbrowser.open(URL)
