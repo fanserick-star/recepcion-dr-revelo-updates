@@ -9,7 +9,6 @@
 #include <strsafe.h>
 #pragma comment(lib,"ole32.lib")
 #pragma comment(lib,"shell32.lib")
-#pragma comment(lib,"propsys.lib")
 
 static const wchar_t *APP_ID = L"DrArmandoRevelo.HistoriaClinica";
 static const wchar_t *LINK_NAME = L"Historia Clínica - Dr. Armando Revelo.lnk";
@@ -42,11 +41,15 @@ static HRESULT MakeShortcut(const wchar_t* linkPath,const wchar_t* exePath,const
     hr=sl->lpVtbl->QueryInterface(sl,&IID_IPropertyStore,(void**)&ps);
     if(SUCCEEDED(hr)){
         PropVariantInit(&pv);
-        if(SUCCEEDED(InitPropVariantFromString(APP_ID,&pv))){
+        size_t appLen = wcslen(APP_ID) + 1;
+        pv.vt = VT_LPWSTR;
+        pv.pwszVal = (LPWSTR)CoTaskMemAlloc(appLen * sizeof(wchar_t));
+        if(pv.pwszVal){
+            StringCchCopyW(pv.pwszVal, appLen, APP_ID);
             ps->lpVtbl->SetValue(ps,&PKEY_AppUserModel_ID,&pv);
             ps->lpVtbl->Commit(ps);
-            PropVariantClear(&pv);
         }
+        PropVariantClear(&pv);
         ps->lpVtbl->Release(ps);
     }
 
