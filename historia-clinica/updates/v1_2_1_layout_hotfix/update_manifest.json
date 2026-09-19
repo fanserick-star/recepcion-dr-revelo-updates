@@ -4,8 +4,8 @@
   "app_version": "1.2.1",
   "runtime_version": "1.2.1",
   "mandatory": true,
-  "launcher_version": "1.1.10-full-webview-1",
-  "updater_version": "historia-release-gate-v12-layout-hotfix",
+  "launcher_version": "2.0.0-transactional-1",
+  "updater_version": "historia-transactional-v2-layout-hotfix",
   "required_dependencies": [
     "app.py",
     "cloud_sync.py",
@@ -67,6 +67,9 @@
     "brand_logo_constrained": true,
     "system_panel_layout_restored": true,
     "recent_panel_layout_restored": true,
-    "database_schema_changes": false
+    "database_schema_changes": false,
+    "transactional_updater_v2": true,
+    "legacy_trial_preflight_removed": true,
+    "rollback_on_real_start_failure": true
   }
 }
