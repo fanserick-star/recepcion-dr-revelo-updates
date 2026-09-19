@@ -1,0 +1,77 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.2.3",
+  "app_version": "1.2.3",
+  "runtime_version": "1.2.3",
+  "mandatory": true,
+  "launcher_version": "2.0.0-transactional-1",
+  "updater_version": "historia-transactional-v2-doctor-usability",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "static/style.css",
+    "INICIAR.bat",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "ABRIR_HISTORIA_CLINICA.py",
+    "INICIAR.bat",
+    "static/style.css",
+    "static/doctor_icon.b64",
+    "static/HistoriaClinica_Dr_Revelo.exe.b64",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "full_webview_required": true,
+    "browser_fallback": false,
+    "transactional_updater_v2": true,
+    "natural_page_scroll": true,
+    "mouse_wheel_global_scroll": true,
+    "nested_scroll_traps_removed": true,
+    "doctor_readability_mode": true,
+    "larger_desktop_typography": true,
+    "compact_content_driven_layout": true,
+    "home_dead_space_reduced": true,
+    "patient_history_dead_space_reduced": true,
+    "consultation_editor_compacted": true,
+    "prior_history_all_records": true,
+    "prior_history_cards": true,
+    "prior_history_latest_open": true,
+    "legacy_history_visible_in_consultation": true,
+    "rizzo_2012_verified_in_cloud": true,
+    "lan_hybrid": true,
+    "cloud_fallback": true,
+    "local_first": true,
+    "database_schema_changes": false,
+    "validated_by_github_actions": true
+  }
+}
