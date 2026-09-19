@@ -1,0 +1,347 @@
+       if rid == digits: s = min(s, 0)
+            elif rid.startswith(digits): s = min(s, 2)
+            elif digits in rid: s = min(s, 5)
+        if digits and rphone:
+            if rphone == digits: s = min(s, 1)
+            elif rphone.startswith(digits): s = min(s, 3)
+            elif digits in rphone: s = min(s, 6)
+        if birth_iso and r["birth_date"] == birth_iso:
+            s = min(s, 1)
+        return (s, normalize_search(r["name"]))
+
+    return sorted(rows, key=score)[:limit]
+
+
+def clean_legacy_id(value):
+    raw = str(value or "").strip()
+    if not raw or re.fullmatch(r"[Xx\s.-]+", raw):
+        return ""
+    return raw
+
+
+def sex_label(value):
+    v = str(value or "").strip().upper()
+    if v == "M": return "Masculino"
+    if v == "F": return "Femenino"
+    return value or ""
+
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    return f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css">{extra_head}</head>
+<body class="cp-remaster-app">
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo" src="/static/doctor_logo.png" alt="Logo del Dr. Armando Revelo">
+    <div class="brand-copy"><strong>Historia Clínica</strong><small>{DOCTOR_NAME}</small></div>
+  </div>
+  <nav aria-label="Navegación principal">
+    <a class="{'active' if active=='inicio' else ''}" href="/">Inicio</a>
+    <a class="{'active' if active=='macros' else ''}" href="/macros">Frases rápidas</a>
+  </nav>
+</header>
+<main>{body}</main>
+<footer><span>Historia Clínica v{APP_VERSION}</span><span>Base local protegida · Migrada de Consulta Práctica</span></footer>
+<div id="app-toast" class="app-toast" role="status" aria-live="polite" hidden></div>
+<script>
+(()=>{{
+  const toast=document.getElementById('app-toast'); let toastTimer=0;
+  window.showAppToast=(message,type='info')=>{{if(!toast)return;clearTimeout(toastTimer);toast.textContent=String(message||'');toast.className='app-toast '+type;toast.hidden=false;toastTimer=setTimeout(()=>{{toast.hidden=true}},3600)}};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+  document.querySelectorAll('[data-live-patient-search]').forEach(box=>{{
+    const input=box.querySelector('input[name="q"]'), menu=box.querySelector('.live-search-results');
+    if(!input||!menu)return;
+    let timer=0, controller=null, active=-1;
+    const hide=()=>{{menu.hidden=true;menu.innerHTML='';active=-1}};
+    const select=(idx)=>{{const items=[...menu.querySelectorAll('a')];items.forEach(x=>x.classList.remove('active'));if(items[idx]){{active=idx;items[idx].classList.add('active');items[idx].scrollIntoView({{block:'nearest'}})}}}};
+    const run=()=>{{
+      clearTimeout(timer);
+      const q=input.value.trim();
+      if(q.length<2){{hide();return}}
+      timer=setTimeout(async()=>{{
+        try{{
+          controller?.abort(); controller=new AbortController();
+          const r=await fetch('/api/pacientes/buscar?q='+encodeURIComponent(q)+'&limit=8',{{signal:controller.signal}});
+          if(!r.ok)return hide();
+          const data=await r.json();
+          if(!data.length){{menu.innerHTML='<div class="live-empty">No encontré coincidencias</div>';menu.hidden=false;return}}
+          menu.innerHTML=data.map(x=>`<a href="${{esc(x.href)}}"><span class="live-avatar">${{esc((x.name||'?').slice(0,1))}}</span><span class="live-copy"><b>${{esc(x.name)}}</b><small>${{esc(x.detail)}}</small></span><span class="live-count">${{x.records}} reg.</span></a>`).join('');
+          menu.hidden=false; active=-1;
+        }}catch(err){{if(err.name!=='AbortError')hide()}}
+      }},170);
+    }};
+    input.addEventListener('input',run);
+    input.addEventListener('keydown',ev=>{{
+      if(menu.hidden)return; const items=[...menu.querySelectorAll('a')];
+      if(ev.key==='ArrowDown'){{ev.preventDefault();select(Math.min(active+1,items.length-1))}}
+      else if(ev.key==='ArrowUp'){{ev.preventDefault();select(Math.max(active-1,0))}}
+      else if(ev.key==='Enter'&&active>=0&&items[active]){{ev.preventDefault();location.href=items[active].href}}
+      else if(ev.key==='Escape')hide();
+    }});
+    input.addEventListener('focus',()=>{{if(input.value.trim().length>=2)run()}});
+    document.addEventListener('click',ev=>{{if(!box.contains(ev.target))hide()}});
+  }});
+}})();
+</script>
+{extra_script}</body></html>"""
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    hour = now.hour
+    greeting = "Buenos días" if hour < 12 else ("Buenas tardes" if hour < 19 else "Buenas noches")
+    with db() as conn:
+        patient_count = conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0]
+        encounter_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status!='draft'").fetchone()[0]
+        today_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status='signed' AND source='historia_clinica' AND encounter_date=?", (today,)).fetchone()[0]
+        queue = conn.execute("""
+            SELECT * FROM waiting_queue WHERE status IN ('waiting','in_consultation')
+            ORDER BY CASE status WHEN 'in_consultation' THEN 0 ELSE 1 END, queued_at ASC LIMIT 20
+        """).fetchall()
+        recent = conn.execute("""
+            SELECT p.id,p.name,p.birth_date,p.sex,MAX(a.occurred_at) AS last_opened
+            FROM audit_log a
+            JOIN patients p ON p.id=a.entity_id
+            WHERE a.action='view' AND a.entity_type='patient'
+            GROUP BY p.id,p.name,p.birth_date,p.sex
+            ORDER BY last_opened DESC
+            LIMIT 6
+        """).fetchall()
+
+    queue_count = len(queue)
+    if queue:
+        parts = []
+        for r in queue:
+            status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"
+            action_label = "Continuar" if r["status"] == "in_consultation" else "Atender"
+            if r["clinical_patient_id"]:
+                action = f"<a class='mini-btn' href='/paciente/{e(r['clinical_patient_id'])}/nueva?queue_id={e(r['id'])}'>{action_label}</a>"
+            else:
+                action = "<span class='badge warn'>Por vincular</span>"
+            queued = e((r["queued_at"] or "")[-8:-3])
+            parts.append(
+                f"<div class='queue-row'><div class='queue-avatar'>{e((r['display_name'] or '?')[:1])}</div>"
+                f"<span><b>{e(r['display_name'])}</b><small>{e(r['attention_type'] or 'Consulta')} · {status_text}</small></span>"
+                f"<time>{queued}</time>{action}</div>"
+            )
+        qhtml = "".join(parts)
+    else:
+        qhtml = "<div class='empty queue-empty'><div class='empty-icon'>✓</div><strong>No hay pacientes en espera</strong><span>Cuando Recepción envíe un paciente al pulsar Atender, aparecerá aquí automáticamente.</span></div>"
+
+    next_row = next((r for r in queue if r["clinical_patient_id"] and r["status"] == "waiting"), None)
+    if next_row is None:
+        next_row = next((r for r in queue if r["clinical_patient_id"]), None)
+    next_button = (
+        f"<a class='home-action primary' href='/paciente/{e(next_row['clinical_patient_id'])}/nueva?queue_id={e(next_row['id'])}'>Atender siguiente</a>"
+        if next_row else "<span class='home-action disabled'>Atender siguiente</span>"
+    )
+
+    if recent:
+        recent_parts = []
+        for r in recent:
+            detail = []
+            if r["birth_date"]:
+                age = age_from_birth(r["birth_date"])
+                if age is not None:
+                    detail.append(f"{age} años")
+            sx = sex_label(r["sex"])
+            if sx:
+                detail.append(sx)
+            try:
+                opened = datetime.fromisoformat(r["last_opened"]).strftime("%H:%M")
+            except Exception:
+                opened = ""
+            suffix = (" · " + " · ".join(detail)) if detail else ""
+            recent_parts.append(
+                f"<a class='recent-row' href='/paciente/{e(r['id'])}'><span class='recent-avatar'>{e((r['name'] or '?')[:1])}</span>"
+                f"<span class='recent-copy'><b>{e(r['name'])}</b><small>Abierto {e(opened)}{e(suffix)}</small></span><span class='recent-arrow'>›</span></a>"
+            )
+        recent_html = "".join(recent_parts)
+        last_patient = recent[0]
+        continue_button = f"<a class='home-action secondary' href='/paciente/{e(last_patient['id'])}'>Continuar último paciente</a>"
+    else:
+        recent_html = "<div class='recent-empty'>Los pacientes que abra aparecerán aquí para volver rápidamente.</div>"
+        continue_button = "<span class='home-action disabled subtle'>Continuar último paciente</span>"
+
+    cloud = get_sync_status(ROOT / "data")
+    if cloud.get("state") == "synced" and cloud.get("online"):
+        cloud_class = "ok"
+        cloud_mark = "✓"
+        cloud_text = "Sincronizada"
+    elif cloud.get("configured"):
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = cloud.get("message") or "Sincronizando…"
+    else:
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = "Pendiente de configurar"
+    if cloud.get("backup_ok"):
+        backup_class = "ok"
+        backup_mark = "✓"
+        backup_text = "Respaldo local diario activo"
+    else:
+        backup_class = "pending"
+        backup_mark = "•"
+        backup_text = "Preparando respaldo"
+
+    body = f"""
+<section class="home-heading home-heading-v107">
+  <div><span class="eyebrow">PANEL MÉDICO</span><h1>{greeting}, Dr. Revelo</h1><p>Acceda a una historia clínica o continúe con el siguiente paciente.</p></div>
+  <div class="stats">
+    <div><span>Pacientes</span><strong>{patient_count:,}</strong></div>
+    <div><span>Historias</span><strong>{encounter_count:,}</strong></div>
+    <div><span>Atendidos hoy</span><strong>{today_count}</strong></div>
+    <div><span>En espera</span><strong id="home-queue-count">{queue_count}</strong></div>
+  </div>
+</section>
+<section class="search-card home-search home-search-v107">
+  <div class="home-search-line">
+    <div class="patient-live-search" data-live-patient-search>
+      <form action="/pacientes" method="get"><label class="sr-only">Buscar historia clínica</label><div class="searchbox"><input name="q" autofocus autocomplete="off" placeholder="Escriba nombres en cualquier orden, identificación o teléfono"><button>Buscar paciente</button></div></form>
+      <div class="live-search-results" hidden></div>
+    </div>
+    <a class="new-patient-home" href="/pacientes/nuevo">+ Nuevo paciente</a>
+  </div>
+  <p class="search-help">Puede escribir, por ejemplo, <b>CARLOS BRAVO</b> aunque la ficha esté registrada como BRAVO BURBANO CARLOS EMILIO.</p>
+</section>
+<section class="home-workspace">
+  <section class="panel queue-panel home-queue-v107">
+    <div class="panel-title"><div><span class="dot"></span><div><h2>Pacientes en espera</h2><p>{queue_count} paciente{'s' if queue_count!=1 else ''} en la cola del doctor</p></div></div>{next_button}</div>
+    <div class="home-scroll-region">{qhtml}</div>
+  </section>
+  <aside class="home-side-stack">
+    <section class="panel recent-panel">
+      <div class="panel-title compact"><div><div><h2>Pacientes recientes</h2><p>Acceso rápido a las últimas fichas abiertas</p></div></div>{continue_button}</div>
+      <div class="recent-list">{recent_html}</div>
+    </section>
+    <section class="panel system-panel">
+      <div class="system-panel-head"><div><span class="eyebrow">ESTADO DEL SISTEMA</span><h2>Todo lo importante, de un vistazo</h2></div></div>
+      <div class="system-status-grid">
+        <div class="system-status ok"><span class="status-mark">✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
+        <div class="system-status {cloud_class}" id="cloud-status-card"><span class="status-mark" id="cloud-status-mark">{cloud_mark}</span><span><b>Nube</b><small id="cloud-status-text">{e(cloud_text)}</small><div class="cloud-progress-wrap" id="cloud-progress-wrap" hidden><div class="cloud-progress-track"><i id="cloud-progress-bar"></i></div><em id="cloud-progress-caption"></em></div></span></div>
+        <div class="system-status {backup_class}"><span class="status-mark">{backup_mark}</span><span><b>Respaldo</b><small>{e(backup_text)}</small></span></div>
+      </div>
+    </section>
+  </aside>
+</section>
+"""
+    home_script = r"""
+<script>
+(()=>{
+  let lastQueueKey='';
+  const cloudCard=document.getElementById('cloud-status-card');
+  const cloudMark=document.getElementById('cloud-status-mark');
+  const cloudText=document.getElementById('cloud-status-text');
+  const progressWrap=document.getElementById('cloud-progress-wrap');
+  const progressBar=document.getElementById('cloud-progress-bar');
+  const progressCaption=document.getElementById('cloud-progress-caption');
+  function fmt(n){return Number(n||0).toLocaleString('es-EC')}
+  async function refreshCloud(){
+    try{
+      const r=await fetch('/api/sync/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)return;
+      const s=await r.json();
+      const pending=Number(s.pending||0), total=Math.max(Number(s.initial_total||0),pending);
+      cloudCard?.classList.remove('ok','pending','error');
+      if(s.state==='synced'&&s.online){
+        cloudCard?.classList.add('ok'); if(cloudMark)cloudMark.textContent='✓'; if(cloudText)cloudText.textContent='Sincronizada';
+        if(progressWrap)progressWrap.hidden=true;
+      }else if(s.configured){
+        cloudCard?.classList.add(s.state==='offline'?'error':'pending'); if(cloudMark)cloudMark.textContent=s.state==='offline'?'!':'•';
+        if(cloudText)cloudText.textContent=s.message||'Sincronizando…';
+        if(progressWrap){progressWrap.hidden=pending<=0; if(pending>0){
+          const done=total>0?Math.max(0,total-pending):0, pct=total>0?Math.min(100,Math.max(2,(done/total)*100)):8;
+          if(progressBar)progressBar.style.width=pct.toFixed(1)+'%';
+          if(progressCaption)progressCaption.textContent=fmt(pending)+' pendientes'+(total?(' · '+Math.round(pct)+'% completado'):'');
+        }}
+      }else{
+        cloudCard?.classList.add('pending'); if(cloudMark)cloudMark.textContent='•'; if(cloudText)cloudText.textContent='Pendiente de configurar'; if(progressWrap)progressWrap.hidden=true;
+      }
+    }catch(_e){}
+  }
+  async function refreshQueue(){
+    try{
+      const r=await fetch('/api/queue/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)return; const q=await r.json();
+      const key=String(q.count||0)+'|'+String(q.latest||'')+'|'+String(q.updated_at||'');
+      const el=document.getElementById('home-queue-count'); if(el)el.textContent=String(q.count||0);
+      if(lastQueueKey&&key!==lastQueueKey) location.reload();
+      lastQueueKey=key;
+    }catch(_e){}
+  }
+  refreshCloud(); refreshQueue();
+  setInterval(refreshCloud,2000); setInterval(refreshQueue,4000);
+})();
+</script>
+"""
+    return base("Inicio", body, "inicio", extra_script=home_script)
+
+
+@app.get("/api/queue/status")
+def api_queue_status():
+    with db() as conn:
+        count = int(conn.execute("SELECT COUNT(*) FROM waiting_queue WHERE status IN ('waiting','in_consultation')").fetchone()[0])
+        latest = conn.execute("SELECT id,updated_at FROM waiting_queue WHERE status IN ('waiting','in_consultation') ORDER BY updated_at DESC LIMIT 1").fetchone()
+    return JSONResponse({"count": count, "latest": (latest["id"] if latest else ""), "updated_at": (latest["updated_at"] if latest else "")})
+
+
+@app.get("/api/pacientes/buscar")
+def api_patient_search(q: str = Query(default="", max_length=120), limit: int = Query(default=8, ge=1, le=20)):
+    with db() as conn:
+        rows = search_patients(conn, q, limit=limit)
+    result = []
+    for r in rows:
+        ident = clean_legacy_id(r["national_id"])
+        pieces = []
+        if ident:
+            pieces.append(f"ID {ident}")
+        if r["phone"]:
+            pieces.append(str(r["phone"]))
+        if r["birth_date"]:
+            pieces.append(human_date(r["birth_date"]))
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "detail": " · ".join(pieces) if pieces else "Sin datos de contacto registrados",
+            "records": int(r["n_hist"] or 0),
+            "href": f"/paciente/{r['id']}",
+        })
+    return JSONResponse(result)
+
+
+
+def render_new_patient_form(values=None, error=""):
+    values = values or {}
+    def v(key):
+        return e(values.get(key, ""))
+    error_html = f"<div class='form-error'><strong>No se pudo guardar el paciente.</strong><span>{e(error)}</span></div>" if error else ""
+    sex = str(values.get("sex", "") or "").upper()
+    civil = str(values.get("civil_status", "") or "").upper()
+    return f"""
+<a class='back cp-back' href='/pacientes'>← Volver a pacientes</a>
+<section class='new-patient-shell'>
+  <div class='new-patient-title'>
+    <div><span class='eyebrow'>IDENTIFICACIÓN</span><h1>Nuevo paciente</h1><p>Registre los datos disponibles. La identificación no es obligatoria.</p></div>
+  </div>
+  {error_html}
+  <form method='post' action='/pacientes/nuevo' class='new-patient-form' autocomplete='off'>
+    <fieldset>
+      <legend>Datos principales</legend>
+      <label class='span-2'>Apellidos y nombres <input name='name' value='{v("name")}' maxlength='180' required autofocus placeholder='APELLIDOS Y NOMBRES'></label>
+      <label>Fecha de nacimiento <input type='date' name='birth_date' value='{v("birth_date")}'></label>
+      <label>Sexo
+        <select name='sex'>
+          <option value='' {'selected' if not sex else ''}>No registrado</option>
+          <option value='M' {'selected' if sex=='M' else ''}>Masculino</option>
+          <option value='F' {'selected' if sex=='F' else ''}>Femenino</option>
+        </select>
+      </label>
+      <label>Estado civil
+        <select name='civil_status'>
+          <option value='' {'selected' if not civil else ''}>No registrado</option>
+          <option value='S' {'selected' if civil=='S' else ''}>Soltero/a</option>
+          <option value='C' {'selected' if civil=='C' else ''}>Casado/a</option>
+          <option value='D' {'selected' if civil=='D' else ''}>Divorciado/a</option>
+          <option value='V' {'selected' if civil=='V' else ''}>Viudo/a</option>
