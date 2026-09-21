@@ -169,6 +169,14 @@ V4523_JS = r"""
     ].join('|');
   }
 
+  function resetUi(){
+    ui.operation='';
+    ui.noOperation=false;
+    ui.brand='';
+    ui.last4='';
+    ui.approvedSnapshot='';
+  }
+
   function invalidateApproval(){
     ui.approvedSnapshot='';
     const button=q('#v4507Approve');
@@ -438,8 +446,28 @@ V4523_JS = r"""
       ui.approvedSnapshot='';
       setTimeout(patchFlow,40);
       setTimeout(patchFlow,180);
+      return;
+    }
+
+    if(event.target?.closest?.(
+      '#v4507CancelCard,'
+      +'.attention-form-modal [data-mode="EFECTIVO"],'
+      +'.attention-form-modal [data-mode="TRANSFERENCIA"],'
+      +'.attention-form-modal [data-mode="MIXTO"]'
+    )){
+      resetUi();
     }
   },true);
+
+  const stableAttentionFor=window.attentionFor;
+  if(typeof stableAttentionFor==='function' && !stableAttentionFor.__v4523){
+    const wrappedAttentionFor=async function(){
+      resetUi();
+      return await stableAttentionFor.apply(this,arguments);
+    };
+    wrappedAttentionFor.__v4523=true;
+    window.attentionFor=wrappedAttentionFor;
+  }
 
   const stableSave=window.saveAttention;
   if(typeof stableSave==='function' && !stableSave.__v4523){
