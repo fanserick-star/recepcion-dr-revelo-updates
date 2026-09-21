@@ -79,3 +79,4 @@ jobs:
           python "historia-clinica/tests/smoke_runtime_132.py"
           python "updates/v4_5_22_historia_delete_sync/smoke_bridge_cancel.py"
           python "updates/v4_5_23_bendo_operation/smoke_bendo_operation.py"
+          python "updates/v4_5_24_historia_demographics/smoke_historia_demographics.py"
