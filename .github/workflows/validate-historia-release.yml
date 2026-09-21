@@ -18,6 +18,7 @@ on:
       - "historia-clinica/updates/**"
       - "historia-clinica/tests/**"
       - "updates/v4_5_24_historia_demographics/**"
+      - "updates/v4_5_25_bendo_click_hotfix/**"
       - ".github/workflows/validate-historia-release.yml"
   workflow_dispatch:
 
@@ -93,3 +94,4 @@ jobs:
           python "updates/v4_5_22_historia_delete_sync/smoke_bridge_cancel.py"
           python "updates/v4_5_23_bendo_operation/smoke_bendo_operation.py"
           python "updates/v4_5_24_historia_demographics/smoke_historia_demographics.py"
+          python "updates/v4_5_25_bendo_click_hotfix/smoke_bendo_click.py"
