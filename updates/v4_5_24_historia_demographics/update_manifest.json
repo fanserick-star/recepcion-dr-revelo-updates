@@ -8,6 +8,8 @@
   "updater_version": "unified-channel-v4-historia-demographics",
   "required_dependencies": [
     "app_patch_4524.py",
+    "app_patch_4505.py",
+    "app_patch_4507.py",
     "app_patch_4523.py",
     "app_patch_4522.py",
     "app_patch_4521.py",
@@ -21,9 +23,7 @@
     "app_patch_4510.py",
     "app_patch_4509.py",
     "app_patch_4508.py",
-    "app_patch_4507.py",
     "app_patch_4506.py",
-    "app_patch_4505.py",
     "app_patch_4504.py",
     "app_patch_4502.py",
     "app_patch_4501.py",
@@ -69,6 +69,8 @@
   "copy": [
     "app.py",
     "app_patch_4524.py",
+    "app_patch_4505.py",
+    "app_patch_4507.py",
     "app_patch_4523.py",
     "app_patch_4522.py",
     "app_patch_4521.py",
@@ -82,9 +84,7 @@
     "app_patch_4510.py",
     "app_patch_4509.py",
     "app_patch_4508.py",
-    "app_patch_4507.py",
     "app_patch_4506.py",
-    "app_patch_4505.py",
     "app_patch_4504.py",
     "app_patch_4502.py",
     "app_patch_4501.py",
@@ -179,6 +179,12 @@
       "email",
       "address"
     ],
-    "historia_clinical_notes_shared": false
+    "historia_clinical_notes_shared": false,
+    "obsolete_dataphone_popup_removed": true,
+    "legacy_dataphone_layer_inert_under_bendo": true,
+    "bendo_global_dom_observer_removed": true,
+    "bendo_targeted_refresh_only": true,
+    "bendo_redundant_timers_reduced": true,
+    "card_selection_performance_fix": true
   }
 }
