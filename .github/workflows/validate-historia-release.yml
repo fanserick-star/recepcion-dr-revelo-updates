@@ -12,6 +12,12 @@ on:
       - "latest-v4*.json"
       - "latest-v3.json"
       - ".github/workflows/validate-historia-release.yml"
+  pull_request:
+    paths:
+      - "historia-clinica/updates/**"
+      - "historia-clinica/tests/**"
+      - "updates/v4_5_24_historia_demographics/**"
+      - ".github/workflows/validate-historia-release.yml"
   workflow_dispatch:
 
 permissions:
