@@ -7,6 +7,7 @@ on:
       - "historia-clinica/tests/**"
       - "updates/v4_5_22_historia_delete_sync/**"
       - "updates/v4_5_23_bendo_operation/**"
+      - "updates/v4_5_24_historia_demographics/**"
       - "latest-historia*.json"
       - "latest-v4*.json"
       - "latest-v3.json"
@@ -27,27 +28,32 @@ jobs:
         run: |
           python -m py_compile "historia-clinica/updates/v1_1_13_launcher_rescue/ABRIR_HISTORIA_CLINICA.py"
 
-      - name: Assemble and validate Historia v1.3.1
+      - name: Assemble and validate Historia v1.3.2
         shell: pwsh
         run: |
           $parts = @(
-            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part01",
+            "historia-clinica/updates/v1_3_2_new_patient_confirm/app.py.part01",
             "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
             "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
-            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04"
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
+            "historia-clinica/updates/v1_3_2_new_patient_confirm/app.py.part05"
           )
           $bytes = New-Object System.Collections.Generic.List[byte]
           foreach($p in $parts){ $bytes.AddRange([IO.File]::ReadAllBytes($p)) }
-          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_131.py",$bytes.ToArray())
-          python -m py_compile "$env:TEMP\historia_app_131.py"
-          python -m py_compile "historia-clinica/updates/v1_3_1_new_patient_turn/lan_bridge.py"
-          python -m py_compile "historia-clinica/updates/v1_3_1_new_patient_turn/cloud_presence_patch.py"
+          [IO.File]::WriteAllBytes("$env:TEMP\historia_app_132.py",$bytes.ToArray())
+          python -m py_compile "$env:TEMP\historia_app_132.py"
+          python -m py_compile "historia-clinica/updates/v1_3_2_new_patient_confirm/lan_bridge.py"
+          python -m py_compile "historia-clinica/updates/v1_3_2_new_patient_confirm/cloud_presence_patch.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/historia_bridge.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/historia_lan_transport.py"
           python -m py_compile "updates/v4_5_22_historia_delete_sync/app_patch_4522.py"
           python -m py_compile "updates/v4_5_23_bendo_operation/app_patch_4523.py"
           python -m py_compile "updates/v4_5_23_bendo_operation/app.py"
           python -m py_compile "updates/v4_5_23_bendo_operation/smoke_bendo_operation.py"
+          python -m py_compile "updates/v4_5_24_historia_demographics/historia_bridge.py"
+          python -m py_compile "updates/v4_5_24_historia_demographics/historia_lan_transport.py"
+          python -m py_compile "updates/v4_5_24_historia_demographics/app_patch_4524.py"
+          python -m py_compile "updates/v4_5_24_historia_demographics/app.py"
 
       - name: Validate CSS structure
         shell: pwsh
@@ -70,6 +76,6 @@ jobs:
       - name: Smoke test real Historia import
         shell: pwsh
         run: |
-          python "historia-clinica/tests/smoke_runtime_131.py"
+          python "historia-clinica/tests/smoke_runtime_132.py"
           python "updates/v4_5_22_historia_delete_sync/smoke_bridge_cancel.py"
           python "updates/v4_5_23_bendo_operation/smoke_bendo_operation.py"
