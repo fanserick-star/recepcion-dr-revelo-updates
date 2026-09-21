@@ -449,7 +449,7 @@ V4523_JS = r"""
       return;
     }
 
-    if(event.target?.closest?.(
+    if(event.isTrusted && event.target?.closest?.(
       '#v4507CancelCard,'
       +'.attention-form-modal [data-mode="EFECTIVO"],'
       +'.attention-form-modal [data-mode="TRANSFERENCIA"],'
