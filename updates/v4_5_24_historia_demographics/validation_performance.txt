@@ -1,0 +1,1 @@
+Validate Bendo card selection performance cleanup for v4.5.24
