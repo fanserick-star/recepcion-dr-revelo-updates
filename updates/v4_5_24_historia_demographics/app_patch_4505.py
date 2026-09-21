@@ -213,6 +213,7 @@ try:
 
   // Facturación tampoco permite registrar tarjeta manualmente.
   document.addEventListener('click',event=>{
+    if(window.__v4507BendoManual||window.__v4523BendoOperation)return;
     const paymentButton=event.target?.closest?.(
       '#billingList .v4504-billchoices [data-bm]'
     );
@@ -255,6 +256,7 @@ try:
   }
 
   function refresh(){
+    if(window.__v4507BendoManual||window.__v4523BendoOperation)return;
     paintDataphoneNote();
     compactMixed();
     document.querySelectorAll(
@@ -269,21 +271,20 @@ try:
   if(typeof stableAttentionFor==='function'){
     window.attentionFor=async function(){
       const result=await stableAttentionFor.apply(this,arguments);
-      setTimeout(refresh,40);
-      setTimeout(refresh,180);
-      setTimeout(refresh,360);
+      if(window.__v4507BendoManual||window.__v4523BendoOperation)return result;
+      setTimeout(refresh,60);
       return result;
     };
   }
 
   document.addEventListener('click',event=>{
+    if(window.__v4507BendoManual||window.__v4523BendoOperation)return;
     if(
       event.target?.closest?.(
         '.attention-form-modal .service-card,[data-mode="MIXTO"],[data-mode="EFECTIVO"],[data-mode="TRANSFERENCIA"]'
       )
     ){
-      setTimeout(refresh,35);
-      setTimeout(refresh,150);
+      setTimeout(refresh,60);
     }
   },true);
 
