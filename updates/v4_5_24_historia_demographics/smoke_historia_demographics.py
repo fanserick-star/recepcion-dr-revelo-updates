@@ -2,7 +2,7 @@ from pathlib import Path
 import ast
 
 ROOT = Path(__file__).resolve().parent
-for name in ("app.py", "app_patch_4524.py", "historia_bridge.py", "historia_lan_transport.py"):
+for name in ("app.py", "app_patch_4505.py", "app_patch_4507.py", "app_patch_4523.py", "app_patch_4524.py", "historia_bridge.py", "historia_lan_transport.py"):
     ast.parse((ROOT / name).read_text(encoding="utf-8"))
 
 app = (ROOT / "app_patch_4524.py").read_text(encoding="utf-8")
@@ -39,3 +39,18 @@ for token in (
         raise AssertionError(f"Missing LAN contract: {token}")
 
 print("RECEPCION_4524_HISTORIA_DEMOGRAPHICS_OK")
+
+
+legacy = (ROOT / "app_patch_4505.py").read_text(encoding="utf-8")
+manual = (ROOT / "app_patch_4507.py").read_text(encoding="utf-8")
+operation = (ROOT / "app_patch_4523.py").read_text(encoding="utf-8")
+
+if "if(window.__v4507BendoManual||window.__v4523BendoOperation)return;" not in legacy:
+    raise AssertionError("Legacy v4.5.5 dataphone blocker is not inert under Bendo")
+if "const observer=new MutationObserver" in operation:
+    raise AssertionError("Global Bendo MutationObserver must not ship in v4.5.24")
+if "setTimeout(patchPayment,550)" in manual or "setTimeout(boot,1100)" in manual:
+    raise AssertionError("Legacy Bendo repaint timers were not reduced")
+if "setTimeout(()=>{patchFlow();patchConfig()},70)" not in operation:
+    raise AssertionError("Targeted Bendo refresh missing")
+print("BENDO_PERFORMANCE_OK")
