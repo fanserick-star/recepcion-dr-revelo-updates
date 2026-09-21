@@ -8,6 +8,7 @@ on:
       - "updates/v4_5_22_historia_delete_sync/**"
       - "updates/v4_5_23_bendo_operation/**"
       - "updates/v4_5_24_historia_demographics/**"
+      - "updates/v4_5_25_bendo_click_hotfix/**"
       - "latest-historia*.json"
       - "latest-v4*.json"
       - "latest-v3.json"
@@ -63,6 +64,9 @@ jobs:
           python -m py_compile "updates/v4_5_24_historia_demographics/historia_lan_transport.py"
           python -m py_compile "updates/v4_5_24_historia_demographics/app_patch_4524.py"
           python -m py_compile "updates/v4_5_24_historia_demographics/app.py"
+          python -m py_compile "updates/v4_5_25_bendo_click_hotfix/app_patch_4525.py"
+          python -m py_compile "updates/v4_5_25_bendo_click_hotfix/app.py"
+          python -m py_compile "updates/v4_5_25_bendo_click_hotfix/smoke_bendo_click.py"
 
       - name: Validate CSS structure
         shell: pwsh
