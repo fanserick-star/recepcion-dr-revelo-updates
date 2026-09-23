@@ -1,0 +1,67 @@
+name: Build isolated STARTUP-IMPORT repair
+
+on:
+  push:
+    branches:
+      - repair-startup-import-local
+    paths:
+      - "repair-tools/REPARAR_STARTUP_IMPORT_LOCAL.py"
+      - ".github/workflows/build-startup-import-repair.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyInstaller
+        shell: powershell
+        run: py -3 -m pip install --disable-pip-version-check pyinstaller
+
+      - name: Parse repair source
+        shell: powershell
+        run: py -3 -m py_compile repair-tools\REPARAR_STARTUP_IMPORT_LOCAL.py
+
+      - name: Build isolated repair EXE
+        shell: powershell
+        run: |
+          py -3 -m PyInstaller --onefile --console --uac-admin --name REPARAR_STARTUP_IMPORT_RECEPCION repair-tools\REPARAR_STARTUP_IMPORT_LOCAL.py
+          if (-not (Test-Path 'dist\REPARAR_STARTUP_IMPORT_RECEPCION.exe')) { throw 'Repair EXE missing' }
+
+      - name: Safe synthetic test - only missing runtime files
+        shell: powershell
+        run: |
+          $r = Join-Path $env:RUNNER_TEMP 'Recepcion Vieja Test'
+          New-Item -ItemType Directory -Force "$r\.venv\Scripts","$r\data" | Out-Null
+          Copy-Item (Get-Command python).Source "$r\.venv\Scripts\python.exe"
+          Copy-Item (Get-Command python).Source "$r\.venv\Scripts\pythonw.exe"
+          @'
+from __future__ import annotations
+import app_patch_4519 as previous
+core = previous.core
+app = previous.app
+APP_VERSION = "4.5.19"
+'@ | Set-Content "$r\app.py" -Encoding utf8
+          'PRIVATE_DO_NOT_TOUCH=1' | Set-Content "$r\.env" -Encoding utf8
+          'PATIENT_DATA_DO_NOT_TOUCH' | Set-Content "$r\data\sentinel.txt" -Encoding utf8
+          $env:DR_REVELO_RECEPTION_ROOT=$r
+          $env:DR_REVELO_REPAIR_TEST='1'
+          $out = & .\dist\REPARAR_STARTUP_IMPORT_RECEPCION.exe 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic repair test failed' }
+          if ($out -notmatch 'TEST_REPAIR_OK') { throw 'Repair completion marker missing' }
+          if (-not (Test-Path "$r\app_patch_4506.py")) { throw 'app_patch_4506 was not restored' }
+          if ((Get-Content "$r\.env" -Raw) -notmatch 'PRIVATE_DO_NOT_TOUCH') { throw '.env changed' }
+          if ((Get-Content "$r\data\sentinel.txt" -Raw) -notmatch 'PATIENT_DATA_DO_NOT_TOUCH') { throw 'data changed' }
+
+      - name: Upload isolated repair
+        uses: actions/upload-artifact@v4
+        with:
+          name: REPARAR_STARTUP_IMPORT_RECEPCION
+          path: dist\REPARAR_STARTUP_IMPORT_RECEPCION.exe
+          retention-days: 7
+          if-no-files-found: error
