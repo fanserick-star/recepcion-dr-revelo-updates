@@ -5,9 +5,9 @@
   "runtime_version": "4.5.26",
   "mandatory": true,
   "channel": "runtime-v4-installer-repair",
-  "launcher_version": "4.5.16-unified-channel-1",
-  "updater_version": "unified-channel-v4-installer-repair",
-  "message": "v4.5.26: reparación de instalación incompleta creada por el instalador maestro. Restaura app_patch_4525 y mantiene exactamente el flujo Bendo de v4.5.25. Sin cambios de base de datos, data/, .env ni historias clínicas.",
+  "launcher_version": "4.5.26-dependency-guard-1",
+  "updater_version": "unified-channel-v4-installer-repair-dependency-guard",
+  "message": "v4.5.26: repara instalaciones incompletas del instalador maestro y el launcher ahora valida dependencias obligatorias antes de iniciar. Restaura app_patch_4525 si falta. Sin cambios de base de datos, data/, .env ni historias clínicas.",
   "files": [
     {
       "path": "app.py",
@@ -126,14 +126,14 @@
     {
       "path": "ABRIR_RECEPCION.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_16_unified_rescue/ABRIR_RECEPCION.py",
-      "sha256": "e6d810a3adaab9d331ebecb9c744b6e7fad5174ff103a7f91e429f8d681d9ff0"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_26_installer_repair/ABRIR_RECEPCION.py",
+      "sha256": "57159c14c7c97108d889a9a4510b19b6cd07c5f954cce502df71d8a87bc30e83"
     },
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_26_installer_repair/update_manifest.json",
-      "sha256": "694a73b9a4558dba83f41d69763414ea368772ee8d2cc78c3ac71b764e25c9bc"
+      "sha256": "9fb520a2f9ad4c09fa581e8ba6cc02eb82c55883914a71578c93126ec6b42167"
     }
   ]
 }
