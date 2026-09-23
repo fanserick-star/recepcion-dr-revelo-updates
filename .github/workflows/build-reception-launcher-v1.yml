@@ -4,11 +4,12 @@ on:
   push:
     paths:
       - "launcher-v1/**"
+      - "!launcher-v1/launcher-channel.json"
       - ".github/workflows/build-reception-launcher-v1.yml"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -72,7 +73,7 @@ jobs:
         run: |
           $out = "launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_2.exe" $out -Force
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_3.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
           Copy-Item "launcher-v1/README.txt" $out -Force
@@ -82,18 +83,36 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_2_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_3_COMPLETO.zip" -Force
           Write-Host "=== PACKAGE CONTENTS ==="
           Get-ChildItem $out | Format-Table Name,Length
           Get-Content "$out/SHA256SUMS.txt"
+
+      - name: Publish permanent launcher release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "launcher-v1.0.3"
+          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_3.exe"
+          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_3_COMPLETO.zip"
+          $launcher = "launcher-v1/package/RecepcionLauncher.exe"
+          $uninstaller = "launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe"
+          $sums = "launcher-v1/package/SHA256SUMS.txt"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Launcher Recepción v1.0.3" --notes "Launcher nativo v1.0.3: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
+          }
+          gh release upload $tag $installer $zip $launcher $uninstaller $sums --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload complete package
         uses: actions/upload-artifact@v4
         with:
           name: launcher-recepcion-v1-completo
           path: |
-            LAUNCHER_RECEPCION_DR_REVELO_V1_0_2_COMPLETO.zip
-            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_2.exe
+            LAUNCHER_RECEPCION_DR_REVELO_V1_0_3_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_3.exe
             launcher-v1/package/RecepcionLauncher.exe
             launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
             launcher-v1/package/README.txt
