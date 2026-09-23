@@ -123,9 +123,42 @@ function Refresh-ReceptionFromOfficialChannel([string]$ReceptionPayload) {
     if (-not (Test-Path -LiteralPath $py)) {
         throw 'La copia local no aportó el runtime Python de Recepción.'
     }
+
+    # El Python embebible debe ver la raíz del programa. Sin ..\.. puede
+    # ejecutar app.py por ruta absoluta, pero no importar app_patch_XXXX.py.
+    $pth = Join-Path $ReceptionPayload '.venv\Scripts\python311._pth'
+    if (Test-Path -LiteralPath $pth) {
+        $pthLines = @(
+            Get-Content -LiteralPath $pth |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { ([string]$_).TrimEnd() }
+        )
+        if (-not ($pthLines | Where-Object { ([string]$_).Trim() -eq '..\..' })) {
+            $siteIndex = [Array]::IndexOf([string[]]$pthLines, 'import site')
+            if ($siteIndex -ge 0) {
+                $before = if ($siteIndex -gt 0) { @($pthLines[0..($siteIndex-1)]) } else { @() }
+                $after = @($pthLines[$siteIndex..($pthLines.Count-1)])
+                $pthLines = @($before + '..\..' + $after)
+            } else {
+                $pthLines += '..\..'
+            }
+        }
+        Set-Content -LiteralPath $pth -Value $pthLines -Encoding ascii
+    }
+
     & $py -m py_compile (Join-Path $ReceptionPayload 'app.py') (Join-Path $ReceptionPayload 'ABRIR_RECEPCION.py')
     if ($LASTEXITCODE -ne 0) {
         throw 'Recepción oficial no pasó la validación de sintaxis.'
+    }
+
+    Push-Location $ReceptionPayload
+    try {
+        & $py -c "import app_patch_4525; print('RECEPCION_IMPORT_CHAIN_OK')"
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Recepción oficial no pasó la prueba completa de imports.'
+        }
+    } finally {
+        Pop-Location
     }
 
     Write-Host "Recepción reconstruida y validada: v$($manifest.version)"
