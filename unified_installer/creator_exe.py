@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-COMMIT = "79849d3432fc479754975d07c370681c3a3c2137"
+COMMIT = "a672c6ed6cdc01b4a09a02ca99de11972559a53e"
 BASE = f"https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/{COMMIT}/unified_installer"
 FILES = ["build_private_master.ps1", "ConsultorioDrRevelo.iss"]
 FINAL_NAME = "INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe"
@@ -22,9 +22,21 @@ def download(url, dest):
     with urllib.request.urlopen(req, timeout=60) as r, open(dest, "wb") as f:
         shutil.copyfileobj(r, f)
 
+def bundled_iscc():
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    iscc = base / "inno_runtime" / "ISCC.exe"
+    if not iscc.is_file():
+        fail("El creador no contiene su compilador Inno Setup portátil. Descarga nuevamente el EXE oficial.")
+    return iscc
+
 def main():
     if os.name != "nt":
         fail("Este creador solo funciona en Windows.")
+
+    try:
+        os.system("chcp 65001 >nul")
+    except Exception:
+        pass
 
     reception = Path(r"C:\Recepcion Dr Revelo")
     required = [
@@ -56,7 +68,9 @@ def main():
             "-ReceptionRoot", str(reception),
             "-OutputDir", str(desktop),
         ]
-        rc = subprocess.call(cmd)
+        env = os.environ.copy()
+        env["DR_REVELO_ISCC"] = str(bundled_iscc())
+        rc = subprocess.call(cmd, env=env)
         if rc != 0:
             fail(f"El creador terminó con código {rc}.")
 
