@@ -29,12 +29,6 @@ SetupLogging=yes
 Source: "build\RecepcionLauncher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\Desinstalar_Recepcion_Dr_Revelo.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-[InstallDelete]
-Type: files; Name: "{app}\ABRIR_RECEPCION.py"
-Type: files; Name: "{app}\ABRIR_RECEPCION.pyw"
-Type: files; Name: "{app}\__pycache__\ABRIR_RECEPCION*.pyc"
-Type: files; Name: "{app}\data\launcher_errors.log"
-
 [Icons]
 Name: "{autodesktop}\Recepción Dr. Armando Revelo"; Filename: "{app}\RecepcionLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\RecepcionLauncher.exe"; Comment: "Recepción Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.Recepcion"
 Name: "{autoprograms}\Recepción Dr. Armando Revelo"; Filename: "{app}\RecepcionLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\RecepcionLauncher.exe"; Comment: "Recepción Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.Recepcion"
@@ -60,9 +54,14 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then
+  if CurStep = ssPostInstall then
   begin
-    { El launcher nuevo sustituye completamente el acceso directo anterior.
-      No se toca app.py, .env, data, bases, Excel ni historias. }
+    { Primero se copiaron y verificaron los EXE nuevos. Solo entonces
+      retiramos los restos conocidos del launcher Python antiguo. }
+    DeleteFile(ExpandConstant('{app}\ABRIR_RECEPCION.py'));
+    DeleteFile(ExpandConstant('{app}\ABRIR_RECEPCION.pyw'));
+    DeleteFile(ExpandConstant('{app}\data\launcher_errors.log'));
+    DeleteFile(ExpandConstant('{app}\data\auto_update_state.json'));
+    DelTree(ExpandConstant('{app}\__pycache__\ABRIR_RECEPCION*.pyc'), False, True, False);
   end;
 end;
