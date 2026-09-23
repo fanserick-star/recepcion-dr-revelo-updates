@@ -274,7 +274,9 @@ $wrapperC=Join-Path $PSScriptRoot 'wrapper.c'
 $wrapperCopy=Join-Path $build 'wrapper.c'
 Copy-Item $wrapperC $wrapperCopy -Force
 $rc=Join-Path $build 'wrapper.rc'
-('101 RCDATA "{0}"' -f $generic) | Set-Content $rc -Encoding ascii
+$resourceSetup=Join-Path $build 'setup_payload.exe'
+Copy-Item $generic $resourceSetup -Force
+'101 RCDATA "setup_payload.exe"' | Set-Content $rc -Encoding ascii
 
 $vswhere='C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe'
 $vs=( & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath )
