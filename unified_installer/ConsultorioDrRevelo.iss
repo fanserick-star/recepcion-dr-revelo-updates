@@ -39,7 +39,7 @@ Source: "payload\recepcion_config.env"; DestDir: "C:\Recepcion Dr Revelo"; DestN
 Source: "payload\historia_config.env"; DestDir: "C:\Historia Clinica Dr Revelo"; DestName: ".env"; Flags: ignoreversion onlyifdoesntexist; Check: InstallHistoria
 
 ; WebView2 Evergreen bootstrapper. Se extrae solo durante la instalación.
-Source: "payload\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebView2Setup.exe"; Flags: deleteafterinstall; Check: InstallHistoria
+Source: "payload\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{tmp}"; DestName: "MicrosoftEdgeWebView2Setup.exe"; Flags: deleteafterinstall; Check: InstallAny
 
 [Icons]
 Name: "{autodesktop}\Recepción Dr. Armando Revelo"; Filename: "C:\Recepcion Dr Revelo\.venv\Scripts\pythonw.exe"; Parameters: """C:\Recepcion Dr Revelo\ABRIR_RECEPCION.py"""; WorkingDir: "C:\Recepcion Dr Revelo"; IconFilename: "C:\Recepcion Dr Revelo\static\doctor_icon.ico"; Comment: "Recepción Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.Recepcion"; Check: InstallRecepcion
@@ -49,7 +49,7 @@ Name: "{autodesktop}\Historia Clínica - Dr. Armando Revelo"; Filename: "C:\Hist
 Name: "{autoprograms}\Historia Clínica - Dr. Armando Revelo"; Filename: "C:\Historia Clinica Dr Revelo\.venv\Scripts\pythonw.exe"; Parameters: """C:\Historia Clinica Dr Revelo\ABRIR_HISTORIA_CLINICA.py"""; WorkingDir: "C:\Historia Clinica Dr Revelo"; IconFilename: "C:\Historia Clinica Dr Revelo\static\doctor_icon.ico"; Comment: "Historia Clínica - Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.HistoriaClinica"; Check: InstallHistoria
 
 [Run]
-Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Preparando WebView2 para Historia Clínica..."; Flags: waituntilterminated; Check: InstallHistoriaAndNeedWebView2
+Filename: "{tmp}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Preparando WebView2 para los programas del consultorio..."; Flags: waituntilterminated; Check: InstallAnyAndNeedWebView2
 Filename: "C:\Recepcion Dr Revelo\.venv\Scripts\pythonw.exe"; Parameters: """C:\Recepcion Dr Revelo\ABRIR_RECEPCION.py"""; WorkingDir: "C:\Recepcion Dr Revelo"; Description: "Abrir Recepción"; Flags: nowait postinstall skipifsilent; Check: InstallRecepcion
 Filename: "C:\Historia Clinica Dr Revelo\.venv\Scripts\pythonw.exe"; Parameters: """C:\Historia Clinica Dr Revelo\ABRIR_HISTORIA_CLINICA.py"""; WorkingDir: "C:\Historia Clinica Dr Revelo"; Description: "Abrir Historia Clínica"; Flags: nowait postinstall skipifsilent; Check: InstallHistoria
 
@@ -68,6 +68,11 @@ begin
   Result := (ModePage.SelectedValueIndex = 1) or (ModePage.SelectedValueIndex = 2);
 end;
 
+function InstallAny(): Boolean;
+begin
+  Result := InstallRecepcion() or InstallHistoria();
+end;
+
 function WebView2Installed(): Boolean;
 var
   V: String;
@@ -78,9 +83,9 @@ begin
     RegQueryStringValue(HKCU, 'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7CE48}', 'pv', V);
 end;
 
-function InstallHistoriaAndNeedWebView2(): Boolean;
+function InstallAnyAndNeedWebView2(): Boolean;
 begin
-  Result := InstallHistoria() and (not WebView2Installed());
+  Result := InstallAny() and (not WebView2Installed());
 end;
 
 procedure InitializeWizard();
