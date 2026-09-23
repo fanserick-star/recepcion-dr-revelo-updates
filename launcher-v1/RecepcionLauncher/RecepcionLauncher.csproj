@@ -8,6 +8,7 @@
     <AssemblyName>RecepcionLauncher</AssemblyName>
     <RootNamespace>DrRevelo.RecepcionLauncher</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>doctor_icon.ico</ApplicationIcon>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
