@@ -7,7 +7,7 @@
   "channel": "runtime-v4-launcher-focus-hotfix",
   "launcher_version": "4.5.32-native-splash-focus-hotfix-1",
   "updater_version": "unified-channel-v4-launcher-focus-hotfix",
-  "message": "Launcher hotfix 4.5.32: evita confundir la ventana nativa de inicio con la ventana real de Recepción. El backend permanece en v4.5.31. Sin cambios de base de datos, data/, .env, facturación, Bendo ni historias clínicas.",
+  "message": "Launcher hotfix 4.5.32: evita confundir la ventana nativa de inicio con la ventana real de Recepción. El backend permanece en v4.5.31. Sin cambios de base de datos, data/, .env, facturación, Bendo ni historias clínicas. Launcher Python antiguo retirado del canal activo; la migración oficial usa Launcher v1 nativo.",
   "files": [
     {
       "path": "app.py",
@@ -122,12 +122,6 @@
       "encoding": "utf-8",
       "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_24_historia_demographics/app_patch_4505.py",
       "sha256": "ead563cf2f73886573603764dfb1f1f1773db947c163803d871e2a3fa4922ee1"
-    },
-    {
-      "path": "ABRIR_RECEPCION.py",
-      "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_32_launcher_focus_hotfix/ABRIR_RECEPCION.py",
-      "sha256": "9a9f11c8d668b40f56bf8dd7b14c14c7257c91158206e3e6d4905f9930849209"
     },
     {
       "path": "update_manifest.json",
