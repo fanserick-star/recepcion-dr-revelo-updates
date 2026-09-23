@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-COMMIT = "a672c6ed6cdc01b4a09a02ca99de11972559a53e"
+COMMIT = "542b85d06fe20365a251246fffec99707d18f601"
 BASE = f"https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/{COMMIT}/unified_installer"
 FILES = ["build_private_master.ps1", "ConsultorioDrRevelo.iss"]
 FINAL_NAME = "INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe"
@@ -29,25 +29,153 @@ def bundled_iscc():
         fail("El creador no contiene su compilador Inno Setup portátil. Descarga nuevamente el EXE oficial.")
     return iscc
 
+def is_reception_root(path):
+    try:
+        path = Path(path)
+        required = [
+            path / ".env",
+            path / "ABRIR_RECEPCION.py",
+            path / "app.py",
+            path / ".venv" / "Scripts" / "pythonw.exe",
+        ]
+        return all(p.is_file() for p in required)
+    except Exception:
+        return False
+
+def shortcut_candidates():
+    ps = r"""
+$ErrorActionPreference = 'SilentlyContinue'
+$ws = New-Object -ComObject WScript.Shell
+$dirs = @(
+  [Environment]::GetFolderPath('Desktop'),
+  [Environment]::GetFolderPath('CommonDesktopDirectory'),
+  [Environment]::GetFolderPath('Programs'),
+  [Environment]::GetFolderPath('CommonPrograms')
+) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+foreach ($d in $dirs) {
+  Get-ChildItem -LiteralPath $d -Filter *.lnk -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+    try {
+      $s = $ws.CreateShortcut($_.FullName)
+      $text = (($s.TargetPath + ' ' + $s.Arguments + ' ' + $s.WorkingDirectory)).ToLowerInvariant()
+      if ($text -match 'abrir_recepcion\.py' -or $text -match 'recepci[oó]n') {
+        if ($s.WorkingDirectory) { [Console]::WriteLine($s.WorkingDirectory) }
+      }
+    } catch {}
+  }
+}
+"""
+    try:
+        encoded = __import__("base64").b64encode(ps.encode("utf-16le")).decode("ascii")
+        out = subprocess.check_output(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+            text=True, encoding="utf-8", errors="ignore",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        for line in out.splitlines():
+            line = line.strip().strip('"')
+            if line:
+                yield Path(line)
+    except Exception:
+        return
+
+def choose_reception_folder():
+    try:
+        import tkinter as tk
+        from tkinter import filedialog, messagebox
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True)
+        messagebox.showinfo(
+            "Instalador Maestro - Dr. Revelo",
+            "No encontré Recepción automáticamente.\n\n"
+            "Selecciona la carpeta donde está instalado el programa de Recepción.",
+            parent=root,
+        )
+        selected = filedialog.askdirectory(
+            title="Selecciona la carpeta de Recepción",
+            parent=root,
+            mustexist=True,
+        )
+        root.destroy()
+        if selected:
+            return Path(selected)
+    except Exception:
+        pass
+    return None
+
+def detect_reception():
+    env_root = os.environ.get("DR_REVELO_RECEPTION_ROOT", "").strip()
+    candidates = []
+    if env_root:
+        candidates.append(Path(env_root))
+
+    candidates.extend([
+        Path(r"C:\Recepcion Dr Revelo"),
+        Path(r"C:\Recepción Dr Revelo"),
+        Path(r"C:\Recepcion Dr. Revelo"),
+        Path(r"C:\Recepción Dr. Revelo"),
+        Path(r"C:\Recepcion Pacientes Dr Revelo"),
+        Path(r"C:\Recepción Pacientes Dr Revelo"),
+        Path(r"C:\Recepcion Pacientes"),
+        Path(r"C:\Recepción Pacientes"),
+    ])
+
+    candidates.extend(shortcut_candidates())
+
+    try:
+        for child in Path("C:/").iterdir():
+            if child.is_dir() and ("recep" in child.name.lower() or "revelo" in child.name.lower()):
+                candidates.append(child)
+    except Exception:
+        pass
+
+    seen = set()
+    for candidate in candidates:
+        try:
+            candidate = candidate.resolve()
+        except Exception:
+            candidate = Path(candidate)
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if is_reception_root(candidate):
+            return candidate
+
+    selected = choose_reception_folder()
+    if selected and is_reception_root(selected):
+        return selected
+
+    if selected:
+        fail(
+            "La carpeta seleccionada no parece ser la instalación de Recepción.\n\n"
+            "Debe contener .env, ABRIR_RECEPCION.py, app.py y .venv\\Scripts\\pythonw.exe."
+        )
+
+    fail(
+        "No pude localizar Recepción automáticamente.\n"
+        "Abre Recepción normalmente y vuelve a ejecutar este creador."
+    )
+
 def main():
     if os.name != "nt":
         fail("Este creador solo funciona en Windows.")
 
     try:
         os.system("chcp 65001 >nul")
+        if hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
 
-    reception = Path(r"C:\Recepcion Dr Revelo")
-    required = [
-        reception / ".env",
-        reception / "ABRIR_RECEPCION.py",
-        reception / "app.py",
-        reception / ".venv" / "Scripts" / "pythonw.exe",
-    ]
-    missing = [str(p) for p in required if not p.exists()]
-    if missing:
-        fail("No encuentro la instalación estable de Recepción. Falta:\n" + "\n".join(missing))
+    reception = detect_reception()
+    print(f"\nRecepción encontrada automáticamente en:\n{reception}")
+
+    if "--detect-only" in sys.argv:
+        print("RECEPTION_DETECTION_OK")
+        return
 
     desktop = Path.home() / "Desktop"
     if not desktop.exists():
@@ -70,6 +198,8 @@ def main():
         ]
         env = os.environ.copy()
         env["DR_REVELO_ISCC"] = str(bundled_iscc())
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         rc = subprocess.call(cmd, env=env)
         if rc != 0:
             fail(f"El creador terminó con código {rc}.")
@@ -88,7 +218,8 @@ def main():
             subprocess.Popen(["explorer.exe", "/select,", str(final)])
         except Exception:
             pass
-        input("\nPresiona Enter para cerrar...")
+        if os.environ.get("DR_REVELO_NONINTERACTIVE") != "1":
+            input("\nPresiona Enter para cerrar...")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
