@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-COMMIT = "b7be1cd3f50ae8b5c412e88d9d80dd20b11b94f5"
+COMMIT = "79849d3432fc479754975d07c370681c3a3c2137"
 BASE = f"https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/{COMMIT}/unified_installer"
 FILES = ["build_private_master.ps1", "ConsultorioDrRevelo.iss"]
 FINAL_NAME = "INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe"
