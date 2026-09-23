@@ -33,7 +33,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.0";
+    const string LauncherVersion = "1.0.1";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const int Port = 8000;
 
