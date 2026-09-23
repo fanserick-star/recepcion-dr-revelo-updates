@@ -636,6 +636,8 @@ internal sealed class LauncherForm : Form
 
             var oldLog = Path.Combine(root, "data", "launcher_errors.log");
             TryDeleteFile(oldLog);
+            var oldState = Path.Combine(root, "data", "auto_update_state.json");
+            TryDeleteFile(oldState);
 
             var temp = Path.GetTempPath();
             foreach (var pattern in new[] { "dr_revelo_splash_*", "rp_launcher_*" })
