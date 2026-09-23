@@ -64,8 +64,9 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.2";
+    const string LauncherVersion = "1.0.3";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
+    const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
 
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All });
@@ -273,7 +274,23 @@ internal sealed class LauncherForm : Form
                 throw new InvalidOperationException("No encuentro los componentes principales de Recepción en " + root);
 
             await Task.Delay(180);
-            SetProgress(10, "Comprobando actualizaciones", "Consultando el canal estable…");
+            SetProgress(8, "Comprobando launcher", "Buscando una versión nueva del sistema de inicio…");
+
+            LauncherChannel? launcherChannel = null;
+            try { launcherChannel = await GetLauncherChannelAsync(); }
+            catch { /* Sin internet nunca bloquea el trabajo */ }
+
+            if (launcherChannel is not null && IsNewer(launcherChannel.LatestVersion, LauncherVersion))
+            {
+                bool updateLauncher = await AskLauncherUpdateAsync(launcherChannel);
+                if (updateLauncher)
+                {
+                    await DownloadAndInstallLauncherAsync(launcherChannel);
+                    return;
+                }
+            }
+
+            SetProgress(10, "Comprobando actualizaciones", "Consultando el canal estable de Recepción…");
 
             AppChannel? channel = null;
             try { channel = await GetChannelAsync(); }
@@ -402,6 +419,106 @@ internal sealed class LauncherForm : Form
         resp.EnsureSuccessStatusCode();
         var json = await resp.Content.ReadAsStringAsync();
         return JsonSerializer.Deserialize<AppChannel>(json, JsonOpts);
+    }
+
+    async Task<LauncherChannel?> GetLauncherChannelAsync()
+    {
+        var url = LauncherChannelUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        using var resp = await http.GetAsync(url);
+        resp.EnsureSuccessStatusCode();
+        var json = await resp.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<LauncherChannel>(json, JsonOpts);
+    }
+
+    async Task<bool> AskLauncherUpdateAsync(LauncherChannel channel)
+    {
+        updateChoice = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        updateTitle.Text = $"Nuevo Launcher {channel.LatestVersion}";
+        updateNotes.Text =
+            (string.IsNullOrWhiteSpace(channel.Notes)
+                ? $"Hay una nueva versión del Launcher. Actual: {LauncherVersion} · Nueva: {channel.LatestVersion}."
+                : channel.Notes) +
+            "\n\nLa descarga solo comenzará si eliges “Actualizar ahora”.";
+        updatePanel.Visible = true;
+        updatePanel.BringToFront();
+        btnUpdate.Focus();
+        return await updateChoice.Task;
+    }
+
+    async Task DownloadAndInstallLauncherAsync(LauncherChannel channel)
+    {
+        if (string.IsNullOrWhiteSpace(channel.InstallerUrl) ||
+            string.IsNullOrWhiteSpace(channel.InstallerSha256))
+            throw new InvalidOperationException("El canal del launcher no contiene un instalador válido.");
+
+        var dir = Path.Combine(Path.GetTempPath(), "DrReveloLauncher", "self_update");
+        Directory.CreateDirectory(dir);
+        var installer = Path.Combine(dir, $"Launcher_{channel.LatestVersion.Replace('.', '_')}.exe");
+
+        SetProgress(12, "Descargando nuevo launcher",
+            $"Launcher {LauncherVersion} → {channel.LatestVersion}");
+
+        using (var req = new HttpRequestMessage(HttpMethod.Get,
+            channel.InstallerUrl + (channel.InstallerUrl.Contains('?') ? "&" : "?") +
+            "t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
+        using (var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead))
+        {
+            resp.EnsureSuccessStatusCode();
+            var length = resp.Content.Headers.ContentLength;
+            await using var input = await resp.Content.ReadAsStreamAsync();
+            await using var output = File.Create(installer);
+            var buffer = new byte[128 * 1024];
+            long read = 0;
+            while (true)
+            {
+                int n = await input.ReadAsync(buffer);
+                if (n <= 0) break;
+                await output.WriteAsync(buffer.AsMemory(0, n));
+                read += n;
+
+                int pct = 12;
+                if (length is > 0)
+                    pct = 12 + (int)(48 * Math.Min(1.0, read / (double)length.Value));
+
+                SetProgress(pct, "Descargando nuevo launcher",
+                    length is > 0
+                        ? $"{read / 1024 / 1024} MB de {length.Value / 1024 / 1024} MB"
+                        : $"{read / 1024 / 1024} MB descargados");
+            }
+            await output.FlushAsync();
+        }
+
+        SetProgress(63, "Verificando launcher", "Comprobando integridad SHA-256…");
+        var got = await Sha256Async(installer);
+        if (!got.Equals(channel.InstallerSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            TryDeleteFile(installer);
+            throw new InvalidOperationException(
+                "El instalador del launcher no superó la verificación de seguridad. No se ejecutó.");
+        }
+
+        SetProgress(70, "Preparando actualización", "Cerrando esta versión de forma segura…");
+
+        var helper = Path.Combine(dir, "actualizar_launcher.cmd");
+        var currentExe = Path.Combine(root, "RecepcionLauncher.exe");
+        var script =
+            "@echo off\r\n" +
+            "ping 127.0.0.1 -n 3 >nul\r\n" +
+            $"start /wait \"\" \"{installer}\" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-\r\n" +
+            $"start \"\" explorer.exe \"{currentExe}\"\r\n" +
+            "del /f /q \"%~f0\" >nul 2>&1\r\n";
+        await File.WriteAllTextAsync(helper, script, Encoding.ASCII);
+
+        var psi = new ProcessStartInfo(helper)
+        {
+            UseShellExecute = true,
+            Verb = "runas",
+            WorkingDirectory = dir
+        };
+        Process.Start(psi);
+
+        closingAllowed = true;
+        Close();
     }
 
     async Task<bool> AskUpdateAsync(AppChannel channel)
@@ -874,6 +991,14 @@ internal sealed class ReceptionForm : Form
         }
         base.Dispose(disposing);
     }
+}
+
+internal sealed class LauncherChannel
+{
+    public string LatestVersion { get; set; } = "";
+    public string Notes { get; set; } = "";
+    public string InstallerUrl { get; set; } = "";
+    public string InstallerSha256 { get; set; } = "";
 }
 
 internal sealed class AppChannel
