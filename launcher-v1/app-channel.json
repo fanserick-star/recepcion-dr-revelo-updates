@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "recepcion-dr-revelo",
-  "launcher_channel": "v1-stable",
-  "app_version": "4.5.31",
+  "launcherChannel": "v1-stable",
+  "appVersion": "4.5.31",
   "notes": "Versión estable actual de Recepción. El nuevo Launcher v1 solicita confirmación antes de descargar futuras actualizaciones.",
   "files": [
     {
