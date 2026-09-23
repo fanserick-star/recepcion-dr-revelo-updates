@@ -271,7 +271,8 @@ internal static class Program
             var self = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(self)) return;
 
-            var cmd = $"/c ping 127.0.0.1 -n 3 >nul & del /f /q \"{self}\"";
+            var dir = Path.GetDirectoryName(self) ?? "";
+            var cmd = $"/c ping 127.0.0.1 -n 3 >nul & cd /d \"{Path.GetTempPath().TrimEnd('\\')}\" & rd /s /q \"{dir}\"";
             Process.Start(new ProcessStartInfo("cmd.exe", cmd)
             {
                 UseShellExecute = false,
