@@ -1,19 +1,19 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.5.26",
-  "app_version": "4.5.26",
-  "runtime_version": "4.5.26",
+  "version": "4.5.27",
+  "app_version": "4.5.27",
+  "runtime_version": "4.5.27",
   "mandatory": true,
-  "channel": "runtime-v4-installer-repair",
-  "launcher_version": "4.5.26-dependency-guard-1",
-  "updater_version": "unified-channel-v4-installer-repair-dependency-guard",
-  "message": "v4.5.26: repara instalaciones incompletas del instalador maestro y el launcher ahora valida dependencias obligatorias antes de iniciar. Restaura app_patch_4525 si falta. Sin cambios de base de datos, data/, .env ni historias clínicas.",
+  "channel": "runtime-v4-visible-splash-runtime-guard",
+  "launcher_version": "4.5.27-visible-splash-runtime-guard-1",
+  "updater_version": "unified-channel-v4-visible-splash-runtime-guard",
+  "message": "v4.5.27: el launcher permanece visible un mínimo de 5 segundos en cada arranque normal y repara automáticamente python311._pth para que el Python portátil vea la raíz de Recepción. Mantiene Bendo y el resto del flujo de v4.5.26. Sin cambios de base de datos, data/, .env ni historias clínicas.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_26_installer_repair/app.py",
-      "sha256": "5ab67fff0b2d5b2d1162e62caffc607a196592a7dc7d8e9f20a69ef55e169aa1"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_27_visible_splash_runtime_guard/app.py",
+      "sha256": "a50a4a132c70f9625d1dc2eb019e294df302c556567cf35601d4bc5fa5fc33e2"
     },
     {
       "path": "app_patch_4525.py",
@@ -126,14 +126,14 @@
     {
       "path": "ABRIR_RECEPCION.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_26_installer_repair/ABRIR_RECEPCION.py",
-      "sha256": "57159c14c7c97108d889a9a4510b19b6cd07c5f954cce502df71d8a87bc30e83"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_27_visible_splash_runtime_guard/ABRIR_RECEPCION.py",
+      "sha256": "768254b8c196cc2447cd7c4a5c44a97f323845edfc1211bff3127794792c52f1"
     },
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_26_installer_repair/update_manifest.json",
-      "sha256": "9fb520a2f9ad4c09fa581e8ba6cc02eb82c55883914a71578c93126ec6b42167"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_27_visible_splash_runtime_guard/update_manifest.json",
+      "sha256": "d0238c157d093727a7ba1d5a62542eaba7611563f62223344a84d912da8336dc"
     }
   ]
 }
