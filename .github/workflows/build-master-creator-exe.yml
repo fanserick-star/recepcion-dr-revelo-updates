@@ -1,0 +1,41 @@
+name: Build master creator EXE
+
+on:
+  push:
+    branches:
+      - creator-exe-v1
+    paths:
+      - "unified_installer/creator_exe.py"
+      - ".github/workflows/build-master-creator-exe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PyInstaller
+        shell: powershell
+        run: |
+          py -3 -m pip install --disable-pip-version-check pyinstaller
+
+      - name: Build one-file creator EXE
+        shell: powershell
+        run: |
+          py -3 -m PyInstaller --onefile --console --uac-admin --name CREAR_INSTALADOR_MAESTRO_DR_REVELO unified_installer\creator_exe.py
+          $exe = "dist\CREAR_INSTALADOR_MAESTRO_DR_REVELO.exe"
+          if (-not (Test-Path $exe)) { throw "Creator EXE was not produced" }
+          if ((Get-Item $exe).Length -lt 1000000) { throw "Creator EXE is unexpectedly small" }
+          Get-FileHash $exe -Algorithm SHA256 | Format-List
+
+      - name: Upload creator EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: CREADOR_INSTALADOR_MAESTRO_DR_REVELO
+          path: dist\CREAR_INSTALADOR_MAESTRO_DR_REVELO.exe
+          retention-days: 7
+          if-no-files-found: error
