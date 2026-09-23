@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - installer-maestro-v1
-      - master-portable-python-fix
     paths:
       - "unified_installer/**"
       - ".github/workflows/validate-unified-installer.yml"
