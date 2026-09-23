@@ -15,25 +15,56 @@ internal static class Program
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     static extern int SetCurrentProcessExplicitAppUserModelID(string AppID);
 
+    const string MutexName = @"Local\DrRevelo.Recepcion.SingleInstance.V1";
+    const string FocusEventName = @"Local\DrRevelo.Recepcion.FocusExisting.V1";
+
     [STAThread]
     static void Main()
     {
         try { SetCurrentProcessExplicitAppUserModelID("DrArmandoRevelo.Recepcion"); } catch { }
         ApplicationConfiguration.Initialize();
-        using var mutex = new Mutex(true, @"Local\DrRevelo.RecepcionLauncher.V1", out bool first);
+
+        using var mutex = new Mutex(true, MutexName, out bool first);
         if (!first)
         {
-            MessageBox.Show("Recepción ya se está iniciando.", "Dr. Armando Revelo",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                using var evt = EventWaitHandle.OpenExisting(FocusEventName);
+                evt.Set();
+            }
+            catch { }
             return;
         }
-        Application.Run(new LauncherForm());
+
+        using var focusEvent = new EventWaitHandle(false, EventResetMode.AutoReset, FocusEventName);
+        using var form = new LauncherForm();
+
+        var waiter = new Thread(() =>
+        {
+            while (!form.IsDisposed)
+            {
+                try
+                {
+                    focusEvent.WaitOne();
+                    if (form.IsDisposed) break;
+                    form.BeginInvoke(new Action(form.FocusExistingReception));
+                }
+                catch { break; }
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "RecepcionFocusListener"
+        };
+        waiter.Start();
+
+        Application.Run(form);
     }
 }
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.1";
+    const string LauncherVersion = "1.0.2";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const int Port = 8000;
 
@@ -54,6 +85,7 @@ internal sealed class LauncherForm : Form
 
     TaskCompletionSource<bool>? updateChoice;
     bool closingAllowed;
+    ReceptionForm? receptionForm;
 
     public LauncherForm()
     {
@@ -314,6 +346,33 @@ internal sealed class LauncherForm : Form
                 "Recepción - Dr. Armando Revelo", MessageBoxButtons.OK, MessageBoxIcon.Error);
             closingAllowed = true;
         }
+    }
+
+    public void FocusExistingReception()
+    {
+        try
+        {
+            if (receptionForm is not null && !receptionForm.IsDisposed)
+            {
+                if (receptionForm.WindowState == FormWindowState.Minimized)
+                    receptionForm.WindowState = FormWindowState.Maximized;
+                if (!receptionForm.Visible) receptionForm.Show();
+                receptionForm.TopMost = true;
+                receptionForm.Activate();
+                receptionForm.BringToFront();
+                receptionForm.TopMost = false;
+                return;
+            }
+
+            if (WindowState == FormWindowState.Minimized)
+                WindowState = FormWindowState.Normal;
+            if (!Visible) Show();
+            TopMost = true;
+            Activate();
+            BringToFront();
+            TopMost = false;
+        }
+        catch { }
     }
 
     int ParsePercent()
@@ -590,12 +649,16 @@ internal sealed class LauncherForm : Form
             bool ok = await shell.InitializeAsync();
             if (ok)
             {
+                receptionForm = shell;
                 shell.FormClosed += (_, _) =>
                 {
+                    receptionForm = null;
                     closingAllowed = true;
                     if (!IsDisposed) Close();
                 };
                 shell.Show();
+                shell.Activate();
+                shell.BringToFront();
                 return true; // ventana propia: mantener vivo este proceso
             }
             shell.Dispose();
