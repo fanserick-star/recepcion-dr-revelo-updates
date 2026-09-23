@@ -226,7 +226,7 @@ try{
     $env:DATABASE_URL='postgresql://dummy:dummy@127.0.0.1:5432/dummy?sslmode=require'
     Push-Location $recep
     try{
-        & $recepPy -c "import app; print('RECEPCION_IMPORT_OK', app.APP_VERSION)"
+        & $recepPy -c "import os,sys; sys.path.insert(0,os.getcwd()); import app; print('RECEPCION_IMPORT_OK', app.APP_VERSION)"
         if($LASTEXITCODE -ne 0){ throw 'Recepción 4.5.25 no importó correctamente' }
     } finally { Pop-Location }
 } finally {
