@@ -4,14 +4,21 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Runtime.InteropServices;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace DrRevelo.RecepcionLauncher;
 
 internal static class Program
 {
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    static extern int SetCurrentProcessExplicitAppUserModelID(string AppID);
+
     [STAThread]
     static void Main()
     {
+        try { SetCurrentProcessExplicitAppUserModelID("DrArmandoRevelo.Recepcion"); } catch { }
         ApplicationConfiguration.Initialize();
         using var mutex = new Mutex(true, @"Local\DrRevelo.RecepcionLauncher.V1", out bool first);
         if (!first)
@@ -278,14 +285,26 @@ internal sealed class LauncherForm : Form
                 throw new InvalidOperationException("El servidor local de Recepción no respondió.");
 
             SetProgress(92, "Servidor listo", "Abriendo la ventana de Recepción…");
-            if (!OpenReception())
+            var nativeWindow = await OpenReceptionAsync();
+            if (nativeWindow is null)
                 throw new InvalidOperationException("No se pudo abrir la ventana de Recepción.");
 
             CleanupLegacyLauncher();
             SetProgress(100, "Todo listo", "Recepción está lista para trabajar.");
             await Task.Delay(850);
-            closingAllowed = true;
-            Close();
+
+            if (nativeWindow.Value)
+            {
+                // La ventana WebView2 vive en este mismo EXE; ocultamos el launcher
+                // y mantenemos el message loop hasta que Recepción se cierre.
+                Hide();
+            }
+            else
+            {
+                // Fallback externo (Edge/navegador): el launcher ya puede terminar.
+                closingAllowed = true;
+                Close();
+            }
         }
         catch (Exception ex)
         {
@@ -563,8 +582,27 @@ internal sealed class LauncherForm : Form
         catch { }
     }
 
-    bool OpenReception()
+    async Task<bool?> OpenReceptionAsync()
     {
+        try
+        {
+            var shell = new ReceptionForm(root, $"http://127.0.0.1:{Port}");
+            bool ok = await shell.InitializeAsync();
+            if (ok)
+            {
+                shell.FormClosed += (_, _) =>
+                {
+                    closingAllowed = true;
+                    if (!IsDisposed) Close();
+                };
+                shell.Show();
+                return true; // ventana propia: mantener vivo este proceso
+            }
+            shell.Dispose();
+        }
+        catch { }
+
+        // Respaldo: si WebView2 no está disponible, Recepción sigue abriendo con Edge.
         try
         {
             var edge = FindEdge();
@@ -578,12 +616,12 @@ internal sealed class LauncherForm : Form
                     WorkingDirectory = root,
                     UseShellExecute = false
                 });
-                return true;
+                return false; // abrió correctamente, pero en fallback externo
             }
             Process.Start(new ProcessStartInfo($"http://127.0.0.1:{Port}") { UseShellExecute = true });
-            return true;
+            return false;
         }
-        catch { return false; }
+        catch { return null; }
     }
 
     static string? FindEdge()
@@ -695,6 +733,84 @@ internal sealed class LauncherForm : Form
         PropertyNameCaseInsensitive = true,
         WriteIndented = true
     };
+}
+
+
+internal sealed class ReceptionForm : Form
+{
+    readonly string root;
+    readonly string url;
+    readonly WebView2 web = new();
+
+    public ReceptionForm(string rootPath, string targetUrl)
+    {
+        root = rootPath;
+        url = targetUrl;
+
+        Text = "Recepción de Pacientes";
+        StartPosition = FormStartPosition.CenterScreen;
+        WindowState = FormWindowState.Maximized;
+        MinimumSize = new Size(960, 640);
+        BackColor = Color.FromArgb(13, 22, 39);
+        ShowInTaskbar = true;
+        ShowIcon = true;
+
+        try
+        {
+            var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            if (icon is not null) Icon = icon;
+        }
+        catch { }
+
+        web.Dock = DockStyle.Fill;
+        web.DefaultBackgroundColor = Color.White;
+        Controls.Add(web);
+    }
+
+    public async Task<bool> InitializeAsync()
+    {
+        try
+        {
+            var profile = Path.Combine(root, "data", "webview2_profile");
+            Directory.CreateDirectory(profile);
+
+            var env = await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: null,
+                userDataFolder: profile);
+
+            await web.EnsureCoreWebView2Async(env);
+
+            web.CoreWebView2.Settings.AreDevToolsEnabled = false;
+            web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+            web.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            web.CoreWebView2.Settings.IsZoomControlEnabled = true;
+            web.CoreWebView2.NewWindowRequested += (_, e) =>
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
+                    e.Handled = true;
+                }
+                catch { }
+            };
+
+            web.Source = new Uri(url);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            try { web.Dispose(); } catch { }
+        }
+        base.Dispose(disposing);
+    }
 }
 
 internal sealed class AppChannel
