@@ -133,42 +133,8 @@ function Build-HistoriaRuntime([string]$HistoriaRoot) {
     Download-File 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip' $embedZip
     Expand-Archive -LiteralPath $embedZip -DestinationPath $scripts -Force
 
-    $fullInstaller = Join-Path $env:TEMP 'python-3.11.9-amd64-dr-revelo.exe'
-    $fullRoot = Join-Path $env:TEMP ('python311-dr-revelo-' + [guid]::NewGuid().ToString('N'))
-    Download-File 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' $fullInstaller
-    $args = @(
-        '/quiet',
-        'InstallAllUsers=0',
-        ('TargetDir="' + $fullRoot + '"'),
-        'PrependPath=0',
-        'Include_launcher=0',
-        'Include_pip=1',
-        'Include_tcltk=1',
-        'Include_test=0',
-        'Include_doc=0',
-        'Shortcuts=0'
-    )
-    $p = Start-Process -FilePath $fullInstaller -ArgumentList $args -Wait -PassThru
-    if ($p.ExitCode -ne 0 -or -not (Test-Path (Join-Path $fullRoot 'python.exe'))) {
-        throw "No se pudo preparar Python 3.11.9 para Historia Clínica. Código=$($p.ExitCode)"
-    }
-
-    $builderPython = Join-Path $fullRoot 'python.exe'
-    $requirements = Join-Path $HistoriaRoot 'requirements.txt'
-    & $builderPython -m pip install --disable-pip-version-check --no-compile --target $site -r $requirements
-    if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las dependencias de Historia Clínica.' }
-
-    if (Test-Path (Join-Path $fullRoot 'Lib\tkinter')) {
-        Copy-Item (Join-Path $fullRoot 'Lib\tkinter') (Join-Path $lib 'tkinter') -Recurse -Force
-    }
-    foreach ($f in @('_tkinter.pyd','tcl86t.dll','tk86t.dll')) {
-        $src = Join-Path $fullRoot ('DLLs\' + $f)
-        if (Test-Path $src) { Copy-Item $src $scripts -Force }
-    }
-    if (Test-Path (Join-Path $fullRoot 'tcl')) {
-        Copy-Item (Join-Path $fullRoot 'tcl') (Join-Path $scripts 'tcl') -Recurse -Force
-    }
-
+    # El runtime embebible no se instala en Windows: vive por completo dentro de Historia Clínica.
+    # Esto evita depender del instalador MSI/EXE de Python, del registro o de permisos de instalación.
     @'
 python311.zip
 .
@@ -185,13 +151,27 @@ version = 3.11.9
 '@ | Set-Content (Join-Path $runtime 'pyvenv.cfg') -Encoding ascii
 
     $portablePython = Join-Path $scripts 'python.exe'
-    & $portablePython -c "import fastapi,uvicorn,pg8000,webview; print('HISTORIA_RUNTIME_OK')"
-    if ($LASTEXITCODE -ne 0) { throw 'El Python portátil de Historia Clínica no pasó la prueba de importación.' }
+    $portablePythonw = Join-Path $scripts 'pythonw.exe'
+    if (-not (Test-Path $portablePython) -or -not (Test-Path $portablePythonw)) {
+        throw 'El paquete embebible de Python quedó incompleto.'
+    }
+
+    Write-Host 'Preparando pip dentro del Python portátil...'
+    $getPip = Join-Path $env:TEMP 'get-pip-dr-revelo.py'
+    Download-File 'https://bootstrap.pypa.io/get-pip.py' $getPip
+    & $portablePython $getPip --disable-pip-version-check --no-warn-script-location --target $site
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar pip dentro del Python portátil de Historia Clínica.' }
+
+    $requirements = Join-Path $HistoriaRoot 'requirements.txt'
+    & $portablePython -m pip install --disable-pip-version-check --no-compile --upgrade --target $site -r $requirements
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudieron instalar las dependencias de Historia Clínica.' }
+
+    # Verifica también el backend EdgeChromium usado realmente por Historia Clínica.
+    & $portablePython -c "import fastapi,uvicorn,pg8000,webview; import webview.platforms.edgechromium; print('HISTORIA_RUNTIME_OK')"
+    if ($LASTEXITCODE -ne 0) { throw 'El Python portátil de Historia Clínica no pasó la prueba de WebView2.' }
 
     & $portablePython -m py_compile (Join-Path $HistoriaRoot 'app.py') (Join-Path $HistoriaRoot 'ABRIR_HISTORIA_CLINICA.py')
     if ($LASTEXITCODE -ne 0) { throw 'Historia Clínica no pasó la validación de sintaxis.' }
-
-    Remove-Item -LiteralPath $fullRoot -Recurse -Force -ErrorAction SilentlyContinue
     return [string]$manifest.version
 }
 
