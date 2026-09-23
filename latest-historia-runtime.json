@@ -4,22 +4,22 @@
   "app_version": "1.3.3",
   "runtime_version": "1.3.3",
   "mandatory": true,
-  "channel": "files-v21-new-patient-response-hotfix",
+  "channel": "files-v21b-new-patient-response-hotfix-repair",
   "launcher_version": "2.0.0-transactional-1",
-  "updater_version": "historia-transactional-v4-new-patient-hotfix",
-  "message": "v1.3.3: corrige el Internal Server Error al pulsar Atender en un paciente nuevo. La ficha de confirmación ahora acepta correctamente el HTML devuelto por la pantalla de edición y mantiene el flujo Guardar y continuar → Atender. No modifica pacientes, historias, data/ ni .env.",
+  "updater_version": "historia-transactional-v4b-version-header-repair",
+  "message": "v1.3.3 reparada: corrige el Internal Server Error al pulsar Atender en un paciente nuevo y corrige la coherencia de APP_VERSION para que el launcher pueda iniciarla. No modifica pacientes, historias, data/ ni .env.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_2_new_patient_confirm/app.py.part01",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_3_new_patient_hotfix/app.py.part01",
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
         "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_3_new_patient_hotfix/app.py.part05"
       ],
-      "sha256": "8f53a2211c4572f1908329c79485459ddf8a2ea1585846d3dd2af82104ad3e35"
+      "sha256": "1917b0246c1d35c44d495b05ed1a91e6e74e0ce015fc42a17ae578f3ccb23fdd"
     },
     {
       "path": "cloud_sync.py",
