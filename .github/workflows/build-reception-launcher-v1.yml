@@ -1,0 +1,102 @@
+name: Build Reception Launcher v1 Package
+
+on:
+  push:
+    paths:
+      - "launcher-v1/**"
+      - ".github/workflows/build-reception-launcher-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Decode Dr Revelo icon
+        shell: pwsh
+        run: |
+          $b64 = Get-Content "historia-clinica/updates/v1_1_5_shortcut_branding/doctor_icon.b64" -Raw
+          $bytes = [Convert]::FromBase64String($b64.Trim())
+          [IO.File]::WriteAllBytes("launcher-v1/RecepcionLauncher/doctor_icon.ico", $bytes)
+          [IO.File]::WriteAllBytes("launcher-v1/Uninstaller/doctor_icon.ico", $bytes)
+          New-Item -ItemType Directory -Force "launcher-v1/installer/build" | Out-Null
+          [IO.File]::WriteAllBytes("launcher-v1/installer/build/doctor_icon.ico", $bytes)
+
+      - name: Publish clean launcher
+        shell: pwsh
+        run: |
+          dotnet publish "launcher-v1/RecepcionLauncher/RecepcionLauncher.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish full uninstaller
+        shell: pwsh
+        run: |
+          dotnet publish "launcher-v1/Uninstaller/Uninstaller.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect binaries
+        shell: pwsh
+        run: |
+          $launcher = Get-Item "launcher-v1/RecepcionLauncher/bin/Release/net8.0-windows/win-x64/publish/RecepcionLauncher.exe"
+          $uninstaller = Get-Item "launcher-v1/Uninstaller/bin/Release/net8.0-windows/win-x64/publish/Desinstalar_Recepcion_Dr_Revelo.exe"
+          if (-not $launcher -or -not $uninstaller) { throw "No se generaron los binarios esperados." }
+          Copy-Item $launcher.FullName "launcher-v1/installer/build/RecepcionLauncher.exe" -Force
+          Copy-Item $uninstaller.FullName "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" -Force
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build migration installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado." }
+          & $iscc "launcher-v1/installer/LauncherV1.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build final package
+        shell: pwsh
+        run: |
+          $out = "launcher-v1/package"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1.exe" $out -Force
+          Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
+          Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
+          Copy-Item "launcher-v1/README.txt" $out -Force
+          $hashLines = @()
+          Get-ChildItem $out -File | Where-Object { $_.Extension -eq ".exe" } | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $hashLines += "$h  $($_.Name)"
+          }
+          $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_COMPLETO.zip" -Force
+          Write-Host "=== PACKAGE CONTENTS ==="
+          Get-ChildItem $out | Format-Table Name,Length
+          Get-Content "$out/SHA256SUMS.txt"
+
+      - name: Upload complete package
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-recepcion-v1-completo
+          path: |
+            LAUNCHER_RECEPCION_DR_REVELO_V1_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1.exe
+            launcher-v1/package/RecepcionLauncher.exe
+            launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
+            launcher-v1/package/README.txt
+            launcher-v1/package/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
