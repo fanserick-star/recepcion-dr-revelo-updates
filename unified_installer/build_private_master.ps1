@@ -239,8 +239,9 @@ try {
         '.env','*.db','*.sqlite','*.sqlite3','*.log',
         'BASE DE DATOS 2026.xlsx','HISTORICO_PACIENTES_2020_2025.csv'
     )
-    $rp = Start-Process -FilePath 'robocopy.exe' -ArgumentList $roboArgs -Wait -PassThru -NoNewWindow
-    if ($rp.ExitCode -gt 7) { throw "Robocopy falló al preparar Recepción. Código=$($rp.ExitCode)" }
+    & robocopy.exe @roboArgs
+    $roboCode = $LASTEXITCODE
+    if ($roboCode -gt 7) { throw "Robocopy falló al preparar Recepción. Código=$roboCode" }
 
     if (-not (Test-Path (Join-Path $receptionPayload 'ABRIR_RECEPCION.py'))) {
         throw 'La copia limpia de Recepción quedó incompleta.'
