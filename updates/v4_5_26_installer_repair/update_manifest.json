@@ -4,7 +4,7 @@
   "app_version": "4.5.26",
   "runtime_version": "4.5.26",
   "mandatory": true,
-  "launcher_version": "4.5.16-unified-channel-1",
+  "launcher_version": "4.5.26-dependency-guard-1",
   "updater_version": "unified-channel-v4-installer-repair",
   "required_dependencies": [
     "app_patch_4525.py",
@@ -195,6 +195,8 @@
     "bendo_click_hotfix": true,
     "historia_changes": false,
     "installer_missing_patch_repair": true,
-    "repairs_missing_app_patch_4525": true
+    "repairs_missing_app_patch_4525": true,
+    "launcher_checks_required_dependencies": true,
+    "same_version_dependency_repair": true
   }
 }
