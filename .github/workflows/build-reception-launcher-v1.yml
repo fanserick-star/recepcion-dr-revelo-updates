@@ -72,7 +72,7 @@ jobs:
         run: |
           $out = "launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1.exe" $out -Force
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_1.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
           Copy-Item "launcher-v1/README.txt" $out -Force
@@ -82,7 +82,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_1_COMPLETO.zip" -Force
           Write-Host "=== PACKAGE CONTENTS ==="
           Get-ChildItem $out | Format-Table Name,Length
           Get-Content "$out/SHA256SUMS.txt"
@@ -92,8 +92,8 @@ jobs:
         with:
           name: launcher-recepcion-v1-completo
           path: |
-            LAUNCHER_RECEPCION_DR_REVELO_V1_COMPLETO.zip
-            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1.exe
+            LAUNCHER_RECEPCION_DR_REVELO_V1_0_1_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_1.exe
             launcher-v1/package/RecepcionLauncher.exe
             launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
             launcher-v1/package/README.txt
