@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - creator-exe-v1
-      - master-inno-portable-fix
     paths:
       - "unified_installer/creator_exe.py"
       - ".github/workflows/build-master-creator-exe.yml"
