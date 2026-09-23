@@ -92,6 +92,46 @@ function Download-ManifestFile($Entry, [string]$Target) {
     Assert-Sha256 $Target $expectedSha
 }
 
+
+function Refresh-ReceptionFromOfficialChannel([string]$ReceptionPayload) {
+    Write-Step '2/8 Reconstruyendo Recepción desde el canal oficial'
+    $manifestUrl = 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v4.json'
+    $manifest = Invoke-RestMethod -UseBasicParsing -Uri $manifestUrl
+    if (-not $manifest.version -or -not $manifest.files) {
+        throw 'No se pudo determinar la versión oficial de Recepción.'
+    }
+
+    foreach ($entry in $manifest.files) {
+        $target = Join-Path $ReceptionPayload ([string]$entry.path -replace '/', '\')
+        Download-ManifestFile $entry $target
+    }
+
+    $localManifestPath = Join-Path $ReceptionPayload 'update_manifest.json'
+    if (-not (Test-Path -LiteralPath $localManifestPath)) {
+        throw 'Recepción oficial no incluyó update_manifest.json.'
+    }
+    $localManifest = Get-Content -LiteralPath $localManifestPath -Raw | ConvertFrom-Json
+    foreach ($rel in @($localManifest.required_dependencies)) {
+        if ([string]::IsNullOrWhiteSpace([string]$rel)) { continue }
+        $dep = Join-Path $ReceptionPayload ([string]$rel -replace '/', '\')
+        if (-not (Test-Path -LiteralPath $dep)) {
+            throw "Recepción oficial incompleta: falta dependencia $rel. El instalador NO será generado."
+        }
+    }
+
+    $py = Join-Path $ReceptionPayload '.venv\Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath $py)) {
+        throw 'La copia local no aportó el runtime Python de Recepción.'
+    }
+    & $py -m py_compile (Join-Path $ReceptionPayload 'app.py') (Join-Path $ReceptionPayload 'ABRIR_RECEPCION.py')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Recepción oficial no pasó la validación de sintaxis.'
+    }
+
+    Write-Host "Recepción reconstruida y validada: v$($manifest.version)"
+    return [string]$manifest.version
+}
+
 function Ensure-InnoSetup {
     if ($env:DR_REVELO_ISCC -and (Test-Path -LiteralPath $env:DR_REVELO_ISCC)) {
         Write-Host 'Usando compilador Inno Setup portátil incluido en el creador.'
@@ -108,7 +148,7 @@ function Ensure-InnoSetup {
 }
 
 function Build-HistoriaRuntime([string]$HistoriaRoot) {
-    Write-Step '3/7 Descargando Historia Clínica estable desde el canal oficial'
+    Write-Step '4/8 Descargando Historia Clínica estable desde el canal oficial'
     $manifestUrl = 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-historia-runtime.json'
     $manifest = Invoke-RestMethod -UseBasicParsing -Uri $manifestUrl
     if (-not $manifest.version) { throw 'No se pudo determinar la versión estable de Historia Clínica.' }
@@ -121,7 +161,7 @@ function Build-HistoriaRuntime([string]$HistoriaRoot) {
     New-Item -ItemType Directory -Force -Path (Join-Path $HistoriaRoot 'data') | Out-Null
     Write-Host "Historia Clínica descargada: v$($manifest.version)"
 
-    Write-Step '4/7 Construyendo Python portátil de Historia Clínica'
+    Write-Step '5/8 Construyendo Python portátil de Historia Clínica'
     $runtime = Join-Path $HistoriaRoot '.venv'
     $scripts = Join-Path $runtime 'Scripts'
     $lib = Join-Path $runtime 'Lib'
@@ -208,7 +248,7 @@ try {
     New-Item -ItemType Directory -Force -Path $receptionPayload,$historiaPayload | Out-Null
     Copy-Item $issSource (Join-Path $work 'ConsultorioDrRevelo.iss') -Force
 
-    Write-Step '1/7 Copiando Recepción estable sin bases de pacientes'
+    Write-Step '1/8 Copiando runtime local de Recepción sin bases de pacientes'
     $roboArgs = @(
         $reception,
         $receptionPayload,
@@ -230,14 +270,12 @@ try {
         throw 'La copia limpia de Recepción quedó incompleta.'
     }
 
-    $recepVersion = 'actual'
-    $recepManifest = Join-Path $reception 'update_manifest.json'
-    if (Test-Path $recepManifest) {
-        try { $recepVersion = [string]((Get-Content $recepManifest -Raw | ConvertFrom-Json).version) } catch {}
-    }
-    Write-Host "Recepción preparada: v$recepVersion"
+    # Nunca confiamos en app.py/patches de la instalación local como fuente de versión.
+    # La carpeta local aporta el runtime/dependencias; el código de Recepción se
+    # reconstruye encima desde latest-v4.json y se valida completo antes de compilar.
+    $recepVersion = Refresh-ReceptionFromOfficialChannel $receptionPayload
 
-    Write-Step '2/7 Incorporando configuración privada sin modificar la instalación actual'
+    Write-Step '3/8 Incorporando configuración privada sin modificar la instalación actual'
     Copy-ReceptionConfig $envPath (Join-Path $payload 'recepcion_config.env')
     Write-Utf8NoBom (Join-Path $payload 'historia_config.env') @(
         '# Historia Clínica - Dr. Armando Revelo',
@@ -248,10 +286,10 @@ try {
 
     $histVersion = Build-HistoriaRuntime $historiaPayload
 
-    Write-Step '5/7 Incorporando WebView2'
+    Write-Step '6/8 Incorporando WebView2'
     Download-File 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' (Join-Path $payload 'MicrosoftEdgeWebView2Setup.exe')
 
-    Write-Step '6/7 Compilando instalador maestro privado'
+    Write-Step '7/8 Compilando instalador maestro privado'
     $iscc = Ensure-InnoSetup
     Push-Location $work
     try {
@@ -270,7 +308,7 @@ try {
     $shaFile = Join-Path $out 'INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO_SHA256.txt'
     Write-Utf8NoBom $shaFile @("$hash  INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe")
 
-    Write-Step '7/7 LISTO'
+    Write-Step '8/8 LISTO'
     Write-Host "Recepción incluida: v$recepVersion"
     Write-Host "Historia Clínica incluida: v$histVersion"
     Write-Host "Instalador: $final"
