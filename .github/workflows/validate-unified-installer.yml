@@ -90,6 +90,14 @@ jobs:
           "RECEPTION_ROOT=$r" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "MASTER_OUT=$env:RUNNER_TEMP\master-output" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Prepare portable Inno compiler for builder test
+        shell: powershell
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe not found' }
+          "DR_REVELO_ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Run real private master builder end to end
         shell: powershell
         run: |

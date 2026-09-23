@@ -93,19 +93,18 @@ function Download-ManifestFile($Entry, [string]$Target) {
 }
 
 function Ensure-InnoSetup {
+    if ($env:DR_REVELO_ISCC -and (Test-Path -LiteralPath $env:DR_REVELO_ISCC)) {
+        Write-Host 'Usando compilador Inno Setup portátil incluido en el creador.'
+        return [System.IO.Path]::GetFullPath($env:DR_REVELO_ISCC)
+    }
+
     $candidates = @(
         'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
         'C:\Program Files\Inno Setup 6\ISCC.exe'
     )
     foreach ($p in $candidates) { if (Test-Path $p) { return $p } }
 
-    Write-Host 'Inno Setup no está instalado. Instalando compilador...'
-    $installer = Join-Path $env:TEMP 'innosetup-dr-revelo.exe'
-    Download-File 'https://jrsoftware.org/download.php/is.exe' $installer
-    $proc = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
-    if ($proc.ExitCode -ne 0) { throw "Inno Setup devolvió código $($proc.ExitCode)" }
-    foreach ($p in $candidates) { if (Test-Path $p) { return $p } }
-    throw 'No se encontró ISCC.exe después de instalar Inno Setup.'
+    throw 'No se encontró el compilador Inno Setup. Ejecuta el creador EXE oficial del consultorio.'
 }
 
 function Build-HistoriaRuntime([string]$HistoriaRoot) {
