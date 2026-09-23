@@ -64,12 +64,15 @@ function Download-ManifestFile($Entry, [string]$Target) {
     $parent = Split-Path -Parent $Target
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
 
-    if ($Entry.url) {
+    $hasUrl = ($Entry.PSObject.Properties.Name -contains 'url') -and (-not [string]::IsNullOrWhiteSpace([string]$Entry.url))
+    $hasParts = ($Entry.PSObject.Properties.Name -contains 'parts') -and ($null -ne $Entry.parts) -and (@($Entry.parts).Count -gt 0)
+
+    if ($hasUrl) {
         Download-File ([string]$Entry.url) $Target
-    } elseif ($Entry.parts) {
+    } elseif ($hasParts) {
         $fs = [System.IO.File]::Open($Target, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
         try {
-            foreach ($url in $Entry.parts) {
+            foreach ($url in @($Entry.parts)) {
                 $tmp = [System.IO.Path]::GetTempFileName()
                 try {
                     Download-File ([string]$url) $tmp
@@ -85,7 +88,8 @@ function Download-ManifestFile($Entry, [string]$Target) {
     } else {
         throw "Entrada de manifiesto sin url ni parts: $($Entry.path)"
     }
-    Assert-Sha256 $Target ([string]$Entry.sha256)
+    $expectedSha = if ($Entry.PSObject.Properties.Name -contains 'sha256') { [string]$Entry.sha256 } else { '' }
+    Assert-Sha256 $Target $expectedSha
 }
 
 function Ensure-InnoSetup {
