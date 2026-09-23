@@ -100,9 +100,9 @@ begin
 
   PrivacyLabel := TNewStaticText.Create(ModePage.Surface);
   PrivacyLabel.Parent := ModePage.Surface;
-  PrivacyLabel.Top := ModePage.CheckList.Top + ModePage.CheckList.Height + ScaleY(14);
-  PrivacyLabel.Left := ModePage.CheckList.Left;
-  PrivacyLabel.Width := ModePage.CheckList.Width;
+  PrivacyLabel.Top := ScaleY(190);
+  PrivacyLabel.Left := 0;
+  PrivacyLabel.Width := ModePage.Surface.Width;
   PrivacyLabel.AutoSize := False;
   PrivacyLabel.Height := ScaleY(58);
   PrivacyLabel.WordWrap := True;
