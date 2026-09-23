@@ -1,19 +1,19 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.5.30",
-  "app_version": "4.5.30",
-  "runtime_version": "4.5.30",
+  "version": "4.5.31",
+  "app_version": "4.5.31",
+  "runtime_version": "4.5.31",
   "mandatory": true,
-  "channel": "runtime-v4-native-splash-fallback",
-  "launcher_version": "4.5.30-native-splash-fallback-1",
-  "updater_version": "unified-channel-v4-native-splash-fallback",
-  "message": "v4.5.30: el launcher ya no depende de Tkinter para mostrarse. Si el Python portátil no incluye Tkinter, usa una ventana nativa de Windows y permanece visible mínimo 5 segundos. Mantiene sincronización de versión y reparación del runtime. Sin cambios de base de datos, data/, .env ni historias clínicas.",
+  "channel": "runtime-v4-native-splash-utf8-hotfix",
+  "launcher_version": "4.5.31-native-splash-utf8-hotfix-1",
+  "updater_version": "unified-channel-v4-native-splash-utf8-hotfix",
+  "message": "v4.5.31: hotfix visual del launcher nativo. Fuerza lectura UTF-8 del estado para mostrar correctamente Recepción, actualización, está y demás caracteres acentuados. Sin cambios funcionales, de base de datos, data/, .env ni historias clínicas.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_30_native_splash_fallback/app.py",
-      "sha256": "c2c036d3d8da7503dc0d5ad63ad92a2f53071db46d2870f6f26fae33556c177a"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_31_native_splash_utf8_hotfix/app.py",
+      "sha256": "9c1cf3542b07613a33b9fea365cd1225f90f8c02cc784d6e7f2b31036935f92f"
     },
     {
       "path": "app_patch_4525.py",
@@ -126,14 +126,14 @@
     {
       "path": "ABRIR_RECEPCION.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_30_native_splash_fallback/ABRIR_RECEPCION.py",
-      "sha256": "b4e2e82b56971d9b51c21ce6b3548f42f8a5d42440926d60011882b4d8ba97ef"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_31_native_splash_utf8_hotfix/ABRIR_RECEPCION.py",
+      "sha256": "492613b284382697fcdc29674b0ffe718a60801578acd3a81b4f569b09a9fb96"
     },
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_30_native_splash_fallback/update_manifest.json",
-      "sha256": "2765295b932e8f228603721b66046e7b3bdade773088d436509d8c6b89703041"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_31_native_splash_utf8_hotfix/update_manifest.json",
+      "sha256": "80f316c078dc4aa0086b84e5fa39a02bc3fe19c13718e5378f8106b1d42e36e3"
     }
   ]
 }
