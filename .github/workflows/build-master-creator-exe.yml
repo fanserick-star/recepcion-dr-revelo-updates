@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - creator-exe-v1
+      - creator-autodetect-reception
     paths:
       - "unified_installer/creator_exe.py"
       - ".github/workflows/build-master-creator-exe.yml"
@@ -39,6 +40,22 @@ jobs:
           if (-not (Test-Path $exe)) { throw "Creator EXE was not produced" }
           if ((Get-Item $exe).Length -lt 1000000) { throw "Creator EXE is unexpectedly small" }
           Get-FileHash $exe -Algorithm SHA256 | Format-List
+
+      - name: Test Reception auto-detection in built EXE
+        shell: powershell
+        run: |
+          $r = Join-Path $env:RUNNER_TEMP 'Recepción Dr Revelo Prueba'
+          New-Item -ItemType Directory -Force "$r\.venv\Scripts" | Out-Null
+          'DATABASE_URL=postgresql://dummy' | Set-Content "$r\.env" -Encoding utf8
+          'print("ok")' | Set-Content "$r\ABRIR_RECEPCION.py" -Encoding utf8
+          'print("ok")' | Set-Content "$r\app.py" -Encoding utf8
+          [IO.File]::WriteAllBytes("$r\.venv\Scripts\pythonw.exe",[byte[]](77,90,0,0))
+          $env:DR_REVELO_RECEPTION_ROOT = $r
+          $env:DR_REVELO_NONINTERACTIVE = '1'
+          $out = & .\dist\CREAR_INSTALADOR_MAESTRO_DR_REVELO.exe --detect-only 2>&1 | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0) { throw "Creator detect-only test failed" }
+          if ($out -notmatch 'RECEPTION_DETECTION_OK') { throw "Reception auto-detection was not confirmed" }
 
       - name: Upload creator EXE
         uses: actions/upload-artifact@v4
