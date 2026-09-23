@@ -1,0 +1,58 @@
+name: Build secret-free private master base
+
+on:
+  push:
+    branches:
+      - private-master-base-4525-132
+    paths:
+      - "private_master_builder/**"
+      - ".github/workflows/build-private-master-base.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+          architecture: "x64"
+
+      - name: Build and test published master base
+        shell: powershell
+        run: |
+          & .\private_master_builder\build_private_base.ps1
+          if ($LASTEXITCODE -ne 0) { throw "Master base builder returned $LASTEXITCODE" }
+
+      - name: Verify no private env is present
+        shell: powershell
+        run: |
+          $root = 'private_master_builder\work'
+          $forbidden = @(
+            Get-ChildItem $root -Recurse -Force -File -ErrorAction SilentlyContinue |
+              Where-Object {
+                $_.Name -eq '.env' -or
+                $_.Name -match 'private.*\.env$'
+              }
+          )
+          if ($forbidden.Count -gt 0) {
+            $forbidden | ForEach-Object { Write-Host "FORBIDDEN=$($_.FullName)" }
+            throw 'Private env found in generic build tree'
+          }
+          Write-Host 'GENERIC_BUILD_SECRET_FREE_OK'
+
+      - name: Upload secret-free wrapper base
+        uses: actions/upload-artifact@v4
+        with:
+          name: INSTALAR_CONSULTORIO_DR_REVELO_PRIVADO_BASE
+          path: |
+            private_master_builder\work\output\INSTALAR_CONSULTORIO_DR_REVELO_PRIVADO_BASE.exe
+            private_master_builder\work\output\SHA256_BASE.txt
+          retention-days: 7
+          if-no-files-found: error
