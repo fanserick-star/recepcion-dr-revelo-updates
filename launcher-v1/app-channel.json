@@ -1,26 +1,27 @@
 {
-  "schema": 2,
+  "schema": 3,
   "product": "recepcion-dr-revelo",
-  "launcherChannel": "v1-stable",
-  "appVersion": "4.5.33",
+  "status": "stable",
+  "appVersion": "4.5.34",
   "mandatory": true,
-  "minimumLauncher": "1.0.10",
-  "notes": "Recepción 4.5.33: unifica la versión real en recepcion-version.json, elimina el comprobador interno antiguo que mostraba 'paquete X' separado y obliga a mantener sincronizados los aliases legacy. Sin cambios funcionales, de pacientes, Bendo, Historia, bases, .env ni esquema.",
+  "minimumLauncher": "1.0.11",
+  "notes": "Recepción 4.5.34: prueba controlada del launcher nuevo. Sin cambios funcionales; valida detección obligatoria, SHA-256, preprueba aislada, respaldo, instalación y reinicio. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "d001543d54fe95d2befe3436a6236a7b46df2062",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/d001543d54fe95d2befe3436a6236a7b46df2062/updates/v4_5_33_single_version_source/app.py",
       "sha256": "b257b702f11012c91e284a1f983dc31a9c92ab8f97dcfdf54db3711dbe05d8c0"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/recepcion-version.json",
-      "sha256": "5530915d7e6257bb484177b4d7218b256005a242e822b18e46bf6fca96338ceb"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/d001543d54fe95d2befe3436a6236a7b46df2062/updates/v4_5_34_launcher_update_test/recepcion-version.json",
+      "sha256": "bdb1c135f34300de4e7882d658edee52ce72c3aeb61ec39afdcda384972d8676"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/update_manifest.json",
-      "sha256": "b83cb19df2d5dc863b4ced5eee011e488dd55f64aea597fb74a9b5f71faf5325"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/d001543d54fe95d2befe3436a6236a7b46df2062/updates/v4_5_34_launcher_update_test/update_manifest.json",
+      "sha256": "6f2a334c58fa091dd8b8a3d7db1f75c61f1df0a951caf65c557b678a4891b3bc"
     }
   ]
 }
