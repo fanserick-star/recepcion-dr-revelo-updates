@@ -3,7 +3,7 @@
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
-AppId={{B12A6B75-92E4-4D69-8DB7-2B52FD391B25}
+AppId={{D2862EC2-A79E-4D8A-83F3-47FCB086EC81}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -27,8 +27,8 @@ SetupLogging=yes
 
 [Files]
 Source: "build\HistoriaClinicaLauncher.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "build\Desinstalar_Historia_Clinica_Dr_Revelo.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\HistoriaLauncherUpdater.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\Desinstalar_Historia_Clinica_Dr_Revelo.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autodesktop}\Historia Clínica - Dr. Armando Revelo"; Filename: "{app}\HistoriaClinicaLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\HistoriaClinicaLauncher.exe"; Comment: "Historia Clínica - Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.HistoriaClinica"
@@ -46,7 +46,7 @@ begin
   begin
     MsgBox(
       'No encontré una instalación existente de Historia Clínica en C:\Historia Clinica Dr Revelo.' + #13#10 + #13#10 +
-      'Este instalador cambia únicamente el sistema de arranque. No instala la base completa de Historia Clínica.',
+      'Este instalador cambia únicamente el sistema de arranque. No instala ni reemplaza historias clínicas.',
       mbError, MB_OK
     );
     Result := False;
@@ -57,12 +57,11 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
-    { Los EXE nuevos ya fueron copiados antes de retirar el launcher Python. }
+    { Los EXE nuevos ya están copiados. Se retiran únicamente entrypoints
+      antiguos de Python; no se toca app.py, data, .env, base ni backups. }
     DeleteFile(ExpandConstant('{app}\ABRIR_HISTORIA_CLINICA.py'));
     DeleteFile(ExpandConstant('{app}\ABRIR_HISTORIA_CLINICA.pyw'));
     DeleteFile(ExpandConstant('{app}\INICIAR.bat'));
-    DeleteFile(ExpandConstant('{app}\data\launcher.log'));
-    DeleteFile(ExpandConstant('{app}\data\launcher_state.json'));
     DelTree(ExpandConstant('{app}\__pycache__\ABRIR_HISTORIA_CLINICA*.pyc'), False, True, False);
   end;
 end;
