@@ -134,3 +134,4 @@ jobs:
           print("OK legacy channels are deprecated compatibility only")
           print("OK protected active stack")
           PY
+# refresh after Reception v4.5.34 channel publication
