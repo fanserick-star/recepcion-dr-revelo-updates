@@ -28,7 +28,7 @@ jobs:
       - name: Decode Historia icon
         shell: pwsh
         run: |
-          $b64 = Get-Content "historia-clinica/updates/v1_1_5_shortcut_branding/doctor_icon.b64" -Raw
+          $b64 = Get-Content "branding/historia_icon.b64" -Raw
           $bytes = [Convert]::FromBase64String($b64.Trim())
           [IO.File]::WriteAllBytes("historia-clinica/launcher-v1/HistoriaLauncher/doctor_icon.ico", $bytes)
           [IO.File]::WriteAllBytes("historia-clinica/launcher-v1/Uninstaller/doctor_icon.ico", $bytes)
@@ -84,7 +84,7 @@ jobs:
         run: |
           $out = "historia-clinica/launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "historia-clinica/launcher-v1/installer/output/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/installer/output/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaClinicaLauncher.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaLauncherUpdater.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/Desinstalar_Historia_Clinica_Dr_Revelo.exe" $out -Force
@@ -95,7 +95,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip" -Force
           Get-Content "$out/SHA256SUMS.txt"
 
       - name: Publish permanent Historia launcher release
@@ -103,16 +103,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "historia-launcher-v1.0.6"
-          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6.exe"
-          $zip = "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6_COMPLETO.zip"
+          $tag = "historia-launcher-v1.0.7"
+          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
+          $zip = "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip"
           $launcher = "historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe"
           $updater = "historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe"
           $uninstaller = "historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe"
           $sums = "historia-clinica/launcher-v1/package/SHA256SUMS.txt"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Launcher Historia Clínica v1.0.6" --notes "Launcher nativo v1.0.6: corrige de forma definitiva los scripts de preprueba aislada de app.py y conserva WebView2, instancia única, actualización obligatoria, SHA-256 y rollback."
+            gh release create $tag --title "Launcher Historia Clínica v1.0.7" --notes "Launcher nativo v1.0.7: corrige de forma definitiva los scripts de preprueba aislada de app.py y conserva WebView2, instancia única, actualización obligatoria, SHA-256 y rollback."
           }
           gh release upload $tag $installer $zip $launcher $updater $uninstaller $sums --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -122,8 +122,8 @@ jobs:
         with:
           name: launcher-historia-v1-completo
           path: |
-            LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6_COMPLETO.zip
-            historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6.exe
+            LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip
+            historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe
             historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe
             historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe
             historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe
