@@ -115,6 +115,22 @@ def _ensure_remote_bridge_schema(conn) -> None:
         cur.execute('SET search_path TO "historia", public')
 
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS patients(
+              id text PRIMARY KEY
+            )
+        """)
+        for col, typ in (
+            ("legacy_patient_id","text"),("name","text"),("name_search","text"),
+            ("birth_date","text"),("address","text"),("phone","text"),
+            ("national_id","text"),("national_id_search","text"),("email","text"),
+            ("source","text"),("source_record_hash","text"),
+            ("created_at","text"),("updated_at","text"),
+            ("deleted_at","timestamptz"),
+            ("cloud_updated_at","timestamptz NOT NULL DEFAULT now()")
+        ):
+            cur.execute(f'ALTER TABLE patients ADD COLUMN IF NOT EXISTS "{col}" {typ}')
+
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS patient_links(
               reception_patient_id text PRIMARY KEY
             )
@@ -672,7 +688,8 @@ def _v4524_ensure_cloud_new_patient(conn, payload: dict) -> str:
               national_id_search=CASE WHEN COALESCE(TRIM(patients.national_id_search),'')='' THEN EXCLUDED.national_id_search ELSE patients.national_id_search END,
               email=CASE WHEN COALESCE(TRIM(patients.email),'')='' THEN EXCLUDED.email ELSE patients.email END,
               updated_at=EXCLUDED.updated_at,
-              deleted_at=NULL
+              deleted_at=NULL,
+              cloud_updated_at=now()
             """,
             (
                 patient_id, name, name_search, birth_date or None, address or None,
@@ -698,7 +715,8 @@ def _v4524_ensure_cloud_new_patient(conn, payload: dict) -> str:
               verified=1,
               verified_at=EXCLUDED.verified_at,
               updated_at=EXCLUDED.updated_at,
-              deleted_at=NULL
+              deleted_at=NULL,
+              cloud_updated_at=now()
             """,
             (reception_patient_id, patient_id, stamp, stamp, stamp),
         )
