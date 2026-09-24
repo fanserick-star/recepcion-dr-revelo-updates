@@ -2,14 +2,14 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.37",
+  "appVersion": "4.5.38",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.37: separa correctamente Nuevo/Subsecuente del tipo real Consulta/Procedimiento enviado a Historia. Solo las consultas consumirán número de turno; los procedimientos llegarán como procedimiento sin turno. Repara automáticamente los eventos recientes ya enviados. No modifica caja, Bendo, facturación, agenda ni datos locales.",
+  "notes": "Recepción 4.5.38: corrige el transporte LAN que bloqueaba el envío a Historia después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Los atendidos vuelven a encolarse localmente y a enviarse por LAN/Neon. Mantiene caja, Bendo, facturación, agenda y datos locales sin cambios.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_37_historia_service_kind/app.py"
+      "sourcePath": "updates/v4_5_38_historia_lan_status/app.py"
     },
     {
       "path": "historia_bridge.py",
@@ -17,11 +17,15 @@
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_37_historia_service_kind/recepcion-version.json"
+      "sourcePath": "updates/v4_5_38_historia_lan_status/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_37_historia_service_kind/update_manifest.json"
+      "sourcePath": "updates/v4_5_38_historia_lan_status/update_manifest.json"
+    },
+    {
+      "path": "historia_lan_transport.py",
+      "sourcePath": "updates/v4_5_38_historia_lan_status/historia_lan_transport.py"
     }
   ]
 }
