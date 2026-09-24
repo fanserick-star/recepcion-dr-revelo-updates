@@ -1,0 +1,182 @@
+name: Build Historia Launcher v1 Package
+
+on:
+  push:
+    paths:
+      - "historia-clinica/launcher-v1/HistoriaLauncher/**"
+      - "historia-clinica/launcher-v1/LauncherUpdater/**"
+      - "historia-clinica/launcher-v1/Uninstaller/**"
+      - "historia-clinica/launcher-v1/installer/**"
+      - "historia-clinica/updates/v1_3_5_launcher_v1_migration/**"
+      - ".github/workflows/build-historia-launcher-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Reconstruct and validate Historia 1.3.5 candidate
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import hashlib, json, py_compile, tempfile
+
+          parts = [
+              Path("historia-clinica/updates/v1_3_5_launcher_v1_migration/app.py.part01"),
+              Path("historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02"),
+              Path("historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03"),
+              Path("historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04"),
+              Path("historia-clinica/updates/v1_3_5_launcher_v1_migration/app.py.part05"),
+          ]
+          payload = b"".join(p.read_bytes() for p in parts)
+          out = Path("historia-clinica/launcher-v1/_candidate_app.py")
+          out.write_bytes(payload)
+          py_compile.compile(str(out), doraise=True)
+
+          h = hashlib.sha256(payload).hexdigest()
+          print("HISTORIA_APP_SHA256=" + h)
+          print("HISTORIA_APP_BYTES=" + str(len(payload)))
+
+          version = json.loads(Path(
+              "historia-clinica/updates/v1_3_5_launcher_v1_migration/historia-version.json"
+          ).read_text(encoding="utf-8"))["version"]
+          manifest = json.loads(Path(
+              "historia-clinica/updates/v1_3_5_launcher_v1_migration/update_manifest.json"
+          ).read_text(encoding="utf-8"))
+          assert version == "1.3.5"
+          for key in ("version","app_version","runtime_version"):
+              assert manifest[key] == version, (key,manifest[key],version)
+          assert manifest["version_source"] == "historia-version.json"
+          assert manifest["mandatory"] is True
+
+          source = payload.decode("utf-8-sig")
+          assert 'ROOT / "HistoriaClinicaLauncher.exe"' in source
+          assert 'ROOT / "HistoriaClinica_Dr_Revelo.exe"' not in source
+          assert 'APP_VERSION = "1.3.4"' not in source
+          assert 'historia-version.json' in source
+          print("HISTORIA_CANDIDATE_OK")
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Decode Dr Revelo icon
+        shell: pwsh
+        run: |
+          $b64 = Get-Content "historia-clinica/updates/v1_1_5_shortcut_branding/doctor_icon.b64" -Raw
+          $bytes = [Convert]::FromBase64String($b64.Trim())
+          [IO.File]::WriteAllBytes("historia-clinica/launcher-v1/HistoriaLauncher/doctor_icon.ico", $bytes)
+          [IO.File]::WriteAllBytes("historia-clinica/launcher-v1/Uninstaller/doctor_icon.ico", $bytes)
+          New-Item -ItemType Directory -Force "historia-clinica/launcher-v1/installer/build" | Out-Null
+          [IO.File]::WriteAllBytes("historia-clinica/launcher-v1/installer/build/doctor_icon.ico", $bytes)
+
+      - name: Publish Historia launcher
+        shell: pwsh
+        run: |
+          dotnet publish "historia-clinica/launcher-v1/HistoriaLauncher/HistoriaLauncher.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish Historia uninstaller
+        shell: pwsh
+        run: |
+          dotnet publish "historia-clinica/launcher-v1/Uninstaller/Uninstaller.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish hidden Historia updater
+        shell: pwsh
+        run: |
+          dotnet publish "historia-clinica/launcher-v1/LauncherUpdater/LauncherUpdater.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Collect binaries
+        shell: pwsh
+        run: |
+          $launcher = Get-Item "historia-clinica/launcher-v1/HistoriaLauncher/bin/Release/net8.0-windows/win-x64/publish/HistoriaClinicaLauncher.exe"
+          $uninstaller = Get-Item "historia-clinica/launcher-v1/Uninstaller/bin/Release/net8.0-windows/win-x64/publish/Desinstalar_Historia_Clinica_Dr_Revelo.exe"
+          $updater = Get-Item "historia-clinica/launcher-v1/LauncherUpdater/bin/Release/net8.0-windows/win-x64/publish/HistoriaLauncherUpdater.exe"
+          if (-not $launcher -or -not $uninstaller -or -not $updater) { throw "No se generaron los binarios esperados." }
+          Copy-Item $launcher.FullName "historia-clinica/launcher-v1/installer/build/HistoriaClinicaLauncher.exe" -Force
+          Copy-Item $uninstaller.FullName "historia-clinica/launcher-v1/installer/build/Desinstalar_Historia_Clinica_Dr_Revelo.exe" -Force
+          Copy-Item $updater.FullName "historia-clinica/launcher-v1/installer/build/HistoriaLauncherUpdater.exe" -Force
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build migration installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado." }
+          & $iscc "historia-clinica/launcher-v1/installer/LauncherV1.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build final package
+        shell: pwsh
+        run: |
+          $out = "historia-clinica/launcher-v1/package"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item "historia-clinica/launcher-v1/installer/output/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaClinicaLauncher.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/installer/build/Desinstalar_Historia_Clinica_Dr_Revelo.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaLauncherUpdater.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/README.txt" $out -Force
+          $hashLines = @()
+          Get-ChildItem $out -File | Where-Object { $_.Extension -eq ".exe" } | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $hashLines += "$h  $($_.Name)"
+          }
+          $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0_COMPLETO.zip" -Force
+          Get-Content "$out/SHA256SUMS.txt"
+
+      - name: Publish permanent Historia launcher release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "historia-launcher-v1.0.0"
+          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0.exe"
+          $zip = "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0_COMPLETO.zip"
+          $launcher = "historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe"
+          $uninstaller = "historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe"
+          $updater = "historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe"
+          $sums = "historia-clinica/launcher-v1/package/SHA256SUMS.txt"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Launcher Historia Clínica v1.0.0" --notes "Launcher nativo blindado para Historia Clínica: instancia única, WebView2, actualización obligatoria, SHA-256, preflight aislado, rollback y self-update oculto."
+          }
+          gh release upload $tag $installer $zip $launcher $uninstaller $updater $sums --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload complete package
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-historia-v1-completo
+          path: |
+            LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0_COMPLETO.zip
+            historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0.exe
+            historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe
+            historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe
+            historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe
+            historia-clinica/launcher-v1/package/README.txt
+            historia-clinica/launcher-v1/package/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
