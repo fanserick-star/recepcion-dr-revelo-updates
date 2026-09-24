@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "product": "recepcion-dr-revelo",
+  "status": "stable",
+  "appVersion": "4.5.34",
+  "mandatory": true,
+  "minimumLauncher": "1.0.11",
+  "notes": "Recepción 4.5.34: prueba controlada del launcher nuevo. Sin cambios funcionales; valida detección obligatoria, SHA-256, preprueba aislada, respaldo, instalación y reinicio.",
+  "files": [
+    {
+      "path": "app.py",
+      "sourcePath": "updates/v4_5_33_single_version_source/app.py"
+    },
+    {
+      "path": "recepcion-version.json",
+      "sourcePath": "updates/v4_5_34_launcher_update_test/recepcion-version.json"
+    },
+    {
+      "path": "update_manifest.json",
+      "sourcePath": "updates/v4_5_34_launcher_update_test/update_manifest.json"
+    }
+  ]
+}
