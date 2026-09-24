@@ -3,9 +3,9 @@
   "product": "historia-launcher-dr-revelo",
   "latestVersion": "1.0.0",
   "mandatory": true,
-  "notes": "Launcher Historia Clínica v1.0.0: mismo núcleo blindado de Recepción, con identidad visual de Historia. Instancia única, WebView2, actualización obligatoria, SHA-256, preflight SQLite aislado, rollback y self-update oculto.",
+  "notes": "Launcher Historia Clínica v1.0.0: launcher nativo WinForms/WebView2 con identidad azul clínico y marfil, instancia única, actualización obligatoria, self-update silencioso, SHA-256, preprueba aislada y rollback.",
   "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.0/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_0.exe",
-  "installerSha256": "5e24db32b1ecf62bfb2dff5fb911a0f9f0a7592d297d9a78007ddcd04e50ce50",
+  "installerSha256": "2f86cc0b97efc8cba4b14ccae52244c77173b033f99291815290904348753049",
   "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.0/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "91f3f6a3f16c5d3f26d8a2f138a88a63b04f44d592e51bb0b4586c1147ca55eb"
+  "updaterSha256": "6a109a5b301ae8a68de2059356cee99e8846b9f7692f5aea70d7a1c1095ec8c4"
 }
