@@ -64,7 +64,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.5";
+    const string LauncherVersion = "1.0.6";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -678,22 +678,28 @@ internal sealed class LauncherForm : Form
         resp.EnsureSuccessStatusCode();
         var length = resp.Content.Headers.ContentLength;
         await using var input = await resp.Content.ReadAsStreamAsync();
-        await using var output = File.Create(dst);
         var buffer = new byte[64 * 1024];
         long read = 0;
-        while (true)
+
+        // IMPORTANTE: cerrar el archivo descargado ANTES de calcular SHA-256.
+        // File.Create usa bloqueo exclusivo; verificar el hash mientras el stream
+        // seguía abierto provocaba ERROR_SHARING_VIOLATION en Windows.
+        await using (var output = File.Create(dst))
         {
-            int n = await input.ReadAsync(buffer);
-            if (n <= 0) break;
-            await output.WriteAsync(buffer.AsMemory(0, n));
-            read += n;
-            int pct = startPct;
-            if (length is > 0)
-                pct = startPct + (int)((endPct - startPct) * Math.Min(1.0, read / (double)length.Value));
-            SetProgress(pct, "Descargando actualización",
-                $"Archivo {index} de {total} · {Path.GetFileName(f.Path)}");
+            while (true)
+            {
+                int n = await input.ReadAsync(buffer);
+                if (n <= 0) break;
+                await output.WriteAsync(buffer.AsMemory(0, n));
+                read += n;
+                int pct = startPct;
+                if (length is > 0)
+                    pct = startPct + (int)((endPct - startPct) * Math.Min(1.0, read / (double)length.Value));
+                SetProgress(pct, "Descargando actualización",
+                    $"Archivo {index} de {total} · {Path.GetFileName(f.Path)}");
+            }
+            await output.FlushAsync();
         }
-        await output.FlushAsync();
 
         var got = await Sha256Async(dst);
         if (!got.Equals(f.Sha256, StringComparison.OrdinalIgnoreCase))
