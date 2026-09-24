@@ -60,7 +60,7 @@ jobs:
           Copy-Item "historia-clinica/updates/v1_3_1_new_patient_turn/style.css" "$trial\static\style.css"
           Copy-Item "historia-clinica/updates/v1_3_5_launcher_v1_migration/historia-version.json" "$trial\historia-version.json"
 
-          Write-Host "TRIAL=$trial" >> $env:GITHUB_ENV
+          Add-Content -Path $env:GITHUB_ENV -Value "TRIAL=$trial"
 
       - name: Install runtime dependencies
         shell: pwsh
