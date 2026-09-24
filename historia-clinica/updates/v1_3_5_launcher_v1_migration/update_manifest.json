@@ -85,7 +85,9 @@
     "legacy_aliases_must_match_source": true,
     "clinical_changes": false,
     "old_python_launcher_retired": true,
-    "native_shortcut_repair_uses_historia_launcher_v1": true
+    "native_shortcut_repair_uses_historia_launcher_v1": true,
+    "patient_data_changes": false,
+    "preserves_data_env_database": true
   },
   "version_source": "historia-version.json",
   "compatibility_version_aliases": true
