@@ -2,16 +2,16 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.15",
+  "appVersion": "1.3.16",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.15: corrige la detección de la conexión Neon cuando la instalación existente usa DATABASE_URL. Mantiene HISTORIA_DATABASE_URL como clave preferida, no modifica .env, no toca historias ni data/, y conserva preprueba, SHA-256, backup y rollback del Launcher 1.0.6.",
+  "notes": "Historia Clínica 1.3.16: separa la nube en historia.* para no mezclar tablas con Recepción, crea/agrega estructura faltante solo de forma aditiva y numera turnos únicamente para consultas; procedimientos muestran PROC. No modifica .env, data/ ni historias locales.",
   "files": [
     {
       "path": "app.py",
       "sourcePaths": [
         "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part01",
-        "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
+        "historia-clinica/updates/v1_3_16_neon_schema_turns/app.py.part02",
         "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
         "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
         "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part05",
@@ -21,8 +21,8 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_15_neon_connection_fix/cloud_sync.py.part01",
-        "historia-clinica/updates/v1_3_15_neon_connection_fix/cloud_sync.py.part02"
+        "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_15_neon_connection_fix/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_16_neon_schema_turns/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_15_neon_connection_fix/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_16_neon_schema_turns/update_manifest.json"
     }
   ]
 }
