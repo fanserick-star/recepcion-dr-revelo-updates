@@ -30,4 +30,6 @@ No reemplaza historias, data/, .env ni la base local.
 
 - v1.0.4: carga app.py por ruta exacta con importlib.util tanto en preprueba como en arranque real, eliminando la dependencia del import por nombre.
 
-- v1.0.5: consolida el launcher final sin reutilizar tags; WebView2 obligatorio, ventanas internas para documentos y hashes de release inmutables.
+- v1.0.6: consolida el launcher final sin reutilizar tags; WebView2 obligatorio, ventanas internas para documentos y hashes de release inmutables.
+
+- v1.0.6: muestra el logo del consultorio y despierta/verifica la sincronización con Neon al iniciar, manteniendo modo local si la nube no responde.
