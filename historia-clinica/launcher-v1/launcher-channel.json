@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-launcher-dr-revelo",
-  "latestVersion": "1.0.1",
+  "latestVersion": "1.0.2",
   "mandatory": true,
-  "notes": "Launcher Historia Clínica v1.0.1: corrige la preprueba aislada importando app.py explícitamente y mostrando el error real si falla. Mantiene WebView2 nativo, instancia única, actualización obligatoria, SHA-256, self-update silencioso y rollback.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.1/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_1.exe",
-  "installerSha256": "74d2fee912684b00764d82d255dc98a36aeca3851fd689cc9edf21ca261ed2e3",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.1/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "eeadc988a9d515903fddbe591840ec21a4f3bfe59f99e612d68630346d03b761"
+  "notes": "Launcher Historia Clínica v1.0.2: corrige definitivamente la preprueba aislada y el arranque real usando scripts Python temporales válidos. Mantiene WebView2, instancia única, SHA-256, actualización obligatoria, rollback y protección de datos clínicos.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.2/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_2.exe",
+  "installerSha256": "6f01c915272438b603c983a54cef0358d01af5f1b7cb57fdc07c0efbb5980123",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.2/HistoriaLauncherUpdater.exe",
+  "updaterSha256": "b91fffc95a49767d63010f8ee4b905ae60d27015c1f2d271550026403a73eca0"
 }
