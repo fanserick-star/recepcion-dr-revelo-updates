@@ -84,7 +84,7 @@ jobs:
           p = Path("historia-clinica/launcher-v1/HistoriaLauncher/Program.cs")
           s = p.read_text(encoding="utf-8")
           required = [
-              'const string LauncherVersion = "1.0.0"',
+              'const string LauncherVersion = "1.0.1"',
               'const int Port = 8787',
               '"DrArmandoRevelo.HistoriaClinica"',
               '"historia-version.json"',
@@ -125,13 +125,13 @@ jobs:
 
           assert app_channel["appVersion"] == version == "1.3.5"
           assert app_channel["mandatory"] is True
-          assert app_channel["minimumLauncher"] == "1.0.0"
-          assert manifest["launcher_minimum"] == "1.0.0"
+          assert app_channel["minimumLauncher"] == "1.0.1"
+          assert manifest["launcher_minimum"] == "1.0.1"
 
           source = (base / "launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
           m = re.search(r'LauncherVersion\s*=\s*"([^"]+)"', source)
-          assert m and m.group(1) == "1.0.0"
-          assert launcher_channel["latestVersion"] == "1.0.0"
+          assert m and m.group(1) == "1.0.1"
+          assert launcher_channel["latestVersion"] == "1.0.1"
           assert launcher_channel["mandatory"] is True
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["installerSha256"])
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["updaterSha256"])
@@ -162,6 +162,6 @@ jobs:
               assert item["sha256"] == expected[item["path"]], (item["path"], item["sha256"], expected[item["path"]])
 
           print("OK app channel:", version)
-          print("OK launcher channel: 1.0.0")
+          print("OK launcher channel: 1.0.1")
           print("OK payload hashes and protected paths")
           PY
