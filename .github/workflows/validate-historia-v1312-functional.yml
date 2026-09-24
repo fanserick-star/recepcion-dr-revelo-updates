@@ -1,0 +1,111 @@
+name: Validate Historia v1.3.12 Functional Release
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/v1_3_12_pending_features/**"
+      - "historia-clinica/updates/v1_3_8_cloud_documents/**"
+      - "historia-clinica/updates/v1_3_5_cloud_documents/**"
+      - ".github/workflows/validate-historia-v1312-functional.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Assemble exact update payload
+        shell: pwsh
+        run: |
+          $appParts = @(
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part01",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part05",
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part06"
+          )
+          $cloudParts = @(
+            "historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part01",
+            "historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part02"
+          )
+
+          $appOut = "historia_candidate_app.py"
+          $cloudOut = "historia_candidate_cloud_sync.py"
+          Remove-Item $appOut,$cloudOut -ErrorAction SilentlyContinue
+
+          $appStream = [IO.File]::Open($appOut,[IO.FileMode]::Create)
+          foreach ($p in $appParts) {
+            $bytes = [IO.File]::ReadAllBytes($p)
+            $appStream.Write($bytes,0,$bytes.Length)
+          }
+          $appStream.Close()
+
+          $cloudStream = [IO.File]::Open($cloudOut,[IO.FileMode]::Create)
+          foreach ($p in $cloudParts) {
+            $bytes = [IO.File]::ReadAllBytes($p)
+            $cloudStream.Write($bytes,0,$bytes.Length)
+          }
+          $cloudStream.Close()
+
+          Copy-Item "historia-clinica/updates/v1_3_5_cloud_documents/documentos_clinicos.py" "historia_candidate_documentos_clinicos.py"
+
+          Write-Host "APP_SHA=$((Get-FileHash $appOut -Algorithm SHA256).Hash.ToLowerInvariant())"
+          Write-Host "CLOUD_SHA=$((Get-FileHash $cloudOut -Algorithm SHA256).Hash.ToLowerInvariant())"
+          Write-Host "DOCS_SHA=$((Get-FileHash historia_candidate_documentos_clinicos.py -Algorithm SHA256).Hash.ToLowerInvariant())"
+
+      - name: Validate manifest and canonical version
+        shell: pwsh
+        run: |
+          @'
+          import json, pathlib, re
+          root = pathlib.Path(".")
+          rel = root / "historia-clinica/updates/v1_3_12_pending_features"
+          v = json.loads((rel/"historia-version.json").read_text(encoding="utf-8"))["version"]
+          m = json.loads((rel/"update_manifest.json").read_text(encoding="utf-8"))
+          assert v == "1.3.12", v
+          for key in ("version","app_version","runtime_version"):
+              assert m[key] == v, (key,m[key],v)
+          assert m["mandatory"] is True
+          assert m["launcher_minimum"] == "1.0.5"
+          assert m["version_source"] == "historia-version.json"
+          assert m["notes"]["prescriptions"] is True
+          assert m["notes"]["certificates"] is True
+          assert m["notes"]["configuration_shared_in_cloud"] is True
+          assert m["notes"]["patient_data_destructive_changes"] is False
+          assert m["notes"]["database_schema_change_type"] == "additive-only"
+          print("OK canonical version", v)
+          '@ | python -
+
+      - name: Validate Python payload syntax and features
+        shell: pwsh
+        run: |
+          python -m py_compile historia_candidate_app.py
+          python -m py_compile historia_candidate_cloud_sync.py
+          python -m py_compile historia_candidate_documentos_clinicos.py
+          @'
+          from pathlib import Path
+          app = Path("historia_candidate_app.py").read_text(encoding="utf-8")
+          docs = Path("historia_candidate_documentos_clinicos.py").read_text(encoding="utf-8")
+          cloud = Path("historia_candidate_cloud_sync.py").read_text(encoding="utf-8")
+          assert "documentos_clinicos.install(app, globals())" in app
+          assert "/api/v138/health" in app
+          assert "Receta médica" in app
+          assert "Certificado médico" in app
+          assert "/recetas" in docs
+          assert "/certificados" in docs
+          assert "/configuracion" in docs
+          assert "prescriptions" in cloud
+          assert "certificates" in cloud
+          assert "clinic_settings" in cloud
+          print("OK functional modules present")
+          '@ | python -
