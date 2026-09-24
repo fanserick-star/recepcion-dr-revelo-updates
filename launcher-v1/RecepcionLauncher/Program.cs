@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.9";
+    const string LauncherVersion = "1.0.10";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -511,27 +511,121 @@ internal sealed class LauncherForm : Form
     async Task DownloadAndInstallLauncherAsync(LauncherChannel channel)
     {
         if (string.IsNullOrWhiteSpace(channel.InstallerUrl) ||
-            string.IsNullOrWhiteSpace(channel.InstallerSha256))
-            throw new InvalidOperationException("El canal del launcher no contiene un instalador válido.");
+            string.IsNullOrWhiteSpace(channel.InstallerSha256) ||
+            string.IsNullOrWhiteSpace(channel.UpdaterUrl) ||
+            string.IsNullOrWhiteSpace(channel.UpdaterSha256))
+            throw new InvalidOperationException(
+                "El canal del launcher no contiene el instalador/helper completo.");
 
-        var dir = Path.Combine(Path.GetTempPath(), "DrReveloLauncher", "self_update");
+        var dir = Path.Combine(Path.GetTempPath(), "DrReveloLauncher",
+            "self_update_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
+
         var installer = Path.Combine(dir, $"Launcher_{channel.LatestVersion.Replace('.', '_')}.exe");
+        var helper = Path.Combine(dir, "LauncherUpdater.exe");
+        var log = Path.Combine(root, "data", "launcher_self_update.log");
+        Directory.CreateDirectory(Path.GetDirectoryName(log)!);
 
-        SetProgress(12, "Descargando nuevo launcher",
-            $"Launcher {LauncherVersion} → {channel.LatestVersion}");
-
-        using (var req = new HttpRequestMessage(HttpMethod.Get,
-            channel.InstallerUrl + (channel.InstallerUrl.Contains('?') ? "&" : "?") +
-            "t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
-        using (var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead))
+        try
         {
-            resp.EnsureSuccessStatusCode();
-            var length = resp.Content.Headers.ContentLength;
-            await using var input = await resp.Content.ReadAsStreamAsync();
-            await using var output = File.Create(installer);
-            var buffer = new byte[128 * 1024];
-            long read = 0;
+            await File.WriteAllTextAsync(log,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Inicio self-update {LauncherVersion} -> {channel.LatestVersion}\r\n",
+                Encoding.UTF8);
+
+            SetProgress(12, "Descargando nuevo launcher",
+                $"Launcher {LauncherVersion} → {channel.LatestVersion}");
+
+            await DownloadSelfUpdateFileAsync(
+                channel.InstallerUrl, installer, channel.InstallerSha256,
+                12, 52, "instalador", log);
+
+            SetProgress(54, "Descargando actualizador seguro",
+                "Preparando el componente que reemplaza el launcher…");
+
+            await DownloadSelfUpdateFileAsync(
+                channel.UpdaterUrl, helper, channel.UpdaterSha256,
+                54, 64, "helper", log);
+
+            SetProgress(66, "Verificando actualización",
+                "Instalador y helper verificados por SHA-256.");
+
+            var currentExe = Path.Combine(root, "RecepcionLauncher.exe");
+            var helperArgs =
+                $"--parent {Environment.ProcessId} " +
+                $"--installer {QuoteArg(installer)} " +
+                $"--launcher {QuoteArg(currentExe)} " +
+                $"--root {QuoteArg(root)} " +
+                $"--log {QuoteArg(log)}";
+
+            await File.AppendAllTextAsync(log,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Lanzando helper temporal elevado.\r\n",
+                Encoding.UTF8);
+
+            var psi = new ProcessStartInfo(helper, helperArgs)
+            {
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = dir,
+                WindowStyle = ProcessWindowStyle.Hidden
+            };
+
+            Process? hp;
+            try
+            {
+                hp = Process.Start(psi);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                await File.AppendAllTextAsync(log,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] UAC/helper no iniciado: {ex.NativeErrorCode} {ex.Message}\r\n",
+                    Encoding.UTF8);
+                throw new InvalidOperationException(
+                    ex.NativeErrorCode == 1223
+                        ? "La actualización fue cancelada en la ventana de permisos de Windows."
+                        : "Windows no pudo iniciar el actualizador del launcher.", ex);
+            }
+
+            if (hp is null)
+                throw new InvalidOperationException("Windows no devolvió el proceso del actualizador.");
+
+            SetProgress(70, "Aplicando actualización",
+                "Windows terminará de reemplazar el launcher y lo abrirá nuevamente.");
+
+            closingAllowed = true;
+            Close();
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                await File.AppendAllTextAsync(log,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: {ex}\r\n",
+                    Encoding.UTF8);
+            }
+            catch { }
+            throw;
+        }
+    }
+
+    async Task DownloadSelfUpdateFileAsync(
+        string url, string destination, string expectedSha,
+        int startPct, int endPct, string label, string log)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get,
+            url + (url.Contains('?') ? "&" : "?") +
+            "t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        req.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+
+        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+        resp.EnsureSuccessStatusCode();
+        var length = resp.Content.Headers.ContentLength;
+
+        await using var input = await resp.Content.ReadAsStreamAsync();
+        var buffer = new byte[128 * 1024];
+        long read = 0;
+
+        await using (var output = File.Create(destination))
+        {
             while (true)
             {
                 int n = await input.ReadAsync(buffer);
@@ -539,51 +633,34 @@ internal sealed class LauncherForm : Form
                 await output.WriteAsync(buffer.AsMemory(0, n));
                 read += n;
 
-                int pct = 12;
+                int pct = startPct;
                 if (length is > 0)
-                    pct = 12 + (int)(48 * Math.Min(1.0, read / (double)length.Value));
+                    pct = startPct + (int)((endPct - startPct) *
+                        Math.Min(1.0, read / (double)length.Value));
 
-                SetProgress(pct, "Descargando nuevo launcher",
+                SetProgress(pct, "Descargando actualización del launcher",
                     length is > 0
-                        ? $"{read / 1024 / 1024} MB de {length.Value / 1024 / 1024} MB"
-                        : $"{read / 1024 / 1024} MB descargados");
+                        ? $"{label}: {read / 1024 / 1024} MB de {length.Value / 1024 / 1024} MB"
+                        : $"{label}: {read / 1024 / 1024} MB");
             }
             await output.FlushAsync();
         }
 
-        SetProgress(63, "Verificando launcher", "Comprobando integridad SHA-256…");
-        var got = await Sha256Async(installer);
-        if (!got.Equals(channel.InstallerSha256, StringComparison.OrdinalIgnoreCase))
+        var got = await Sha256Async(destination);
+        if (!got.Equals(expectedSha, StringComparison.OrdinalIgnoreCase))
         {
-            TryDeleteFile(installer);
+            TryDeleteFile(destination);
             throw new InvalidOperationException(
-                "El instalador del launcher no superó la verificación de seguridad. No se ejecutó.");
+                $"La verificación SHA-256 del {label} no coincidió.");
         }
 
-        SetProgress(70, "Preparando actualización", "Cerrando esta versión de forma segura…");
-
-        var helper = Path.Combine(root, "LauncherUpdater.exe");
-        var currentExe = Path.Combine(root, "RecepcionLauncher.exe");
-        if (!File.Exists(helper))
-            throw new InvalidOperationException("No encuentro el actualizador silencioso del launcher.");
-
-        var helperArgs =
-            $"--parent {Environment.ProcessId} " +
-            $"--installer {QuoteArg(installer)} " +
-            $"--launcher {QuoteArg(currentExe)} " +
-            $"--root {QuoteArg(root)}";
-
-        var psi = new ProcessStartInfo(helper, helperArgs)
+        try
         {
-            UseShellExecute = true,
-            Verb = "runas",
-            WorkingDirectory = root,
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        Process.Start(psi);
-
-        closingAllowed = true;
-        Close();
+            await File.AppendAllTextAsync(log,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {label} OK SHA256={got}\r\n",
+                Encoding.UTF8);
+        }
+        catch { }
     }
 
     async Task<bool> AskUpdateAsync(AppChannel channel)
@@ -1229,6 +1306,8 @@ internal sealed class LauncherChannel
     public string Notes { get; set; } = "";
     public string InstallerUrl { get; set; } = "";
     public string InstallerSha256 { get; set; } = "";
+    public string UpdaterUrl { get; set; } = "";
+    public string UpdaterSha256 { get; set; } = "";
 }
 
 internal sealed class AppChannel
