@@ -1,0 +1,89 @@
+name: Validate Reception v4.5.33 Single Version
+
+on:
+  push:
+    paths:
+      - "updates/v4_5_33_single_version_source/**"
+      - ".github/workflows/validate-v4533-single-version.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate canonical version architecture
+        shell: pwsh
+        run: |
+          @'
+          import json, pathlib, py_compile, re, sys
+
+          root = pathlib.Path("updates/v4_5_33_single_version_source")
+          version_path = root / "recepcion-version.json"
+          manifest_path = root / "update_manifest.json"
+          app_path = root / "app.py"
+
+          vdoc = json.loads(version_path.read_text(encoding="utf-8"))
+          version = str(vdoc.get("version") or "").strip()
+          assert re.fullmatch(r"\d+\.\d+\.\d+", version), version
+
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          assert manifest.get("version_source") == "recepcion-version.json"
+          assert manifest.get("launcher_minimum") == "1.0.8"
+          assert manifest.get("compatibility_version_aliases") is True
+
+          for key in ("version", "app_version", "runtime_version"):
+              assert str(manifest.get(key) or "").strip() == version, (key, manifest.get(key), version)
+
+          notes = manifest.get("notes") or {}
+          assert notes.get("single_source_of_truth") == "recepcion-version.json"
+          assert notes.get("legacy_aliases_must_match_source") is True
+          assert notes.get("database_schema_changes") is False
+          assert notes.get("functional_changes") is False
+          assert notes.get("historia_changes") is False
+          assert notes.get("bendo_changes") is False
+          assert notes.get("patient_data_changes") is False
+          assert notes.get("preserves_data_env_excel") is True
+
+          copy = [str(x).replace("\\","/").lower() for x in manifest.get("copy", [])]
+          assert copy == ["app.py", "recepcion-version.json", "update_manifest.json"], copy
+          forbidden = (".env", "data/", ".db", ".sqlite", ".sqlite3", ".xlsx", "recepcionlauncher.exe")
+          for p in copy:
+              assert not any((p == x or p.startswith(x) or p.endswith(x)) for x in forbidden), p
+
+          source = app_path.read_text(encoding="utf-8")
+          assert "import app_patch_4525 as previous" in source
+          assert 'Path(__file__).with_name("recepcion-version.json")' in source
+          assert 'APP_VERSION = str(_VERSION_DOC["version"]).strip()' in source
+          assert 'content:"v{APP_VERSION}"' in source
+          assert 'content:"v4.5.33"' not in source
+          assert "CREATE TABLE" not in source.upper()
+          assert "ALTER TABLE" not in source.upper()
+          assert "DROP TABLE" not in source.upper()
+
+          py_compile.compile(str(app_path), doraise=True)
+          print("OK canonical version:", version)
+          print("OK aliases synchronized")
+          print("OK protected data paths untouched")
+          print("OK no schema/functional changes in wrapper")
+          print("OK app.py syntax")
+          '@ | python -
+
+      - name: Verify candidate folder contains only update payload
+        shell: pwsh
+        run: |
+          $allowed = @("app.py","recepcion-version.json","update_manifest.json","__pycache__")
+          $unexpected = Get-ChildItem "updates/v4_5_33_single_version_source" | Where-Object { $allowed -notcontains $_.Name }
+          if ($unexpected) {
+            $unexpected | Format-Table Name
+            throw "La carpeta candidata contiene archivos no esperados."
+          }
