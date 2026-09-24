@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.2";
+    const string LauncherVersion = "1.0.3";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -912,21 +912,26 @@ internal sealed class LauncherForm : Form
         Process? server = null;
         try
         {
-            foreach (var file in Directory.GetFiles(root, "*.py", SearchOption.TopDirectoryOnly))
+            // Construimos explícitamente una instalación aislada mínima.
+            // No dependemos de un glob *.py: app.py debe existir físicamente
+            // antes de intentar importarlo.
+            foreach (var name in new[]
             {
-                var name = Path.GetFileName(file);
-                if (name.Equals("ABRIR_HISTORIA_CLINICA.py", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                File.Copy(file, Path.Combine(trial, name), true);
+                "app.py",
+                "cloud_sync.py",
+                "cloud_presence_patch.py",
+                "lan_bridge.py",
+                "requirements.txt"
+            })
+            {
+                var source = Path.Combine(root, name);
+                if (File.Exists(source))
+                    File.Copy(source, Path.Combine(trial, name), true);
             }
 
             var rootStatic = Path.Combine(root, "static");
             if (Directory.Exists(rootStatic))
                 CopyDirectory(rootStatic, Path.Combine(trial, "static"));
-
-            var req = Path.Combine(root, "requirements.txt");
-            if (File.Exists(req))
-                File.Copy(req, Path.Combine(trial, "requirements.txt"), true);
 
             var data = Path.Combine(trial, "data");
             Directory.CreateDirectory(data);
@@ -935,6 +940,7 @@ internal sealed class LauncherForm : Form
             if (File.Exists(sourceDb))
                 await BackupSqliteAsync(python, sourceDb, trialDb);
 
+            // La candidata siempre se superpone al runtime estable.
             foreach (var file in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(staging, file);
@@ -943,15 +949,38 @@ internal sealed class LauncherForm : Form
                 File.Copy(file, dest, true);
             }
 
+            var trialApp = Path.Combine(trial, "app.py");
+            if (!File.Exists(trialApp))
+                throw new InvalidOperationException(
+                    "La copia aislada no contiene app.py. " +
+                    "La actualización se canceló antes de tocar Historia Clínica.");
+
+            foreach (var required in new[]
+            {
+                "cloud_sync.py",
+                "cloud_presence_patch.py",
+                "lan_bridge.py"
+            })
+            {
+                if (!File.Exists(Path.Combine(trial, required)))
+                    throw new InvalidOperationException(
+                        $"La copia aislada no contiene {required}. " +
+                        "La actualización se canceló antes de tocar Historia Clínica.");
+            }
+
             await VerifyTrialImportAsync(python, trial, expected);
 
             int testPort = ReserveFreePort();
             var log = Path.Combine(trial, "trial_startup.log");
             var serverScript = Path.Combine(trial, "_launcher_precheck_server.py");
             var logLiteral = JsonSerializer.Serialize(log);
+            var trialLiteralForServer = JsonSerializer.Serialize(trial);
             var serverCode =
-                "import sys, traceback, uvicorn\n" +
+                "import os, sys, traceback, uvicorn\n" +
+                $"trial = {trialLiteralForServer}\n" +
                 $"log_path = {logLiteral}\n" +
+                "os.chdir(trial)\n" +
+                "sys.path.insert(0, trial)\n" +
                 "log = open(log_path, 'a', encoding='utf-8', buffering=1)\n" +
                 "sys.stdout = log\n" +
                 "sys.stderr = log\n" +
@@ -1028,8 +1057,13 @@ internal sealed class LauncherForm : Form
     async Task VerifyTrialImportAsync(string python, string trial, string expected)
     {
         var script = Path.Combine(trial, "_launcher_precheck_import.py");
+        var trialLiteral = JsonSerializer.Serialize(trial);
         var code =
-            "import traceback\n" +
+            "import os, sys, traceback\n" +
+            $"trial = {trialLiteral}\n" +
+            "os.chdir(trial)\n" +
+            "sys.path.insert(0, trial)\n" +
+            "print('TRIAL_APP=' + str(os.path.isfile(os.path.join(trial, 'app.py'))), flush=True)\n" +
             "try:\n" +
             "    import app\n" +
             "    print(getattr(app, 'APP_VERSION', ''), flush=True)\n" +
