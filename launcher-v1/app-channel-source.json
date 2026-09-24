@@ -5,27 +5,27 @@
   "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: corrige el turno de Historia usando exactamente la misma lógica de numeración de Recepción/Reportes. Además fuerza ese número sobre cualquier fila activa del mismo paciente, aunque provenga de un handoff anterior, para que Palacios muestre #6 y no #10. No cambia caja, Bendo, facturación, agenda ni datos locales.",
+  "notes": "Recepción 4.5.41: Historia recibe exactamente el mismo número que Recepción ya muestra en Inicio. Al renderizar el día, Recepción toma ese turno visible y lo reenvía sobre el handoff existente por LAN/Neon, conservando el mismo event_id; así Palacios #6 en Recepción debe quedar #6 en Historia. No cambia la interfaz, caja, Bendo, facturación, agenda ni datos locales.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_force/app.py"
+      "sourcePath": "updates/v4_5_41_historia_visible_turn/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_force/historia_bridge.py"
+      "sourcePath": "updates/v4_5_41_historia_visible_turn/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_force/recepcion-version.json"
+      "sourcePath": "updates/v4_5_41_historia_visible_turn/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_force/update_manifest.json"
+      "sourcePath": "updates/v4_5_41_historia_visible_turn/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_force/historia_lan_transport.py"
+      "sourcePath": "updates/v4_5_41_historia_visible_turn/historia_lan_transport.py"
     }
   ]
 }
