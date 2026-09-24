@@ -4,8 +4,8 @@
   "status": "active",
   "appVersion": "1.3.5",
   "mandatory": true,
-  "minimumLauncher": "1.0.2",
-  "notes": "Historia Clínica 1.3.5: migración al launcher nativo blindado. Una sola fuente de versión, reparación de acceso directo con el launcher nuevo y sin cambios clínicos, de pacientes, historias, base de datos ni esquema.",
+  "minimumLauncher": "1.0.4",
+  "notes": "Historia Clínica 1.3.5: migración al launcher nativo blindado. Requiere Launcher 1.0.4 con carga exacta de app.py, una sola fuente de versión y sin cambios clínicos, de pacientes, historias, base de datos ni esquema.",
   "files": [
     {
       "path": "app.py",
