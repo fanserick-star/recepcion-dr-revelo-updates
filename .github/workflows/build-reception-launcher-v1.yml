@@ -81,7 +81,7 @@ jobs:
         run: |
           $out = "launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_9.exe" $out -Force
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/LauncherUpdater.exe" $out -Force
@@ -92,7 +92,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_9_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_10_COMPLETO.zip" -Force
           Write-Host "=== PACKAGE CONTENTS ==="
           Get-ChildItem $out | Format-Table Name,Length
           Get-Content "$out/SHA256SUMS.txt"
@@ -102,16 +102,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "launcher-v1.0.9"
-          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_9.exe"
-          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_9_COMPLETO.zip"
+          $tag = "launcher-v1.0.10"
+          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe"
+          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_10_COMPLETO.zip"
           $launcher = "launcher-v1/package/RecepcionLauncher.exe"
           $uninstaller = "launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe"
           $updater = "launcher-v1/package/LauncherUpdater.exe"
           $sums = "launcher-v1/package/SHA256SUMS.txt"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Launcher Recepción v1.0.9" --notes "Launcher nativo v1.0.9: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
+            gh release create $tag --title "Launcher Recepción v1.0.10" --notes "Launcher nativo v1.0.10: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
           }
           gh release upload $tag $installer $zip $launcher $uninstaller $updater $sums --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -121,8 +121,8 @@ jobs:
         with:
           name: launcher-recepcion-v1-completo
           path: |
-            LAUNCHER_RECEPCION_DR_REVELO_V1_0_9_COMPLETO.zip
-            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_9.exe
+            LAUNCHER_RECEPCION_DR_REVELO_V1_0_10_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe
             launcher-v1/package/RecepcionLauncher.exe
             launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
             launcher-v1/package/LauncherUpdater.exe
