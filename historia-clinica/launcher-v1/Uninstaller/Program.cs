@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace DrRevelo.HistoriaUninstaller;
@@ -7,25 +6,23 @@ namespace DrRevelo.HistoriaUninstaller;
 internal static class Program
 {
     const string CanonicalRoot = @"C:\Historia Clinica Dr Revelo";
+    const int Port = 8787;
 
     [STAThread]
     static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-
         if (args.Any(a => a.Equals("--cleanup", StringComparison.OrdinalIgnoreCase)))
         {
             RunCleanup();
             return;
         }
-
         Application.Run(new ConfirmForm());
     }
 
     static void RunCleanup()
     {
-        var root = CanonicalRoot;
-        if (!root.Equals(@"C:\Historia Clinica Dr Revelo", StringComparison.OrdinalIgnoreCase))
+        if (!CanonicalRoot.Equals(@"C:\Historia Clinica Dr Revelo", StringComparison.OrdinalIgnoreCase))
         {
             MessageBox.Show("La ruta protegida no coincide. Se canceló la desinstalación.",
                 "Desinstalación cancelada", MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -40,38 +37,33 @@ internal static class Program
             DeleteKnownTemp();
             DeleteRegistryKeys();
 
-            // Reintentos por archivos que Windows libere con pequeño retraso.
-            for (int i = 0; i < 6 && Directory.Exists(root); i++)
+            for (int i = 0; i < 6 && Directory.Exists(CanonicalRoot); i++)
             {
-                TryDeleteDirectory(root);
-                if (Directory.Exists(root)) Thread.Sleep(700);
+                TryDeleteDirectory(CanonicalRoot);
+                if (Directory.Exists(CanonicalRoot)) Thread.Sleep(700);
             }
 
             MessageBox.Show(
-                Directory.Exists(root)
-                    ? "La desinstalación terminó, pero Windows mantuvo algún archivo bloqueado en:\n\n" + root +
-                      "\n\nReinicia la PC y vuelve a ejecutar el desinstalador para completar la limpieza."
-                    : "Historia Clínica - Dr. Armando Revelo fue eliminada completamente.\n\nTambién se limpiaron accesos directos, AppData y temporales propios del programa.",
+                Directory.Exists(CanonicalRoot)
+                    ? "La desinstalación terminó, pero Windows mantiene algún archivo bloqueado. Reinicia la PC y vuelve a ejecutar el desinstalador."
+                    : "Historia Clínica Dr. Armando Revelo fue eliminada completamente de esta PC.",
                 "Desinstalación de Historia Clínica",
                 MessageBoxButtons.OK,
-                Directory.Exists(root) ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
+                Directory.Exists(CanonicalRoot) ? MessageBoxIcon.Warning : MessageBoxIcon.Information);
         }
         catch (Exception ex)
         {
             MessageBox.Show("No se pudo completar la limpieza:\n\n" + ex.Message,
                 "Desinstalación de Historia Clínica", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally
-        {
-            ScheduleSelfDelete();
-        }
+        finally { ScheduleSelfDelete(); }
     }
 
     static void StopHistoriaProcesses()
     {
-        try
+        foreach (var name in new[] { "HistoriaClinicaLauncher", "HistoriaClinica_Dr_Revelo" })
         {
-            foreach (var name in new[] { "HistoriaClinicaLauncher" })
+            try
             {
                 foreach (var p in Process.GetProcessesByName(name))
                 {
@@ -87,14 +79,12 @@ internal static class Program
                     finally { p.Dispose(); }
                 }
             }
+            catch { }
         }
-        catch { }
 
-        // Solo cerramos el proceso que escucha el puerto de Historia Clínica si realmente responde como Historia Clínica.
         try
         {
             if (!HistoriaResponds()) return;
-
             var psi = new ProcessStartInfo("netstat", "-ano -p tcp")
             {
                 UseShellExecute = false,
@@ -108,10 +98,9 @@ internal static class Program
 
             foreach (var line in text.Split('\n'))
             {
-                if (!line.Contains(":8787") ||
+                if (!line.Contains($":{Port}") ||
                     !line.Contains("LISTENING", StringComparison.OrdinalIgnoreCase))
                     continue;
-
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length < 5 || !int.TryParse(parts[^1], out int pid)) continue;
                 try
@@ -132,8 +121,9 @@ internal static class Program
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(700) };
-            var s = client.GetStringAsync("http://127.0.0.1:8787/api/version").GetAwaiter().GetResult();
-            return s.Contains("historia-clinica-dr-revelo", StringComparison.OrdinalIgnoreCase) && s.Contains("version", StringComparison.OrdinalIgnoreCase);
+            var s = client.GetStringAsync($"http://127.0.0.1:{Port}/api/version")
+                .GetAwaiter().GetResult();
+            return s.Contains("historia-clinica-dr-revelo", StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }
     }
@@ -144,16 +134,15 @@ internal static class Program
         {
             Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
             Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs)),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms))
+            Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms)
         };
-
         var names = new[]
         {
             "Historia Clínica - Dr. Armando Revelo.lnk",
-            "Historia Clinica - Dr. Armando Revelo.lnk"
+            "Historia Clinica - Dr. Armando Revelo.lnk",
+            "Historia Clínica Dr. Armando Revelo.lnk"
         };
-
         foreach (var dir in dirs.Where(Directory.Exists))
             foreach (var name in names)
                 TryDeleteFile(Path.Combine(dir, name));
@@ -163,7 +152,6 @@ internal static class Program
     {
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-
         var paths = new[]
         {
             Path.Combine(local, "DrArmandoRevelo", "HistoriaClinica"),
@@ -173,39 +161,29 @@ internal static class Program
             Path.Combine(local, "Historia Clínica Dr Revelo"),
             Path.Combine(roaming, "Historia Clínica Dr Revelo")
         };
-
         foreach (var p in paths) TryDeleteDirectory(p);
-
-        TryDeleteEmptyParent(Path.Combine(local, "DrArmandoRevelo"));
-        TryDeleteEmptyParent(Path.Combine(roaming, "DrArmandoRevelo"));
     }
 
     static void DeleteKnownTemp()
     {
         var temp = Path.GetTempPath();
-        string[] patterns =
+        foreach (var pattern in new[]
         {
-            "DrRevelo_*",
-            "dr_revelo_*",
-            "rp_launcher_*",
-            "rp_update_*",
-            "HistoriaClinicaDrRevelo_*",
-            "historia_clinica_dr_revelo_*"
-        };
-
-        foreach (var pattern in patterns)
+            "DrReveloHistoriaLauncher*",
+            "historia_update_*",
+            "historia_repair_*",
+            "hc_launcher_*",
+            "DrRevelo_Historia_*"
+        })
         {
             try
             {
                 foreach (var f in Directory.GetFiles(temp, pattern)) TryDeleteFile(f);
                 foreach (var d in Directory.GetDirectories(temp, pattern))
-                {
-                    // No borra la copia del desinstalador mientras está ejecutándose.
                     if (!Path.GetFullPath(d).Equals(
                         Path.GetDirectoryName(Environment.ProcessPath) ?? "",
                         StringComparison.OrdinalIgnoreCase))
                         TryDeleteDirectory(d);
-                }
             }
             catch { }
         }
@@ -213,28 +191,15 @@ internal static class Program
 
     static void DeleteRegistryKeys()
     {
-        string[] subkeys =
+        foreach (var sub in new[]
         {
             @"Software\DrArmandoRevelo\HistoriaClinica",
             @"Software\Dr. Armando Revelo\HistoriaClinica"
-        };
-
-        foreach (var sub in subkeys)
+        })
         {
             try { Registry.CurrentUser.DeleteSubKeyTree(sub, false); } catch { }
             try { Registry.LocalMachine.DeleteSubKeyTree(sub, false); } catch { }
         }
-    }
-
-    static void TryDeleteEmptyParent(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path) &&
-                !Directory.EnumerateFileSystemEntries(path).Any())
-                Directory.Delete(path);
-        }
-        catch { }
     }
 
     static void TryDeleteFile(string path)
@@ -253,12 +218,8 @@ internal static class Program
         try
         {
             if (!Directory.Exists(path)) return;
-
             foreach (var file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
-            {
                 try { File.SetAttributes(file, FileAttributes.Normal); } catch { }
-            }
-
             Directory.Delete(path, true);
         }
         catch { }
@@ -270,7 +231,6 @@ internal static class Program
         {
             var self = Environment.ProcessPath;
             if (string.IsNullOrWhiteSpace(self)) return;
-
             var dir = Path.GetDirectoryName(self) ?? "";
             var cmd = $"/c ping 127.0.0.1 -n 3 >nul & cd /d \"{Path.GetTempPath().TrimEnd('\\')}\" & rd /s /q \"{dir}\"";
             Process.Start(new ProcessStartInfo("cmd.exe", cmd)
@@ -287,21 +247,18 @@ internal static class Program
         try
         {
             var self = Environment.ProcessPath ??
-                       throw new InvalidOperationException("No se pudo localizar el desinstalador.");
-
+                throw new InvalidOperationException("No se pudo localizar el desinstalador.");
             var dir = Path.Combine(Path.GetTempPath(),
                 "DrRevelo_Historia_Uninstall_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
             var copy = Path.Combine(dir, "Desinstalar_Historia_Clinica_Dr_Revelo.exe");
             File.Copy(self, copy, true);
-
             Process.Start(new ProcessStartInfo(copy, "--cleanup")
             {
                 UseShellExecute = true,
                 Verb = "runas",
                 WorkingDirectory = dir
             });
-
             owner.Close();
         }
         catch (Exception ex)
@@ -335,9 +292,8 @@ internal sealed class ConfirmForm : Form
             Location = new Point(30, 26),
             AutoSize = true,
             Font = new Font("Segoe UI", 22, FontStyle.Bold),
-            ForeColor = Color.FromArgb(255, 107, 107)
+            ForeColor = Color.FromArgb(173, 59, 67)
         };
-
         var intro = new Label
         {
             Text = "Este modo elimina completamente Historia Clínica de esta PC.",
@@ -345,32 +301,28 @@ internal sealed class ConfirmForm : Form
             Size = new Size(580, 28),
             Font = new Font("Segoe UI", 11, FontStyle.Bold)
         };
-
         var info = new Label
         {
             Text =
                 "Se eliminarán:\n" +
                 "• C:\\Historia Clinica Dr Revelo completa\n" +
-                "• pacientes y bases locales guardadas dentro de esa carpeta\n" +
+                "• historias y base local guardadas dentro de esa carpeta\n" +
                 "• .env y configuración privada\n" +
-                "• respaldos y perfiles WebView/Edge propios del programa\n" +
-                "• accesos directos de Historia Clínica\n" +
-                "• AppData y archivos temporales identificados como Historia Clínica Dr. Revelo\n\n" +
+                "• respaldos y perfiles WebView2 propios de Historia\n" +
+                "• accesos directos de Historia Clínica\n\n" +
                 "Recepción NO se elimina.",
             Location = new Point(33, 119),
             Size = new Size(580, 190),
-            ForeColor = Color.FromArgb(101, 93, 82)
+            ForeColor = Color.FromArgb(82, 87, 92)
         };
-
         var warning = new Label
         {
             Text = "Esta acción no se puede deshacer.",
             Location = new Point(33, 311),
             AutoSize = true,
-            ForeColor = Color.FromArgb(255, 190, 110),
+            ForeColor = Color.FromArgb(160, 106, 25),
             Font = new Font("Segoe UI", 10, FontStyle.Bold)
         };
-
         var prompt = new Label
         {
             Text = "Para continuar escribe  ELIMINAR",
@@ -390,7 +342,7 @@ internal sealed class ConfirmForm : Form
             Size = new Size(120, 38),
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.FromArgb(218, 210, 198),
-            ForeColor = Color.White
+            ForeColor = Color.FromArgb(63, 68, 76)
         };
         cancel.FlatAppearance.BorderSize = 0;
         cancel.Click += (_, _) => Close();
@@ -400,7 +352,7 @@ internal sealed class ConfirmForm : Form
         remove.Size = new Size(155, 38);
         remove.FlatStyle = FlatStyle.Flat;
         remove.FlatAppearance.BorderSize = 0;
-        remove.BackColor = Color.FromArgb(157, 54, 61);
+        remove.BackColor = Color.FromArgb(173, 59, 67);
         remove.ForeColor = Color.White;
         remove.Enabled = false;
 
@@ -415,7 +367,6 @@ internal sealed class ConfirmForm : Form
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2);
-
             if (second == DialogResult.Yes)
                 Program.LaunchCleanupCopy(this);
         };
