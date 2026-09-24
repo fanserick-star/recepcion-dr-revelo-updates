@@ -1,22 +1,23 @@
-Launcher Historia Clínica - Dr. Armando Revelo v1.0.0
+LAUNCHER HISTORIA CLÍNICA - DR. ARMANDO REVELO
+Versión 1.0.0
 
-Este paquete migra una instalación existente de Historia Clínica al launcher nativo v1.
+Migración del sistema de arranque de Historia Clínica al launcher nativo blindado.
 
 Incluye:
-- HistoriaClinicaLauncher.exe
-- HistoriaLauncherUpdater.exe
-- Desinstalar_Historia_Clinica_Dr_Revelo.exe
-- Instalador de migración
-
-Protecciones:
-- una sola instancia;
+- ventana nativa WinForms + WebView2;
+- identidad visual azul clínico + marfil propia de Historia;
+- instancia única;
 - actualizaciones obligatorias;
+- self-update autocontenido y silencioso;
 - SHA-256;
-- preflight aislado con copia SQLite;
-- respaldo y rollback;
-- self-update autocontenido y oculto;
-- protección de data/, .env, bases, Excel y backups;
-- WebView2 nativo con fallback seguro;
-- limpieza de residuos del launcher Python antiguo solo después de un arranque correcto.
+- preprueba aislada con copia segura SQLite;
+- backup/rollback transaccional;
+- protección de data/, .env, bases, Excel/Access y backups;
+- puerto dedicado 8787 con validación de producto;
+- logs de arranque y self-update;
+- reparación del acceso directo con el launcher nuevo.
 
-La migración no reemplaza historias clínicas ni la base local.
+Este instalador NO instala una base nueva de Historia. Requiere una instalación existente en:
+C:\Historia Clinica Dr Revelo
+
+No reemplaza historias, data/, .env ni la base local.
