@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.7";
+    const string LauncherVersion = "1.0.8";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -716,6 +716,36 @@ internal sealed class LauncherForm : Form
 
     async Task PrecheckCandidateAsync(string staging, string expected)
     {
+        // La versión real vive en recepcion-version.json. Los campos antiguos
+        // del manifest, si existen, son únicamente aliases de compatibilidad.
+        var versionPath = Path.Combine(staging, "recepcion-version.json");
+        if (File.Exists(versionPath))
+        {
+            using var versionDoc = JsonDocument.Parse(await File.ReadAllTextAsync(versionPath, Encoding.UTF8));
+            var canonical = versionDoc.RootElement.TryGetProperty("version", out var vv)
+                ? vv.GetString()?.Trim()
+                : null;
+            if (string.IsNullOrWhiteSpace(canonical) ||
+                !canonical.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"recepcion-version.json anuncia {canonical ?? "[vacío]"}; se esperaba {expected}.");
+        }
+
+        var manifestPath = Path.Combine(staging, "update_manifest.json");
+        if (File.Exists(manifestPath))
+        {
+            using var manifestDoc = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath, Encoding.UTF8));
+            foreach (var alias in new[] { "version", "app_version", "runtime_version" })
+            {
+                if (!manifestDoc.RootElement.TryGetProperty(alias, out var av)) continue;
+                var value = av.GetString()?.Trim();
+                if (string.IsNullOrWhiteSpace(value) ||
+                    !value.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        $"{alias}={value ?? "[vacío]"} no coincide con la versión canónica {expected}.");
+            }
+        }
+
         var python = Path.Combine(root, ".venv", "Scripts", "python.exe");
         if (!File.Exists(python))
             throw new InvalidOperationException("No encuentro el Python portátil para verificar la actualización.");
