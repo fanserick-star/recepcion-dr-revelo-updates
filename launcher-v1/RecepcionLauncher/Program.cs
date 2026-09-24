@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.8";
+    const string LauncherVersion = "1.0.9";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -185,7 +185,7 @@ internal sealed class LauncherForm : Form
         lblVersion.Font = new Font("Segoe UI", 9);
 
         var footer = new Label {
-            Text = "El launcher nunca modifica pacientes, .env o bases sin una actualización confirmada.",
+            Text = "Las actualizaciones oficiales son obligatorias y nunca reemplazan pacientes, .env ni bases.",
             Location = new Point(36, 365), Size = new Size(640, 38),
             ForeColor = Color.FromArgb(105, 127, 158), Font = new Font("Segoe UI", 8)
         };
@@ -206,7 +206,7 @@ internal sealed class LauncherForm : Form
         updateNotes.Font = new Font("Segoe UI", 10);
         updateNotes.ForeColor = Color.FromArgb(193, 207, 226);
 
-        btnLater.Text = "Más tarde";
+        btnLater.Text = "Salir";
         btnLater.Size = new Size(130, 42);
         btnLater.Location = new Point(350, 216);
         StyleButton(btnLater, Color.FromArgb(49, 65, 89));
@@ -284,11 +284,16 @@ internal sealed class LauncherForm : Form
             if (launcherChannel is not null && IsNewer(launcherChannel.LatestVersion, LauncherVersion))
             {
                 bool updateLauncher = await AskLauncherUpdateAsync(launcherChannel);
-                if (updateLauncher)
+                if (!updateLauncher)
                 {
-                    await DownloadAndInstallLauncherAsync(launcherChannel);
+                    SetProgress(8, "Actualización obligatoria", "Recepción no se abrirá hasta actualizar el launcher.");
+                    closingAllowed = true;
+                    Close();
                     return;
                 }
+
+                await DownloadAndInstallLauncherAsync(launcherChannel);
+                return;
             }
 
             SetProgress(10, "Comprobando actualizaciones", "Consultando el canal estable de Recepción…");
@@ -315,17 +320,19 @@ internal sealed class LauncherForm : Form
             if (channel is not null && IsNewer(channel.AppVersion, installed))
             {
                 bool doUpdate = await AskUpdateAsync(channel);
-                if (doUpdate)
+                if (!doUpdate)
                 {
-                    expectedAfterUpdate = channel.AppVersion;
-                    backup = await ApplyUpdateAsync(channel);
-                    installed = channel.AppVersion;
-                    lblVersion.Text = $"Recepción {installed}  ·  Launcher {LauncherVersion}";
+                    SetProgress(22, "Actualización obligatoria",
+                        $"Recepción {channel.AppVersion} debe instalarse antes de continuar.");
+                    closingAllowed = true;
+                    Close();
+                    return;
                 }
-                else
-                {
-                    SetProgress(22, "Actualización aplazada", "Abriendo la versión instalada sin cambios…");
-                }
+
+                expectedAfterUpdate = channel.AppVersion;
+                backup = await ApplyUpdateAsync(channel);
+                installed = channel.AppVersion;
+                lblVersion.Text = $"Recepción {installed}  ·  Launcher {LauncherVersion}";
             }
             else
             {
@@ -494,7 +501,7 @@ internal sealed class LauncherForm : Form
             (string.IsNullOrWhiteSpace(channel.Notes)
                 ? $"Hay una nueva versión del Launcher. Actual: {LauncherVersion} · Nueva: {channel.LatestVersion}."
                 : channel.Notes) +
-            "\n\nLa descarga solo comenzará si eliges “Actualizar ahora”.";
+            "\n\nEsta actualización es obligatoria. Para usar Recepción debes elegir “Actualizar ahora”. Si eliges “Salir”, el programa no se abrirá.";
         updatePanel.Visible = true;
         updatePanel.BringToFront();
         btnUpdate.Focus();
@@ -585,7 +592,7 @@ internal sealed class LauncherForm : Form
         updateTitle.Text = $"Actualización {channel.AppVersion} disponible";
         updateNotes.Text =
             (string.IsNullOrWhiteSpace(channel.Notes) ? "Hay una nueva versión estable de Recepción." : channel.Notes) +
-            "\n\nLa descarga solo comenzará si eliges “Actualizar ahora”.";
+            "\n\nEsta actualización es obligatoria. Para usar Recepción debes elegir “Actualizar ahora”. Si eliges “Salir”, el programa no se abrirá.";
         updatePanel.Visible = true;
         updatePanel.BringToFront();
         btnUpdate.Focus();
