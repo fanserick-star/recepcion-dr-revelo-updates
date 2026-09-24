@@ -105,3 +105,63 @@ jobs:
               assert item not in s, item
           print("OK Historia launcher invariants")
           PY
+
+
+      - name: Validate channels and protected payload
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, re
+
+          root = pathlib.Path(".")
+          base = root / "historia-clinica"
+          new = base / "updates/v1_3_5_launcher_v1_migration"
+          p131 = base / "updates/v1_3_1_new_patient_turn"
+
+          version = json.loads((new / "historia-version.json").read_text(encoding="utf-8"))["version"]
+          app_channel = json.loads((base / "launcher-v1/app-channel.json").read_text(encoding="utf-8"))
+          launcher_channel = json.loads((base / "launcher-v1/launcher-channel.json").read_text(encoding="utf-8"))
+          manifest = json.loads((new / "update_manifest.json").read_text(encoding="utf-8"))
+
+          assert app_channel["appVersion"] == version == "1.3.5"
+          assert app_channel["mandatory"] is True
+          assert app_channel["minimumLauncher"] == "1.0.0"
+          assert manifest["launcher_minimum"] == "1.0.0"
+
+          source = (base / "launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
+          m = re.search(r'LauncherVersion\s*=\s*"([^"]+)"', source)
+          assert m and m.group(1) == "1.0.0"
+          assert launcher_channel["latestVersion"] == "1.0.0"
+          assert launcher_channel["mandatory"] is True
+          assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["installerSha256"])
+          assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["updaterSha256"])
+
+          allowed = {"app.py", "historia-version.json", "update_manifest.json"}
+          paths = {item["path"] for item in app_channel["files"]}
+          assert paths == allowed, paths
+          for path in paths:
+              low = path.lower()
+              assert not low.startswith("data/")
+              assert low != ".env"
+              assert not low.endswith((".db",".sqlite",".sqlite3",".mdb",".accdb",".xls",".xlsx"))
+
+          parts = [
+              new / "app.py.part01",
+              p131 / "app.py.part02",
+              p131 / "app.py.part03",
+              p131 / "app.py.part04",
+              new / "app.py.part05",
+          ]
+          app_bytes = b"".join(p.read_bytes() for p in parts)
+          expected = {
+              "app.py": hashlib.sha256(app_bytes).hexdigest(),
+              "historia-version.json": hashlib.sha256((new / "historia-version.json").read_bytes()).hexdigest(),
+              "update_manifest.json": hashlib.sha256((new / "update_manifest.json").read_bytes()).hexdigest(),
+          }
+          for item in app_channel["files"]:
+              assert item["sha256"] == expected[item["path"]], (item["path"], item["sha256"], expected[item["path"]])
+
+          print("OK app channel:", version)
+          print("OK launcher channel: 1.0.0")
+          print("OK payload hashes and protected paths")
+          PY
