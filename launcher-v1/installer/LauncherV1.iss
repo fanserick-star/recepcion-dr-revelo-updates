@@ -1,5 +1,5 @@
 #define MyAppName "Launcher Recepción - Dr. Armando Revelo"
-#define MyAppVersion "1.0.10"
+#define MyAppVersion "1.0.11"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10
+OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_11
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\doctor_icon.ico
@@ -61,8 +61,11 @@ begin
       retiramos los restos conocidos del launcher Python antiguo. }
     DeleteFile(ExpandConstant('{app}\ABRIR_RECEPCION.py'));
     DeleteFile(ExpandConstant('{app}\ABRIR_RECEPCION.pyw'));
+    DeleteFile(ExpandConstant('{app}\AUTOACTUALIZAR.py'));
+    DeleteFile(ExpandConstant('{app}\INICIAR.bat'));
     DeleteFile(ExpandConstant('{app}\data\launcher_errors.log'));
     DeleteFile(ExpandConstant('{app}\data\auto_update_state.json'));
     DelTree(ExpandConstant('{app}\__pycache__\ABRIR_RECEPCION*.pyc'), False, True, False);
+    DelTree(ExpandConstant('{app}\__pycache__\AUTOACTUALIZAR*.pyc'), False, True, False);
   end;
 end;
