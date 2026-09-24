@@ -1,0 +1,180 @@
+# ---------------------------------------------------------------------------
+# v1.3.8 — nube completa + recetas/certificados/configuración.
+# ---------------------------------------------------------------------------
+APP_VERSION = _CANONICAL_VERSION
+try:
+    with db() as _v135_conn:
+        _v135_conn.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('app_version',?)",
+            (APP_VERSION,),
+        )
+        _v135_conn.commit()
+except Exception:
+    pass
+try:
+    if hasattr(LAN_SERVICE, "version"):
+        LAN_SERVICE.version = APP_VERSION
+except Exception:
+    pass
+
+_V135_BASE_ORIGINAL = base
+
+_V135_STYLE = """
+<style>
+.topbar nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar nav a{white-space:nowrap}
+.editor-actions .document-action{
+  background:#edf3f9!important;color:#173b66!important;border:1px solid #b9cce0!important
+}
+.editor-actions .document-action:hover{background:#dfeaf5!important}
+@media(max-width:1000px){.topbar nav{gap:4px}.topbar nav a{font-size:11px}}
+</style>
+"""
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    html = _V135_BASE_ORIGINAL(title, body, active, extra_head, extra_script)
+    nav = (
+        f'<a class="{"active" if active=="recetas" else ""}" href="/recetas">Recetas</a>'
+        f'<a class="{"active" if active=="certificados" else ""}" href="/certificados">Certificados</a>'
+        f'<a class="{"active" if active=="configuracion" else ""}" href="/configuracion">Configuración</a>'
+    )
+    if "</nav>" in html and "/configuracion" not in html:
+        html = html.replace("</nav>", nav + "</nav>", 1)
+    if "</head>" in html:
+        html = html.replace("</head>", _V135_STYLE + "</head>", 1)
+    return html
+
+
+# Migración cloud v1.3.8: una sola relectura total y sembrado de módulos nuevos.
+try:
+    with db() as _v138:
+        _v138.execute("CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        _v138.execute("CREATE TABLE IF NOT EXISTS sync_dirty(table_name TEXT NOT NULL,row_key TEXT NOT NULL,changed_at TEXT NOT NULL,PRIMARY KEY(table_name,row_key))")
+        _flag = _v138.execute("SELECT value FROM sync_state WHERE key='migration_v138_full_cloud'").fetchone()
+        if not _flag:
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('last_pull','1970-01-01T00:00:00+00:00')")
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('cloud_bootstrap_complete','0')")
+            for _table, _pk in (("prescriptions","id"),("certificates","id"),("clinic_settings","setting_key")):
+                _v138.execute(f"INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at) SELECT ?,CAST({_pk} AS TEXT),datetime('now') FROM {_table}", (_table,))
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('migration_v138_full_cloud','1')")
+            _v138.commit()
+except Exception:
+    pass
+
+documentos_clinicos.install(app, globals())
+
+
+# Integra los dos documentos en la consulta sin cerrar ni finalizar la atención.
+_V135_NEW_CONSULTATION_ORIGINAL = new_consultation
+_v132_remove_route("/paciente/{patient_id}/nueva", "GET")
+
+@app.get("/paciente/{patient_id}/nueva", response_class=HTMLResponse)
+def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str = ""):
+    result = _V135_NEW_CONSULTATION_ORIGINAL(patient_id, encounter_id, queue_id)
+
+    # Las rutas FastAPI con response_class pueden devolver str al invocarse
+    # directamente desde otro wrapper. v1.3.8 asumía HTMLResponse y por eso
+    # los botones de receta/certificado podían no inyectarse aunque el módulo
+    # estuviera instalado.
+    if isinstance(result, HTMLResponse):
+        try:
+            html = bytes(result.body).decode(result.charset or "utf-8")
+        except Exception:
+            return result
+        status_code = result.status_code
+        headers = {
+            k: v for k, v in dict(result.headers).items()
+            if k.lower() not in {"content-length", "content-type"}
+        }
+    elif isinstance(result, str):
+        html = result
+        status_code = 200
+        headers = {}
+    else:
+        return result
+
+    # Los documentos deben estar visibles mientras el doctor escribe, junto a
+    # Frases rápidas. Se conserva un fallback en el pie por compatibilidad con
+    # layouts anteriores.
+    if "id='open-prescription'" not in html:
+        tools_marker = "<div class='consult-tools'><button id='toggle-macros' class='secondary'>Frases rápidas</button>"
+        tools_replacement = (
+            "<div class='consult-tools'>"
+            "<button id='toggle-macros' class='secondary'>Frases rápidas</button>"
+            "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
+            "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+        )
+        if tools_marker in html:
+            html = html.replace(tools_marker, tools_replacement, 1)
+        else:
+            footer_marker = "<div class='editor-actions'>"
+            footer_replacement = (
+                "<div class='editor-actions'>"
+                "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
+                "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+            )
+            if footer_marker in html:
+                html = html.replace(footer_marker, footer_replacement, 1)
+
+    helper = r"""
+<script>
+(()=>{
+  const rx=document.getElementById('open-prescription');
+  const cert=document.getElementById('open-certificate');
+  async function openClinicalDocument(kind,button){
+    const original=button.textContent;
+    button.disabled=true;
+    button.textContent='Guardando…';
+    try{
+      let id='';
+      if(typeof save==='function'){
+        id=await save(true) || '';
+      }
+      const route=kind==='rx'?'/recetas/nueva':'/certificados/nuevo';
+      const qs=new URLSearchParams({patient_id:PATIENT_ID});
+      if(id)qs.set('encounter_id',id);
+      window.open(route+'?'+qs.toString(),'_blank');
+      button.textContent=original;
+      button.disabled=false;
+    }catch(err){
+      button.textContent=original;
+      button.disabled=false;
+      if(window.showAppToast)showAppToast(
+        err && err.message ? err.message : 'No se pudo guardar antes de emitir el documento.',
+        'error'
+      );
+    }
+  }
+  if(rx)rx.addEventListener('click',()=>openClinicalDocument('rx',rx));
+  if(cert)cert.addEventListener('click',()=>openClinicalDocument('cert',cert));
+})();
+</script>
+"""
+    if "</body>" in html:
+        html = html.replace("</body>", helper + "</body>", 1)
+
+    return HTMLResponse(
+        content=html,
+        status_code=status_code,
+        headers=headers,
+    )
+
+
+@app.get("/api/v138/health")
+def v138_health():
+    return JSONResponse({
+        "ok": True,
+        "version": APP_VERSION,
+        "canonical_version_source": "historia-version.json",
+        "launcher_v1_ready": True,
+        "prescriptions": True,
+        "certificates": True,
+        "configuration": True,
+        "cloud_full_bootstrap": True,
+        "cloud_patients": True,
+        "cloud_encounters": True,
+        "cloud_prescriptions": True,
+        "cloud_certificates": True,
+        "cloud_shared_settings": True,
+        "database_schema_changes": True,
+    })
