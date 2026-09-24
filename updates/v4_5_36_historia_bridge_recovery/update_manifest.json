@@ -87,7 +87,7 @@
     "rollback": true,
     "single_source_of_truth": "recepcion-version.json",
     "legacy_aliases_must_match_source": true,
-    "database_schema_changes": false,
+    "database_schema_changes": true,
     "functional_changes": true,
     "historia_changes": true,
     "bendo_changes": false,
@@ -102,7 +102,9 @@
     "historia_waiting_event_unique_index": true,
     "historia_bridge_remote_schema_additive": true,
     "historia_status_retry_seconds": 60,
-    "previous_version": "4.5.35"
+    "previous_version": "4.5.35",
+    "database_schema_change_type": "additive-only-historia-cloud",
+    "patient_data_destructive_changes": false
   },
   "channel": "launcher-v1-stable"
 }
