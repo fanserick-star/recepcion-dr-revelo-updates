@@ -2,35 +2,35 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.40",
+  "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.40: corrige el override activo del bridge que impedía que el turno exacto calculado por Recepción llegara realmente a Historia. Recepción sigue siendo la única fuente de verdad del número (#6, #7, etc.) y al iniciar repara/reenvía handoffs recientes con ese número. No cambia caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "73fd564a6f9e728580d28c375098d2e3f48c3451",
+  "notes": "Recepción 4.5.41: corrige el turno de Historia usando exactamente la misma lógica de numeración de Recepción/Reportes. Además fuerza ese número sobre cualquier fila activa del mismo paciente, aunque provenga de un handoff anterior, para que Palacios muestre #6 y no #10. No cambia caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "1326cbc1ba382f72a04c518dc6c2404e9026f34e",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/app.py",
-      "sha256": "4530eaaef7902b694523b5fbb2aad88fd72c1d395e64bed969a3cf062ddb8765"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1326cbc1ba382f72a04c518dc6c2404e9026f34e/updates/v4_5_41_historia_turn_force/app.py",
+      "sha256": "468c1c97342895879c60410b7a9951f4ae29036f533a9fcbf24c00c0df7eaacd"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
-      "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1326cbc1ba382f72a04c518dc6c2404e9026f34e/updates/v4_5_41_historia_turn_force/historia_bridge.py",
+      "sha256": "d2c6401a3db3b70d5cf2d4a1f854c166edb09d0b9263e4f813800a91358deef0"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/recepcion-version.json",
-      "sha256": "88045e2149ea99bafdcc958c44597a94fde307ff64fd961a21a0714698978801"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1326cbc1ba382f72a04c518dc6c2404e9026f34e/updates/v4_5_41_historia_turn_force/recepcion-version.json",
+      "sha256": "94e074c95dad773378dd88cb5f86694d78caa09847934098967042d020624ffd"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/update_manifest.json",
-      "sha256": "56a1eed79d066c839633a0937ad62fa9e9389aed80645239413e540641d52463"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1326cbc1ba382f72a04c518dc6c2404e9026f34e/updates/v4_5_41_historia_turn_force/update_manifest.json",
+      "sha256": "22e78989cefd361b8f767866af23fc2f8414d8f7c2bfc8aa2411e5b931aa63e7"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1326cbc1ba382f72a04c518dc6c2404e9026f34e/updates/v4_5_41_historia_turn_force/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
