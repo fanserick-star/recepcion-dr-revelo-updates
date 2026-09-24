@@ -2,31 +2,31 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.36",
+  "appVersion": "4.5.37",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.36: recupera la cola pendiente del puente con Historia Clínica, crea de forma aditiva el índice remoto que necesita el UPSERT de waiting_queue, prepara las tablas mínimas del schema historia.* si faltan y reduce los reintentos automáticos para no golpear Neon cada 10 segundos. Sin cambios en caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "adabdd007a59dc876a32f39c9cdd9854f12b3290",
+  "notes": "Recepción 4.5.37: separa correctamente Nuevo/Subsecuente del tipo real Consulta/Procedimiento enviado a Historia. Solo las consultas consumirán número de turno; los procedimientos llegarán como procedimiento sin turno. Repara automáticamente los eventos recientes ya enviados. No modifica caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "2ca4fbbe7abc5df64699ef6fae999cc7d43434a7",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/adabdd007a59dc876a32f39c9cdd9854f12b3290/updates/v4_5_36_historia_bridge_recovery/app.py",
-      "sha256": "b6d82c5a8c7608f272de98619e43650afe5f235a0e923bc545d6e176e66bce7b"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/2ca4fbbe7abc5df64699ef6fae999cc7d43434a7/updates/v4_5_37_historia_service_kind/app.py",
+      "sha256": "fc8b5465408681b271628370651bcb92481aa42722753fce5e8e3d278746f61a"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/adabdd007a59dc876a32f39c9cdd9854f12b3290/updates/v4_5_36_historia_bridge_recovery/historia_bridge.py",
-      "sha256": "2ac56c01bb8c9bd3737b7a76fbe9f8aefa1c2827c9aa5a3bcf03421793930df4"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/2ca4fbbe7abc5df64699ef6fae999cc7d43434a7/updates/v4_5_37_historia_service_kind/historia_bridge.py",
+      "sha256": "aba0f1b9901e4f110d297cb1b72fee0bfafd5e096f28eb077384e96d3098296d"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/adabdd007a59dc876a32f39c9cdd9854f12b3290/updates/v4_5_36_historia_bridge_recovery/recepcion-version.json",
-      "sha256": "5b9c2defb404bf5b0ffb4d1b7aca882add5f7d9dc82ee911c71919e455ddecb5"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/2ca4fbbe7abc5df64699ef6fae999cc7d43434a7/updates/v4_5_37_historia_service_kind/recepcion-version.json",
+      "sha256": "4768489deea385066ad6a889122ed47582489fea05a9332b4c1deef23ee99f28"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/adabdd007a59dc876a32f39c9cdd9854f12b3290/updates/v4_5_36_historia_bridge_recovery/update_manifest.json",
-      "sha256": "f080a92119c2d7f106ecdb4ee17d6461ddbe2b0aadd783d719d94cb570344376"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/2ca4fbbe7abc5df64699ef6fae999cc7d43434a7/updates/v4_5_37_historia_service_kind/update_manifest.json",
+      "sha256": "95a1794835d295182dd43601157229519a188585f8e495cfb7b3238479e815ea"
     }
   ]
 }
