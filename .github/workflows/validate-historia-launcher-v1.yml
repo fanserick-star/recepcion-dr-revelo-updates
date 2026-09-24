@@ -1,0 +1,107 @@
+name: Validate Historia Launcher v1 Migration
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/v1_3_5_launcher_v1_migration/**"
+      - "historia-clinica/launcher-v1/**"
+      - ".github/workflows/validate-historia-launcher-v1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate Historia 1.3.5 migration
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, py_compile
+
+          root = pathlib.Path(".")
+          old = root / "historia-clinica/updates/v1_3_4_fresh_install_repair"
+          new = root / "historia-clinica/updates/v1_3_5_launcher_v1_migration"
+          p131 = root / "historia-clinica/updates/v1_3_1_new_patient_turn"
+
+          version = json.loads((new / "historia-version.json").read_text(encoding="utf-8"))["version"]
+          assert version == "1.3.5"
+
+          manifest = json.loads((new / "update_manifest.json").read_text(encoding="utf-8"))
+          for key in ("version","app_version","runtime_version"):
+              assert manifest[key] == version, (key, manifest[key])
+          assert manifest["version_source"] == "historia-version.json"
+          assert manifest["compatibility_version_aliases"] is True
+          assert manifest["mandatory"] is True
+          assert manifest["copy"] == ["app.py","historia-version.json","update_manifest.json"]
+          assert manifest["notes"]["database_schema_changes"] is False
+          assert manifest["notes"]["clinical_changes"] is False
+          assert manifest["notes"]["patient_data_changes"] is False
+
+          old1 = (old / "app.py.part01").read_text(encoding="utf-8")
+          new1 = (new / "app.py.part01").read_text(encoding="utf-8")
+          old5 = (old / "app.py.part05").read_text(encoding="utf-8")
+          new5 = (new / "app.py.part05").read_text(encoding="utf-8")
+
+          # Desde la base de datos hacia abajo, part01 conserva la lógica clínica.
+          assert old1[old1.index("def db():"):] == new1[new1.index("def db():"):]
+          # Desde los wrappers clínicos v1.3.2, part05 también es idéntico.
+          marker = "_v132_base_original = base"
+          assert old5[old5.index(marker):] == new5[new5.index(marker):]
+
+          assert 'VERSION_PATH = ROOT / "historia-version.json"' in new1
+          assert 'ROOT / "HistoriaClinicaLauncher.exe"' in new1
+          assert 'HistoriaClinica_Dr_Revelo.exe.b64' not in new1[:new1.index("def db():")]
+
+          parts = [
+              new / "app.py.part01",
+              p131 / "app.py.part02",
+              p131 / "app.py.part03",
+              p131 / "app.py.part04",
+              new / "app.py.part05",
+          ]
+          assembled = pathlib.Path("/tmp/historia_app_135.py")
+          assembled.write_bytes(b"".join(p.read_bytes() for p in parts))
+          py_compile.compile(str(assembled), doraise=True)
+          digest = hashlib.sha256(assembled.read_bytes()).hexdigest()
+
+          print("OK Historia canonical version:", version)
+          print("OK clinical logic unchanged from v1.3.4")
+          print("OK new native shortcut target")
+          print("OK assembled app.py syntax")
+          print("APP_SHA256=" + digest)
+          PY
+
+      - name: Validate launcher source invariants
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("historia-clinica/launcher-v1/HistoriaLauncher/Program.cs")
+          s = p.read_text(encoding="utf-8")
+          required = [
+              'const string LauncherVersion = "1.0.0"',
+              'const int Port = 8787',
+              '"DrArmandoRevelo.HistoriaClinica"',
+              '"historia-version.json"',
+              'HistoriaLauncherUpdater.exe',
+              'ProbeVersionAsync',
+              'BackupSqliteAsync',
+              'f.Parts',
+              'WebView2',
+          ]
+          for item in required:
+              assert item in s, item
+          forbidden = [
+              'ABRIR_RECEPCION',
+              'C:\\Recepcion Dr Revelo',
+              'const int Port = 8000',
+          ]
+          for item in forbidden:
+              assert item not in s, item
+          print("OK Historia launcher invariants")
+          PY
