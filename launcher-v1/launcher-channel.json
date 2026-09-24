@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.5",
-  "notes": "Launcher v1.0.5: corrige la detección de actualizaciones de Recepción usando /api/version como fuente autoritativa, reintenta el canal con no-cache y muestra Local vs Disponible en pantalla. No cambia datos ni funciones de Recepción.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.5/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_5.exe",
-  "installerSha256": "93e9b1e8fbf331d7623eacd5ef0a5a4356c6606510f63d41b27fe90d107f94a5"
+  "latestVersion": "1.0.6",
+  "notes": "Launcher v1.0.6: corrige el bloqueo de archivos durante la descarga de actualizaciones de Recepción. El archivo descargado se cierra antes de verificar SHA-256. No cambia datos ni funciones de Recepción.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.6/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6.exe",
+  "installerSha256": "76860a5c282163e82a3ac7cd86ec767255d6a3bd010100952565d45a0e14d4bd"
 }
