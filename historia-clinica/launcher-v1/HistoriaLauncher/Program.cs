@@ -1415,53 +1415,31 @@ internal sealed class LauncherForm : Form
         {
             var shell = new HistoriaForm(root, $"http://127.0.0.1:{Port}");
             bool ok = await shell.InitializeAsync();
-            if (ok)
+            if (!ok)
             {
-                historiaForm = shell;
-                shell.FormClosed += (_, _) =>
-                {
-                    historiaForm = null;
-                    closingAllowed = true;
-                    if (!IsDisposed) Close();
-                };
-                shell.Show();
-                shell.Activate();
-                shell.BringToFront();
-                return true; // ventana propia: mantener vivo este proceso
+                shell.Dispose();
+                throw new InvalidOperationException(
+                    "WebView2 no pudo iniciar. Historia Clínica requiere WebView2 para abrir de forma segura.");
             }
-            shell.Dispose();
-        }
-        catch { }
 
-        // Respaldo: si WebView2 no está disponible, Historia Clínica sigue abriendo con Edge.
-        try
+            historiaForm = shell;
+            shell.FormClosed += (_, _) =>
+            {
+                historiaForm = null;
+                closingAllowed = true;
+                if (!IsDisposed) Close();
+            };
+            shell.Show();
+            shell.Activate();
+            shell.BringToFront();
+            return true;
+        }
+        catch (Exception ex)
         {
-            var edge = FindEdge();
-            if (edge is not null)
-            {
-                var profile = Path.Combine(root, "data", "edge_profile");
-                Directory.CreateDirectory(profile);
-                Process.Start(new ProcessStartInfo {
-                    FileName = edge,
-                    Arguments = $"--app=http://127.0.0.1:{Port} --start-maximized --no-first-run --disable-background-mode --user-data-dir={QuoteArg(profile)}",
-                    WorkingDirectory = root,
-                    UseShellExecute = false
-                });
-                return false; // abrió correctamente, pero en fallback externo
-            }
-            Process.Start(new ProcessStartInfo($"http://127.0.0.1:{Port}") { UseShellExecute = true });
-            return false;
+            throw new InvalidOperationException(
+                "No se pudo abrir la ventana nativa de Historia Clínica. " +
+                "No se usará un navegador externo.\n\n" + ex.Message, ex);
         }
-        catch { return null; }
-    }
-
-    static string? FindEdge()
-    {
-        var candidates = new[] {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe")
-        };
-        return candidates.FirstOrDefault(File.Exists);
     }
 
     async Task RollbackAsync(string backup)
