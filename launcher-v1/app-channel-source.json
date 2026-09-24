@@ -2,30 +2,30 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.40",
+  "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.40: corrige el override activo del bridge que impedía que el turno exacto calculado por Recepción llegara realmente a Historia. Recepción sigue siendo la única fuente de verdad del número (#6, #7, etc.) y al iniciar repara/reenvía handoffs recientes con ese número. No cambia caja, Bendo, facturación, agenda ni datos locales.",
+  "notes": "Recepción 4.5.41: corrige el turno de Historia usando exactamente la misma lógica de numeración de Recepción/Reportes. Además fuerza ese número sobre cualquier fila activa del mismo paciente, aunque provenga de un handoff anterior, para que Palacios muestre #6 y no #10. No cambia caja, Bendo, facturación, agenda ni datos locales.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/app.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_force/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_bridge.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_force/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/recepcion-version.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_force/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/update_manifest.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_force/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_force/historia_lan_transport.py"
     }
   ]
 }
