@@ -1,0 +1,107 @@
+name: Validate Active Reception Stack
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "launcher-v1/**"
+      - "latest-v4.json"
+      - "latest-v4-runtime.json"
+      - "updates/v4_5_33_single_version_source/**"
+      - ".github/workflows/validate-active-reception-stack.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate canonical active stack
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          root = Path(".")
+          app_dir = root / "updates/v4_5_33_single_version_source"
+
+          canonical = json.loads((app_dir / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
+          manifest = json.loads((app_dir / "update_manifest.json").read_text(encoding="utf-8"))
+          app_channel = json.loads((root / "launcher-v1/app-channel.json").read_text(encoding="utf-8"))
+          launcher_channel = json.loads((root / "launcher-v1/launcher-channel.json").read_text(encoding="utf-8"))
+          legacy = json.loads((root / "latest-v4.json").read_text(encoding="utf-8"))
+          legacy_runtime = json.loads((root / "latest-v4-runtime.json").read_text(encoding="utf-8"))
+
+          # Una sola versión real de Recepción.
+          assert app_channel["appVersion"] == canonical
+          assert app_channel["mandatory"] is True
+          for key in ("version", "app_version", "runtime_version"):
+              assert manifest[key] == canonical, (key, manifest[key], canonical)
+              assert legacy[key] == canonical, ("latest-v4", key, legacy[key], canonical)
+              assert legacy_runtime[key] == canonical, ("latest-v4-runtime", key, legacy_runtime[key], canonical)
+
+          assert manifest["version_source"] == "recepcion-version.json"
+          assert manifest["compatibility_version_aliases"] is True
+          assert legacy.get("deprecated") is True
+          assert legacy_runtime.get("deprecated") is True
+
+          # El canal legacy jamás vuelve a distribuir el launcher Python.
+          legacy_name = "ABRIR_" + "RECEPCION.py"
+          for channel in (legacy, legacy_runtime):
+              assert all(item.get("path") != legacy_name for item in channel.get("files", []))
+
+          # Launcher fuente, instalador y canal deben coincidir.
+          program = (root / "launcher-v1/RecepcionLauncher/Program.cs").read_text(encoding="utf-8")
+          m = re.search(r'LauncherVersion\s*=\s*"([^"]+)"', program)
+          assert m, "No se encontró LauncherVersion"
+          launcher_version = m.group(1)
+
+          iss = (root / "launcher-v1/installer/LauncherV1.iss").read_text(encoding="utf-8")
+          im = re.search(r'#define\s+MyAppVersion\s+"([^"]+)"', iss)
+          assert im, "No se encontró MyAppVersion"
+
+          assert launcher_channel["latestVersion"] == launcher_version
+          assert im.group(1) == launcher_version
+          assert launcher_channel["mandatory"] is True
+          assert launcher_channel.get("installerSha256")
+          assert launcher_channel.get("updaterSha256")
+
+          # Nada del sistema viejo debe seguir siendo un entrypoint activo.
+          forbidden_paths = [
+              "installer",
+              "installer_clean",
+              "unified_installer",
+              "repair-tools",
+              "latest.json",
+              "latest-v3.json",
+              "release_candidate.json",
+              "tools/release_gate.py",
+              "launcher-v1/app-channel-v4533-candidate.json",
+          ]
+          for rel in forbidden_paths:
+              assert not (root / rel).exists(), f"Ruta legacy activa: {rel}"
+
+          # Ningún workflow activo puede reconstruir el launcher Python.
+          needle = "ABRIR_" + "RECEPCION.py"
+          for wf in (root / ".github/workflows").glob("*.yml"):
+              text = wf.read_text(encoding="utf-8")
+              assert needle not in text, f"Workflow legacy activo: {wf}"
+
+          # El build del launcher no debe recompilar por docs/canales.
+          build = (root / ".github/workflows/build-reception-launcher-v1.yml").read_text(encoding="utf-8")
+          assert '"launcher-v1/**"' not in build
+          assert '"launcher-v1/RecepcionLauncher/**"' in build
+          assert '"launcher-v1/LauncherUpdater/**"' in build
+
+          print("OK canonical Reception:", canonical)
+          print("OK launcher:", launcher_version)
+          print("OK no active Python launcher entrypoints")
+          print("OK legacy channels synchronized and deprecated")
+          print("OK protected active stack")
+          PY
