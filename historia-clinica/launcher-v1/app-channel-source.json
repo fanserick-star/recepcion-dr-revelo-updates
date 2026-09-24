@@ -2,16 +2,16 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.30",
+  "appVersion": "1.3.31",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.30: las dos recetas ahora aprovechan toda la altura de una hoja A4. El encabezado conserva exactamente su tamaño/proporción y se ubica arriba; el pie institucional baja al borde útil; la zona Rp. ocupa el espacio central; logos y marcas de agua mantienen su relación de aspecto y no se estiran. Mantiene la secuencia real de turnos de 1.3.29 y todos los blindajes previos.",
+  "notes": "Historia Clínica 1.3.31: corrige definitivamente la secuencia diaria de turnos. Para saber cuántas consultas ya pasaron usa las historias firmadas del día como fuente de verdad y luego suma las consultas que siguen activas; así no se pierde el #5/#6 aunque filas antiguas de cola no hayan quedado completas. Procedimientos y cancelados no consumen turno. Mantiene el formato A4 de recetas de 1.3.30.",
   "files": [
     {
       "path": "app.py",
       "sourcePaths": [
         "historia-clinica/updates/v1_3_25_duplicate_cleanup/app.py.part01",
-        "historia-clinica/updates/v1_3_29_daily_turn_sequence/app.py.part02",
+        "historia-clinica/updates/v1_3_31_turn_from_signed/app.py.part02",
         "historia-clinica/updates/v1_3_25_duplicate_cleanup/app.py.part03",
         "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
         "historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05",
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_30_rx_full_a4/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_31_turn_from_signed/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_30_rx_full_a4/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_31_turn_from_signed/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
