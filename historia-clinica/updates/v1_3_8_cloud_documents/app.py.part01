@@ -33,6 +33,7 @@ try:
 except Exception as exc:
     raise RuntimeError("historia-version.json no contiene una versión válida") from exc
 os.environ["HISTORIA_APP_VERSION"] = APP_VERSION
+_CANONICAL_VERSION = APP_VERSION
 
 app = FastAPI(title="Historia Clínica", docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
