@@ -815,12 +815,11 @@ internal sealed class LauncherForm : Form
 
     async Task PrecheckCandidateAsync(string staging, string expected)
     {
-        // La versión real vive en historia-version.json. Los campos antiguos
-        // del manifest, si existen, son únicamente aliases de compatibilidad.
         var versionPath = Path.Combine(staging, "historia-version.json");
         if (File.Exists(versionPath))
         {
-            using var versionDoc = JsonDocument.Parse(await File.ReadAllTextAsync(versionPath, Encoding.UTF8));
+            using var versionDoc = JsonDocument.Parse(
+                await File.ReadAllTextAsync(versionPath, Encoding.UTF8));
             var canonical = versionDoc.RootElement.TryGetProperty("version", out var vv)
                 ? vv.GetString()?.Trim()
                 : null;
@@ -833,7 +832,8 @@ internal sealed class LauncherForm : Form
         var manifestPath = Path.Combine(staging, "update_manifest.json");
         if (File.Exists(manifestPath))
         {
-            using var manifestDoc = JsonDocument.Parse(await File.ReadAllTextAsync(manifestPath, Encoding.UTF8));
+            using var manifestDoc = JsonDocument.Parse(
+                await File.ReadAllTextAsync(manifestPath, Encoding.UTF8));
             foreach (var alias in new[] { "version", "app_version", "runtime_version" })
             {
                 if (!manifestDoc.RootElement.TryGetProperty(alias, out var av)) continue;
@@ -847,42 +847,160 @@ internal sealed class LauncherForm : Form
 
         var python = Path.Combine(root, ".venv", "Scripts", "python.exe");
         if (!File.Exists(python))
-            throw new InvalidOperationException("No encuentro el Python portátil para verificar la actualización.");
+            throw new InvalidOperationException(
+                "No encuentro el Python de Historia Clínica para verificar la actualización.");
 
-        var testData = Path.Combine(staging, "_precheck_data");
-        Directory.CreateDirectory(testData);
+        var trial = Path.Combine(Path.GetTempPath(), "DrReveloHistoriaLauncher",
+            "precheck_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(trial);
+
+        Process? server = null;
+        try
+        {
+            foreach (var file in Directory.GetFiles(root, "*.py", SearchOption.TopDirectoryOnly))
+            {
+                var name = Path.GetFileName(file);
+                if (name.Equals("ABRIR_HISTORIA_CLINICA.py", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                File.Copy(file, Path.Combine(trial, name), true);
+            }
+
+            var rootStatic = Path.Combine(root, "static");
+            if (Directory.Exists(rootStatic))
+                CopyDirectory(rootStatic, Path.Combine(trial, "static"));
+
+            var req = Path.Combine(root, "requirements.txt");
+            if (File.Exists(req))
+                File.Copy(req, Path.Combine(trial, "requirements.txt"), true);
+
+            var data = Path.Combine(trial, "data");
+            Directory.CreateDirectory(data);
+            var sourceDb = Path.Combine(root, "data", "historia_clinica.db");
+            var trialDb = Path.Combine(data, "historia_clinica.db");
+            if (File.Exists(sourceDb))
+                await BackupSqliteAsync(python, sourceDb, trialDb);
+
+            foreach (var file in Directory.GetFiles(staging, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(staging, file);
+                var dest = Path.Combine(trial, rel);
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                File.Copy(file, dest, true);
+            }
+
+            int testPort = ReserveFreePort();
+            var log = Path.Combine(trial, "trial_startup.log");
+            string code =
+                "import sys,uvicorn;" +
+                $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
+                "sys.stdout=f;sys.stderr=f;" +
+                $"uvicorn.run('app:app',host='127.0.0.1',port={testPort},access_log=False,log_level='warning')";
+
+            var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+            {
+                WorkingDirectory = trial,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            psi.Environment["HC_PREFLIGHT"] = "1";
+            psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+            psi.Environment["HISTORIA_DATABASE_URL"] = "";
+            psi.Environment["DATABASE_URL"] = "";
+
+            server = Process.Start(psi) ??
+                throw new InvalidOperationException(
+                    "No se pudo iniciar la copia aislada de Historia Clínica.");
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (server.HasExited)
+                {
+                    var tail = File.Exists(log)
+                        ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8)
+                        : "";
+                    throw new InvalidOperationException(
+                        "La copia de prueba terminó antes de iniciar." +
+                        (string.IsNullOrWhiteSpace(tail) ? "" : "\n" + tail));
+                }
+
+                var probe = await ProbeVersionAsync(testPort);
+                if (probe is not null &&
+                    probe.Value.product.Equals(
+                        "historia-clinica-dr-revelo",
+                        StringComparison.OrdinalIgnoreCase) &&
+                    probe.Value.version.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                await Task.Delay(250);
+            }
+
+            var finalTail = File.Exists(log)
+                ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8)
+                : "";
+            throw new InvalidOperationException(
+                "La nueva versión no respondió correctamente en la prueba aislada." +
+                (string.IsNullOrWhiteSpace(finalTail) ? "" : "\n" + finalTail));
+        }
+        finally
+        {
+            try
+            {
+                if (server is not null && !server.HasExited)
+                {
+                    server.Kill(true);
+                    await server.WaitForExitAsync();
+                }
+            }
+            catch { }
+            TryDeleteDirectory(trial);
+        }
+    }
+
+    async Task BackupSqliteAsync(string python, string source, string destination)
+    {
         string code =
-            "import sys;" +
-            $"sys.path.insert(0,r'{EscapePy(staging)}');" +
-            $"sys.path.insert(1,r'{EscapePy(root)}');" +
-            "import app;" +
-            "print(getattr(app,'APP_VERSION',''))";
-
-        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code)) {
+            "import sqlite3;" +
+            $"s=sqlite3.connect(r'{EscapePy(source)}');" +
+            $"d=sqlite3.connect(r'{EscapePy(destination)}');" +
+            "s.backup(d);d.close();s.close()";
+        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+        {
             WorkingDirectory = root,
             UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
+            CreateNoWindow = true
         };
-        psi.Environment["RP_DATA_DIR"] = testData;
-        psi.Environment["RP_FORCE_OFFLINE"] = "1";
-        psi.Environment["RP_DESKTOP_LAUNCH"] = "1";
-        psi.Environment["WHATSAPP_ENABLED"] = "0";
-        psi.Environment["DATABASE_URL"] = "";
-        psi.Environment["NEON_DATABASE_URL"] = "";
-        psi.Environment["PYTHONPATH"] = staging + ";" + root;
-
-        using var p = Process.Start(psi) ?? throw new InvalidOperationException("No se pudo ejecutar la prueba previa.");
-        var outTask = p.StandardOutput.ReadToEndAsync();
-        var errTask = p.StandardError.ReadToEndAsync();
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(35));
+        using var p = Process.Start(psi) ??
+            throw new InvalidOperationException(
+                "No se pudo preparar la copia aislada de la base.");
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         await p.WaitForExitAsync(cts.Token);
-        var stdout = (await outTask).Trim();
-        var stderr = (await errTask).Trim();
-        if (p.ExitCode != 0 || !stdout.Contains(expected, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("La versión nueva no superó la prueba previa." +
-                (string.IsNullOrWhiteSpace(stderr) ? "" : "\n" + LastLines(stderr, 5)));
+        if (p.ExitCode != 0)
+            throw new InvalidOperationException(
+                "No se pudo crear la copia aislada de la base de Historia Clínica.");
+    }
+
+    static int ReserveFreePort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
+    }
+
+    static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var dir in Directory.GetDirectories(source, "*", SearchOption.AllDirectories))
+            Directory.CreateDirectory(
+                Path.Combine(destination, Path.GetRelativePath(source, dir)));
+        foreach (var file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var dest = Path.Combine(destination, Path.GetRelativePath(source, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+            File.Copy(file, dest, true);
+        }
     }
 
     async Task<bool> StartBackendAsync(string? expected)
