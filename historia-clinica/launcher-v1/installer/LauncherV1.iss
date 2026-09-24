@@ -1,5 +1,5 @@
 #define MyAppName "Launcher Historia Clínica - Dr. Armando Revelo"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_3
+OutputBaseFilename=INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_4
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\doctor_icon.ico
