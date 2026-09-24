@@ -7,12 +7,12 @@ internal static class Program
     [STAThread]
     static int Main(string[] args)
     {
+        string? log = Get(args, "--log");
         try
         {
             string? installer = Get(args, "--installer");
             string? launcher = Get(args, "--launcher");
             string? root = Get(args, "--root");
-            string? log = Get(args, "--log");
             int parent = int.TryParse(Get(args, "--parent"), out var p) ? p : 0;
 
             if (string.IsNullOrWhiteSpace(installer) || !File.Exists(installer) ||
@@ -52,7 +52,6 @@ internal static class Program
             if (setup.ExitCode != 0) return setup.ExitCode;
 
             Thread.Sleep(900);
-
             if (!File.Exists(launcher))
             {
                 WriteLog(log, "El instalador terminó pero HistoriaClinicaLauncher.exe no existe.");
@@ -72,7 +71,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            try { WriteLog(Get(args, "--log"), "ERROR helper: " + ex); } catch { }
+            WriteLog(log, "ERROR helper: " + ex);
             return 1;
         }
     }
