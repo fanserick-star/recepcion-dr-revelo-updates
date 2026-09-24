@@ -1,0 +1,57 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.3.6",
+  "app_version": "1.3.6",
+  "runtime_version": "1.3.6",
+  "mandatory": true,
+  "launcher_version": "historia-launcher-v1.0.4",
+  "updater_version": "historia-launcher-v1",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "static/style.css",
+    "static/doctor_icon.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "historia-version.json",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "database_schema_changes": false,
+    "clinical_changes": false,
+    "patient_data_changes": false,
+    "preserves_data_env_database": true,
+    "launcher_v1_update_test": true,
+    "functional_changes": false,
+    "single_source_of_truth": "historia-version.json",
+    "legacy_aliases_must_match_source": true,
+    "purpose": "Prueba controlada del ciclo de actualización del Launcher v1. No modifica funciones clínicas ni datos."
+  },
+  "version_source": "historia-version.json",
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.4"
+}
