@@ -36,3 +36,5 @@ Usar el desinstalador únicamente si realmente se desea borrar Recepción y todo
 - v1.0.11: el self-update descarga y verifica su helper junto con el instalador; ya no depende de que el helper exista previamente.
 
 - v1.0.11: limpia artefactos conocidos del launcher Python antiguo y temporales obsoletos después de un arranque correcto.
+
+- v1.0.12: icono turquesa exclusivo de Recepción para diferenciarlo visualmente de Historia Clínica.
