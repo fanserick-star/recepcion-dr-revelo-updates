@@ -25,6 +25,13 @@ internal static class Program
         try { SetCurrentProcessExplicitAppUserModelID("DrArmandoRevelo.HistoriaClinica"); } catch { }
         ApplicationConfiguration.Initialize();
 
+        if (Environment.GetCommandLineArgs().Any(a =>
+            a.Equals("--repair-shortcut", StringComparison.OrdinalIgnoreCase)))
+        {
+            ShortcutRepair.Repair();
+            return;
+        }
+
         using var mutex = new Mutex(true, MutexName, out bool first);
         if (!first)
         {
@@ -60,6 +67,54 @@ internal static class Program
         waiter.Start();
 
         Application.Run(form);
+    }
+}
+
+internal static class ShortcutRepair
+{
+    public static void Repair()
+    {
+        try
+        {
+            var exe = Environment.ProcessPath ??
+                throw new InvalidOperationException("No se encontró el launcher.");
+            var root = Path.GetDirectoryName(exe) ?? @"C:\Historia Clinica Dr Revelo";
+            var paths = new[]
+            {
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                    "Historia Clínica - Dr. Armando Revelo.lnk"),
+                Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.Programs),
+                    "Historia Clínica - Dr. Armando Revelo.lnk")
+            };
+
+            foreach (var path in paths)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                var shellType = Type.GetTypeFromProgID("WScript.Shell") ??
+                    throw new InvalidOperationException(
+                        "Windows Script Host no está disponible.");
+                dynamic shell = Activator.CreateInstance(shellType)!;
+                dynamic link = shell.CreateShortcut(path);
+                link.TargetPath = exe;
+                link.WorkingDirectory = root;
+                link.IconLocation = exe + ",0";
+                link.Description = "Historia Clínica - Dr. Armando Revelo";
+                link.Save();
+                try { Marshal.FinalReleaseComObject(link); } catch { }
+                try { Marshal.FinalReleaseComObject(shell); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                "No se pudo reparar el acceso directo de Historia Clínica.\n\n" +
+                ex.Message,
+                "Historia Clínica - Dr. Armando Revelo",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 }
 
@@ -137,7 +192,7 @@ internal sealed class LauncherForm : Form
         };
         var doctor = new Label {
             Text = "Dr. Armando Revelo", AutoSize = true, Location = new Point(31, 52),
-            Font = new Font("Segoe UI", 22, FontStyle.Bold), ForeColor = Color.White
+            Font = new Font("Segoe UI", 22, FontStyle.Bold), ForeColor = Color.FromArgb(23, 59, 102)
         };
         var protectedBadge = new Label {
             Text = "  SISTEMA PROTEGIDO  ", AutoSize = true, Location = new Point(545, 37),
@@ -1309,43 +1364,29 @@ internal sealed class LauncherForm : Form
     {
         try
         {
-            // Solo artefactos conocidos del sistema de arranque antiguo.
-            // Nunca se eliminan datos, configuración, bases, Excel, backups
-            // ni módulos app_patch_*.
             foreach (var name in new[]
             {
-                "ABRIR_RECEPCION.py",
-                "ABRIR_RECEPCION.pyw",
-                "AUTOACTUALIZAR.py",
+                "ABRIR_HISTORIA_CLINICA.py",
+                "ABRIR_HISTORIA_CLINICA.pyw",
                 "INICIAR.bat"
             })
                 TryDeleteFile(Path.Combine(root, name));
 
             var pycache = Path.Combine(root, "__pycache__");
             if (Directory.Exists(pycache))
-            {
-                foreach (var pattern in new[]
-                {
-                    "ABRIR_RECEPCION*.pyc",
-                    "AUTOACTUALIZAR*.pyc"
-                })
-                    foreach (var file in Directory.GetFiles(pycache, pattern))
-                        TryDeleteFile(file);
-            }
+                foreach (var file in Directory.GetFiles(
+                    pycache, "ABRIR_HISTORIA_CLINICA*.pyc"))
+                    TryDeleteFile(file);
 
-            foreach (var name in new[]
-            {
-                "launcher_errors.log",
-                "auto_update_state.json"
-            })
+            foreach (var name in new[] { "launcher.log", "launcher_state.json" })
                 TryDeleteFile(Path.Combine(root, "data", name));
 
             var temp = Path.GetTempPath();
             foreach (var pattern in new[]
             {
-                "dr_revelo_splash_*",
-                "rp_launcher_*",
-                "recepcion_repair_*"
+                "historia_update_*",
+                "historia_repair_*",
+                "hc_launcher_*"
             })
             {
                 foreach (var file in Directory.GetFiles(temp, pattern))
@@ -1354,8 +1395,6 @@ internal sealed class LauncherForm : Form
                     TryDeleteDirectory(dir);
             }
 
-            // Staging/self-update antiguos. En este punto Historia Clínica ya abrió
-            // correctamente, así que no son necesarios.
             TryDeleteDirectory(Path.Combine(temp, "DrReveloHistoriaLauncher"));
         }
         catch { }
@@ -1369,11 +1408,18 @@ internal sealed class LauncherForm : Form
 
         var low = p.ToLowerInvariant();
         string[] protectedPrefixes = { "data/", "backups/", "update_backups/" };
-        string[] protectedExact = { ".env", "base de datos 2026.xlsx", "historico_pacientes_2020_2025.csv", "recepcionlauncher.exe" };
+        string[] protectedExact = {
+            ".env",
+            "historiaclinicalauncher.exe",
+            "historialauncherupdater.exe",
+            "desinstalar_historia_clinica_dr_revelo.exe"
+        };
         if (protectedPrefixes.Any(low.StartsWith) || protectedExact.Contains(low) ||
             low.EndsWith(".db") || low.EndsWith(".sqlite") || low.EndsWith(".sqlite3") ||
-            low.EndsWith(".xlsx"))
-            throw new InvalidOperationException("El canal intentó tocar un archivo protegido: " + path);
+            low.EndsWith(".mdb") || low.EndsWith(".accdb") ||
+            low.EndsWith(".xlsx") || low.EndsWith(".xls"))
+            throw new InvalidOperationException(
+                "El canal intentó tocar un archivo protegido: " + path);
     }
 
     static async Task<string> Sha256Async(string path)
