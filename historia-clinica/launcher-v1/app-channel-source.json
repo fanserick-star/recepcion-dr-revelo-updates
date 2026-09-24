@@ -5,7 +5,7 @@
   "appVersion": "1.3.28",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.28: aprovecha mejor la hoja real de recetas 21 × 21 cm. Sube el encabezado, baja el pie institucional, amplía el área Rp. y reposiciona la marca de agua, manteniendo dos recetas iguales lado a lado con el mismo contenido y serie. No modifica pacientes, historias, recetas guardadas, .env ni data/.",
+  "notes": "Historia Clínica 1.3.28: aprovecha mejor la hoja real de recetas 21 × 21 cm. Sube el encabezado, baja el pie institucional, amplía el área Rp. y reposiciona la marca de agua, manteniendo dos recetas iguales lado a lado con el mismo contenido y serie. No modifica pacientes, historias, recetas guardadas, .env ni data/. Ajuste final de espacio útil validado para la hoja 21 × 21 cm.",
   "files": [
     {
       "path": "app.py",
