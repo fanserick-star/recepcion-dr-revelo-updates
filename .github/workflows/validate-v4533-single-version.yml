@@ -38,8 +38,9 @@ jobs:
 
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
           assert manifest.get("version_source") == "recepcion-version.json"
-          assert manifest.get("launcher_minimum") == "1.0.8"
+          assert manifest.get("launcher_minimum") == "1.0.10"
           assert manifest.get("compatibility_version_aliases") is True
+          assert manifest.get("mandatory") is True
 
           for key in ("version", "app_version", "runtime_version"):
               assert str(manifest.get(key) or "").strip() == version, (key, manifest.get(key), version)
