@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.3";
+    const string LauncherVersion = "1.0.4";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -976,7 +976,7 @@ internal sealed class LauncherForm : Form
             var logLiteral = JsonSerializer.Serialize(log);
             var trialLiteralForServer = JsonSerializer.Serialize(trial);
             var serverCode =
-                "import os, sys, traceback, uvicorn\n" +
+                "import os, sys, traceback, uvicorn, importlib.util\n" +
                 $"trial = {trialLiteralForServer}\n" +
                 $"log_path = {logLiteral}\n" +
                 "os.chdir(trial)\n" +
@@ -985,7 +985,13 @@ internal sealed class LauncherForm : Form
                 "sys.stdout = log\n" +
                 "sys.stderr = log\n" +
                 "try:\n" +
-                "    import app as historia_app\n" +
+                "    app_path = os.path.join(trial, 'app.py')\n" +
+                "    spec = importlib.util.spec_from_file_location('app', app_path)\n" +
+                "    if spec is None or spec.loader is None:\n" +
+                "        raise RuntimeError('No se pudo crear spec para app.py')\n" +
+                "    historia_app = importlib.util.module_from_spec(spec)\n" +
+                "    sys.modules['app'] = historia_app\n" +
+                "    spec.loader.exec_module(historia_app)\n" +
                 "    print('IMPORT_OK', getattr(historia_app, 'APP_VERSION', ''), flush=True)\n" +
                 $"    uvicorn.run(historia_app.app, host='127.0.0.1', port={testPort}, access_log=False, log_level='warning')\n" +
                 "except Exception:\n" +
@@ -1059,13 +1065,19 @@ internal sealed class LauncherForm : Form
         var script = Path.Combine(trial, "_launcher_precheck_import.py");
         var trialLiteral = JsonSerializer.Serialize(trial);
         var code =
-            "import os, sys, traceback\n" +
+            "import os, sys, traceback, importlib.util\n" +
             $"trial = {trialLiteral}\n" +
             "os.chdir(trial)\n" +
             "sys.path.insert(0, trial)\n" +
-            "print('TRIAL_APP=' + str(os.path.isfile(os.path.join(trial, 'app.py'))), flush=True)\n" +
+            "app_path = os.path.join(trial, 'app.py')\n" +
+            "print('TRIAL_APP=' + str(os.path.isfile(app_path)), flush=True)\n" +
             "try:\n" +
-            "    import app\n" +
+            "    spec = importlib.util.spec_from_file_location('app', app_path)\n" +
+            "    if spec is None or spec.loader is None:\n" +
+            "        raise RuntimeError('No se pudo crear spec para app.py')\n" +
+            "    app = importlib.util.module_from_spec(spec)\n" +
+            "    sys.modules['app'] = app\n" +
+            "    spec.loader.exec_module(app)\n" +
             "    print(getattr(app, 'APP_VERSION', ''), flush=True)\n" +
             "except Exception:\n" +
             "    traceback.print_exc()\n" +
@@ -1189,15 +1201,22 @@ internal sealed class LauncherForm : Form
         var rootLiteral = JsonSerializer.Serialize(root);
         var logLiteral = JsonSerializer.Serialize(log);
         var backendCode =
-            "import sys, traceback, uvicorn\n" +
+            "import os, sys, traceback, uvicorn, importlib.util\n" +
             $"root = {rootLiteral}\n" +
             $"log_path = {logLiteral}\n" +
+            "os.chdir(root)\n" +
             "sys.path.insert(0, root)\n" +
             "log = open(log_path, 'a', encoding='utf-8', buffering=1)\n" +
             "sys.stdout = log\n" +
             "sys.stderr = log\n" +
             "try:\n" +
-            "    import app as historia_app\n" +
+            "    app_path = os.path.join(root, 'app.py')\n" +
+            "    spec = importlib.util.spec_from_file_location('app', app_path)\n" +
+            "    if spec is None or spec.loader is None:\n" +
+            "        raise RuntimeError('No se pudo crear spec para app.py')\n" +
+            "    historia_app = importlib.util.module_from_spec(spec)\n" +
+            "    sys.modules['app'] = historia_app\n" +
+            "    spec.loader.exec_module(historia_app)\n" +
             "    print('IMPORT_OK', getattr(historia_app, 'APP_VERSION', ''), flush=True)\n" +
             $"    uvicorn.run(historia_app.app, host='127.0.0.1', port={Port}, access_log=False, log_level='warning')\n" +
             "except Exception:\n" +
