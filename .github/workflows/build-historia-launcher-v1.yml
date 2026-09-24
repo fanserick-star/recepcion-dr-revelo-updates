@@ -1,4 +1,5 @@
 name: Build Historia Launcher v1 Package
+# final-release-v1.0.0
 
 on:
   push:
