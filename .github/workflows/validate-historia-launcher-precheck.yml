@@ -72,6 +72,8 @@ jobs:
           Copy-Item "historia-clinica/updates/v1_3_2_new_patient_confirm/lan_bridge.py" "$trial/lan_bridge.py"
           Copy-Item "historia-clinica/updates/v1_3_1_new_patient_turn/style.css" "$trial/static/style.css"
           Copy-Item "historia-clinica/updates/v1_1_10_full_webview/requirements.txt" "$trial/requirements.txt"
+          Copy-Item "historia-clinica/updates/v1_3_5_launcher_v1_migration/historia-version.json" "$trial/historia-version.json"
+          Copy-Item "historia-clinica/updates/v1_3_5_launcher_v1_migration/update_manifest.json" "$trial/update_manifest.json"
 
           @'
           import os, sys, pathlib, traceback
