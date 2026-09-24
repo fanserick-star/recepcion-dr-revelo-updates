@@ -2,26 +2,26 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.35",
+  "appVersion": "4.5.36",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.35: corrige solo el puente con Historia Clínica. Separa Nuevo/Subsecuente del tipo real de atención Consulta/Procedimiento, usa el schema Neon historia.* y reenvía metadatos recientes para reparar la cola del doctor. Sin cambios en caja, Bendo, facturación, agenda ni datos.",
+  "notes": "Recepción 4.5.36: recupera la cola pendiente del puente con Historia Clínica, crea de forma aditiva el índice remoto que necesita el UPSERT de waiting_queue, prepara las tablas mínimas del schema historia.* si faltan y reduce los reintentos automáticos para no golpear Neon cada 10 segundos. Sin cambios en caja, Bendo, facturación, agenda ni datos locales.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_35_historia_bridge_kind/app.py"
+      "sourcePath": "updates/v4_5_36_historia_bridge_recovery/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_35_historia_bridge_kind/historia_bridge.py"
+      "sourcePath": "updates/v4_5_36_historia_bridge_recovery/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_35_historia_bridge_kind/recepcion-version.json"
+      "sourcePath": "updates/v4_5_36_historia_bridge_recovery/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_35_historia_bridge_kind/update_manifest.json"
+      "sourcePath": "updates/v4_5_36_historia_bridge_recovery/update_manifest.json"
     }
   ]
 }
