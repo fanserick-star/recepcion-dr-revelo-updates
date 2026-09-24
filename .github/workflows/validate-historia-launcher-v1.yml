@@ -84,7 +84,7 @@ jobs:
           p = Path("historia-clinica/launcher-v1/HistoriaLauncher/Program.cs")
           s = p.read_text(encoding="utf-8")
           required = [
-              'const string LauncherVersion = "1.0.2"',
+              'const string LauncherVersion = "1.0.4"',
               'const int Port = 8787',
               '"DrArmandoRevelo.HistoriaClinica"',
               '"historia-version.json"',
@@ -115,6 +115,8 @@ jobs:
           assert 'ProcessStartInfo(python, "-c "' not in backend
           assert '_launcher_precheck_import.py' in precheck
           assert '_launcher_precheck_server.py' in precheck
+          assert 'spec_from_file_location' in precheck
+          assert 'spec_from_file_location' in backend
           assert 'backend_" + Guid.NewGuid()' in backend
           print("OK Historia launcher invariants")
           print("OK isolated precheck and real backend use temporary .py scripts")
@@ -138,21 +140,21 @@ jobs:
           manifest = json.loads((new / "update_manifest.json").read_text(encoding="utf-8"))
 
           assert version == "1.3.5"
-          assert manifest["launcher_minimum"] == "1.0.2"
+          assert manifest["launcher_minimum"] == "1.0.4"
           if app_channel.get("status") == "hold":
               assert app_channel["appVersion"] == "1.3.4"
               assert app_channel["mandatory"] is False
-              assert app_channel["minimumLauncher"] == "1.0.2"
+              assert app_channel["minimumLauncher"] == "1.0.4"
               assert app_channel["files"] == []
           else:
               assert app_channel["appVersion"] == version
               assert app_channel["mandatory"] is True
-              assert app_channel["minimumLauncher"] == "1.0.2"
+              assert app_channel["minimumLauncher"] == "1.0.4"
 
           source = (base / "launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
           m = re.search(r'LauncherVersion\s*=\s*"([^"]+)"', source)
-          assert m and m.group(1) == "1.0.2"
-          assert launcher_channel["latestVersion"] == "1.0.2"
+          assert m and m.group(1) == "1.0.4"
+          assert launcher_channel["latestVersion"] == "1.0.4"
           assert launcher_channel["mandatory"] is True
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["installerSha256"])
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["updaterSha256"])
@@ -188,6 +190,6 @@ jobs:
                   assert item["sha256"] == expected[item["path"]], (item["path"], item["sha256"], expected[item["path"]])
 
           print("OK app channel:", app_channel["appVersion"], app_channel.get("status", "active"))
-          print("OK launcher channel: 1.0.2")
+          print("OK launcher channel: 1.0.4")
           print("OK payload hashes and protected paths")
           PY
