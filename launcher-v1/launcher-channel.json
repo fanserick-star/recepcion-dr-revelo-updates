@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.11",
+  "latestVersion": "1.0.12",
   "mandatory": true,
-  "notes": "Launcher v1.0.11: limpieza de residuos del launcher Python antiguo en la PC y temporales obsoletos. Mantiene self-update autocontenido, actualizaciones obligatorias y control de versión canónica.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.11/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_11.exe",
-  "installerSha256": "4a831021cbbda0f12b146301b5dae6d5be5e0dfc7f2617e541aa533a77a028f4",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.11/LauncherUpdater.exe",
-  "updaterSha256": "579184f3cde54510ba3d32e6a1425d12459cf1e19448a61f6f15f3cc61ea8f0a"
+  "notes": "Launcher v1.0.12: nuevo icono turquesa exclusivo de Recepción (R + check) para distinguirlo de Historia Clínica. Mantiene self-update autocontenido, actualizaciones obligatorias, SHA-256 y todos los blindajes.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe",
+  "installerSha256": "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/LauncherUpdater.exe",
+  "updaterSha256": "829e346eb64b1f0ade6cea3d956f3542b23ab50cb959f4aa87ef0869c8e1a29c"
 }
