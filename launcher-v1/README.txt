@@ -1,7 +1,7 @@
-LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.9
+LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.10
 
 CONTENIDO
-- INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_9.exe
+- INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe
   Migra una instalación existente de Recepción al launcher nuevo.
   Reemplaza los accesos directos y elimina ABRIR_RECEPCION.py.
   NO toca app.py, .env, data, bases, Excel ni historias clínicas.
@@ -29,6 +29,8 @@ Usar el desinstalador únicamente si realmente se desea borrar Recepción y todo
 
 - Autoactualización del propio launcher con confirmación, progreso y SHA-256.
 
-- v1.0.9: actualizador silencioso sin consola y transición robusta del backend/puerto 8000.
+- v1.0.10: actualizador silencioso sin consola y transición robusta del backend/puerto 8000.
 
-- v1.0.9: actualizaciones oficiales obligatorias; si hay una versión superior, Recepción no abre hasta instalarla.
+- v1.0.10: actualizaciones oficiales obligatorias; si hay una versión superior, Recepción no abre hasta instalarla.
+
+- v1.0.10: el self-update descarga y verifica su helper junto con el instalador; ya no depende de que el helper exista previamente.
