@@ -62,6 +62,8 @@ jobs:
           Write-Host "APP_SHA=$((Get-FileHash $appOut -Algorithm SHA256).Hash.ToLowerInvariant())"
           Write-Host "CLOUD_SHA=$((Get-FileHash $cloudOut -Algorithm SHA256).Hash.ToLowerInvariant())"
           Write-Host "DOCS_SHA=$((Get-FileHash historia_candidate_documentos_clinicos.py -Algorithm SHA256).Hash.ToLowerInvariant())"
+          Write-Host "VERSION_SHA=$((Get-FileHash 'historia-clinica/updates/v1_3_12_pending_features/historia-version.json' -Algorithm SHA256).Hash.ToLowerInvariant())"
+          Write-Host "MANIFEST_SHA=$((Get-FileHash 'historia-clinica/updates/v1_3_12_pending_features/update_manifest.json' -Algorithm SHA256).Hash.ToLowerInvariant())"
 
       - name: Validate manifest and canonical version
         shell: pwsh
