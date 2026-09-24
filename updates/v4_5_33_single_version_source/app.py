@@ -33,10 +33,10 @@ core.APP_VERSION = APP_VERSION
 
 # app_patch_4525 llevaba el número visual 4.5.25 fijado en CSS.
 # Una regla posterior corrige únicamente la etiqueta visible.
-V4533_VERSION_CSS = r"""
-.v460-version::after,#currentVersionBadge::after{
-  content:"v4.5.33"!important;
-}
+V4533_VERSION_CSS = f"""
+.v460-version::after,#currentVersionBadge::after{{
+  content:"v{APP_VERSION}"!important;
+}}
 """
 core.V460_OVERLAY_CSS = (getattr(core, "V460_OVERLAY_CSS", "") or "") + "\n" + V4533_VERSION_CSS
 
