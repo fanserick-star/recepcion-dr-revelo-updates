@@ -1,0 +1,361 @@
+
+
+# ---------------------------------------------------------------------------
+# v1.3.2 — paciente NUEVO: confirmar ficha antes de iniciar la consulta.
+# ---------------------------------------------------------------------------
+# APP_VERSION proviene de historia-version.json (fuente única).
+try:
+    with db() as _v132_conn:
+        _v132_conn.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('app_version',?)",
+            (APP_VERSION,),
+        )
+        _v132_conn.commit()
+except Exception:
+    pass
+try:
+    if hasattr(LAN_SERVICE, "version"):
+        LAN_SERVICE.version = APP_VERSION
+except Exception:
+    pass
+
+_v132_base_original = base
+_v132_attend_original = attend_from_queue
+_v132_edit_page_original = edit_patient_page
+_v132_edit_save_original = edit_patient_save
+_v132_new_consultation_original = new_consultation
+
+_V132_STYLE = """
+<style>
+.v132-new-confirm{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:0 0 14px;padding:11px 13px;border:1px solid #b9d9c7;
+  border-radius:12px;background:#f1faf4;color:#285f40
+}
+.v132-new-confirm strong{font-size:12px;font-weight:950}
+.v132-new-confirm span{font-size:10px;font-weight:850}
+.v132-confirmed-banner{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:0 0 12px;padding:12px 14px;border:1px solid #a8d2b8;
+  border-radius:12px;background:#edf9f1;color:#245e3d
+}
+.v132-confirmed-banner strong{font-size:12px;font-weight:950}
+.v132-confirmed-banner span{font-size:10px;font-weight:850}
+.cp-new-consult.v132-attend{
+  min-width:150px!important;font-size:13px!important;font-weight:950!important
+}
+</style>
+"""
+
+_V132_SCRIPT = """
+<script>
+(()=>{
+  try{
+    const p=new URLSearchParams(location.search);
+    const q=p.get('queue_id')||'';
+    const confirmed=p.get('confirmado')==='1';
+    const isNew=p.get('nuevo')==='1';
+    if(!q||!confirmed||!isNew)return;
+    const card=document.querySelector('.cp-patient-card');
+    if(!card)return;
+    const path=location.pathname.split('/').filter(Boolean);
+    const patientId=path.length>=2&&path[0]==='paciente'?path[1]:'';
+    const btn=document.querySelector('.cp-new-consult');
+    if(btn&&patientId){
+      btn.textContent='Atender';
+      btn.classList.add('v132-attend');
+      btn.href='/paciente/'+encodeURIComponent(patientId)+'/nueva?queue_id='+encodeURIComponent(q);
+    }
+    if(!document.querySelector('.v132-confirmed-banner')){
+      const turn=p.get('turno')||'';
+      const b=document.createElement('div');
+      b.className='v132-confirmed-banner';
+      b.innerHTML='<strong>✓ FICHA CONFIRMADA · PACIENTE NUEVO</strong><span>'
+        +(turn?('TURNO #'+turn+' · '):'')+'Ya puede iniciar la atención</span>';
+      card.insertAdjacentElement('beforebegin',b);
+    }
+  }catch(_e){}
+})();
+</script>
+"""
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    html = _v132_base_original(title, body, active, extra_head, extra_script)
+    if "</head>" in html:
+        html = html.replace("</head>", _V132_STYLE + "</head>", 1)
+    if "</body>" in html:
+        html = html.replace("</body>", _V132_SCRIPT + "</body>", 1)
+    return html
+
+
+def _v132_remove_route(path: str, method: str):
+    wanted = method.upper()
+    for route in list(app.router.routes):
+        if getattr(route, "path", None) == path and wanted in set(getattr(route, "methods", set()) or set()):
+            app.router.routes.remove(route)
+
+
+def _v132_queue_confirmed(conn, row) -> bool:
+    if not row or not _queue_is_new(row):
+        return True
+    reception_id = str(row["reception_patient_id"] or "").strip()
+    patient_id = str(row["clinical_patient_id"] or "").strip()
+    if not reception_id or not patient_id:
+        return False
+    link = conn.execute(
+        """SELECT matched_by,clinical_patient_id
+           FROM patient_links
+           WHERE reception_patient_id=? LIMIT 1""",
+        (reception_id,),
+    ).fetchone()
+    return bool(
+        link
+        and str(link["clinical_patient_id"] or "") == patient_id
+        and str(link["matched_by"] or "") == "doctor_confirmed_new"
+    )
+
+
+def _v132_mark_queue_confirmed(conn, row, patient_id: str) -> None:
+    stamp = now_iso()
+    reception_id = str(row["reception_patient_id"] or "").strip()
+    if not reception_id:
+        return
+    conn.execute(
+        """
+        INSERT INTO patient_links(
+          reception_patient_id,clinical_patient_id,matched_by,verified,
+          verified_at,created_at,updated_at
+        ) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(reception_patient_id) DO UPDATE SET
+          clinical_patient_id=excluded.clinical_patient_id,
+          matched_by=excluded.matched_by,
+          verified=1,
+          verified_at=excluded.verified_at,
+          updated_at=excluded.updated_at
+        """,
+        (
+            reception_id, patient_id, "doctor_confirmed_new", 1,
+            stamp, stamp, stamp,
+        ),
+    )
+    conn.execute(
+        """UPDATE waiting_queue
+           SET clinical_patient_id=?,updated_at=?
+           WHERE id=?""",
+        (patient_id, stamp, row["id"]),
+    )
+    audit(
+        conn,
+        "confirm_new_patient_demographics",
+        "patient",
+        patient_id,
+        {"queue_id": str(row["id"]), "reception_patient_id": reception_id},
+    )
+    conn.commit()
+
+
+def _v132_edit_html(html: str, patient_id: str, queue_id: str, turn: int | None = None) -> str:
+    turn_label = f"TURNO #{turn}" if turn else "PACIENTE NUEVO"
+    banner = (
+        "<div class='v132-new-confirm'><strong>PACIENTE NUEVO · CONFIRMAR DATOS</strong>"
+        f"<span>{e(turn_label)}</span></div>"
+    )
+    html = html.replace(
+        "<section class='new-patient-shell edit-patient-shell'>",
+        "<section class='new-patient-shell edit-patient-shell'>" + banner,
+        1,
+    )
+    html = html.replace("<h1>Editar ficha</h1>", "<h1>Confirmar ficha</h1>", 1)
+    html = html.replace(
+        "Las consultas e historias anteriores no se modifican al corregir estos datos.",
+        "Revise los datos enviados desde Recepción. Guarde la ficha antes de iniciar la atención.",
+        1,
+    )
+    marker = (
+        f"<form method='post' action='/paciente/{e(patient_id)}/editar' "
+        "class='new-patient-form edit-patient-form' autocomplete='off'>"
+    )
+    html = html.replace(
+        marker,
+        marker + f"<input type='hidden' name='queue_id' value='{e(queue_id)}'>",
+        1,
+    )
+    html = html.replace(
+        f"<a class='secondary btn-link' href='/paciente/{e(patient_id)}'>Cancelar</a>",
+        "<a class='secondary btn-link' href='/'>Cancelar</a>",
+        1,
+    )
+    html = html.replace(
+        "<button class='primary' type='submit'>Guardar cambios</button>",
+        "<button class='primary' type='submit'>Guardar y continuar</button>",
+        1,
+    )
+    return html
+
+
+for _path, _method in (
+    ("/cola/{queue_id}/atender", "GET"),
+    ("/paciente/{patient_id}/editar", "GET"),
+    ("/paciente/{patient_id}/editar", "POST"),
+    ("/paciente/{patient_id}/nueva", "GET"),
+):
+    _v132_remove_route(_path, _method)
+
+
+@app.get("/cola/{queue_id}/atender")
+def attend_from_queue_v132(queue_id: str):
+    with db() as conn:
+        row = conn.execute(
+            """SELECT * FROM waiting_queue
+               WHERE id=? AND status IN ('waiting','in_consultation')
+               LIMIT 1""",
+            (queue_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+        if not _queue_is_new(row):
+            return _v132_attend_original(queue_id)
+
+        # Nunca aceptar a ciegas el clinical_patient_id de un turno nuevo:
+        # puede venir de un vínculo viejo/duplicado. La lógica v1.3.20+ valida
+        # identificación, existencia local y ambigüedad de nombre.
+        patient_id = _queue_validated_link(conn, row)
+        if not patient_id:
+            try:
+                patient_id = _create_new_patient_from_queue(conn, row)
+            except ValueError:
+                return _v132_attend_original(queue_id)
+            row = conn.execute(
+                "SELECT * FROM waiting_queue WHERE id=? LIMIT 1",
+                (queue_id,),
+            ).fetchone()
+
+        turn = _queue_turn_number(conn, queue_id)
+        if _v132_queue_confirmed(conn, row):
+            url = f"/paciente/{patient_id}?queue_id={queue_id}&nuevo=1&confirmado=1"
+            if turn:
+                url += f"&turno={turn}"
+            return RedirectResponse(url, status_code=303)
+
+        url = f"/paciente/{patient_id}/editar?queue_id={queue_id}&nuevo=1"
+        if turn:
+            url += f"&turno={turn}"
+        return RedirectResponse(url, status_code=303)
+
+
+@app.get("/paciente/{patient_id}/editar", response_class=HTMLResponse)
+def edit_patient_page_v132(
+    patient_id: str,
+    queue_id: str = Query(default="", max_length=120),
+    nuevo: str = Query(default="", max_length=8),
+    turno: str = Query(default="", max_length=12),
+):
+    if not queue_id:
+        return _v132_edit_page_original(patient_id)
+
+    with db() as conn:
+        row = conn.execute(
+            """SELECT * FROM waiting_queue
+               WHERE id=? AND clinical_patient_id=?
+                 AND status IN ('waiting','in_consultation')
+               LIMIT 1""",
+            (queue_id, patient_id),
+        ).fetchone()
+        if not row or not _queue_is_new(row):
+            return _v132_edit_page_original(patient_id)
+        real_turn = _queue_turn_number(conn, queue_id)
+
+    original = _v132_edit_page_original(patient_id)
+    # Al llamar directamente a una ruta de FastAPI no interviene response_class:
+    # la función original devuelve HTML como str. v1.3.2 intentaba leer .body
+    # de ese str y provocaba Internal Server Error al atender un paciente nuevo.
+    if isinstance(original, HTMLResponse):
+        html = original.body.decode("utf-8", errors="replace")
+        status_code = int(original.status_code)
+    elif isinstance(original, (bytes, bytearray)):
+        html = bytes(original).decode("utf-8", errors="replace")
+        status_code = 200
+    else:
+        html = str(original)
+        status_code = 200
+    html = _v132_edit_html(html, patient_id, queue_id, real_turn)
+    return HTMLResponse(html, status_code=status_code)
+
+
+@app.post("/paciente/{patient_id}/editar", response_class=HTMLResponse)
+async def edit_patient_save_v132(patient_id: str, request: Request):
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    parsed = parse_qs(raw, keep_blank_values=True)
+    queue_id = (parsed.get("queue_id", [""])[0] or "").strip()
+
+    result = await _v132_edit_save_original(patient_id, request)
+    if not queue_id:
+        return result
+
+    with db() as conn:
+        row = conn.execute(
+            """SELECT * FROM waiting_queue
+               WHERE id=? AND clinical_patient_id=?
+                 AND status IN ('waiting','in_consultation')
+               LIMIT 1""",
+            (queue_id, patient_id),
+        ).fetchone()
+        turn = _queue_turn_number(conn, queue_id) if row else None
+
+        if (
+            row
+            and _queue_is_new(row)
+            and isinstance(result, RedirectResponse)
+            and int(result.status_code) in (302, 303, 307, 308)
+        ):
+            _v132_mark_queue_confirmed(conn, row, patient_id)
+            url = f"/paciente/{patient_id}?queue_id={queue_id}&nuevo=1&confirmado=1"
+            if turn:
+                url += f"&turno={turn}"
+            SYNC_SERVICE.mark_activity()
+            SYNC_SERVICE.wake()
+            return RedirectResponse(url, status_code=303)
+
+    if isinstance(result, HTMLResponse):
+        html = result.body.decode("utf-8", errors="replace")
+        html = _v132_edit_html(html, patient_id, queue_id, turn)
+        return HTMLResponse(html, status_code=result.status_code)
+    return result
+
+
+@app.get("/paciente/{patient_id}/nueva", response_class=HTMLResponse)
+def new_consultation_v132(patient_id: str, encounter_id: str = "", queue_id: str = ""):
+    if queue_id:
+        with db() as conn:
+            row = conn.execute(
+                """SELECT * FROM waiting_queue
+                   WHERE id=? AND clinical_patient_id=?
+                     AND status IN ('waiting','in_consultation')
+                   LIMIT 1""",
+                (queue_id, patient_id),
+            ).fetchone()
+            if row and _queue_is_new(row) and not _v132_queue_confirmed(conn, row):
+                turn = _queue_turn_number(conn, queue_id)
+                url = f"/paciente/{patient_id}/editar?queue_id={queue_id}&nuevo=1"
+                if turn:
+                    url += f"&turno={turn}"
+                return RedirectResponse(url, status_code=303)
+    return _v132_new_consultation_original(patient_id, encounter_id, queue_id)
+
+
+@app.get("/api/v132/health")
+def v132_health():
+    return JSONResponse({
+        "ok": True,
+        "version": APP_VERSION,
+        "new_patient_confirm_before_consult": True,
+        "new_patient_edit_first": True,
+        "new_patient_attend_after_confirm": True,
+        "database_schema_changes": False,
+        "new_patient_edit_response_hotfix": True,
+    })
+
+
+# v1.3.8 integra documentos sobre la ruta ya blindada de paciente nuevo.
+new_consultation = new_consultation_v132
