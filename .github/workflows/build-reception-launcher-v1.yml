@@ -44,14 +44,22 @@ jobs:
           dotnet publish "launcher-v1/Uninstaller/Uninstaller.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Publish hidden launcher updater
+        shell: pwsh
+        run: |
+          dotnet publish "launcher-v1/LauncherUpdater/LauncherUpdater.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Collect binaries
         shell: pwsh
         run: |
           $launcher = Get-Item "launcher-v1/RecepcionLauncher/bin/Release/net8.0-windows/win-x64/publish/RecepcionLauncher.exe"
           $uninstaller = Get-Item "launcher-v1/Uninstaller/bin/Release/net8.0-windows/win-x64/publish/Desinstalar_Recepcion_Dr_Revelo.exe"
-          if (-not $launcher -or -not $uninstaller) { throw "No se generaron los binarios esperados." }
+          $updater = Get-Item "launcher-v1/LauncherUpdater/bin/Release/net8.0-windows/win-x64/publish/LauncherUpdater.exe"
+          if (-not $launcher -or -not $uninstaller -or -not $updater) { throw "No se generaron los binarios esperados." }
           Copy-Item $launcher.FullName "launcher-v1/installer/build/RecepcionLauncher.exe" -Force
           Copy-Item $uninstaller.FullName "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" -Force
+          Copy-Item $updater.FullName "launcher-v1/installer/build/LauncherUpdater.exe" -Force
 
       - name: Install Inno Setup
         shell: pwsh
@@ -73,9 +81,10 @@ jobs:
         run: |
           $out = "launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6.exe" $out -Force
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_7.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
+          Copy-Item "launcher-v1/installer/build/LauncherUpdater.exe" $out -Force
           Copy-Item "launcher-v1/README.txt" $out -Force
           $hashLines = @()
           Get-ChildItem $out -File | Where-Object { $_.Extension -eq ".exe" } | ForEach-Object {
@@ -83,7 +92,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_6_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_7_COMPLETO.zip" -Force
           Write-Host "=== PACKAGE CONTENTS ==="
           Get-ChildItem $out | Format-Table Name,Length
           Get-Content "$out/SHA256SUMS.txt"
@@ -93,17 +102,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "launcher-v1.0.6"
-          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6.exe"
-          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_6_COMPLETO.zip"
+          $tag = "launcher-v1.0.7"
+          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_7.exe"
+          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_7_COMPLETO.zip"
           $launcher = "launcher-v1/package/RecepcionLauncher.exe"
           $uninstaller = "launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe"
+          $updater = "launcher-v1/package/LauncherUpdater.exe"
           $sums = "launcher-v1/package/SHA256SUMS.txt"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Launcher Recepción v1.0.6" --notes "Launcher nativo v1.0.6: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
+            gh release create $tag --title "Launcher Recepción v1.0.7" --notes "Launcher nativo v1.0.7: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
           }
-          gh release upload $tag $installer $zip $launcher $uninstaller $sums --clobber
+          gh release upload $tag $installer $zip $launcher $uninstaller $updater $sums --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload complete package
@@ -111,10 +121,11 @@ jobs:
         with:
           name: launcher-recepcion-v1-completo
           path: |
-            LAUNCHER_RECEPCION_DR_REVELO_V1_0_6_COMPLETO.zip
-            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6.exe
+            LAUNCHER_RECEPCION_DR_REVELO_V1_0_7_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_7.exe
             launcher-v1/package/RecepcionLauncher.exe
             launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
+            launcher-v1/package/LauncherUpdater.exe
             launcher-v1/package/README.txt
             launcher-v1/package/SHA256SUMS.txt
           if-no-files-found: error
