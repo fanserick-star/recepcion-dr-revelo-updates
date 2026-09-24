@@ -1,0 +1,138 @@
+name: Build Consultorio Master Installer
+
+on:
+  push:
+    paths:
+      - "master-installer/**"
+      - ".github/workflows/build-consultorio-master-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare build directory
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "master-installer/build" | Out-Null
+
+      - name: Download verified Reception launcher installer
+        shell: pwsh
+        run: |
+          $url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
+          $dst = "master-installer/build/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dst
+          $got = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9"
+          if ($got -ne $expected) { throw "SHA-256 de Recepción no coincide: $got" }
+
+      - name: Download verified Historia launcher installer
+        shell: pwsh
+        run: |
+          $url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.7/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
+          $dst = "master-installer/build/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dst
+          $got = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "839b56e40f39038f569c696a6d1527e713bd39335cf98d2bcef71711ef663cc0"
+          if ($got -ne $expected) { throw "SHA-256 de Historia no coincide: $got" }
+
+      - name: Generate master icon
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class NativeIconMaster {
+              [DllImport("user32.dll", SetLastError=true)]
+              public static extern bool DestroyIcon(IntPtr hIcon);
+          }
+          "@
+          function Add-RoundedRect([System.Drawing.Drawing2D.GraphicsPath]$path,[float]$x,[float]$y,[float]$w,[float]$h,[float]$r) {
+            $d = $r * 2
+            $path.AddArc($x,$y,$d,$d,180,90)
+            $path.AddArc($x+$w-$d,$y,$d,$d,270,90)
+            $path.AddArc($x+$w-$d,$y+$h-$d,$d,$d,0,90)
+            $path.AddArc($x,$y+$h-$d,$d,$d,90,90)
+            $path.CloseFigure()
+          }
+          $bmp = New-Object System.Drawing.Bitmap 64,64
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+          $g.Clear([System.Drawing.Color]::Transparent)
+          $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+          Add-RoundedRect $path 2 2 60 60 14
+          $clip = New-Object System.Drawing.Region($path)
+          $g.Clip = $clip
+          $teal = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(18,145,160))
+          $navy = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(27,61,91))
+          $g.FillRectangle($teal,2,2,30,60)
+          $g.FillRectangle($navy,32,2,30,60)
+          $g.ResetClip()
+          $cardPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+          Add-RoundedRect $cardPath 10 11 44 42 8
+          $card = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(250,252,251))
+          $g.FillPath($card,$cardPath)
+          $font = New-Object System.Drawing.Font("Segoe UI",18,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+          $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(25,88,111))
+          $fmt = New-Object System.Drawing.StringFormat
+          $fmt.Alignment = [System.Drawing.StringAlignment]::Center
+          $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
+          $g.DrawString("DR",$font,$brush,[System.Drawing.RectangleF]::new(10,11,44,42),$fmt)
+          $h=$bmp.GetHicon()
+          $ico=[System.Drawing.Icon]::FromHandle($h)
+          $fs=[IO.File]::Create("master-installer/build/consultorio_icon.ico")
+          try { $ico.Save($fs) } finally { $fs.Dispose() }
+          $ico.Dispose(); [NativeIconMaster]::DestroyIcon($h) | Out-Null
+          $fmt.Dispose(); $brush.Dispose(); $font.Dispose(); $card.Dispose(); $cardPath.Dispose()
+          $teal.Dispose(); $navy.Dispose(); $clip.Dispose(); $path.Dispose(); $g.Dispose(); $bmp.Dispose()
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Build master EXE
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado." }
+          & $iscc "master-installer/ConsultorioDrRevelo.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  INSTALAR_CONSULTORIO_DR_REVELO.exe" | Set-Content "master-installer/output/SHA256SUMS.txt" -Encoding ascii
+
+      - name: Publish master installer release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "consultorio-installer-v1.0.0"
+          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
+          $sums = "master-installer/output/SHA256SUMS.txt"
+          $readme = "master-installer/README.txt"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Instalador Maestro Consultorio v1.0.0" --notes "Instalador maestro para preparar Recepción y/o Historia Clínica en PCs con instalación base existente. Incluye los nuevos iconos diferenciados y launchers blindados."
+          }
+          gh release upload $tag $exe $sums $readme --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-maestro-consultorio
+          path: |
+            master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe
+            master-installer/output/SHA256SUMS.txt
+            master-installer/README.txt
+          if-no-files-found: error
+          retention-days: 14
