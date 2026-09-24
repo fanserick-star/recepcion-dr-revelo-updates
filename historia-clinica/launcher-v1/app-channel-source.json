@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.25",
+  "appVersion": "1.3.26",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.25: limpia de forma segura duplicados creados por el flujo de paciente nuevo. Cuando varias fichas tienen el mismo nombre, exactamente una contiene historia clínica y las demás están vacías, y además comparten cédula, fecha de nacimiento o teléfono, conserva la ficha con historia y archiva las vacías. Reasigna vínculos, recetas y certificados a la ficha correcta. No elimina historias ni fusiona casos ambiguos.",
+  "notes": "Historia Clínica 1.3.26: rediseña la receta impresa tomando como referencia el talonario físico del consultorio. Ahora imprime una sola receta en A5 vertical, con encabezado clínico, datos del paciente alineados, serie destacada, Rp amplio, medicamentos mejor ordenados, marca de agua y pie institucional. Elimina las dos copias lado a lado. Mantiene limpieza de duplicados, sincronización y protección de borradores.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_25_duplicate_cleanup/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_26_rx_layout/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_25_duplicate_cleanup/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_26_rx_layout/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_25_duplicate_cleanup/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_26_rx_layout/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
