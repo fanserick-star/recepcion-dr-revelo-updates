@@ -1,5 +1,5 @@
 #define MyAppName "Launcher Recepción - Dr. Armando Revelo"
-#define MyAppVersion "1.0.6"
+#define MyAppVersion "1.0.7"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6
+OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_7
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\doctor_icon.ico
@@ -28,6 +28,7 @@ SetupLogging=yes
 [Files]
 Source: "build\RecepcionLauncher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\Desinstalar_Recepcion_Dr_Revelo.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "build\LauncherUpdater.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autodesktop}\Recepción Dr. Armando Revelo"; Filename: "{app}\RecepcionLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\RecepcionLauncher.exe"; Comment: "Recepción Dr. Armando Revelo"; AppUserModelID: "DrArmandoRevelo.Recepcion"
