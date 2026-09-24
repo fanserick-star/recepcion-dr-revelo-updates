@@ -1,8 +1,26 @@
 {
-  "schema": 1,
+  "schema": 2,
   "product": "recepcion-dr-revelo",
   "launcherChannel": "v1-stable",
-  "appVersion": "0.0.0",
-  "notes": "ACTUALIZACIONES DE RECEPCIÓN EN PAUSA TEMPORAL mientras se migra al Launcher 1.0.8 y a la fuente única de versión. No se descargará ni modificará Recepción.",
-  "files": []
+  "appVersion": "4.5.33",
+  "mandatory": true,
+  "minimumLauncher": "1.0.10",
+  "notes": "Recepción 4.5.33: unifica la versión real en recepcion-version.json, elimina el comprobador interno antiguo que mostraba 'paquete X' separado y obliga a mantener sincronizados los aliases legacy. Sin cambios funcionales, de pacientes, Bendo, Historia, bases, .env ni esquema.",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/app.py",
+      "sha256": "b257b702f11012c91e284a1f983dc31a9c92ab8f97dcfdf54db3711dbe05d8c0"
+    },
+    {
+      "path": "recepcion-version.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/recepcion-version.json",
+      "sha256": "5530915d7e6257bb484177b4d7218b256005a242e822b18e46bf6fca96338ceb"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/update_manifest.json",
+      "sha256": "b83cb19df2d5dc863b4ced5eee011e488dd55f64aea597fb74a9b5f71faf5325"
+    }
+  ]
 }
