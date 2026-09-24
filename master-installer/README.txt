@@ -11,7 +11,7 @@ Incluye:
 
 Versiones de aplicación estables al preparar este instalador:
 - Recepción 4.5.36
-- Historia Clínica 1.3.20
+- Historia Clínica 1.3.21
 
 IMPORTANTE:
 Este instalador maestro v1.0.0 está diseñado para PCs que YA tengan la instalación base
