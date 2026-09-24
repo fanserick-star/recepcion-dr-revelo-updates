@@ -4,11 +4,11 @@
   "app_version": "1.3.8",
   "runtime_version": "1.3.8",
   "mandatory": true,
-  "launcher_version": "historia-launcher-v1.0.4",
+  "launcher_version": "historia-launcher-v1.0.5",
   "updater_version": "historia-launcher-v1",
   "version_source": "historia-version.json",
   "compatibility_version_aliases": true,
-  "launcher_minimum": "1.0.4",
+  "launcher_minimum": "1.0.5",
   "required_dependencies": [
     "app.py",
     "cloud_sync.py",
@@ -73,6 +73,7 @@
     "cloud_shared_settings": true,
     "recovery_full_pull_once_on_v138": true,
     "neon_source_shared_between_pcs": true,
-    "purpose": "Actualización grande de Historia: launcher blindado, nube completa multi-PC, recetas, certificados y configuración."
+    "purpose": "Actualización grande de Historia: launcher blindado, nube completa multi-PC, recetas, certificados y configuración.",
+    "minimum_launcher_reason": "Launcher v1.0.5 consolida WebView2 obligatorio, ventanas internas para documentos, self-update blindado y hashes de release inmutables."
   }
 }
