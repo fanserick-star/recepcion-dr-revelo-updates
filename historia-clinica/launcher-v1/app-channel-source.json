@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.29",
+  "appVersion": "1.3.30",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.29: corrige el número de turno para que no se reinicie al quedar pocos pacientes en espera. El turno ahora conserva la secuencia real de consultas del día, contando también las consultas ya completadas; los procedimientos y turnos cancelados no consumen número. Mantiene el diseño de recetas 21 × 21 cm de 1.3.28.",
+  "notes": "Historia Clínica 1.3.30: las dos recetas ahora aprovechan toda la altura de una hoja A4. El encabezado conserva exactamente su tamaño/proporción y se ubica arriba; el pie institucional baja al borde útil; la zona Rp. ocupa el espacio central; logos y marcas de agua mantienen su relación de aspecto y no se estiran. Mantiene la secuencia real de turnos de 1.3.29 y todos los blindajes previos.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_28_rx_space_tuning/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_30_rx_full_a4/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_29_daily_turn_sequence/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_30_rx_full_a4/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_29_daily_turn_sequence/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_30_rx_full_a4/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
