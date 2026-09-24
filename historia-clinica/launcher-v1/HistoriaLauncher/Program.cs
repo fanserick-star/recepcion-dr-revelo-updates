@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.0";
+    const string LauncherVersion = "1.0.1";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -946,10 +946,17 @@ internal sealed class LauncherForm : Form
             int testPort = ReserveFreePort();
             var log = Path.Combine(trial, "trial_startup.log");
             string code =
-                "import sys,uvicorn;" +
+                "import sys,traceback,uvicorn;" +
+                $"sys.path.insert(0,r'{EscapePy(trial)}');" +
                 $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
                 "sys.stdout=f;sys.stderr=f;" +
-                $"uvicorn.run('app:app',host='127.0.0.1',port={testPort},access_log=False,log_level='warning')";
+                "try:\n" +
+                " import app as historia_app\n" +
+                " print('IMPORT_OK',getattr(historia_app,'APP_VERSION',''))\n" +
+                $" uvicorn.run(historia_app.app,host='127.0.0.1',port={testPort},access_log=False,log_level='warning')\n" +
+                "except Exception:\n" +
+                " traceback.print_exc()\n" +
+                " raise";
 
             var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
             {
@@ -975,7 +982,7 @@ internal sealed class LauncherForm : Form
                         ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8)
                         : "";
                     throw new InvalidOperationException(
-                        "La copia de prueba terminó antes de iniciar." +
+                        "La copia de prueba terminó antes de iniciar. Se capturó el error real de importación." +
                         (string.IsNullOrWhiteSpace(tail) ? "" : "\n" + tail));
                 }
 
@@ -1088,10 +1095,17 @@ internal sealed class LauncherForm : Form
         try { File.WriteAllText(log, "", Encoding.UTF8); } catch { }
 
         string code =
-            "import sys,uvicorn;" +
+            "import sys,traceback,uvicorn;" +
+            $"sys.path.insert(0,r'{EscapePy(root)}');" +
             $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
             "sys.stdout=f;sys.stderr=f;" +
-            $"uvicorn.run('app:app',host='127.0.0.1',port={Port},access_log=False,log_level='warning')";
+            "try:\n" +
+            " import app as historia_app\n" +
+            " print('IMPORT_OK',getattr(historia_app,'APP_VERSION',''))\n" +
+            $" uvicorn.run(historia_app.app,host='127.0.0.1',port={Port},access_log=False,log_level='warning')\n" +
+            "except Exception:\n" +
+            " traceback.print_exc()\n" +
+            " raise";
 
         var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
         {
