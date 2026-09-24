@@ -1,0 +1,290 @@
+            pulled = self._pull(pg, remote_now) if pull_due else 0
+            pushed = self._push(pg)
+            self._register_device(pg)
+            pg.commit()
+            if pull_due:
+                self._last_pull_monotonic = time.monotonic()
+            sconn = sqlite3.connect(self.db_path, timeout=20)
+            try:
+                pending_after = self._pending(sconn)
+            finally:
+                sconn.close()
+            _write_status(
+                self.data_dir, state="synced" if pending_after == 0 else "syncing", online=True, configured=True,
+                message="Nube sincronizada" if pending_after == 0 else f"Subiendo respaldo… {pending_after} pendientes", last_sync=_now_iso(),
+                pending=pending_after, last_pushed=pushed, last_pulled=pulled,
+                last_error="",
+            )
+            if pending_after > 0:
+                self._wake.set()
+        finally:
+            try: pg.close()
+            except Exception: pass
+
+    def _register_device(self, pg):
+        cur = pg.cursor(); stamp = _now_iso()
+        cur.execute(
+            """INSERT INTO devices(id,display_name,first_seen_at,last_seen_at,app_version)
+               VALUES(%s,%s,%s,%s,%s)
+               ON CONFLICT(id) DO UPDATE SET last_seen_at=EXCLUDED.last_seen_at,app_version=EXCLUDED.app_version""",
+            (self.device_id, os.getenv("COMPUTERNAME") or "PC Historia Clínica", stamp, stamp, os.getenv("HISTORIA_APP_VERSION") or "1.3.5"),
+        )
+
+    def _ensure_remote_extension_schema(self, pg) -> None:
+        cur = pg.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS prescriptions(
+              id text PRIMARY KEY,
+              patient_id text NOT NULL,
+              encounter_id text,
+              issued_at text NOT NULL,
+              series_no text,
+              diagnosis text,
+              cie10 text,
+              allergies text,
+              allergies_detail text,
+              items_json text NOT NULL DEFAULT '[]',
+              instructions text,
+              created_at text NOT NULL,
+              updated_at text NOT NULL,
+              deleted_at timestamptz,
+              cloud_updated_at timestamptz NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS certificates(
+              id text PRIMARY KEY,
+              patient_id text NOT NULL,
+              encounter_id text,
+              issued_at text NOT NULL,
+              diagnosis text,
+              cie10 text,
+              additional_diagnosis text,
+              additional_cie10 text,
+              procedure_text text,
+              rest_days integer NOT NULL DEFAULT 0,
+              rest_from text,
+              rest_to text,
+              body_text text NOT NULL,
+              created_at text NOT NULL,
+              updated_at text NOT NULL,
+              deleted_at timestamptz,
+              cloud_updated_at timestamptz NOT NULL DEFAULT now()
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clinic_settings(
+              setting_key text PRIMARY KEY,
+              setting_value text NOT NULL,
+              updated_at text NOT NULL,
+              deleted_at timestamptz,
+              cloud_updated_at timestamptz NOT NULL DEFAULT now()
+            )
+        """)
+        pg.commit()
+
+    def _push(self, pg) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pushed = 0
+        completed = []
+        try:
+            items = sconn.execute("""
+                SELECT table_name,row_key FROM sync_dirty
+                ORDER BY CASE table_name
+                  WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
+                  WHEN 'waiting_queue' THEN 4 WHEN 'encounter_addenda' THEN 5 WHEN 'macros' THEN 6
+                  WHEN 'prescriptions' THEN 7 WHEN 'certificates' THEN 8 WHEN 'clinic_settings' THEN 9
+                  WHEN 'audit_log' THEN 10 WHEN 'encounter_revisions' THEN 11 ELSE 99 END,
+                  changed_at, row_key
+                LIMIT 750
+            """).fetchall()
+            for item in items:
+                table, key = item["table_name"], item["row_key"]
+                if table not in ALL_SYNC_TABLES:
+                    completed.append((table,key)); continue
+                pk = ALL_SYNC_TABLES[table]
+                row = sconn.execute(f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=?", (key,)).fetchone()
+                cur = pg.cursor()
+                if row is None:
+                    if table in BIDIRECTIONAL_TABLES:
+                        cur.execute(f"UPDATE {table} SET deleted_at=%s,cloud_updated_at=now() WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
+                    completed.append((table,key)); pushed += 1
+                    continue
+                data = dict(row)
+                if table == "audit_log":
+                    data["id"] = f"{self.device_id}:{row['id']}"
+                    data["device_id"] = self.device_id
+                    columns = ["id","occurred_at","actor","action","entity_type","entity_id","details_json","device_id"]
+                    vals = [data.get(c) for c in columns]
+                    cur.execute(
+                        "INSERT INTO audit_log("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(id) DO NOTHING",
+                        vals,
+                    )
+                elif table == "encounter_revisions":
+                    source_key = f"{self.device_id}:{row['id']}"
+                    columns = ["source_key","encounter_id","revision_no","saved_at","actor","clinical_note","diagnosis","treatment","reason"]
+                    vals = [source_key] + [data.get(c) for c in columns[1:]]
+                    cur.execute(
+                        "INSERT INTO encounter_revisions("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(source_key) DO NOTHING",
+                        vals,
+                    )
+                else:
+                    remote_cols = self._remote_columns_for(table, data)
+                    columns = [c for c in remote_cols if c in data and c not in {"cloud_updated_at","deleted_at"}]
+                    vals = [data.get(c) for c in columns]
+                    updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
+                    sql = f"INSERT INTO {table}({','.join(columns)},cloud_updated_at,deleted_at) VALUES({','.join(['%s']*len(columns))},now(),NULL) ON CONFLICT({pk}) DO UPDATE SET {','.join(updates)},cloud_updated_at=now(),deleted_at=NULL"
+                    cur.execute(sql, vals)
+                completed.append((table,key)); pushed += 1
+            pg.commit()
+            if completed:
+                sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=?", completed)
+                sconn.commit()
+            return pushed
+        except Exception:
+            try: pg.rollback()
+            except Exception: pass
+            raise
+        finally:
+            sconn.close()
+
+    def _remote_columns_for(self, table: str, data: dict) -> list[str]:
+        # Cloud schema mirrors the local columns plus cloud_updated_at/deleted_at.
+        return list(data.keys())
+
+    def _pull(self, pg, remote_now: str) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pulled = 0
+        try:
+            last_pull = self._get_state(
+                sconn, "last_pull", "1970-01-01T00:00:00+00:00"
+            )
+            sconn.execute(
+                "UPDATE meta SET value='1' WHERE key='sync_applying_remote'"
+            )
+            sconn.commit()
+
+            for table, pk in BIDIRECTIONAL_TABLES.items():
+                cursor_time = last_pull
+                cursor_key = ""
+                while True:
+                    cur = pg.cursor()
+                    cur.execute(
+                        f"""
+                        SELECT * FROM {table}
+                        WHERE cloud_updated_at>%s::timestamptz
+                          AND cloud_updated_at<=%s::timestamptz
+                          AND (
+                            cloud_updated_at>%s::timestamptz
+                            OR (
+                              cloud_updated_at=%s::timestamptz
+                              AND CAST({pk} AS TEXT)>%s
+                            )
+                          )
+                        ORDER BY cloud_updated_at,CAST({pk} AS TEXT)
+                        LIMIT 1000
+                        """,
+                        (
+                            last_pull,
+                            remote_now,
+                            cursor_time,
+                            cursor_time,
+                            cursor_key,
+                        ),
+                    )
+                    rows = _dict_rows(cur)
+                    if not rows:
+                        break
+
+                    local_cols = set(_sqlite_columns(sconn, table))
+                    for remote in rows:
+                        key = remote.get(pk)
+                        if key is None:
+                            continue
+
+                        stamp = remote.get("cloud_updated_at")
+                        if stamp is not None:
+                            cursor_time = (
+                                stamp.isoformat()
+                                if isinstance(stamp, datetime)
+                                else str(stamp)
+                            )
+                            cursor_key = str(key)
+
+                        if remote.get("deleted_at"):
+                            if table in {
+                                "macros",
+                                "waiting_queue",
+                                "patient_links",
+                                "encounter_addenda",
+                                "prescriptions",
+                                "certificates",
+                                "clinic_settings",
+                            }:
+                                sconn.execute(
+                                    f"DELETE FROM {table} WHERE CAST({pk} AS TEXT)=?",
+                                    (str(key),),
+                                )
+                            continue
+
+                        data = {
+                            k: _normalize_remote_value(v)
+                            for k, v in remote.items()
+                            if k in local_cols
+                        }
+                        cols = list(data.keys())
+                        if not cols:
+                            continue
+                        placeholders = ",".join(["?"] * len(cols))
+                        updates = ",".join(
+                            [f"{c}=excluded.{c}" for c in cols if c != pk]
+                        )
+                        if updates:
+                            sql = (
+                                f"INSERT INTO {table}({','.join(cols)}) "
+                                f"VALUES({placeholders}) "
+                                f"ON CONFLICT({pk}) DO UPDATE SET {updates}"
+                            )
+                        else:
+                            sql = (
+                                f"INSERT OR IGNORE INTO {table}({','.join(cols)}) "
+                                f"VALUES({placeholders})"
+                            )
+                        sconn.execute(sql, [data[c] for c in cols])
+                        pulled += 1
+
+                    sconn.commit()
+                    if len(rows) < 1000:
+                        break
+
+            self._set_state(sconn, "last_pull", remote_now)
+            self._set_state(sconn, "cloud_bootstrap_complete", "1")
+            sconn.execute(
+                "UPDATE meta SET value='0' WHERE key='sync_applying_remote'"
+            )
+            sconn.commit()
+            return pulled
+        except Exception:
+            try:
+                sconn.execute(
+                    "UPDATE meta SET value='0' WHERE key='sync_applying_remote'"
+                )
+                sconn.commit()
+            except Exception:
+                pass
+            raise
+        finally:
+            sconn.close()
+
+
+def build_sync_service(root: Path, db_path: Path) -> CloudSyncService:
+    global _SERVICE
+    if _SERVICE is None:
+        _SERVICE = CloudSyncService(root, db_path)
+    return _SERVICE
+
+
+def get_sync_service() -> CloudSyncService | None:
+    return _SERVICE
