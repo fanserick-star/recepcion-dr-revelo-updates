@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-launcher-dr-revelo",
-  "latestVersion": "1.0.5",
+  "latestVersion": "1.0.6",
   "mandatory": true,
-  "notes": "Launcher Historia Clínica v1.0.5: versión consolidada con WebView2 obligatorio, ventanas internas para documentos, preprueba aislada corregida por ruta exacta, SHA-256, instancia única, rollback y protección de datos clínicos.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.5/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_5.exe",
-  "installerSha256": "8d1b31228660c2f7890626f1bf46628d8763da994072cf2f27204f75824087bd",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.5/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "ea0b5b612e17e7e898a626a2bbd3344b87d08a7627c59eecab99c8b2a1dcc72c"
+  "notes": "Launcher Historia Clínica v1.0.6: agrega el logo visible del consultorio y despierta/verifica la sincronización con Neon al iniciar. Si Neon no responde, Historia sigue trabajando localmente y el servicio cloud reintenta en segundo plano. Conserva WebView2, instancia única, SHA-256, preprueba aislada, rollback y protección de datos clínicos.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.6/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_6.exe",
+  "installerSha256": "c6cbc504cf455daa06d6fab04784bbef34a5120886fe0dd1991bbcd9c6bf445d",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.6/HistoriaLauncherUpdater.exe",
+  "updaterSha256": "7d0f7f010cb9e63c6c2fd0fdff38ff72302f8918200d03ee63ed19fbd0de9b85"
 }
