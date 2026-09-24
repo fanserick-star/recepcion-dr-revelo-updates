@@ -2,20 +2,20 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.18",
+  "appVersion": "1.3.19",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.18: blinda los borradores de consulta ante cierres o reinicios. Mantiene el autoguardado en SQLite y agrega una segunda copia local inmediata en WebView2 para recuperar texto no alcanzado por el backend. Las consultas autoguardadas sin finalizar ahora se muestran de forma visible como pendientes. Conserva recetas/certificados y no modifica pacientes, historias firmadas, .env, data/ ni la estructura de la base.",
+  "notes": "Historia Clínica 1.3.19: corrige una causa real de pérdida aparente de historias. Una cancelación o limpieza de turno en Recepción ya nunca elimina un borrador clínico: solo lo desvincula y lo conserva. Añade Recuperación para buscar/restaurar desde Neon borradores que versiones anteriores pudieron quitar, mantiene la copia local de emergencia de 1.3.18 y bloquea la creación silenciosa de pacientes con el mismo nombre cuando no hay identificación. No fusiona ni borra fichas existentes.",
   "files": [
     {
       "path": "app.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part01",
-        "historia-clinica/updates/v1_3_16_neon_schema_turns/app.py.part02",
-        "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
+        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part01",
+        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part02",
+        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part03",
         "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
         "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part05",
-        "historia-clinica/updates/v1_3_18_draft_recovery/app.py.part06"
+        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part06"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_18_draft_recovery/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_19_preserve_recover/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_18_draft_recovery/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_19_preserve_recover/update_manifest.json"
     }
   ]
 }
