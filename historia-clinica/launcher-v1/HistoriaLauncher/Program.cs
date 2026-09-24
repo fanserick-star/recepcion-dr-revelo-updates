@@ -765,38 +765,52 @@ internal sealed class LauncherForm : Form
 
     async Task DownloadVerifiedAsync(ChannelFile f, string dst, int startPct, int endPct, int index, int total)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, f.Url + (f.Url.Contains('?') ? "&" : "?") +
-            "t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
-        resp.EnsureSuccessStatusCode();
-        var length = resp.Content.Headers.ContentLength;
-        await using var input = await resp.Content.ReadAsStreamAsync();
-        var buffer = new byte[64 * 1024];
-        long read = 0;
+        var urls = (f.Parts is { Count: > 0 })
+            ? f.Parts.Where(x => !string.IsNullOrWhiteSpace(x)).ToList()
+            : (string.IsNullOrWhiteSpace(f.Url) ? [] : new List<string> { f.Url });
+        if (urls.Count == 0)
+            throw new InvalidOperationException($"No hay URL para {f.Path}.");
 
-        // IMPORTANTE: cerrar el archivo descargado ANTES de calcular SHA-256.
-        // File.Create usa bloqueo exclusivo; verificar el hash mientras el stream
-        // seguía abierto provocaba ERROR_SHARING_VIOLATION en Windows.
+        var buffer = new byte[64 * 1024];
         await using (var output = File.Create(dst))
         {
-            while (true)
+            for (int part = 0; part < urls.Count; part++)
             {
-                int n = await input.ReadAsync(buffer);
-                if (n <= 0) break;
-                await output.WriteAsync(buffer.AsMemory(0, n));
-                read += n;
-                int pct = startPct;
-                if (length is > 0)
-                    pct = startPct + (int)((endPct - startPct) * Math.Min(1.0, read / (double)length.Value));
-                SetProgress(pct, "Descargando actualización",
-                    $"Archivo {index} de {total} · {Path.GetFileName(f.Path)}");
+                var url = urls[part];
+                using var req = new HttpRequestMessage(HttpMethod.Get,
+                    url + (url.Contains('?') ? "&" : "?") +
+                    "t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                req.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+                using var resp = await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead);
+                resp.EnsureSuccessStatusCode();
+                await using var input = await resp.Content.ReadAsStreamAsync();
+
+                long read = 0;
+                var length = resp.Content.Headers.ContentLength;
+                while (true)
+                {
+                    int n = await input.ReadAsync(buffer);
+                    if (n <= 0) break;
+                    await output.WriteAsync(buffer.AsMemory(0, n));
+                    read += n;
+                    double partFraction = length is > 0
+                        ? Math.Min(1.0, read / (double)length.Value)
+                        : 0.5;
+                    double overall = (part + partFraction) / urls.Count;
+                    int pct = startPct + (int)((endPct - startPct) * overall);
+                    SetProgress(pct, "Descargando actualización",
+                        urls.Count > 1
+                            ? $"Archivo {index} de {total} · {Path.GetFileName(f.Path)} · parte {part + 1}/{urls.Count}"
+                            : $"Archivo {index} de {total} · {Path.GetFileName(f.Path)}");
+                }
             }
             await output.FlushAsync();
         }
 
         var got = await Sha256Async(dst);
         if (!got.Equals(f.Sha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException($"La verificación de {f.Path} no coincidió. No se instaló nada.");
+            throw new InvalidOperationException(
+                $"La verificación de {f.Path} no coincidió. No se instaló nada.");
     }
 
     async Task PrecheckCandidateAsync(string staging, string expected)
