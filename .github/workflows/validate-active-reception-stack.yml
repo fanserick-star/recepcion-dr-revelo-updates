@@ -117,8 +117,11 @@ jobs:
           for rel in forbidden_paths:
               assert not (root / rel).exists(), f"Ruta legacy activa: {rel}"
 
-          needle = "ABRIR_" + "RECEPCION.py"
+          needle = "ABRIR_" + "RECEPCION" + ".py"
+          self_name = Path(".github/workflows/validate-active-reception-stack.yml")
           for wf in (root / ".github/workflows").glob("*.yml"):
+              if wf == self_name:
+                  continue
               text = wf.read_text(encoding="utf-8")
               assert needle not in text, f"Workflow legacy activo: {wf}"
 
