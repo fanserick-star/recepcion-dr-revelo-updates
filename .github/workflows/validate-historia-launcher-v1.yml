@@ -97,6 +97,7 @@ jobs:
               '_launcher_precheck_server.py',
               'new ProcessStartInfo(python, QuoteArg(script))',
               'new ProcessStartInfo(python, QuoteArg(serverScript))',
+              'new ProcessStartInfo(python, QuoteArg(backendScript))',
           ]
           for item in required:
               assert item in s, item
@@ -107,11 +108,16 @@ jobs:
           ]
           for item in forbidden:
               assert item not in s, item
-          # El fallo visto en Windows venía de construir "try:" dentro de python -c.
-          assert 'sys.path.insert(0,r' not in s
-          assert 'ProcessStartInfo(python, "-c " + QuoteArg(code))' not in s[s.index("async Task VerifyTrialImportAsync"):s.index("async Task BackupSqliteAsync")]
+          # El fallo visto en Windows venía de construir bloques try/except dentro de python -c.
+          precheck = s[s.index("async Task PrecheckCandidateAsync"):s.index("async Task BackupSqliteAsync")]
+          backend = s[s.index("async Task<bool> StartBackendAsync"):s.index("async Task<(string product, string version)?> ProbeVersionAsync")]
+          assert 'ProcessStartInfo(python, "-c "' not in precheck
+          assert 'ProcessStartInfo(python, "-c "' not in backend
+          assert '_launcher_precheck_import.py' in precheck
+          assert '_launcher_precheck_server.py' in precheck
+          assert 'backend_" + Guid.NewGuid()' in backend
           print("OK Historia launcher invariants")
-          print("OK isolated precheck uses real temporary .py scripts")
+          print("OK isolated precheck and real backend use temporary .py scripts")
           PY
 
 
