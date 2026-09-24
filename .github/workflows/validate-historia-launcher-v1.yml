@@ -93,6 +93,10 @@ jobs:
               'BackupSqliteAsync',
               'f.Parts',
               'WebView2',
+              '_launcher_precheck_import.py',
+              '_launcher_precheck_server.py',
+              'new ProcessStartInfo(python, QuoteArg(script))',
+              'new ProcessStartInfo(python, QuoteArg(serverScript))',
           ]
           for item in required:
               assert item in s, item
@@ -103,7 +107,11 @@ jobs:
           ]
           for item in forbidden:
               assert item not in s, item
+          # El fallo visto en Windows venía de construir "try:" dentro de python -c.
+          assert 'sys.path.insert(0,r' not in s
+          assert 'ProcessStartInfo(python, "-c " + QuoteArg(code))' not in s[s.index("async Task VerifyTrialImportAsync"):s.index("async Task BackupSqliteAsync")]
           print("OK Historia launcher invariants")
+          print("OK isolated precheck uses real temporary .py scripts")
           PY
 
 
@@ -123,10 +131,17 @@ jobs:
           launcher_channel = json.loads((base / "launcher-v1/launcher-channel.json").read_text(encoding="utf-8"))
           manifest = json.loads((new / "update_manifest.json").read_text(encoding="utf-8"))
 
-          assert app_channel["appVersion"] == version == "1.3.5"
-          assert app_channel["mandatory"] is True
-          assert app_channel["minimumLauncher"] == "1.0.2"
+          assert version == "1.3.5"
           assert manifest["launcher_minimum"] == "1.0.2"
+          if app_channel.get("status") == "hold":
+              assert app_channel["appVersion"] == "1.3.4"
+              assert app_channel["mandatory"] is False
+              assert app_channel["minimumLauncher"] == "1.0.2"
+              assert app_channel["files"] == []
+          else:
+              assert app_channel["appVersion"] == version
+              assert app_channel["mandatory"] is True
+              assert app_channel["minimumLauncher"] == "1.0.2"
 
           source = (base / "launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
           m = re.search(r'LauncherVersion\s*=\s*"([^"]+)"', source)
@@ -136,14 +151,17 @@ jobs:
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["installerSha256"])
           assert re.fullmatch(r"[0-9a-f]{64}", launcher_channel["updaterSha256"])
 
-          allowed = {"app.py", "historia-version.json", "update_manifest.json"}
-          paths = {item["path"] for item in app_channel["files"]}
-          assert paths == allowed, paths
-          for path in paths:
-              low = path.lower()
-              assert not low.startswith("data/")
-              assert low != ".env"
-              assert not low.endswith((".db",".sqlite",".sqlite3",".mdb",".accdb",".xls",".xlsx"))
+          if app_channel.get("status") != "hold":
+              allowed = {"app.py", "historia-version.json", "update_manifest.json"}
+              paths = {item["path"] for item in app_channel["files"]}
+              assert paths == allowed, paths
+              for path in paths:
+                  low = path.lower()
+                  assert not low.startswith("data/")
+                  assert low != ".env"
+                  assert not low.endswith((".db",".sqlite",".sqlite3",".mdb",".accdb",".xls",".xlsx"))
+          else:
+              paths = set()
 
           parts = [
               new / "app.py.part01",
@@ -158,10 +176,11 @@ jobs:
               "historia-version.json": hashlib.sha256((new / "historia-version.json").read_bytes()).hexdigest(),
               "update_manifest.json": hashlib.sha256((new / "update_manifest.json").read_bytes()).hexdigest(),
           }
-          for item in app_channel["files"]:
-              assert item["sha256"] == expected[item["path"]], (item["path"], item["sha256"], expected[item["path"]])
+          if app_channel.get("status") != "hold":
+              for item in app_channel["files"]:
+                  assert item["sha256"] == expected[item["path"]], (item["path"], item["sha256"], expected[item["path"]])
 
-          print("OK app channel:", version)
+          print("OK app channel:", app_channel["appVersion"], app_channel.get("status", "active"))
           print("OK launcher channel: 1.0.2")
           print("OK payload hashes and protected paths")
           PY
