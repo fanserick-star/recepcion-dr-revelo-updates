@@ -1,0 +1,593 @@
+import cloud_sync as _v139_cloud_sync
+# ---------------------------------------------------------------------------
+# v1.3.8 — nube completa + recetas/certificados/configuración.
+# ---------------------------------------------------------------------------
+APP_VERSION = _CANONICAL_VERSION
+try:
+    with db() as _v135_conn:
+        _v135_conn.execute(
+            "INSERT OR REPLACE INTO meta(key,value) VALUES('app_version',?)",
+            (APP_VERSION,),
+        )
+        _v135_conn.commit()
+except Exception:
+    pass
+try:
+    if hasattr(LAN_SERVICE, "version"):
+        LAN_SERVICE.version = APP_VERSION
+except Exception:
+    pass
+
+_V135_BASE_ORIGINAL = base
+
+_V135_STYLE = """
+<style>
+.topbar nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.topbar nav a{white-space:nowrap}
+.editor-actions .document-action{
+  background:#edf3f9!important;color:#173b66!important;border:1px solid #b9cce0!important
+}
+.editor-actions .document-action:hover{background:#dfeaf5!important}
+@media(max-width:1000px){.topbar nav{gap:4px}.topbar nav a{font-size:11px}}
+.pending-draft-warning{
+  margin:14px 0;padding:14px 16px;border:1px solid #f0c36a;border-radius:12px;
+  background:#fff8e7;color:#6b4a00;display:flex;gap:10px;align-items:flex-start
+}
+.pending-draft-warning strong{display:block;margin-bottom:3px}
+.emergency-recovery-note{
+  margin:0 0 14px;padding:12px 14px;border:1px solid #8fd4bc;border-radius:12px;
+  background:#eefaf5;color:#155a43;font-weight:600
+}
+.save-state.error{font-weight:700}
+</style>
+"""
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    html = _V135_BASE_ORIGINAL(title, body, active, extra_head, extra_script)
+    nav = (
+        f'<a class="{"active" if active=="recetas" else ""}" href="/recetas">Recetas</a>'
+        f'<a class="{"active" if active=="certificados" else ""}" href="/certificados">Certificados</a>'
+        f'<a class="{"active" if active=="configuracion" else ""}" href="/configuracion">Configuración</a>'
+        f'<a class="{"active" if active=="recuperacion" else ""}" href="/recuperacion/borradores">Recuperación</a>'
+    )
+    if "</nav>" in html and "/configuracion" not in html:
+        html = html.replace("</nav>", nav + "</nav>", 1)
+    if "</head>" in html:
+        html = html.replace("</head>", _V135_STYLE + "</head>", 1)
+
+    # Un borrador autoguardado no forma parte todavía del historial firmado.
+    # Lo hacemos muy visible para que nadie piense que se perdió.
+    if ">Continuar consulta</a>" in html and "<section class=\"cp-history-window\">" in html:
+        warning = (
+            "<div class='pending-draft-warning'>"
+            "<span>●</span><div><strong>Consulta sin finalizar guardada</strong>"
+            "El texto está protegido como borrador y todavía no aparece en el historial definitivo. "
+            "Use <b>Continuar consulta</b> para recuperarlo y finalizarlo.</div></div>"
+        )
+        html = html.replace("<section class=\"cp-history-window\">", warning + "<section class=\"cp-history-window\">", 1)
+    return html
+
+
+# Migración cloud v1.3.8: una sola relectura total y sembrado de módulos nuevos.
+try:
+    with db() as _v138:
+        _v138.execute("CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        _v138.execute("CREATE TABLE IF NOT EXISTS sync_dirty(table_name TEXT NOT NULL,row_key TEXT NOT NULL,changed_at TEXT NOT NULL,PRIMARY KEY(table_name,row_key))")
+        _flag = _v138.execute("SELECT value FROM sync_state WHERE key='migration_v138_full_cloud'").fetchone()
+        if not _flag:
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('last_pull','1970-01-01T00:00:00+00:00')")
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('cloud_bootstrap_complete','0')")
+            for _table, _pk in (("prescriptions","id"),("certificates","id"),("clinic_settings","setting_key")):
+                _v138.execute(f"INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at) SELECT ?,CAST({_pk} AS TEXT),datetime('now') FROM {_table}", (_table,))
+            _v138.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('migration_v138_full_cloud','1')")
+            _v138.commit()
+except Exception:
+    pass
+
+documentos_clinicos.install(app, globals())
+
+
+# Integra los dos documentos en la consulta sin cerrar ni finalizar la atención.
+_V135_NEW_CONSULTATION_ORIGINAL = new_consultation
+_v132_remove_route("/paciente/{patient_id}/nueva", "GET")
+
+@app.get("/paciente/{patient_id}/nueva", response_class=HTMLResponse)
+def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str = ""):
+    result = _V135_NEW_CONSULTATION_ORIGINAL(patient_id, encounter_id, queue_id)
+
+    # Las rutas FastAPI con response_class pueden devolver str al invocarse
+    # directamente desde otro wrapper. v1.3.8 asumía HTMLResponse y por eso
+    # los botones de receta/certificado podían no inyectarse aunque el módulo
+    # estuviera instalado.
+    if isinstance(result, HTMLResponse):
+        try:
+            html = bytes(result.body).decode(result.charset or "utf-8")
+        except Exception:
+            return result
+        status_code = result.status_code
+        headers = {
+            k: v for k, v in dict(result.headers).items()
+            if k.lower() not in {"content-length", "content-type"}
+        }
+    elif isinstance(result, str):
+        html = result
+        status_code = 200
+        headers = {}
+    else:
+        return result
+
+    # Los documentos deben estar visibles mientras el doctor escribe, junto a
+    # Frases rápidas. Se conserva un fallback en el pie por compatibilidad con
+    # layouts anteriores.
+    if "id='open-prescription'" not in html:
+        tools_marker = "<div class='consult-tools'><button id='toggle-macros' class='secondary'>Frases rápidas</button>"
+        tools_replacement = (
+            "<div class='consult-tools'>"
+            "<button id='toggle-macros' class='secondary'>Frases rápidas</button>"
+            "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
+            "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+        )
+        if tools_marker in html:
+            html = html.replace(tools_marker, tools_replacement, 1)
+        else:
+            footer_marker = "<div class='editor-actions'>"
+            footer_replacement = (
+                "<div class='editor-actions'>"
+                "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
+                "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+            )
+            if footer_marker in html:
+                html = html.replace(footer_marker, footer_replacement, 1)
+
+    helper = r"""
+<script>
+(()=>{
+  const rx=document.getElementById('open-prescription');
+  const cert=document.getElementById('open-certificate');
+  async function openClinicalDocument(kind,button){
+    const original=button.textContent;
+    button.disabled=true;
+    button.textContent='Guardando…';
+    try{
+      let id='';
+      if(typeof save==='function'){
+        id=await save(true) || '';
+      }
+      const route=kind==='rx'?'/recetas/nueva':'/certificados/nuevo';
+      const qs=new URLSearchParams({patient_id:PATIENT_ID});
+      if(id)qs.set('encounter_id',id);
+      window.open(route+'?'+qs.toString(),'_blank');
+      button.textContent=original;
+      button.disabled=false;
+    }catch(err){
+      button.textContent=original;
+      button.disabled=false;
+      if(window.showAppToast)showAppToast(
+        err && err.message ? err.message : 'No se pudo guardar antes de emitir el documento.',
+        'error'
+      );
+    }
+  }
+  if(rx)rx.addEventListener('click',()=>openClinicalDocument('rx',rx));
+  if(cert)cert.addEventListener('click',()=>openClinicalDocument('cert',cert));
+})();
+
+// v1.3.18 — segunda capa local, independiente de SQLite/Neon.
+// Cada cambio escrito se copia inmediatamente en localStorage del WebView.
+// Si Windows o el programa se reinician antes de que el autoguardado llegue
+// al backend, la misma consulta recupera ese texto al volver a abrirla.
+(()=>{
+  const PREFIX='historia_emergency_draft_v1:';
+  const TEMP=PREFIX+'patient:'+String(PATIENT_ID)+':queue:'+String(QUEUE_ID||'none');
+  const note=document.getElementById('clinical-note');
+  if(!note)return;
+
+  function keyForEncounter(id){
+    return PREFIX+'encounter:'+String(id||'');
+  }
+  function safeParse(raw){
+    try{return raw?JSON.parse(raw):null}catch(_e){return null}
+  }
+  function snapshot(){
+    try{
+      const data={
+        patient_id:String(PATIENT_ID||''),
+        queue_id:String(QUEUE_ID||''),
+        encounter_id:String(encounterId||''),
+        note:String(note.value||''),
+        encounter_date:String(document.getElementById('enc-date')?.value||''),
+        encounter_time:String(document.getElementById('enc-time')?.value||''),
+        saved_at:new Date().toISOString()
+      };
+      const raw=JSON.stringify(data);
+      if(encounterId){
+        localStorage.setItem(keyForEncounter(encounterId),raw);
+        localStorage.removeItem(TEMP);
+      }else{
+        localStorage.setItem(TEMP,raw);
+      }
+    }catch(_e){}
+  }
+  function clearBackup(id){
+    try{
+      localStorage.removeItem(TEMP);
+      if(id)localStorage.removeItem(keyForEncounter(id));
+    }catch(_e){}
+  }
+  function recoveryCandidate(){
+    try{
+      if(encounterId){
+        const byId=safeParse(localStorage.getItem(keyForEncounter(encounterId)));
+        if(byId)return byId;
+      }
+      return safeParse(localStorage.getItem(TEMP));
+    }catch(_e){return null}
+  }
+
+  const candidate=recoveryCandidate();
+  if(
+    candidate &&
+    String(candidate.patient_id||'')===String(PATIENT_ID||'') &&
+    String(candidate.note||'').trim()
+  ){
+    const sameDraft = !encounterId || !candidate.encounter_id ||
+      String(candidate.encounter_id)===String(encounterId);
+    if(sameDraft && String(candidate.note||'')!==String(note.value||'')){
+      note.value=String(candidate.note||'').toUpperCase();
+      const d=document.getElementById('enc-date');
+      const t=document.getElementById('enc-time');
+      if(d && candidate.encounter_date)d.value=candidate.encounter_date;
+      if(t && candidate.encounter_time)t.value=candidate.encounter_time;
+      upperClinical(note);
+      dirty=true;
+      const editor=document.querySelector('.clinical-editor');
+      if(editor){
+        const msg=document.createElement('div');
+        msg.className='emergency-recovery-note';
+        msg.textContent='Se recuperó texto que estaba protegido localmente antes del reinicio.';
+        editor.insertBefore(msg,editor.firstChild);
+      }
+      state.textContent='Texto recuperado · guardando…';
+      state.className='save-state saving';
+      setTimeout(()=>save(false).catch(()=>{}),150);
+    }
+  }
+
+  note.addEventListener('input',snapshot,{capture:true});
+  ['enc-date','enc-time'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('change',snapshot,{capture:true});
+  });
+  window.addEventListener('pagehide',snapshot);
+  window.addEventListener('beforeunload',snapshot);
+  setInterval(snapshot,1000);
+
+  // Después de cada guardado al SQLite mantenemos una copia local asociada
+  // al encounter; solo se elimina cuando la consulta queda FINALIZADA.
+  const serverSave=save;
+  save=async function(manual=false){
+    snapshot();
+    try{
+      const id=await serverSave(manual);
+      snapshot();
+      return id;
+    }catch(err){
+      snapshot();
+      try{
+        if(window.showAppToast)showAppToast(
+          'No se pudo guardar en la base. El texto sigue protegido localmente en esta PC.',
+          'error'
+        );
+      }catch(_e){}
+      throw err;
+    }
+  };
+
+  const serverFinalize=finalizeAndHome;
+  finalizeAndHome=async function(button){
+    const idBefore=encounterId;
+    await serverFinalize(button);
+    if(leavingAfterFinalize){
+      clearBackup(encounterId||idBefore);
+    }
+  };
+})();
+</script>
+"""
+    if "</body>" in html:
+        html = html.replace("</body>", helper + "</body>", 1)
+
+    return HTMLResponse(
+        content=html,
+        status_code=status_code,
+        headers=headers,
+    )
+
+
+
+# ---------------------------------------------------------------------------
+# v1.3.19 — recuperación segura de borradores que una versión anterior pudo
+# desvincular/borrar al cancelarse un turno de Recepción.
+# ---------------------------------------------------------------------------
+
+def _v139_remote_draft_candidates(raw_query: str) -> list[dict]:
+    query = normalize_search(raw_query or "")
+    tokens = [t for t in query.split() if t]
+    if not tokens or not getattr(SYNC_SERVICE, "url", ""):
+        return []
+
+    pg = _v139_cloud_sync._pg_connect(SYNC_SERVICE.url)
+    try:
+        cur = pg.cursor()
+        conditions = []
+        params = []
+        for token in tokens:
+            conditions.append("UPPER(COALESCE(p.name,'')) LIKE %s")
+            params.append("%" + token.upper() + "%")
+        where_name = " AND ".join(conditions) or "1=1"
+        cur.execute(
+            f"""
+            SELECT
+              e.id,e.patient_id,e.encounter_date,e.encounter_time,
+              e.updated_at,e.created_at,e.deleted_at,e.note_status,
+              p.name,p.national_id
+            FROM historia.encounters e
+            JOIN historia.patients p ON p.id=e.patient_id
+            WHERE e.note_status='draft'
+              AND COALESCE(e.clinical_note,'') <> ''
+              AND ({where_name})
+            ORDER BY e.updated_at DESC NULLS LAST
+            LIMIT 50
+            """,
+            tuple(params),
+        )
+        names = [d[0] for d in cur.description]
+        remote_rows = [dict(zip(names, row)) for row in cur.fetchall()]
+        cur.close()
+    finally:
+        try: pg.close()
+        except Exception: pass
+
+    # Sólo ofrecemos recuperar si el borrador remoto falta localmente o si la
+    # copia local quedó vacía. Así jamás sobrescribimos una consulta activa.
+    out = []
+    with db() as conn:
+        for row in remote_rows:
+            local = conn.execute(
+                "SELECT id,clinical_note,note_status,updated_at FROM encounters WHERE id=?",
+                (str(row.get("id") or ""),),
+            ).fetchone()
+            local_text = str(local["clinical_note"] or "").strip() if local else ""
+            if local and local_text:
+                continue
+            clean = dict(row)
+            for key in ("updated_at","created_at","deleted_at"):
+                value = clean.get(key)
+                if value is not None and not isinstance(value, str):
+                    try: clean[key] = value.isoformat()
+                    except Exception: clean[key] = str(value)
+            out.append(clean)
+    return out
+
+
+def _v139_remote_row(table: str, key_col: str, key_value: str) -> dict | None:
+    if table not in {"patients","encounters"}:
+        raise ValueError("Tabla de recuperación no permitida")
+    pg = _v139_cloud_sync._pg_connect(SYNC_SERVICE.url)
+    try:
+        cur = pg.cursor()
+        cur.execute(
+            f'SELECT * FROM historia.{table} WHERE CAST({key_col} AS TEXT)=%s LIMIT 1',
+            (str(key_value),),
+        )
+        row = cur.fetchone()
+        if not row:
+            cur.close()
+            return None
+        names = [d[0] for d in cur.description]
+        data = dict(zip(names, row))
+        cur.close()
+        return data
+    finally:
+        try: pg.close()
+        except Exception: pass
+
+
+def _v139_sqlite_value(value):
+    if value is None or isinstance(value, (str,int,float,bytes)):
+        return value
+    try:
+        return value.isoformat()
+    except Exception:
+        return str(value)
+
+
+def _v139_insert_common_row(conn, table: str, remote: dict, *, overrides: dict | None = None):
+    local_cols = [r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    data = {
+        k: _v139_sqlite_value(v)
+        for k,v in remote.items()
+        if k in local_cols and k != "cloud_updated_at"
+    }
+    data.update(overrides or {})
+    cols = [k for k in local_cols if k in data]
+    if not cols:
+        raise RuntimeError("No hay columnas compatibles para recuperar")
+    sql = (
+        f"INSERT INTO {table}({','.join(cols)}) VALUES({','.join(['?']*len(cols))})"
+    )
+    conn.execute(sql, [data[k] for k in cols])
+
+
+@app.get("/recuperacion/borradores", response_class=HTMLResponse)
+def v139_recovery_page(q: str = Query(default="", max_length=120)):
+    term = (q or "").strip()
+    rows = []
+    error = ""
+    if len(term) >= 2:
+        try:
+            rows = _v139_remote_draft_candidates(term)
+        except Exception as exc:
+            error = f"No se pudo consultar la copia de nube en este momento ({type(exc).__name__})."
+
+    with db() as conn:
+        old_discards = int(conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE action='discard_cancelled_draft'"
+        ).fetchone()[0] or 0)
+
+    cards = []
+    for row in rows:
+        date = human_date(str(row.get("encounter_date") or "")) or str(row.get("encounter_date") or "Sin fecha")
+        time_txt = str(row.get("encounter_time") or "")[:5]
+        cloud_state = "copia eliminada recuperable" if row.get("deleted_at") else "borrador existente en nube"
+        cards.append(
+            "<article class='panel' style='margin-top:10px'>"
+            f"<div class='panel-title'><div><strong>{e(row.get('name') or 'Paciente')}</strong>"
+            f"<span>{e(date)} {e(time_txt)} · {e(cloud_state)}</span></div></div>"
+            f"<form method='post' action='/recuperacion/borradores/{e(row.get('id') or '')}/restaurar'>"
+            "<button class='primary' type='submit'>Restaurar borrador en esta PC</button></form>"
+            "</article>"
+        )
+
+    if term and not rows and not error:
+        result_html = (
+            "<div class='empty'><strong>No encontré un borrador recuperable en la nube con ese nombre.</strong>"
+            "<span>Esto no modifica nada; puede probar con uno o dos apellidos.</span></div>"
+        )
+    else:
+        result_html = "".join(cards)
+
+    notice = ""
+    if old_discards:
+        notice = (
+            "<div class='pending-draft-warning'><span>●</span><div>"
+            f"<strong>Se detectaron {old_discards} descartes de borrador hechos por versiones anteriores.</strong>"
+            "La versión actual ya no permite que una cancelación de Recepción borre texto clínico. "
+            "Si alguno alcanzó a sincronizarse, puede recuperarse desde esta pantalla."
+            "</div></div>"
+        )
+
+    body = f"""
+<section class='page-head'>
+  <span class='eyebrow'>SEGURIDAD DE HISTORIAS</span>
+  <h1>Recuperar borradores</h1>
+  <p>Busca en la copia de nube borradores que no estén presentes en esta PC. Esta búsqueda es de solo lectura hasta que pulse Restaurar.</p>
+</section>
+{notice}
+<section class='search-card compact'>
+  <form method='get' action='/recuperacion/borradores'>
+    <div class='searchbox'><input name='q' value='{e(term)}' autofocus placeholder='Ej.: HONG SHEN JAIME DAVID'><button>Buscar</button></div>
+  </form>
+</section>
+{f"<div class='form-error'><strong>No se pudo consultar la nube.</strong><span>{e(error)}</span></div>" if error else ""}
+<section>{result_html}</section>
+"""
+    return base("Recuperación", body, "recuperacion")
+
+
+@app.post("/recuperacion/borradores/{encounter_id}/restaurar")
+def v139_restore_remote_draft(encounter_id: str):
+    if not getattr(SYNC_SERVICE, "url", ""):
+        raise HTTPException(503, "La nube de Historia no está configurada.")
+
+    remote_enc = _v139_remote_row("encounters", "id", encounter_id)
+    if not remote_enc:
+        raise HTTPException(404, "No encontré ese borrador en la nube.")
+    if str(remote_enc.get("note_status") or "") != "draft":
+        raise HTTPException(409, "El registro remoto ya no es un borrador.")
+    if not str(remote_enc.get("clinical_note") or "").strip():
+        raise HTTPException(409, "El borrador remoto no contiene texto clínico.")
+
+    patient_id = str(remote_enc.get("patient_id") or "")
+    if not patient_id:
+        raise HTTPException(409, "El borrador remoto no tiene paciente vinculado.")
+
+    with db() as conn:
+        existing = conn.execute(
+            "SELECT id,clinical_note,note_status FROM encounters WHERE id=?",
+            (encounter_id,),
+        ).fetchone()
+        if existing and str(existing["clinical_note"] or "").strip():
+            raise HTTPException(409, "Ya existe una copia local con texto; no se sobrescribió.")
+
+        patient = conn.execute("SELECT id FROM patients WHERE id=?", (patient_id,)).fetchone()
+        if not patient:
+            remote_patient = _v139_remote_row("patients", "id", patient_id)
+            if not remote_patient:
+                raise HTTPException(409, "No se pudo recuperar la ficha del paciente.")
+            _v139_insert_common_row(
+                conn,
+                "patients",
+                remote_patient,
+                overrides={"deleted_at": None},
+            )
+
+        if existing:
+            stamp = now_iso()
+            conn.execute(
+                """UPDATE encounters
+                   SET clinical_note=?,diagnosis=?,treatment=?,
+                       encounter_date=?,encounter_time=?,
+                       note_status='draft',queue_id=NULL,deleted_at=NULL,updated_at=?
+                   WHERE id=?""",
+                (
+                    _v139_sqlite_value(remote_enc.get("clinical_note")),
+                    _v139_sqlite_value(remote_enc.get("diagnosis")),
+                    _v139_sqlite_value(remote_enc.get("treatment")),
+                    _v139_sqlite_value(remote_enc.get("encounter_date")),
+                    _v139_sqlite_value(remote_enc.get("encounter_time")),
+                    stamp,
+                    encounter_id,
+                ),
+            )
+        else:
+            overrides = {
+                "id": encounter_id,
+                "patient_id": patient_id,
+                "note_status": "draft",
+                "queue_id": None,
+                "deleted_at": None,
+                "updated_at": now_iso(),
+            }
+            _v139_insert_common_row(conn, "encounters", remote_enc, overrides=overrides)
+
+        audit(
+            conn,
+            "recover_cloud_draft",
+            "encounter",
+            encounter_id,
+            {"patient_id": patient_id, "source": "historia_cloud_recovery"},
+        )
+        conn.commit()
+
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return RedirectResponse(
+        f"/paciente/{e(patient_id)}/nueva?encounter_id={e(encounter_id)}",
+        status_code=303,
+    )
+
+
+@app.get("/api/v138/health")
+def v138_health():
+    return JSONResponse({
+        "ok": True,
+        "version": APP_VERSION,
+        "canonical_version_source": "historia-version.json",
+        "launcher_v1_ready": True,
+        "prescriptions": True,
+        "certificates": True,
+        "configuration": True,
+        "cloud_full_bootstrap": True,
+        "cloud_patients": True,
+        "cloud_encounters": True,
+        "cloud_prescriptions": True,
+        "cloud_certificates": True,
+        "cloud_shared_settings": True,
+        "database_schema_changes": True,
+        "emergency_local_draft_backup": True,
+        "draft_visible_on_patient_page": True,
+        "restart_recovery": True,
+        "cancelled_queue_never_deletes_draft": True,
+        "cloud_deleted_draft_recovery": True,
+        "duplicate_creation_guard": True,
+    })
