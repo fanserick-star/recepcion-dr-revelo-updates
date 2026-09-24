@@ -1,0 +1,59 @@
+name: Validate Historia v1.3.8 Candidate
+
+on:
+  push:
+    paths:
+      - "historia-clinica/updates/v1_3_8_cloud_documents/**"
+      - "historia-clinica/updates/v1_3_5_cloud_documents/**"
+      - ".github/workflows/validate-historia-v138.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Assemble candidate files
+        shell: pwsh
+        run: |
+          $dst = "candidate-v138"
+          New-Item -ItemType Directory -Force $dst | Out-Null
+          New-Item -ItemType Directory -Force "$dst/static" | Out-Null
+          $parts = @(
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part01",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
+            "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
+            "historia-clinica/updates/v1_3_5_launcher_v1_migration/app.py.part05",
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part06"
+          )
+          [IO.File]::WriteAllText("$dst/app.py", (($parts | ForEach-Object { [IO.File]::ReadAllText($_) }) -join ""), [Text.UTF8Encoding]::new($false))
+          $sync = [IO.File]::ReadAllText("historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part01") + [IO.File]::ReadAllText("historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part02")
+          [IO.File]::WriteAllText("$dst/cloud_sync.py", $sync, [Text.UTF8Encoding]::new($false))
+          Copy-Item "historia-clinica/updates/v1_3_5_cloud_documents/documentos_clinicos.py" "$dst/documentos_clinicos.py"
+          Copy-Item "historia-clinica/updates/v1_3_2_new_patient_confirm/cloud_presence_patch.py" "$dst/cloud_presence_patch.py"
+          Copy-Item "historia-clinica/updates/v1_3_2_new_patient_confirm/lan_bridge.py" "$dst/lan_bridge.py"
+          Copy-Item "historia-clinica/updates/v1_3_1_new_patient_turn/style.css" "$dst/static/style.css"
+          Copy-Item "historia-clinica/updates/v1_3_8_cloud_documents/historia-version.json" "$dst/historia-version.json"
+          Copy-Item "historia-clinica/updates/v1_3_8_cloud_documents/update_manifest.json" "$dst/update_manifest.json"
+
+      - name: Compile Python
+        shell: pwsh
+        run: |
+          python -m py_compile candidate-v138/app.py
+          python -m py_compile candidate-v138/cloud_sync.py
+          python -m py_compile candidate-v138/documentos_clinicos.py
+          python -m py_compile candidate-v138/cloud_presence_patch.py
+          python -m py_compile candidate-v138/lan_bridge.py
+
+      - name: Validate metadata
+        shell: pwsh
+        run: |
+          python -c "import json,pathlib; r=pathlib.Path('candidate-v138'); v=json.loads((r/'historia-version.json').read_text())['version']; m=json.loads((r/'update_manifest.json').read_text()); assert v=='1.3.8'; assert m['version']==m['app_version']==m['runtime_version']==v; assert m['launcher_minimum']=='1.0.4'; print('OK Historia',v)"
