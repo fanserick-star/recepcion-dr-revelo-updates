@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.6";
+    const string LauncherVersion = "1.0.7";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
