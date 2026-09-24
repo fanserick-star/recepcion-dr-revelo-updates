@@ -23,7 +23,8 @@ import cloud_presence_patch
 cloud_presence_patch.install()
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "data" / "historia_clinica.db"\nDB_PATH.parent.mkdir(parents=True, exist_ok=True)
+DB_PATH = ROOT / "data" / "historia_clinica.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 DOCTOR_NAME = "Dr. Armando Revelo"
 VERSION_PATH = ROOT / "historia-version.json"
 try:
