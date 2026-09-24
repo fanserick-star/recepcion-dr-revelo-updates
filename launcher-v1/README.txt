@@ -1,7 +1,7 @@
-LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.5
+LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.6
 
 CONTENIDO
-- INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_5.exe
+- INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6.exe
   Migra una instalación existente de Recepción al launcher nuevo.
   Reemplaza los accesos directos y elimina ABRIR_RECEPCION.py.
   NO toca app.py, .env, data, bases, Excel ni historias clínicas.
