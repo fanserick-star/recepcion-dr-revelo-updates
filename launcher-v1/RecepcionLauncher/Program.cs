@@ -64,7 +64,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.4";
+    const string LauncherVersion = "1.0.5";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -264,7 +264,7 @@ internal sealed class LauncherForm : Form
     {
         try
         {
-            var installed = ReadInstalledVersion();
+            var installed = await ReadInstalledVersionAsync();
             lblVersion.Text = $"Recepción {installed}  ·  Launcher {LauncherVersion}";
             SetProgress(4, "Preparando Recepción", "Comprobando componentes esenciales…");
 
@@ -293,11 +293,23 @@ internal sealed class LauncherForm : Form
             SetProgress(10, "Comprobando actualizaciones", "Consultando el canal estable de Recepción…");
 
             AppChannel? channel = null;
+            string? appChannelError = null;
             try { channel = await GetChannelAsync(); }
-            catch { /* Sin internet nunca bloquea el trabajo */ }
+            catch (Exception ex) { appChannelError = ex.Message; }
 
             string? backup = null;
             string? expectedAfterUpdate = null;
+
+            if (channel is not null)
+            {
+                SetProgress(14, "Actualizaciones comprobadas",
+                    $"Local {installed} · Disponible {channel.AppVersion}");
+            }
+            else
+            {
+                SetProgress(14, "No se pudo comprobar Recepción",
+                    string.IsNullOrWhiteSpace(appChannelError) ? "Se abrirá la versión instalada." : appChannelError);
+            }
 
             if (channel is not null && IsNewer(channel.AppVersion, installed))
             {
@@ -398,15 +410,37 @@ internal sealed class LauncherForm : Form
         return int.TryParse(t, out var n) ? n : 1;
     }
 
-    string ReadInstalledVersion()
+    async Task<string> ReadInstalledVersionAsync()
     {
+        // /api/version es la fuente autoritativa cuando el backend ya está vivo.
+        try
+        {
+            using var local = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1200) };
+            using var resp = await local.GetAsync($"http://127.0.0.1:{Port}/api/version");
+            resp.EnsureSuccessStatusCode();
+            var json = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("version", out var v))
+            {
+                var value = v.GetString();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+        }
+        catch { }
+
+        // Fallback: manifest local.
         try
         {
             var p = Path.Combine(root, "update_manifest.json");
             if (!File.Exists(p)) return "desconocida";
             using var doc = JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8));
-            if (doc.RootElement.TryGetProperty("app_version", out var a)) return a.GetString() ?? "desconocida";
-            if (doc.RootElement.TryGetProperty("version", out var v)) return v.GetString() ?? "desconocida";
+            if (doc.RootElement.TryGetProperty("app_version", out var a))
+            {
+                var value = a.GetString();
+                if (!string.IsNullOrWhiteSpace(value)) return value;
+            }
+            if (doc.RootElement.TryGetProperty("version", out var v))
+                return v.GetString() ?? "desconocida";
         }
         catch { }
         return "desconocida";
@@ -414,11 +448,29 @@ internal sealed class LauncherForm : Form
 
     async Task<AppChannel?> GetChannelAsync()
     {
-        var url = ChannelUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        using var resp = await http.GetAsync(url);
-        resp.EnsureSuccessStatusCode();
-        var json = await resp.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<AppChannel>(json, JsonOpts);
+        Exception? last = null;
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                var url = ChannelUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() + "&a=" + attempt;
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.CacheControl = new CacheControlHeaderValue { NoCache = true, NoStore = true };
+                using var resp = await http.SendAsync(req);
+                resp.EnsureSuccessStatusCode();
+                var json = await resp.Content.ReadAsStringAsync();
+                var parsed = JsonSerializer.Deserialize<AppChannel>(json, JsonOpts);
+                if (parsed is null || string.IsNullOrWhiteSpace(parsed.AppVersion))
+                    throw new InvalidOperationException("El canal de Recepción no devolvió appVersion.");
+                return parsed;
+            }
+            catch (Exception ex)
+            {
+                last = ex;
+                if (attempt < 3) await Task.Delay(350 * attempt);
+            }
+        }
+        throw new InvalidOperationException("No se pudo leer el canal de Recepción tras 3 intentos.", last);
     }
 
     async Task<LauncherChannel?> GetLauncherChannelAsync()
