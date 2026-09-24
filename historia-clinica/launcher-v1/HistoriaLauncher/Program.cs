@@ -1593,14 +1593,15 @@ internal sealed class HistoriaForm : Form
     readonly string url;
     readonly WebView2 web = new();
 
-    public HistoriaForm(string rootPath, string targetUrl)
+    public HistoriaForm(string rootPath, string targetUrl, bool childWindow = false)
     {
         root = rootPath;
         url = targetUrl;
 
         Text = "Historia Clínica - Dr. Armando Revelo";
         StartPosition = FormStartPosition.CenterScreen;
-        WindowState = FormWindowState.Maximized;
+        WindowState = childWindow ? FormWindowState.Normal : FormWindowState.Maximized;
+        Size = childWindow ? new Size(1220, 860) : Size;
         MinimumSize = new Size(960, 640);
         BackColor = Color.FromArgb(244, 239, 229);
         ShowInTaskbar = true;
@@ -1635,10 +1636,23 @@ internal sealed class HistoriaForm : Form
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
             web.CoreWebView2.Settings.IsZoomControlEnabled = true;
-            web.CoreWebView2.NewWindowRequested += (_, e) =>
+            web.CoreWebView2.NewWindowRequested += async (_, e) =>
             {
                 try
                 {
+                    if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var target) &&
+                        target.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                        target.Port == 8787)
+                    {
+                        e.Handled = true;
+                        var child = new HistoriaForm(root, e.Uri, true);
+                        if (await child.InitializeAsync())
+                            child.Show(this);
+                        else
+                            child.Dispose();
+                        return;
+                    }
+
                     Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
                     e.Handled = true;
                 }
