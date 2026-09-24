@@ -1,19 +1,25 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.5.32",
-  "app_version": "4.5.31",
-  "runtime_version": "4.5.31",
+  "version": "4.5.33",
+  "app_version": "4.5.33",
+  "runtime_version": "4.5.33",
   "mandatory": true,
-  "channel": "runtime-v4-launcher-focus-hotfix",
-  "launcher_version": "4.5.32-native-splash-focus-hotfix-1",
-  "updater_version": "unified-channel-v4-launcher-focus-hotfix",
-  "message": "Launcher hotfix 4.5.32: evita confundir la ventana nativa de inicio con la ventana real de Recepción. El backend permanece en v4.5.31. Sin cambios de base de datos, data/, .env, facturación, Bendo ni historias clínicas. Launcher Python antiguo retirado del canal activo; la migración oficial usa Launcher v1 nativo.",
+  "channel": "legacy-compat-v4533",
+  "launcher_version": "1.0.10",
+  "updater_version": "launcher-v1-canonical",
+  "message": "Canal legacy conservado solo por compatibilidad. Recepción actual es v4.5.33 y el canal oficial es launcher-v1/app-channel.json. Launcher Python antiguo retirado.",
   "files": [
     {
       "path": "app.py",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_31_native_splash_utf8_hotfix/app.py",
-      "sha256": "9c1cf3542b07613a33b9fea365cd1225f90f8c02cc784d6e7f2b31036935f92f"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/app.py",
+      "sha256": "b257b702f11012c91e284a1f983dc31a9c92ab8f97dcfdf54db3711dbe05d8c0"
+    },
+    {
+      "path": "recepcion-version.json",
+      "encoding": "utf-8",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/recepcion-version.json",
+      "sha256": "5530915d7e6257bb484177b4d7218b256005a242e822b18e46bf6fca96338ceb"
     },
     {
       "path": "app_patch_4525.py",
@@ -126,8 +132,10 @@
     {
       "path": "update_manifest.json",
       "encoding": "utf-8",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_32_launcher_focus_hotfix/update_manifest.json",
-      "sha256": "fd8f30d703a8d5660c21a863a88964d1e7112b9d3ad823a033a98e87d221c109"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_33_single_version_source/update_manifest.json",
+      "sha256": "b83cb19df2d5dc863b4ced5eee011e488dd55f64aea597fb74a9b5f71faf5325"
     }
-  ]
+  ],
+  "deprecated": true,
+  "replacement_channel": "launcher-v1/app-channel.json"
 }
