@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.22",
+  "appVersion": "1.3.23",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.22: corrige la cola para separar Nuevo/Subsecuente de Consulta/Procedimiento. Solo las consultas reciben TURNO #; los procedimientos muestran ATENCIÓN / PROC. Agrega Receta médica y Certificado médico directamente en la ficha del paciente y asegura que Recetas/Certificados aparezcan en la navegación. Mantiene protección de borradores, recuperación y control de duplicados.",
+  "notes": "Historia Clínica 1.3.23: corrige el Internal Server Error al abrir Receta médica o Certificado médico en bases migradas antiguas. El módulo ya no exige que la tabla patients tenga columnas nuevas para poder leer al paciente y completa de forma aditiva cualquier columna faltante de recetas/certificados. Mantiene turnos correctos, control de duplicados y protección de borradores.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_5_cloud_documents/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_23_recipe_legacy_db/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_22_turns_recipes/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_23_recipe_legacy_db/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_22_turns_recipes/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_23_recipe_legacy_db/update_manifest.json"
     }
   ]
 }
