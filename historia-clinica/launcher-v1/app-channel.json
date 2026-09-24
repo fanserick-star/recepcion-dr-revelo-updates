@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
-  "status": "active",
-  "appVersion": "1.3.5",
+  "status": "test",
+  "appVersion": "1.3.6",
   "mandatory": true,
   "minimumLauncher": "1.0.4",
-  "notes": "Historia Clínica 1.3.5: migración al launcher nativo blindado. Requiere Launcher 1.0.4 con carga exacta de app.py, una sola fuente de versión y sin cambios clínicos, de pacientes, historias, base de datos ni esquema.",
+  "notes": "PRUEBA CONTROLADA Historia Clínica 1.3.6: mismo código clínico de 1.3.5. Solo cambia la versión para probar descarga, SHA-256, preprueba aislada, backup, instalación, reinicio y verificación /api/version. No modifica pacientes, historias, base de datos, esquema ni funciones clínicas.",
   "files": [
     {
       "path": "app.py",
@@ -20,13 +20,13 @@
     },
     {
       "path": "historia-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_5_launcher_v1_migration/historia-version.json",
-      "sha256": "dca90ee6b9253afbae2da842528116f0ddca80d6210ba57e58240fc01ca206d7"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_6_launcher_update_test/historia-version.json",
+      "sha256": "50d0e2d8122ea04a6887be2ddea74f44812cbebbba6ce5239762a705bc3fa4ef"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_5_launcher_v1_migration/update_manifest.json",
-      "sha256": "0ebf81aa77a9e0da6bc604acadd6fd068efe511e3936b290026f59d1e574dbc4"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_6_launcher_update_test/update_manifest.json",
+      "sha256": "3c8aeabeffdc7f9fa51c5601bbc447b45ec44acb61c412fe3df10453ede46ecd"
     }
   ]
 }
