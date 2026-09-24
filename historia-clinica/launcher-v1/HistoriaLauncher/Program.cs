@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.5";
+    const string LauncherVersion = "1.0.6";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -186,12 +186,26 @@ internal sealed class LauncherForm : Form
         var muted = Color.FromArgb(101, 93, 82);
         var panel = Color.FromArgb(255, 253, 250);
 
+        var logo = new PictureBox {
+            Location = new Point(31, 24),
+            Size = new Size(58, 58),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.Transparent
+        };
+        try
+        {
+            using var icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            if (icon is not null)
+                logo.Image = icon.ToBitmap();
+        }
+        catch { }
+
         var brand = new Label {
-            Text = "HISTORIA CLÍNICA", AutoSize = true, Location = new Point(34, 29),
+            Text = "HISTORIA CLÍNICA", AutoSize = true, Location = new Point(103, 27),
             ForeColor = Color.FromArgb(43, 106, 167), Font = new Font("Segoe UI", 9, FontStyle.Bold)
         };
         var doctor = new Label {
-            Text = "Dr. Armando Revelo", AutoSize = true, Location = new Point(31, 52),
+            Text = "Dr. Armando Revelo", AutoSize = true, Location = new Point(100, 50),
             Font = new Font("Segoe UI", 22, FontStyle.Bold), ForeColor = Color.FromArgb(23, 59, 102)
         };
         var protectedBadge = new Label {
@@ -285,7 +299,7 @@ internal sealed class LauncherForm : Form
 
         updatePanel.Controls.AddRange(new Control[] { updateTitle, updateNotes, btnLater, btnUpdate });
         Controls.AddRange(new Control[] {
-            brand, doctor, protectedBadge, lblPercent, lblStage, lblDetail,
+            logo, brand, doctor, protectedBadge, lblPercent, lblStage, lblDetail,
             progressTrack, steps, sep, lblVersion, footer, updatePanel
         });
 
@@ -411,6 +425,21 @@ internal sealed class LauncherForm : Form
             if (!ready)
                 throw new InvalidOperationException("El servidor local de Historia Clínica no respondió.");
 
+            SetProgress(89, "Sincronizando con Neon", "Comprobando la nube de Historia Clínica…");
+            var cloud = await TriggerCloudSyncAsync();
+            if (cloud.configured)
+            {
+                lblVersion.Text = $"Historia Clínica {installed}  ·  Launcher {LauncherVersion}  ·  Neon {(cloud.online ? "conectado" : "reintentando")}";
+                SetProgress(91, cloud.online ? "Neon conectado" : "Neon temporalmente sin conexión",
+                    cloud.message);
+            }
+            else
+            {
+                lblVersion.Text = $"Historia Clínica {installed}  ·  Launcher {LauncherVersion}  ·  Neon no configurado";
+                SetProgress(91, "Neon no configurado",
+                    "Historia trabajará localmente hasta que HISTORIA_DATABASE_URL esté disponible.");
+            }
+
             SetProgress(92, "Servidor listo", "Abriendo la ventana de Historia Clínica…");
             var nativeWindow = await OpenHistoriaAsync();
             if (nativeWindow is null)
@@ -440,6 +469,58 @@ internal sealed class LauncherForm : Form
                 ex.Message + "\n\nEl launcher no eliminó sus datos. Puede cerrar esta ventana y revisar el sistema.",
                 "Historia Clínica - Dr. Armando Revelo", MessageBoxButtons.OK, MessageBoxIcon.Error);
             closingAllowed = true;
+        }
+    }
+
+    async Task<(bool configured, bool online, string message)> TriggerCloudSyncAsync()
+    {
+        try
+        {
+            using var local = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+
+            // Despierta el servicio de sincronización ya existente en el backend.
+            try
+            {
+                using var wake = await local.PostAsync(
+                    $"http://127.0.0.1:{Port}/api/sync/now",
+                    new StringContent("", Encoding.UTF8, "application/json"));
+            }
+            catch { }
+
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(4);
+            bool configured = false;
+            bool online = false;
+            string message = "Sincronización iniciada en segundo plano.";
+
+            while (DateTime.UtcNow < deadline)
+            {
+                try
+                {
+                    using var resp = await local.GetAsync(
+                        $"http://127.0.0.1:{Port}/api/sync/status?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}");
+                    resp.EnsureSuccessStatusCode();
+                    var json = await resp.Content.ReadAsStringAsync();
+                    using var doc = JsonDocument.Parse(json);
+
+                    configured = doc.RootElement.TryGetProperty("configured", out var c) && c.GetBoolean();
+                    online = doc.RootElement.TryGetProperty("online", out var o) && o.GetBoolean();
+                    if (doc.RootElement.TryGetProperty("message", out var m))
+                        message = m.GetString() ?? message;
+
+                    if (!configured || online)
+                        return (configured, online, message);
+                }
+                catch { }
+
+                await Task.Delay(350);
+            }
+
+            return (configured, online, message);
+        }
+        catch
+        {
+            return (false, false,
+                "No se pudo comprobar Neon; Historia seguirá trabajando localmente.");
         }
     }
 
@@ -1593,7 +1674,7 @@ internal sealed class HistoriaForm : Form
         catch { }
 
         web.Dock = DockStyle.Fill;
-        web.DefaultBackgroundColor = Color.White;
+        web.DefaultBackgroundColor = Color.FromArgb(244, 239, 229);
         Controls.Add(web);
     }
 
