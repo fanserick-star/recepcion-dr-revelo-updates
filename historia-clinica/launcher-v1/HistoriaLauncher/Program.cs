@@ -948,8 +948,13 @@ internal sealed class LauncherForm : Form
             int testPort = ReserveFreePort();
             var log = Path.Combine(trial, "trial_startup.log");
             var serverScript = Path.Combine(trial, "_launcher_precheck_server.py");
+            var logLiteral = JsonSerializer.Serialize(log);
             var serverCode =
                 "import sys, traceback, uvicorn\n" +
+                $"log_path = {logLiteral}\n" +
+                "log = open(log_path, 'a', encoding='utf-8', buffering=1)\n" +
+                "sys.stdout = log\n" +
+                "sys.stderr = log\n" +
                 "try:\n" +
                 "    import app as historia_app\n" +
                 "    print('IMPORT_OK', getattr(historia_app, 'APP_VERSION', ''), flush=True)\n" +
@@ -963,9 +968,7 @@ internal sealed class LauncherForm : Form
             {
                 WorkingDirectory = trial,
                 UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
+                CreateNoWindow = true
             };
             psi.Environment["HC_PREFLIGHT"] = "1";
             psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
@@ -981,14 +984,9 @@ internal sealed class LauncherForm : Form
             {
                 if (server.HasExited)
                 {
-                    var stdout = await server.StandardOutput.ReadToEndAsync();
-                    var stderr = await server.StandardError.ReadToEndAsync();
-                    try
-                    {
-                        await File.WriteAllTextAsync(log, stdout + "\n" + stderr, Encoding.UTF8);
-                    }
-                    catch { }
-                    var tail = LastLines((stdout + "\n" + stderr).Trim(), 12);
+                    var tail = File.Exists(log)
+                        ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 12)
+                        : "";
                     throw new InvalidOperationException(
                         "La copia de prueba terminó antes de iniciar." +
                         (string.IsNullOrWhiteSpace(tail) ? "" : "\n" + tail));
