@@ -2,20 +2,20 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.21",
+  "appVersion": "1.3.22",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.21: garantiza que un paciente NUEVO cree una sola ficha. Recepción, Neon e Historia reutilizan exactamente el mismo ID determinístico del paciente aunque la sincronización llegue en distinto orden. Además valida el vínculo antes de mostrar la ficha de confirmación y, si ya existen duplicados, prioriza en la búsqueda la ficha con más historia/datos. Mantiene recuperación y protección de borradores; no fusiona ni borra duplicados existentes.",
+  "notes": "Historia Clínica 1.3.22: corrige la cola para separar Nuevo/Subsecuente de Consulta/Procedimiento. Solo las consultas reciben TURNO #; los procedimientos muestran ATENCIÓN / PROC. Agrega Receta médica y Certificado médico directamente en la ficha del paciente y asegura que Recetas/Certificados aparezcan en la navegación. Mantiene protección de borradores, recuperación y control de duplicados.",
   "files": [
     {
       "path": "app.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part01",
-        "historia-clinica/updates/v1_3_21_single_new_patient/app.py.part02",
-        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part03",
+        "historia-clinica/updates/v1_3_22_turns_recipes/app.py.part01",
+        "historia-clinica/updates/v1_3_22_turns_recipes/app.py.part02",
+        "historia-clinica/updates/v1_3_22_turns_recipes/app.py.part03",
         "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
         "historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05",
-        "historia-clinica/updates/v1_3_19_preserve_recover/app.py.part06"
+        "historia-clinica/updates/v1_3_22_turns_recipes/app.py.part06"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_21_single_new_patient/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_22_turns_recipes/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_21_single_new_patient/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_22_turns_recipes/update_manifest.json"
     }
   ]
 }
