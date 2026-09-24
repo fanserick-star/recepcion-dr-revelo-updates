@@ -707,7 +707,7 @@ internal sealed class LauncherForm : Form
             SetProgress(54, "Preparando actualización", "Cerrando la versión anterior y creando respaldo…");
             await StopBackendIfOursAsync();
             if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
-                throw new InvalidOperationException("El servidor anterior no liberó el puerto 8000. No se modificó la instalación.");
+                throw new InvalidOperationException("El servidor anterior no liberó el puerto 8787. No se modificó la instalación.");
 
             var backup = Path.Combine(root, "update_backups",
                 "launcher_v1_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
@@ -1008,7 +1008,8 @@ internal sealed class LauncherForm : Form
         var current = await GetBackendVersionAsync();
         if (!string.IsNullOrWhiteSpace(current))
         {
-            if (expected is null || current.Equals(expected, StringComparison.OrdinalIgnoreCase))
+            if (expected is null ||
+                current.Equals(expected, StringComparison.OrdinalIgnoreCase))
                 return true;
 
             SetProgress(70, "Cerrando versión anterior",
@@ -1019,50 +1020,56 @@ internal sealed class LauncherForm : Form
         }
         else if (await IsPortOpenAsync())
         {
-            // Hay algo ocupando 8000 pero no responde como Historia Clínica.
-            await StopBackendIfOursAsync();
-            if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
-                return false;
+            SetProgress(70, "Puerto ocupado",
+                "El puerto 8787 está siendo usado por otro proceso. No se cerrará un proceso desconocido.");
+            return false;
         }
 
-        var pyw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
-        var app = Path.Combine(root, "app.py");
+        var python = Path.Combine(root, ".venv", "Scripts", "python.exe");
+        if (!File.Exists(python)) return false;
+
         var log = Path.Combine(root, "data", "backend_startup.log");
         Directory.CreateDirectory(Path.GetDirectoryName(log)!);
         try { File.WriteAllText(log, "", Encoding.UTF8); } catch { }
 
-        string bootstrap =
-            "import sys,runpy;" +
+        string code =
+            "import sys,uvicorn;" +
             $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
             "sys.stdout=f;sys.stderr=f;" +
-            $"runpy.run_path(r'{EscapePy(app)}',run_name='__main__')";
+            $"uvicorn.run('app:app',host='127.0.0.1',port={Port},access_log=False,log_level='warning')";
 
-        var psi = new ProcessStartInfo(pyw, "-c " + QuoteArg(bootstrap)) {
+        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+        {
             WorkingDirectory = root,
             UseShellExecute = false,
             CreateNoWindow = true
         };
 
-        Process? launched = null;
+        Process? launched;
         try { launched = Process.Start(psi); }
         catch { return false; }
         if (launched is null) return false;
 
-        const int tries = 120; // 30 segundos
+        const int tries = 120;
         for (int i = 0; i < tries; i++)
         {
             SetProgress(70 + (int)(18.0 * i / tries), "Iniciando Historia Clínica",
-                expected is null ? "Esperando al servidor local…" : $"Esperando Historia Clínica {expected}…");
+                expected is null
+                    ? "Esperando al servidor local…"
+                    : $"Esperando Historia Clínica {expected}…");
 
-            var ver = await GetBackendVersionAsync();
-            if (!string.IsNullOrWhiteSpace(ver))
+            var probe = await ProbeVersionAsync(Port);
+            if (probe is not null &&
+                probe.Value.product.Equals(
+                    "historia-clinica-dr-revelo",
+                    StringComparison.OrdinalIgnoreCase))
             {
-                if (expected is null || ver.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                if (expected is null ||
+                    probe.Value.version.Equals(expected, StringComparison.OrdinalIgnoreCase))
                     return true;
 
-                // Si apareció otra versión, no la dejamos ocupando el puerto.
                 SetProgress(74, "Versión incorrecta detectada",
-                    $"Respondió {ver}; se esperaba {expected}. Reiniciando…");
+                    $"Respondió {probe.Value.version}; se esperaba {expected}. Reiniciando…");
                 await StopBackendIfOursAsync();
                 await WaitForPortFreeAsync(TimeSpan.FromSeconds(8));
                 return false;
@@ -1072,13 +1079,9 @@ internal sealed class LauncherForm : Form
             {
                 if (launched.HasExited)
                 {
-                    string tail = "";
-                    try
-                    {
-                        if (File.Exists(log))
-                            tail = LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8);
-                    }
-                    catch { }
+                    var tail = File.Exists(log)
+                        ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8)
+                        : "";
                     if (!string.IsNullOrWhiteSpace(tail))
                         SetProgress(78, "Historia Clínica no pudo iniciar", tail);
                     return false;
@@ -1091,18 +1094,40 @@ internal sealed class LauncherForm : Form
         return false;
     }
 
-    async Task<string?> GetBackendVersionAsync()
+    async Task<(string product, string version)?> ProbeVersionAsync(int port)
     {
         try
         {
-            using var local = new HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
-            using var resp = await local.GetAsync($"http://127.0.0.1:{Port}/api/version");
+            using var local = new HttpClient
+            {
+                Timeout = TimeSpan.FromMilliseconds(900)
+            };
+            using var resp = await local.GetAsync(
+                $"http://127.0.0.1:{port}/api/version");
             resp.EnsureSuccessStatusCode();
             var text = await resp.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(text);
-            return doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() : null;
+            var product = doc.RootElement.TryGetProperty("product", out var p)
+                ? p.GetString() ?? ""
+                : "";
+            var version = doc.RootElement.TryGetProperty("version", out var v)
+                ? v.GetString() ?? ""
+                : "";
+            if (string.IsNullOrWhiteSpace(version)) return null;
+            return (product, version);
         }
         catch { return null; }
+    }
+
+    async Task<string?> GetBackendVersionAsync()
+    {
+        var probe = await ProbeVersionAsync(Port);
+        if (probe is null ||
+            !probe.Value.product.Equals(
+                "historia-clinica-dr-revelo",
+                StringComparison.OrdinalIgnoreCase))
+            return null;
+        return probe.Value.version;
     }
 
     async Task<bool> IsBackendReadyAsync(string? expected = null)
