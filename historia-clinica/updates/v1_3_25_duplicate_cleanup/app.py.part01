@@ -360,10 +360,14 @@ def ensure_base_schema():
         conn.commit()
 
 
+def _merge_norm(value) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip().upper())
+
+
 def _patient_identity_compatible(canonical, duplicate) -> bool:
     """Sólo fusiona automáticamente cuando hay una señal fuerte coincidente."""
-    cid = normalize_search(canonical["national_id_search"] or "")
-    did = normalize_search(duplicate["national_id_search"] or "")
+    cid = _merge_norm(canonical["national_id_search"] or "")
+    did = _merge_norm(duplicate["national_id_search"] or "")
     if cid and did and cid != did:
         return False
 
