@@ -3,6 +3,8 @@ name: Audit Active Historia Channel Bytes
 on:
   push:
     paths:
+      - "historia-clinica/launcher-v1/app-channel.json"
+      - "historia-clinica/updates/**"
       - ".github/workflows/audit-active-historia-channel-bytes.yml"
   workflow_dispatch:
 
@@ -22,6 +24,7 @@ jobs:
           $channel = Get-Content "historia-clinica/launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
           New-Item -ItemType Directory -Force "audit_historia" | Out-Null
 
+          $mismatches = @()
           foreach ($item in $channel.files) {
             $dest = Join-Path "audit_historia" ($item.path -replace '/','_')
             if ($item.parts -and $item.parts.Count -gt 0) {
@@ -47,5 +50,15 @@ jobs:
             Write-Host "AUDIT $($item.path) EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
             if ($got -ne $item.sha256) {
               Write-Host "::error::$($item.path) hash mismatch EXPECTED=$($item.sha256) GOT=$got"
+              $mismatches += "$($item.path): expected=$($item.sha256) got=$got"
             }
           }
+
+          if ($mismatches.Count -gt 0) {
+            Write-Host ""
+            Write-Host "=== BLOQUEADO: canal Historia con hashes inválidos ==="
+            $mismatches | ForEach-Object { Write-Host $_ }
+            throw "El canal NO puede publicarse con SHA-256 distintos a los bytes reales servidos por GitHub Raw."
+          }
+
+          Write-Host "OK: todos los archivos del canal coinciden byte por byte con sus SHA-256."
