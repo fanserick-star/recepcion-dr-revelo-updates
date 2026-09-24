@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.7",
-  "notes": "Launcher v1.0.7: elimina el CMD visible en futuras autoactualizaciones, espera a que el backend anterior libere el puerto 8000, detecta versiones incorrectas antes de iniciar y mejora el rollback. No cambia pacientes ni datos.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.7/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_7.exe",
-  "installerSha256": "8fec9908189af33b3bea3f5c961dca5c6690e3fd981daeecc9279dbcf7f29be7"
+  "latestVersion": "1.0.8",
+  "notes": "Launcher v1.0.8: añade control estricto de versión canónica. recepcion-version.json es la fuente real y cualquier alias legacy debe coincidir antes de instalar. Incluye transición robusta del backend y actualizador silencioso nativo.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.8/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_8.exe",
+  "installerSha256": "109a607c377c0200b8c1362d87add1da0d6a31fc811de58adfab06cd2a32b69e"
 }
