@@ -79,16 +79,24 @@
     "api_version_derives_from_version_source": true,
     "visual_version_derives_from_version_source": true,
     "launcher_version_derives_from_version_source": true,
-    "removes_legacy_version_fields": [
-      "version",
-      "app_version",
-      "runtime_version"
-    ],
+    "removes_legacy_version_fields": false,
     "functional_changes": false,
     "historia_changes": false,
     "bendo_changes": false,
     "patient_data_changes": false,
-    "purpose": "Eliminar ambigüedad de versiones y estabilizar el flujo de actualización."
+    "purpose": "Eliminar ambigüedad de versiones y estabilizar el flujo de actualización.",
+    "single_source_of_truth": "recepcion-version.json",
+    "legacy_aliases_must_match_source": true,
+    "legacy_aliases": [
+      "version",
+      "app_version",
+      "runtime_version"
+    ],
+    "legacy_aliases_temporary": true
   },
-  "channel": "launcher-v1-single-version-source"
+  "channel": "launcher-v1-single-version-source",
+  "version": "4.5.33",
+  "app_version": "4.5.33",
+  "runtime_version": "4.5.33",
+  "compatibility_version_aliases": true
 }
