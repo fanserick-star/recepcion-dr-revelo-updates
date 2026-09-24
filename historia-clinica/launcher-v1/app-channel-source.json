@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.33",
+  "appVersion": "1.3.34",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.33: usa directamente el número de turno calculado por Recepción para que ambas pantallas coincidan exactamente. Recepción pasa a ser la fuente de verdad del turno (#6, #7, etc.); Historia recibe ese número por LAN/Neon y conserva un cálculo de respaldo solo si falta. Mantiene el formato de recetas de 1.3.32 y todos los blindajes previos.",
+  "notes": "Historia Clínica 1.3.34: corrige el último detalle de impresión de recetas: sube únicamente el bloque de dirección/teléfono para que el Telf. 0968840690 no se corte físicamente, y mantiene la franja verde/azul cerca del borde inferior. No cambia tamaños, proporciones, logo, encabezado, Rp., pacientes ni historias. Mantiene el turno exacto de Recepción de 1.3.33.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_32_rx_printer_safe/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_34_rx_footer_safe/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_33_reception_turn/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_34_rx_footer_safe/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_33_reception_turn/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_34_rx_footer_safe/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
