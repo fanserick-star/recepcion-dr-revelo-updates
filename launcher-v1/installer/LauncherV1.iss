@@ -1,5 +1,5 @@
 #define MyAppName "Launcher Recepción - Dr. Armando Revelo"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -13,7 +13,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_5
+OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_6
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\doctor_icon.ico
