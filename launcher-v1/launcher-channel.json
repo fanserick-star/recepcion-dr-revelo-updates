@@ -1,9 +1,11 @@
 {
-  "schema": 1,
+  "schema": 2,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.9",
+  "latestVersion": "1.0.10",
   "mandatory": true,
-  "notes": "Launcher v1.0.9: las actualizaciones oficiales del launcher y de Recepción son obligatorias. Si existe una versión superior, Recepción no se abre hasta instalarla. Mantiene actualizador silencioso, transición robusta del backend y control de versión canónica.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.9/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_9.exe",
-  "installerSha256": "ddc885f92b84b7522238f1c281b76d2c80c62be87458a01932f2695fe4651671"
+  "notes": "Launcher v1.0.10: self-update autocontenido. Descarga y verifica tanto el instalador como LauncherUpdater.exe; ya no depende de que el helper exista previamente. Incluye log de diagnóstico y mantiene actualizaciones obligatorias.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.10/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe",
+  "installerSha256": "3808675f19cd4e4956b22788b5460564a3384a25a479c01d5b122baff6de7689",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.10/LauncherUpdater.exe",
+  "updaterSha256": "d95d4588faca335c27c8e148e923888ac1ed3e39d5d88c0a1fb2d161094db75e"
 }
