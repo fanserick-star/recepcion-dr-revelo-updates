@@ -1,0 +1,51 @@
+name: Audit Active Historia Channel Bytes
+
+on:
+  push:
+    paths:
+      - ".github/workflows/audit-active-historia-channel-bytes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact channel URLs and verify SHA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $channel = Get-Content "historia-clinica/launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Force "audit_historia" | Out-Null
+
+          foreach ($item in $channel.files) {
+            $dest = Join-Path "audit_historia" ($item.path -replace '/','_')
+            if ($item.parts -and $item.parts.Count -gt 0) {
+              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
+              try {
+                $n = 0
+                foreach ($url in $item.parts) {
+                  $n++
+                  $part = Join-Path "audit_historia" ("part_" + $n + ".bin")
+                  Invoke-WebRequest -Uri ($url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $part -Headers @{"Cache-Control"="no-cache"}
+                  $bytes = [IO.File]::ReadAllBytes($part)
+                  $stream.Write($bytes,0,$bytes.Length)
+                  Write-Host "$($item.path) part $n bytes=$($bytes.Length)"
+                }
+              } finally {
+                $stream.Dispose()
+              }
+            } else {
+              Invoke-WebRequest -Uri ($item.url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
+            }
+
+            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "AUDIT $($item.path) EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
+            if ($got -ne $item.sha256) {
+              Write-Host "::error::$($item.path) hash mismatch EXPECTED=$($item.sha256) GOT=$got"
+            }
+          }
