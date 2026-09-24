@@ -1,0 +1,183 @@
+name: Publish Validated Reception App Channel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "launcher-v1/app-channel-source.json"
+      - ".github/workflows/publish-reception-app-channel.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate channel from exact Git blobs
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          root = Path(".")
+          source_path = root / "launcher-v1/app-channel-source.json"
+          output_path = root / "launcher-v1/app-channel.json"
+          src = json.loads(source_path.read_text(encoding="utf-8"))
+          sha = os.environ["RELEASE_SHA"]
+          repo = os.environ["REPOSITORY"]
+
+          protected_prefixes = ("data/", "backups/", "update_backups/")
+          protected_suffixes = (
+              ".db", ".sqlite", ".sqlite3", ".mdb", ".accdb", ".xls", ".xlsx"
+          )
+          protected_exact = {
+              ".env",
+              "recepcionlauncher.exe",
+              "launcherupdater.exe",
+              "desinstalar_recepcion_dr_revelo.exe",
+              "abrir_recepcion.py",
+              "abrir_recepcion.pyw",
+              "autoactualizar.py",
+              "iniciar.bat",
+          }
+
+          generated_files = []
+          payloads = {}
+
+          for item in src["files"]:
+              target = item["path"].replace("\\", "/").strip()
+              low = target.lower()
+              assert target and not target.startswith("/") and ".." not in target.split("/")
+              assert not low.startswith(protected_prefixes), target
+              assert low not in protected_exact, target
+              assert not low.endswith(protected_suffixes), target
+
+              source_paths = item.get("sourcePaths")
+              if source_paths:
+                  paths = list(source_paths)
+              else:
+                  paths = [item["sourcePath"]]
+
+              chunks = []
+              urls = []
+              for source in paths:
+                  blob = subprocess.check_output(["git", "show", f"{sha}:{source}"])
+                  chunks.append(blob)
+                  urls.append(
+                      f"https://raw.githubusercontent.com/{repo}/{sha}/{source}"
+                  )
+
+              payload = b"".join(chunks)
+              digest = hashlib.sha256(payload).hexdigest()
+              payloads[target] = payload
+
+              row = {"path": target}
+              if len(urls) == 1:
+                  row["url"] = urls[0]
+              else:
+                  row["parts"] = urls
+              row["sha256"] = digest
+              generated_files.append(row)
+              print(f"{target}: bytes={len(payload)} sha256={digest}")
+
+          version = json.loads(
+              payloads["recepcion-version.json"].decode("utf-8-sig")
+          )["version"]
+          assert version == src["appVersion"], (version, src["appVersion"])
+
+          manifest = json.loads(
+              payloads["update_manifest.json"].decode("utf-8-sig")
+          )
+          for key in ("version", "app_version", "runtime_version"):
+              assert str(manifest.get(key, "")).strip() == version, (
+                  key, manifest.get(key), version
+              )
+          assert manifest.get("mandatory") is True
+          assert str(manifest.get("launcher_minimum", "")).strip() == str(
+              src["minimumLauncher"]
+          )
+          assert manifest.get("version_source") == "recepcion-version.json"
+          assert manifest.get("compatibility_version_aliases") is True
+
+          app_text = payloads["app.py"].decode("utf-8-sig")
+          compile(app_text, "app.py", "exec")
+          assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
+          print("syntax OK: app.py")
+
+          channel = {
+              "schema": 3,
+              "product": src["product"],
+              "status": src.get("status", "stable"),
+              "appVersion": version,
+              "mandatory": bool(src["mandatory"]),
+              "minimumLauncher": str(src["minimumLauncher"]),
+              "notes": src.get("notes", "") +
+                  " Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+              "generatedFromCommit": sha,
+              "files": generated_files,
+          }
+
+          output_path.write_text(
+              json.dumps(channel, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+              newline="\n",
+          )
+          print("Generated", output_path)
+          PY
+
+      - name: Re-download generated channel and verify exact Raw bytes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Force "channel_verify" | Out-Null
+          foreach ($item in $channel.files) {
+            $dest = Join-Path "channel_verify" ($item.path -replace '/','_')
+            if ($item.parts -and $item.parts.Count -gt 0) {
+              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
+              try {
+                foreach ($url in $item.parts) {
+                  $tmp = [IO.Path]::GetTempFileName()
+                  Invoke-WebRequest -Uri ($url + "?verify=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $tmp -Headers @{"Cache-Control"="no-cache"}
+                  $bytes = [IO.File]::ReadAllBytes($tmp)
+                  $stream.Write($bytes,0,$bytes.Length)
+                  Remove-Item $tmp -Force
+                }
+              } finally {
+                $stream.Dispose()
+              }
+            } else {
+              Invoke-WebRequest -Uri ($item.url + "?verify=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
+            }
+            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($got -ne $item.sha256) {
+              throw "$($item.path): SHA real=$got, canal=$($item.sha256)"
+            }
+            Write-Host "RAW OK $($item.path) $got"
+          }
+
+      - name: Publish only after all validation passed
+        shell: bash
+        run: |
+          if git diff --quiet -- launcher-v1/app-channel.json; then
+            echo "Channel already matches generated output."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add launcher-v1/app-channel.json
+          git commit -m "Publish validated Reception app channel"
+          git push origin HEAD:main
