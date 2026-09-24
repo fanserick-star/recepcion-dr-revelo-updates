@@ -57,7 +57,9 @@ jobs:
           $env:PYTHONDONTWRITEBYTECODE = "1"
           Set-Location candidate-v138
           python -c "import app; assert app.APP_VERSION=='1.3.8'; paths={getattr(r,'path','') for r in app.app.router.routes}; required={'/api/version','/api/v138/health','/recetas','/recetas/nueva','/certificados','/certificados/nuevo','/configuracion'}; assert not (required-paths), required-paths; print('OK runtime',app.APP_VERSION,len(paths))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -c "import sqlite3; c=sqlite3.connect('data/historia_clinica.db'); t={r[0] for r in c.execute('select name from sqlite_master where type=\'table\'')}; c.close(); req={'patients','encounters','prescriptions','certificates','clinic_settings','local_settings','sync_dirty','sync_state'}; assert not (req-t), req-t; print('OK schema',len(t))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Print SHA256
         shell: pwsh
