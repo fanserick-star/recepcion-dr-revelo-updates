@@ -58,3 +58,4 @@ jobs:
           }
 
           Write-Host "OK: todos los archivos del canal coinciden byte por byte."
+# refresh after Reception v4.5.34 channel publication
