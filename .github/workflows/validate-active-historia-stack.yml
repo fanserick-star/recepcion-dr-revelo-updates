@@ -40,7 +40,7 @@ jobs:
               assert p not in ("abrir_historia_clinica.py","iniciar.bat")
           src=(base/"launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
           m=re.search(r'LauncherVersion\s*=\s*"([^"]+)"',src)
-          assert m and m.group(1)==lch["latestVersion"]=="1.0.0"
+          assert m and m.group(1)==lch["latestVersion"]=="1.0.1"
           assert "const int Port = 8787;" in src
           assert "historia-clinica-dr-revelo" in src
           assert "ABRIR_HISTORIA_CLINICA.py" in src  # only cleanup/compatibility reference
