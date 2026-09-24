@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -64,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.6";
+    const string LauncherVersion = "1.0.7";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -337,7 +338,9 @@ internal sealed class LauncherForm : Form
             if (!ready && backup is not null)
             {
                 SetProgress(52, "Recuperando versión estable",
-                    "La actualización no inició correctamente. Restaurando automáticamente…");
+                    "La actualización no inició correctamente. Cerrando candidata y restaurando…");
+                await StopBackendIfOursAsync();
+                await WaitForPortFreeAsync(TimeSpan.FromSeconds(8));
                 await RollbackAsync(backup);
                 ready = await StartBackendAsync(null);
             }
@@ -412,35 +415,36 @@ internal sealed class LauncherForm : Form
 
     async Task<string> ReadInstalledVersionAsync()
     {
-        // /api/version es la fuente autoritativa cuando el backend ya está vivo.
+        // 1) Backend vivo: /api/version.
+        var live = await GetBackendVersionAsync();
+        if (!string.IsNullOrWhiteSpace(live)) return live;
+
+        // 2) ÚNICA fuente local persistente para versiones nuevas.
         try
         {
-            using var local = new HttpClient { Timeout = TimeSpan.FromMilliseconds(1200) };
-            using var resp = await local.GetAsync($"http://127.0.0.1:{Port}/api/version");
-            resp.EnsureSuccessStatusCode();
-            var json = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("version", out var v))
+            var p = Path.Combine(root, "recepcion-version.json");
+            if (File.Exists(p))
             {
-                var value = v.GetString();
-                if (!string.IsNullOrWhiteSpace(value)) return value;
+                using var doc = JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8));
+                if (doc.RootElement.TryGetProperty("version", out var v))
+                {
+                    var value = v.GetString();
+                    if (!string.IsNullOrWhiteSpace(value)) return value;
+                }
             }
         }
         catch { }
 
-        // Fallback: manifest local.
+        // 3) Compatibilidad temporal con instalaciones antiguas.
         try
         {
             var p = Path.Combine(root, "update_manifest.json");
-            if (!File.Exists(p)) return "desconocida";
-            using var doc = JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8));
-            if (doc.RootElement.TryGetProperty("app_version", out var a))
+            if (File.Exists(p))
             {
-                var value = a.GetString();
-                if (!string.IsNullOrWhiteSpace(value)) return value;
+                using var doc = JsonDocument.Parse(File.ReadAllText(p, Encoding.UTF8));
+                if (doc.RootElement.TryGetProperty("version", out var v))
+                    return v.GetString() ?? "desconocida";
             }
-            if (doc.RootElement.TryGetProperty("version", out var v))
-                return v.GetString() ?? "desconocida";
         }
         catch { }
         return "desconocida";
@@ -551,21 +555,23 @@ internal sealed class LauncherForm : Form
 
         SetProgress(70, "Preparando actualización", "Cerrando esta versión de forma segura…");
 
-        var helper = Path.Combine(dir, "actualizar_launcher.cmd");
+        var helper = Path.Combine(root, "LauncherUpdater.exe");
         var currentExe = Path.Combine(root, "RecepcionLauncher.exe");
-        var script =
-            "@echo off\r\n" +
-            "ping 127.0.0.1 -n 3 >nul\r\n" +
-            $"start /wait \"\" \"{installer}\" /VERYSILENT /NORESTART /SUPPRESSMSGBOXES /SP-\r\n" +
-            $"start \"\" explorer.exe \"{currentExe}\"\r\n" +
-            "del /f /q \"%~f0\" >nul 2>&1\r\n";
-        await File.WriteAllTextAsync(helper, script, Encoding.ASCII);
+        if (!File.Exists(helper))
+            throw new InvalidOperationException("No encuentro el actualizador silencioso del launcher.");
 
-        var psi = new ProcessStartInfo(helper)
+        var helperArgs =
+            $"--parent {Environment.ProcessId} " +
+            $"--installer {QuoteArg(installer)} " +
+            $"--launcher {QuoteArg(currentExe)} " +
+            $"--root {QuoteArg(root)}";
+
+        var psi = new ProcessStartInfo(helper, helperArgs)
         {
             UseShellExecute = true,
             Verb = "runas",
-            WorkingDirectory = dir
+            WorkingDirectory = root,
+            WindowStyle = ProcessWindowStyle.Hidden
         };
         Process.Start(psi);
 
@@ -613,8 +619,10 @@ internal sealed class LauncherForm : Form
             SetProgress(48, "Verificando actualización", "Probando la nueva versión antes de tocar la instalada…");
             await PrecheckCandidateAsync(staging, channel.AppVersion);
 
-            SetProgress(54, "Preparando actualización", "Creando respaldo de la versión que funciona…");
+            SetProgress(54, "Preparando actualización", "Cerrando la versión anterior y creando respaldo…");
             await StopBackendIfOursAsync();
+            if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
+                throw new InvalidOperationException("El servidor anterior no liberó el puerto 8000. No se modificó la instalación.");
 
             var backup = Path.Combine(root, "update_backups",
                 "launcher_v1_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
@@ -750,68 +758,195 @@ internal sealed class LauncherForm : Form
 
     async Task<bool> StartBackendAsync(string? expected)
     {
-        if (await IsBackendReadyAsync(expected)) return true;
+        var current = await GetBackendVersionAsync();
+        if (!string.IsNullOrWhiteSpace(current))
+        {
+            if (expected is null || current.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            SetProgress(70, "Cerrando versión anterior",
+                $"Servidor activo {current}; se necesita {expected}…");
+            await StopBackendIfOursAsync();
+            if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
+                return false;
+        }
+        else if (await IsPortOpenAsync())
+        {
+            // Hay algo ocupando 8000 pero no responde como Recepción.
+            await StopBackendIfOursAsync();
+            if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
+                return false;
+        }
 
         var pyw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
         var app = Path.Combine(root, "app.py");
-        var psi = new ProcessStartInfo(pyw, QuoteArg(app)) {
-            WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true
-        };
-        Process.Start(psi);
+        var log = Path.Combine(root, "data", "backend_startup.log");
+        Directory.CreateDirectory(Path.GetDirectoryName(log)!);
+        try { File.WriteAllText(log, "", Encoding.UTF8); } catch { }
 
-        const int tries = 80;
+        string bootstrap =
+            "import sys,runpy;" +
+            $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
+            "sys.stdout=f;sys.stderr=f;" +
+            $"runpy.run_path(r'{EscapePy(app)}',run_name='__main__')";
+
+        var psi = new ProcessStartInfo(pyw, "-c " + QuoteArg(bootstrap)) {
+            WorkingDirectory = root,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        Process? launched = null;
+        try { launched = Process.Start(psi); }
+        catch { return false; }
+        if (launched is null) return false;
+
+        const int tries = 120; // 30 segundos
         for (int i = 0; i < tries; i++)
         {
             SetProgress(70 + (int)(18.0 * i / tries), "Iniciando Recepción",
-                "Esperando al servidor local…");
-            if (await IsBackendReadyAsync(expected)) return true;
+                expected is null ? "Esperando al servidor local…" : $"Esperando Recepción {expected}…");
+
+            var ver = await GetBackendVersionAsync();
+            if (!string.IsNullOrWhiteSpace(ver))
+            {
+                if (expected is null || ver.Equals(expected, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                // Si apareció otra versión, no la dejamos ocupando el puerto.
+                SetProgress(74, "Versión incorrecta detectada",
+                    $"Respondió {ver}; se esperaba {expected}. Reiniciando…");
+                await StopBackendIfOursAsync();
+                await WaitForPortFreeAsync(TimeSpan.FromSeconds(8));
+                return false;
+            }
+
+            try
+            {
+                if (launched.HasExited)
+                {
+                    string tail = "";
+                    try
+                    {
+                        if (File.Exists(log))
+                            tail = LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8);
+                    }
+                    catch { }
+                    if (!string.IsNullOrWhiteSpace(tail))
+                        SetProgress(78, "Recepción no pudo iniciar", tail);
+                    return false;
+                }
+            }
+            catch { }
+
             await Task.Delay(250);
         }
         return false;
     }
 
-    async Task<bool> IsBackendReadyAsync(string? expected = null)
+    async Task<string?> GetBackendVersionAsync()
     {
         try
         {
-            using var local = new HttpClient { Timeout = TimeSpan.FromMilliseconds(850) };
-            var s = await local.GetStringAsync($"http://127.0.0.1:{Port}/api/version");
-            using var doc = JsonDocument.Parse(s);
-            var ver = doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() : null;
-            if (string.IsNullOrWhiteSpace(ver)) return false;
-            return expected is null || ver.Equals(expected, StringComparison.OrdinalIgnoreCase);
+            using var local = new HttpClient { Timeout = TimeSpan.FromMilliseconds(900) };
+            using var resp = await local.GetAsync($"http://127.0.0.1:{Port}/api/version");
+            resp.EnsureSuccessStatusCode();
+            var text = await resp.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(text);
+            return doc.RootElement.TryGetProperty("version", out var v) ? v.GetString() : null;
+        }
+        catch { return null; }
+    }
+
+    async Task<bool> IsBackendReadyAsync(string? expected = null)
+    {
+        var ver = await GetBackendVersionAsync();
+        if (string.IsNullOrWhiteSpace(ver)) return false;
+        return expected is null || ver.Equals(expected, StringComparison.OrdinalIgnoreCase);
+    }
+
+    async Task<bool> IsPortOpenAsync()
+    {
+        try
+        {
+            using var client = new TcpClient();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+            await client.ConnectAsync("127.0.0.1", Port, cts.Token);
+            return client.Connected;
         }
         catch { return false; }
     }
 
-    async Task StopBackendIfOursAsync()
+    async Task<bool> WaitForPortFreeAsync(TimeSpan timeout)
     {
-        if (!await IsBackendReadyAsync()) return;
+        var until = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < until)
+        {
+            if (!await IsPortOpenAsync()) return true;
+            await Task.Delay(250);
+        }
+        return !await IsPortOpenAsync();
+    }
+
+    async Task<int?> FindPortPidAsync()
+    {
         try
         {
             var psi = new ProcessStartInfo("netstat", "-ano -p tcp") {
-                UseShellExecute = false, CreateNoWindow = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
                 RedirectStandardOutput = true
             };
             using var p = Process.Start(psi);
-            if (p is null) return;
-            var text = await p.StandardOutput.ReadToEndAsync();
+            if (p is null) return null;
+            var output = await p.StandardOutput.ReadToEndAsync();
             await p.WaitForExitAsync();
-            foreach (var line in text.Split('\n'))
+
+            foreach (var line in output.Split('\n'))
             {
-                if (!line.Contains($":{Port}") || !line.Contains("LISTENING", StringComparison.OrdinalIgnoreCase))
+                if (!line.Contains($":{Port}") ||
+                    !line.Contains("LISTENING", StringComparison.OrdinalIgnoreCase))
                     continue;
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length < 5 || !int.TryParse(parts[^1], out var pid)) continue;
-                try
-                {
-                    using var target = Process.GetProcessById(pid);
-                    target.Kill(true);
-                    await target.WaitForExitAsync();
-                }
-                catch { }
-                break;
+                if (parts.Length >= 5 && int.TryParse(parts[^1], out var pid))
+                    return pid;
             }
+        }
+        catch { }
+        return null;
+    }
+
+    async Task StopBackendIfOursAsync()
+    {
+        var pid = await FindPortPidAsync();
+        if (pid is null) return;
+
+        try
+        {
+            using var target = Process.GetProcessById(pid.Value);
+            bool allowed = false;
+
+            try
+            {
+                var name = target.ProcessName.ToLowerInvariant();
+                if (name.StartsWith("python"))
+                {
+                    var exe = target.MainModule?.FileName ?? "";
+                    if (!string.IsNullOrWhiteSpace(exe) &&
+                        exe.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+                        allowed = true;
+                }
+            }
+            catch { }
+
+            // Si el API responde como Recepción, también es seguro cerrar ese PID del puerto dedicado.
+            if (!allowed && !string.IsNullOrWhiteSpace(await GetBackendVersionAsync()))
+                allowed = true;
+
+            if (!allowed) return;
+
+            target.Kill(true);
+            await target.WaitForExitAsync();
         }
         catch { }
     }
