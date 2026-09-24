@@ -3,8 +3,10 @@ name: Build Reception Launcher v1 Package
 on:
   push:
     paths:
-      - "launcher-v1/**"
-      - "!launcher-v1/launcher-channel.json"
+      - "launcher-v1/RecepcionLauncher/**"
+      - "launcher-v1/LauncherUpdater/**"
+      - "launcher-v1/Uninstaller/**"
+      - "launcher-v1/installer/**"
       - ".github/workflows/build-reception-launcher-v1.yml"
   workflow_dispatch:
 
