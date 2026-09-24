@@ -87,8 +87,10 @@
     "old_python_launcher_retired": true,
     "native_shortcut_repair_uses_historia_launcher_v1": true,
     "patient_data_changes": false,
-    "preserves_data_env_database": true
+    "preserves_data_env_database": true,
+    "minimum_launcher_reason": "Launcher v1.0.0 aporta WebView2 nativo, actualización obligatoria, SHA-256, preprueba aislada y rollback."
   },
   "version_source": "historia-version.json",
-  "compatibility_version_aliases": true
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.0"
 }
