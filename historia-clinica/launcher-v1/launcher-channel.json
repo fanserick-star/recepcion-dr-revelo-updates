@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-launcher-dr-revelo",
-  "latestVersion": "1.0.4",
+  "latestVersion": "1.0.5",
   "mandatory": true,
-  "notes": "Launcher Historia Clínica v1.0.4: carga app.py por ruta exacta con importlib.util en preprueba, servidor aislado y arranque real. Mantiene WebView2, instancia única, SHA-256, actualización obligatoria, rollback y protección de datos clínicos.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.4/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_4.exe",
-  "installerSha256": "0746582f92046f1a54955f6e0994845dae30602a0ee2ec1c1dd08eb2ffd2fad9",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.4/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "14ac3a9b161658f9e1834a2c0f13f129119c8b736742a48986749984c808e1fd"
+  "notes": "Launcher Historia Clínica v1.0.5: versión consolidada con WebView2 obligatorio, ventanas internas para documentos, preprueba aislada corregida por ruta exacta, SHA-256, instancia única, rollback y protección de datos clínicos.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.5/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_5.exe",
+  "installerSha256": "8d1b31228660c2f7890626f1bf46628d8763da994072cf2f27204f75824087bd",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.5/HistoriaLauncherUpdater.exe",
+  "updaterSha256": "ea0b5b612e17e7e898a626a2bbd3344b87d08a7627c59eecab99c8b2a1dcc72c"
 }
