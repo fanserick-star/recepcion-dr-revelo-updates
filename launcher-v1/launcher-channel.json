@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.3",
-  "notes": "Launcher v1.0.3: corrige el icono usando una ventana WebView2 propia, impide abrir múltiples Recepciones y añade autoactualización segura del propio launcher para futuras versiones.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.3/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_3.exe",
-  "installerSha256": "42735316a8a562ab3d69c9b513eeac70675b34236092c488d8bd516c2e1919bf"
+  "latestVersion": "1.0.4",
+  "notes": "PRUEBA DE AUTOACTUALIZACIÓN: Launcher v1.0.4. No cambia Recepción ni datos; solo confirma que el launcher 1.0.3 puede detectar, pedir permiso, descargar, verificar e instalar una versión nueva.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.4/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_4.exe",
+  "installerSha256": "e2ed7c15d9b3dab37664a8d7689eb0666a8362208491b80d9fd96e151289962e"
 }
