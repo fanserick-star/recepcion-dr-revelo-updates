@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.23",
+  "appVersion": "1.3.24",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.23: corrige el Internal Server Error al abrir Receta médica o Certificado médico en bases migradas antiguas. El módulo ya no exige que la tabla patients tenga columnas nuevas para poder leer al paciente y completa de forma aditiva cualquier columna faltante de recetas/certificados. Mantiene turnos correctos, control de duplicados y protección de borradores.",
+  "notes": "Historia Clínica 1.3.24: restaura el envío inmediato por LAN desde Recepción después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Recibe patient_status correctamente y una cancelación LAN ya nunca borra un borrador clínico. Mantiene recetas/certificados, turnos, duplicados y recuperación.",
   "files": [
     {
       "path": "app.py",
@@ -31,11 +31,15 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_23_recipe_legacy_db/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_24_lan_handoff/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_23_recipe_legacy_db/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_24_lan_handoff/update_manifest.json"
+    },
+    {
+      "path": "lan_bridge.py",
+      "sourcePath": "historia-clinica/updates/v1_3_24_lan_handoff/lan_bridge.py"
     }
   ]
 }
