@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "product": "historia-clinica-dr-revelo",
+  "status": "stable",
+  "appVersion": "1.3.12",
+  "mandatory": true,
+  "minimumLauncher": "1.0.5",
+  "notes": "Historia Clínica 1.3.12: publica los cambios funcionales pendientes. Agrega recetas médicas, certificados, configuración compartida, sincronización cloud de documentos y apertura interna dentro de Historia. Conserva el flujo de paciente nuevo y protege historias, data/ y .env.",
+  "files": [
+    {
+      "path": "app.py",
+      "sourcePaths": [
+        "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part01",
+        "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
+        "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
+        "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
+        "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part05",
+        "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part06"
+      ]
+    },
+    {
+      "path": "cloud_sync.py",
+      "sourcePaths": [
+        "historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_5_cloud_documents/cloud_sync.py.part02"
+      ]
+    },
+    {
+      "path": "documentos_clinicos.py",
+      "sourcePath": "historia-clinica/updates/v1_3_5_cloud_documents/documentos_clinicos.py"
+    },
+    {
+      "path": "historia-version.json",
+      "sourcePath": "historia-clinica/updates/v1_3_12_pending_features/historia-version.json"
+    },
+    {
+      "path": "update_manifest.json",
+      "sourcePath": "historia-clinica/updates/v1_3_12_pending_features/update_manifest.json"
+    }
+  ]
+}
