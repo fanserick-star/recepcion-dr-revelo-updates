@@ -1,0 +1,60 @@
+name: Audit Active Reception Channel Bytes
+
+on:
+  push:
+    paths:
+      - "launcher-v1/app-channel.json"
+      - "updates/v4_5_34_launcher_update_test/**"
+      - ".github/workflows/audit-active-reception-channel-bytes.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download exact channel URLs and verify SHA
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          New-Item -ItemType Directory -Force "audit_reception" | Out-Null
+
+          $mismatches = @()
+          foreach ($item in $channel.files) {
+            $dest = Join-Path "audit_reception" ($item.path -replace '/','_')
+            if ($item.parts -and $item.parts.Count -gt 0) {
+              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
+              try {
+                $n = 0
+                foreach ($url in $item.parts) {
+                  $n++
+                  $part = Join-Path "audit_reception" ("part_" + $n + ".bin")
+                  Invoke-WebRequest -Uri ($url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $part -Headers @{"Cache-Control"="no-cache"}
+                  $bytes = [IO.File]::ReadAllBytes($part)
+                  $stream.Write($bytes,0,$bytes.Length)
+                }
+              } finally {
+                $stream.Dispose()
+              }
+            } else {
+              Invoke-WebRequest -Uri ($item.url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
+            }
+
+            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "AUDIT $($item.path) EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
+            if ($got -ne $item.sha256) {
+              $mismatches += "$($item.path): expected=$($item.sha256) got=$got"
+            }
+          }
+
+          if ($mismatches.Count -gt 0) {
+            $mismatches | ForEach-Object { Write-Host $_ }
+            throw "El canal de Recepción tiene SHA-256 distintos a los bytes reales."
+          }
+
+          Write-Host "OK: todos los archivos del canal coinciden byte por byte."
