@@ -1,0 +1,985 @@
+ns) - len(q_tokens))
+    return score
+
+
+def search_patients(conn, raw_query, limit=100):
+    query_norm = normalize_search(raw_query)
+    digits = re.sub(r"\D", "", raw_query or "")
+    birth_iso = _birth_from_query(raw_query)
+    tokens = [t for t in query_norm.split() if t]
+    if not tokens and not digits and not birth_iso:
+        return []
+
+    name_where = " AND ".join("p.name_search LIKE ?" for _ in tokens) if tokens else "0"
+    params = [f"%{t}%" for t in tokens]
+    extra = []
+    if digits:
+        extra.extend([
+            "p.national_id_search LIKE ?",
+            "REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.phone,''),' ',''),'-',''),'(',''),')','') LIKE ?",
+        ])
+        params.extend([f"%{digits}%", f"%{digits}%"])
+    if birth_iso:
+        extra.append("p.birth_date = ?")
+        params.append(birth_iso)
+
+    clauses = []
+    if tokens:
+        clauses.append(f"({name_where})")
+    clauses.extend(extra)
+    where = " OR ".join(clauses) or "0"
+    rows = conn.execute(f"""
+        SELECT p.*,
+          (SELECT COUNT(*) FROM encounters e WHERE e.patient_id=p.id AND e.note_status!='draft') AS n_hist
+        FROM patients p
+        WHERE COALESCE(p.merged_into_patient_id,'')=''
+          AND ({where})
+        LIMIT 350
+    """, params).fetchall()
+
+    def score(r):
+        s = 500
+        if tokens:
+            s = _name_rank(r["name_search"] or r["name"], query_norm)
+        rid = re.sub(r"\D", "", r["national_id_search"] or "")
+        rphone = re.sub(r"\D", "", r["phone"] or "")
+        if digits and rid:
+            if rid == digits: s = min(s, 0)
+            elif rid.startswith(digits): s = min(s, 2)
+            elif digits in rid: s = min(s, 5)
+        if digits and rphone:
+            if rphone == digits: s = min(s, 1)
+            elif rphone.startswith(digits): s = min(s, 3)
+            elif digits in rphone: s = min(s, 6)
+        if birth_iso and r["birth_date"] == birth_iso:
+            s = min(s, 1)
+        # Si existen fichas duplicadas con el mismo nombre, muestra primero la
+        # que realmente tiene historia/identificación/datos útiles. No fusiona.
+        return (
+            s,
+            -int(r["n_hist"] or 0),
+            -int(bool(str(r["national_id_search"] or "").strip())),
+            -int(bool(str(r["phone"] or "").strip())),
+            normalize_search(r["name"]),
+        )
+
+    return sorted(rows, key=score)[:limit]
+
+
+def clean_legacy_id(value):
+    raw = str(value or "").strip()
+    if not raw or re.fullmatch(r"[Xx\s.-]+", raw):
+        return ""
+    return raw
+
+
+def sex_label(value):
+    v = str(value or "").strip().upper()
+    if v == "M": return "Masculino"
+    if v == "F": return "Femenino"
+    return value or ""
+
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    return f"""<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css">{extra_head}</head>
+<body class="cp-remaster-app">
+<header class="topbar">
+  <div class="brand">
+    <a class="brand-home-link {'active' if active=='inicio' else ''}" href="/" title="Volver al inicio">⌂ <span>INICIO</span></a>
+    <img class="brand-logo" src="/static/doctor_logo.png" alt="Logo del Dr. Armando Revelo">
+    <div class="brand-copy"><strong>Historia Clínica</strong><small>{DOCTOR_NAME}</small></div>
+    <span class="hc-runtime-version" title="Versión real del backend en ejecución">v{APP_VERSION}</span>
+  </div>
+  <nav aria-label="Navegación principal">
+    <a class="{'active' if active=='macros' else ''}" href="/macros">Frases rápidas</a>
+  </nav>
+</header>
+<main>{body}</main>
+<footer><span>Historia Clínica v{APP_VERSION}</span><span>Base local protegida · Migrada de Consulta Práctica</span></footer>
+<div id="app-toast" class="app-toast" role="status" aria-live="polite" hidden></div>
+<script>
+(()=>{{
+  const toast=document.getElementById('app-toast'); let toastTimer=0;
+  let lastActivityPing=0;
+  const pingActivity=(force=false)=>{{
+    const now=Date.now();
+    if(!force && now-lastActivityPing<45000)return;
+    lastActivityPing=now;
+    fetch('/api/activity',{{method:'POST',cache:'no-store',keepalive:true}}).catch(()=>{{}});
+  }};
+  ['pointerdown','pointermove','keydown','wheel','touchstart'].forEach(ev=>document.addEventListener(ev,()=>pingActivity(false),{{passive:true}}));
+  window.addEventListener('focus',()=>pingActivity(true));
+  document.addEventListener('visibilitychange',()=>{{if(!document.hidden)pingActivity(true)}});
+  window.showAppToast=(message,type='info')=>{{if(!toast)return;clearTimeout(toastTimer);toast.textContent=String(message||'');toast.className='app-toast '+type;toast.hidden=false;toastTimer=setTimeout(()=>{{toast.hidden=true}},3600)}};
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+  document.querySelectorAll('[data-live-patient-search]').forEach(box=>{{
+    const input=box.querySelector('input[name="q"]'), menu=box.querySelector('.live-search-results');
+    if(!input||!menu)return;
+    let timer=0, controller=null, active=-1;
+    const hide=()=>{{menu.hidden=true;menu.innerHTML='';active=-1}};
+    const select=(idx)=>{{const items=[...menu.querySelectorAll('a')];items.forEach(x=>x.classList.remove('active'));if(items[idx]){{active=idx;items[idx].classList.add('active');items[idx].scrollIntoView({{block:'nearest'}})}}}};
+    const run=()=>{{
+      clearTimeout(timer);
+      const q=input.value.trim();
+      if(q.length<2){{hide();return}}
+      timer=setTimeout(async()=>{{
+        try{{
+          controller?.abort(); controller=new AbortController();
+          const r=await fetch('/api/pacientes/buscar?q='+encodeURIComponent(q)+'&limit=8',{{signal:controller.signal}});
+          if(!r.ok)return hide();
+          const data=await r.json();
+          if(!data.length){{menu.innerHTML='<div class="live-empty">No encontré coincidencias</div>';menu.hidden=false;return}}
+          menu.innerHTML=data.map(x=>`<a href="${{esc(x.href)}}"><span class="live-avatar">${{esc((x.name||'?').slice(0,1))}}</span><span class="live-copy"><b>${{esc(x.name)}}</b><small>${{esc(x.detail)}}</small></span><span class="live-count">${{x.records}} reg.</span></a>`).join('');
+          menu.hidden=false; active=-1;
+        }}catch(err){{if(err.name!=='AbortError')hide()}}
+      }},170);
+    }};
+    input.addEventListener('input',run);
+    input.addEventListener('keydown',ev=>{{
+      if(menu.hidden)return; const items=[...menu.querySelectorAll('a')];
+      if(ev.key==='ArrowDown'){{ev.preventDefault();select(Math.min(active+1,items.length-1))}}
+      else if(ev.key==='ArrowUp'){{ev.preventDefault();select(Math.max(active-1,0))}}
+      else if(ev.key==='Enter'&&active>=0&&items[active]){{ev.preventDefault();location.href=items[active].href}}
+      else if(ev.key==='Escape')hide();
+    }});
+    input.addEventListener('focus',()=>{{if(input.value.trim().length>=2)run()}});
+    document.addEventListener('click',ev=>{{if(!box.contains(ev.target))hide()}});
+  }});
+}})();
+</script>
+{extra_script}</body></html>"""
+
+
+def _queue_strong_candidates(conn, row):
+    """Candidatos seguros para vincular un turno de Recepción con Historia."""
+    identification = normalize_search(row["identification"] or "")
+    if identification:
+        exact = conn.execute(
+            "SELECT * FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 3",
+            (identification,),
+        ).fetchall()
+        if len(exact) == 1:
+            return list(exact), "identification"
+
+    wanted = normalize_search(row["display_name"] or "")
+    tokens = [t for t in wanted.split() if t]
+    if not tokens:
+        return [], ""
+
+    rows = search_patients(conn, row["display_name"] or "", limit=12)
+    strong = []
+    for candidate in rows:
+        candidate_tokens = set(normalize_search(candidate["name"] or "").split())
+        if tokens and all(t in candidate_tokens for t in tokens):
+            strong.append(candidate)
+
+    # Una sola coincidencia por todos los nombres escritos es suficientemente
+    # clara para el flujo del consultorio; varias coincidencias requieren elección.
+    if strong:
+        return strong, "name"
+    return rows[:8], "search"
+
+
+def _queue_display_type(row):
+    # v1.3.22: Nuevo/Subsecuente describe al paciente; Consulta/Procedimiento
+    # describe la atención. Ya no se mezclan en el mismo campo.
+    patient_status = ""
+    try:
+        patient_status = str(row["patient_status"] or "").strip().upper()
+    except Exception:
+        patient_status = ""
+
+    status_mapping = {
+        "N": "Nuevo",
+        "NUEVO": "Nuevo",
+        "S": "Subsecuente",
+        "SUBSECUENTE": "Subsecuente",
+    }
+    if patient_status in status_mapping:
+        return status_mapping[patient_status]
+
+    raw = str(row["attention_type"] or "").strip()
+    upper = raw.upper()
+
+    # Compatibilidad con filas antiguas donde attention_type llevaba N/S.
+    legacy_mapping = {
+        "N": "Nuevo",
+        "NUEVO": "Nuevo",
+        "S": "Subsecuente",
+        "SUBSECUENTE": "Subsecuente",
+    }
+    if upper in legacy_mapping:
+        return legacy_mapping[upper]
+
+    # Para procedimientos sin estado explícito mostramos el tipo de atención.
+    if upper in {"P", "X", "PROCEDIMIENTO"}:
+        return "Procedimiento"
+
+    # Compatibilidad con turnos creados por versiones anteriores que mandaban
+    # solamente "Consulta". Si existe una ficha única, inferimos Nuevo/Subsecuente
+    # por presencia de historias previas, solo para presentación.
+    if upper in {"", "CONSULTA"}:
+        try:
+            with db() as conn:
+                candidates, _reason = _queue_strong_candidates(conn, row)
+                if len(candidates) == 1:
+                    pid = candidates[0]["id"]
+                    n = conn.execute(
+                        "SELECT COUNT(*) FROM encounters WHERE patient_id=? AND note_status!='draft'",
+                        (pid,),
+                    ).fetchone()[0]
+                    return "Subsecuente" if int(n or 0) > 0 else "Nuevo"
+        except Exception:
+            pass
+        return "Consulta"
+    return raw or "Consulta"
+
+
+def _queue_is_new(row) -> bool:
+    return _queue_display_type(row) == "Nuevo"
+
+
+def _queue_is_procedure(row) -> bool:
+    """Un procedimiento aparece en la cola, pero no consume número de turno."""
+    raw = normalize_search(str(row["attention_type"] or "")).upper().strip()
+    if raw in {"P", "X", "PROCEDIMIENTO"}:
+        return True
+    if raw in {"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}:
+        return False
+    # Compatibilidad con el puente antiguo: enviaba el nombre real del
+    # procedimiento (ECOGRAFÍA, CURACIÓN, etc.) en attention_type.
+    return True
+
+
+def _queue_turn_number(conn, queue_id: str) -> int | None:
+    """
+    Número real de consulta del día.
+
+    v1.3.29:
+    - no se reinicia cuando los pacientes anteriores son atendidos;
+    - incluye consultas ya completadas del mismo día;
+    - procedimientos nunca consumen número;
+    - cancelados/descartados no consumen número.
+    """
+    current = conn.execute(
+        "SELECT id,attention_type,queued_at,created_at FROM waiting_queue WHERE id=? LIMIT 1",
+        (queue_id,),
+    ).fetchone()
+    if not current or _queue_is_procedure(current):
+        return None
+
+    stamp = str(current["queued_at"] or current["created_at"] or "")
+    day = stamp[:10]
+    if not day:
+        day = datetime.now().strftime("%Y-%m-%d")
+
+    rows = conn.execute(
+        """
+        SELECT id,attention_type,queued_at,created_at,status
+        FROM waiting_queue
+        WHERE status IN ('waiting','in_consultation','completed')
+          AND substr(COALESCE(NULLIF(queued_at,''),created_at),1,10)=?
+        ORDER BY COALESCE(NULLIF(queued_at,''),created_at) ASC, id ASC
+        """,
+        (day,),
+    ).fetchall()
+
+    turn = 0
+    for item in rows:
+        if _queue_is_procedure(item):
+            continue
+        turn += 1
+        if str(item["id"]) == str(queue_id):
+            return turn
+    return None
+
+def _create_new_patient_from_queue(conn, row) -> str:
+    """
+    Crea una ficha mínima y segura para un turno marcado como Nuevo.
+    Si Recepción envió identificación y ya existe exactamente esa identificación,
+    reutiliza la ficha existente para no duplicarla.
+    """
+    identification = normalize_search(row["identification"] or "")
+    if identification:
+        exact = conn.execute(
+            "SELECT id FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 2",
+            (identification,),
+        ).fetchall()
+        if len(exact) == 1:
+            patient_id = str(exact[0]["id"])
+            _link_queue_patient(conn, row, patient_id, "auto_identification_new")
+            return patient_id
+        if len(exact) > 1:
+            raise ValueError("La identificación coincide con más de una ficha existente.")
+
+    name = re.sub(r"\s+", " ", str(row["display_name"] or "")).strip().upper()
+    if not name:
+        raise ValueError("El turno no tiene un nombre válido para crear la ficha.")
+
+    # Si Recepción marcó "Nuevo" pero no envió identificación, no creamos otra
+    # ficha a ciegas si ya existe exactamente ese nombre. Obligamos a revisar y
+    # seleccionar la ficha correcta; así evitamos triplicados por reingresos.
+    if not identification:
+        same_name = conn.execute(
+            "SELECT id,name,national_id FROM patients WHERE name_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 4",
+            (normalize_search(name),),
+        ).fetchall()
+        if same_name:
+            raise ValueError(
+                "Ya existe una o más fichas con exactamente ese nombre. "
+                "Seleccione la ficha correcta antes de crear otra."
+            )
+
+    # Recepción y Historia deben hablar de UNA SOLA ficha para un paciente
+    # nuevo. El puente de Recepción ya usa este UUID determinístico en Neon.
+    # Historia reutiliza exactamente el mismo ID aunque la sincronización aún
+    # no haya alcanzado a bajar esa fila; así dos procesos nunca crean dos PK.
+    reception_patient_id = str(row["reception_patient_id"] or "").strip()
+    linked_id = str(row["clinical_patient_id"] or "").strip()
+    if linked_id:
+        patient_id = linked_id
+    elif reception_patient_id:
+        patient_id = str(uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "historia-reception-patient:" + reception_patient_id,
+        ))
+    else:
+        patient_id = new_id()
+
+    existing_same_id = conn.execute(
+        "SELECT id,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
+        (patient_id,),
+    ).fetchone()
+    if existing_same_id:
+        canonical_id = str(existing_same_id["merged_into_patient_id"] or "").strip() or patient_id
+        _link_queue_patient(conn, row, canonical_id, "reuse_reception_patient_id")
+        return canonical_id
+
+    stamp = now_iso()
+    raw_id = str(row["identification"] or "").strip()
+    digest = hashlib.sha256(
+        f"{patient_id}|{name}|{raw_id}|{stamp}|reception_new".encode("utf-8")
+    ).hexdigest()
+
+    conn.execute(
+        """INSERT INTO patients(
+             id,legacy_patient_id,name,name_search,birth_date,sex,civil_status,
+             address,phone,next_appointment_legacy,national_id,national_id_search,
+             legacy_notes,legacy_photo,legacy_alert,email,insurer,
+             legacy_no_depurable,source,source_record_hash,created_at,updated_at
+           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (
+            patient_id, None, name, normalize_search(name), None, None, None,
+            None, None, None, raw_id or None, identification if raw_id else "",
+            None, None, None, None, None, 0, "reception_new", digest, stamp, stamp,
+        ),
+    )
+    audit(
+        conn,
+        "create_from_reception",
+        "patient",
+        patient_id,
+        {
+            "name": name,
+            "reception_patient_id": str(row["reception_patient_id"] or ""),
+            "queue_id": str(row["id"]),
+            "attention_type": _queue_display_type(row),
+        },
+    )
+    conn.commit()
+
+    # Vincula en una segunda operación reutilizando la lógica auditada existente.
+    fresh_row = conn.execute(
+        "SELECT * FROM waiting_queue WHERE id=? LIMIT 1",
+        (row["id"],),
+    ).fetchone()
+    _link_queue_patient(conn, fresh_row or row, patient_id, "auto_new_from_reception")
+    return patient_id
+
+
+def _link_queue_patient(conn, row, patient_id: str, matched_by: str):
+    stamp = now_iso()
+    conn.execute(
+        "UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? WHERE id=?",
+        (patient_id, stamp, row["id"]),
+    )
+    conn.execute(
+        """
+        INSERT INTO patient_links(
+          reception_patient_id,clinical_patient_id,matched_by,verified,
+          verified_at,created_at,updated_at
+        ) VALUES(?,?,?,?,?,?,?)
+        ON CONFLICT(reception_patient_id) DO UPDATE SET
+          clinical_patient_id=excluded.clinical_patient_id,
+          matched_by=excluded.matched_by,
+          verified=1,
+          verified_at=excluded.verified_at,
+          updated_at=excluded.updated_at
+        """,
+        (
+            str(row["reception_patient_id"]),
+            patient_id,
+            matched_by,
+            1,
+            stamp,
+            stamp,
+            stamp,
+        ),
+    )
+    conn.commit()
+
+
+def _queue_validated_link(conn, row) -> str:
+    """
+    Devuelve un vínculo existente sólo si sigue siendo confiable.
+
+    v1.3.20:
+    - la identificación exacta de Recepción tiene prioridad absoluta;
+    - si un vínculo automático apunta a una ficha sin identificación pero existe
+      otra ficha con la identificación exacta, corrige el vínculo;
+    - si no hay identificación y existen varias fichas con exactamente el mismo
+      nombre, un vínculo automático no se toma a ciegas: se obliga a elegir.
+    - un vínculo seleccionado manualmente por el doctor sí se respeta.
+    """
+    linked_id = str(row["clinical_patient_id"] or "").strip()
+    if not linked_id:
+        return ""
+
+    linked = conn.execute(
+        "SELECT id,name,name_search,national_id_search,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
+        (linked_id,),
+    ).fetchone()
+    if not linked:
+        return ""
+    merged_to = str(linked["merged_into_patient_id"] or "").strip()
+    if merged_to:
+        canonical = conn.execute(
+            "SELECT id,name,name_search,national_id_search,merged_into_patient_id "
+            "FROM patients WHERE id=? LIMIT 1",
+            (merged_to,),
+        ).fetchone()
+        if canonical:
+            linked_id = str(canonical["id"])
+            linked = canonical
+            _link_queue_patient(conn, row, linked_id, "repair_merged_patient")
+
+    link_meta = conn.execute(
+        "SELECT matched_by,verified FROM patient_links WHERE reception_patient_id=? LIMIT 1",
+        (str(row["reception_patient_id"] or ""),),
+    ).fetchone()
+    matched_by = str(link_meta["matched_by"] or "") if link_meta else ""
+    if matched_by == "manual_doctor":
+        return linked_id
+
+    identification = normalize_search(row["identification"] or "")
+    if identification:
+        exact = conn.execute(
+            "SELECT id FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 3",
+            (identification,),
+        ).fetchall()
+        if len(exact) == 1:
+            exact_id = str(exact[0]["id"])
+            if exact_id != linked_id:
+                _link_queue_patient(
+                    conn,
+                    row,
+                    exact_id,
+                    "repair_exact_identification",
+                )
+            return exact_id
+
+        linked_ident = normalize_search(linked["national_id_search"] or "")
+        if linked_ident == identification:
+            return linked_id
+
+        # La identificación del turno no confirma el vínculo actual.
+        return ""
+
+    wanted = normalize_search(row["display_name"] or "")
+    if wanted:
+        same_name = conn.execute(
+            "SELECT id FROM patients WHERE name_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 4",
+            (wanted,),
+        ).fetchall()
+        if len(same_name) > 1:
+            # Hay duplicados reales del mismo nombre. No adivinamos cuál usar.
+            return ""
+
+    return linked_id
+
+
+@app.get("/cola/{queue_id}/atender")
+def attend_from_queue(queue_id: str):
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM waiting_queue WHERE id=? AND status IN ('waiting','in_consultation') LIMIT 1",
+            (queue_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Turno no encontrado")
+
+        patient_id = _queue_validated_link(conn, row)
+        if patient_id:
+            return RedirectResponse(
+                f"/paciente/{patient_id}/nueva?queue_id={queue_id}",
+                status_code=303,
+            )
+
+        # Un turno marcado como NUEVO tiene flujo propio: la ficha se crea
+        # automáticamente, salvo que la misma identificación ya exista.
+        if _queue_is_new(row):
+            try:
+                patient_id = _create_new_patient_from_queue(conn, row)
+                return RedirectResponse(
+                    f"/paciente/{patient_id}/nueva?queue_id={queue_id}",
+                    status_code=303,
+                )
+            except ValueError:
+                # Si "Nuevo" choca con una ficha ya existente, no creamos otra
+                # ni detenemos el flujo: mostramos las fichas candidatas para
+                # que el doctor elija la correcta.
+                pass
+
+        candidates, reason = _queue_strong_candidates(conn, row)
+        if len(candidates) == 1:
+            patient_id = str(candidates[0]["id"])
+            _link_queue_patient(conn, row, patient_id, "auto_" + (reason or "search"))
+            return RedirectResponse(
+                f"/paciente/{patient_id}/nueva?queue_id={queue_id}",
+                status_code=303,
+            )
+
+        title = e(row["display_name"] or "Paciente")
+        if candidates:
+            cards = []
+            for candidate in candidates:
+                detail = []
+                if candidate["birth_date"]:
+                    age = age_from_birth(candidate["birth_date"])
+                    if age is not None:
+                        detail.append(f"{age} años")
+                sx = sex_label(candidate["sex"])
+                if sx:
+                    detail.append(sx)
+                if candidate["national_id"]:
+                    detail.append("ID " + str(candidate["national_id"]))
+                n_hist = conn.execute(
+                    "SELECT COUNT(*) FROM encounters WHERE patient_id=? AND note_status!='draft'",
+                    (candidate["id"],),
+                ).fetchone()[0]
+                detail.append(f"{int(n_hist or 0)} historia{'s' if int(n_hist or 0)!=1 else ''}")
+                detail_text = " · ".join(detail) or "Ficha existente"
+                cards.append(
+                    f"<a class='patient-row queue-link-choice' href='/cola/{e(queue_id)}/vincular/{e(candidate['id'])}'>"
+                    f"<span class='avatar'>{e((candidate['name'] or '?')[:1])}</span>"
+                    f"<span class='patient-main'><b>{e(candidate['name'])}</b><span>{e(detail_text)}</span></span>"
+                    f"<span class='chev'>›</span></a>"
+                )
+            body = f"""
+            <section class='page-head'><span class='eyebrow'>Vincular y atender</span>
+              <h1>{title}</h1>
+              <p>Encontré más de una ficha posible. Seleccione la correcta para iniciar la atención.</p>
+            </section>
+            <section class='panel'>{''.join(cards)}</section>
+            <p style='margin-top:12px'><a class='secondary btn-link' href='/pacientes?q={e(row["display_name"] or "")}'>Buscar manualmente</a></p>
+            """
+        else:
+            body = f"""
+            <section class='page-head'><span class='eyebrow'>Paciente por vincular</span>
+              <h1>{title}</h1>
+              <p>No encontré una ficha única con seguridad. Busque la ficha existente antes de iniciar la atención.</p>
+            </section>
+            <p><a class='primary btn-link' href='/pacientes?q={e(row["display_name"] or "")}'>Buscar ficha</a></p>
+            """
+        return HTMLResponse(base("Vincular paciente", body, "inicio"))
+
+
+@app.get("/cola/{queue_id}/vincular/{patient_id}")
+def link_and_attend_queue(queue_id: str, patient_id: str):
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM waiting_queue WHERE id=? AND status IN ('waiting','in_consultation') LIMIT 1",
+            (queue_id,),
+        ).fetchone()
+        patient = conn.execute("SELECT id FROM patients WHERE id=? LIMIT 1", (patient_id,)).fetchone()
+        if not row or not patient:
+            raise HTTPException(status_code=404, detail="Turno o paciente no encontrado")
+        _link_queue_patient(conn, row, patient_id, "manual_doctor")
+    return RedirectResponse(
+        f"/paciente/{patient_id}/nueva?queue_id={queue_id}",
+        status_code=303,
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    cleanup_active_queue_duplicates()
+    cleanup_cancelled_queue_drafts()
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    hour = now.hour
+    greeting = "Buenos días" if hour < 12 else ("Buenas tardes" if hour < 19 else "Buenas noches")
+    with db() as conn:
+        patient_count = conn.execute(
+            "SELECT COUNT(*) FROM patients WHERE COALESCE(merged_into_patient_id,'')=''"
+        ).fetchone()[0]
+        encounter_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status!='draft'").fetchone()[0]
+        today_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status='signed' AND source='historia_clinica' AND encounter_date=?", (today,)).fetchone()[0]
+        queue = conn.execute("""
+            SELECT * FROM waiting_queue WHERE status IN ('waiting','in_consultation')
+            ORDER BY CASE status WHEN 'in_consultation' THEN 0 ELSE 1 END, queued_at ASC LIMIT 20
+        """).fetchall()
+        queue_turns = {
+            str(r["id"]): _queue_turn_number(conn, str(r["id"]))
+            for r in queue
+        }
+        recent = conn.execute("""
+            SELECT p.id,p.name,p.birth_date,p.sex,MAX(a.occurred_at) AS last_opened
+            FROM audit_log a
+            JOIN patients p ON p.id=a.entity_id
+            WHERE a.action='view' AND a.entity_type='patient'
+            GROUP BY p.id,p.name,p.birth_date,p.sex
+            ORDER BY last_opened DESC
+            LIMIT 6
+        """).fetchall()
+        pending_draft = conn.execute("""
+            SELECT e.id AS encounter_id,e.patient_id,e.updated_at,p.name
+            FROM encounters e
+            JOIN patients p ON p.id=e.patient_id
+            WHERE e.note_status='draft'
+            ORDER BY e.updated_at DESC
+            LIMIT 1
+        """).fetchone()
+        pending_draft_count = int(conn.execute(
+            "SELECT COUNT(*) FROM encounters WHERE note_status='draft'"
+        ).fetchone()[0])
+
+    queue_count = len(queue)
+    if queue:
+        parts = []
+        for r in queue:
+            is_procedure = _queue_is_procedure(r)
+            real_turn = queue_turns.get(str(r["id"]))
+            turn_badge = (
+                f"<div class='queue-turn-number'><span>TURNO</span><b>#{real_turn}</b></div>"
+                if not is_procedure and real_turn is not None
+                else "<div class='queue-turn-number queue-turn-procedure'><span>ATENCIÓN</span><b>PROC.</b></div>"
+            )
+            status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"
+            attention_label = _queue_display_type(r)
+            is_new = attention_label == "Nuevo"
+            if r["status"] == "in_consultation":
+                action_label = "Continuar"
+            elif r["clinical_patient_id"]:
+                action_label = "Atender"
+            elif is_new:
+                action_label = "Crear ficha y atender"
+            else:
+                action_label = "Vincular y atender"
+            attention_key = normalize_search(attention_label).lower().replace(" ", "-") or "consulta"
+            service_tag = (
+                "<span class='queue-type queue-type-procedimiento'>PROCEDIMIENTO</span>"
+                if is_procedure else ""
+            )
+            queued = e((r["queued_at"] or "")[-8:-3])
+            href = f"/cola/{e(r['id'])}/atender"
+            parts.append(
+                f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''}'>"
+                f"<a class='queue-row-main' href='{href}' title='{e(action_label)}'>"
+                f"{turn_badge}"
+                f"<div class='queue-avatar'>{e((r['display_name'] or '?')[:1])}</div>"
+                f"<span class='queue-patient-copy'><b>{e(r['display_name'])}</b>"
+                f"<span class='queue-tags'><span class='queue-type queue-type-{e(attention_key)}'>{'★ PACIENTE NUEVO' if is_new else e(attention_label)}</span>"
+                f"{service_tag}<span class='queue-status'>{e(status_text)}</span></span></span>"
+                f"<time>{queued}</time><span class='queue-row-action'>{e(action_label)} ›</span></a>"
+                f"<form class='queue-dismiss-form' method='post' action='/cola/{e(r['id'])}/descartar' "
+                f"onsubmit=\"return confirm('¿Quitar este turno de Pacientes en espera? No se eliminará la ficha ni la historia clínica.')\">"
+                f"<button type='submit' class='queue-dismiss-btn' title='Quitar de espera'>×</button></form>"
+                f"</div>"
+            )
+        qhtml = "".join(parts)
+    else:
+        qhtml = "<div class='empty queue-empty'><div class='empty-icon'>✓</div><strong>No hay pacientes en espera</strong><span>Cuando Recepción envíe un paciente al pulsar Atender, aparecerá aquí automáticamente.</span></div>"
+
+    next_row = next((r for r in queue if r["status"] == "waiting"), None)
+    if next_row is None:
+        next_row = next((r for r in queue), None)
+    next_button = (
+        f"<a class='home-action primary' href='/cola/{e(next_row['id'])}/atender'>Atender siguiente</a>"
+        if next_row else "<span class='home-action disabled'>Atender siguiente</span>"
+    )
+
+    if recent:
+        recent_parts = []
+        for r in recent:
+            detail = []
+            if r["birth_date"]:
+                age = age_from_birth(r["birth_date"])
+                if age is not None:
+                    detail.append(f"{age} años")
+            sx = sex_label(r["sex"])
+            if sx:
+                detail.append(sx)
+            try:
+                opened = datetime.fromisoformat(r["last_opened"]).strftime("%H:%M")
+            except Exception:
+                opened = ""
+            suffix = (" · " + " · ".join(detail)) if detail else ""
+            recent_parts.append(
+                f"<a class='recent-row' href='/paciente/{e(r['id'])}'><span class='recent-avatar'>{e((r['name'] or '?')[:1])}</span>"
+                f"<span class='recent-copy'><b>{e(r['name'])}</b><small>Abierto {e(opened)}{e(suffix)}</small></span><span class='recent-arrow'>›</span></a>"
+            )
+        recent_html = "".join(recent_parts)
+        last_patient = recent[0]
+        continue_button = f"<a class='home-action secondary' href='/paciente/{e(last_patient['id'])}'>Continuar último paciente</a>"
+    else:
+        recent_html = "<div class='recent-empty'>Los pacientes que abra aparecerán aquí para volver rápidamente.</div>"
+        continue_button = "<span class='home-action disabled subtle'>Continuar último paciente</span>"
+
+    cloud = get_sync_status(ROOT / "data")
+    if cloud.get("state") == "afk":
+        cloud_class = "ok"
+        cloud_mark = "◷"
+        cloud_text = "En reposo (AFK) · LAN activa"
+    elif cloud.get("state") == "synced" and cloud.get("online"):
+        cloud_class = "ok"
+        cloud_mark = "✓"
+        cloud_text = "Sincronizada"
+    elif cloud.get("configured"):
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = cloud.get("message") or "Sincronizando…"
+    else:
+        cloud_class = "pending"
+        cloud_mark = "•"
+        cloud_text = "Pendiente de configurar"
+    if cloud.get("backup_ok"):
+        backup_class = "ok"
+        backup_mark = "✓"
+        backup_text = "Respaldo local diario activo"
+    else:
+        backup_class = "pending"
+        backup_mark = "•"
+        backup_text = "Preparando respaldo"
+
+    pending_banner = ""
+    if pending_draft:
+        extra = f" · {pending_draft_count} pendientes" if pending_draft_count > 1 else ""
+        pending_banner = (
+            f"<section class='pending-consult-banner'>"
+            f"<div><span class='pending-consult-mark'>!</span><span><b>CONSULTA PENDIENTE</b>"
+            f"<strong>{e(pending_draft['name'])}</strong><small>La consulta está autoguardada, pero todavía no ha sido finalizada{e(extra)}.</small></span></div>"
+            f"<a href='/paciente/{e(pending_draft['patient_id'])}/nueva?encounter_id={e(pending_draft['encounter_id'])}'>Continuar consulta</a>"
+            f"</section>"
+        )
+
+    body = f"""
+<section class="home-heading home-heading-v107">
+  <div><span class="eyebrow">PANEL MÉDICO</span><h1>{greeting}, Dr. Revelo</h1><p>Acceda a una historia clínica o continúe con el siguiente paciente.</p></div>
+  <div class="stats">
+    <div><span>Pacientes</span><strong>{patient_count:,}</strong></div>
+    <div><span>Historias</span><strong>{encounter_count:,}</strong></div>
+    <div><span>Atendidos hoy</span><strong>{today_count}</strong></div>
+    <div><span>En espera</span><strong id="home-queue-count">{queue_count}</strong></div>
+  </div>
+</section>
+{pending_banner}
+<section class="search-card home-search home-search-v107">
+  <div class="home-search-line">
+    <div class="patient-live-search" data-live-patient-search>
+      <form action="/pacientes" method="get"><label class="sr-only">Buscar historia clínica</label><div class="searchbox"><input name="q" autofocus autocomplete="off" placeholder="Escriba nombres en cualquier orden, identificación o teléfono"><button>Buscar paciente</button></div></form>
+      <div class="live-search-results" hidden></div>
+    </div>
+    <a class="new-patient-home" href="/pacientes/nuevo">+ Nuevo paciente</a>
+  </div>
+  <p class="search-help">Puede escribir, por ejemplo, <b>CARLOS BRAVO</b> aunque la ficha esté registrada como BRAVO BURBANO CARLOS EMILIO.</p>
+</section>
+<section class="home-workspace">
+  <section class="panel queue-panel home-queue-v107">
+    <div class="panel-title"><div><span class="dot"></span><div><h2>Pacientes en espera</h2><p>{queue_count} paciente{'s' if queue_count!=1 else ''} en la cola del doctor</p></div></div>{next_button}</div>
+    <div class="home-scroll-region">{qhtml}</div>
+  </section>
+  <aside class="home-side-stack">
+    <section class="panel recent-panel">
+      <div class="panel-title compact"><div><div><h2>Pacientes recientes</h2><p>Acceso rápido a las últimas fichas abiertas</p></div></div>{continue_button}</div>
+      <div class="recent-list">{recent_html}</div>
+    </section>
+    <section class="panel system-panel">
+      <div class="system-panel-head"><div><span class="eyebrow">ESTADO DEL SISTEMA</span><h2>Todo lo importante, de un vistazo</h2></div></div>
+      <div class="system-status-grid">
+        <div class="system-status ok"><span class="status-mark">✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
+        <div class="system-status pending" id="lan-status-card"><span class="status-mark" id="lan-status-mark">•</span><span><b>LAN</b><small id="lan-status-text">Preparando enlace con Recepción…</small></span></div>
+        <div class="system-status {cloud_class}" id="cloud-status-card"><span class="status-mark" id="cloud-status-mark">{cloud_mark}</span><span><b>Nube</b><small id="cloud-status-text">{e(cloud_text)}</small><div class="cloud-progress-wrap" id="cloud-progress-wrap" hidden><div class="cloud-progress-track"><i id="cloud-progress-bar"></i></div><em id="cloud-progress-caption"></em></div></span></div>
+        <div class="system-status {backup_class}"><span class="status-mark">{backup_mark}</span><span><b>Respaldo</b><small>{e(backup_text)}</small></span></div>
+      </div>
+      <div class="system-tools">
+        <button type="button" class="system-tool-btn" id="repair-shortcut-btn"><b>Crear / reparar acceso directo</b><small>Corrige también el icono de Windows y la barra de tareas.</small></button>
+        <button type="button" class="system-tool-btn" id="repair-lan-btn"><b>Activar / reparar enlace LAN</b><small>Habilita la comunicación privada con la PC de Recepción.</small></button>
+        <button type="button" class="system-tool-btn" id="sync-now-btn"><b>Sincronizar ahora</b><small>Solicita una sincronización inmediata con la nube.</small></button>
+        <button type="button" class="system-tool-btn" id="open-folder-btn"><b>Abrir carpeta del programa</b><small>Acceso técnico a los archivos locales de Historia Clínica.</small></button>
+      </div>
+    </section>
+  </aside>
+</section>
+"""
+    home_script = r"""
+<script>
+(()=>{
+  let lastQueueKey='';
+  const cloudCard=document.getElementById('cloud-status-card');
+  const cloudMark=document.getElementById('cloud-status-mark');
+  const cloudText=document.getElementById('cloud-status-text');
+  const progressWrap=document.getElementById('cloud-progress-wrap');
+  const progressBar=document.getElementById('cloud-progress-bar');
+  const progressCaption=document.getElementById('cloud-progress-caption');
+  function fmt(n){return Number(n||0).toLocaleString('es-EC')}
+  function lanAge(value){
+    if(!value)return '';
+    const t=Date.parse(value); if(!Number.isFinite(t))return '';
+    const s=Math.max(0,Math.floor((Date.now()-t)/1000));
+    if(s<15)return 'ahora';
+    if(s<60)return 'hace '+s+' s';
+    return 'hace '+Math.floor(s/60)+' min';
+  }
+  async function refreshLan(){
+    const card=document.getElementById('lan-status-card');
+    const mark=document.getElementById('lan-status-mark');
+    const text=document.getElementById('lan-status-text');
+    if(!card||!mark||!text)return;
+    try{
+      const r=await fetch('/api/lan/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)throw 0;
+      const s=await r.json();
+      card.classList.remove('ok','pending','error');
+      if(!s.ok){
+        card.classList.add('error'); mark.textContent='!'; text.textContent=s.last_error||'No se pudo iniciar el servicio LAN';
+      }else if(s.last_reception_seen){
+        card.classList.add('ok'); mark.textContent='✓'; text.textContent='Recepción conectada '+lanAge(s.last_reception_seen);
+      }else if(s.firewall_rule===false){
+        card.classList.add('pending'); mark.textContent='•'; text.textContent='Servicio activo · active el permiso de Windows';
+      }else{
+        card.classList.add('pending'); mark.textContent='•'; text.textContent='Servicio activo · esperando Recepción';
+      }
+    }catch(_e){
+      card.classList.remove('ok','pending');card.classList.add('error');mark.textContent='!';text.textContent='No se pudo comprobar la LAN';
+    }
+  }
+  async function refreshCloud(){
+    try{
+      const r=await fetch('/api/sync/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)return;
+      const s=await r.json();
+      const pending=Number(s.pending||0), total=Math.max(Number(s.initial_total||0),pending);
+      cloudCard?.classList.remove('ok','pending','error');
+      if(s.state==='afk'){
+        cloudCard?.classList.add('ok'); if(cloudMark)cloudMark.textContent='◷'; if(cloudText)cloudText.textContent='En reposo (AFK) · LAN activa';
+        if(progressWrap)progressWrap.hidden=true;
+      }else if(s.state==='synced'&&s.online){
+        cloudCard?.classList.add('ok'); if(cloudMark)cloudMark.textContent='✓'; if(cloudText)cloudText.textContent='Sincronizada';
+        if(progressWrap)progressWrap.hidden=true;
+      }else if(s.configured){
+        cloudCard?.classList.add(s.state==='offline'?'error':'pending'); if(cloudMark)cloudMark.textContent=s.state==='offline'?'!':'•';
+        if(cloudText)cloudText.textContent=s.message||'Sincronizando…';
+        if(progressWrap){progressWrap.hidden=pending<=0; if(pending>0){
+          const done=total>0?Math.max(0,total-pending):0, pct=total>0?Math.min(100,Math.max(2,(done/total)*100)):8;
+          if(progressBar)progressBar.style.width=pct.toFixed(1)+'%';
+          if(progressCaption)progressCaption.textContent=fmt(pending)+' pendientes'+(total?(' · '+Math.round(pct)+'% completado'):'');
+        }}
+      }else{
+        cloudCard?.classList.add('pending'); if(cloudMark)cloudMark.textContent='•'; if(cloudText)cloudText.textContent='Pendiente de configurar'; if(progressWrap)progressWrap.hidden=true;
+      }
+    }catch(_e){}
+  }
+  async function refreshQueue(){
+    try{
+      const r=await fetch('/api/queue/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)return; const q=await r.json();
+      const key=String(q.count||0)+'|'+String(q.latest||'')+'|'+String(q.updated_at||'');
+      const el=document.getElementById('home-queue-count'); if(el)el.textContent=String(q.count||0);
+      if(lastQueueKey&&key!==lastQueueKey) location.reload();
+      lastQueueKey=key;
+    }catch(_e){}
+  }
+  async function runTool(id,url,okText){
+    const btn=document.getElementById(id); if(!btn)return;
+    btn.addEventListener('click',async()=>{
+      const old=btn.innerHTML; btn.disabled=true; btn.classList.add('working');
+      try{
+        const r=await fetch(url,{method:'POST',cache:'no-store'}); const d=await r.json();
+        if(!r.ok||!d.ok) throw new Error(d.message||'No se pudo completar la acción');
+        showAppToast(d.message||okText,'success');
+        if(id==='sync-now-btn') setTimeout(refreshCloud,500);
+      }catch(err){ showAppToast(err.message||String(err),'error'); }
+      finally{ btn.disabled=false; btn.classList.remove('working'); btn.innerHTML=old; }
+    });
+  }
+  runTool('repair-shortcut-btn','/api/system/shortcut','Acceso directo reparado');
+  runTool('repair-lan-btn','/api/system/lan-firewall','Permiso LAN solicitado');
+  runTool('sync-now-btn','/api/sync/now','Sincronización solicitada');
+  runTool('open-folder-btn','/api/system/open-folder','Carpeta abierta');
+  refreshCloud(); refreshQueue(); refreshLan();
+  setInterval(refreshCloud,2000); setInterval(refreshQueue,4000); setInterval(refreshLan,3000);
+})();
+</script>
+"""
+    return base("Inicio", body, "inicio", extra_script=home_script)
+
+
+@app.post("/cola/{queue_id}/descartar")
+def discard_queue_item(queue_id: str):
+    stamp = now_iso()
+    with db() as conn:
+        row = conn.execute(
+            "SELECT * FROM waiting_queue WHERE id=? LIMIT 1",
+            (queue_id,),
+        ).fetchone()
+        if row and row["status"] in ("waiting", "in_consultation"):
+            conn.execute(
+                "UPDATE waiting_queue SET status='cancelled',updated_at=? WHERE id=?",
+                (stamp, queue_id),
+            )
+            audit(
+                conn,
+                "discard",
+                "waiting_queue",
+                queue_id,
+                {
+                    "display_name": row["display_name"] or "",
+                    "reason": "removed_from_waiting_room",
+                },
+            )
+            conn.commit()
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return RedirectResponse("/", status_code=303)
+
+
+@app.get("/api/queue/status")
+def api_queue_status():
+    cleanup_active_queue_duplicates()
+    cleanup_cancelled_queue_drafts()
+    with db() as conn:
+        count = int(conn.execute("SELECT COUNT(*) FROM waiting_queue WHERE status IN ('waiting','in_consultation')").fetchone()[0])
+        latest = conn.execute("SELECT id,updated_at FROM waiting_queue WHERE status IN ('waiting','in_consultation') ORDER BY updated_at DESC LIMIT 1").fetchone()
+    return JSONResponse({"count": count, "latest": (latest["id"] if latest else ""), "updated_at": (latest["updated_at"] if latest else "")})
+
+
+@app.get("/api/pacientes/buscar")
+def api_patient_search(q: str = Query(default="", max_length=120), limit: int = Query(default=8, ge=1, le=20)):
+    with db() as conn:
+        rows = search_patients(conn, q, limit=limit)
+    result = []
+    for r in rows:
+        ident = clean_legacy_id(r["national_id"])
+        pieces = []
+        if ident:
+            pieces.append(f"ID {ident}")
+        if r["phone"]:
+            pieces.append(str(r["phone"]))
+        if r["birth_date"]:
+            pieces.append(human_date(r["birth_date"]))
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "detail": " · ".join(pieces) if pieces else "Sin datos de contacto registrados",
+            "records": int(r["n_hist"] or 0),
+   
