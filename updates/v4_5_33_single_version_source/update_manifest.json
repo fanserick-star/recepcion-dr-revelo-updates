@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
   "version_source": "recepcion-version.json",
-  "mandatory": false,
-  "launcher_minimum": "1.0.8",
+  "mandatory": true,
+  "launcher_minimum": "1.0.10",
   "updater_version": "launcher-v1-app-update",
   "required_dependencies": [
     "app_patch_4525.py",
@@ -93,7 +93,7 @@
       "runtime_version"
     ],
     "legacy_aliases_temporary": true,
-    "minimum_launcher_reason": "1.0.8 valida fuente canónica y aliases legacy antes de instalar."
+    "minimum_launcher_reason": "1.0.10 incluye self-update autocontenido, transición robusta y control de versión canónica."
   },
   "channel": "launcher-v1-single-version-source",
   "version": "4.5.33",
