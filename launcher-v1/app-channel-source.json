@@ -5,7 +5,7 @@
   "appVersion": "4.5.38",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.38: corrige el transporte LAN que bloqueaba el envío a Historia después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Los atendidos vuelven a encolarse localmente y a enviarse por LAN/Neon. Mantiene caja, Bendo, facturación, agenda y datos locales sin cambios.",
+  "notes": "Recepción 4.5.38: corrige el transporte LAN que bloqueaba el envío a Historia después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Los atendidos vuelven a encolarse localmente y a enviarse por LAN/Neon. Mantiene caja, Bendo, facturación, agenda y datos locales sin cambios. Incluye transporte LAN actualizado para patient_status.",
   "files": [
     {
       "path": "app.py",
