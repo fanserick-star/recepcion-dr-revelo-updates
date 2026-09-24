@@ -1,5 +1,5 @@
 LAUNCHER HISTORIA CLÍNICA - DR. ARMANDO REVELO
-Versión 1.0.5
+Versión 1.0.7
 
 Migración del sistema de arranque de Historia Clínica al launcher nativo blindado.
 
@@ -33,3 +33,5 @@ No reemplaza historias, data/, .env ni la base local.
 - v1.0.6: consolida el launcher final sin reutilizar tags; WebView2 obligatorio, ventanas internas para documentos y hashes de release inmutables.
 
 - v1.0.6: muestra el logo del consultorio y despierta/verifica la sincronización con Neon al iniciar, manteniendo modo local si la nube no responde.
+
+- v1.0.7: icono azul marino/verde exclusivo de Historia Clínica para diferenciarlo visualmente de Recepción.
