@@ -2,10 +2,10 @@
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
   "status": "test",
-  "appVersion": "1.3.6",
+  "appVersion": "1.3.7",
   "mandatory": true,
   "minimumLauncher": "1.0.4",
-  "notes": "PRUEBA CONTROLADA Historia Clínica 1.3.6: mismo código clínico de 1.3.5. Solo cambia la versión para probar descarga, SHA-256, preprueba aislada, backup, instalación, reinicio y verificación /api/version. No modifica pacientes, historias, base de datos, esquema ni funciones clínicas.",
+  "notes": "PRUEBA CONTROLADA Historia Clínica 1.3.7: mismo código clínico de 1.3.5. Solo cambia la versión canónica para probar detección obligatoria, descarga, SHA-256, preprueba aislada, backup, instalación, reinicio y verificación /api/version. No modifica pacientes, historias, base de datos, esquema ni funciones clínicas.",
   "files": [
     {
       "path": "app.py",
@@ -20,13 +20,13 @@
     },
     {
       "path": "historia-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_6_launcher_update_test/historia-version.json",
-      "sha256": "50d0e2d8122ea04a6887be2ddea74f44812cbebbba6ce5239762a705bc3fa4ef"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_7_launcher_detection_test/historia-version.json",
+      "sha256": "bff9c416054067e40d2394e072b9cbb17256fae03ac300157fbad19926eb038b"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_6_launcher_update_test/update_manifest.json",
-      "sha256": "3c8aeabeffdc7f9fa51c5601bbc447b45ec44acb61c412fe3df10453ede46ecd"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/updates/v1_3_7_launcher_detection_test/update_manifest.json",
+      "sha256": "1eb1260c6748e7e1ebcf7c00375a2db7af3b654beed1e2ff5c334854f9f37431"
     }
   ]
 }
