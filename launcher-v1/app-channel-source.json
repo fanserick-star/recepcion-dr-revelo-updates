@@ -2,30 +2,30 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.38",
+  "appVersion": "4.5.39",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.38: corrige el transporte LAN que bloqueaba el envío a Historia después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Los atendidos vuelven a encolarse localmente y a enviarse por LAN/Neon. Mantiene caja, Bendo, facturación, agenda y datos locales sin cambios. Incluye transporte LAN actualizado para patient_status.",
+  "notes": "Recepción 4.5.39: Recepción pasa a ser la fuente única del número de turno enviado a Historia. Usa exactamente la misma lógica que la lista diaria/recibo de Recepción (una consulta por paciente, procedimientos sin número), lo envía por LAN y Neon y repara los handoffs recientes para que Historia muestre el mismo #6, #7, etc. No modifica caja, Bendo, facturación, agenda ni datos locales.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_38_historia_lan_status/app.py"
+      "sourcePath": "updates/v4_5_39_historia_turn_source/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_37_historia_service_kind/historia_bridge.py"
+      "sourcePath": "updates/v4_5_39_historia_turn_source/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_38_historia_lan_status/recepcion-version.json"
+      "sourcePath": "updates/v4_5_39_historia_turn_source/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_38_historia_lan_status/update_manifest.json"
+      "sourcePath": "updates/v4_5_39_historia_turn_source/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_38_historia_lan_status/historia_lan_transport.py"
+      "sourcePath": "updates/v4_5_39_historia_turn_source/historia_lan_transport.py"
     }
   ]
 }
