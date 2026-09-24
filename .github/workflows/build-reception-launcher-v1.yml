@@ -24,15 +24,58 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
-      - name: Decode Dr Revelo icon
+      - name: Generate distinct Reception icon
         shell: pwsh
         run: |
-          $b64 = Get-Content "branding/recepcion_icon.b64" -Raw
-          $bytes = [Convert]::FromBase64String($b64.Trim())
-          [IO.File]::WriteAllBytes("launcher-v1/RecepcionLauncher/doctor_icon.ico", $bytes)
-          [IO.File]::WriteAllBytes("launcher-v1/Uninstaller/doctor_icon.ico", $bytes)
+          Add-Type -AssemblyName System.Drawing
+          Add-Type @"
+          using System;
+          using System.Runtime.InteropServices;
+          public static class NativeIconReception {
+              [DllImport("user32.dll", SetLastError=true)]
+              public static extern bool DestroyIcon(IntPtr hIcon);
+          }
+          "@
+          function Add-RoundedRect([System.Drawing.Drawing2D.GraphicsPath]$path,[float]$x,[float]$y,[float]$w,[float]$h,[float]$r) {
+            $d = $r * 2
+            $path.AddArc($x,$y,$d,$d,180,90)
+            $path.AddArc($x+$w-$d,$y,$d,$d,270,90)
+            $path.AddArc($x+$w-$d,$y+$h-$d,$d,$d,0,90)
+            $path.AddArc($x,$y+$h-$d,$d,$d,90,90)
+            $path.CloseFigure()
+          }
+          $bmp = New-Object System.Drawing.Bitmap 64,64
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+          $g.Clear([System.Drawing.Color]::Transparent)
+          $bgPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+          Add-RoundedRect $bgPath 2 2 60 60 14
+          $bg = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(18,145,160))
+          $g.FillPath($bg,$bgPath)
+          $cardPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+          Add-RoundedRect $cardPath 11 10 42 44 8
+          $card = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(250,253,253))
+          $g.FillPath($card,$cardPath)
+          $font = New-Object System.Drawing.Font("Segoe UI",26,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+          $letter = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(13,93,105))
+          $fmt = New-Object System.Drawing.StringFormat
+          $fmt.Alignment = [System.Drawing.StringAlignment]::Center
+          $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
+          $g.DrawString("R",$font,$letter,[System.Drawing.RectangleF]::new(11,9,42,42),$fmt)
+          $badge = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(7,111,123))
+          $g.FillEllipse($badge,39,39,21,21)
+          $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::White,3.2)
+          $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+          $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+          $g.DrawLines($pen,[System.Drawing.PointF[]]@([System.Drawing.PointF]::new(44,49),[System.Drawing.PointF]::new(48,53),[System.Drawing.PointF]::new(56,45)))
           New-Item -ItemType Directory -Force "launcher-v1/installer/build" | Out-Null
-          [IO.File]::WriteAllBytes("launcher-v1/installer/build/doctor_icon.ico", $bytes)
+          $h = $bmp.GetHicon()
+          $ico = [System.Drawing.Icon]::FromHandle($h)
+          foreach($dst in @("launcher-v1/RecepcionLauncher/doctor_icon.ico","launcher-v1/Uninstaller/doctor_icon.ico","launcher-v1/installer/build/doctor_icon.ico")) {
+            $fs=[IO.File]::Create($dst); try { $ico.Save($fs) } finally { $fs.Dispose() }
+          }
+          $ico.Dispose(); [NativeIconReception]::DestroyIcon($h) | Out-Null
+          $pen.Dispose(); $badge.Dispose(); $fmt.Dispose(); $letter.Dispose(); $font.Dispose(); $card.Dispose(); $cardPath.Dispose(); $bg.Dispose(); $bgPath.Dispose(); $g.Dispose(); $bmp.Dispose()
 
       - name: Publish clean launcher
         shell: pwsh
