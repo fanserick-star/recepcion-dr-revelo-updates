@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.1";
+    const string LauncherVersion = "1.0.2";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -947,24 +947,25 @@ internal sealed class LauncherForm : Form
 
             int testPort = ReserveFreePort();
             var log = Path.Combine(trial, "trial_startup.log");
-            string code =
-                "import sys,traceback,uvicorn;" +
-                $"sys.path.insert(0,r'{EscapePy(trial)}');" +
-                $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
-                "sys.stdout=f;sys.stderr=f;" +
+            var serverScript = Path.Combine(trial, "_launcher_precheck_server.py");
+            var serverCode =
+                "import sys, traceback, uvicorn\n" +
                 "try:\n" +
-                " import app as historia_app\n" +
-                " print('IMPORT_OK',getattr(historia_app,'APP_VERSION',''))\n" +
-                $" uvicorn.run(historia_app.app,host='127.0.0.1',port={testPort},access_log=False,log_level='warning')\n" +
+                "    import app as historia_app\n" +
+                "    print('IMPORT_OK', getattr(historia_app, 'APP_VERSION', ''), flush=True)\n" +
+                $"    uvicorn.run(historia_app.app, host='127.0.0.1', port={testPort}, access_log=False, log_level='warning')\n" +
                 "except Exception:\n" +
-                " traceback.print_exc()\n" +
-                " raise";
+                "    traceback.print_exc()\n" +
+                "    raise\n";
+            await File.WriteAllTextAsync(serverScript, serverCode, new UTF8Encoding(false));
 
-            var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+            var psi = new ProcessStartInfo(python, QuoteArg(serverScript))
             {
                 WorkingDirectory = trial,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             };
             psi.Environment["HC_PREFLIGHT"] = "1";
             psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
@@ -980,11 +981,16 @@ internal sealed class LauncherForm : Form
             {
                 if (server.HasExited)
                 {
-                    var tail = File.Exists(log)
-                        ? LastLines(await File.ReadAllTextAsync(log, Encoding.UTF8), 8)
-                        : "";
+                    var stdout = await server.StandardOutput.ReadToEndAsync();
+                    var stderr = await server.StandardError.ReadToEndAsync();
+                    try
+                    {
+                        await File.WriteAllTextAsync(log, stdout + "\n" + stderr, Encoding.UTF8);
+                    }
+                    catch { }
+                    var tail = LastLines((stdout + "\n" + stderr).Trim(), 12);
                     throw new InvalidOperationException(
-                        "La copia de prueba terminó antes de iniciar. Se capturó el error real de importación." +
+                        "La copia de prueba terminó antes de iniciar." +
                         (string.IsNullOrWhiteSpace(tail) ? "" : "\n" + tail));
                 }
 
@@ -1023,17 +1029,18 @@ internal sealed class LauncherForm : Form
 
     async Task VerifyTrialImportAsync(string python, string trial, string expected)
     {
-        string code =
-            "import sys,traceback;" +
-            $"sys.path.insert(0,r'{EscapePy(trial)}');" +
+        var script = Path.Combine(trial, "_launcher_precheck_import.py");
+        var code =
+            "import traceback\n" +
             "try:\n" +
-            " import app\n" +
-            " print(getattr(app,'APP_VERSION',''))\n" +
+            "    import app\n" +
+            "    print(getattr(app, 'APP_VERSION', ''), flush=True)\n" +
             "except Exception:\n" +
-            " traceback.print_exc()\n" +
-            " raise";
+            "    traceback.print_exc()\n" +
+            "    raise\n";
+        await File.WriteAllTextAsync(script, code, new UTF8Encoding(false));
 
-        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+        var psi = new ProcessStartInfo(python, QuoteArg(script))
         {
             WorkingDirectory = trial,
             UseShellExecute = false,
