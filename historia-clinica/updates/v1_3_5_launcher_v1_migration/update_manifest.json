@@ -4,7 +4,7 @@
   "app_version": "1.3.5",
   "runtime_version": "1.3.5",
   "mandatory": true,
-  "launcher_version": "historia-launcher-v1.0.2",
+  "launcher_version": "historia-launcher-v1.0.4",
   "updater_version": "historia-launcher-v1",
   "required_dependencies": [
     "app.py",
@@ -88,9 +88,9 @@
     "native_shortcut_repair_uses_historia_launcher_v1": true,
     "patient_data_changes": false,
     "preserves_data_env_database": true,
-    "minimum_launcher_reason": "Launcher v1.0.2 ejecuta la preprueba aislada mediante scripts Python temporales válidos, evitando errores de quoting/sintaxis en Windows."
+    "minimum_launcher_reason": "Launcher v1.0.4 carga app.py por ruta exacta con importlib.util en preprueba y arranque real, evitando ModuleNotFoundError por resolución de módulos."
   },
   "version_source": "historia-version.json",
   "compatibility_version_aliases": true,
-  "launcher_minimum": "1.0.2"
+  "launcher_minimum": "1.0.4"
 }
