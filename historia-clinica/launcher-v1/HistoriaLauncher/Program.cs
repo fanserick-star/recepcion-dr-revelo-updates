@@ -943,6 +943,8 @@ internal sealed class LauncherForm : Form
                 File.Copy(file, dest, true);
             }
 
+            await VerifyTrialImportAsync(python, trial, expected);
+
             int testPort = ReserveFreePort();
             var log = Path.Combine(trial, "trial_startup.log");
             string code =
@@ -1016,6 +1018,53 @@ internal sealed class LauncherForm : Form
             }
             catch { }
             TryDeleteDirectory(trial);
+        }
+    }
+
+    async Task VerifyTrialImportAsync(string python, string trial, string expected)
+    {
+        string code =
+            "import sys,traceback;" +
+            $"sys.path.insert(0,r'{EscapePy(trial)}');" +
+            "try:\n" +
+            " import app\n" +
+            " print(getattr(app,'APP_VERSION',''))\n" +
+            "except Exception:\n" +
+            " traceback.print_exc()\n" +
+            " raise";
+
+        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+        {
+            WorkingDirectory = trial,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        psi.Environment["HC_PREFLIGHT"] = "1";
+        psi.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
+        psi.Environment["HISTORIA_DATABASE_URL"] = "";
+        psi.Environment["DATABASE_URL"] = "";
+
+        using var p = Process.Start(psi) ??
+            throw new InvalidOperationException(
+                "No se pudo ejecutar la importación de prueba de Historia Clínica.");
+
+        var outTask = p.StandardOutput.ReadToEndAsync();
+        var errTask = p.StandardError.ReadToEndAsync();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await p.WaitForExitAsync(cts.Token);
+
+        var stdout = (await outTask).Trim();
+        var stderr = (await errTask).Trim();
+        if (p.ExitCode != 0 ||
+            !stdout.Contains(expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException(
+                "La copia aislada no pudo importar app.py." +
+                (string.IsNullOrWhiteSpace(stderr)
+                    ? ""
+                    : "\n" + LastLines(stderr, 12)));
         }
     }
 
