@@ -2,36 +2,36 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.38",
+  "appVersion": "4.5.39",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.38: corrige el transporte LAN que bloqueaba el envío a Historia después de separar Nuevo/Subsecuente de Consulta/Procedimiento. Los atendidos vuelven a encolarse localmente y a enviarse por LAN/Neon. Mantiene caja, Bendo, facturación, agenda y datos locales sin cambios. Incluye transporte LAN actualizado para patient_status. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "30310d89c34a9a2dac35e27eb1d332b42bc2b70a",
+  "notes": "Recepción 4.5.39: Recepción pasa a ser la fuente única del número de turno enviado a Historia. Usa exactamente la misma lógica que la lista diaria/recibo de Recepción (una consulta por paciente, procedimientos sin número), lo envía por LAN y Neon y repara los handoffs recientes para que Historia muestre el mismo #6, #7, etc. No modifica caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "bcacd06c3c0e835946d476cb6d003b5bc5a9a594",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/30310d89c34a9a2dac35e27eb1d332b42bc2b70a/updates/v4_5_38_historia_lan_status/app.py",
-      "sha256": "fc8b5465408681b271628370651bcb92481aa42722753fce5e8e3d278746f61a"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/app.py",
+      "sha256": "4530eaaef7902b694523b5fbb2aad88fd72c1d395e64bed969a3cf062ddb8765"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/30310d89c34a9a2dac35e27eb1d332b42bc2b70a/updates/v4_5_37_historia_service_kind/historia_bridge.py",
-      "sha256": "aba0f1b9901e4f110d297cb1b72fee0bfafd5e096f28eb077384e96d3098296d"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/historia_bridge.py",
+      "sha256": "ad85e2c3cae12990cbf753e58c176beeeb44e2ab951eb98a37c1f6df3dbc4760"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/30310d89c34a9a2dac35e27eb1d332b42bc2b70a/updates/v4_5_38_historia_lan_status/recepcion-version.json",
-      "sha256": "222fc8b3c4d6ce0e209629d2dae8124406b4382a88c943982976ff3d8230e77f"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/recepcion-version.json",
+      "sha256": "82604e617802a62c42403a2d34ff7ef80174ff3a426c143af5352d46ebb959be"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/30310d89c34a9a2dac35e27eb1d332b42bc2b70a/updates/v4_5_38_historia_lan_status/update_manifest.json",
-      "sha256": "651461fc80865bf745f257cf103e5dfee7c49c2a361f2bf8bcbce72e71394bbc"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/update_manifest.json",
+      "sha256": "fbe5dff641df89fa3bc05604cdfcead34a2cac091a3b880573338dcad479a8bc"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/30310d89c34a9a2dac35e27eb1d332b42bc2b70a/updates/v4_5_38_historia_lan_status/historia_lan_transport.py",
-      "sha256": "c3cecc919da6f8191e181413a090664170e8ffa7b2d4ff640a9133b50b684bf4"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/historia_lan_transport.py",
+      "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
 }
