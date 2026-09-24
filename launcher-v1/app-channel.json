@@ -2,18 +2,7 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "launcherChannel": "v1-stable",
-  "appVersion": "4.5.32",
-  "notes": "PRUEBA DE ACTUALIZACIÓN DE RECEPCIÓN: v4.5.32. No cambia funciones ni datos; sirve para verificar permiso, descarga, SHA-256, prueba previa, respaldo, instalación, arranque y versión final.",
-  "files": [
-    {
-      "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_32_reception_auto_update_test/app.py",
-      "sha256": "2a20011d66d7761127cafac8a0b64328d14950b706233fe2d385f6d23581c9c1"
-    },
-    {
-      "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/updates/v4_5_32_reception_auto_update_test/update_manifest.json",
-      "sha256": "a1c3b8850b5c6060590e2f38fc8c61f288af329239466853bdab4ce831119641"
-    }
-  ]
+  "appVersion": "0.0.0",
+  "notes": "ACTUALIZACIONES DE RECEPCIÓN EN PAUSA TEMPORAL mientras se migra al Launcher 1.0.8 y a la fuente única de versión. No se descargará ni modificará Recepción.",
+  "files": []
 }
