@@ -2,35 +2,35 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.39",
+  "appVersion": "4.5.40",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.39: Recepción pasa a ser la fuente única del número de turno enviado a Historia. Usa exactamente la misma lógica que la lista diaria/recibo de Recepción (una consulta por paciente, procedimientos sin número), lo envía por LAN y Neon y repara los handoffs recientes para que Historia muestre el mismo #6, #7, etc. No modifica caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "bcacd06c3c0e835946d476cb6d003b5bc5a9a594",
+  "notes": "Recepción 4.5.40: corrige el override activo del bridge que impedía que el turno exacto calculado por Recepción llegara realmente a Historia. Recepción sigue siendo la única fuente de verdad del número (#6, #7, etc.) y al iniciar repara/reenvía handoffs recientes con ese número. No cambia caja, Bendo, facturación, agenda ni datos locales. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "73fd564a6f9e728580d28c375098d2e3f48c3451",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/app.py",
       "sha256": "4530eaaef7902b694523b5fbb2aad88fd72c1d395e64bed969a3cf062ddb8765"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/historia_bridge.py",
-      "sha256": "ad85e2c3cae12990cbf753e58c176beeeb44e2ab951eb98a37c1f6df3dbc4760"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
+      "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/recepcion-version.json",
-      "sha256": "82604e617802a62c42403a2d34ff7ef80174ff3a426c143af5352d46ebb959be"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/recepcion-version.json",
+      "sha256": "88045e2149ea99bafdcc958c44597a94fde307ff64fd961a21a0714698978801"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/update_manifest.json",
-      "sha256": "fbe5dff641df89fa3bc05604cdfcead34a2cac091a3b880573338dcad479a8bc"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/update_manifest.json",
+      "sha256": "56a1eed79d066c839633a0937ad62fa9e9389aed80645239413e540641d52463"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/bcacd06c3c0e835946d476cb6d003b5bc5a9a594/updates/v4_5_39_historia_turn_source/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/73fd564a6f9e728580d28c375098d2e3f48c3451/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
