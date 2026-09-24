@@ -190,7 +190,7 @@ internal static class Program
             "rp_launcher_*",
             "rp_update_*",
             "HistoriaClinicaDrRevelo_*",
-            "recepcion_dr_revelo_*"
+            "historia_clinica_dr_revelo_*"
         };
 
         foreach (var pattern in patterns)
@@ -292,7 +292,7 @@ internal static class Program
             var dir = Path.Combine(Path.GetTempPath(),
                 "DrRevelo_Historia_Uninstall_" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
-            var copy = Path.Combine(dir, "Desinstalar_HistoriaClinica_Dr_Revelo.exe");
+            var copy = Path.Combine(dir, "Desinstalar_Historia_Clinica_Dr_Revelo.exe");
             File.Copy(self, copy, true);
 
             Process.Start(new ProcessStartInfo(copy, "--cleanup")
