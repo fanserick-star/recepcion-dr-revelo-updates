@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.35",
+  "appVersion": "1.3.36",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.35: corrige el recorte inferior de la receta usando el tamaño físico Carta (216 × 279 mm) en lugar de A4 (210 × 297 mm). Mantiene exactamente las dos recetas de 105 mm, sin estirar logos, encabezados ni campos; solo adapta la altura real del papel y centra las dos columnas. Así deben imprimirse completos el teléfono y la franja inferior. Mantiene el turno exacto de Recepción y todos los blindajes previos.",
+  "notes": "Historia Clínica 1.3.36: mantiene exactamente el formato de impresión Carta que ya quedó correcto y cambia únicamente la franja decorativa inferior verde/azul a SVG imprimible, para que salga aunque el navegador tenga desactivados los gráficos de fondo. Mantiene el turno exacto recibido desde Recepción y todos los blindajes previos.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_35_rx_letter_paper/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_36_rx_printable_stripe/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_35_rx_letter_paper/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_36_rx_printable_stripe/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_35_rx_letter_paper/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_36_rx_printable_stripe/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
