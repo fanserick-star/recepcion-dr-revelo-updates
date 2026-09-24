@@ -31,7 +31,7 @@ jobs:
             "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part02",
             "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part03",
             "historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
-            "historia-clinica/updates/v1_3_5_launcher_v1_migration/app.py.part05",
+            "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part05",
             "historia-clinica/updates/v1_3_8_cloud_documents/app.py.part06"
           )
           [IO.File]::WriteAllText("$dst/app.py", (($parts | ForEach-Object { [IO.File]::ReadAllText($_) }) -join ""), [Text.UTF8Encoding]::new($false))
