@@ -1,0 +1,92 @@
+{
+  "product": "historia-clinica-dr-revelo",
+  "version": "1.3.5",
+  "app_version": "1.3.5",
+  "runtime_version": "1.3.5",
+  "mandatory": true,
+  "launcher_version": "historia-launcher-v1.0.0",
+  "updater_version": "historia-launcher-v1",
+  "required_dependencies": [
+    "app.py",
+    "cloud_sync.py",
+    "cloud_presence_patch.py",
+    "lan_bridge.py",
+    "requirements.txt",
+    "static/style.css",
+    "static/doctor_icon.b64"
+  ],
+  "required_python_packages": [
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
+  ],
+  "copy": [
+    "app.py",
+    "historia-version.json",
+    "update_manifest.json"
+  ],
+  "notes": {
+    "protected_data": true,
+    "protected_env": true,
+    "full_webview_required": true,
+    "browser_fallback": false,
+    "transactional_updater_v2": true,
+    "real_runtime_smoke_test": true,
+    "github_actions_result": "success",
+    "new_patient_auto_create_from_reception": true,
+    "new_patient_exact_identification_reuse": true,
+    "new_patient_no_name_autolink": true,
+    "new_patient_auto_link_to_reception": true,
+    "new_patient_single_creation_smoke_test": true,
+    "queue_turn_number_visible": true,
+    "consultation_turn_number_visible": true,
+    "new_patient_high_visibility_badge": true,
+    "signed_history_protected": true,
+    "autosave": true,
+    "clinical_input_uppercase": true,
+    "afk_real": true,
+    "lan_hybrid": true,
+    "cloud_fallback": true,
+    "local_first": true,
+    "database_schema_changes": false,
+    "new_patient_demographics_from_reception": true,
+    "new_patient_demographic_fields": [
+      "birth_date",
+      "phone",
+      "email",
+      "address"
+    ],
+    "new_patient_confirm_before_consult": true,
+    "new_patient_edit_first": true,
+    "new_patient_attend_after_confirm": true,
+    "new_patient_confirmation_persisted": true,
+    "new_patient_direct_consult_guard": true,
+    "new_patient_edit_response_hotfix": true,
+    "new_patient_internal_server_error_fixed": true,
+    "fresh_install_schema_bootstrap": true,
+    "empty_data_directory_supported": true,
+    "startup_rollback_quarantine": true,
+    "no_infinite_update_restart_loop": true,
+    "launcher_v1_migration": true,
+    "single_source_of_truth": "historia-version.json",
+    "legacy_aliases_must_match_source": true,
+    "clinical_changes": false,
+    "old_python_launcher_retired": true,
+    "native_shortcut_repair_uses_historia_launcher_v1": true
+  },
+  "version_source": "historia-version.json",
+  "compatibility_version_aliases": true
+}
