@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.10",
+  "latestVersion": "1.0.11",
   "mandatory": true,
-  "notes": "Launcher v1.0.10: self-update autocontenido. Descarga y verifica tanto el instalador como LauncherUpdater.exe; ya no depende de que el helper exista previamente. Incluye log de diagnóstico y mantiene actualizaciones obligatorias.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.10/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_10.exe",
-  "installerSha256": "3808675f19cd4e4956b22788b5460564a3384a25a479c01d5b122baff6de7689",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.10/LauncherUpdater.exe",
-  "updaterSha256": "d95d4588faca335c27c8e148e923888ac1ed3e39d5d88c0a1fb2d161094db75e"
+  "notes": "Launcher v1.0.11: limpieza de residuos del launcher Python antiguo en la PC y temporales obsoletos. Mantiene self-update autocontenido, actualizaciones obligatorias y control de versión canónica.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.11/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_11.exe",
+  "installerSha256": "4a831021cbbda0f12b146301b5dae6d5be5e0dfc7f2617e541aa533a77a028f4",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.11/LauncherUpdater.exe",
+  "updaterSha256": "579184f3cde54510ba3d32e6a1425d12459cf1e19448a61f6f15f3cc61ea8f0a"
 }
