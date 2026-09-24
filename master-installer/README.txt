@@ -10,7 +10,7 @@ Incluye:
 - cada launcher actualiza después su programa desde su canal oficial
 
 Versiones de aplicación estables al preparar este instalador:
-- Recepción 4.5.40
+- Recepción 4.5.41
 - Historia Clínica 1.3.36
 
 IMPORTANTE:
