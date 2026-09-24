@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.10";
+    const string LauncherVersion = "1.0.11";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -1151,25 +1151,54 @@ internal sealed class LauncherForm : Form
     {
         try
         {
-            var legacy = Path.Combine(root, "ABRIR_RECEPCION.py");
-            if (File.Exists(legacy)) File.Delete(legacy);
+            // Solo artefactos conocidos del sistema de arranque antiguo.
+            // Nunca se eliminan datos, configuración, bases, Excel, backups
+            // ni módulos app_patch_*.
+            foreach (var name in new[]
+            {
+                "ABRIR_RECEPCION.py",
+                "ABRIR_RECEPCION.pyw",
+                "AUTOACTUALIZAR.py",
+                "INICIAR.bat"
+            })
+                TryDeleteFile(Path.Combine(root, name));
 
             var pycache = Path.Combine(root, "__pycache__");
             if (Directory.Exists(pycache))
-                foreach (var f in Directory.GetFiles(pycache, "ABRIR_RECEPCION*.pyc"))
-                    TryDeleteFile(f);
+            {
+                foreach (var pattern in new[]
+                {
+                    "ABRIR_RECEPCION*.pyc",
+                    "AUTOACTUALIZAR*.pyc"
+                })
+                    foreach (var file in Directory.GetFiles(pycache, pattern))
+                        TryDeleteFile(file);
+            }
 
-            var oldLog = Path.Combine(root, "data", "launcher_errors.log");
-            TryDeleteFile(oldLog);
-            var oldState = Path.Combine(root, "data", "auto_update_state.json");
-            TryDeleteFile(oldState);
+            foreach (var name in new[]
+            {
+                "launcher_errors.log",
+                "auto_update_state.json"
+            })
+                TryDeleteFile(Path.Combine(root, "data", name));
 
             var temp = Path.GetTempPath();
-            foreach (var pattern in new[] { "dr_revelo_splash_*", "rp_launcher_*" })
+            foreach (var pattern in new[]
             {
-                foreach (var f in Directory.GetFiles(temp, pattern)) TryDeleteFile(f);
-                foreach (var d in Directory.GetDirectories(temp, pattern)) TryDeleteDirectory(d);
+                "dr_revelo_splash_*",
+                "rp_launcher_*",
+                "recepcion_repair_*"
+            })
+            {
+                foreach (var file in Directory.GetFiles(temp, pattern))
+                    TryDeleteFile(file);
+                foreach (var dir in Directory.GetDirectories(temp, pattern))
+                    TryDeleteDirectory(dir);
             }
+
+            // Staging/self-update antiguos. En este punto Recepción ya abrió
+            // correctamente, así que no son necesarios.
+            TryDeleteDirectory(Path.Combine(temp, "DrReveloLauncher"));
         }
         catch { }
     }
