@@ -1148,20 +1148,30 @@ internal sealed class LauncherForm : Form
         Directory.CreateDirectory(Path.GetDirectoryName(log)!);
         try { File.WriteAllText(log, "", Encoding.UTF8); } catch { }
 
-        string code =
-            "import sys,traceback,uvicorn;" +
-            $"sys.path.insert(0,r'{EscapePy(root)}');" +
-            $"f=open(r'{EscapePy(log)}','a',encoding='utf-8',buffering=1);" +
-            "sys.stdout=f;sys.stderr=f;" +
+        var scriptDir = Path.Combine(Path.GetTempPath(), "DrReveloHistoriaLauncher");
+        Directory.CreateDirectory(scriptDir);
+        var backendScript = Path.Combine(scriptDir,
+            "backend_" + Guid.NewGuid().ToString("N") + ".py");
+        var rootLiteral = JsonSerializer.Serialize(root);
+        var logLiteral = JsonSerializer.Serialize(log);
+        var backendCode =
+            "import sys, traceback, uvicorn\n" +
+            $"root = {rootLiteral}\n" +
+            $"log_path = {logLiteral}\n" +
+            "sys.path.insert(0, root)\n" +
+            "log = open(log_path, 'a', encoding='utf-8', buffering=1)\n" +
+            "sys.stdout = log\n" +
+            "sys.stderr = log\n" +
             "try:\n" +
-            " import app as historia_app\n" +
-            " print('IMPORT_OK',getattr(historia_app,'APP_VERSION',''))\n" +
-            $" uvicorn.run(historia_app.app,host='127.0.0.1',port={Port},access_log=False,log_level='warning')\n" +
+            "    import app as historia_app\n" +
+            "    print('IMPORT_OK', getattr(historia_app, 'APP_VERSION', ''), flush=True)\n" +
+            $"    uvicorn.run(historia_app.app, host='127.0.0.1', port={Port}, access_log=False, log_level='warning')\n" +
             "except Exception:\n" +
-            " traceback.print_exc()\n" +
-            " raise";
+            "    traceback.print_exc()\n" +
+            "    raise\n";
+        await File.WriteAllTextAsync(backendScript, backendCode, new UTF8Encoding(false));
 
-        var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code))
+        var psi = new ProcessStartInfo(python, QuoteArg(backendScript))
         {
             WorkingDirectory = root,
             UseShellExecute = false,
