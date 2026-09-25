@@ -1,0 +1,44 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.6.4",
+  "app_version": "4.6.4",
+  "runtime_version": "4.6.4",
+  "mandatory": false,
+  "version_source": "recepcion-version.json",
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.12",
+  "updater_version": "launcher-v1-app-update",
+  "required_dependencies": [
+    "historia_bridge.py",
+    "historia_lan_transport.py"
+  ],
+  "installation_prerequisites": [],
+  "copy": [
+    "app.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "recepcion-version.json",
+    "update_manifest.json",
+    "static/runtime_keep.txt"
+  ],
+  "notes": {
+    "purpose": "Candidata de limpieza de UI: desactiva el administrador/observer v4470 de Servicios y precios que quedó vivo por un reemplazo histórico fallido; conserva el panel v4476 vigente.",
+    "previous_version": "4.6.3",
+    "candidate_only": true,
+    "database_schema_changes": false,
+    "patient_data_changes": false,
+    "patient_data_destructive_changes": false,
+    "neon_changes": false,
+    "historia_changes": false,
+    "billing_logic_changes": false,
+    "azur_logic_changes": false,
+    "whatsapp_logic_changes": false,
+    "procedure_backend_changes": false,
+    "procedure_values_changes": false,
+    "printing_changes": false,
+    "old_v4470_procedure_manager_disabled": true,
+    "modern_v4476_service_panel_preserved": true,
+    "production_status": "candidate-not-published"
+  },
+  "channel": "candidate-only"
+}
