@@ -2,16 +2,16 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.43",
+  "appVersion": "4.5.44",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.43: reconstruida desde la 4.5.41, sin heredar la lógica general de 4.5.42. Al seleccionar una ficha histórica, se activa o reutiliza una única ficha activa, se completan los datos históricos disponibles, se guarda el vínculo para que no vuelva a aparecer como histórica y la atención queda como Subsecuente. El menú Imprimir ahora abre hacia arriba para no ser recortado por el cuadro de Inicio. No modifica Historia Clínica, Bendo, facturación, agenda ni esquemas de base de datos.",
-  "generatedFromCommit": "a81a98edc6efa2f3bebae677c4348a8e673b8211",
+  "notes": "Recepción 4.5.44: el recibo automático usa exactamente el tipo guardado (N=PRIMERO, S=SUBSECUENTE). Además, el menú Imprimir se renderiza fuera de la tabla de Inicio para que siempre se vean completas las dos opciones: Imprimir recibo e Imprimir comprobante. Conserva el flujo histórico de 4.5.43 y no modifica Historia Clínica, Bendo, facturación, agenda ni esquemas de base de datos.",
+  "generatedFromCommit": "67a881ea93b46695107b40f999efeef0e651e0f2",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/a81a98edc6efa2f3bebae677c4348a8e673b8211/updates/v4_5_43_historical_activation_print_menu/app.py",
-      "sha256": "60c071b44b5a9752679ff5280770d8669b1a2ded01c916fa16a2f3080e06b99b"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/app.py",
+      "sha256": "645d6490a1cbbf107de52d4b387fb9b5ea03f8bd9e162df052702d99a820c6ba"
     },
     {
       "path": "historia_bridge.py",
@@ -20,13 +20,13 @@
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/a81a98edc6efa2f3bebae677c4348a8e673b8211/updates/v4_5_43_historical_activation_print_menu/recepcion-version.json",
-      "sha256": "6cdd8f06929e00267889607cbfb6564514e3617a42c68ea1e6b5966738090893"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/recepcion-version.json",
+      "sha256": "6dc75a46a0d19b52849f02e943146e671a0f3f2d2592250ff333d4abbd299ec0"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/a81a98edc6efa2f3bebae677c4348a8e673b8211/updates/v4_5_43_historical_activation_print_menu/update_manifest.json",
-      "sha256": "97323cb13ddb583eee9833816bab368e9b9352cbd1ea67bc93bd590c0f4284f1"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/update_manifest.json",
+      "sha256": "dd3affe4cb53ab62eea0880b8170376957406f392adcdf40a4dc597a76a7ce54"
     },
     {
       "path": "historia_lan_transport.py",
