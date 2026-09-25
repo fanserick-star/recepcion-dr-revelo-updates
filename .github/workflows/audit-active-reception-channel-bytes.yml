@@ -71,6 +71,7 @@ jobs:
         shell: python
         run: |
           import ast
+          import hashlib
           import json
           import pathlib
           import re
@@ -232,6 +233,39 @@ jobs:
                   "Faltan helpers embebidos obligatorios: "
                   + ", ".join(sorted(missing_helpers))
               )
+
+              # Verifica no solo que existan, sino que AZUR y WhatsApp sean
+              # exactamente las implementaciones auditadas que originaron 4.6.2.
+              embedded_source_map = {}
+              for node in app_tree.body:
+                  if isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if (
+                              isinstance(target, ast.Name)
+                              and target.id == "_EMBEDDED_RUNTIME_SOURCES"
+                          ):
+                              embedded_source_map = ast.literal_eval(node.value)
+              assert isinstance(embedded_source_map, dict)
+
+              helper_hash_contract = {
+                  "azur_client": str(
+                      manifest.get("notes", {}).get("azur_source_sha256") or ""
+                  ).strip().lower(),
+                  "whatsapp_client": str(
+                      manifest.get("notes", {}).get("whatsapp_source_sha256") or ""
+                  ).strip().lower(),
+              }
+              for helper_name, expected_hash in helper_hash_contract.items():
+                  assert len(expected_hash) == 64, (
+                      f"Falta hash contractual de {helper_name}"
+                  )
+                  source = embedded_source_map[helper_name]
+                  got_hash = hashlib.sha256(source.encode("utf-8")).hexdigest()
+                  assert got_hash == expected_hash, (
+                      f"{helper_name} embebido no coincide con el helper auditado: "
+                      f"{got_hash} != {expected_hash}"
+                  )
+
               prereq = {
                   str(x).strip().lower()
                   for x in manifest.get("installation_prerequisites", [])
