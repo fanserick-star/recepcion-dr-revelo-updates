@@ -53,7 +53,7 @@ def main() -> None:
         db.info["offline"] = True
 
         p = core.Patient(
-            cedula="0123456789",
+            cedula="1203456783",
             nombre="PACIENTE HISTORICO PRUEBA",
             celular=None,
             correo=None,
@@ -66,7 +66,7 @@ def main() -> None:
 
         # 1) Una cédula equivalente con guiones/espacios debe bloquearse.
         duplicate_input = core.PatientIn(
-            cedula="012-345-6789",
+            cedula="120-345-6783",
             nombre="OTRA FICHA QUE NO DEBE CREARSE",
         )
         try:
@@ -80,8 +80,8 @@ def main() -> None:
         historical = core.HistoricalPatient(
             source_key="audit-v460-history",
             nombre="PACIENTE HISTORICO PRUEBA",
-            search_text="PACIENTE HISTORICO PRUEBA 0123456789 0999999999 QUEVEDO",
-            cedula="0123456789",
+            search_text="PACIENTE HISTORICO PRUEBA 1203456783 0999999999 QUEVEDO",
+            cedula="1203456783",
             celular="0999999999",
             correo="audit@example.invalid",
             lugar="QUEVEDO",
@@ -92,7 +92,7 @@ def main() -> None:
             aliases="PACIENTE HISTORICO PRUEBA",
             phones="0999999999",
             emails="audit@example.invalid",
-            cedulas="0123456789",
+            cedulas="1203456783",
         )
         db.add(historical)
         db.commit()
@@ -169,7 +169,7 @@ def main() -> None:
 
         # 6) Simulamos un duplicado legado para asegurar que el auditor lo ve.
         legacy_duplicate = core.Patient(
-            cedula="012-345-6789",
+            cedula="120-345-6783",
             nombre="PACIENTE HISTORICO PRUEBA",
             celular="0999999999",
         )
