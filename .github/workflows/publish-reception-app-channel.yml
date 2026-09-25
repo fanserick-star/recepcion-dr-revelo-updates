@@ -26,6 +26,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           python - <<'PY'
+          import ast
           import hashlib
           import json
           import os
@@ -53,6 +54,11 @@ jobs:
               "autoactualizar.py",
               "iniciar.bat",
           }
+          forbidden_runtime_module_prefixes = (
+              "app_patch_",
+              "app_prev_",
+              "app_base_",
+          )
 
           generated_files = []
           payloads = {}
@@ -61,6 +67,11 @@ jobs:
               target = item["path"].replace("\\", "/").strip()
               low = target.lower()
               assert target and not target.startswith("/") and ".." not in target.split("/")
+              basename = Path(low).name
+              assert not (
+                  basename.endswith(".py")
+                  and basename.startswith(forbidden_runtime_module_prefixes)
+              ), f"Runtime encadenado prohibido: {target}"
               assert not low.startswith(protected_prefixes), target
               assert low not in protected_exact, target
               assert not low.endswith(protected_suffixes), target
@@ -114,8 +125,23 @@ jobs:
 
           app_text = payloads["app.py"].decode("utf-8-sig")
           compile(app_text, "app.py", "exec")
+          tree = ast.parse(app_text, filename="app.py")
+          forbidden_imports = []
+          for node in ast.walk(tree):
+              names = []
+              if isinstance(node, ast.Import):
+                  names = [a.name.split(".")[0] for a in node.names]
+              elif isinstance(node, ast.ImportFrom) and node.module:
+                  names = [node.module.split(".")[0]]
+              for name in names:
+                  if name.startswith(forbidden_runtime_module_prefixes):
+                      forbidden_imports.append(name)
+          assert not forbidden_imports, (
+              "app.py intenta reintroducir cadena histórica: "
+              + ", ".join(sorted(set(forbidden_imports)))
+          )
           assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
-          print("syntax OK: app.py")
+          print("syntax OK: app.py; runtime histórico encadenado bloqueado")
 
           channel = {
               "schema": 3,
