@@ -2,34 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.2",
+  "appVersion": "4.6.3",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.2: AZUR, WhatsApp y remote_agenda dejan de depender de archivos externos. Sus implementaciones validadas quedan dentro del único app.py. Sin cambios en lógica AZUR/Meta, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos ni datos. Prueba aislada aprobada: 242 rutas activas; azur_client y whatsapp_client cargan desde embedded://. helpers embebidos validados y sin archivos externos obligatorios.",
+  "notes": "Recepción 4.6.3: auditoría funcional y rendimiento. Historia usa exclusivamente HISTORIA_DATABASE_URL y se bloquea si coincide con DATABASE_URL de Recepción. Reduce sondeos redundantes de versión/Historia y evita repetir DDL del puente. Envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos se conservan.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/app.py"
+      "sourcePath": "updates/v4_6_3_perf/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/recepcion-version.json"
+      "sourcePath": "updates/v4_6_3_perf/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/update_manifest.json"
+      "sourcePath": "updates/v4_6_3_perf/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_3_perf/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/historia_bridge.py"
+      "sourcePath": "updates/v4_6_3_perf/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_6_2_embedded_helpers/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_3_perf/historia_lan_transport.py"
     }
   ]
 }
