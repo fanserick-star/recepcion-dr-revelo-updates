@@ -1,0 +1,292 @@
+{
+  "schema": 1,
+  "base_version": "4.5.44",
+  "candidate_version": "4.6.0",
+  "purpose": "Freeze the verified historical patch chain into one atomic runtime ZIP.",
+  "modules": {
+    "app_patch_4525.py": {
+      "path": "updates/v4_5_25_bendo_click_hotfix/app_patch_4525.py",
+      "blob_sha": "f73f36927ee9ec9647aa9fc99da302ce0f60fc70",
+      "size": 14573
+    },
+    "app_patch_4524.py": {
+      "path": "updates/v4_5_24_historia_demographics/app_patch_4524.py",
+      "blob_sha": "ace99621928f4d2a5838ffb735a727e93502a593",
+      "size": 3559
+    },
+    "app_patch_4505.py": {
+      "path": "updates/v4_5_24_historia_demographics/app_patch_4505.py",
+      "blob_sha": "a5214ef582d2cee6b515bd5c909c85eafb5a7a61",
+      "size": 10874
+    },
+    "app_patch_4507.py": {
+      "path": "updates/v4_5_24_historia_demographics/app_patch_4507.py",
+      "blob_sha": "acff00d4684be1ff9eb69d9518dbd89a8d0c368c",
+      "size": 31744
+    },
+    "app_patch_4523.py": {
+      "path": "updates/v4_5_24_historia_demographics/app_patch_4523.py",
+      "blob_sha": "ba6fcede504a6b52f3ec2646a1bf54d1479b471f",
+      "size": 17649
+    },
+    "app_patch_4522.py": {
+      "path": "updates/v4_5_22_historia_delete_sync/app_patch_4522.py",
+      "blob_sha": "e638808ffb1596fc552dc924697f7d67acb99f0c",
+      "size": 4488
+    },
+    "app_patch_4521.py": {
+      "path": "updates/v4_5_21_historia_attention_type/app_patch_4521.py",
+      "blob_sha": "89ea45e3e9fedc5ae15586965b03730c93556738",
+      "size": 3337
+    },
+    "app_patch_4520.py": {
+      "path": "updates/v4_5_20_historia_lan_hybrid/app_patch_4520.py",
+      "blob_sha": "19cab74333cc8ee0b9bff9c218bb0ecd76a29593",
+      "size": 4904
+    },
+    "historia_lan_transport.py": {
+      "path": "updates/v4_5_41_historia_visible_turn/historia_lan_transport.py",
+      "blob_sha": "501fddd3fe4d04faf6b4b65a7aa1656408546cfb",
+      "size": 17451
+    },
+    "app_patch_4519.py": {
+      "path": "updates/v4_5_19_sidebar_real_version/app_patch_4519.py",
+      "blob_sha": "07b5f0a91d1e44aff037accaa0b5ca694d2ec69c",
+      "size": 6018
+    },
+    "app_patch_4518.py": {
+      "path": "updates/v4_5_18_real_version/app_patch_4518.py",
+      "blob_sha": "0e5314c3c125b134a28c07697307136ffb15811e",
+      "size": 4276
+    },
+    "app_patch_4517.py": {
+      "path": "updates/v4_5_17_historia_link_status/app_patch_4517.py",
+      "blob_sha": "1b84652970bbec533022214878a280d627b912d0",
+      "size": 5908
+    },
+    "historia_bridge.py": {
+      "path": "updates/v4_5_41_historia_visible_turn/historia_bridge.py",
+      "blob_sha": "9bca0cbdea7c08816301ff2839457efd3353a1ed",
+      "size": 30169
+    },
+    "app_patch_4516.py": {
+      "path": "updates/v4_5_16_unified_rescue/app_patch_4516.py",
+      "blob_sha": "4cb8ecb5b0250907a466350582cc8fadc15ecc80",
+      "size": 3843
+    },
+    "app_patch_4511.py": {
+      "path": "updates/v4_5_11_shortcut_branding/app_patch_4511.py",
+      "blob_sha": "e1097b85abe774d05f43718aba515e4455c74ad0",
+      "size": 590
+    },
+    "app_patch_4510.py": {
+      "path": "updates/v4_5_10_auto_recovery/app_patch_4510.py",
+      "blob_sha": "8429e03df2eb82adaf432152b8653cfd1a1e7162",
+      "size": 648
+    },
+    "app_patch_4509.py": {
+      "path": "updates/v4_5_09_historia_bridge_stable/app_patch_4509.py",
+      "blob_sha": "e3790201cae641299e92c40e500610ecbe2b3659",
+      "size": 676
+    },
+    "app_patch_4508.py": {
+      "path": "updates/v4_5_08_historia_bridge/app_patch_4508.py",
+      "blob_sha": "fec39d04ea7667a98d9354ae5b0a11290e83ff10",
+      "size": 2944
+    },
+    "app_patch_4506.py": {
+      "path": "updates/v4_5_06_bendo_config/app_patch_4506.py",
+      "blob_sha": "22c14332b786bee363db40d622bc997becd09da0",
+      "size": 36218
+    },
+    "app_patch_4504.py": {
+      "path": "updates/v4_5_04_payments_visual/app_patch_4504.py",
+      "blob_sha": "9c03090f7d506aceaf367b53ea55f56ea3bd91bf",
+      "size": 56453
+    },
+    "app_patch_4502.py": {
+      "path": "updates/v4_5_02_couple_discount/app_patch_4502.py",
+      "blob_sha": "6e05534f3d4cd3101c1cc21a1b59828a5155b5d4",
+      "size": 18835
+    },
+    "app_patch_4501.py": {
+      "path": "updates/v4_5_01_stable_maintenance/app_patch_4501.py",
+      "blob_sha": "8830a5750634d85674c27a8afb9845786d67f5c5",
+      "size": 25872
+    },
+    "app_patch_4491.py": {
+      "path": "updates/v4_4_91_billing_form_no_lines/app_patch_4491.py",
+      "blob_sha": "16197e8f2c5bfcf9c71771c899f525c43109cd36",
+      "size": 7822
+    },
+    "app_patch_4490.py": {
+      "path": "updates/v4_4_90_billing_form_compact/app_patch_4490.py",
+      "blob_sha": "d17e1553b366ce42899d2475bcdd8f29a28a00ed",
+      "size": 8101
+    },
+    "app_patch_4489.py": {
+      "path": "updates/v4_4_89_billing_data_form/app_patch_4489.py",
+      "blob_sha": "ec73e71646ae16b1710f164ced1938687549270a",
+      "size": 11155
+    },
+    "app_patch_4488.py": {
+      "path": "updates/v4_4_88_payment_proof_compact/app_patch_4488.py",
+      "blob_sha": "23b89681b131e2544e1aaf0fe63138a397480f80",
+      "size": 12566
+    },
+    "app_patch_4487.py": {
+      "path": "updates/v4_4_87_payment_proof_safe_right/app_patch_4487.py",
+      "blob_sha": "cb1c3b031c250f2fece7ce5aaeef4f305f5b9562",
+      "size": 13012
+    },
+    "app_patch_4486.py": {
+      "path": "updates/v4_4_86_single_print_menu/app_patch_4486.py",
+      "blob_sha": "57bbe8a8e92e6a634d153fd711890fbd51d5b573",
+      "size": 5868
+    },
+    "app_patch_4485.py": {
+      "path": "updates/v4_4_85_payment_proof/app_patch_4485.py",
+      "blob_sha": "26e2c352c8335259cf78c0b6564dc160bfe1d199",
+      "size": 16259
+    },
+    "app_patch_4484.py": {
+      "path": "updates/v4_4_84_optional_billing_email/app_patch_4484.py",
+      "blob_sha": "bddc69e6a77598d68299ef8f183cdd0b473b50f2",
+      "size": 3758
+    },
+    "app_patch_4483.py": {
+      "path": "updates/v4_4_83_mandatory_update_gate/app_patch_4483.py",
+      "blob_sha": "01de80133ee57476d67ac8e20dfc9a90c91fd8a5",
+      "size": 6223
+    },
+    "app_patch_4482.py": {
+      "path": "updates/v4_4_82_updater_repair/app_patch_4482.py",
+      "blob_sha": "3f6dced074d011a38fb0b640e17e128aa29870eb",
+      "size": 6049
+    },
+    "app_patch_4481.py": {
+      "path": "updates/v4_4_81_remove_facturero_modal/app_patch_4481.py",
+      "blob_sha": "bc5d44e534db02eb1546829313bbecc923d3a7a1",
+      "size": 6028
+    },
+    "app_patch_4480.py": {
+      "path": "updates/v4_4_80_billing_emitidas_hotfix/app_patch_4480.py",
+      "blob_sha": "9ccfe94be25f5053f31e7a377f234a5a358f0ae1",
+      "size": 4801
+    },
+    "app_patch_4479.py": {
+      "path": "updates/v4_4_79_cleanup_obsolete_ui/app_patch_4479.py",
+      "blob_sha": "cc2773c180aa4f227926b659def50a0411cf2934",
+      "size": 8750
+    },
+    "app_patch_4478.py": {
+      "path": "updates/v4_4_78_visible_discard_stable_version/app_patch_4478.py",
+      "blob_sha": "d29d1b83a3a3749f4b9216df38debf89b24a1674",
+      "size": 7363
+    },
+    "app_patch_4477.py": {
+      "path": "updates/v4_4_77_discard_pending_billing/app_patch_4477.py",
+      "blob_sha": "3f690b4b625d0950d777d037aa4cbc59336da486",
+      "size": 8640
+    },
+    "app_patch_4476.py": {
+      "path": "updates/v4_4_76_billing_services_coherence/app_patch_4476.py",
+      "blob_sha": "61b02244fa0f4d10c9ba1ee93368c9524fbfcdb3",
+      "size": 45529
+    },
+    "app_patch_4475.py": {
+      "path": "updates/v4_4_75_fast_save_services/app_patch_4475.py",
+      "blob_sha": "f5b7265d0082dbdadc6335c7a106f99f71ee6f7e",
+      "size": 18592
+    },
+    "app_patch_4474.py": {
+      "path": "updates/v4_4_74_async_print_stable/app_patch_4474.py",
+      "blob_sha": "eea39576a92deb77da300ac042149f9cb29ee062",
+      "size": 6354
+    },
+    "app_patch_4473.py": {
+      "path": "updates/v4_4_73_stable_recovery/app_patch_4473.py",
+      "blob_sha": "0b823b68fd0714f886f4d14553178a71bb91ee5d",
+      "size": 2105
+    },
+    "app_patch_4470.py": {
+      "path": "updates/v4_4_70_workflow_fixes/app_patch_4470.py",
+      "blob_sha": "ec9306823d250118d32be127bf2d35be381e846c",
+      "size": 19100
+    },
+    "app_patch_4469.py": {
+      "path": "updates/v4_4_69_receipt_left_wide/app_patch_4469.py",
+      "blob_sha": "7e645cacbab19a32651d73b260fed50374778084",
+      "size": 11744
+    },
+    "app_patch_4468.py": {
+      "path": "updates/v4_4_68_receipt_large_long/app_patch_4468.py",
+      "blob_sha": "7c5ea0291253ae33c3f01a96784217c8eff75c62",
+      "size": 18082
+    },
+    "app_patch_4467.py": {
+      "path": "updates/v4_4_67_receipt_large_clean/app_patch_4467.py",
+      "blob_sha": "7be37e362c83a06fda9f8248cc7c47272257d0c8",
+      "size": 15663
+    },
+    "app_patch_4466.py": {
+      "path": "updates/v4_4_66_receipt_raster/app_patch_4466.py",
+      "blob_sha": "ee9406a1c003f333731cdcdccbc681883c8dbedf",
+      "size": 16585
+    },
+    "app_patch_4465.py": {
+      "path": "updates/v4_4_65_receipt_unified/app_patch_4465.py",
+      "blob_sha": "ebbb5041420bb1dd102e9b1ae6465d3b15f9623b",
+      "size": 16535
+    },
+    "app_patch_4464.py": {
+      "path": "updates/v4_4_64_receipt_edge_to_edge/app_patch_4464.py",
+      "blob_sha": "d38d08d0fe8c47b762663aeec50f339acbf0dec0",
+      "size": 10423
+    },
+    "app_patch_4463.py": {
+      "path": "updates/v4_4_63_receipt_match_preview/app_patch_4463.py",
+      "blob_sha": "acb482262be41ac9609c4ffea388e0e8e10c697b",
+      "size": 15464
+    },
+    "app_patch_4462.py": {
+      "path": "updates/v4_4_62_receipt_uniform/app_patch_4462.py",
+      "blob_sha": "b55c1cce7934f1b330967985e7a2cd69ec82b0fe",
+      "size": 8224
+    },
+    "app_patch_4461.py": {
+      "path": "updates/v4_4_61_receipt_crm308/app_patch_4461.py",
+      "blob_sha": "a5d0365af1c59a6d506efa45af49c254c88c7fc4",
+      "size": 8330
+    },
+    "app_patch_4459.py": {
+      "path": "updates/v4_4_60_rescue_direct_app/app_patch_4459.py",
+      "blob_sha": "d2df1a2417f5d864886c0d9ccab00c736b7a7ff8",
+      "size": 13371
+    },
+    "app_prev_4458.py": {
+      "path": "updates/v4_4_60_rescue_direct_app/app_prev_4458.py",
+      "blob_sha": "56f28681b1fbc44c0227c18bb771796887359391",
+      "size": 116092
+    },
+    "app_base_4428.py": {
+      "path": "updates/v4_4_60_rescue_direct_app/app_base_4428.py",
+      "blob_sha": "abd2549ac85a8b35b6b407b31ab2bd814eda9ff3",
+      "size": 753194
+    }
+  },
+  "extracted_modules": {
+    "azur_client.py": {
+      "archive": "updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip",
+      "member": "package/azur_client.py"
+    }
+  },
+  "generated_modules": {
+    "remote_agenda.py": "updates/v4_6_0_stabilization/support/remote_agenda.py",
+    "whatsapp_client.py": "updates/v4_6_0_stabilization/support/whatsapp_client.py"
+  },
+  "static_files": {
+    "static/app.js": "updates/v4_4_43_daily_emitted_whatsapp_schedule/static/app.js",
+    "static/index.html": "updates/v4_4_43_daily_emitted_whatsapp_schedule/static/index.html"
+  }
+}
