@@ -5,7 +5,7 @@
   "appVersion": "4.5.48",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.48: auditoría de integridad del runtime. Mantiene exactamente el comportamiento de 4.5.47 y vuelve a distribuir la cadena ACTIVA completa de módulos para que el launcher pueda reparar archivos históricos faltantes o dañados. No toca datos, Neon, Historia Clínica, Bendo, facturación, agenda, impresión ni esquemas.",
+  "notes": "Recepción 4.5.48: auditoría de integridad del runtime. Mantiene exactamente el comportamiento de 4.5.47 y vuelve a distribuir la cadena ACTIVA completa de módulos para que el launcher pueda reparar archivos históricos faltantes o dañados. No toca datos, Neon, Historia Clínica, Bendo, facturación, agenda, impresión ni esquemas. Auditoría runtime: payload activo autocontenido respecto a la cadena histórica distribuible.",
   "files": [
     {
       "path": "app.py",
