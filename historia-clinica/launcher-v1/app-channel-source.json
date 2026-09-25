@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.41",
+  "appVersion": "1.3.42",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.41: corrige PostgreSQL 42501 usando public.* como esquema clínico canónico en el Neon dedicado, donde ya están los pacientes e historias históricos. No crea ni altera esquemas remotos, no copia ni duplica históricos y mantiene la sincronización sobre las tablas clínicas existentes. No cambia impresión, recetas, certificados ni el flujo clínico.",
+  "notes": "Historia Clínica 1.3.42: completa la sincronización con el Neon clínico legacy aunque falten tablas auxiliares antiguas como prescriptions o certificates. patients y encounters siguen siendo obligatorias; las auxiliares inexistentes se conservan localmente y se omiten sin abortar la descarga. No borra datos locales ni remotos, no crea tablas ni altera esquemas y mantiene impresión, recetas, certificados, turnos y flujo clínico.",
   "files": [
     {
       "path": "app.py",
@@ -21,8 +21,8 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_41_public_canonical/cloud_sync.py.part01",
-        "historia-clinica/updates/v1_3_41_public_canonical/cloud_sync.py.part02"
+        "historia-clinica/updates/v1_3_42_optional_cloud_tables/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_42_optional_cloud_tables/cloud_sync.py.part02"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_41_public_canonical/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_42_optional_cloud_tables/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_41_public_canonical/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_42_optional_cloud_tables/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
