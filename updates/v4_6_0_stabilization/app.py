@@ -4,10 +4,13 @@ from __future__ import annotations
 # Toda la cadena 4.4.x/4.5.x vive dentro de un ZIP inmutable y verificado.
 # El ZIP se coloca primero en sys.path para no depender de módulos app_patch_*
 # sueltos que hayan quedado de instalaciones anteriores.
+import os as _v460_boot_os
 import sys as _v460_sys
 from pathlib import Path as _V460Path
 
-_V460_RUNTIME_ZIP = _V460Path(__file__).with_name("recepcion_legacy_runtime.zip")
+_V460_APP_ROOT = _V460Path(__file__).resolve().parent
+_v460_boot_os.environ["RP_APP_ROOT"] = str(_V460_APP_ROOT)
+_V460_RUNTIME_ZIP = _V460_APP_ROOT / "recepcion_legacy_runtime.zip"
 if not _V460_RUNTIME_ZIP.is_file():
     raise RuntimeError(
         "Falta recepcion_legacy_runtime.zip. La instalación 4.6.0 está incompleta; "
