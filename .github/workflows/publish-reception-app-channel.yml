@@ -206,6 +206,36 @@ jobs:
                   "remote_agenda no puede volver a ser dependencia externa"
               )
 
+          def ver_tuple(value):
+              parts = re.findall(r"\d+", str(value))
+              return tuple(int(x) for x in (parts + ["0","0","0"])[:3])
+
+          # Desde 4.6.2 los helpers funcionales quedan dentro del runtime único.
+          if ver_tuple(version) >= (4, 6, 2):
+              required_embedded_helpers = {
+                  "remote_agenda",
+                  "azur_client",
+                  "whatsapp_client",
+              }
+              missing_helpers = required_embedded_helpers - embedded_modules
+              assert not missing_helpers, (
+                  "Faltan helpers embebidos obligatorios: "
+                  + ", ".join(sorted(missing_helpers))
+              )
+              prereq = {
+                  str(x).strip().lower()
+                  for x in manifest.get("installation_prerequisites", [])
+              }
+              forbidden_external = {
+                  "remote_agenda.py",
+                  "azur_client.py",
+                  "whatsapp_client.py",
+              } & prereq
+              assert not forbidden_external, (
+                  "La versión intenta volver a depender de helpers externos: "
+                  + ", ".join(sorted(forbidden_external))
+              )
+
           assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
           print(
               "syntax OK: app.py; sin cadena externa; "
