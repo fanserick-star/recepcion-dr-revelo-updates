@@ -1,0 +1,68 @@
+name: Inspect Reception Active Overlay
+
+on:
+  push:
+    branches:
+      - reception-audit-functional-performance
+    paths:
+      - ".github/workflows/inspect-reception-active-overlay.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "fastapi==0.128.2" "uvicorn==0.48.0" "sqlalchemy>=2,<3" \
+            "python-dotenv>=1,<2" "pg8000>=1.31,<2" \
+            "python-multipart>=0.0.20,<1" "pydantic>=2,<3" "anyio>=4,<5"
+      - name: Inspect active JS blocks
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/overlay-data
+          RP_FORCE_OFFLINE: "1"
+          FORCE_OFFLINE: "1"
+          WHATSAPP_ENABLED: "0"
+          WHATSAPP_CLOUD_MODE: "1"
+          AZUR_LIVE_EMISSION: "0"
+        run: |
+          cd updates/v4_6_3_perf_candidate
+          python - <<'PY'
+          import re
+          import app
+
+          js=str(app.core.V460_OVERLAY_JS or "")
+          blocks=re.split(r"(?=;\(\(\)=>\{)",js)
+          rows=[]
+          for i,b in enumerate(blocks):
+              obs=b.count("MutationObserver")
+              if not obs:
+                  continue
+              guards=sorted(set(re.findall(r"window\.(__(?:v|rp)[A-Za-z0-9_]+)",b)))
+              ids=sorted(set(re.findall(r"(?:id|className)\s*=\s*['\"]([^'\"]+)['\"]",b)))
+              funcs=re.findall(r"function\s+([A-Za-z0-9_$]+)\s*\(",b)
+              rows.append({
+                  "block":i,
+                  "bytes":len(b.encode("utf-8")),
+                  "observers":obs,
+                  "setInterval":b.count("setInterval("),
+                  "setTimeout":b.count("setTimeout("),
+                  "guards":guards[:8],
+                  "functions":funcs[:12],
+                  "ids":ids[:8],
+                  "head":re.sub(r"\s+"," ",b[:260]),
+              })
+          print("OBSERVER_BLOCK_COUNT",len(rows))
+          for row in rows:
+              print("OBSERVER_BLOCK",row)
+          print("TOTAL_MUTATION_OBSERVER_TEXT",js.count("MutationObserver"))
+          print("TOTAL_INTERVAL_TEXT",js.count("setInterval("))
+          print("TOTAL_TIMEOUT_TEXT",js.count("setTimeout("))
+          PY
