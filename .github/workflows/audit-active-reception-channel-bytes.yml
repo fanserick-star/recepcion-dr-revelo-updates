@@ -216,6 +216,35 @@ jobs:
 
           assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
 
+          def ver_tuple(value):
+              parts = re.findall(r"\d+", str(value))
+              return tuple(int(x) for x in (parts + ["0","0","0"])[:3])
+
+          if ver_tuple(version) >= (4, 6, 2):
+              required_embedded_helpers = {
+                  "remote_agenda",
+                  "azur_client",
+                  "whatsapp_client",
+              }
+              missing_helpers = required_embedded_helpers - embedded_modules
+              assert not missing_helpers, (
+                  "Faltan helpers embebidos obligatorios: "
+                  + ", ".join(sorted(missing_helpers))
+              )
+              prereq = {
+                  str(x).strip().lower()
+                  for x in manifest.get("installation_prerequisites", [])
+              }
+              forbidden_external = {
+                  "remote_agenda.py",
+                  "azur_client.py",
+                  "whatsapp_client.py",
+              } & prereq
+              assert not forbidden_external, (
+                  "El canal volvió a declarar helpers externos: "
+                  + ", ".join(sorted(forbidden_external))
+              )
+
           print(f"OK Recepción {version}: {len(files)} archivos, {len(py_paths)} módulos Python.")
           print(f"Dependencias activas declaradas: {len(manifest.get('required_dependencies', []))}.")
           print(f"Capas históricas embebidas heredadas: {len(current_historical)}; nuevas: 0.")
