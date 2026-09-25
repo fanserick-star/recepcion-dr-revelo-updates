@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.37",
+  "appVersion": "1.3.38",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.37: corrige el caso en que un paciente seguía mostrando un turno viejo (#10) aunque Recepción mostraba #6. Historia ahora toma el turno exacto más reciente enviado por Recepción para ese paciente y lo fuerza sobre cualquier fila activa del mismo paciente, aunque venga de un event_id antiguo. La impresión queda exactamente como en 1.3.36.",
+  "notes": "Historia Clínica 1.3.38: corrige la conexión con Neon en PCs donde aparecía InterfaceError: network error. El sincronizador prueba automáticamente la conexión normal y, si la red falla, reintenta por IPv4 y por el endpoint pooler de Neon, siempre con TLS y sin cambiar credenciales. No toca la base local, pacientes, historias, .env ni el formato de impresión.",
   "files": [
     {
       "path": "app.py",
@@ -21,7 +21,7 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_38_neon_network_fallback/cloud_sync.py.part01",
         "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
       ]
     },
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_37_reception_turn_force/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_38_neon_network_fallback/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_37_reception_turn_force/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_38_neon_network_fallback/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
