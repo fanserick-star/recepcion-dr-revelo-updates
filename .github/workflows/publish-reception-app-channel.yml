@@ -1,4 +1,5 @@
 name: Publish Validated Reception App Channel
+# republish refresh: Reception 4.6.3 helper hash contract
 
 on:
   push:
