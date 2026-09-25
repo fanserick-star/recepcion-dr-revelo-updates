@@ -1,0 +1,50 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.6.3",
+  "app_version": "4.6.3",
+  "runtime_version": "4.6.3",
+  "mandatory": false,
+  "version_source": "recepcion-version.json",
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.12",
+  "updater_version": "launcher-v1-app-update",
+  "required_dependencies": [
+    "historia_bridge.py",
+    "historia_lan_transport.py"
+  ],
+  "installation_prerequisites": [],
+  "copy": [
+    "app.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "recepcion-version.json",
+    "update_manifest.json",
+    "static/runtime_keep.txt"
+  ],
+  "notes": {
+    "purpose": "Candidata de auditoría funcional/rendimiento: separa estrictamente Neon de Recepción e Historia y reduce sondeos redundantes sin alterar el flujo de atención.",
+    "previous_version": "4.6.2",
+    "candidate_only": true,
+    "database_schema_changes": false,
+    "patient_data_changes": false,
+    "patient_data_destructive_changes": false,
+    "reception_neon_schema_changes": false,
+    "historia_neon_schema_changes": false,
+    "strict_historia_database_url": true,
+    "reject_same_reception_historia_database": true,
+    "historia_presence_cache_seconds": 60,
+    "historia_lan_monitor_seconds": 20,
+    "historia_ui_status_seconds": 30,
+    "immediate_lan_handoff_preserved": true,
+    "superseded_v4517_monitor_disabled": true,
+    "superseded_v4518_version_monitor_disabled": true,
+    "v4519_periodic_version_fetch_disabled": true,
+    "billing_logic_changes": false,
+    "azur_logic_changes": false,
+    "whatsapp_logic_changes": false,
+    "procedure_logic_changes": false,
+    "printing_changes": false,
+    "production_status": "candidate-not-published"
+  },
+  "channel": "candidate-only"
+}
