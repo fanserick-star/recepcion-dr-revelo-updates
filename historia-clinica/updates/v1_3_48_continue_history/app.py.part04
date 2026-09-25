@@ -1,0 +1,422 @@
+xt":m["text"]} for m in macros], ensure_ascii=False)
+    recovered = bool(working)
+    if previous_rows:
+        previous_cards = []
+        for index, h in enumerate(previous_rows):
+            is_legacy = h["source"] == "legacy_consulta_practica"
+            segment_html, detected_dates, _segment_count = render_legacy_segments(
+                h["clinical_note"], h["encounter_date"]
+            ) if is_legacy else ("", 0, 0)
+
+            if is_legacy and detected_dates:
+                record_body = f"<div class='legacy-segments'>{segment_html}</div>"
+            else:
+                record_text = display_text(h["clinical_note"]) or "<em>Sin texto registrado</em>"
+                record_body = f"<div class='previous-record-text'>{record_text}</div>"
+
+            date_label = human_date(h["encounter_date"]) or h["encounter_date"] or "Sin fecha"
+            time_label = (h["encounter_time"] or "")[:5]
+            title = clean_title(h["clinical_note"], "Registro clínico")
+            origin = "Histórico importado" if is_legacy else "Consulta registrada"
+            open_attr = " open" if index == 0 else ""
+
+            previous_cards.append(f"""
+            <details class='previous-record'{open_attr}>
+              <summary>
+                <span class='previous-record-date'><b>{e(date_label)}</b>{f"<time>{e(time_label)}</time>" if time_label else ""}</span>
+                <span class='previous-record-summary'><strong>{e(title)}</strong><small>{origin}</small></span>
+                <span class='previous-record-chevron'>⌄</span>
+              </summary>
+              <div class='previous-record-body'>{record_body}</div>
+            </details>
+            """)
+
+        previous_panel = f"""
+<aside class='previous-panel'>
+  <div class='previous-panel-head simple'>
+    <div><h2>Historial anterior</h2><span class='previous-count'>{len(previous_rows)} registro{"s" if len(previous_rows) != 1 else ""}</span></div>
+    <a class='text-btn' href='/paciente/{e(patient_id)}'>Ver historia completa</a>
+  </div>
+  <div class='previous-scroll clean-reference previous-record-list'>
+    {"".join(previous_cards)}
+  </div>
+</aside>
+"""
+    else:
+        previous_panel = f"""
+<aside class='previous-panel previous-empty'>
+  <div class='previous-panel-head simple'><h2>Historial anterior</h2></div>
+  <div class='empty previous-empty-state'><strong>Sin registros anteriores</strong><span>Esta será la primera consulta registrada para este paciente.</span></div>
+</aside>
+"""
+    body = f"""
+<a class='back' href='/paciente/{e(patient_id)}'>← Volver a la historia clínica</a>
+<section class='consult-patient-bar'>
+  <div class='avatar'>{e((p['name'] or '?')[:1])}</div>
+  <div class='consult-patient-copy'><div class='consult-queue-badges'>{queue_badges_html}</div><span class='eyebrow'>CONSULTA MÉDICA</span><h1>{e(p['name'])}</h1><div class='consult-meta'>{''.join(f'<span>{x}</span>' for x in info)}</div></div>
+  <div id='save-state' class='save-state saved'>Autoguardado activo</div>
+</section>
+{"<div class='recovery-note'>Se recuperó automáticamente la consulta que estaba en edición. Puede continuar donde la dejó.</div>" if recovered else ""}
+<section class='editor-layout comparison-layout'>
+<div class='editor-main clinical-editor'>
+  <div class='editor-section-head'><div><h2>Nueva consulta</h2></div><div class='date-fields'><label>Fecha<input id='enc-date' type='date' value='{e(date_value)}'></label><label>Hora<input id='enc-time' type='time' value='{e(time_value)}'></label></div></div>
+  <div class='consult-tools'><button id='toggle-macros' class='secondary'>Frases rápidas</button></div>
+  <label class='editor-field main-note single-note'><span>Historia / evolución</span><textarea id='clinical-note' autofocus rows='22' placeholder='Escriba aquí la consulta, evolución, hallazgos, diagnóstico, tratamiento e indicaciones…'>{e(note_value)}</textarea></label>
+  <div class='editor-footer'><div class='autosave-help'>Los cambios se guardan automáticamente.</div><div class='editor-actions'><button id='save-now' class='secondary'>Guardar</button><button id='sign-note' class='primary finish-btn'>Finalizar consulta</button></div></div>
+</div>
+{previous_panel}
+</section>
+<aside id='macro-panel' class='macro-panel macro-drawer' hidden><div class='macro-head'><div><span class='section-kicker'>Apoyo de escritura</span><strong>Frases rápidas</strong></div><div class='macro-head-actions'><a href='/macros' target='_blank'>Administrar</a><button id='close-macros' class='drawer-close' type='button' aria-label='Cerrar'>×</button></div></div><p>Haga clic en el campo donde desea insertar la frase y luego selecciónela.</p><div id='macro-list'></div></aside>
+<div id='finalize-modal' class='modal-backdrop clinical-confirm' hidden><div class='modal'><span class='section-kicker'>FINALIZAR ATENCIÓN</span><h3>¿Finalizar esta consulta?</h3><p>La consulta quedará cerrada. Si después necesita aclarar algo, se agregará como nota complementaria sin alterar el registro original.</p><div class='modal-actions'><button class='secondary' id='cancel-finalize' type='button'>Seguir editando</button><button class='primary' id='confirm-finalize' type='button'>Finalizar consulta</button></div></div></div>
+<div id='leave-consult-modal' class='modal-backdrop clinical-confirm leave-consult-confirm' hidden><div class='modal'><span class='section-kicker'>CONSULTA ABIERTA</span><h3>Hay una consulta sin finalizar</h3><p>Lo escrito ya está protegido por el autoguardado. Para evitar que la consulta quede olvidada, finalícela antes de volver al Inicio.</p><div class='modal-actions'><button class='secondary' id='stay-consult' type='button'>Seguir escribiendo</button><button class='primary finish-btn' id='finish-and-home' type='button'>Finalizar consulta y volver al Inicio</button></div></div></div>
+"""
+    script = r"""<script>
+const PATIENT_ID=__PATIENT_ID__, QUEUE_ID=__QUEUE_ID__, PREVIOUS=__PREVIOUS__, MACROS=__MACROS__;
+let encounterId=__WORKING_ID__ || null, timer=null, dirty=false, leavingAfterFinalize=false;
+const state=document.getElementById('save-state');
+const noteEl=document.getElementById('clinical-note');
+const finalizeModal=document.getElementById('finalize-modal');
+const leaveModal=document.getElementById('leave-consult-modal');
+const signBtn=document.getElementById('sign-note');
+const confirmFinalize=document.getElementById('confirm-finalize');
+const cancelFinalize=document.getElementById('cancel-finalize');
+const stayConsult=document.getElementById('stay-consult');
+const finishAndHome=document.getElementById('finish-and-home');
+let lastFocused=noteEl;
+
+function upperClinical(el){
+  const start=el.selectionStart, end=el.selectionEnd;
+  const value=String(el.value||'').toUpperCase();
+  if(el.value!==value){
+    el.value=value;
+    try{el.setSelectionRange(start,end)}catch(_e){}
+  }
+}
+upperClinical(noteEl);
+
+noteEl.addEventListener('focus',()=>lastFocused=noteEl);
+noteEl.addEventListener('input',()=>{upperClinical(noteEl);changed()});
+['enc-date','enc-time'].forEach(id=>document.getElementById(id).addEventListener('change',changed));
+
+function changed(){
+  dirty=true;
+  state.textContent='Guardando cambios…';
+  state.className='save-state saving';
+  clearTimeout(timer);
+  timer=setTimeout(()=>save(false).catch(()=>{}),900);
+}
+
+function payload(manual=false){
+  return {
+    encounter_id:encounterId,
+    patient_id:PATIENT_ID,
+    queue_id:QUEUE_ID,
+    encounter_date:document.getElementById('enc-date').value,
+    encounter_time:document.getElementById('enc-time').value,
+    clinical_note:String(noteEl.value||'').toUpperCase(),
+    manual_snapshot:manual
+  };
+}
+
+async function save(manual=false){
+  if(!dirty && encounterId){
+    if(manual){state.textContent='Todo guardado';state.className='save-state saved'}
+    return encounterId;
+  }
+  state.textContent='Guardando…';
+  state.className='save-state saving';
+  try{
+    const r=await fetch('/api/encounters/save',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload(manual))
+    });
+    if(!r.ok){
+      let detail='';
+      try{const j=await r.json();detail=String(j.detail||j.error||'')}catch(_e){}
+      throw new Error(detail ? ('No se pudo guardar: '+detail) : 'No se pudo guardar la consulta.');
+    }
+    const j=await r.json();
+    encounterId=j.encounter_id;
+    dirty=false;
+    state.textContent='Guardado '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    state.className='save-state saved';
+    return encounterId;
+  }catch(_e){
+    state.textContent='No se pudo guardar';
+    state.className='save-state error';
+    throw _e;
+  }
+}
+
+function keepaliveSave(){
+  if(!dirty)return;
+  try{
+    fetch('/api/encounters/save',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload(false)),
+      keepalive:true
+    }).catch(()=>{});
+  }catch(_e){}
+}
+
+document.getElementById('save-now').addEventListener('click',async()=>{dirty=true;await save(true)});
+document.addEventListener('keydown',async e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){
+    e.preventDefault();dirty=true;await save(true);
+  }
+});
+
+const macroPanel=document.getElementById('macro-panel');
+document.getElementById('toggle-macros').addEventListener('click',()=>{macroPanel.hidden=!macroPanel.hidden});
+document.getElementById('close-macros').addEventListener('click',()=>{macroPanel.hidden=true});
+const ml=document.getElementById('macro-list');
+if(!MACROS.length){
+  ml.innerHTML='<div class="empty small"><strong>No hay frases creadas.</strong><span>Puede agregarlas desde Administrar.</span></div>';
+}else{
+  MACROS.forEach(m=>{
+    const b=document.createElement('button');
+    b.className='macro-btn';b.type='button';
+    b.innerHTML='<b>'+escapeHtml(m.label)+'</b><span>'+escapeHtml(String(m.text||'').slice(0,90))+'</span>';
+    b.onclick=()=>{
+      const el=noteEl,start=el.selectionStart,end=el.selectionEnd,before=el.value.slice(0,start),after=el.value.slice(end);
+      const spacer=before && !before.endsWith('\n')?'\n':'';
+      const insertion=String(m.text||'').toUpperCase();
+      el.value=(before+spacer+insertion+after).toUpperCase();
+      el.focus();
+      el.selectionStart=el.selectionEnd=(before+spacer+insertion).length;
+      changed();
+    };
+    ml.appendChild(b);
+  });
+}
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+
+function hasOpenConsultation(){
+  return Boolean(String(noteEl.value||'').trim() || encounterId || dirty);
+}
+
+async function finalizeAndHome(button){
+  const original=button?.textContent||'Finalizar consulta';
+  if(button){button.disabled=true;button.textContent='Finalizando…'}
+  signBtn.disabled=true;
+  try{
+    upperClinical(noteEl);
+    dirty=true;
+    const id=await save(true);
+    if(!id)throw new Error('No se pudo guardar la consulta.');
+    const r=await fetch('/api/encounters/'+encodeURIComponent(id)+'/sign',{method:'POST'});
+    if(!r.ok){
+      let msg='No se pudo finalizar la consulta.';
+      try{const j=await r.json();if(j.detail)msg+=' '+j.detail}catch(_e){}
+      throw new Error(msg);
+    }
+    dirty=false;
+    leavingAfterFinalize=true;
+    location.href='/';
+  }catch(err){
+    if(button){button.disabled=false;button.textContent=original}
+    signBtn.disabled=false;
+    finalizeModal.hidden=true;
+    leaveModal.hidden=true;
+    showAppToast(err && err.message ? err.message : 'No se pudo finalizar la consulta.','error');
+  }
+}
+
+signBtn.addEventListener('click',()=>{
+  if(!String(noteEl.value||'').trim()){
+    showAppToast('Escriba la consulta antes de finalizarla.','warning');
+    noteEl.focus();
+    return;
+  }
+  finalizeModal.hidden=false;
+});
+cancelFinalize.addEventListener('click',()=>{finalizeModal.hidden=true;signBtn.focus()});
+finalizeModal.addEventListener('click',e=>{if(e.target===finalizeModal)finalizeModal.hidden=true});
+confirmFinalize.addEventListener('click',()=>finalizeAndHome(confirmFinalize));
+
+stayConsult.addEventListener('click',()=>{leaveModal.hidden=true;noteEl.focus()});
+finishAndHome.addEventListener('click',()=>{
+  if(!String(noteEl.value||'').trim()){
+    leaveModal.hidden=true;
+    showAppToast('La consulta está vacía. Puede seguir escribiendo o volver después.','warning');
+    noteEl.focus();
+    return;
+  }
+  finalizeAndHome(finishAndHome);
+});
+
+// Evita que el doctor abandone una consulta escrita sin darse cuenta.
+document.addEventListener('click',e=>{
+  const a=e.target.closest('a[href]');
+  if(!a || a.target==='_blank' || a.hasAttribute('download'))return;
+  let url;
+  try{url=new URL(a.href,location.href)}catch(_e){return}
+  if(url.origin!==location.origin)return;
+  if(!hasOpenConsultation())return;
+  e.preventDefault();
+  save(false).catch(()=>{});
+  leaveModal.hidden=false;
+},{capture:true});
+
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(!finalizeModal.hidden)finalizeModal.hidden=true;
+    if(!leaveModal.hidden)leaveModal.hidden=true;
+  }
+});
+
+// El debounce guarda al parar de escribir y este reloj garantiza guardado
+// aunque el doctor escriba de forma continua durante varios minutos.
+setInterval(()=>{if(dirty)save(false).catch(()=>{})},5000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&dirty)save(false).catch(()=>{})});
+window.addEventListener('pagehide',()=>{if(!leavingAfterFinalize)keepaliveSave()});
+</script>"""
+    script = (
+        script.replace("__PATIENT_ID__", json.dumps(patient_id))
+        .replace("__QUEUE_ID__", json.dumps(queue_id))
+        .replace("__PREVIOUS__", previous_json)
+        .replace("__MACROS__", macros_json)
+        .replace("__WORKING_ID__", json.dumps(working["id"] if working else ""))
+    )
+    return base("Nueva consulta", body, "pacientes", extra_script=script)
+
+
+@app.post("/api/encounters/save")
+async def save_encounter(request: Request):
+    data = await request.json()
+    patient_id = (data.get("patient_id") or "").strip()
+    if not patient_id: raise HTTPException(400)
+    enc_id = (data.get("encounter_id") or "").strip() or new_id()
+    enc_date = data.get("encounter_date") or datetime.now().strftime("%Y-%m-%d")
+    enc_time = data.get("encounter_time") or datetime.now().strftime("%H:%M")
+    note = str(data.get("clinical_note") or "").upper()
+    diagnosis = (str(data.get("diagnosis") or "").upper() if "diagnosis" in data else None)
+    treatment = (str(data.get("treatment") or "").upper() if "treatment" in data else None)
+    copied = data.get("copied_from_encounter_id") or None
+    queue_id = data.get("queue_id") or None
+    manual = bool(data.get("manual_snapshot"))
+    with db() as conn:
+        if not conn.execute("SELECT 1 FROM patients WHERE id=?", (patient_id,)).fetchone(): raise HTTPException(404)
+        existing = conn.execute("SELECT * FROM encounters WHERE id=?", (enc_id,)).fetchone()
+        if existing and existing["note_status"] != "draft": raise HTTPException(409, "Consulta firmada")
+        stamp = now_iso()
+        if existing:
+            if diagnosis is None: diagnosis = existing["diagnosis"] or ""
+            if treatment is None: treatment = existing["treatment"] or ""
+            conn.execute("""UPDATE encounters SET encounter_date=?,encounter_time=?,clinical_note=?,diagnosis=?,treatment=?,copied_from_encounter_id=?,queue_id=COALESCE(?,queue_id),updated_at=? WHERE id=?""",
+                         (enc_date, enc_time, note, diagnosis, treatment, copied, queue_id, stamp, enc_id))
+        else:
+            digest = hashlib.sha256((enc_id + stamp).encode()).hexdigest()
+            # Para consultas nuevas sólo escribimos el núcleo clínico garantizado.
+            # Las columnas legacy son opcionales y no deben bloquear el autoguardado en
+            # una instalación nueva restaurada desde Neon.
+            conn.execute("""INSERT INTO encounters(
+                id,patient_id,encounter_date,encounter_time,clinical_note,diagnosis,treatment,
+                source,source_record_hash,is_legacy_locked,created_at,updated_at,deleted_at,
+                note_status,signed_at,signed_by,copied_from_encounter_id,queue_id,created_by
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (enc_id,patient_id,enc_date,enc_time,note,diagnosis,treatment,
+                 "historia_clinica",digest,0,stamp,stamp,None,
+                 "draft",None,None,copied,queue_id,DOCTOR_NAME))
+            audit(conn, "start_encounter", "encounter", enc_id, {"patient_id": patient_id})
+        if manual:
+            rev = conn.execute("SELECT COALESCE(MAX(revision_no),0)+1 FROM encounter_revisions WHERE encounter_id=?", (enc_id,)).fetchone()[0]
+            conn.execute("INSERT INTO encounter_revisions(encounter_id,revision_no,saved_at,actor,clinical_note,diagnosis,treatment,reason) VALUES(?,?,?,?,?,?,?,?)",
+                         (enc_id, rev, stamp, DOCTOR_NAME, note, diagnosis, treatment, "guardado_manual"))
+        if queue_id:
+            conn.execute("UPDATE waiting_queue SET status='in_consultation',started_at=COALESCE(started_at,?),clinical_patient_id=COALESCE(clinical_patient_id,?),updated_at=? WHERE id=?", (stamp, patient_id, stamp, queue_id))
+        conn.commit()
+    return JSONResponse({"ok": True, "encounter_id": enc_id})
+
+
+@app.post("/api/encounters/{encounter_id}/sign")
+def sign_encounter(encounter_id: str):
+    with db() as conn:
+        h = conn.execute("SELECT * FROM encounters WHERE id=?", (encounter_id,)).fetchone()
+        if not h: raise HTTPException(404)
+        if h["note_status"] != "draft": raise HTTPException(409)
+        if not any((h["clinical_note"] or "").strip() for _ in [0]) and not (h["diagnosis"] or "").strip() and not (h["treatment"] or "").strip():
+            raise HTTPException(400)
+        stamp = now_iso()
+        conn.execute("UPDATE encounters SET note_status='signed',signed_at=?,signed_by=?,updated_at=? WHERE id=?", (stamp, DOCTOR_NAME, stamp, encounter_id))
+        rev = conn.execute("SELECT COALESCE(MAX(revision_no),0)+1 FROM encounter_revisions WHERE encounter_id=?", (encounter_id,)).fetchone()[0]
+        conn.execute("INSERT INTO encounter_revisions(encounter_id,revision_no,saved_at,actor,clinical_note,diagnosis,treatment,reason) VALUES(?,?,?,?,?,?,?,?)",
+                     (encounter_id, rev, stamp, DOCTOR_NAME, h["clinical_note"], h["diagnosis"], h["treatment"], "firma"))
+        if h["queue_id"]:
+            conn.execute("UPDATE waiting_queue SET status='completed',completed_at=?,updated_at=? WHERE id=?", (stamp, stamp, h["queue_id"]))
+        audit(conn, "sign_lock", "encounter", encounter_id, {"patient_id": h["patient_id"]})
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.post("/encuentro/{encounter_id}/addendum")
+async def add_addendum(encounter_id: str, request: Request):
+    data = await request.json()
+    text = (data.get("text") or "").strip().upper()
+    if not text: raise HTTPException(400)
+    with db() as conn:
+        h = conn.execute("SELECT * FROM encounters WHERE id=?", (encounter_id,)).fetchone()
+        if not h: raise HTTPException(404)
+        if h["note_status"] == "draft": raise HTTPException(409)
+        aid, stamp = new_id(), now_iso()
+        conn.execute("INSERT INTO encounter_addenda(id,encounter_id,text,created_at,actor) VALUES(?,?,?,?,?)", (aid, encounter_id, text, stamp, DOCTOR_NAME))
+        audit(conn, "addendum", "encounter", encounter_id, {"addendum_id": aid})
+        conn.commit()
+    return JSONResponse({"ok": True})
+
+
+@app.get("/encuentro/{encounter_id}/imprimir", response_class=HTMLResponse)
+def print_encounter(encounter_id: str):
+    with db() as conn:
+        h = conn.execute("SELECT e.*,p.name,p.birth_date,p.national_id,p.phone FROM encounters e JOIN patients p ON p.id=e.patient_id WHERE e.id=?", (encounter_id,)).fetchone()
+        if not h: raise HTTPException(404)
+        adds = conn.execute("SELECT * FROM encounter_addenda WHERE encounter_id=? ORDER BY created_at", (encounter_id,)).fetchall()
+        audit(conn, "print", "encounter", encounter_id)
+        conn.commit()
+    adds_html = "".join(f"<section><h3>Continuación de historia — {e(human_dt(a['created_at']))}</h3><div>{display_text(a['text'])}</div></section>" for a in adds)
+    return f"""<!doctype html><html lang='es'><head><meta charset='utf-8'><title>Historia clínica · {e(h['name'])}</title><style>
+body{{font-family:Arial,sans-serif;color:#111;margin:34px;line-height:1.45}}header{{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:22px}}h1{{font-size:20px;margin:0 0 4px}}h2{{font-size:16px;margin:24px 0 8px}}h3{{font-size:14px;margin:22px 0 6px}}.meta{{font-size:12px;color:#444}}section{{margin:18px 0}}.box{{white-space:pre-wrap;border:1px solid #ccc;padding:12px;border-radius:6px}}footer{{margin-top:34px;border-top:1px solid #aaa;padding-top:12px;font-size:12px}}@media print{{button{{display:none}}body{{margin:15mm}}}}
+</style></head><body><button onclick='window.print()'>Imprimir</button><header><h1>{e(h['name'])}</h1><div class='meta'>Fecha: {e(h['encounter_date'])} {e(h['encounter_time'] or '')} · ID: {e(h['national_id'] or '—')} · Tel: {e(h['phone'] or '—')}</div></header><section><h2>Historia / evolución</h2><div class='box'>{display_text(h['clinical_note']) or '—'}</div></section>{adds_html}<footer>{e(h['signed_by'] or DOCTOR_NAME)} · {('Firmada '+e(human_dt(h['signed_at']))) if h['note_status']=='signed' else 'Registro histórico importado'}</footer></body></html>"""
+
+
+@app.get("/macros", response_class=HTMLResponse)
+def macros_page():
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM macros ORDER BY label COLLATE NOCASE").fetchall()
+    items = "".join(f"<div class='macro-admin-row'><div><b>{e(r['label'])}</b><span>{e(r['text'])}</span></div><form method='post' action='/macros/{e(r['id'])}/delete'><button class='danger-text'>Eliminar</button></form></div>" for r in rows)
+    body = f"""
+<section class='page-head'><span class='eyebrow'>PERSONALIZACIÓN</span><h1>Frases rápidas</h1><p class='muted'>Guarde expresiones que el doctor repite con frecuencia. Después se insertan con un clic durante la consulta.</p></section>
+<section class='macro-manager'><form method='post' action='/macros' class='macro-create'><label>Nombre corto<input name='label' maxlength='50' placeholder='Ej. Control normal' required></label><label>Texto<textarea name='text' rows='5' placeholder='Texto que se insertará en la historia…' required></textarea></label><button class='primary'>Guardar frase</button></form><section class='panel'><div class='panel-title'><h2>{len(rows)} frase{'s' if len(rows)!=1 else ''}</h2></div>{items if items else "<div class='empty'><strong>Aún no hay frases rápidas.</strong><span>Créelas según la forma real de escribir del doctor.</span></div>"}</section></section>
+"""
+    return base("Frases rápidas", body, "macros")
+
+
+@app.post("/macros")
+async def create_macro(request: Request):
+    body = (await request.body()).decode("utf-8", errors="replace")
+    data = parse_qs(body)
+    label = (data.get("label", [""])[0]).strip()
+    text = (data.get("text", [""])[0]).strip().upper()
+    if not label or not text: raise HTTPException(400)
+    stamp = now_iso()
+    with db() as conn:
+        try:
+            conn.execute("INSERT INTO macros(id,label,text,created_at,updated_at) VALUES(?,?,?,?,?)", (new_id(), label, text, stamp, stamp))
+            audit(conn, "create", "macro", None, {"label": label})
+            conn.commit()
+        except sqlite3.IntegrityError:
+            raise HTTPException(409, "Ya existe una frase con ese nombre")
+    return RedirectResponse("/macros", status_code=303)
+
+
+@app.post("/macros/{macro_id}/delete")
+def delete_macro(macro_id: str):
+    with db() as conn:
+        row = conn.execute("SELECT label FROM macros WHERE id=?", (macro_id,)).fetchone()
+        if row:
+            conn.execute("DELETE FROM macros WHERE id=?", (macro_id,))
+            audit(conn, "delete", "macro", macro_id, {"label": row["label"]})
+            conn.commit()
+    return RedirectResponse("/macros", status_code=303)
