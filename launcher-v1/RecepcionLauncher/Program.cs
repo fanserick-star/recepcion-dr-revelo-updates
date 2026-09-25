@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.12";
+    const string LauncherVersion = "1.0.13";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -269,10 +269,11 @@ internal sealed class LauncherForm : Form
             lblVersion.Text = $"Recepción {installed}  ·  Launcher {LauncherVersion}";
             SetProgress(4, "Preparando Recepción", "Comprobando componentes esenciales…");
 
-            var pyw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
+            var pyw = FindPythonExecutable(windowed: true);
             var app = Path.Combine(root, "app.py");
-            if (!File.Exists(pyw) || !File.Exists(app))
-                throw new InvalidOperationException("No encuentro los componentes principales de Recepción en " + root);
+            if (pyw is null || !File.Exists(app))
+                throw new InvalidOperationException(
+                    "No encuentro el runtime de Python o app.py de Recepción en " + root);
 
             await Task.Delay(180);
             SetProgress(8, "Comprobando launcher", "Buscando una versión nueva del sistema de inicio…");
@@ -317,9 +318,17 @@ internal sealed class LauncherForm : Form
                     string.IsNullOrWhiteSpace(appChannelError) ? "Se abrirá la versión instalada." : appChannelError);
             }
 
-            if (channel is not null && IsNewer(channel.AppVersion, installed))
+            bool sameVersionRepair = false;
+            if (channel is not null &&
+                !IsNewer(channel.AppVersion, installed) &&
+                !IsNewer(installed, channel.AppVersion))
             {
-                bool doUpdate = await AskUpdateAsync(channel);
+                sameVersionRepair = await NeedsRepairAsync(channel);
+            }
+
+            if (channel is not null && (IsNewer(channel.AppVersion, installed) || sameVersionRepair))
+            {
+                bool doUpdate = await AskUpdateAsync(channel, sameVersionRepair);
                 if (!doUpdate)
                 {
                     SetProgress(22, "Actualización obligatoria",
@@ -663,13 +672,50 @@ internal sealed class LauncherForm : Form
         catch { }
     }
 
-    async Task<bool> AskUpdateAsync(AppChannel channel)
+    string? FindPythonExecutable(bool windowed)
+    {
+        var exe = windowed ? "pythonw.exe" : "python.exe";
+        var candidates = new[]
+        {
+            Path.Combine(root, ".venv", "Scripts", exe),
+            Path.Combine(root, "runtime", exe),
+        };
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
+    async Task<bool> NeedsRepairAsync(AppChannel channel)
+    {
+        if (channel.Files is null || channel.Files.Count == 0) return true;
+        foreach (var f in channel.Files)
+        {
+            EnsureSafeUpdatePath(f.Path);
+            var path = Path.Combine(root, f.Path.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path)) return true;
+            try
+            {
+                var got = await Sha256Async(path);
+                if (!got.Equals(f.Sha256, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    async Task<bool> AskUpdateAsync(AppChannel channel, bool repairOnly = false)
     {
         updateChoice = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        updateTitle.Text = $"Actualización {channel.AppVersion} disponible";
+        updateTitle.Text = repairOnly
+            ? $"Reparación de Recepción {channel.AppVersion}"
+            : $"Actualización {channel.AppVersion} disponible";
         updateNotes.Text =
-            (string.IsNullOrWhiteSpace(channel.Notes) ? "Hay una nueva versión estable de Recepción." : channel.Notes) +
-            "\n\nEsta actualización es obligatoria. Para usar Recepción debes elegir “Actualizar ahora”. Si eliges “Salir”, el programa no se abrirá.";
+            (repairOnly
+                ? "El launcher detectó un componente ausente o modificado. Se volverán a descargar únicamente archivos oficiales verificados."
+                : (string.IsNullOrWhiteSpace(channel.Notes) ? "Hay una nueva versión estable de Recepción." : channel.Notes)) +
+            "\n\nEsta operación es obligatoria para abrir una instalación coherente. Puedes elegir “Actualizar ahora” o “Salir”.";
         updatePanel.Visible = true;
         updatePanel.BringToFront();
         btnUpdate.Focus();
@@ -828,11 +874,26 @@ internal sealed class LauncherForm : Form
                     throw new InvalidOperationException(
                         $"{alias}={value ?? "[vacío]"} no coincide con la versión canónica {expected}.");
             }
+
+            if (manifestDoc.RootElement.TryGetProperty("required_dependencies", out var deps) &&
+                deps.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var dep in deps.EnumerateArray())
+                {
+                    var rel = dep.GetString()?.Trim() ?? "";
+                    if (string.IsNullOrWhiteSpace(rel)) continue;
+                    EnsureSafeUpdatePath(rel);
+                    var staged = Path.Combine(staging, rel.Replace('/', Path.DirectorySeparatorChar));
+                    if (!File.Exists(staged))
+                        throw new InvalidOperationException(
+                            $"La candidata no es autosuficiente: falta {rel} en staging.");
+                }
+            }
         }
 
-        var python = Path.Combine(root, ".venv", "Scripts", "python.exe");
-        if (!File.Exists(python))
-            throw new InvalidOperationException("No encuentro el Python portátil para verificar la actualización.");
+        var python = FindPythonExecutable(windowed: false);
+        if (python is null)
+            throw new InvalidOperationException("No encuentro el runtime de Python para verificar la actualización.");
 
         var testData = Path.Combine(staging, "_precheck_data");
         Directory.CreateDirectory(testData);
@@ -844,7 +905,7 @@ internal sealed class LauncherForm : Form
             "print(getattr(app,'APP_VERSION',''))";
 
         var psi = new ProcessStartInfo(python, "-c " + QuoteArg(code)) {
-            WorkingDirectory = root,
+            WorkingDirectory = staging,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -856,7 +917,8 @@ internal sealed class LauncherForm : Form
         psi.Environment["WHATSAPP_ENABLED"] = "0";
         psi.Environment["DATABASE_URL"] = "";
         psi.Environment["NEON_DATABASE_URL"] = "";
-        psi.Environment["PYTHONPATH"] = staging + ";" + root;
+        psi.Environment["PYTHONPATH"] = staging;
+        psi.Environment["RP_APP_ROOT"] = staging;
 
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("No se pudo ejecutar la prueba previa.");
         var outTask = p.StandardOutput.ReadToEndAsync();
@@ -892,8 +954,9 @@ internal sealed class LauncherForm : Form
                 return false;
         }
 
-        var pyw = Path.Combine(root, ".venv", "Scripts", "pythonw.exe");
+        var pyw = FindPythonExecutable(windowed: true);
         var app = Path.Combine(root, "app.py");
+        if (pyw is null) return false;
         var log = Path.Combine(root, "data", "backend_startup.log");
         Directory.CreateDirectory(Path.GetDirectoryName(log)!);
         try { File.WriteAllText(log, "", Encoding.UTF8); } catch { }
