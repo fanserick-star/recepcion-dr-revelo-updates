@@ -5,7 +5,7 @@
   "appVersion": "4.6.2",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.2: AZUR, WhatsApp y remote_agenda dejan de depender de archivos externos. Sus implementaciones validadas quedan dentro del único app.py. Sin cambios en lógica AZUR/Meta, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos ni datos. Prueba aislada aprobada: 242 rutas activas; azur_client y whatsapp_client cargan desde embedded://.",
+  "notes": "Recepción 4.6.2: AZUR, WhatsApp y remote_agenda dejan de depender de archivos externos. Sus implementaciones validadas quedan dentro del único app.py. Sin cambios en lógica AZUR/Meta, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos ni datos. Prueba aislada aprobada: 242 rutas activas; azur_client y whatsapp_client cargan desde embedded://. helpers embebidos validados y sin archivos externos obligatorios.",
   "files": [
     {
       "path": "app.py",
