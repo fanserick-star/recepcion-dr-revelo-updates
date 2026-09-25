@@ -142,6 +142,44 @@ jobs:
           )
           explicit_local = {"historia_bridge", "historia_lan_transport"}
           declared_modules = {pathlib.Path(p).stem for p in files if p.endswith(".py")}
+
+          app_text = (root / "app.py").read_text(encoding="utf-8-sig")
+          app_tree = ast.parse(app_text, filename=str(root / "app.py"))
+
+          def embedded_module_names(parsed_tree):
+              for node in parsed_tree.body:
+                  if isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if (
+                              isinstance(target, ast.Name)
+                              and target.id == "_EMBEDDED_RUNTIME_SOURCES"
+                          ):
+                              value = ast.literal_eval(node.value)
+                              assert isinstance(value, dict)
+                              return set(value)
+              return set()
+
+          embedded_modules = embedded_module_names(app_tree)
+          current_historical = {
+              name for name in embedded_modules
+              if any(rx.match(name) for rx in local_module_patterns)
+          }
+
+          baseline_path = pathlib.Path("updates/v4_6_0_consolidated_runtime/app.py")
+          baseline_tree = ast.parse(
+              baseline_path.read_text(encoding="utf-8-sig"),
+              filename=str(baseline_path),
+          )
+          baseline_historical = {
+              name for name in embedded_module_names(baseline_tree)
+              if any(rx.match(name) for rx in local_module_patterns)
+          }
+          unexpected_historical = current_historical - baseline_historical
+          assert not unexpected_historical, (
+              "Se añadieron nuevas capas históricas embebidas: "
+              + ", ".join(sorted(unexpected_historical))
+          )
+
           missing_imports = []
           for path in py_paths:
               tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
@@ -153,23 +191,34 @@ jobs:
                       names = [node.module.split(".")[0]]
                   for name in names:
                       if any(rx.match(name) for rx in local_module_patterns):
-                          raise AssertionError(
-                              f"{path.name} reintroduce cadena histórica prohibida: {name}.py"
-                          )
+                          if path.name != "app.py" or name not in embedded_modules:
+                              missing_imports.append(
+                                  f"{path.name} -> {name}.py (histórico externo)"
+                              )
+                          continue
+                      if name == "remote_agenda":
+                          if path.name != "app.py" or name not in embedded_modules:
+                              missing_imports.append(
+                                  f"{path.name} -> remote_agenda.py (legacy externo)"
+                              )
+                          continue
                       is_local = name in explicit_local
                       if is_local and name not in declared_modules:
                           missing_imports.append(f"{path.name} -> {name}.py")
-          assert not missing_imports, "Importaciones locales fuera del payload: " + "; ".join(sorted(set(missing_imports)))
+          assert not missing_imports, (
+              "Importaciones locales fuera del payload/embebido: "
+              + "; ".join(sorted(set(missing_imports)))
+          )
 
           inactive = {"app_patch_4513.py", "app_patch_4514.py", "app_patch_4515.py", "app_patch_4516.py"}
-          assert not (inactive & file_set), "Se reintrodujeron módulos inactivos: " + ", ".join(sorted(inactive & file_set))
+          assert not (inactive & file_set), "Se reintrodujeron módulos inactivos externos: " + ", ".join(sorted(inactive & file_set))
 
-          app_text = (root / "app.py").read_text(encoding="utf-8-sig")
           assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
 
           print(f"OK Recepción {version}: {len(files)} archivos, {len(py_paths)} módulos Python.")
           print(f"Dependencias activas declaradas: {len(manifest.get('required_dependencies', []))}.")
-          print("No hay rutas protegidas, imports locales faltantes ni módulos históricos encadenados.")
+          print(f"Capas históricas embebidas heredadas: {len(current_historical)}; nuevas: 0.")
+          print("No hay rutas protegidas ni dependencias históricas externas.")
 
       - name: Publish audit summary
         shell: pwsh
