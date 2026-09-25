@@ -1,0 +1,212 @@
+name: Validate Reception 4.6.3 Performance Candidate
+
+on:
+  push:
+    branches:
+      - reception-audit-functional-performance
+    paths:
+      - "updates/v4_6_3_perf_candidate/**"
+      - ".github/workflows/validate-reception-v463-performance.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile candidate sources
+        shell: python
+        run: |
+          from pathlib import Path
+          for rel in (
+              "updates/v4_6_3_perf_candidate/app.py",
+              "updates/v4_6_3_perf_candidate/historia_bridge.py",
+              "updates/v4_6_3_perf_candidate/historia_lan_transport.py",
+          ):
+              source=Path(rel).read_text(encoding="utf-8-sig")
+              compile(source, rel, "exec")
+              print("COMPILE_OK", rel)
+
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "fastapi==0.128.2" \
+            "uvicorn==0.48.0" \
+            "sqlalchemy>=2,<3" \
+            "python-dotenv>=1,<2" \
+            "pg8000>=1.31,<2" \
+            "python-multipart>=0.0.20,<1" \
+            "pydantic>=2,<3" \
+            "anyio>=4,<5"
+
+      - name: Test Historia database separation and caching
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/v463-bridge-test
+        run: |
+          set -euo pipefail
+          cd updates/v4_6_3_perf_candidate
+          python - <<'PY'
+          import os
+          import pg8000
+          import historia_bridge as hb
+
+          # DATABASE_URL alone must NEVER configure the Historia bridge.
+          os.environ.pop("HISTORIA_DATABASE_URL", None)
+          os.environ["DATABASE_URL"] = "postgresql://recep:secret@reception.example/neondb"
+          assert hb._database_url() == ""
+          print("NO_RECEPTION_DB_FALLBACK_OK")
+
+          # Equal DB identity must be rejected even if URL text differs by parameters.
+          os.environ["HISTORIA_DATABASE_URL"] = "postgresql://recep:secret@reception.example/neondb?sslmode=require"
+          try:
+              hb._database_url()
+          except RuntimeError as exc:
+              assert "misma base de datos" in str(exc)
+          else:
+              raise AssertionError("Historia accepted the Recepción database identity")
+          print("SAME_DATABASE_BLOCK_OK")
+
+          # A distinct Historia DB is accepted.
+          hist_url = "postgresql://hist:secret@historia.example/historia"
+          os.environ["HISTORIA_DATABASE_URL"] = hist_url
+          assert hb._database_url() == hist_url
+
+          # Presence cache: multiple status consumers inside TTL => one cloud query.
+          counter={"n":0}
+          def fake_presence():
+              counter["n"] += 1
+              return {
+                  "cloud_reachable": True,
+                  "doctor_online": True,
+                  "doctor_last_seen": "2026-09-25T16:00:00",
+                  "doctor_last_seen_age_seconds": 10,
+                  "doctor_device": "test",
+                  "doctor_app_version": "test",
+                  "cloud_waiting": 0,
+              }
+          hb._doctor_presence = fake_presence
+          hb._PRESENCE_CACHE = None
+          hb._PRESENCE_CACHE_MONOTONIC = 0.0
+          one=hb._doctor_presence_cached()
+          two=hb._doctor_presence_cached()
+          three=hb._doctor_presence_cached()
+          assert counter["n"] == 1, counter
+          assert one["presence_cached"] is False
+          assert two["presence_cached"] is True
+          assert three["presence_cached"] is True
+          print("PRESENCE_CACHE_OK", counter["n"])
+
+          # Schema DDL runs once per DB identity. Every later connection only sets search_path.
+          class FakeConn:
+              def close(self): pass
+          original_connect = pg8000.dbapi.connect
+          original_ensure = hb._ensure_remote_bridge_schema
+          original_search = hb._set_historia_search_path
+          calls={"connect":0,"ddl":0,"search":0}
+          def fake_connect(**kwargs):
+              calls["connect"] += 1
+              return FakeConn()
+          def fake_ensure(conn):
+              calls["ddl"] += 1
+          def fake_search(conn):
+              calls["search"] += 1
+          pg8000.dbapi.connect=fake_connect
+          hb._ensure_remote_bridge_schema=fake_ensure
+          hb._set_historia_search_path=fake_search
+          hb._REMOTE_SCHEMA_READY_KEY=None
+          try:
+              hb._connect()
+              hb._connect()
+              hb._connect()
+          finally:
+              pg8000.dbapi.connect=original_connect
+              hb._ensure_remote_bridge_schema=original_ensure
+              hb._set_historia_search_path=original_search
+          assert calls == {"connect":3,"ddl":1,"search":2}, calls
+          print("DDL_ONCE_OK", calls)
+          PY
+
+      - name: Smoke import complete Reception runtime
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/v463-runtime-data
+          RP_FORCE_OFFLINE: "1"
+          FORCE_OFFLINE: "1"
+          WHATSAPP_ENABLED: "0"
+          WHATSAPP_CLOUD_MODE: "1"
+          AZUR_LIVE_EMISSION: "0"
+        run: |
+          set -euo pipefail
+          cd updates/v4_6_3_perf_candidate
+          unset DATABASE_URL || true
+          unset HISTORIA_DATABASE_URL || true
+          python - <<'PY'
+          import json
+          import threading
+          import app
+
+          assert app.APP_VERSION == "4.6.3"
+          paths=[getattr(r,"path",None) for r in app.app.router.routes]
+          paths=[p for p in paths if p]
+          assert len(paths) == 242, len(paths)
+          assert len(set(paths)) == 224, len(set(paths))
+
+          forbidden={
+              "/api/mobile/remote/status",
+              "/api/mobile/remote/quick/start",
+              "/api/mobile/remote/stable/restart",
+              "/api/mobile/remote/stop",
+              "/api/update/apply",
+          }
+          assert not (forbidden & set(paths))
+
+          # Procedure values: editable procedures must remain NULL, never zero.
+          core=app.core
+          with core.LocalSessionLocal() as db:
+              rows=db.query(core.Procedure).all()
+              proc={str(x.nombre).upper(): (None if x.valor_default is None else float(x.valor_default)) for x in rows}
+          assert proc["FULGURACION"] is None
+          assert proc["CISTOSCOPIA"] is None
+          assert proc["DILATACION"] is None
+          assert proc["CIRCUNSICION"] is None
+          assert proc["INSTILACION"] == 80.0
+          print("PROCEDURE_REGRESSION_OK", json.dumps(proc,sort_keys=True))
+
+          js=str(core.V460_OVERLAY_JS or "")
+          assert js.startswith("\n;window.__v4517HistoriaLink=true;") or js.startswith(";window.__v4517HistoriaLink=true;")
+          assert "window.__v4518RealVersion=true;" in js[:300]
+          assert "sin polling periódico" in js
+          assert "setInterval(refresh,30000);" in js
+          print("OVERLAY_OPTIMIZATION_OK")
+          print("OVERLAY_SETINTERVAL_TEXT_COUNT", js.count("setInterval("))
+
+          names=[t.name for t in threading.enumerate()]
+          print("THREAD_NAMES", names)
+          assert "rp-receipt-printer" in names
+          assert "historia-lan-monitor" in names
+          print("RUNTIME_SMOKE_OK")
+          PY
+
+      - name: Verify LAN monitor cadence and no schema/data migrations
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          root=Path("updates/v4_6_3_perf_candidate")
+          lan=(root/"historia_lan_transport.py").read_text(encoding="utf-8-sig")
+          bridge=(root/"historia_bridge.py").read_text(encoding="utf-8-sig")
+          manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
+          assert "time.sleep(20)" in lan
+          assert "time.sleep(7)" not in lan
+          assert 'or os.getenv("DATABASE_URL")' not in bridge
+          assert manifest["notes"]["database_schema_changes"] is False
+          assert manifest["notes"]["patient_data_changes"] is False
+          assert manifest["notes"]["reception_neon_schema_changes"] is False
+          assert manifest["notes"]["historia_neon_schema_changes"] is False
+          print("CADENCE_AND_DATA_SAFETY_OK")
