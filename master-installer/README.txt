@@ -20,3 +20,10 @@ No crea una base clínica nueva ni publica credenciales de Neon dentro del EXE.
 
 Una instalación totalmente nueva se debe preparar con el paquete de bootstrap/configuración
 privada correspondiente antes de usar este maestro.
+
+
+REGLA DE CONFIGURACION NEON (v1.0.1)
+- Recepcion usa exclusivamente DATABASE_URL -> proyecto "Recepcion Pacientes".
+- Historia Clinica usa exclusivamente HISTORIA_DATABASE_URL -> proyecto "Historia Clinica Dr Revelo".
+- NUNCA debe derivarse HISTORIA_DATABASE_URL copiando DATABASE_URL de Recepcion.
+- Un bootstrap privado nuevo debe aportar ambas conexiones por separado.

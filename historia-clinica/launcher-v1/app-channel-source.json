@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.39",
+  "appVersion": "1.3.40",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.39: corrige PCs secundarias que podían mostrar Nube sincronizada con 0 pacientes. Si una DATABASE_URL conecta pero no contiene datos de Historia, continúa buscando otra configuración segura que sí tenga pacientes/historias. Si Neon tiene pacientes y la base SQLite local está vacía, rehace automáticamente la descarga inicial completa sin borrar datos. No cambia impresión, recetas, certificados ni flujo clínico.",
+  "notes": "Historia Clínica 1.3.40: separa definitivamente el Neon clínico del Neon de Recepción. Historia ya no acepta DATABASE_URL ni lee la .env de Recepción; valida el endpoint dedicado de Historia. Recupera de forma aditiva los datos clínicos antiguos de public.* hacia historia.* sin sobrescribir filas existentes y reencola únicamente claves locales que falten realmente en Neon. Al cambiar del proyecto equivocado al correcto reinicia el bootstrap automáticamente. No cambia impresión, recetas, certificados ni el flujo clínico.",
   "files": [
     {
       "path": "app.py",
@@ -21,7 +21,7 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/cloud_sync.py.part01",
         "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
       ]
     },
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
