@@ -215,6 +215,14 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Prepare Launcher icon from candidate resources
+        shell: pwsh
+        run: |
+          $src = Join-Path $env:CANDIDATE_DIR "static/doctor_icon.ico"
+          $dst = "launcher-v1/RecepcionLauncher/doctor_icon.ico"
+          if (-not (Test-Path $src -PathType Leaf)) { throw "Falta doctor_icon.ico en la candidata" }
+          Copy-Item $src $dst -Force
+
       - name: Compile Launcher 1.0.13 candidate
         shell: pwsh
         run: |
@@ -226,7 +234,23 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$env:CANDIDATE_DIR/recepcion_legacy_runtime.zip" "$env:CANDIDATE_DIR/runtime_manifest.json" "$env:CANDIDATE_DIR/historia_bridge.py" "$env:CANDIDATE_DIR/historia_lan_transport.py" "$env:CANDIDATE_DIR/static/app.js" "$env:CANDIDATE_DIR/static/index.html" "$env:CANDIDATE_DIR/update_manifest.json"
+          git add `
+            "$env:CANDIDATE_DIR/recepcion_legacy_runtime.zip" `
+            "$env:CANDIDATE_DIR/runtime_manifest.json" `
+            "$env:CANDIDATE_DIR/historia_bridge.py" `
+            "$env:CANDIDATE_DIR/historia_lan_transport.py" `
+            "$env:CANDIDATE_DIR/static/app.js" `
+            "$env:CANDIDATE_DIR/static/index.html" `
+            "$env:CANDIDATE_DIR/static/style.css" `
+            "$env:CANDIDATE_DIR/static/doctor_full_logo.png" `
+            "$env:CANDIDATE_DIR/static/doctor_isotype.png" `
+            "$env:CANDIDATE_DIR/static/doctor_icon.ico" `
+            "$env:CANDIDATE_DIR/static/azur_mark.svg" `
+            "$env:CANDIDATE_DIR/static/whatsapp_mark.svg" `
+            "$env:CANDIDATE_DIR/mobile/index.html" `
+            "$env:CANDIDATE_DIR/mobile/app.js" `
+            "$env:CANDIDATE_DIR/mobile/sw.js" `
+            "$env:CANDIDATE_DIR/update_manifest.json"
           if (-not (git diff --cached --quiet)) {
             git commit -m "Build validated Recepción 4.6.0 candidate runtime [skip ci]"
             git push origin HEAD:audit/recepcion-v4.6.0-stabilization
@@ -279,6 +303,15 @@ jobs:
             updates/v4_6_0_stabilization/historia_lan_transport.py
             updates/v4_6_0_stabilization/static/app.js
             updates/v4_6_0_stabilization/static/index.html
+            updates/v4_6_0_stabilization/static/style.css
+            updates/v4_6_0_stabilization/static/doctor_full_logo.png
+            updates/v4_6_0_stabilization/static/doctor_isotype.png
+            updates/v4_6_0_stabilization/static/doctor_icon.ico
+            updates/v4_6_0_stabilization/static/azur_mark.svg
+            updates/v4_6_0_stabilization/static/whatsapp_mark.svg
+            updates/v4_6_0_stabilization/mobile/index.html
+            updates/v4_6_0_stabilization/mobile/app.js
+            updates/v4_6_0_stabilization/mobile/sw.js
             updates/v4_6_0_stabilization/recepcion-version.json
             updates/v4_6_0_stabilization/update_manifest.json
             updates/v4_6_0_stabilization/requirements.txt
