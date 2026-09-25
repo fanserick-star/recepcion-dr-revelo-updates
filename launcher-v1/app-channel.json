@@ -5,32 +5,32 @@
   "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: corrige la causa real del turno distinto en Historia. La pantalla Inicio de Recepción lee la copia SQLite local, pero el bridge estaba recalculando el número desde Neon; si Neon tenía filas antiguas, Recepción mostraba #6 e Historia recibía #10. Ahora el bridge calcula el turno desde la MISMA copia local y la misma agrupación paciente/día que usa Recepción, y repara/reenvía handoffs recientes. No cambia impresión, caja, Bendo, facturación ni agenda. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "31d23e9962d16b128547b4fa23f80622db95d594",
+  "notes": "Recepción 4.5.41: corrige de raíz la diferencia #6/#10. El turno enviado a Historia se calcula desde el mismo SQLite local que alimenta la lista visible de Inicio de Recepción, reproduciendo su agrupación por paciente y excluyendo procedimientos del conteo. Además corrige la reparación al iniciar (ya no llama get_db sin Request) y reenvía handoffs recientes por LAN y Neon para corregir turnos ya enviados. No modifica caja, Bendo, facturación, agenda ni datos clínicos. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "5acef864efa23d12bfc01058120b3f2a03a7ddaa",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/31d23e9962d16b128547b4fa23f80622db95d594/updates/v4_5_41_historia_turn_local_source/app.py",
-      "sha256": "ca184ca02a032f5f6a0e054a31cbdf0edb9d99d3897033f64fed312c73cf5b00"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/app.py",
+      "sha256": "86c2baa6694d7be737c16dd4ce4f0258495a6bbbf8d74f5d6e050fb7e4eea60c"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/31d23e9962d16b128547b4fa23f80622db95d594/updates/v4_5_41_historia_turn_local_source/historia_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
       "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/31d23e9962d16b128547b4fa23f80622db95d594/updates/v4_5_41_historia_turn_local_source/recepcion-version.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/recepcion-version.json",
       "sha256": "94e074c95dad773378dd88cb5f86694d78caa09847934098967042d020624ffd"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/31d23e9962d16b128547b4fa23f80622db95d594/updates/v4_5_41_historia_turn_local_source/update_manifest.json",
-      "sha256": "e16495471f3177513684da1a65e04928310362c3b72b7575c911a98a076e9461"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/update_manifest.json",
+      "sha256": "98cbad1a0809a31a58be4eead071277623d66a28de6ec4d089001e7671f27f5a"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/31d23e9962d16b128547b4fa23f80622db95d594/updates/v4_5_41_historia_turn_local_source/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
