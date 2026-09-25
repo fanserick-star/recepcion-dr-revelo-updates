@@ -1,0 +1,289 @@
+name: Build Reception 4.6.0 Recovery Installer
+
+on:
+  push:
+    branches:
+      - "audit/recepcion-v4.6.0-stabilization"
+    paths:
+      - "recovery-v460/**"
+      - "updates/v4_6_0_stabilization/**"
+      - "tools/recepcion_v460/**"
+      - "launcher-v1/RecepcionLauncher/**"
+      - "launcher-v1/LauncherUpdater/**"
+      - "launcher-v1/Uninstaller/**"
+      - ".github/workflows/build-reception-v460-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recepcion-v460-recovery-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-recovery:
+    runs-on: windows-latest
+    env:
+      CANDIDATE_DIR: updates/v4_6_0_stabilization
+      BUILDROOT: recovery-v460/buildroot
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/recepcion-v4.6.0-stabilization
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11.9"
+
+      - name: Build validated application payload
+        shell: pwsh
+        run: |
+          python tools/recepcion_v460/build_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          if (Test-Path $env:BUILDROOT) { Remove-Item $env:BUILDROOT -Recurse -Force }
+          New-Item -ItemType Directory -Force $env:BUILDROOT | Out-Null
+
+          $manifest = Get-Content "$env:CANDIDATE_DIR/update_manifest.json" -Raw | ConvertFrom-Json
+          foreach ($rel in $manifest.copy) {
+            $src = Join-Path $env:CANDIDATE_DIR $rel
+            $dst = Join-Path $env:BUILDROOT $rel
+            if (-not (Test-Path $src -PathType Leaf)) { throw "Falta payload: $rel" }
+            New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName($dst)) | Out-Null
+            Copy-Item $src $dst -Force
+          }
+          Copy-Item recovery-v460/env.example "$env:BUILDROOT/.env.example" -Force
+          New-Item -ItemType Directory -Force "$env:BUILDROOT/tools" | Out-Null
+          Copy-Item recovery-v460/backup_private.py "$env:BUILDROOT/tools/backup_private.py" -Force
+          Copy-Item recovery-v460/restore_private.py "$env:BUILDROOT/tools/restore_private.py" -Force
+          Copy-Item recovery-v460/README_RECOVERY.txt "$env:BUILDROOT/README_RECOVERY.txt" -Force
+          New-Item -ItemType Directory -Force "$env:BUILDROOT/data" | Out-Null
+
+          foreach ($forbidden in @(".env","HISTORICO_PACIENTES_2020_2025.csv","BASE DE DATOS 2026.xlsx")) {
+            if (Test-Path (Join-Path $env:BUILDROOT $forbidden)) {
+              throw "El instalador no puede contener datos privados: $forbidden"
+            }
+          }
+
+      - name: Build portable Python runtime
+        shell: pwsh
+        run: |
+          $scripts = Join-Path $env:BUILDROOT ".venv/Scripts"
+          $lib = Join-Path $env:BUILDROOT ".venv/Lib"
+          $site = Join-Path $lib "site-packages"
+          New-Item -ItemType Directory -Force $scripts,$site | Out-Null
+
+          $embed = Join-Path $env:RUNNER_TEMP "python-3.11.9-embed-amd64.zip"
+          Invoke-WebRequest "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip" -OutFile $embed
+          Expand-Archive -LiteralPath $embed -DestinationPath $scripts -Force
+
+          python -m pip install --disable-pip-version-check --no-compile --target $site -r "$env:CANDIDATE_DIR/requirements.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Get-ChildItem (Join-Path $site "pydantic") -Recurse -Filter "*.pyd" -ErrorAction SilentlyContinue | Remove-Item -Force
+          Get-ChildItem (Join-Path $site "sqlalchemy/cyextension") -Recurse -Filter "*.pyd" -ErrorAction SilentlyContinue | Remove-Item -Force
+          Get-ChildItem $site -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq "greenlet" -or $_.Name -like "greenlet-*.dist-info" } |
+            Remove-Item -Recurse -Force
+
+          @'
+python311.zip
+.
+../..
+../Lib
+../Lib/site-packages
+import site
+'@ | Set-Content (Join-Path $scripts "python311._pth") -Encoding ascii
+
+          @'
+home = Scripts
+include-system-site-packages = false
+version = 3.11.9
+'@ | Set-Content (Join-Path $env:BUILDROOT ".venv/pyvenv.cfg") -Encoding ascii
+
+          $py = Join-Path $scripts "python.exe"
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
+          & $py -c "import fastapi,pydantic,uvicorn,sqlalchemy,pg8000,dotenv,multipart; print('PORTABLE_RUNTIME_OK')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $nativeThirdParty = @(Get-ChildItem $site -Recurse -File | Where-Object { $_.Extension -in @(".pyd",".dll") })
+          if ($nativeThirdParty.Count -ne 0) {
+            $nativeThirdParty | ForEach-Object { Write-Host "NATIVE=$($_.FullName)" }
+            throw "Quedaron binarios nativos de terceros en site-packages"
+          }
+
+      - name: Smoke backend from portable buildroot
+        shell: pwsh
+        run: |
+          $py = Join-Path $env:BUILDROOT ".venv/Scripts/python.exe"
+          $data = Join-Path $env:RUNNER_TEMP "rp460_recovery_smoke"
+          if (Test-Path $data) { Remove-Item $data -Recurse -Force }
+          New-Item -ItemType Directory -Force $data | Out-Null
+          $env:RP_FORCE_OFFLINE = "1"
+          $env:RP_DATA_DIR = $data
+          $env:RP_DESKTOP_LAUNCH = "1"
+          $env:DATABASE_URL = ""
+          $env:HISTORIA_DATABASE_URL = ""
+          $env:WHATSAPP_ENABLED = "0"
+          $env:WHATSAPP_CLOUD_MODE = "1"
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
+
+          $app = (Resolve-Path "$env:BUILDROOT/app.py").Path
+          $proc = Start-Process -FilePath $py -ArgumentList ('"' + $app + '"') -WorkingDirectory (Resolve-Path $env:BUILDROOT).Path -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 100; $i++) {
+              Start-Sleep -Milliseconds 250
+              try {
+                $v = Invoke-RestMethod "http://127.0.0.1:8000/api/version" -TimeoutSec 1
+                if ([string]$v.version -eq "4.6.0") { $ok = $true; break }
+              } catch {}
+              if ($proc.HasExited) { break }
+            }
+            if (-not $ok) { throw "El backend portátil 4.6.0 no arrancó" }
+            $health = Invoke-RestMethod "http://127.0.0.1:8000/api/system/health" -TimeoutSec 3
+            if (-not $health.ok) { throw "Health 4.6.0 falló" }
+            Write-Host "PORTABLE_BACKEND_SMOKE_OK"
+          } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Test private backup and restore tools
+        shell: pwsh
+        run: |
+          $py = Join-Path $env:BUILDROOT ".venv/Scripts/python.exe"
+          $src = Join-Path $env:RUNNER_TEMP "rp460_private_source"
+          $dst = Join-Path $env:RUNNER_TEMP "rp460_private_restore"
+          $zip = Join-Path $env:RUNNER_TEMP "RESPALDO_PRIVADO_RECEPCION_TEST.zip"
+          foreach ($p in @($src,$dst)) {
+            if (Test-Path $p) { Remove-Item $p -Recurse -Force }
+            New-Item -ItemType Directory -Force "$p/data" | Out-Null
+          }
+          @'
+RP_DATA_DIR=C:\viejo\data
+DATABASE_URL=postgresql://example.invalid/test
+'@ | Set-Content "$src/.env" -Encoding utf8
+          @'
+source_key,nombre
+test,PACIENTE FICTICIO
+'@ | Set-Content "$src/HISTORICO_PACIENTES_2020_2025.csv" -Encoding utf8
+          "FICTICIO" | Set-Content "$src/BASE DE DATOS 2026.xlsx" -Encoding utf8
+
+          & $py -c "import sqlite3; c=sqlite3.connect(r'$src/data/recepcion.db'); c.execute('create table prueba(id integer primary key, valor text)'); c.execute('insert into prueba(valor) values (?)',('OK',)); c.commit(); c.close()"
+          & $py "$env:BUILDROOT/tools/backup_private.py" --root $src --output $zip
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $zip)) { throw "No se creó el respaldo privado" }
+
+          & $py "$env:BUILDROOT/tools/restore_private.py" --source $zip --root $dst
+          if ($LASTEXITCODE -ne 0) { throw "No se restauró el respaldo privado" }
+
+          foreach ($rel in @(".env","HISTORICO_PACIENTES_2020_2025.csv","BASE DE DATOS 2026.xlsx","data/recepcion.db")) {
+            if (-not (Test-Path (Join-Path $dst $rel))) { throw "Falta tras restaurar: $rel" }
+          }
+          $envText = Get-Content "$dst/.env" -Raw
+          if ($envText -notmatch "RP_DATA_DIR=data") { throw "restore_private no normalizó RP_DATA_DIR" }
+          & $py -c "import sqlite3; c=sqlite3.connect(r'$dst/data/recepcion.db'); v=c.execute('select valor from prueba').fetchone()[0]; assert v=='OK'; print('PRIVATE_BACKUP_RESTORE_OK')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build native Launcher 1.0.13 components
+        shell: pwsh
+        run: |
+          Copy-Item "$env:CANDIDATE_DIR/static/doctor_icon.ico" "launcher-v1/RecepcionLauncher/doctor_icon.ico" -Force
+          Copy-Item "$env:CANDIDATE_DIR/static/doctor_icon.ico" "launcher-v1/Uninstaller/doctor_icon.ico" -Force
+
+          dotnet publish "launcher-v1/RecepcionLauncher/RecepcionLauncher.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet publish "launcher-v1/LauncherUpdater/LauncherUpdater.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet publish "launcher-v1/Uninstaller/Uninstaller.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Copy-Item "launcher-v1/RecepcionLauncher/bin/Release/net8.0-windows/win-x64/publish/RecepcionLauncher.exe" "$env:BUILDROOT/RecepcionLauncher.exe" -Force
+          Copy-Item "launcher-v1/LauncherUpdater/bin/Release/net8.0-windows/win-x64/publish/LauncherUpdater.exe" "$env:BUILDROOT/LauncherUpdater.exe" -Force
+          Copy-Item "launcher-v1/Uninstaller/bin/Release/net8.0-windows/win-x64/publish/Desinstalar_Recepcion_Dr_Revelo.exe" "$env:BUILDROOT/Desinstalar_Recepcion_Dr_Revelo.exe" -Force
+
+      - name: Build recovery installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado" }
+          & $iscc "recovery-v460/RecepcionRecovery.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Simulate clean installation
+        shell: pwsh
+        run: |
+          $installer = "recovery-v460/output/INSTALAR_RECEPCION_DR_REVELO_RECUPERACION_V4_6_0.exe"
+          if (-not (Test-Path $installer)) { throw "No se generó el instalador de recuperación" }
+
+          $dest = Join-Path $env:RUNNER_TEMP "Recepcion Dr Revelo Recovery Test"
+          if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+          $p = Start-Process -FilePath $installer -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART",('/DIR="' + $dest + '"')) -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Instalador devolvió $($p.ExitCode)" }
+
+          foreach ($rel in @(
+            "app.py","recepcion_legacy_runtime.zip","RecepcionLauncher.exe","LauncherUpdater.exe",
+            ".venv/Scripts/python.exe",".venv/Scripts/pythonw.exe","static/index.html",
+            "mobile/index.html","tools/backup_private.py","tools/restore_private.py",".env"
+          )) {
+            if (-not (Test-Path (Join-Path $dest $rel))) { throw "Falta tras instalar: $rel" }
+          }
+
+          foreach ($forbidden in @("HISTORICO_PACIENTES_2020_2025.csv","BASE DE DATOS 2026.xlsx")) {
+            if (Test-Path (Join-Path $dest $forbidden)) { throw "El instalador filtró dato privado: $forbidden" }
+          }
+
+          $py = Join-Path $dest ".venv/Scripts/python.exe"
+          $env:RP_FORCE_OFFLINE = "1"
+          $env:RP_DATA_DIR = (Join-Path $dest "data")
+          $env:RP_DESKTOP_LAUNCH = "1"
+          $env:DATABASE_URL = ""
+          $env:HISTORIA_DATABASE_URL = ""
+          $env:WHATSAPP_ENABLED = "0"
+          $env:WHATSAPP_CLOUD_MODE = "1"
+          $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
+
+          $proc = Start-Process -FilePath $py -ArgumentList ('"' + (Join-Path $dest "app.py") + '"') -WorkingDirectory $dest -PassThru -WindowStyle Hidden
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 100; $i++) {
+              Start-Sleep -Milliseconds 250
+              try {
+                $v = Invoke-RestMethod "http://127.0.0.1:8000/api/version" -TimeoutSec 1
+                if ([string]$v.version -eq "4.6.0") { $ok = $true; break }
+              } catch {}
+              if ($proc.HasExited) { break }
+            }
+            if (-not $ok) { throw "La instalación limpia 4.6.0 no arrancó" }
+            Write-Host "RECOVERY_INSTALL_SMOKE_OK"
+          } finally {
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+          }
+
+      - name: Hash recovery installer
+        shell: pwsh
+        run: |
+          $installer = "recovery-v460/output/INSTALAR_RECEPCION_DR_REVELO_RECUPERACION_V4_6_0.exe"
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  INSTALAR_RECEPCION_DR_REVELO_RECUPERACION_V4_6_0.exe" | Set-Content "recovery-v460/output/SHA256.txt" -Encoding ascii
+          Write-Host "RECOVERY_SHA256=$hash"
+
+      - name: Upload recovery installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: recepcion-v4.6.0-recovery-installer
+          path: |
+            recovery-v460/output/INSTALAR_RECEPCION_DR_REVELO_RECUPERACION_V4_6_0.exe
+            recovery-v460/output/SHA256.txt
+            recovery-v460/README_RECOVERY.txt
+          if-no-files-found: error
+          retention-days: 14
