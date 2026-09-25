@@ -2,35 +2,35 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.44",
+  "appVersion": "4.5.45",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.44: el recibo automático usa exactamente el tipo guardado (N=PRIMERO, S=SUBSECUENTE). Además, el menú Imprimir se renderiza fuera de la tabla de Inicio para que siempre se vean completas las dos opciones: Imprimir recibo e Imprimir comprobante. Conserva el flujo histórico de 4.5.43 y no modifica Historia Clínica, Bendo, facturación, agenda ni esquemas de base de datos.",
-  "generatedFromCommit": "67a881ea93b46695107b40f999efeef0e651e0f2",
+  "notes": "Recepción 4.5.45: corrige los procedimientos de valor editable (por ejemplo Fulguración, Cistoscopia, Dilatación y Circuncisión). El valor escrito en “Valor de …” ahora se usa en el resumen y al guardar; ya no queda en $0.00. Conserva todos los cambios de 4.5.44 y no modifica Historia Clínica, Neon, Bendo, facturación, agenda ni esquemas de base de datos. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/app.py",
-      "sha256": "645d6490a1cbbf107de52d4b387fb9b5ea03f8bd9e162df052702d99a820c6ba"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e/updates/v4_5_45_editable_procedure_value/app.py",
+      "sha256": "a6040394ac48a1442891dcb69562093a766a969d594b8cb19ab1af562d3a23d8"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
       "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/recepcion-version.json",
-      "sha256": "6dc75a46a0d19b52849f02e943146e671a0f3f2d2592250ff333d4abbd299ec0"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e/updates/v4_5_45_editable_procedure_value/recepcion-version.json",
+      "sha256": "2101414023abfa275664b67150a4359dc8e3c62b3e197adea0043799c8597ce4"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/67a881ea93b46695107b40f999efeef0e651e0f2/updates/v4_5_44_receipt_status_exact/update_manifest.json",
-      "sha256": "dd3affe4cb53ab62eea0880b8170376957406f392adcdf40a4dc597a76a7ce54"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e/updates/v4_5_45_editable_procedure_value/update_manifest.json",
+      "sha256": "952ba61abdfc73720773f9117cd639ee320412b739d6b7aca7243e862227d130"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/f6aedacd5fe0298cdec0933fdc4236e0fb7bd63e/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
