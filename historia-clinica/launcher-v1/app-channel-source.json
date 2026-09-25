@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.38",
+  "appVersion": "1.3.39",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.38: mejora la conexión Neon en PCs secundarias. En vez de confiar en una sola DATABASE_URL, prueba en orden la configuración privada de Historia, la configuración privada de Recepción si existe y deja cualquier DATABASE_URL global de Windows para el final. Cada candidato se valida con una conexión real antes de usarlo. No publica ni muestra credenciales, no toca pacientes/data y mantiene la impresión sin cambios.",
+  "notes": "Historia Clínica 1.3.39: corrige PCs secundarias que podían mostrar Nube sincronizada con 0 pacientes. Si una DATABASE_URL conecta pero no contiene datos de Historia, continúa buscando otra configuración segura que sí tenga pacientes/historias. Si Neon tiene pacientes y la base SQLite local está vacía, rehace automáticamente la descarga inicial completa sin borrar datos. No cambia impresión, recetas, certificados ni flujo clínico.",
   "files": [
     {
       "path": "app.py",
@@ -21,7 +21,7 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_38_neon_candidate_failover/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/cloud_sync.py.part01",
         "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
       ]
     },
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_38_neon_candidate_failover/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_38_neon_candidate_failover/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
