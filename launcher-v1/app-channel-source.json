@@ -2,14 +2,18 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.46",
+  "appVersion": "4.5.47",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.46: restauración de seguridad. Vuelve exactamente al runtime funcional de 4.5.44 y descarta el cambio 4.5.45. No modifica datos, Neon, Historia Clínica, Bendo, facturación, agenda ni esquemas.",
+  "notes": "Recepción 4.5.47: corrige únicamente el cálculo del total para procedimientos con valor editable. La capa de pagos lee el campo externo “Valor de <procedimiento>” cuando la tarjeta no tiene precio fijo. El app.py conserva exactamente el runtime restaurado de 4.5.46/4.5.44. No modifica datos, Neon, Historia Clínica, Bendo, facturación, agenda ni esquemas.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_46_restore_4544/app.py"
+      "sourcePath": "updates/v4_5_47_editable_value_payment_fix/app.py"
+    },
+    {
+      "path": "app_patch_4504.py",
+      "sourcePath": "updates/v4_5_47_editable_value_payment_fix/app_patch_4504.py"
     },
     {
       "path": "historia_bridge.py",
@@ -17,11 +21,11 @@
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_46_restore_4544/recepcion-version.json"
+      "sourcePath": "updates/v4_5_47_editable_value_payment_fix/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_46_restore_4544/update_manifest.json"
+      "sourcePath": "updates/v4_5_47_editable_value_payment_fix/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
