@@ -5,7 +5,7 @@
   "appVersion": "4.6.1",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.1: auditoría de legado. Retira del router activo las 4 rutas del Cloudflare Tunnel antiguo y /api/update/apply; remote_agenda deja de ser dependencia externa. AZUR, WhatsApp, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos y datos permanecen sin cambios. Runtime único app.py; no se añaden nuevas capas históricas.",
+  "notes": "Recepción 4.6.1: auditoría de legado. Retira del router activo las 4 rutas del Cloudflare Tunnel antiguo y /api/update/apply; remote_agenda deja de ser dependencia externa. AZUR, WhatsApp, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos y datos permanecen sin cambios. Runtime único app.py; no se añaden nuevas capas históricas. Prueba aislada aprobada: 242 rutas activas; 5 rutas legacy retiradas.",
   "files": [
     {
       "path": "app.py",
