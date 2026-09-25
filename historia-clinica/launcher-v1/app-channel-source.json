@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.53",
+  "appVersion": "1.3.54",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.53: certificados con nombre, cédula y día resaltados en negrita; etiquetas TOTAL DE DÍAS CERTIFICADOS, DESDE y HASTA en negrita; CIE 10: con dos puntos; encabezado Cirujano Urólogo; y botón + Agregar diagnóstico adicional para mostrar el segundo diagnóstico solo cuando se necesite. Conserva todos los arreglos de v1.3.52.",
+  "notes": "Historia Clínica 1.3.54: corrige el encabezado del certificado para que muestre Cirujano Urólogo en lugar de Urólogo. Conserva todos los cambios de v1.3.53.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_53_certificate_emphasis_additional_dx/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_54_certificate_surgeon_header/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_53_certificate_emphasis_additional_dx/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_54_certificate_surgeon_header/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_53_certificate_emphasis_additional_dx/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_54_certificate_surgeon_header/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
