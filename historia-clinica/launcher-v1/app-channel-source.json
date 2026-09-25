@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.56",
+  "appVersion": "1.3.57",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.56: limpia el Inicio dejando solo Base local, LAN, Nube y Respaldo. Mueve Sincronizar ahora, reparar acceso directo, reparar enlace LAN y abrir carpeta del programa a Configuración, organizados en Estado y conexión / Herramientas técnicas. Conserva todos los cambios de v1.3.55.",
+  "notes": "Historia Clínica 1.3.57: añade un segundo tipo de documento, Certificado de reposo / aislamiento, sin reemplazar el certificado médico normal. Autocompleta datos del paciente, permite institución/puesto/contingencia/síntomas, calcula el rango de reposo y lo imprime en números y letras siguiendo el formato histórico del consultorio. Conserva todos los cambios de v1.3.56.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_56_system_tools_options/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_56_system_tools_options/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_56_system_tools_options/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
