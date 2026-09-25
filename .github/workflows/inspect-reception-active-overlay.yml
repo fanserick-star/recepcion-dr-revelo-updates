@@ -65,4 +65,14 @@ jobs:
           print("TOTAL_MUTATION_OBSERVER_TEXT",js.count("MutationObserver"))
           print("TOTAL_INTERVAL_TEXT",js.count("setInterval("))
           print("TOTAL_TIMEOUT_TEXT",js.count("setTimeout("))
+          for needle in (
+              "function boot(){installPhoneSharing",
+              "installProcedureManager();",
+              "installVersionPainter();",
+              "installPhoneWatcher();",
+          ):
+              at=js.find(needle)
+              print("ACTIVE_NEEDLE",needle,"INDEX",at)
+              if at >= 0:
+                  print("ACTIVE_CONTEXT",re.sub(r"\\s+"," ",js[max(0,at-300):at+900]))
           PY
