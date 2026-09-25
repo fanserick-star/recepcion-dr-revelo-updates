@@ -2,246 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.48",
+  "appVersion": "4.6.0",
   "mandatory": true,
-  "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.48: auditoría de integridad del runtime. Mantiene exactamente el comportamiento de 4.5.47 y vuelve a distribuir la cadena ACTIVA completa de módulos para que el launcher pueda reparar archivos históricos faltantes o dañados. No toca datos, Neon, Historia Clínica, Bendo, facturación, agenda, impresión ni esquemas. Auditoría runtime: payload activo autocontenido respecto a la cadena histórica distribuible.",
+  "minimumLauncher": "1.0.12",
+  "notes": "Recepción 4.6.0: runtime consolidado autocontenido. El programa ya no depende de archivos externos app_patch_*.py, app_prev_4458.py ni app_base_4428.py. Se validó equivalencia contra 4.5.48: mismas 247 rutas, firmas normalizadas, overlays JS/CSS y funciones críticas. Conserva Fulguración/valores editables, Historia, turnos, impresión, Bendo, facturación y agenda. No modifica datos ni esquemas.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_48_runtime_integrity/app.py"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_48_runtime_integrity/recepcion-version.json"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_48_runtime_integrity/update_manifest.json"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_5_48_runtime_integrity/static/runtime_keep.txt"
-    },
-    {
-      "path": "app_base_4428.py",
-      "sourcePath": "updates/v4_4_59_no_facturable/app_base_4428.py"
-    },
-    {
-      "path": "app_prev_4458.py",
-      "sourcePath": "updates/v4_4_59_no_facturable/app_prev_4458.py"
-    },
-    {
-      "path": "app_patch_4459.py",
-      "sourcePath": "updates/v4_4_60_rescue_direct_app/app_patch_4459.py"
-    },
-    {
-      "path": "app_patch_4461.py",
-      "sourcePath": "updates/v4_4_61_receipt_crm308/app_patch_4461.py"
-    },
-    {
-      "path": "app_patch_4462.py",
-      "sourcePath": "updates/v4_4_62_receipt_uniform/app_patch_4462.py"
-    },
-    {
-      "path": "app_patch_4463.py",
-      "sourcePath": "updates/v4_4_63_receipt_match_preview/app_patch_4463.py"
-    },
-    {
-      "path": "app_patch_4464.py",
-      "sourcePath": "updates/v4_4_64_receipt_edge_to_edge/app_patch_4464.py"
-    },
-    {
-      "path": "app_patch_4465.py",
-      "sourcePath": "updates/v4_4_65_receipt_unified/app_patch_4465.py"
-    },
-    {
-      "path": "app_patch_4466.py",
-      "sourcePath": "updates/v4_4_66_receipt_raster/app_patch_4466.py"
-    },
-    {
-      "path": "app_patch_4467.py",
-      "sourcePath": "updates/v4_4_67_receipt_large_clean/app_patch_4467.py"
-    },
-    {
-      "path": "app_patch_4468.py",
-      "sourcePath": "updates/v4_4_68_receipt_large_long/app_patch_4468.py"
-    },
-    {
-      "path": "app_patch_4469.py",
-      "sourcePath": "updates/v4_4_69_receipt_left_wide/app_patch_4469.py"
-    },
-    {
-      "path": "app_patch_4470.py",
-      "sourcePath": "updates/v4_4_70_workflow_fixes/app_patch_4470.py"
-    },
-    {
-      "path": "app_patch_4471.py",
-      "sourcePath": "updates/v4_4_71_fast_print/app_patch_4471.py"
-    },
-    {
-      "path": "app_patch_4472.py",
-      "sourcePath": "updates/v4_4_72_white_screen_hotfix/app_patch_4472.py"
-    },
-    {
-      "path": "app_patch_4473.py",
-      "sourcePath": "updates/v4_4_73_stable_recovery/app_patch_4473.py"
-    },
-    {
-      "path": "app_patch_4474.py",
-      "sourcePath": "updates/v4_4_74_async_print_stable/app_patch_4474.py"
-    },
-    {
-      "path": "app_patch_4475.py",
-      "sourcePath": "updates/v4_4_75_fast_save_services/app_patch_4475.py"
-    },
-    {
-      "path": "app_patch_4476.py",
-      "sourcePath": "updates/v4_4_76_billing_services_coherence/app_patch_4476.py"
-    },
-    {
-      "path": "app_patch_4477.py",
-      "sourcePath": "updates/v4_4_77_discard_pending_billing/app_patch_4477.py"
-    },
-    {
-      "path": "app_patch_4478.py",
-      "sourcePath": "updates/v4_4_78_visible_discard_stable_version/app_patch_4478.py"
-    },
-    {
-      "path": "app_patch_4479.py",
-      "sourcePath": "updates/v4_4_79_cleanup_obsolete_ui/app_patch_4479.py"
-    },
-    {
-      "path": "app_patch_4480.py",
-      "sourcePath": "updates/v4_4_80_billing_emitidas_hotfix/app_patch_4480.py"
-    },
-    {
-      "path": "app_patch_4481.py",
-      "sourcePath": "updates/v4_4_81_remove_facturero_modal/app_patch_4481.py"
-    },
-    {
-      "path": "app_patch_4482.py",
-      "sourcePath": "updates/v4_4_82_updater_repair/app_patch_4482.py"
-    },
-    {
-      "path": "app_patch_4483.py",
-      "sourcePath": "updates/v4_4_83_mandatory_update_gate/app_patch_4483.py"
-    },
-    {
-      "path": "app_patch_4484.py",
-      "sourcePath": "updates/v4_4_84_optional_billing_email/app_patch_4484.py"
-    },
-    {
-      "path": "app_patch_4485.py",
-      "sourcePath": "updates/v4_4_85_payment_proof/app_patch_4485.py"
-    },
-    {
-      "path": "app_patch_4486.py",
-      "sourcePath": "updates/v4_4_86_single_print_menu/app_patch_4486.py"
-    },
-    {
-      "path": "app_patch_4487.py",
-      "sourcePath": "updates/v4_4_87_payment_proof_safe_right/app_patch_4487.py"
-    },
-    {
-      "path": "app_patch_4488.py",
-      "sourcePath": "updates/v4_4_88_payment_proof_compact/app_patch_4488.py"
-    },
-    {
-      "path": "app_patch_4489.py",
-      "sourcePath": "updates/v4_4_89_billing_data_form/app_patch_4489.py"
-    },
-    {
-      "path": "app_patch_4490.py",
-      "sourcePath": "updates/v4_4_90_billing_form_compact/app_patch_4490.py"
-    },
-    {
-      "path": "app_patch_4491.py",
-      "sourcePath": "updates/v4_4_91_billing_form_no_lines/app_patch_4491.py"
-    },
-    {
-      "path": "app_patch_4501.py",
-      "sourcePath": "updates/v4_5_01_stable_maintenance/app_patch_4501.py"
-    },
-    {
-      "path": "app_patch_4502.py",
-      "sourcePath": "updates/v4_5_02_couple_discount/app_patch_4502.py"
-    },
-    {
-      "path": "app_patch_4504.py",
-      "sourcePath": "updates/v4_5_47_editable_value_payment_fix/app_patch_4504.py"
-    },
-    {
-      "path": "app_patch_4505.py",
-      "sourcePath": "updates/v4_5_24_historia_demographics/app_patch_4505.py"
-    },
-    {
-      "path": "app_patch_4506.py",
-      "sourcePath": "updates/v4_5_06_bendo_config/app_patch_4506.py"
-    },
-    {
-      "path": "app_patch_4507.py",
-      "sourcePath": "updates/v4_5_24_historia_demographics/app_patch_4507.py"
-    },
-    {
-      "path": "app_patch_4508.py",
-      "sourcePath": "updates/v4_5_08_historia_bridge/app_patch_4508.py"
-    },
-    {
-      "path": "app_patch_4509.py",
-      "sourcePath": "updates/v4_5_09_historia_bridge_stable/app_patch_4509.py"
-    },
-    {
-      "path": "app_patch_4510.py",
-      "sourcePath": "updates/v4_5_10_auto_recovery/app_patch_4510.py"
-    },
-    {
-      "path": "app_patch_4511.py",
-      "sourcePath": "updates/v4_5_11_shortcut_branding/app_patch_4511.py"
-    },
-    {
-      "path": "app_patch_4517.py",
-      "sourcePath": "updates/v4_5_17_historia_link_status/app_patch_4517.py"
-    },
-    {
-      "path": "app_patch_4518.py",
-      "sourcePath": "updates/v4_5_18_real_version/app_patch_4518.py"
-    },
-    {
-      "path": "app_patch_4519.py",
-      "sourcePath": "updates/v4_5_19_sidebar_real_version/app_patch_4519.py"
-    },
-    {
-      "path": "app_patch_4520.py",
-      "sourcePath": "updates/v4_5_20_historia_lan_hybrid/app_patch_4520.py"
-    },
-    {
-      "path": "app_patch_4521.py",
-      "sourcePath": "updates/v4_5_21_historia_attention_type/app_patch_4521.py"
-    },
-    {
-      "path": "app_patch_4522.py",
-      "sourcePath": "updates/v4_5_22_historia_delete_sync/app_patch_4522.py"
-    },
-    {
-      "path": "app_patch_4523.py",
-      "sourcePath": "updates/v4_5_24_historia_demographics/app_patch_4523.py"
-    },
-    {
-      "path": "app_patch_4524.py",
-      "sourcePath": "updates/v4_5_24_historia_demographics/app_patch_4524.py"
-    },
-    {
-      "path": "app_patch_4525.py",
-      "sourcePath": "updates/v4_5_25_bendo_click_hotfix/app_patch_4525.py"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_bridge.py"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_0_consolidated_runtime/historia_lan_transport.py"
     }
   ]
 }
