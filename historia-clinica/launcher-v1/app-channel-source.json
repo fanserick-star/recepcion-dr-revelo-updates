@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.57",
+  "appVersion": "1.3.58",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.57: añade un segundo tipo de documento, Certificado de reposo / aislamiento, sin reemplazar el certificado médico normal. Autocompleta datos del paciente, permite institución/puesto/contingencia/síntomas, calcula el rango de reposo y lo imprime en números y letras siguiendo el formato histórico del consultorio. Conserva todos los cambios de v1.3.56.",
+  "notes": "Historia Clínica 1.3.58: corrige el certificado de reposo/aislamiento para que el formulario y la impresión evalúen correctamente estilos y datos del paciente, en vez de mostrar código como {_e(...)}. Conserva el certificado normal y todos los cambios de v1.3.57.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_58_rest_certificate_template_fix/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_58_rest_certificate_template_fix/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_57_rest_isolation_certificate/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_58_rest_certificate_template_fix/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
