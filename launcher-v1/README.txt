@@ -1,4 +1,4 @@
-LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.11
+LAUNCHER RECEPCIÓN - DR. ARMANDO REVELO v1.0.13
 
 CONTENIDO
 - INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_11.exe
@@ -29,12 +29,13 @@ Usar el desinstalador únicamente si realmente se desea borrar Recepción y todo
 
 - Autoactualización del propio launcher con confirmación, progreso y SHA-256.
 
-- v1.0.11: actualizador silencioso sin consola y transición robusta del backend/puerto 8000.
+- v1.0.13: actualizador silencioso sin consola y transición robusta del backend/puerto 8000.
 
-- v1.0.11: actualizaciones oficiales obligatorias; si hay una versión superior, Recepción no abre hasta instalarla.
+- v1.0.13: actualizaciones oficiales obligatorias; si hay una versión superior, Recepción no abre hasta instalarla.
 
-- v1.0.11: el self-update descarga y verifica su helper junto con el instalador; ya no depende de que el helper exista previamente.
+- v1.0.13: el self-update descarga y verifica su helper junto con el instalador; ya no depende de que el helper exista previamente.
 
-- v1.0.11: limpia artefactos conocidos del launcher Python antiguo y temporales obsoletos después de un arranque correcto.
+- v1.0.13: limpia artefactos conocidos del launcher Python antiguo y temporales obsoletos después de un arranque correcto.
 
-- v1.0.12: icono turquesa exclusivo de Recepción para diferenciarlo visualmente de Historia Clínica.
+- v1.0.13: icono turquesa exclusivo de Recepción para diferenciarlo visualmente de Historia Clínica.
+\nAUDITORÍA 4.6.0\n- Launcher 1.0.13 valida staging autosuficiente, acepta runtime portátil y repara archivos dañados incluso con la misma versión.\n- La candidata 4.6.0 usa un runtime atómico y no depende de app_patch_* sueltos.\n
