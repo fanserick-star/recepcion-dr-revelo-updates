@@ -1,0 +1,227 @@
+name: Test Reception 4.6.0 Consolidated Candidate
+
+on:
+  push:
+    branches:
+      - "audit/consolidated-runtime-460"
+    paths:
+      - "updates/v4_6_0_consolidated_candidate/**"
+      - ".github/workflows/test-reception-consolidated-460.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check fastapi uvicorn sqlalchemy pydantic python-dotenv pg8000 "psycopg[binary]" python-multipart openpyxl
+
+      - name: Build isolated stable and consolidated runtimes
+        shell: python
+        run: |
+          import json
+          import pathlib
+          import shutil
+
+          repo = pathlib.Path(".").resolve()
+          work = repo / "_audit_460"
+          stable = work / "stable"
+          candidate = work / "candidate"
+          shutil.rmtree(work, ignore_errors=True)
+          stable.mkdir(parents=True)
+          candidate.mkdir(parents=True)
+
+          channel = json.loads((repo / "launcher-v1/app-channel-source.json").read_text(encoding="utf-8-sig"))
+          assert channel["appVersion"] == "4.5.48", channel["appVersion"]
+          for item in channel["files"]:
+              src = repo / item["sourcePath"]
+              dst = stable / item["path"]
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(src, dst)
+
+          croot = repo / "updates/v4_6_0_consolidated_candidate"
+          for rel in ("app.py", "recepcion-version.json", "update_manifest.json", "static/runtime_keep.txt"):
+              src = croot / rel
+              dst = candidate / rel
+              dst.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(src, dst)
+
+          for rel in ("historia_bridge.py", "historia_lan_transport.py"):
+              source_item = next(x for x in channel["files"] if x["path"] == rel)
+              for target in (stable, candidate):
+                  shutil.copy2(repo / source_item["sourcePath"], target / rel)
+
+          # Dependencias base de instalación: stubs sin red ni efectos externos.
+          azur = """
+class AzurError(Exception): pass
+def emit_invoice(*a, **k): return {}
+def query_comprobante(*a, **k): return {}
+def mask_api_key(v=''): return '***' if v else ''
+def normalize_base_url(v=''): return str(v or '').rstrip('/')
+def test_connection(*a, **k): return {'ok': True}
+"""
+          whatsapp = """
+class WhatsAppError(Exception): pass
+def build_template_payload(*a, **k): return {}
+def send_template(*a, **k): return {'ok': True}
+"""
+          remote = """
+def normalize_public_base_url(v=''): return str(v or '').rstrip('/')
+def start_quick_tunnel(*a, **k): return {}
+def start_named_tunnel(*a, **k): return {}
+def start_named_tunnel_background(*a, **k): return None
+def stop_managed_tunnel(*a, **k): return None
+def tunnel_status(*a, **k): return {'running': False, 'mode': 'off', 'public_base_url': ''}
+"""
+          for root in (stable, candidate):
+              (root / "azur_client.py").write_text(azur, encoding="utf-8")
+              (root / "whatsapp_client.py").write_text(whatsapp, encoding="utf-8")
+              (root / "remote_agenda.py").write_text(remote, encoding="utf-8")
+              (root / "static").mkdir(exist_ok=True)
+              (root / "static/index.html").write_text("<!doctype html><title>audit</title>", encoding="utf-8")
+
+          # La candidata NO recibe ningún app_patch externo.
+          leftovers = list(candidate.glob("app_patch_*.py")) + list(candidate.glob("app_prev_*.py")) + list(candidate.glob("app_base_*.py"))
+          assert not leftovers, leftovers
+
+      - name: Probe both runtimes
+        shell: pwsh
+        run: |
+          @'
+          import hashlib
+          import inspect
+          import json
+          import os
+          import pathlib
+          import re
+          import sys
+
+          root = pathlib.Path(sys.argv[1]).resolve()
+          out_path = pathlib.Path(sys.argv[2]).resolve()
+          os.chdir(root)
+          os.environ["RP_DATA_DIR"] = str(root / "_data")
+          os.environ["DATABASE_URL"] = ""
+          os.environ["RP_FORCE_OFFLINE"] = "1"
+          os.environ["WHATSAPP_ENABLED"] = "0"
+          os.environ["WHATSAPP_CLOUD_MODE"] = "1"
+          os.environ["REMOTE_AGENDA_AUTOSTART"] = "0"
+          sys.path.insert(0, str(root))
+
+          import app
+
+          def normalize(text):
+              text = str(text or "")
+              return re.sub(r"(?<!\d)4\.\d+\.\d+(?!\d)", "<VER>", text)
+
+          def digest(text):
+              return hashlib.sha256(normalize(text).encode("utf-8")).hexdigest()
+
+          routes = []
+          for route in app.app.router.routes:
+              methods = sorted(getattr(route, "methods", set()) or set())
+              path = str(getattr(route, "path", ""))
+              if not path:
+                  continue
+              endpoint = getattr(route, "endpoint", None)
+              try:
+                  sig = str(inspect.signature(endpoint)) if endpoint else ""
+              except Exception:
+                  sig = ""
+              routes.append({"path": path, "methods": methods, "signature": normalize(sig)})
+          routes.sort(key=lambda x: (x["path"], ",".join(x["methods"]), x["signature"]))
+
+          core = app.core
+          embedded_names = sorted(
+              n for n in sys.modules
+              if re.fullmatch(r"(?:app_base_4428|app_prev_4458|app_patch_\d+)", n)
+          )
+          result = {
+              "version": app.APP_VERSION,
+              "route_count": len(routes),
+              "routes": routes,
+              "overlay_js_sha": digest(getattr(core, "V460_OVERLAY_JS", "")),
+              "overlay_css_sha": digest(getattr(core, "V460_OVERLAY_CSS", "")),
+              "embedded_runtime_flag": bool(getattr(app, "RUNTIME_CONSOLIDATED", False)),
+              "external_patch_required": getattr(app, "RUNTIME_CONSOLIDATED_EXTERNAL_PATCH_FILES_REQUIRED", None),
+              "embedded_declared_count": int(getattr(app, "RUNTIME_CONSOLIDATED_EMBEDDED_MODULE_COUNT", 0) or 0),
+              "loaded_historical_modules": embedded_names,
+              "critical_routes": {
+                  p: any(x["path"] == p for x in routes)
+                  for p in [
+                      "/api/visits/batch-payment",
+                      "/api/historical/{hid}/activate",
+                      "/api/v4470/print-visit/{visit_id}",
+                      "/api/program/update-now",
+                      "/api/version",
+                  ]
+              },
+              "critical_core": {
+                  "payment_batch": hasattr(core, "create_visit_batch"),
+                  "billing_group_records": hasattr(core, "billing_group_records"),
+                  "history_match": hasattr(core, "find_safe_historical_match"),
+              },
+          }
+          out_path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+          print(json.dumps({k:v for k,v in result.items() if k!="routes"}, ensure_ascii=False, indent=2))
+          '@ | Set-Content "_audit_460/probe.py" -Encoding UTF8
+
+          python "_audit_460/probe.py" "_audit_460/stable" "_audit_460/stable.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "_audit_460/probe.py" "_audit_460/candidate" "_audit_460/candidate.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compare semantic runtime surface
+        shell: python
+        run: |
+          import json
+          import pathlib
+
+          stable = json.loads(pathlib.Path("_audit_460/stable.json").read_text(encoding="utf-8"))
+          cand = json.loads(pathlib.Path("_audit_460/candidate.json").read_text(encoding="utf-8"))
+
+          assert stable["version"] == "4.5.48", stable["version"]
+          assert cand["version"] == "4.6.0", cand["version"]
+          assert stable["routes"] == cand["routes"], "Cambió la superficie de rutas/firmas"
+          assert stable["overlay_js_sha"] == cand["overlay_js_sha"], "Cambió V460_OVERLAY_JS"
+          assert stable["overlay_css_sha"] == cand["overlay_css_sha"], "Cambió V460_OVERLAY_CSS"
+          assert cand["embedded_runtime_flag"] is True
+          assert cand["external_patch_required"] is False
+          assert cand["embedded_declared_count"] == 51, cand["embedded_declared_count"]
+          assert all(cand["critical_routes"].values()), cand["critical_routes"]
+          assert all(cand["critical_core"].values()), cand["critical_core"]
+
+          # La versión estable carga los módulos desde archivos; la candidata,
+          # los mismos nombres desde el importador embebido.
+          assert len(cand["loaded_historical_modules"]) >= 45, len(cand["loaded_historical_modules"])
+
+          print("OK: 4.6.0 mantiene rutas, firmas y overlays de 4.5.48.")
+          print("OK: 51 módulos históricos están encapsulados en un único app.py.")
+          print("OK: la candidata arranca sin app_patch_*.py, app_prev_*.py ni app_base_*.py externos.")
+
+      - name: Compile candidate and validate manifest
+        shell: python
+        run: |
+          import json
+          import pathlib
+
+          root = pathlib.Path("updates/v4_6_0_consolidated_candidate")
+          source = (root / "app.py").read_text(encoding="utf-8-sig")
+          compile(source, "app.py", "exec")
+          manifest = json.loads((root / "update_manifest.json").read_text(encoding="utf-8-sig"))
+          version = json.loads((root / "recepcion-version.json").read_text(encoding="utf-8-sig"))["version"]
+          assert version == "4.6.0"
+          assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version
+          assert manifest["notes"]["external_patch_chain_required"] is False
+          assert manifest["notes"]["embedded_historical_modules"] == 51
+          print("Manifest y sintaxis: OK")
