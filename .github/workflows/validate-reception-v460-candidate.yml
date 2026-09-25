@@ -202,6 +202,11 @@ jobs:
           python "$env:RUNNER_TEMP\validate_candidate.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Run functional patient/history/payment smoke test
+        shell: pwsh
+        run: |
+          python tools/recepcion_v460/smoke_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Assert stable channel remains untouched
         shell: pwsh
         run: |
