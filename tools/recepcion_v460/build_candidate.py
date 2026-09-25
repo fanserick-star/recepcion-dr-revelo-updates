@@ -58,6 +58,154 @@ def patch_base_dir(data: bytes) -> bytes:
     return text.replace(old, new, 1).encode("utf-8")
 
 
+def patch_azur_client(data: bytes) -> bytes:
+    """Agrega la consulta de autorización usada por Recepción 4.3.54+.
+
+    Conserva intactos normalize/test/emit del cliente RC3; únicamente completa
+    query_comprobante, cuya ruta está documentada por AZUR como
+    /plataforma/api/v2/consulta/comprobante.
+    """
+    text = data.decode("utf-8")
+    if "def query_comprobante(" in text:
+        return data
+
+    extension = r'''
+
+def _query_walk_values(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield str(key), item
+            yield from _query_walk_values(item)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            yield from _query_walk_values(item)
+
+
+def _query_first(data, keys):
+    wanted = {re.sub(r"[^a-z0-9]", "", str(k).lower()) for k in keys}
+    for key, value in _query_walk_values(data):
+        normalized = re.sub(r"[^a-z0-9]", "", key.lower())
+        if normalized in wanted and value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _query_state(data, fallback_text=""):
+    raw = _query_first(
+        data,
+        (
+            "estado", "estado_sri", "estado_autorizacion",
+            "estadoautorizacion", "estado_comprobante",
+            "status", "autorizacion_estado",
+        ),
+    )
+    origin = str(raw or "").strip()
+    flat = (" ".join([
+        _flatten_text(data, fallback_text),
+        origin,
+    ])).upper()
+
+    # Evaluar rechazo antes de autorización porque "NO AUTORIZADO"
+    # contiene la palabra AUTORIZADO.
+    rejected_tokens = (
+        "NO AUTORIZADO", "NO AUTORIZADA", "RECHAZADO", "RECHAZADA",
+        "DEVUELTO", "DEVUELTA", "ANULADO", "ANULADA",
+    )
+    if any(token in flat for token in rejected_tokens):
+        return "RECHAZADA", origin or None
+
+    authorized_tokens = ("AUTORIZADO", "AUTORIZADA")
+    if any(token in flat for token in authorized_tokens):
+        return "AUTORIZADA", origin or None
+
+    processing_tokens = (
+        "RECIBIDA", "RECIBIDO", "PROCESANDO", "EN PROCESO",
+        "PENDIENTE", "GENERADO", "GENERADA", "FIRMADO", "FIRMADA",
+    )
+    if any(token in flat for token in processing_tokens):
+        return "EN_PROCESO", origin or None
+
+    return "CONSULTADA", origin or None
+
+
+def query_comprobante(base_url: str, api_key: str, clave_acceso: str, timeout: int = 15) -> dict[str, Any]:
+    base = normalize_base_url(base_url)
+    key = (api_key or "").strip()
+    access_key = re.sub(r"\D", "", str(clave_acceso or ""))
+    if not key:
+        raise AzurError("La API key de AZUR no está configurada")
+    if len(access_key) != 49:
+        raise AzurError("La clave de acceso de AZUR debe tener 49 dígitos")
+
+    payload = {
+        "api_key": key,
+        "claveacceso": access_key,
+        "clave_acceso": access_key,
+    }
+    attempts = []
+    for url in _endpoint_candidates(base, "consulta/comprobante"):
+        try:
+            response = _post_json(url, payload, timeout=timeout, api_key=key)
+        except AzurError as exc:
+            attempts.append(f"{url}: {exc}")
+            continue
+
+        if _looks_like_route_missing(response):
+            attempts.append(f"{url}: ruta no disponible ({response.status})")
+            continue
+
+        flat = _flatten_text(response.data, response.text)
+        if response.status in {401, 403} or _auth_rejected(flat):
+            raise AzurError("AZUR rechazó la API key")
+        if response.status >= 500:
+            attempts.append(f"{url}: HTTP {response.status}")
+            continue
+        if response.status >= 400:
+            raise AzurError(
+                f"AZUR no pudo consultar el comprobante (HTTP {response.status}): "
+                f"{flat[:350]}"
+            )
+
+        data = response.data
+        if data is None:
+            raise AzurError("AZUR respondió sin JSON al consultar el comprobante")
+
+        state, origin = _query_state(data, response.text)
+        number = _query_first(
+            data,
+            ("numero_factura", "numero_comprobante", "numero", "secuencial"),
+        )
+        authorization = _query_first(
+            data,
+            ("numero_autorizacion", "numeroautorizacion", "autorizacion"),
+        )
+        pdf_url = _query_first(
+            data,
+            ("pdf_url", "url_pdf", "pdf", "ride_url", "url_ride"),
+        )
+        xml_url = _query_first(
+            data,
+            ("xml_url", "url_xml", "xml"),
+        )
+        return {
+            "ok": True,
+            "estado": state,
+            "estado_origen": origin,
+            "clave_acceso": access_key,
+            "numero_factura": str(number).strip() if number not in (None, "") else None,
+            "numero_autorizacion": str(authorization).strip() if authorization not in (None, "") else None,
+            "pdf_url": str(pdf_url).strip() if pdf_url not in (None, "") else None,
+            "xml_url": str(xml_url).strip() if xml_url not in (None, "") else None,
+            "endpoint": response.url,
+            "data": data,
+        }
+
+    detail = "; ".join(attempts[-3:]) if attempts else "sin respuesta"
+    raise AzurError(f"No se pudo consultar el comprobante en AZUR: {detail}")
+'''
+    return (text.rstrip() + "\n" + extension.strip() + "\n").encode("utf-8")
+
+
 def build() -> dict:
     cfg = json.loads(SOURCE_MAP.read_text(encoding="utf-8"))
     if cfg.get("candidate_version") != "4.6.0":
@@ -81,6 +229,8 @@ def build() -> dict:
         archive = ROOT / meta["archive"]
         with zipfile.ZipFile(archive) as zf:
             data = zf.read(meta["member"])
+        if name == "azur_client.py":
+            data = patch_azur_client(data)
         compile_python(name, data)
         runtime[name] = data
 
