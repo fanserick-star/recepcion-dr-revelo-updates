@@ -2,35 +2,40 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.46",
+  "appVersion": "4.5.47",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.46: restauración de seguridad. Vuelve exactamente al runtime funcional de 4.5.44 y descarta el cambio 4.5.45. No modifica datos, Neon, Historia Clínica, Bendo, facturación, agenda ni esquemas. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1",
+  "notes": "Recepción 4.5.47: corrige únicamente el cálculo del total para procedimientos con valor editable. La capa de pagos lee el campo externo “Valor de <procedimiento>” cuando la tarjeta no tiene precio fijo. El app.py conserva exactamente el runtime restaurado de 4.5.46/4.5.44. No modifica datos, Neon, Historia Clínica, Bendo, facturación, agenda ni esquemas. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "66daef455d47d1445ea82fc372b133051450e72f",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1/updates/v4_5_46_restore_4544/app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_47_editable_value_payment_fix/app.py",
       "sha256": "645d6490a1cbbf107de52d4b387fb9b5ea03f8bd9e162df052702d99a820c6ba"
     },
     {
+      "path": "app_patch_4504.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_47_editable_value_payment_fix/app_patch_4504.py",
+      "sha256": "f47c1f0862d47b038cb832827e623aadb111c61e8a221b3c3208954adf31a446"
+    },
+    {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_40_historia_turn_runtime/historia_bridge.py",
       "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1/updates/v4_5_46_restore_4544/recepcion-version.json",
-      "sha256": "1ba02a30e28e4b9a676072187d23f253c7d6ac3a476b5fbf33843b3d76f84b5c"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_47_editable_value_payment_fix/recepcion-version.json",
+      "sha256": "d069d56fb1789bc2b7f1a61e5095f330508fa2818af60d3b0f1c0e6754b0f927"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1/updates/v4_5_46_restore_4544/update_manifest.json",
-      "sha256": "d0e29aa967c08815d8b89bef37f1730df44525b09eb1517972375e1cadc9b5b5"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_47_editable_value_payment_fix/update_manifest.json",
+      "sha256": "0ae6c3fee9df0ffc3c444d247866435893161e92c76fbd444c2eccded2bc355d"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/cfeedce20413bfd67b6b2b0dcf5dab9a78bb5cb1/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/66daef455d47d1445ea82fc372b133051450e72f/updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
