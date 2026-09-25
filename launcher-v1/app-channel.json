@@ -2,16 +2,16 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.41",
+  "appVersion": "4.5.42",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: corrige de raíz la diferencia #6/#10. El turno enviado a Historia se calcula desde el mismo SQLite local que alimenta la lista visible de Inicio de Recepción, reproduciendo su agrupación por paciente y excluyendo procedimientos del conteo. Además corrige la reparación al iniciar (ya no llama get_db sin Request) y reenvía handoffs recientes por LAN y Neon para corregir turnos ya enviados. No modifica caja, Bendo, facturación, agenda ni datos clínicos. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "5acef864efa23d12bfc01058120b3f2a03a7ddaa",
+  "notes": "Recepción 4.5.42: corrige tres fallos en Recepción. Al activar una ficha histórica se guarda su vínculo local para que no reaparezca como duplicada; cualquier paciente con historial 2020–2025 o atenciones previas se guarda e imprime como Subsecuente aunque una pantalla antigua intente enviarlo como Nuevo; y el bloque ACCIONES deja de recortar los botones Imprimir/Borrar. Conserva íntegramente los fixes de 4.5.41, Bendo, facturación, agenda y el puente con Historia. No cambia esquemas ni borra datos.",
+  "generatedFromCommit": "60eb685df29f71af5d8d5d6ebc1d4cef27f79f7b",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/app.py",
-      "sha256": "86c2baa6694d7be737c16dd4ce4f0258495a6bbbf8d74f5d6e050fb7e4eea60c"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/60eb685df29f71af5d8d5d6ebc1d4cef27f79f7b/updates/v4_5_42_historical_link_actions/app.py",
+      "sha256": "be1b7977b07a42c469cfb374df50a3896b24a001e4d09ecccc2e76eb383e76e9"
     },
     {
       "path": "historia_bridge.py",
@@ -20,13 +20,13 @@
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/recepcion-version.json",
-      "sha256": "94e074c95dad773378dd88cb5f86694d78caa09847934098967042d020624ffd"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/60eb685df29f71af5d8d5d6ebc1d4cef27f79f7b/updates/v4_5_42_historical_link_actions/recepcion-version.json",
+      "sha256": "9e2584f305194cf4a612e7864baf15a9bebc4b6478031d378fe4798f5afdc7c9"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/5acef864efa23d12bfc01058120b3f2a03a7ddaa/updates/v4_5_41_historia_turn_exact/update_manifest.json",
-      "sha256": "98cbad1a0809a31a58be4eead071277623d66a28de6ec4d089001e7671f27f5a"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/60eb685df29f71af5d8d5d6ebc1d4cef27f79f7b/updates/v4_5_42_historical_link_actions/update_manifest.json",
+      "sha256": "155ccf6e03a8970dd3eca7872ef7ad36eb560726080d370dc99146124d11eac5"
     },
     {
       "path": "historia_lan_transport.py",
