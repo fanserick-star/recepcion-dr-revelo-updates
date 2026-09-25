@@ -1,0 +1,187 @@
+name: Validate Reception 4.6.2 Helpers Candidate
+
+on:
+  push:
+    branches:
+      - reception-audit-helpers-v462
+    paths:
+      - "updates/v4_6_2_helpers_candidate/**"
+      - ".github/workflows/validate-reception-v462-helpers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate helper bytes, syntax, imports and API contracts
+        shell: python
+        run: |
+          import ast
+          import hashlib
+          import importlib.util
+          import inspect
+          import json
+          import pathlib
+          import re
+          import sys
+
+          root = pathlib.Path("updates/v4_6_2_helpers_candidate")
+          stable = pathlib.Path("updates/v4_6_1_legacy_cleanup")
+
+          # app.py must remain exactly the stable 4.6.1 code.
+          app_bytes = (root / "app.py").read_bytes()
+          stable_bytes = (stable / "app.py").read_bytes()
+          assert app_bytes == stable_bytes, "app.py cambió en una release que solo debe oficializar helpers"
+
+          expected_sha = {
+              "azur_client.py": "1d1732504a20d348ea83c4ba7f925976f1b0d3026af4e84b8b28a0ecb815a5af",
+              "whatsapp_client.py": "df70ee0683976bac19b3d38c6ac5c509424abb356844002cf21f7e116589b261",
+          }
+
+          for name, expected in expected_sha.items():
+              data = (root / name).read_bytes()
+              got = hashlib.sha256(data).hexdigest()
+              assert got == expected, (name, got, expected)
+              source = data.decode("utf-8-sig")
+              compile(source, str(root / name), "exec")
+              tree = ast.parse(source)
+
+              # No third-party runtime dependencies inside helpers.
+              imports = set()
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Import):
+                      imports.update(a.name.split(".")[0] for a in node.names)
+                  elif isinstance(node, ast.ImportFrom) and node.module:
+                      imports.add(node.module.split(".")[0])
+              unknown = sorted(imports - set(sys.stdlib_module_names) - {"__future__"})
+              assert not unknown, f"{name}: dependencias no estándar: {unknown}"
+
+              # Secret scan over string literals only. Configuration variable names
+              # are allowed; literal credentials/tokens are not.
+              suspect = []
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                      value = node.value.strip()
+                      if re.fullmatch(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}", value):
+                          suspect.append(value[:20])
+                      if re.fullmatch(r"[A-Za-z0-9._-]{40,}", value) and not value.startswith("http"):
+                          suspect.append(value[:20])
+              assert not suspect, f"{name}: posible secreto literal: {suspect}"
+
+          # Load helpers directly and validate public contracts.
+          sys.path.insert(0, str(root))
+          import azur_client as az
+          import whatsapp_client as wa
+
+          assert issubclass(az.AzurError, RuntimeError)
+          assert issubclass(wa.WhatsAppError, RuntimeError)
+
+          assert list(inspect.signature(az.emit_invoice).parameters) == [
+              "base_url", "api_key", "invoice_payload", "timeout"
+          ]
+          assert list(inspect.signature(az.query_comprobante).parameters) == [
+              "base_url", "api_key", "access_key", "timeout"
+          ]
+          assert list(inspect.signature(az.test_connection).parameters) == [
+              "base_url", "api_key", "timeout"
+          ]
+          assert list(inspect.signature(wa.build_template_payload).parameters) == [
+              "to", "template_name", "language_code", "body_params",
+              "header_image_id", "quick_reply_payloads"
+          ]
+          assert list(inspect.signature(wa.send_template).parameters) == [
+              "graph_version", "phone_number_id", "access_token", "payload", "timeout"
+          ]
+
+          assert az.normalize_base_url("azur.com.ec") == "https://azur.com.ec"
+          for bad in ("", "http://azur.com.ec", "https://example.com"):
+              try:
+                  az.normalize_base_url(bad)
+              except az.AzurError:
+                  pass
+              else:
+                  raise AssertionError(f"AZUR aceptó host inseguro: {bad!r}")
+
+          payload = wa.build_template_payload(
+              to="593999999999",
+              template_name="prueba",
+              language_code="es_EC",
+              body_params=["Paciente", "Fecha"],
+              header_image_id="media-id",
+              quick_reply_payloads=["SI", "NO"],
+          )
+          assert payload["messaging_product"] == "whatsapp"
+          assert payload["template"]["name"] == "prueba"
+          assert len(payload["template"]["components"]) == 4
+
+          manifest = json.loads((root / "update_manifest.json").read_text(encoding="utf-8"))
+          assert manifest["version"] == "4.6.2"
+          assert manifest["notes"]["candidate_only"] is True
+          assert manifest["notes"]["app_code_changes"] is False
+          assert manifest["installation_prerequisites"] == []
+          for helper in ("azur_client.py", "whatsapp_client.py"):
+              assert helper in manifest["required_dependencies"]
+              assert helper in manifest["copy"]
+
+          print("HELPER_STATIC_AND_CONTRACT_TESTS_OK")
+          print("app_sha256", hashlib.sha256(app_bytes).hexdigest())
+          print("azur_sha256", expected_sha["azur_client.py"])
+          print("whatsapp_sha256", expected_sha["whatsapp_client.py"])
+
+      - name: Install backend dependencies for isolated runtime smoke import
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "fastapi==0.128.2" \
+            "uvicorn==0.48.0" \
+            "sqlalchemy>=2,<3" \
+            "python-dotenv>=1,<2" \
+            "pg8000>=1.31,<2" \
+            "python-multipart>=0.0.20,<1" \
+            "pydantic>=2,<3" \
+            "anyio>=4,<5"
+
+      - name: Smoke import with the real audited helpers
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/reception-v462-smoke-data
+          RP_FORCE_OFFLINE: "1"
+          FORCE_OFFLINE: "1"
+          WHATSAPP_ENABLED: "0"
+          WHATSAPP_CLOUD_MODE: "1"
+          AZUR_LIVE_EMISSION: "0"
+        run: |
+          set -euo pipefail
+          cd updates/v4_6_2_helpers_candidate
+          python - <<'PY'
+          import app
+          paths = [getattr(r, "path", None) for r in app.app.router.routes]
+          paths = [p for p in paths if p]
+          assert app.APP_VERSION == "4.6.2", app.APP_VERSION
+          assert getattr(app, "RUNTIME_CONSOLIDATED", None) is True
+          forbidden = {
+              "/api/mobile/remote/status",
+              "/api/mobile/remote/quick/start",
+              "/api/mobile/remote/stable/restart",
+              "/api/mobile/remote/stop",
+              "/api/update/apply",
+          }
+          assert not (forbidden & set(paths))
+          assert len(paths) == 242, len(paths)
+          print("REAL_HELPERS_SMOKE_IMPORT_OK")
+          print("active_routes", len(paths))
+          PY
+
+      - name: Ensure production channel is still 4.6.1
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          source = json.loads(Path("launcher-v1/app-channel-source.json").read_text(encoding="utf-8"))
+          assert source["appVersion"] == "4.6.1", source["appVersion"]
+          print("Stable channel remains", source["appVersion"])
