@@ -5,27 +5,27 @@
   "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: corrige la causa real del turno distinto en Historia. La pantalla Inicio de Recepción lee la copia SQLite local, pero el bridge estaba recalculando el número desde Neon; si Neon tenía filas antiguas, Recepción mostraba #6 e Historia recibía #10. Ahora el bridge calcula el turno desde la MISMA copia local y la misma agrupación paciente/día que usa Recepción, y repara/reenvía handoffs recientes. No cambia impresión, caja, Bendo, facturación ni agenda.",
+  "notes": "Recepción 4.5.41: corrige de raíz la diferencia #6/#10. El turno enviado a Historia se calcula desde el mismo SQLite local que alimenta la lista visible de Inicio de Recepción, reproduciendo su agrupación por paciente y excluyendo procedimientos del conteo. Además corrige la reparación al iniciar (ya no llama get_db sin Request) y reenvía handoffs recientes por LAN y Neon para corregir turnos ya enviados. No modifica caja, Bendo, facturación, agenda ni datos clínicos.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_local_source/app.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_exact/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_local_source/historia_bridge.py"
+      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_local_source/recepcion-version.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_exact/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_local_source/update_manifest.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_exact/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_local_source/historia_lan_transport.py"
+      "sourcePath": "updates/v4_5_40_historia_turn_runtime/historia_lan_transport.py"
     }
   ]
 }
