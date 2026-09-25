@@ -1,0 +1,51 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.6.2",
+  "app_version": "4.6.2",
+  "runtime_version": "4.6.2",
+  "mandatory": false,
+  "version_source": "recepcion-version.json",
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.12",
+  "updater_version": "launcher-v1-app-update",
+  "required_dependencies": [
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "azur_client.py",
+    "whatsapp_client.py"
+  ],
+  "installation_prerequisites": [],
+  "copy": [
+    "app.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "azur_client.py",
+    "whatsapp_client.py",
+    "recepcion-version.json",
+    "update_manifest.json",
+    "static/runtime_keep.txt"
+  ],
+  "notes": {
+    "purpose": "Candidata de auditoría de helpers: convierte AZUR y WhatsApp en dependencias oficiales verificables del canal sin modificar la lógica de app.py.",
+    "previous_version": "4.6.1",
+    "candidate_only": true,
+    "app_code_changes": false,
+    "app_py_byte_identical_to_4_6_1": true,
+    "azur_helper_official": true,
+    "whatsapp_helper_official": true,
+    "remote_agenda_external_required": false,
+    "database_schema_changes": false,
+    "patient_data_changes": false,
+    "patient_data_destructive_changes": false,
+    "neon_changes": false,
+    "historia_changes": false,
+    "bendo_changes": false,
+    "billing_logic_changes": false,
+    "agenda_changes": false,
+    "printing_changes": false,
+    "whatsapp_logic_changes": false,
+    "azur_logic_changes": false,
+    "production_status": "candidate-not-published"
+  },
+  "channel": "candidate-only"
+}
