@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.40",
+  "appVersion": "1.3.41",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.40: separa definitivamente el Neon clínico del Neon de Recepción. Historia ya no acepta DATABASE_URL ni lee la .env de Recepción; valida el endpoint dedicado de Historia. Recupera de forma aditiva los datos clínicos antiguos de public.* hacia historia.* sin sobrescribir filas existentes y reencola únicamente claves locales que falten realmente en Neon. Al cambiar del proyecto equivocado al correcto reinicia el bootstrap automáticamente. No cambia impresión, recetas, certificados ni el flujo clínico.",
+  "notes": "Historia Clínica 1.3.41: corrige PostgreSQL 42501 usando public.* como esquema clínico canónico en el Neon dedicado, donde ya están los pacientes e historias históricos. No crea ni altera esquemas remotos, no copia ni duplica históricos y mantiene la sincronización sobre las tablas clínicas existentes. No cambia impresión, recetas, certificados ni el flujo clínico.",
   "files": [
     {
       "path": "app.py",
@@ -21,8 +21,8 @@
     {
       "path": "cloud_sync.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/cloud_sync.py.part01",
-        "historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
+        "historia-clinica/updates/v1_3_41_public_canonical/cloud_sync.py.part01",
+        "historia-clinica/updates/v1_3_41_public_canonical/cloud_sync.py.part02"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_41_public_canonical/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_40_dedicated_neon_recovery/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_41_public_canonical/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
