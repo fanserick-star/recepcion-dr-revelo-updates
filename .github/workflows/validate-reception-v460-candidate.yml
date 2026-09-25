@@ -1,0 +1,222 @@
+name: Validate Reception v4.6.0 Candidate
+
+on:
+  push:
+    branches:
+      - "audit/recepcion-v4.6.0-stabilization"
+    paths:
+      - "updates/v4_6_0_stabilization/**"
+      - "tools/recepcion_v460/**"
+      - "launcher-v1/RecepcionLauncher/**"
+      - "launcher-v1/installer/**"
+      - ".github/workflows/validate-reception-v460-candidate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-validate:
+    runs-on: windows-latest
+    env:
+      CANDIDATE_DIR: updates/v4_6_0_stabilization
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/recepcion-v4.6.0-stabilization
+          fetch-depth: 0
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build atomic candidate
+        shell: pwsh
+        run: |
+          python tools/recepcion_v460/build_candidate.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install candidate Python dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r "$env:CANDIDATE_DIR/requirements.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate isolated import and route cleanup
+        shell: pwsh
+        run: |
+          @'
+          import json
+          import os
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          candidate = Path("updates/v4_6_0_stabilization").resolve()
+          data = Path(tempfile.mkdtemp(prefix="rp460_ci_"))
+          os.environ["RP_DATA_DIR"] = str(data)
+          os.environ["RP_FORCE_OFFLINE"] = "1"
+          os.environ["RP_DESKTOP_LAUNCH"] = "1"
+          os.environ["WHATSAPP_ENABLED"] = "0"
+          os.environ["WHATSAPP_CLOUD_MODE"] = "1"
+          os.environ["DATABASE_URL"] = ""
+          os.environ["NEON_DATABASE_URL"] = ""
+          os.environ["HISTORIA_DATABASE_URL"] = ""
+          os.environ["RP_DATAPHONE_API_ENABLED"] = "0"
+
+          sys.path.insert(0, str(candidate))
+          os.chdir(candidate)
+          import app
+
+          assert app.APP_VERSION == "4.6.0", app.APP_VERSION
+          assert Path(app.core.BASE_DIR).resolve() == candidate, app.core.BASE_DIR
+          assert "recepcion_legacy_runtime.zip" in str(app.previous.__file__), app.previous.__file__
+
+          pairs = {}
+          for route in app.app.router.routes:
+              path = getattr(route, "path", None)
+              methods = frozenset(
+                  str(x).upper()
+                  for x in (getattr(route, "methods", set()) or set())
+                  if str(x).upper() not in {"HEAD", "OPTIONS"}
+              )
+              if not path or not methods:
+                  continue
+              key = (path, tuple(sorted(methods)))
+              pairs.setdefault(key, []).append(getattr(route, "name", ""))
+
+          duplicates = {str(k): v for k, v in pairs.items() if len(v) > 1}
+          assert not duplicates, duplicates
+
+          paths = {getattr(r, "path", "") for r in app.app.router.routes}
+          for retired in (
+              "/api/mobile/remote/status",
+              "/api/mobile/remote/quick/start",
+              "/api/mobile/remote/stable/restart",
+              "/api/mobile/remote/stop",
+              "/api/v4506/dataphone/config",
+              "/api/v4506/dataphone/validate",
+              "/api/v4506/dataphone/test",
+              "/api/v4506/dataphone/payment-preview",
+          ):
+              assert retired not in paths, retired
+
+          for required in (
+              "/api/system/health",
+              "/api/system/data-audit",
+              "/api/update/info",
+              "/api/update/apply",
+              "/api/patients",
+              "/api/visits/batch-payment",
+          ):
+              assert required in paths, required
+
+          assert not [
+              p for p in paths
+              if p.startswith("/api/v") and p.endswith("/health") and "{" not in p
+          ]
+
+          manifest = json.loads((candidate / "update_manifest.json").read_text(encoding="utf-8"))
+          for rel in manifest["required_dependencies"]:
+              assert (candidate / rel).is_file(), rel
+
+          runtime = json.loads((candidate / "runtime_manifest.json").read_text(encoding="utf-8"))
+          assert runtime["version"] == "4.6.0"
+          assert runtime["member_count"] >= 50
+          assert runtime["runtime_zip_size"] > 100_000
+
+          print(json.dumps({
+              "version": app.APP_VERSION,
+              "routes": len(app.app.router.routes),
+              "runtime_members": runtime["member_count"],
+              "runtime_zip_size": runtime["runtime_zip_size"],
+              "duplicate_routes": 0,
+          }, indent=2))
+          '@ | Set-Content "$env:RUNNER_TEMP\validate_candidate.py" -Encoding utf8
+          python "$env:RUNNER_TEMP\validate_candidate.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Assert stable channel remains untouched
+        shell: pwsh
+        run: |
+          $stable = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          if ($stable.appVersion -ne "4.5.44") {
+            throw "La rama candidata intentó cambiar el canal estable: $($stable.appVersion)"
+          }
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Compile Launcher 1.0.13 candidate
+        shell: pwsh
+        run: |
+          dotnet build "launcher-v1/RecepcionLauncher/RecepcionLauncher.csproj" -c Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit validated generated runtime
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$env:CANDIDATE_DIR/recepcion_legacy_runtime.zip" "$env:CANDIDATE_DIR/runtime_manifest.json" "$env:CANDIDATE_DIR/historia_bridge.py" "$env:CANDIDATE_DIR/historia_lan_transport.py" "$env:CANDIDATE_DIR/static/app.js" "$env:CANDIDATE_DIR/static/index.html" "$env:CANDIDATE_DIR/update_manifest.json"
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "Build validated Recepción 4.6.0 candidate runtime [skip ci]"
+            git push origin HEAD:audit/recepcion-v4.6.0-stabilization
+          }
+
+      - name: Generate immutable candidate channel
+        shell: pwsh
+        run: |
+          $artifactCommit = (git rev-parse HEAD).Trim()
+          $manifest = Get-Content "$env:CANDIDATE_DIR/update_manifest.json" -Raw | ConvertFrom-Json
+          $files = @()
+          foreach ($rel in $manifest.copy) {
+            $path = Join-Path "$env:CANDIDATE_DIR" $rel
+            if (-not (Test-Path $path -PathType Leaf)) { throw "Falta $rel" }
+            $sha = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            $urlPath = ("updates/v4_6_0_stabilization/" + ($rel -replace "\\","/"))
+            $files += [ordered]@{
+              path = ($rel -replace "\\","/")
+              url = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/$artifactCommit/$urlPath"
+              sha256 = $sha
+            }
+          }
+          $channel = [ordered]@{
+            schema = 3
+            product = "recepcion-dr-revelo"
+            status = "candidate"
+            appVersion = "4.6.0"
+            mandatory = $true
+            minimumLauncher = "1.0.13"
+            notes = "Candidata 4.6.0 de estabilización estructural. NO es el canal estable."
+            generatedFromCommit = $artifactCommit
+            files = $files
+          }
+          $channel | ConvertTo-Json -Depth 8 | Set-Content "launcher-v1/app-channel-candidate-v460.json" -Encoding utf8
+          git add "launcher-v1/app-channel-candidate-v460.json"
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "Generate immutable Recepción 4.6.0 candidate channel [skip ci]"
+            git push origin HEAD:audit/recepcion-v4.6.0-stabilization
+          }
+
+      - name: Upload candidate bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: recepcion-v4.6.0-candidate
+          path: |
+            updates/v4_6_0_stabilization/app.py
+            updates/v4_6_0_stabilization/recepcion_legacy_runtime.zip
+            updates/v4_6_0_stabilization/runtime_manifest.json
+            updates/v4_6_0_stabilization/historia_bridge.py
+            updates/v4_6_0_stabilization/historia_lan_transport.py
+            updates/v4_6_0_stabilization/static/app.js
+            updates/v4_6_0_stabilization/static/index.html
+            updates/v4_6_0_stabilization/recepcion-version.json
+            updates/v4_6_0_stabilization/update_manifest.json
+            updates/v4_6_0_stabilization/requirements.txt
+            launcher-v1/app-channel-candidate-v460.json
+          if-no-files-found: error
+          retention-days: 14
