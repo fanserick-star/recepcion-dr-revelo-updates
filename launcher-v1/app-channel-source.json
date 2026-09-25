@@ -2,14 +2,14 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.45",
+  "appVersion": "4.5.46",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.45: corrige los procedimientos de valor editable (por ejemplo Fulguración, Cistoscopia, Dilatación y Circuncisión). El valor escrito en “Valor de …” ahora se usa en el resumen y al guardar; ya no queda en $0.00. Conserva todos los cambios de 4.5.44 y no modifica Historia Clínica, Neon, Bendo, facturación, agenda ni esquemas de base de datos.",
+  "notes": "Recepción 4.5.46: restauración de seguridad. Vuelve exactamente al runtime funcional de 4.5.44 y descarta el cambio 4.5.45. No modifica datos, Neon, Historia Clínica, Bendo, facturación, agenda ni esquemas.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_45_editable_procedure_value/app.py"
+      "sourcePath": "updates/v4_5_46_restore_4544/app.py"
     },
     {
       "path": "historia_bridge.py",
@@ -17,11 +17,11 @@
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_45_editable_procedure_value/recepcion-version.json"
+      "sourcePath": "updates/v4_5_46_restore_4544/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_45_editable_procedure_value/update_manifest.json"
+      "sourcePath": "updates/v4_5_46_restore_4544/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
