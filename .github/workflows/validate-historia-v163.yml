@@ -1,0 +1,62 @@
+name: Validate Historia v1.3.63 save/autosave repair
+
+on:
+  push:
+    branches:
+      - "fix/historia-v1.3.63-save-autosave"
+    paths:
+      - "historia-clinica/updates/v1_3_63_save_autosave_repair/**"
+      - "historia-clinica/tests/smoke_runtime_163.py"
+      - ".github/workflows/validate-historia-v163.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check fastapi==0.128.2
+
+      - name: Compile current 1.3.63 multipart app
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          parts=[
+            Path("historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part01"),
+            Path("historia-clinica/updates/v1_3_56_system_tools_options/app.py.part02"),
+            Path("historia-clinica/updates/v1_3_62_reliable_print_buttons/app.py.part03"),
+            Path("historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part04"),
+            Path("historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05"),
+            Path("historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part06"),
+          ]
+          source="".join(p.read_text(encoding="utf-8") for p in parts)
+          compile(source,"historia_v163_app.py","exec")
+          print("MULTIPART_COMPILE_OK", len(source))
+          '@ | python -
+
+      - name: Run save/finalize/autosave regression
+        shell: pwsh
+        run: |
+          python historia-clinica/tests/smoke_runtime_163.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify stable channel untouched
+        shell: pwsh
+        run: |
+          $channel = Get-Content "historia-clinica/launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          if ($channel.appVersion -ne "1.3.62") {
+            throw "El canal estable cambió durante la prueba: $($channel.appVersion)"
+          }
