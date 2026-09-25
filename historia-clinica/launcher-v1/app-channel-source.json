@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.64",
+  "appVersion": "1.3.65",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.64: corrige el guardado que seguía fallando. El texto clínico ahora se confirma primero en SQLite y los pasos secundarios (cola, auditoría y revisiones) quedan desacoplados para que no puedan bloquear autoguardado, Guardar ni Finalizar. Si el núcleo clínico falla, el error real queda registrado y se muestra en el guardado manual.",
+  "notes": "Historia Clínica 1.3.65: corrige la sincronización con el Neon clínico cuando encounter_revisions ya contiene la misma combinación encounter_id + revision_no. Las revisiones son idempotentes y una duplicada ya no detiene toda la nube. Se mantiene el aislamiento estricto: Historia solo acepta HISTORIA_DATABASE_URL y el endpoint clínico esperado; no usa el Neon de Recepción.",
   "files": [
     {
       "path": "app.py",
@@ -22,7 +22,7 @@
       "path": "cloud_sync.py",
       "sourcePaths": [
         "historia-clinica/updates/v1_3_43_legacy_column_intersection/cloud_sync.py.part01",
-        "historia-clinica/updates/v1_3_43_legacy_column_intersection/cloud_sync.py.part02"
+        "historia-clinica/updates/v1_3_65_revision_conflict/cloud_sync.py.part02"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_64_save_core_isolated/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_65_revision_conflict/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_64_save_core_isolated/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_65_revision_conflict/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
