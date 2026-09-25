@@ -1,0 +1,73 @@
+name: Audit Reception Helpers
+
+on:
+  push:
+    branches:
+      - reception-helper-audit
+    paths:
+      - ".github/workflows/audit-reception-helpers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Scan historical ZIPs for helper implementations
+        shell: python
+        run: |
+          import hashlib
+          import zipfile
+          from pathlib import Path
+
+          wanted = {"azur_client.py", "whatsapp_client.py", "remote_agenda.py"}
+          found = []
+
+          for zpath in sorted(Path(".").rglob("*.zip")):
+              try:
+                  with zipfile.ZipFile(zpath) as zf:
+                      for name in zf.namelist():
+                          base = Path(name).name
+                          if base not in wanted:
+                              continue
+                          data = zf.read(name)
+                          sha = hashlib.sha256(data).hexdigest()
+                          found.append((base, str(zpath), name, len(data), sha, data))
+              except Exception as exc:
+                  print("ZIP_SKIP", zpath, type(exc).__name__, str(exc)[:160])
+
+          print("HELPER_MATCH_COUNT", len(found))
+          for base, zpath, name, size, sha, data in found:
+              print("HELPER_MATCH", base, "ZIP=", zpath, "ENTRY=", name, "SIZE=", size, "SHA256=", sha)
+
+          unique = {}
+          for row in found:
+              base, zpath, name, size, sha, data = row
+              unique.setdefault(base, {})
+              unique[base].setdefault(sha, row)
+
+          for base in sorted(wanted):
+              versions = unique.get(base, {})
+              print("HELPER_UNIQUE_VERSIONS", base, len(versions))
+              for sha, row in versions.items():
+                  _, zpath, name, size, _, data = row
+                  print("===== HELPER_SOURCE_BEGIN", base, sha, zpath, "=====")
+                  try:
+                      print(data.decode("utf-8-sig"))
+                  except Exception as exc:
+                      print("SOURCE_DECODE_ERROR", type(exc).__name__, str(exc))
+                  print("===== HELPER_SOURCE_END", base, sha, "=====")
+
+          # Also show whether plain helper files already exist outside ZIPs.
+          for base in sorted(wanted):
+              plain = [
+                  p for p in Path(".").rglob(base)
+                  if ".git" not in p.parts
+              ]
+              print("PLAIN_FILES", base, [str(p) for p in plain])
