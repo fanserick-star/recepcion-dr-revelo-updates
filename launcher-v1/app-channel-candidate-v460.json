@@ -1,0 +1,107 @@
+{
+  "schema": 3,
+  "product": "recepcion-dr-revelo",
+  "status": "candidate",
+  "appVersion": "4.6.0",
+  "mandatory": true,
+  "minimumLauncher": "1.0.13",
+  "notes": "Candidata 4.6.0 de estabilización estructural. NO es el canal estable.",
+  "generatedFromCommit": "1693bb43f75d6ae9436c4780839784c6acb6b231",
+  "files": [
+    {
+      "path": "app.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/app.py",
+      "sha256": "99231793c4297be3787b8fd7b9aba654d266b2537588cc68cd38b9801e125fb4"
+    },
+    {
+      "path": "recepcion_legacy_runtime.zip",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/recepcion_legacy_runtime.zip",
+      "sha256": "add7058bdb27a8f05daf41b10bd50c0c9677a7b6c84f466233aa1a72e56e75b5"
+    },
+    {
+      "path": "historia_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/historia_bridge.py",
+      "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
+    },
+    {
+      "path": "historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/historia_lan_transport.py",
+      "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
+    },
+    {
+      "path": "static/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/app.js",
+      "sha256": "aba12f4a2508d463dbaa430db21315f9cca5581a0837d8b24c82fcfa2bedb079"
+    },
+    {
+      "path": "static/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/index.html",
+      "sha256": "a5924facbc3b2a7ab07eece315796b8a0b57a2643642267745fef77cacf1ae0e"
+    },
+    {
+      "path": "static/style.css",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/style.css",
+      "sha256": "a300b0f1c2fc2768b6d8c4b332b33e6d38e32e0d76caf9db2abc3d5d691ca06c"
+    },
+    {
+      "path": "static/doctor_full_logo.png",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/doctor_full_logo.png",
+      "sha256": "7461c14dd60ae391fe67fe508d50ce79e5b03f4e04f7ae9909622d7e37f6c391"
+    },
+    {
+      "path": "static/doctor_isotype.png",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/doctor_isotype.png",
+      "sha256": "40866f551f4869541114ba8dba827f22b536e46ad3e37539c166964d462067b1"
+    },
+    {
+      "path": "static/doctor_icon.ico",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/doctor_icon.ico",
+      "sha256": "168eba7c85366a13fcedf5428256b515d268ae40d9c2c765c68867efeb523ee8"
+    },
+    {
+      "path": "static/azur_mark.svg",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/azur_mark.svg",
+      "sha256": "af6a41c49abfabbd590c0a372f182434f185045f9855d869ba0a22a71f3f1eef"
+    },
+    {
+      "path": "static/whatsapp_mark.svg",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/static/whatsapp_mark.svg",
+      "sha256": "bd3eaf79f415ff11210ecba31217c931487a011e460c4b336357e4640f1157a4"
+    },
+    {
+      "path": "mobile/index.html",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/mobile/index.html",
+      "sha256": "652b59a360b9896ef9595c0cf3e8daf39a87dddd96eeed8fad779cbc0c80aebf"
+    },
+    {
+      "path": "mobile/app.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/mobile/app.js",
+      "sha256": "d0da71c0468710e23c0c26c98265ab21dc7db7e96e443bff4bb10a9a73e7e789"
+    },
+    {
+      "path": "mobile/sw.js",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/mobile/sw.js",
+      "sha256": "6829035674d7d2c41a520a18f6146086f56bfc4c9c17c0405436fabcc0a0cfcb"
+    },
+    {
+      "path": "recepcion-version.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/recepcion-version.json",
+      "sha256": "3bc993aa59bb3b6f4b6d7f583eb9784915e7a0b7c079c5f234b7a2e7bed50bf4"
+    },
+    {
+      "path": "update_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/update_manifest.json",
+      "sha256": "6b9c2cb995555c8d6f382e88f63b7d85bb1f49bebf4d5936599c4afaadfb546c"
+    },
+    {
+      "path": "requirements.txt",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/requirements.txt",
+      "sha256": "599f839c2b99266d78391e1c0dd7c7c4cdc681c88df59fbf6a5767d82d95c8e0"
+    },
+    {
+      "path": "runtime_manifest.json",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/1693bb43f75d6ae9436c4780839784c6acb6b231/updates/v4_6_0_stabilization/runtime_manifest.json",
+      "sha256": "f2ac8efc6f46505b160eb0cd9d72b175d0a3ce4793c7ab551f759ebbec4eeec0"
+    }
+  ]
+}
