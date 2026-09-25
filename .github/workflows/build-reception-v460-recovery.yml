@@ -88,20 +88,20 @@ jobs:
             Where-Object { $_.Name -eq "greenlet" -or $_.Name -like "greenlet-*.dist-info" } |
             Remove-Item -Recurse -Force
 
-          @'
-python311.zip
-.
-../..
-../Lib
-../Lib/site-packages
-import site
-'@ | Set-Content (Join-Path $scripts "python311._pth") -Encoding ascii
+          @(
+            "python311.zip",
+            ".",
+            "../..",
+            "../Lib",
+            "../Lib/site-packages",
+            "import site"
+          ) | Set-Content (Join-Path $scripts "python311._pth") -Encoding ascii
 
-          @'
-home = Scripts
-include-system-site-packages = false
-version = 3.11.9
-'@ | Set-Content (Join-Path $env:BUILDROOT ".venv/pyvenv.cfg") -Encoding ascii
+          @(
+            "home = Scripts",
+            "include-system-site-packages = false",
+            "version = 3.11.9"
+          ) | Set-Content (Join-Path $env:BUILDROOT ".venv/pyvenv.cfg") -Encoding ascii
 
           $py = Join-Path $scripts "python.exe"
           $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
@@ -161,14 +161,14 @@ version = 3.11.9
             if (Test-Path $p) { Remove-Item $p -Recurse -Force }
             New-Item -ItemType Directory -Force "$p/data" | Out-Null
           }
-          @'
-RP_DATA_DIR=C:\viejo\data
-DATABASE_URL=postgresql://example.invalid/test
-'@ | Set-Content "$src/.env" -Encoding utf8
-          @'
-source_key,nombre
-test,PACIENTE FICTICIO
-'@ | Set-Content "$src/HISTORICO_PACIENTES_2020_2025.csv" -Encoding utf8
+          @(
+            "RP_DATA_DIR=C:\viejo\data",
+            "DATABASE_URL=postgresql://example.invalid/test"
+          ) | Set-Content "$src/.env" -Encoding utf8
+          @(
+            "source_key,nombre",
+            "test,PACIENTE FICTICIO"
+          ) | Set-Content "$src/HISTORICO_PACIENTES_2020_2025.csv" -Encoding utf8
           "FICTICIO" | Set-Content "$src/BASE DE DATOS 2026.xlsx" -Encoding utf8
 
           & $py -c "import sqlite3; c=sqlite3.connect(r'$src/data/recepcion.db'); c.execute('create table prueba(id integer primary key, valor text)'); c.execute('insert into prueba(valor) values (?)',('OK',)); c.commit(); c.close()"
