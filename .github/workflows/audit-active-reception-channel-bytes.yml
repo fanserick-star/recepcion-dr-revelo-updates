@@ -99,6 +99,20 @@ jobs:
               assert low not in protected_exact, path
               assert not low.endswith(protected_suffixes), path
 
+          forbidden_runtime_module_patterns = (
+              re.compile(r"^app_patch_\d+\.py$"),
+              re.compile(r"^app_prev_\d+\.py$"),
+              re.compile(r"^app_base_\d+\.py$"),
+          )
+          forbidden_runtime_files = [
+              p for p in files
+              if any(rx.match(pathlib.Path(p).name) for rx in forbidden_runtime_module_patterns)
+          ]
+          assert not forbidden_runtime_files, (
+              "El canal reintrodujo runtime encadenado prohibido: "
+              + ", ".join(sorted(forbidden_runtime_files))
+          )
+
           for required in ("app.py", "recepcion-version.json", "update_manifest.json"):
               assert required in file_set, required
               assert (root / required).is_file(), required
@@ -138,7 +152,11 @@ jobs:
                   elif isinstance(node, ast.ImportFrom) and node.module:
                       names = [node.module.split(".")[0]]
                   for name in names:
-                      is_local = name in explicit_local or any(rx.match(name) for rx in local_module_patterns)
+                      if any(rx.match(name) for rx in local_module_patterns):
+                          raise AssertionError(
+                              f"{path.name} reintroduce cadena histórica prohibida: {name}.py"
+                          )
+                      is_local = name in explicit_local
                       if is_local and name not in declared_modules:
                           missing_imports.append(f"{path.name} -> {name}.py")
           assert not missing_imports, "Importaciones locales fuera del payload: " + "; ".join(sorted(set(missing_imports)))
@@ -151,7 +169,7 @@ jobs:
 
           print(f"OK Recepción {version}: {len(files)} archivos, {len(py_paths)} módulos Python.")
           print(f"Dependencias activas declaradas: {len(manifest.get('required_dependencies', []))}.")
-          print("No hay rutas protegidas, imports locales faltantes ni módulos 4.5.13-4.5.16 inactivos.")
+          print("No hay rutas protegidas, imports locales faltantes ni módulos históricos encadenados.")
 
       - name: Publish audit summary
         shell: pwsh
