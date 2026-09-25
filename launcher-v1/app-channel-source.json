@@ -5,7 +5,7 @@
   "appVersion": "4.6.3",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.3: auditoría funcional y rendimiento. Historia usa exclusivamente HISTORIA_DATABASE_URL y se bloquea si coincide con DATABASE_URL de Recepción. Reduce sondeos redundantes de versión/Historia y evita repetir DDL del puente. Envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos se conservan.",
+  "notes": "Recepción 4.6.3: auditoría funcional y rendimiento. Historia usa exclusivamente HISTORIA_DATABASE_URL y se bloquea si coincide con DATABASE_URL de Recepción. Reduce sondeos redundantes de versión/Historia y evita repetir DDL del puente. Envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos se conservan. Manifiesto 4.6.3 conserva los hashes contractuales auditados de AZUR y WhatsApp.",
   "files": [
     {
       "path": "app.py",
