@@ -1,0 +1,178 @@
+name: Validate Reception 4.6.2 Embedded Helpers Candidate
+
+on:
+  push:
+    branches:
+      - reception-helper-audit
+    paths:
+      - "updates/v4_6_2_embedded_helpers_candidate/**"
+      - ".github/workflows/validate-reception-v462-embedded-helpers.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate embedded helper sources and runtime equivalence
+        shell: python
+        run: |
+          import ast
+          import hashlib
+          import json
+          from pathlib import Path
+
+          base_path = Path("updates/v4_6_1_legacy_cleanup/app.py")
+          cand_path = Path("updates/v4_6_2_embedded_helpers_candidate/app.py")
+          manifest_path = Path("updates/v4_6_2_embedded_helpers_candidate/update_manifest.json")
+          version_path = Path("updates/v4_6_2_embedded_helpers_candidate/recepcion-version.json")
+
+          base = base_path.read_text(encoding="utf-8-sig")
+          cand = cand_path.read_text(encoding="utf-8-sig")
+          compile(cand, str(cand_path), "exec")
+
+          def embedded_sources(text):
+              tree = ast.parse(text)
+              for node in tree.body:
+                  if isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if isinstance(target, ast.Name) and target.id == "_EMBEDDED_RUNTIME_SOURCES":
+                              return ast.literal_eval(node.value)
+              raise AssertionError("_EMBEDDED_RUNTIME_SOURCES no encontrado")
+
+          base_emb = embedded_sources(base)
+          cand_emb = embedded_sources(cand)
+
+          assert set(cand_emb) == set(base_emb) | {"azur_client", "whatsapp_client"}
+          for name, source in base_emb.items():
+              assert cand_emb[name] == source, f"Se alteró módulo protegido: {name}"
+              compile(source, f"<embedded:{name}>", "exec")
+
+          azur = cand_emb["azur_client"]
+          whatsapp = cand_emb["whatsapp_client"]
+          compile(azur, "<embedded:azur_client>", "exec")
+          compile(whatsapp, "<embedded:whatsapp_client>", "exec")
+
+          assert hashlib.sha256(azur.encode("utf-8")).hexdigest() == "1d1732504a20d348ea83c4ba7f925976f1b0d3026af4e84b8b28a0ecb815a5af"
+          assert hashlib.sha256(whatsapp.encode("utf-8")).hexdigest() == "df70ee0683976bac19b3d38c6ac5c509424abb356844002cf21f7e116589b261"
+
+          for needle in (
+              "class AzurError",
+              "def normalize_base_url",
+              "def mask_api_key",
+              "def test_connection",
+              "def emit_invoice",
+              "def query_comprobante",
+          ):
+              assert needle in azur, needle
+
+          for needle in (
+              "class WhatsAppError",
+              "def build_template_payload",
+              "def send_template",
+              "https://graph.facebook.com/",
+          ):
+              assert needle in whatsapp, needle
+
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          version = json.loads(version_path.read_text(encoding="utf-8"))["version"]
+          assert version == "4.6.2"
+          assert manifest["version"] == version
+          assert manifest["app_version"] == version
+          assert manifest["runtime_version"] == version
+          assert manifest["notes"]["candidate_only"] is True
+          assert manifest["installation_prerequisites"] == []
+          assert manifest["notes"]["azur_logic_changes"] is False
+          assert manifest["notes"]["whatsapp_logic_changes"] is False
+          assert manifest["notes"]["database_schema_changes"] is False
+          assert manifest["notes"]["patient_data_changes"] is False
+          assert manifest["notes"]["neon_changes"] is False
+          assert manifest["notes"]["historia_changes"] is False
+          assert manifest["notes"]["billing_logic_changes"] is False
+          assert manifest["notes"]["agenda_changes"] is False
+          assert manifest["notes"]["printing_changes"] is False
+
+          print("OK helper SHA exactos")
+          print("OK runtime 4.6.1 preservado")
+          print("OK solo se añadieron azur_client + whatsapp_client embebidos")
+
+      - name: Install backend dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "fastapi==0.128.2" \
+            "uvicorn==0.48.0" \
+            "sqlalchemy>=2,<3" \
+            "python-dotenv>=1,<2" \
+            "pg8000>=1.31,<2" \
+            "python-multipart>=0.0.20,<1" \
+            "pydantic>=2,<3" \
+            "anyio>=4,<5"
+
+      - name: Smoke import with no external helper files
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/reception-v462-smoke-data
+          RP_FORCE_OFFLINE: "1"
+          FORCE_OFFLINE: "1"
+          WHATSAPP_ENABLED: "0"
+          WHATSAPP_CLOUD_MODE: "1"
+          AZUR_LIVE_EMISSION: "0"
+        run: |
+          set -euo pipefail
+          cd updates/v4_6_2_embedded_helpers_candidate
+
+          test ! -e azur_client.py
+          test ! -e whatsapp_client.py
+          test ! -e remote_agenda.py
+
+          python - <<'PY'
+          import sys
+          import app
+
+          for name in ("azur_client", "whatsapp_client", "remote_agenda"):
+              module = sys.modules.get(name)
+              assert module is not None, name
+              origin = str(getattr(module, "__spec__", None).origin)
+              assert origin.startswith("embedded://"), (name, origin)
+
+          azur = sys.modules["azur_client"]
+          whatsapp = sys.modules["whatsapp_client"]
+
+          assert callable(azur.emit_invoice)
+          assert callable(azur.query_comprobante)
+          assert callable(azur.test_connection)
+          assert callable(whatsapp.build_template_payload)
+          assert callable(whatsapp.send_template)
+
+          payload = whatsapp.build_template_payload(
+              to="593999999999",
+              template_name="recordatorio_cita",
+              language_code="es_ES",
+              body_params=["PACIENTE", "25/09/2026 09:00"],
+              quick_reply_payloads=["SI", "NO"],
+          )
+          assert payload["messaging_product"] == "whatsapp"
+          assert payload["template"]["name"] == "recordatorio_cita"
+          assert len(payload["template"]["components"]) == 3
+
+          assert azur.normalize_base_url("https://azur.com.ec/path") == "https://azur.com.ec"
+          assert azur.invoice_number_from_access_key("0"*24 + "003001000000123" + "0"*10) == "003-001-000000123"
+
+          paths = [getattr(r, "path", None) for r in app.app.router.routes]
+          paths = [p for p in paths if p]
+          assert "/api/update/apply" not in paths
+          assert not any(p.startswith("/api/mobile/remote/") for p in paths)
+          assert getattr(app, "RUNTIME_AZUR_HELPER_EMBEDDED", None) is True
+          assert getattr(app, "RUNTIME_WHATSAPP_HELPER_EMBEDDED", None) is True
+          assert getattr(app, "RUNTIME_EXTERNAL_FUNCTIONAL_HELPERS_REQUIRED", None) is False
+
+          print("SMOKE_IMPORT_OK")
+          print("active_routes", len(paths))
+          print("azur_origin", sys.modules["azur_client"].__spec__.origin)
+          print("whatsapp_origin", sys.modules["whatsapp_client"].__spec__.origin)
+          PY
