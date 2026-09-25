@@ -126,7 +126,51 @@ jobs:
           app_text = payloads["app.py"].decode("utf-8-sig")
           compile(app_text, "app.py", "exec")
           tree = ast.parse(app_text, filename="app.py")
-          forbidden_imports = []
+
+          def embedded_module_names(parsed_tree):
+              for node in parsed_tree.body:
+                  if isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if (
+                              isinstance(target, ast.Name)
+                              and target.id == "_EMBEDDED_RUNTIME_SOURCES"
+                          ):
+                              value = ast.literal_eval(node.value)
+                              assert isinstance(value, dict)
+                              return set(value)
+              return set()
+
+          embedded_modules = embedded_module_names(tree)
+
+          # 4.6.0 es el techo histórico permitido. Las versiones futuras pueden
+          # reducir esta compatibilidad interna, pero no añadir otra capa
+          # app_patch/app_prev/app_base. Así seguimos teniendo un solo app.py
+          # físico sin volver a crecer la cadena.
+          baseline_path = root / "updates/v4_6_0_consolidated_runtime/app.py"
+          baseline_tree = ast.parse(
+              baseline_path.read_text(encoding="utf-8-sig"),
+              filename=str(baseline_path),
+          )
+          baseline_embedded = embedded_module_names(baseline_tree)
+
+          def is_historical_runtime_module(name):
+              return name.startswith(forbidden_runtime_module_prefixes)
+
+          current_historical = {
+              name for name in embedded_modules
+              if is_historical_runtime_module(name)
+          }
+          baseline_historical = {
+              name for name in baseline_embedded
+              if is_historical_runtime_module(name)
+          }
+          unexpected_historical = current_historical - baseline_historical
+          assert not unexpected_historical, (
+              "Se intentó añadir una nueva capa histórica embebida: "
+              + ", ".join(sorted(unexpected_historical))
+          )
+
+          unresolved_historical_imports = []
           for node in ast.walk(tree):
               names = []
               if isinstance(node, ast.Import):
@@ -134,14 +178,39 @@ jobs:
               elif isinstance(node, ast.ImportFrom) and node.module:
                   names = [node.module.split(".")[0]]
               for name in names:
-                  if name.startswith(forbidden_runtime_module_prefixes):
-                      forbidden_imports.append(name)
-          assert not forbidden_imports, (
-              "app.py intenta reintroducir cadena histórica: "
-              + ", ".join(sorted(set(forbidden_imports)))
+                  if (
+                      is_historical_runtime_module(name)
+                      and name not in embedded_modules
+                  ):
+                      unresolved_historical_imports.append(name)
+          assert not unresolved_historical_imports, (
+              "app.py depende de módulos históricos externos: "
+              + ", ".join(sorted(set(unresolved_historical_imports)))
           )
+
+          # remote_agenda queda retirado como helper externo desde 4.6.1.
+          if "remote_agenda" in {
+              name
+              for node in ast.walk(tree)
+              for name in (
+                  [a.name.split(".")[0] for a in node.names]
+                  if isinstance(node, ast.Import)
+                  else (
+                      [node.module.split(".")[0]]
+                      if isinstance(node, ast.ImportFrom) and node.module
+                      else []
+                  )
+              )
+          }:
+              assert "remote_agenda" in embedded_modules, (
+                  "remote_agenda no puede volver a ser dependencia externa"
+              )
+
           assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
-          print("syntax OK: app.py; runtime histórico encadenado bloqueado")
+          print(
+              "syntax OK: app.py; sin cadena externa; "
+              f"capas históricas embebidas={len(current_historical)}"
+          )
 
           channel = {
               "schema": 3,
