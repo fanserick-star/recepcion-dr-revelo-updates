@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#13213c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Agenda Dr. Revelo">
+  <title>Agenda Dr. Revelo</title>
+  <link rel="manifest" href="/mobile/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/doctor_isotype.png">
+  <link rel="icon" href="/static/doctor_isotype.png">
+  <link rel="stylesheet" href="/mobile-static/style.css?v=4.3.34">
+</head>
+<body>
+  <div id="appShell" class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/static/doctor_isotype.png" alt="Dr. Armando Revelo" class="brand-icon">
+        <div><strong>Agenda Dr. Revelo</strong><span id="modeLabel">Verificando acceso…</span></div>
+      </div>
+      <div class="top-actions"><button id="refreshBtn" class="icon-btn" type="button" aria-label="Actualizar">↻</button></div>
+    </header>
+    <main>
+      <section class="week-hero">
+        <button id="prevWeek" class="nav-arrow" type="button" aria-label="Semana anterior">‹</button>
+        <div class="week-title-wrap">
+          <div class="eyebrow">AGENDA SEMANAL</div>
+          <h1 id="weekTitle">Cargando…</h1>
+          <div class="sync-line"><span id="syncDot" class="sync-dot"></span><span id="syncText">Preparando agenda…</span></div>
+        </div>
+        <button id="nextWeek" class="nav-arrow" type="button" aria-label="Semana siguiente">›</button>
+      </section>
+      <section class="summary-grid" id="summaryGrid">
+        <article><span>Citas</span><strong id="sumAppointments">0</strong></article>
+        <article><span>Confirmadas</span><strong id="sumConfirmed">0</strong></article>
+        <article><span>Pendientes</span><strong id="sumPending">0</strong></article>
+        <article><span>Libres</span><strong id="sumFree">0</strong></article>
+      </section>
+      <section id="agendaContainer" class="agenda-container" aria-live="polite"></section>
+      <p id="agendaHint" class="agenda-hint">Cargando permisos…</p>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <section id="modal" class="modal" role="dialog" aria-modal="true">
+      <button id="closeModal" class="modal-close" type="button" aria-label="Cerrar">×</button>
+      <div id="modalContent"></div>
+    </section>
+  </div>
+  <template id="newAppointmentTemplate">
+    <div class="modal-kicker">NUEVA CITA</div><h2>Agendar paciente</h2>
+    <div class="slot-highlight"><span id="newDateLabel"></span><strong id="newTimeLabel"></strong></div>
+    <div class="mobile-booking-note">Solo se registra la cita. La ficha del paciente se vincula en Recepción al momento de atender.</div>
+    <label><span>Apellidos y nombres</span><input id="bookingName" class="field" autocomplete="name" placeholder="Nombre del paciente"></label>
+    <label><span>Número de celular</span><input id="bookingPhone" class="field" inputmode="tel" autocomplete="tel" placeholder="09... o +593..."></label>
+    <div class="modal-actions"><button id="cancelNew" class="secondary-btn" type="button">Cancelar</button><button id="saveNew" class="primary-btn" type="button" disabled>Guardar cita</button></div>
+  </template>
+  <script src="/mobile-static/app.js?v=4.3.34"></script>
+</body>
+</html>
