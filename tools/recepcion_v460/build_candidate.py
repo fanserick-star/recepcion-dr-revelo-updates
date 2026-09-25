@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
+import io
 import json
 import shutil
 import tempfile
@@ -226,9 +228,16 @@ def build() -> dict:
             runtime[name] = data
 
     for name, meta in cfg.get("extracted_modules", {}).items():
-        archive = ROOT / meta["archive"]
-        with zipfile.ZipFile(archive) as zf:
-            data = zf.read(meta["member"])
+        if meta.get("archive_b64"):
+            archive_bytes = base64.b64decode(
+                (ROOT / meta["archive_b64"]).read_text(encoding="ascii")
+            )
+            with zipfile.ZipFile(io.BytesIO(archive_bytes)) as zf:
+                data = zf.read(meta["member"])
+        else:
+            archive = ROOT / meta["archive"]
+            with zipfile.ZipFile(archive) as zf:
+                data = zf.read(meta["member"])
         if name == "azur_client.py":
             data = patch_azur_client(data)
         compile_python(name, data)
@@ -272,8 +281,19 @@ def build() -> dict:
         encoding="utf-8",
     )
 
-    # Frontend estable: congelamos la última base estática conocida; las mejoras
-    # visuales posteriores siguen viniendo de la capa de runtime.
+    # Recursos físicos de la instalación limpia: CSS, logos, iconos y móvil.
+    resource_meta = cfg.get("resource_archive") or {}
+    if resource_meta.get("archive_b64"):
+        resource_bytes = base64.b64decode(
+            (ROOT / resource_meta["archive_b64"]).read_text(encoding="ascii")
+        )
+        with zipfile.ZipFile(io.BytesIO(resource_bytes)) as zf:
+            for member in resource_meta.get("include", []):
+                dest = CANDIDATE / member
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(zf.read(member))
+
+    # Frontend estable más nuevo: sobrescribe app.js/index.html de la base limpia.
     for target, source in cfg.get("static_files", {}).items():
         dest = CANDIDATE / target
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -286,6 +306,15 @@ def build() -> dict:
         "historia_lan_transport.py",
         "static/app.js",
         "static/index.html",
+        "static/style.css",
+        "static/doctor_full_logo.png",
+        "static/doctor_isotype.png",
+        "static/doctor_icon.ico",
+        "static/azur_mark.svg",
+        "static/whatsapp_mark.svg",
+        "mobile/index.html",
+        "mobile/app.js",
+        "mobile/sw.js",
         "recepcion-version.json",
         "update_manifest.json",
         "requirements.txt",
