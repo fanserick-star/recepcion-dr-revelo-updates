@@ -2,40 +2,40 @@
   "schema": 3,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.0",
+  "appVersion": "4.6.1",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.0: runtime consolidado autocontenido. El programa ya no depende de archivos externos app_patch_*.py, app_prev_4458.py ni app_base_4428.py. Se validó equivalencia contra 4.5.48: mismas 247 rutas, firmas normalizadas, overlays JS/CSS y funciones críticas. Conserva Fulguración/valores editables, Historia, turnos, impresión, Bendo, facturación y agenda. No modifica datos ni esquemas. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "22d428e8c135dcc76e044965f9ae754d135a6384",
+  "notes": "Recepción 4.6.1: auditoría de legado. Retira del router activo las 4 rutas del Cloudflare Tunnel antiguo y /api/update/apply; remote_agenda deja de ser dependencia externa. AZUR, WhatsApp, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos y datos permanecen sin cambios. Runtime único app.py; no se añaden nuevas capas históricas. Prueba aislada aprobada: 242 rutas activas; 5 rutas legacy retiradas. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "96677a3ef911806200097e6d4b3293d97feb650e",
   "files": [
     {
       "path": "app.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/app.py",
-      "sha256": "408abcb11a05da7a71e7b49d723e1d5da0ea957d99ab874476d4c8c38bbec55c"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/app.py",
+      "sha256": "951cebd44439c43a35611926451b32e98a64cd4031fd326be623d7f64199f9d8"
     },
     {
       "path": "recepcion-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/recepcion-version.json",
-      "sha256": "59642c2c3f7d57592155de46e98024b831d0c3de7c294668326b7cbd1a4e4f15"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/recepcion-version.json",
+      "sha256": "4bd00335d1129a79288bebe3fac2fa02282631e0df6fd8440bfcad30b9cfb6cb"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/update_manifest.json",
-      "sha256": "8e422d724659009026b3b7bff3e776d36b641437c20c4cd546e6eb8c14afa483"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/update_manifest.json",
+      "sha256": "4fb4947b679fdce540cd85859676c63b4694577d62a0dc5615d983c516a36168"
     },
     {
       "path": "static/runtime_keep.txt",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/static/runtime_keep.txt",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/static/runtime_keep.txt",
       "sha256": "ae2f3afbd279458ca115911d0027db37f0d8aded7007750165eef3e144087ba9"
     },
     {
       "path": "historia_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/historia_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/historia_bridge.py",
       "sha256": "c07e670d23b5689e981f91c605a0a86ff5c88f6a532ad90ea9a7cae66cf81ae4"
     },
     {
       "path": "historia_lan_transport.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/22d428e8c135dcc76e044965f9ae754d135a6384/updates/v4_6_0_consolidated_runtime/historia_lan_transport.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/96677a3ef911806200097e6d4b3293d97feb650e/updates/v4_6_1_legacy_cleanup/historia_lan_transport.py",
       "sha256": "abb52b99aab72e64f0c6df2de3bcd211ab2ad7ff5a82810e53149b034ab9810f"
     }
   ]
