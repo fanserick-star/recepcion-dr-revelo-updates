@@ -1,0 +1,58 @@
+{
+  "product": "recepcion-pacientes",
+  "version": "4.6.0",
+  "app_version": "4.6.0",
+  "runtime_version": "4.6.0",
+  "mandatory": true,
+  "version_source": "recepcion-version.json",
+  "compatibility_version_aliases": true,
+  "launcher_minimum": "1.0.12",
+  "updater_version": "launcher-v1-app-update",
+  "required_dependencies": [
+    "historia_bridge.py",
+    "historia_lan_transport.py"
+  ],
+  "installation_prerequisites": [
+    "azur_client.py",
+    "whatsapp_client.py",
+    "remote_agenda.py"
+  ],
+  "copy": [
+    "app.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "recepcion-version.json",
+    "update_manifest.json",
+    "static/runtime_keep.txt"
+  ],
+  "notes": {
+    "purpose": "Runtime consolidado autocontenido: elimina la dependencia externa de app_patch_*.py, app_prev_4458.py y app_base_4428.py preservando exactamente la lógica estable validada de 4.5.48.",
+    "previous_version": "4.5.48",
+    "candidate_only": false,
+    "consolidated_runtime": true,
+    "external_patch_chain_required": false,
+    "embedded_historical_modules": 51,
+    "functional_bridge_modules_external": true,
+    "database_schema_changes": false,
+    "patient_data_changes": false,
+    "patient_data_destructive_changes": false,
+    "neon_changes": false,
+    "historia_schema_changes": false,
+    "bendo_changes": false,
+    "billing_changes": false,
+    "agenda_changes": false,
+    "printing_changes": false,
+    "editable_procedure_fix_preserved": true,
+    "historical_activation_preserved": true,
+    "reception_turn_source_of_truth_preserved": true,
+    "automatic_receipt_status_preserved": true,
+    "print_menu_portal_preserved": true,
+    "cloud_and_lan_historia_handoff_preserved": true,
+    "old_patch_files_may_remain_on_disk_but_are_not_imported": true,
+    "rollback_safe": true,
+    "semantic_equivalence_test": "passed against 4.5.48: 247 routes, normalized route signatures, JS/CSS overlay hashes, critical routes/core",
+    "external_patch_files_required_at_runtime": [],
+    "production_status": "stable"
+  },
+  "channel": "launcher-v1-stable"
+}
