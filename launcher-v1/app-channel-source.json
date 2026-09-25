@@ -2,14 +2,14 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.5.41",
+  "appVersion": "4.5.45",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: corrige de raíz la diferencia #6/#10. El turno enviado a Historia se calcula desde el mismo SQLite local que alimenta la lista visible de Inicio de Recepción, reproduciendo su agrupación por paciente y excluyendo procedimientos del conteo. Además corrige la reparación al iniciar (ya no llama get_db sin Request) y reenvía handoffs recientes por LAN y Neon para corregir turnos ya enviados. No modifica caja, Bendo, facturación, agenda ni datos clínicos.",
+  "notes": "Recepción 4.5.45: corrige los procedimientos de valor editable (por ejemplo Fulguración, Cistoscopia, Dilatación y Circuncisión). El valor escrito en “Valor de …” ahora se usa en el resumen y al guardar; ya no queda en $0.00. Conserva todos los cambios de 4.5.44 y no modifica Historia Clínica, Neon, Bendo, facturación, agenda ni esquemas de base de datos.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_41_historia_turn_exact/app.py"
+      "sourcePath": "updates/v4_5_45_editable_procedure_value/app.py"
     },
     {
       "path": "historia_bridge.py",
@@ -17,11 +17,11 @@
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_exact/recepcion-version.json"
+      "sourcePath": "updates/v4_5_45_editable_procedure_value/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_41_historia_turn_exact/update_manifest.json"
+      "sourcePath": "updates/v4_5_45_editable_procedure_value/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
