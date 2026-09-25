@@ -2,7 +2,7 @@
 
 Arquitectura oficial vigente:
 
-- Recepción: **v4.5.33**
+- Recepción: **v4.5.44**
 - Fuente canónica de versión: `updates/v4_5_33_single_version_source/recepcion-version.json`
 - Launcher nativo: **Launcher v1**
 - Canal de Recepción: `launcher-v1/app-channel.json`
@@ -21,3 +21,4 @@ Arquitectura oficial vigente:
 6. `latest-v4*.json` son únicamente canales legacy de compatibilidad; el canal oficial es `launcher-v1/app-channel.json`.
 7. Los árboles históricos bajo `updates/` se conservan para trazabilidad y dependencias antiguas, pero no son entrypoints activos.
 8. Cualquier instalador maestro futuro debe construirse desde cero sobre Launcher v1; los builders Python antiguos fueron retirados.
+\n## Audit candidate (not published)\n- Recepción 4.6.0 candidate: `audit/recepcion-v4.6.0-stabilization`\n- Launcher 1.0.13 candidate: strict isolated preflight + same-version repair + portable runtime support.\n
