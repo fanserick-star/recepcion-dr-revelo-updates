@@ -1,3 +1,4 @@
+; stable-release-rebuild: preserve official Launcher 1.0.12 assets
 #define MyAppName "Launcher Recepción - Dr. Armando Revelo"
 #define MyAppVersion "1.0.12"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
