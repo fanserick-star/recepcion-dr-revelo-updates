@@ -5,27 +5,27 @@
   "appVersion": "4.5.41",
   "mandatory": true,
   "minimumLauncher": "1.0.11",
-  "notes": "Recepción 4.5.41: Historia recibe exactamente el mismo número que Recepción ya muestra en Inicio. Al renderizar el día, Recepción toma ese turno visible y lo reenvía sobre el handoff existente por LAN/Neon, conservando el mismo event_id; así Palacios #6 en Recepción debe quedar #6 en Historia. No cambia la interfaz, caja, Bendo, facturación, agenda ni datos locales.",
+  "notes": "Recepción 4.5.41: corrige la causa real del turno distinto en Historia. La pantalla Inicio de Recepción lee la copia SQLite local, pero el bridge estaba recalculando el número desde Neon; si Neon tenía filas antiguas, Recepción mostraba #6 e Historia recibía #10. Ahora el bridge calcula el turno desde la MISMA copia local y la misma agrupación paciente/día que usa Recepción, y repara/reenvía handoffs recientes. No cambia impresión, caja, Bendo, facturación ni agenda.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_5_41_historia_visible_turn/app.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_local_source/app.py"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_5_41_historia_visible_turn/historia_bridge.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_local_source/historia_bridge.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_5_41_historia_visible_turn/recepcion-version.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_local_source/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_5_41_historia_visible_turn/update_manifest.json"
+      "sourcePath": "updates/v4_5_41_historia_turn_local_source/update_manifest.json"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_5_41_historia_visible_turn/historia_lan_transport.py"
+      "sourcePath": "updates/v4_5_41_historia_turn_local_source/historia_lan_transport.py"
     }
   ]
 }
