@@ -2,20 +2,20 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.62",
+  "appVersion": "1.3.63",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.62: todos los controles que dicen Imprimir ahora abren el documento y, cuando termina de cargar, abren automáticamente el cuadro de impresión. Vista previa/Ver siguen sin imprimir. Aplica a recetas, certificado normal, certificado de reposo e impresión de historias.",
+  "notes": "Historia Clínica 1.3.63: repara Guardar y Finalizar consulta en bases SQLite antiguas/restauradas agregando de forma aditiva started_at/completed_at a waiting_queue; el autoguardado conserva reintentos y respaldo local pero ya no muestra avisos repetidos cada 5 segundos. Guardado manual y Finalizar sí muestran errores visibles si ocurrieran.",
   "files": [
     {
       "path": "app.py",
       "sourcePaths": [
-        "historia-clinica/updates/v1_3_45_consult_save_finalize/app.py.part01",
+        "historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part01",
         "historia-clinica/updates/v1_3_56_system_tools_options/app.py.part02",
         "historia-clinica/updates/v1_3_62_reliable_print_buttons/app.py.part03",
-        "historia-clinica/updates/v1_3_62_reliable_print_buttons/app.py.part04",
+        "historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part04",
         "historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05",
-        "historia-clinica/updates/v1_3_22_turns_recipes/app.py.part06"
+        "historia-clinica/updates/v1_3_63_save_autosave_repair/app.py.part06"
       ]
     },
     {
@@ -31,11 +31,11 @@
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_62_reliable_print_buttons/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_63_save_autosave_repair/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_62_reliable_print_buttons/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_63_save_autosave_repair/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
