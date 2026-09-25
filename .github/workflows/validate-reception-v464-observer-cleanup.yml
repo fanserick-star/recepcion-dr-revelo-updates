@@ -1,0 +1,117 @@
+name: Validate Reception 4.6.4 Observer Cleanup
+
+on:
+  push:
+    branches:
+      - reception-audit-dead-observer-cleanup
+    paths:
+      - "updates/v4_6_4_observer_cleanup_candidate/**"
+      - ".github/workflows/validate-reception-v464-observer-cleanup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare unchanged support modules and compile
+        shell: python
+        run: |
+          from pathlib import Path
+
+          old=Path("updates/v4_6_3_perf")
+          new=Path("updates/v4_6_4_observer_cleanup_candidate")
+
+          for name in ("historia_bridge.py","historia_lan_transport.py","static/runtime_keep.txt"):
+              assert (old/name).read_bytes()==(new/name).read_bytes(), name
+
+          for name in ("app.py","historia_bridge.py","historia_lan_transport.py"):
+              source=(new/name).read_text(encoding="utf-8-sig")
+              compile(source,str(new/name),"exec")
+          print("UNCHANGED_SUPPORT_MODULES_OK")
+          print("COMPILE_OK")
+
+      - name: Install runtime dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            "fastapi==0.128.2" "uvicorn==0.48.0" "sqlalchemy>=2,<3" \
+            "python-dotenv>=1,<2" "pg8000>=1.31,<2" \
+            "python-multipart>=0.0.20,<1" "pydantic>=2,<3" "anyio>=4,<5"
+
+      - name: Smoke runtime and verify only old service observer invocation is disabled
+        shell: bash
+        env:
+          RP_DATA_DIR: ${{ runner.temp }}/v464-data
+          RP_FORCE_OFFLINE: "1"
+          FORCE_OFFLINE: "1"
+          WHATSAPP_ENABLED: "0"
+          WHATSAPP_CLOUD_MODE: "1"
+          AZUR_LIVE_EMISSION: "0"
+        run: |
+          set -euo pipefail
+          cd updates/v4_6_4_observer_cleanup_candidate
+          unset DATABASE_URL || true
+          unset HISTORIA_DATABASE_URL || true
+          python - <<'PY'
+          import json
+          import app
+
+          assert app.APP_VERSION=="4.6.4", app.APP_VERSION
+          assert app._V464_OLD_PROCEDURE_MANAGER_CALLS == 1, app._V464_OLD_PROCEDURE_MANAGER_CALLS
+
+          js=str(app.core.V460_OVERLAY_JS or "")
+          assert "installProcedureManager();" not in js
+          assert "function installProcedureManager()" in js  # source left intact; only boot call removed
+          assert "installPhoneWatcher();" in js              # shared-phone functionality preserved
+          assert "mountServicePanel" in js
+          assert "v4476ServicePanel" in js
+          assert "administrador v4470 retirado" in js
+
+          paths=[getattr(r,"path",None) for r in app.app.router.routes]
+          paths=[p for p in paths if p]
+          assert len(paths)==242, len(paths)
+          assert len(set(paths))==224, len(set(paths))
+          assert "/api/procedures" in paths
+          assert "/api/procedures/{procedure_id}" in paths
+
+          core=app.core
+          with core.LocalSessionLocal() as db:
+              rows=db.query(core.Procedure).all()
+              proc={str(x.nombre).upper():(None if x.valor_default is None else float(x.valor_default)) for x in rows}
+          expected={
+              "FULGURACION":None,
+              "CISTOSCOPIA":None,
+              "DILATACION":None,
+              "CIRCUNSICION":None,
+              "INSTILACION":80.0,
+          }
+          for k,v in expected.items():
+              assert proc.get(k)==v,(k,proc.get(k),v)
+
+          print("V4470_OLD_MANAGER_CALL_REMOVED",app._V464_OLD_PROCEDURE_MANAGER_CALLS)
+          print("V4476_MODERN_SERVICE_PANEL_PRESERVED")
+          print("PHONE_WATCHER_PRESERVED")
+          print("PROCEDURE_VALUES_OK",json.dumps(proc,sort_keys=True))
+          print("ROUTES_OK",len(paths),len(set(paths)))
+          print("V464_RUNTIME_OK")
+          PY
+
+      - name: Ensure no data or schema changes declared
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          m=json.loads(Path("updates/v4_6_4_observer_cleanup_candidate/update_manifest.json").read_text())
+          assert m["version"]=="4.6.4"
+          assert m["notes"]["candidate_only"] is True
+          assert m["notes"]["database_schema_changes"] is False
+          assert m["notes"]["patient_data_changes"] is False
+          assert m["notes"]["procedure_backend_changes"] is False
+          assert m["notes"]["procedure_values_changes"] is False
+          assert m["notes"]["modern_v4476_service_panel_preserved"] is True
+          print("DATA_SAFETY_OK")
