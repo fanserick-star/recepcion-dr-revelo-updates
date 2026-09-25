@@ -115,7 +115,9 @@ import app
 
 def normalize(text):
     text = str(text or "")
-    return re.sub(r"(?<!\d)4\.\d+\.\d+(?!\d)", "<VER>", text)
+    text = re.sub(r"(?<!\d)4\.\d+\.\d+(?!\d)", "<VER>", text)
+    text = re.sub(r"0x[0-9A-Fa-f]+", "<ADDR>", text)
+    return text
 
 def digest(text):
     return hashlib.sha256(normalize(text).encode("utf-8")).hexdigest()
