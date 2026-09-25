@@ -50,7 +50,10 @@
     "runtime_smoke_test": "passed: 242 routes; 224 unique paths; zero duplicate method/path pairs",
     "database_separation_test": "passed: DATABASE_URL alone cannot configure Historia; same DB identity is blocked",
     "production_status": "stable",
-    "rollback_safe": true
+    "rollback_safe": true,
+    "azur_source_sha256": "1d1732504a20d348ea83c4ba7f925976f1b0d3026af4e84b8b28a0ecb815a5af",
+    "whatsapp_source_sha256": "df70ee0683976bac19b3d38c6ac5c509424abb356844002cf21f7e116589b261",
+    "helper_hash_contract_preserved_from_4_6_2": true
   },
   "channel": "launcher-v1-stable"
 }
