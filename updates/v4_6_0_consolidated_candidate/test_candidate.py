@@ -213,6 +213,16 @@ def main() -> None:
 
     assert stable["version"] == "4.5.48", stable["version"]
     assert candidate["version"] == "4.6.0", candidate["version"]
+    if stable["routes"] != candidate["routes"]:
+        s = stable["routes"]
+        d = candidate["routes"]
+        diffs = []
+        for i, (a, b) in enumerate(zip(s, d)):
+            if a != b:
+                diffs.append((i, a, b))
+                if len(diffs) >= 8:
+                    break
+        print("Primeras diferencias de rutas/firmas:", json.dumps(diffs, ensure_ascii=False, indent=2))
     assert stable["routes"] == candidate["routes"], "Cambió la superficie de rutas o firmas"
     assert stable["overlay_js_sha"] == candidate["overlay_js_sha"], "Cambió V460_OVERLAY_JS"
     assert stable["overlay_css_sha"] == candidate["overlay_css_sha"], "Cambió V460_OVERLAY_CSS"
