@@ -2,50 +2,50 @@
   "schema": 3,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.38",
+  "appVersion": "1.3.39",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.38: mejora la conexión Neon en PCs secundarias. En vez de confiar en una sola DATABASE_URL, prueba en orden la configuración privada de Historia, la configuración privada de Recepción si existe y deja cualquier DATABASE_URL global de Windows para el final. Cada candidato se valida con una conexión real antes de usarlo. No publica ni muestra credenciales, no toca pacientes/data y mantiene la impresión sin cambios. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-  "generatedFromCommit": "62693c96c8527e81d34b3fbd7ec92f072c40f7ca",
+  "notes": "Historia Clínica 1.3.39: corrige PCs secundarias que podían mostrar Nube sincronizada con 0 pacientes. Si una DATABASE_URL conecta pero no contiene datos de Historia, continúa buscando otra configuración segura que sí tenga pacientes/historias. Si Neon tiene pacientes y la base SQLite local está vacía, rehace automáticamente la descarga inicial completa sin borrar datos. No cambia impresión, recetas, certificados ni flujo clínico. Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
+  "generatedFromCommit": "866ae78fedb37b5abd1681b5635047c029f36955",
   "files": [
     {
       "path": "app.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_33_reception_turn/app.py.part01",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_37_reception_turn_force/app.py.part02",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_25_duplicate_cleanup/app.py.part03",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_22_turns_recipes/app.py.part06"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_33_reception_turn/app.py.part01",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_37_reception_turn_force/app.py.part02",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_25_duplicate_cleanup/app.py.part03",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_1_new_patient_turn/app.py.part04",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_21_single_new_patient/app.py.part05",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_22_turns_recipes/app.py.part06"
       ],
       "sha256": "702dd7bb3bafcebbd8cd30fb5aa5bd4ec15eff4b58b953602808fcd08fee43b8"
     },
     {
       "path": "cloud_sync.py",
       "parts": [
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_38_neon_candidate_failover/cloud_sync.py.part01",
-        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/cloud_sync.py.part01",
+        "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_16_neon_schema_turns/cloud_sync.py.part02"
       ],
-      "sha256": "e0b5750d02bc313196ee4dd95b6e9abb762b05e4a7e42167c1289829f28688db"
+      "sha256": "2a23c3a6edbc9a80cba279291cb43a8d705914b2b961ef535711d53c98052a79"
     },
     {
       "path": "documentos_clinicos.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_36_rx_printable_stripe/documentos_clinicos.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_36_rx_printable_stripe/documentos_clinicos.py",
       "sha256": "a16a9c3d67981b2c881e97f2fda5e74f6e91ada635dda07a0cb661df6cfaa39e"
     },
     {
       "path": "historia-version.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_38_neon_candidate_failover/historia-version.json",
-      "sha256": "6249bc5bfc2245ce80c4e4940d8208d2fae9ca09a2387adb2b4d6de843d2f7f5"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/historia-version.json",
+      "sha256": "412687ab3ec5642bfd066287cb03f418ecb0f5c33a439a284ec59c3211892f9d"
     },
     {
       "path": "update_manifest.json",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_38_neon_candidate_failover/update_manifest.json",
-      "sha256": "ed7a5d8123ccc2846f1f6ff1cf46e16e1941b82ea19597fa72ba91823077cb20"
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_39_secondary_bootstrap_recovery/update_manifest.json",
+      "sha256": "4257b184dd61675b87f8f2443495df3fed56c9b05a6a794cb5d03fa1e41c27a5"
     },
     {
       "path": "lan_bridge.py",
-      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/62693c96c8527e81d34b3fbd7ec92f072c40f7ca/historia-clinica/updates/v1_3_37_reception_turn_force/lan_bridge.py",
+      "url": "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/866ae78fedb37b5abd1681b5635047c029f36955/historia-clinica/updates/v1_3_37_reception_turn_force/lan_bridge.py",
       "sha256": "246f6729521d5c4ac02360ef9e5f436ead74351ca3cf9c6b9cec50bf76c9c017"
     }
   ]
