@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.59",
+  "appVersion": "1.3.60",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.59: certificado de reposo con encabezado profesional, número automático, diagnósticos adicionales ilimitados y ordenados, Contingencia/Síntomas sin preselección y espacio para firma y sello. En el certificado normal se unifica CIE-10: con guion. Conserva todos los cambios anteriores.",
+  "notes": "Historia Clínica 1.3.60: compacta el certificado de reposo/aislamiento para que el formato habitual salga completo en una sola hoja carta, incluida la zona de firma y sello y el pie. Mantiene buena legibilidad y todos los cambios de v1.3.59.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_59_certificates_final_polish/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_60_rest_certificate_single_page/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_59_certificates_final_polish/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_60_rest_certificate_single_page/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_59_certificates_final_polish/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_60_rest_certificate_single_page/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
