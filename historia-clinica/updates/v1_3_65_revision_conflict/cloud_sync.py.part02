@@ -1,0 +1,315 @@
+        # v1.3.41: device telemetry is optional and must never block sync.
+        try:
+            cur = pg.cursor()
+            cur.execute("SELECT to_regclass('public.devices')")
+            row = cur.fetchone()
+            if not row or not row[0]:
+                return
+            stamp = _now_iso()
+            cur.execute("SAVEPOINT historia_device_optional")
+            try:
+                cur.execute(
+                    """INSERT INTO public.devices(id,display_name,first_seen_at,last_seen_at,app_version)
+                       VALUES(%s,%s,%s,%s,%s)
+                       ON CONFLICT(id) DO UPDATE SET
+                         last_seen_at=EXCLUDED.last_seen_at,
+                         app_version=EXCLUDED.app_version""",
+                    (
+                        self.device_id,
+                        os.getenv("COMPUTERNAME") or "PC Historia Clínica",
+                        stamp,
+                        stamp,
+                        os.getenv("HISTORIA_APP_VERSION") or "1.3.43",
+                    ),
+                )
+                cur.execute("RELEASE SAVEPOINT historia_device_optional")
+            except Exception:
+                cur.execute("ROLLBACK TO SAVEPOINT historia_device_optional")
+                cur.execute("RELEASE SAVEPOINT historia_device_optional")
+        except Exception:
+            return
+
+    def _ensure_remote_extension_schema(self, pg) -> None:
+        """Validate the legacy public clinical schema without remote DDL.
+
+        patients and encounters are mandatory. Auxiliary tables are optional:
+        if an older Neon does not have one, v1.3.42 keeps its local dirty rows
+        and skips that table instead of aborting the whole synchronization.
+        """
+        cur = pg.cursor()
+        cur.execute("SET search_path TO public")
+
+        available = set()
+        missing = set()
+
+        for table, pk in BIDIRECTIONAL_TABLES.items():
+            cols = self._remote_columns(pg, "public", table)
+            required = {pk, "cloud_updated_at", "deleted_at"}
+            if required.issubset(cols):
+                available.add(table)
+            else:
+                missing.add(table)
+
+        for table, pk in PUSH_ONLY_TABLES.items():
+            cols = self._remote_columns(pg, "public", table)
+            if pk in cols:
+                available.add(table)
+            else:
+                missing.add(table)
+
+        for required_table in ("patients", "encounters"):
+            if required_table not in available:
+                raise RuntimeError(
+                    "Neon clínico incompleto: falta public."
+                    + required_table
+                    + " o sus columnas de sincronización"
+                )
+
+        self._remote_available_tables = available
+        self._remote_missing_tables = missing
+        pg.commit()
+
+    def _push(self, pg) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pushed = 0
+        completed = []
+        try:
+            items = sconn.execute("""
+                SELECT table_name,row_key FROM sync_dirty
+                ORDER BY CASE table_name
+                  WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
+                  WHEN 'waiting_queue' THEN 4 WHEN 'encounter_addenda' THEN 5 WHEN 'macros' THEN 6
+                  WHEN 'prescriptions' THEN 7 WHEN 'certificates' THEN 8 WHEN 'clinic_settings' THEN 9
+                  WHEN 'audit_log' THEN 10 WHEN 'encounter_revisions' THEN 11 ELSE 99 END,
+                  changed_at, row_key
+                LIMIT 750
+            """).fetchall()
+            for item in items:
+                table, key = item["table_name"], item["row_key"]
+                if table not in ALL_SYNC_TABLES:
+                    completed.append((table,key)); continue
+                if table not in set(
+                    getattr(self, "_remote_available_tables", set()) or set()
+                ):
+                    # Keep the dirty row locally. If the remote schema gains this
+                    # table later, it can still be uploaded safely.
+                    continue
+                pk = ALL_SYNC_TABLES[table]
+                row = sconn.execute(f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=?", (key,)).fetchone()
+                cur = pg.cursor()
+                if row is None:
+                    if table in BIDIRECTIONAL_TABLES:
+                        cur.execute(f"UPDATE {table} SET deleted_at=%s,cloud_updated_at=now() WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
+                    completed.append((table,key)); pushed += 1
+                    continue
+                data = dict(row)
+                if table == "audit_log":
+                    data["id"] = f"{self.device_id}:{row['id']}"
+                    data["device_id"] = self.device_id
+                    columns = ["id","occurred_at","actor","action","entity_type","entity_id","details_json","device_id"]
+                    vals = [data.get(c) for c in columns]
+                    cur.execute(
+                        "INSERT INTO audit_log("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(id) DO NOTHING",
+                        vals,
+                    )
+                elif table == "encounter_revisions":
+                    source_key = f"{self.device_id}:{row['id']}"
+                    columns = ["source_key","encounter_id","revision_no","saved_at","actor","clinical_note","diagnosis","treatment","reason"]
+                    vals = [source_key] + [data.get(c) for c in columns[1:]]
+                    # v1.3.65: las revisiones son inmutables y el Neon clínico
+                    # también puede tener UNIQUE(encounter_id, revision_no). Si una
+                    # revisión ya llegó desde otra instalación/dispositivo, no debe
+                    # tumbar toda la sincronización ni repetirse para siempre.
+                    # ON CONFLICT sin target protege tanto source_key como cualquier
+                    # restricción única equivalente de la revisión.
+                    cur.execute(
+                        "INSERT INTO encounter_revisions("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT DO NOTHING",
+                        vals,
+                    )
+                else:
+                    # v1.3.43: the dedicated clinical Neon is an older schema.
+                    # Only send columns that actually exist remotely. Newer local
+                    # fields remain preserved in SQLite and do not break sync.
+                    remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, table)
+                    columns = [
+                        c for c in data.keys()
+                        if c in remote_cols
+                        and c not in {"cloud_updated_at", "deleted_at"}
+                    ]
+                    if pk not in columns:
+                        # This table cannot be safely synchronized with this
+                        # legacy schema. Keep its dirty row locally.
+                        continue
+                    vals = [data.get(c) for c in columns]
+                    updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
+                    if updates:
+                        conflict_sql = (
+                            "DO UPDATE SET "
+                            + ",".join(updates)
+                            + ",cloud_updated_at=now(),deleted_at=NULL"
+                        )
+                    else:
+                        conflict_sql = "DO NOTHING"
+                    sql = (
+                        f"INSERT INTO {table}({','.join(columns)},cloud_updated_at,deleted_at) "
+                        f"VALUES({','.join(['%s']*len(columns))},now(),NULL) "
+                        f"ON CONFLICT({pk}) {conflict_sql}"
+                    )
+                    cur.execute(sql, vals)
+                completed.append((table,key)); pushed += 1
+            pg.commit()
+            if completed:
+                sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=?", completed)
+                sconn.commit()
+            return pushed
+        except Exception:
+            try: pg.rollback()
+            except Exception: pass
+            raise
+        finally:
+            sconn.close()
+
+    def _remote_columns_for(self, table: str, data: dict) -> list[str]:
+        # Cloud schema mirrors the local columns plus cloud_updated_at/deleted_at.
+        return list(data.keys())
+
+    def _pull(self, pg, remote_now: str) -> int:
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        pulled = 0
+        try:
+            last_pull = self._get_state(
+                sconn, "last_pull", "1970-01-01T00:00:00+00:00"
+            )
+            sconn.execute(
+                "UPDATE meta SET value='1' WHERE key='sync_applying_remote'"
+            )
+            sconn.commit()
+
+            for table, pk in BIDIRECTIONAL_TABLES.items():
+                if table not in set(
+                    getattr(self, "_remote_available_tables", set()) or set()
+                ):
+                    continue
+                cursor_time = last_pull
+                cursor_key = ""
+                while True:
+                    cur = pg.cursor()
+                    cur.execute(
+                        f"""
+                        SELECT * FROM {table}
+                        WHERE cloud_updated_at>%s::timestamptz
+                          AND cloud_updated_at<=%s::timestamptz
+                          AND (
+                            cloud_updated_at>%s::timestamptz
+                            OR (
+                              cloud_updated_at=%s::timestamptz
+                              AND CAST({pk} AS TEXT)>%s
+                            )
+                          )
+                        ORDER BY cloud_updated_at,CAST({pk} AS TEXT)
+                        LIMIT 1000
+                        """,
+                        (
+                            last_pull,
+                            remote_now,
+                            cursor_time,
+                            cursor_time,
+                            cursor_key,
+                        ),
+                    )
+                    rows = _dict_rows(cur)
+                    if not rows:
+                        break
+
+                    local_cols = set(_sqlite_columns(sconn, table))
+                    for remote in rows:
+                        key = remote.get(pk)
+                        if key is None:
+                            continue
+
+                        stamp = remote.get("cloud_updated_at")
+                        if stamp is not None:
+                            cursor_time = (
+                                stamp.isoformat()
+                                if isinstance(stamp, datetime)
+                                else str(stamp)
+                            )
+                            cursor_key = str(key)
+
+                        if remote.get("deleted_at"):
+                            if table in {
+                                "macros",
+                                "waiting_queue",
+                                "patient_links",
+                                "encounter_addenda",
+                                "prescriptions",
+                                "certificates",
+                                "clinic_settings",
+                            }:
+                                sconn.execute(
+                                    f"DELETE FROM {table} WHERE CAST({pk} AS TEXT)=?",
+                                    (str(key),),
+                                )
+                            continue
+
+                        data = {
+                            k: _normalize_remote_value(v)
+                            for k, v in remote.items()
+                            if k in local_cols
+                        }
+                        cols = list(data.keys())
+                        if not cols:
+                            continue
+                        placeholders = ",".join(["?"] * len(cols))
+                        updates = ",".join(
+                            [f"{c}=excluded.{c}" for c in cols if c != pk]
+                        )
+                        if updates:
+                            sql = (
+                                f"INSERT INTO {table}({','.join(cols)}) "
+                                f"VALUES({placeholders}) "
+                                f"ON CONFLICT({pk}) DO UPDATE SET {updates}"
+                            )
+                        else:
+                            sql = (
+                                f"INSERT OR IGNORE INTO {table}({','.join(cols)}) "
+                                f"VALUES({placeholders})"
+                            )
+                        sconn.execute(sql, [data[c] for c in cols])
+                        pulled += 1
+
+                    sconn.commit()
+                    if len(rows) < 1000:
+                        break
+
+            self._set_state(sconn, "last_pull", remote_now)
+            self._set_state(sconn, "cloud_bootstrap_complete", "1")
+            sconn.execute(
+                "UPDATE meta SET value='0' WHERE key='sync_applying_remote'"
+            )
+            sconn.commit()
+            return pulled
+        except Exception:
+            try:
+                sconn.execute(
+                    "UPDATE meta SET value='0' WHERE key='sync_applying_remote'"
+                )
+                sconn.commit()
+            except Exception:
+                pass
+            raise
+        finally:
+            sconn.close()
+
+
+def build_sync_service(root: Path, db_path: Path) -> CloudSyncService:
+    global _SERVICE
+    if _SERVICE is None:
+        _SERVICE = CloudSyncService(root, db_path)
+    return _SERVICE
+
+
+def get_sync_service() -> CloudSyncService | None:
+    return _SERVICE
