@@ -1,0 +1,1 @@
+Recepción 4.5.48 - directorio static presente para precheck aislado del launcher.
