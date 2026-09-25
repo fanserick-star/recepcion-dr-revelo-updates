@@ -2,10 +2,10 @@
   "schema": 1,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.48",
+  "appVersion": "1.3.49",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.48: cambia 'Añadir nota complementaria' por 'Seguir editando historia' y muestra las entradas como 'Continuación de historia', conservando la consulta finalizada original sin reescribirla. Mantiene todos los cambios de certificados de v1.3.47.",
+  "notes": "Historia Clínica 1.3.49: reemplaza la plantilla vieja de certificados por un diseño moderno coherente con la receta: logo, franjas, marca de agua, letra más grande, fecha natural, firma y pie uniformes. Si un certificado tiene reposo guardado pero su texto antiguo no lo incluye, la vista previa añade Total/Desde/Hasta automáticamente.",
   "files": [
     {
       "path": "app.py",
@@ -27,15 +27,15 @@
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_47_certificate_rest_dates/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_49_certificate_print_redesign/documentos_clinicos.py"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_48_continue_history/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_49_certificate_print_redesign/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_48_continue_history/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_49_certificate_print_redesign/update_manifest.json"
     },
     {
       "path": "lan_bridge.py",
