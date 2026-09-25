@@ -1,0 +1,130 @@
+name: Validate Reception 4.6.1 Legacy Cleanup Candidate
+
+on:
+  push:
+    branches:
+      - reception-audit-legacy-cleanup
+    paths:
+      - "updates/v4_6_1_legacy_cleanup_candidate/**"
+      - ".github/workflows/validate-reception-v461-legacy-cleanup.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile candidate and every embedded historical module
+        shell: python
+        run: |
+          import ast
+          import json
+          from pathlib import Path
+
+          base_path = Path("updates/v4_6_0_consolidated_runtime/app.py")
+          cand_path = Path("updates/v4_6_1_legacy_cleanup_candidate/app.py")
+          manifest_path = Path("updates/v4_6_1_legacy_cleanup_candidate/update_manifest.json")
+          version_path = Path("updates/v4_6_1_legacy_cleanup_candidate/recepcion-version.json")
+
+          base = base_path.read_text(encoding="utf-8-sig")
+          cand = cand_path.read_text(encoding="utf-8-sig")
+          compile(cand, str(cand_path), "exec")
+
+          def embedded_sources(text):
+              tree = ast.parse(text)
+              for node in tree.body:
+                  if isinstance(node, ast.Assign):
+                      for target in node.targets:
+                          if isinstance(target, ast.Name) and target.id == "_EMBEDDED_RUNTIME_SOURCES":
+                              return ast.literal_eval(node.value)
+              raise AssertionError("_EMBEDDED_RUNTIME_SOURCES no encontrado")
+
+          base_emb = embedded_sources(base)
+          cand_emb = embedded_sources(cand)
+
+          assert set(cand_emb) == set(base_emb) | {"remote_agenda"}, (
+              "La candidata cambió el conjunto de módulos embebidos fuera de lo permitido"
+          )
+          for name, source in base_emb.items():
+              assert cand_emb[name] == source, f"Se alteró módulo histórico protegido: {name}"
+              compile(source, f"<embedded:{name}>", "exec")
+
+          remote = cand_emb["remote_agenda"]
+          compile(remote, "<embedded:remote_agenda>", "exec")
+          assert "Cloudflare Tunnel legado retirado" in remote
+          assert "def stop_managed_tunnel" in remote
+          assert "def tunnel_status" in remote
+
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          version = json.loads(version_path.read_text(encoding="utf-8"))["version"]
+          assert version == "4.6.1"
+          assert manifest["version"] == version
+          assert manifest["app_version"] == version
+          assert manifest["runtime_version"] == version
+          assert manifest["notes"]["candidate_only"] is True
+          assert manifest["notes"]["database_schema_changes"] is False
+          assert manifest["notes"]["patient_data_changes"] is False
+          assert manifest["notes"]["neon_changes"] is False
+          assert manifest["notes"]["historia_changes"] is False
+          assert manifest["notes"]["billing_changes"] is False
+          assert manifest["notes"]["agenda_changes"] is False
+          assert manifest["notes"]["printing_changes"] is False
+          assert "remote_agenda.py" not in manifest["installation_prerequisites"]
+          assert "azur_client.py" in manifest["installation_prerequisites"]
+          assert "whatsapp_client.py" in manifest["installation_prerequisites"]
+
+          required_routes = {
+              "/api/mobile/remote/status",
+              "/api/mobile/remote/quick/start",
+              "/api/mobile/remote/stable/restart",
+              "/api/mobile/remote/stop",
+              "/api/update/apply",
+          }
+          assert "_LEGACY_DISABLED_ROUTE_PATHS" in cand
+          for route in required_routes:
+              assert route in cand
+
+          protected = [
+              "from azur_client import AzurError",
+              "azur_emit_invoice",
+              "azur_query_comprobante",
+              "azur_test_connection",
+              "from whatsapp_client import WhatsAppError",
+              "whatsapp_build_template_payload",
+              "whatsapp_send_template",
+              "WHATSAPP_CLOUD_MODE",
+              "historia_bridge",
+              "historia_lan_transport",
+              "/api/billing",
+              "/api/visits",
+          ]
+          for needle in protected:
+              assert base.count(needle) == cand.count(needle), (
+                  needle, base.count(needle), cand.count(needle)
+              )
+
+          assert cand.count('"/api/mobile/remote/') == 4
+          assert cand.count('"/api/update/apply"') == 2  # definición histórica + lista de retiro
+          assert cand.count("remote_start_quick_tunnel(") == 2  # definición stub + caller legacy
+          assert cand.count("remote_start_named_tunnel(") == 2  # definición stub + caller legacy
+          assert "LEGACY_CLOUDFLARE_TUNNEL_EXTERNAL_HELPER_REQUIRED = False" in cand
+          assert "LEGACY_ZIP_UPDATER_ACTIVE = False" in cand
+
+          print("OK: candidata compila")
+          print("OK: todos los módulos históricos 4.6.0 permanecen byte-idénticos")
+          print("OK: AZUR y WhatsApp preservados")
+          print("OK: remote_agenda externo deja de ser requisito")
+          print("OK: superficies legacy quedan retiradas del router activo")
+
+      - name: Ensure stable channel was not changed by candidate
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          channel = json.loads(Path("launcher-v1/app-channel-source.json").read_text(encoding="utf-8"))
+          assert channel["appVersion"] == "4.6.0", channel["appVersion"]
+          print("Canal estable sigue en", channel["appVersion"])
