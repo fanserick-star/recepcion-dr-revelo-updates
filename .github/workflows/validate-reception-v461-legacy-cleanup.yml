@@ -107,10 +107,24 @@ jobs:
                   needle, base.count(needle), cand.count(needle)
               )
 
-          assert cand.count('"/api/mobile/remote/') == 4
-          assert cand.count('"/api/update/apply"') == 2  # definición histórica + lista de retiro
-          assert cand.count("remote_start_quick_tunnel(") == 2  # definición stub + caller legacy
-          assert cand.count("remote_start_named_tunnel(") == 2  # definición stub + caller legacy
+          cand_tree = ast.parse(cand)
+          disabled_routes = None
+          for node in cand_tree.body:
+              if isinstance(node, ast.Assign):
+                  for target in node.targets:
+                      if isinstance(target, ast.Name) and target.id == "_LEGACY_DISABLED_ROUTE_PATHS":
+                          # La asignación usa frozenset({...}); leer el argumento literal.
+                          assert isinstance(node.value, ast.Call)
+                          assert isinstance(node.value.func, ast.Name)
+                          assert node.value.func.id == "frozenset"
+                          assert len(node.value.args) == 1
+                          disabled_routes = set(ast.literal_eval(node.value.args[0]))
+          assert disabled_routes == required_routes, (disabled_routes, required_routes)
+
+          legacy_core = base_emb["app_base_4428"]
+          for route in required_routes:
+              assert route in legacy_core, f"La ruta legacy esperada no existe en la base: {route}"
+
           assert "LEGACY_CLOUDFLARE_TUNNEL_EXTERNAL_HELPER_REQUIRED = False" in cand
           assert "LEGACY_ZIP_UPDATER_ACTIVE = False" in cand
 
