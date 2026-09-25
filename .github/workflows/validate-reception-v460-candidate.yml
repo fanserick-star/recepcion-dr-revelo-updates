@@ -31,41 +31,6 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Inspect legacy AZUR package interfaces
-        shell: pwsh
-        run: |
-          @'
-          import ast
-          import zipfile
-          from pathlib import Path
-
-          archives = [
-              Path("updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip"),
-              Path("updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip"),
-              Path("updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip"),
-          ]
-          for archive in archives:
-              print("=== ARCHIVE", archive, "===")
-              with zipfile.ZipFile(archive) as zf:
-                  for name in zf.namelist():
-                      if name.endswith(".py") and "azur" in name.lower():
-                          source = zf.read(name).decode("utf-8", "replace")
-                          print("---", name, "---")
-                          try:
-                              tree = ast.parse(source)
-                              funcs = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
-                              classes = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
-                              print("FUNCTIONS:", funcs)
-                              print("CLASSES:", classes)
-                          except Exception as exc:
-                              print("AST ERROR:", exc)
-                          for token in ("query_comprobante", "comprobante", "status", "estado", "autoriz"):
-                              if token in source.lower():
-                                  print("CONTAINS:", token)
-                          print(source)
-          '@ | Set-Content "$env:RUNNER_TEMP\inspect_azur.py" -Encoding utf8
-          python "$env:RUNNER_TEMP\inspect_azur.py"
-
       - name: Build atomic candidate
         shell: pwsh
         run: |
@@ -76,6 +41,68 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --disable-pip-version-check -r "$env:CANDIDATE_DIR/requirements.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate AZUR client and physical resources
+        shell: pwsh
+        run: |
+          @'
+          import importlib
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          candidate = Path("updates/v4_6_0_stabilization").resolve()
+          runtime = candidate / "recepcion_legacy_runtime.zip"
+          assert runtime.is_file()
+
+          sys.path.insert(0, str(runtime))
+          azur = importlib.import_module("azur_client")
+          assert hasattr(azur, "query_comprobante")
+          assert hasattr(azur, "emit_invoice")
+          assert hasattr(azur, "test_connection")
+
+          azur._endpoint_candidates = lambda base, resource: ["https://demo.azur.com.ec/plataforma/api/v2/consulta/comprobante"]
+
+          def run_case(payload, expected):
+              azur._post_json = lambda url, body, timeout=15, api_key="": azur.AzurResponse(
+                  status=200, data=payload, text="", url=url
+              )
+              result = azur.query_comprobante(
+                  "https://demo.azur.com.ec", "test-key", "1" * 49, timeout=1
+              )
+              assert result["estado"] == expected, result
+
+          run_case(
+              {"estado": "AUTORIZADO", "numero_autorizacion": "12345"},
+              "AUTORIZADA",
+          )
+          run_case(
+              {"estado": "NO AUTORIZADO", "mensajes": ["rechazado por SRI"]},
+              "RECHAZADA",
+          )
+          run_case({"estado": "PROCESANDO"}, "EN_PROCESO")
+
+          required_assets = [
+              "static/app.js",
+              "static/index.html",
+              "static/style.css",
+              "static/doctor_full_logo.png",
+              "static/doctor_isotype.png",
+              "static/doctor_icon.ico",
+              "static/azur_mark.svg",
+              "static/whatsapp_mark.svg",
+              "mobile/index.html",
+              "mobile/app.js",
+              "mobile/sw.js",
+          ]
+          for rel in required_assets:
+              p = candidate / rel
+              assert p.is_file() and p.stat().st_size > 0, rel
+
+          print("AZUR interface and physical resources: OK")
+          '@ | Set-Content "$env:RUNNER_TEMP\validate_azur_resources.py" -Encoding utf8
+          python "$env:RUNNER_TEMP\validate_azur_resources.py"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Validate isolated import and route cleanup
@@ -160,6 +187,9 @@ jobs:
           assert runtime["version"] == "4.6.0"
           assert runtime["member_count"] >= 50
           assert runtime["runtime_zip_size"] > 100_000
+          assert (candidate / "static/style.css").stat().st_size > 100_000
+          assert (candidate / "static/doctor_full_logo.png").stat().st_size > 100_000
+          assert (candidate / "mobile/app.js").stat().st_size > 5_000
 
           print(json.dumps({
               "version": app.APP_VERSION,
