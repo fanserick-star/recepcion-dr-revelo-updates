@@ -131,7 +131,10 @@ jobs:
           $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
 
           $app = (Resolve-Path "$env:BUILDROOT/app.py").Path
-          $proc = Start-Process -FilePath $py -ArgumentList ('"' + $app + '"') -WorkingDirectory (Resolve-Path $env:BUILDROOT).Path -PassThru -WindowStyle Hidden
+          $stdout = Join-Path $env:RUNNER_TEMP "rp460_portable_stdout.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "rp460_portable_stderr.log"
+          Remove-Item $stdout,$stderr -Force -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath $py -ArgumentList ('"' + $app + '"') -WorkingDirectory (Resolve-Path $env:BUILDROOT).Path -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ok = $false
             for ($i=0; $i -lt 100; $i++) {
@@ -142,7 +145,13 @@ jobs:
               } catch {}
               if ($proc.HasExited) { break }
             }
-            if (-not $ok) { throw "El backend portátil 4.6.0 no arrancó" }
+            if (-not $ok) {
+              if (Test-Path $stdout) { Write-Host "=== PORTABLE STDOUT ==="; Get-Content $stdout }
+              if (Test-Path $stderr) { Write-Host "=== PORTABLE STDERR ==="; Get-Content $stderr }
+              Write-Host "PORTABLE_EXITED=$($proc.HasExited)"
+              if ($proc.HasExited) { Write-Host "PORTABLE_EXIT_CODE=$($proc.ExitCode)" }
+              throw "El backend portátil 4.6.0 no arrancó"
+            }
             $health = Invoke-RestMethod "http://127.0.0.1:8000/api/system/health" -TimeoutSec 3
             if (-not $health.ok) { throw "Health 4.6.0 falló" }
             Write-Host "PORTABLE_BACKEND_SMOKE_OK"
@@ -252,7 +261,10 @@ jobs:
           $env:WHATSAPP_CLOUD_MODE = "1"
           $env:DISABLE_SQLALCHEMY_CEXT_RUNTIME = "1"
 
-          $proc = Start-Process -FilePath $py -ArgumentList ('"' + (Join-Path $dest "app.py") + '"') -WorkingDirectory $dest -PassThru -WindowStyle Hidden
+          $installedStdout = Join-Path $env:RUNNER_TEMP "rp460_installed_stdout.log"
+          $installedStderr = Join-Path $env:RUNNER_TEMP "rp460_installed_stderr.log"
+          Remove-Item $installedStdout,$installedStderr -Force -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath $py -ArgumentList ('"' + (Join-Path $dest "app.py") + '"') -WorkingDirectory $dest -PassThru -WindowStyle Hidden -RedirectStandardOutput $installedStdout -RedirectStandardError $installedStderr
           try {
             $ok = $false
             for ($i=0; $i -lt 100; $i++) {
@@ -263,7 +275,12 @@ jobs:
               } catch {}
               if ($proc.HasExited) { break }
             }
-            if (-not $ok) { throw "La instalación limpia 4.6.0 no arrancó" }
+            if (-not $ok) {
+              if (Test-Path $installedStdout) { Write-Host "=== INSTALLED STDOUT ==="; Get-Content $installedStdout }
+              if (Test-Path $installedStderr) { Write-Host "=== INSTALLED STDERR ==="; Get-Content $installedStderr }
+              if ($proc.HasExited) { Write-Host "INSTALLED_EXIT_CODE=$($proc.ExitCode)" }
+              throw "La instalación limpia 4.6.0 no arrancó"
+            }
             Write-Host "RECOVERY_INSTALL_SMOKE_OK"
           } finally {
             if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
