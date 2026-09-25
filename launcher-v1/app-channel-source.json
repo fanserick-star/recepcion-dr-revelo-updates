@@ -2,34 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.0",
+  "appVersion": "4.6.1",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.0: runtime consolidado autocontenido. El programa ya no depende de archivos externos app_patch_*.py, app_prev_4458.py ni app_base_4428.py. Se validó equivalencia contra 4.5.48: mismas 247 rutas, firmas normalizadas, overlays JS/CSS y funciones críticas. Conserva Fulguración/valores editables, Historia, turnos, impresión, Bendo, facturación y agenda. No modifica datos ni esquemas.",
+  "notes": "Recepción 4.6.1: auditoría de legado. Retira del router activo las 4 rutas del Cloudflare Tunnel antiguo y /api/update/apply; remote_agenda deja de ser dependencia externa. AZUR, WhatsApp, Neon, Historia, agenda, facturación, impresión, Bendo, procedimientos y datos permanecen sin cambios. Runtime único app.py; no se añaden nuevas capas históricas.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/app.py"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/recepcion-version.json"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/update_manifest.json"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/historia_bridge.py"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_6_0_consolidated_runtime/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_1_legacy_cleanup/historia_lan_transport.py"
     }
   ]
 }
