@@ -64,9 +64,18 @@ def main() -> None:
         db.refresh(p)
         patient_id = int(p.id)
 
-        # 1) Una cédula equivalente con guiones/espacios debe bloquearse.
+        # 1) Simulamos una ficha antigua que conservó formato legado.
+        legacy_formatted = core.Patient(
+            cedula="171-234-5675",
+            nombre="PACIENTE LEGADO FORMATO",
+            celular="0988888888",
+        )
+        db.add(legacy_formatted)
+        db.commit()
+
+        # Una entrada nueva limpia debe reconocer esa misma identificación.
         duplicate_input = core.PatientIn(
-            cedula="120-345-6783",
+            cedula="1712345675",
             nombre="OTRA FICHA QUE NO DEBE CREARSE",
         )
         try:
