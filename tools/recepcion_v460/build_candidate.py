@@ -331,7 +331,13 @@ def build() -> dict:
         "updater_version": "launcher-v1-atomic-runtime",
         "required_dependencies": required,
         "required_python_packages": [
+            {"import": "fastapi", "pip": "fastapi==0.115.6"},
+            {"import": "pydantic", "pip": "pydantic==1.10.15"},
+            {"import": "uvicorn", "pip": "uvicorn==0.34.0"},
+            {"import": "sqlalchemy", "pip": "SQLAlchemy==2.0.36"},
             {"import": "pg8000", "pip": "pg8000==1.31.2"},
+            {"import": "dotenv", "pip": "python-dotenv==1.0.1"},
+            {"import": "multipart", "pip": "python-multipart==0.0.20"},
         ],
         "copy": required,
         "notes": {
