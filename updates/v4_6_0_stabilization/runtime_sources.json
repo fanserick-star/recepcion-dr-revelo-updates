@@ -277,8 +277,8 @@
   },
   "extracted_modules": {
     "azur_client.py": {
-      "archive": "updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip",
-      "member": "package/azur_client.py"
+      "archive_b64": "updates/v4_6_0_stabilization/support/clean_base_resources.b64",
+      "member": "azur_client.py"
     }
   },
   "generated_modules": {
@@ -288,5 +288,19 @@
   "static_files": {
     "static/app.js": "updates/v4_4_43_daily_emitted_whatsapp_schedule/static/app.js",
     "static/index.html": "updates/v4_4_43_daily_emitted_whatsapp_schedule/static/index.html"
+  },
+  "resource_archive": {
+    "archive_b64": "updates/v4_6_0_stabilization/support/clean_base_resources.b64",
+    "include": [
+      "static/style.css",
+      "static/doctor_full_logo.png",
+      "static/doctor_isotype.png",
+      "static/doctor_icon.ico",
+      "static/azur_mark.svg",
+      "static/whatsapp_mark.svg",
+      "mobile/index.html",
+      "mobile/app.js",
+      "mobile/sw.js"
+    ]
   }
 }
