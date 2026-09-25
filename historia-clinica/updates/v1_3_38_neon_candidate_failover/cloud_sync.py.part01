@@ -1,0 +1,478 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+import ssl
+import threading
+import time
+import urllib.parse
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+BIDIRECTIONAL_TABLES = {
+    "patients": "id",
+    "encounters": "id",
+    "patient_links": "reception_patient_id",
+    "waiting_queue": "id",
+    "encounter_addenda": "id",
+    "macros": "id",
+    "prescriptions": "id",
+    "certificates": "id",
+    "clinic_settings": "setting_key",
+}
+PUSH_ONLY_TABLES = {
+    "audit_log": "id",
+    "encounter_revisions": "id",
+}
+ALL_SYNC_TABLES = {**BIDIRECTIONAL_TABLES, **PUSH_ONLY_TABLES}
+CLOUD_SCHEMA = "historia"
+
+_STATUS_LOCK = threading.Lock()
+_SERVICE = None
+
+
+def _now_iso() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def _utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _load_env(root: Path) -> dict[str, str]:
+    """
+    Configuración cloud de Historia.
+
+    v1.3.37:
+    La configuración privada instalada junto al programa (.env) es la fuente
+    de verdad para Neon. Un DATABASE_URL global de Windows/Python no debe
+    sobrescribir accidentalmente la conexión del consultorio en otra PC.
+    """
+    values = dict(os.environ)
+    path = root / ".env"
+
+    def _merge_env_file(env_path: Path, *, prefer_file: bool) -> None:
+        if not env_path.is_file():
+            return
+        try:
+            for raw in env_path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if not key:
+                    continue
+                if prefer_file or not str(values.get(key) or "").strip():
+                    values[key] = value
+        except Exception:
+            pass
+
+    # La .env propia siempre gana para las claves del programa.
+    _merge_env_file(path, prefer_file=True)
+
+    # Instalaciones maestras/PCs donde Recepción ya está configurada:
+    # usar su .env sólo como respaldo cuando Historia no tenga URL.
+    if not str(values.get("HISTORIA_DATABASE_URL") or values.get("DATABASE_URL") or "").strip():
+        reception_env = Path(r"C:\Recepcion Dr Revelo\.env")
+        _merge_env_file(reception_env, prefer_file=False)
+
+    return values
+
+
+def _resolve_database_url(env: dict[str, str]) -> tuple[str, str]:
+    """Resolve Neon/PostgreSQL URL without modifying .env.
+
+    Prefer the dedicated Historia key. DATABASE_URL remains a compatibility
+    alias for installations created by the consultorio/master installer.
+    """
+    dedicated = str(env.get("HISTORIA_DATABASE_URL") or "").strip()
+    if dedicated:
+        return dedicated, "HISTORIA_DATABASE_URL"
+    compatible = str(env.get("DATABASE_URL") or "").strip()
+    if compatible:
+        return compatible, "DATABASE_URL"
+    return "", ""
+
+
+def _database_url_candidates(root: Path, env: dict[str, str]) -> list[tuple[str, str]]:
+    """Return safe ordered Neon candidates without ever logging credentials.
+
+    v1.3.38:
+    A secondary PC can inherit an unrelated DATABASE_URL from Windows/Python.
+    Try the dedicated/local consultorio configuration first, then Reception's
+    private .env when available, and leave process-level DATABASE_URL last.
+    """
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    def add(value: object, source: str) -> None:
+        url = str(value or "").strip()
+        if not url or url in seen:
+            return
+        seen.add(url)
+        out.append((url, source))
+
+    def read_file(path: Path) -> dict[str, str]:
+        values: dict[str, str] = {}
+        if not path.is_file():
+            return values
+        try:
+            for raw in path.read_text(encoding="utf-8-sig", errors="ignore").splitlines():
+                line = raw.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                if key:
+                    values[key] = value.strip().strip('"').strip("'")
+        except Exception:
+            pass
+        return values
+
+    local = read_file(Path(root) / ".env")
+    reception = read_file(Path(r"C:\Recepcion Dr Revelo\.env"))
+
+    # Explicit Historia key is always strongest.
+    add(local.get("HISTORIA_DATABASE_URL"), "Historia .env · HISTORIA_DATABASE_URL")
+    add(reception.get("HISTORIA_DATABASE_URL"), "Recepción .env · HISTORIA_DATABASE_URL")
+    add(os.environ.get("HISTORIA_DATABASE_URL"), "Windows · HISTORIA_DATABASE_URL")
+
+    # Compatibility DATABASE_URL: local/reception files before global process env.
+    add(local.get("DATABASE_URL"), "Historia .env · DATABASE_URL")
+    add(reception.get("DATABASE_URL"), "Recepción .env · DATABASE_URL")
+    add(os.environ.get("DATABASE_URL"), "Windows · DATABASE_URL")
+
+    # Keep the already resolved value as final compatibility fallback.
+    resolved, source = _resolve_database_url(env)
+    add(resolved, source or "configuración compatible")
+    return out
+
+
+def _status_path(data_dir: Path) -> Path:
+    return data_dir / "sync_status.json"
+
+
+def _write_status(data_dir: Path, **values) -> dict:
+    data_dir.mkdir(parents=True, exist_ok=True)
+    path = _status_path(data_dir)
+    with _STATUS_LOCK:
+        old = {}
+        if path.is_file():
+            try:
+                old = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                old = {}
+        old.update(values)
+        old["updated_at"] = _now_iso()
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(old, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, path)
+        return old
+
+
+def get_sync_status(data_dir: Path) -> dict:
+    path = _status_path(data_dir)
+    if not path.is_file():
+        return {
+            "state": "pending",
+            "online": False,
+            "configured": False,
+            "message": "Preparando sincronización",
+            "last_sync": "",
+            "last_backup": "",
+            "pending": 0,
+        }
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {"state": "error", "online": False, "configured": False, "message": "Estado de nube no disponible"}
+
+
+def _device_id(data_dir: Path) -> str:
+    path = data_dir / "device_id.txt"
+    if path.is_file():
+        try:
+            value = path.read_text(encoding="utf-8").strip()
+            if value:
+                return value
+        except Exception:
+            pass
+    value = str(uuid.uuid4())
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+    return value
+
+
+def ensure_local_sync_schema(db_path: Path) -> None:
+    conn = sqlite3.connect(db_path, timeout=20)
+    try:
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.execute("CREATE TABLE IF NOT EXISTS sync_dirty(table_name TEXT NOT NULL,row_key TEXT NOT NULL,changed_at TEXT NOT NULL,PRIMARY KEY(table_name,row_key))")
+        conn.execute("CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('sync_applying_remote','0')")
+        for table, key in ALL_SYNC_TABLES.items():
+            qtable = table.replace('"','')
+            qkey = key.replace('"','')
+            for op, suffix in (("INSERT", "ai"), ("UPDATE", "au"), ("DELETE", "ad")):
+                trig = f"sync_{qtable}_{suffix}"
+                ref = "OLD" if op == "DELETE" else "NEW"
+                conn.execute(f"DROP TRIGGER IF EXISTS {trig}")
+                conn.execute(f"""
+                    CREATE TRIGGER {trig} AFTER {op} ON {qtable}
+                    WHEN COALESCE((SELECT value FROM meta WHERE key='sync_applying_remote'),'0')!='1'
+                    BEGIN
+                      INSERT INTO sync_dirty(table_name,row_key,changed_at)
+                      VALUES('{qtable}',CAST({ref}.{qkey} AS TEXT),datetime('now'))
+                      ON CONFLICT(table_name,row_key) DO UPDATE SET changed_at=excluded.changed_at;
+                    END
+                """)
+        seeded = conn.execute("SELECT value FROM sync_state WHERE key='initial_seeded'").fetchone()
+        if not seeded:
+            for table, key in ALL_SYNC_TABLES.items():
+                conn.execute(
+                    f"INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at) SELECT ?,CAST({key} AS TEXT),datetime('now') FROM {table}",
+                    (table,),
+                )
+            conn.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('initial_seeded','1')")
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _sqlite_columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    return [r[1] for r in conn.execute(f"PRAGMA table_info({table})")]
+
+
+def _backup_database(db_path: Path, data_dir: Path) -> str:
+    backups = data_dir / "backups"
+    backups.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d")
+    target = backups / f"historia_clinica_{stamp}.db"
+    if target.is_file() and target.stat().st_size > 0:
+        return str(target)
+    tmp = target.with_suffix(".tmp")
+    src = sqlite3.connect(db_path, timeout=20)
+    dst = sqlite3.connect(tmp)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close(); src.close()
+    os.replace(tmp, target)
+    old = sorted(backups.glob("historia_clinica_*.db"), key=lambda p: p.name, reverse=True)
+    for path in old[14:]:
+        try: path.unlink()
+        except Exception: pass
+    return str(target)
+
+
+def _pg_connect(url: str):
+    try:
+        from pg8000 import dbapi as pg
+    except Exception as exc:
+        raise RuntimeError("Falta pg8000. Cierra y vuelve a abrir para completar la instalación.") from exc
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in {"postgresql", "postgres"}:
+        raise RuntimeError("La URL de PostgreSQL/Neon de Historia Clínica es inválida")
+    query = dict(urllib.parse.parse_qsl(parts.query, keep_blank_values=True))
+    timeout = int(query.get("connect_timeout") or 12)
+    return pg.connect(
+        user=urllib.parse.unquote(parts.username or ""),
+        password=urllib.parse.unquote(parts.password or ""),
+        host=parts.hostname or "",
+        port=int(parts.port or 5432),
+        database=urllib.parse.unquote((parts.path or "/neondb").lstrip("/")) or "neondb",
+        ssl_context=ssl.create_default_context(),
+        timeout=timeout,
+    )
+
+
+def _dict_rows(cursor):
+    names = [d[0] for d in cursor.description]
+    return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+
+def _remote_now(cur) -> str:
+    cur.execute("SELECT now()::text")
+    return str(cur.fetchone()[0])
+
+
+def _normalize_remote_value(value):
+    if value is None:
+        return None
+    if isinstance(value, (datetime,)):
+        return value.isoformat()
+    return value
+
+
+class CloudSyncService:
+    def __init__(self, root: Path, db_path: Path):
+        self.root = Path(root)
+        self.db_path = Path(db_path)
+        self.data_dir = self.root / "data"
+        self.env = _load_env(self.root)
+        self.url_candidates = _database_url_candidates(self.root, self.env)
+        self.url, self.url_source = self.url_candidates[0] if self.url_candidates else ("", "")
+        self.enabled = str(self.env.get("HISTORIA_SYNC_ENABLED", "1")).strip().lower() not in {"0","false","no","off"}
+        self.device_id = _device_id(self.data_dir)
+        self._stop = threading.Event()
+        self._wake = threading.Event()
+        self._thread = None
+        self._last_activity = time.monotonic()
+        self._last_pull_monotonic = 0.0
+        try:
+            _c = sqlite3.connect(self.db_path, timeout=10)
+            try:
+                _initial_pending = int(_c.execute("SELECT COUNT(*) FROM sync_dirty").fetchone()[0])
+            finally:
+                _c.close()
+        except Exception:
+            _initial_pending = 0
+        _existing_status = get_sync_status(self.data_dir)
+        _initial_total = max(int(_existing_status.get("initial_total") or 0), _initial_pending)
+        _write_status(
+            self.data_dir,
+            configured=bool(self.url and self.enabled), online=False,
+            config_source=self.url_source if self.url else "",
+            cloud_schema=CLOUD_SCHEMA,
+            state="pending" if self.url and self.enabled else "disabled",
+            message=(f"Subiendo respaldo… {_initial_pending} pendientes" if self.url and self.enabled and _initial_pending else ("Nube preparada" if self.url and self.enabled else "Nube no configurada")),
+            pending=_initial_pending, initial_total=_initial_total, device_id=self.device_id,
+            connection_candidate_count=len(self.url_candidates),
+        )
+
+    def start(self):
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, name="historia-cloud-sync", daemon=True)
+        self._thread.start()
+        self._wake.set()
+
+    def stop(self):
+        self._stop.set(); self._wake.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=3)
+
+    def wake(self):
+        self._wake.set()
+
+    def mark_activity(self):
+        self._last_activity = time.monotonic()
+        self._wake.set()
+
+    def _pending(self, conn: sqlite3.Connection) -> int:
+        return int(conn.execute("SELECT COUNT(*) FROM sync_dirty").fetchone()[0])
+
+    def _get_state(self, conn: sqlite3.Connection, key: str, default=""):
+        row = conn.execute("SELECT value FROM sync_state WHERE key=?", (key,)).fetchone()
+        return row[0] if row else default
+
+    def _set_state(self, conn: sqlite3.Connection, key: str, value: str):
+        conn.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)", (key, str(value)))
+
+    def _run(self):
+        try:
+            backup = _backup_database(self.db_path, self.data_dir)
+            _write_status(self.data_dir, last_backup=backup, backup_ok=True)
+        except Exception as exc:
+            _write_status(self.data_dir, backup_ok=False, backup_error=type(exc).__name__)
+        if not self.enabled or not self.url:
+            return
+        while not self._stop.is_set():
+            try:
+                self._cycle()
+            except Exception as exc:
+                detail = f"{type(exc).__name__}: {str(exc)[:140]}"
+                _write_status(
+                    self.data_dir, state="offline", online=False,
+                    message=f"Trabajando localmente; reintento automático · {detail}",
+                    last_error=detail, cloud_schema=CLOUD_SCHEMA,
+                )
+            self._wake.wait(timeout=30)
+            self._wake.clear()
+
+    def _connect_cloud(self):
+        """Try all safe consultorio URL candidates until one really connects."""
+        errors: list[str] = []
+        for url, source in self.url_candidates:
+            try:
+                pg = _pg_connect(url)
+                # Force a real round trip; a socket object alone is not enough.
+                cur = pg.cursor()
+                cur.execute("SELECT 1")
+                cur.fetchone()
+                try:
+                    pg.commit()
+                except Exception:
+                    pass
+                self.url = url
+                self.url_source = source
+                _write_status(
+                    self.data_dir,
+                    configured=True,
+                    config_source=source,
+                    connection_candidate_count=len(self.url_candidates),
+                    connection_fallback_used=(source != self.url_candidates[0][1]),
+                )
+                return pg
+            except Exception as exc:
+                errors.append(f"{source}: {type(exc).__name__}")
+
+        summary = " · ".join(errors[:4]) or "sin candidatos"
+        raise RuntimeError(f"No se pudo conectar a Neon ({summary})")
+
+    def _cycle(self):
+        sconn = sqlite3.connect(self.db_path, timeout=20)
+        sconn.row_factory = sqlite3.Row
+        try:
+            pending = self._pending(sconn)
+            active = (time.monotonic() - self._last_activity) < 300
+            bootstrap_done = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
+            pull_due = (
+                not bootstrap_done
+                or (active and (time.monotonic() - self._last_pull_monotonic >= 90))
+            )
+            if pending == 0 and not pull_due:
+                _write_status(self.data_dir, pending=0)
+                return
+        finally:
+            sconn.close()
+
+        pg = self._connect_cloud()
+        try:
+            pg.autocommit = False
+            self._ensure_remote_extension_schema(pg)
+            cur = pg.cursor()
+            remote_now = _remote_now(cur)
+            pg.commit()
+            pulled = self._pull(pg, remote_now) if pull_due else 0
+            pushed = self._push(pg)
+            self._register_device(pg)
+            pg.commit()
+            if pull_due:
+                self._last_pull_monotonic = time.monotonic()
+            sconn = sqlite3.connect(self.db_path, timeout=20)
+            try:
+                pending_after = self._pending(sconn)
+            finally:
+                sconn.close()
+            _write_status(
+                self.data_dir, state="synced" if pending_after == 0 else "syncing", online=True, configured=True,
+                message="Nube sincronizada" if pending_after == 0 else f"Subiendo respaldo… {pending_after} pendientes", last_sync=_now_iso(),
+                pending=pending_after, last_pushed=pushed, last_pulled=pulled,
+                last_error="",
+            )
+            if pending_after > 0:
+                self._wake.set()
+        finally:
+            try: pg.close()
+            except Exception: pass
+
+    def _register_device(self, pg):
