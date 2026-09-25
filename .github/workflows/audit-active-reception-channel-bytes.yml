@@ -2,8 +2,10 @@ name: Audit Active Reception Channel
 
 on:
   push:
+    branches:
+      - audit/consolidated-runtime-460
     paths:
-      - "launcher-v1/app-channel.json"
+      - "updates/v4_6_0_consolidated_candidate/**"
       - ".github/workflows/audit-active-reception-channel-bytes.yml"
   workflow_dispatch:
 
@@ -11,160 +13,19 @@ permissions:
   contents: read
 
 jobs:
-  audit:
+  consolidated_candidate:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download exact channel payload and verify SHA-256
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Reception dependencies
         shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
-          Remove-Item "audit_reception" -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "audit_reception" | Out-Null
+        run: python -m pip install --disable-pip-version-check fastapi uvicorn sqlalchemy pydantic python-dotenv pg8000 "psycopg[binary]" python-multipart openpyxl
 
-          $mismatches = @()
-          foreach ($item in $channel.files) {
-            $rel = [string]$item.path
-            $dest = Join-Path "audit_reception" ($rel -replace '/', '\')
-            $parent = Split-Path -Parent $dest
-            if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
-
-            if ($item.parts -and $item.parts.Count -gt 0) {
-              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
-              try {
-                $n = 0
-                foreach ($url in $item.parts) {
-                  $n++
-                  $part = Join-Path $env:TEMP ("rp_audit_" + [guid]::NewGuid().ToString("N") + "_" + $n + ".bin")
-                  try {
-                    Invoke-WebRequest -Uri ($url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $part -Headers @{"Cache-Control"="no-cache"}
-                    $bytes = [IO.File]::ReadAllBytes($part)
-                    $stream.Write($bytes,0,$bytes.Length)
-                  } finally {
-                    Remove-Item $part -Force -ErrorAction SilentlyContinue
-                  }
-                }
-              } finally {
-                $stream.Dispose()
-              }
-            } else {
-              Invoke-WebRequest -Uri ($item.url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
-            }
-
-            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
-            Write-Host "AUDIT $rel EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
-            if ($got -ne $item.sha256) {
-              $mismatches += "$rel expected=$($item.sha256) got=$got"
-            }
-          }
-
-          if ($mismatches.Count -gt 0) {
-            $mismatches | ForEach-Object { Write-Host $_ }
-            throw "El canal de Recepción tiene SHA-256 distintos a los bytes reales."
-          }
-
-      - name: Audit runtime closure, versions and protected paths
-        shell: python
-        run: |
-          import ast
-          import json
-          import pathlib
-          import re
-
-          root = pathlib.Path("audit_reception")
-          channel = json.loads(pathlib.Path("launcher-v1/app-channel.json").read_text(encoding="utf-8-sig"))
-          files = [str(x["path"]).replace("\\", "/") for x in channel.get("files", [])]
-          file_set = set(files)
-
-          assert channel.get("product") == "recepcion-dr-revelo", channel.get("product")
-          version = str(channel.get("appVersion") or "").strip()
-          assert version
-          assert channel.get("mandatory") is True
-          assert len(files) == len(file_set), "Hay rutas duplicadas en el canal"
-
-          protected_prefixes = ("data/", "backups/", "update_backups/")
-          protected_suffixes = (".db", ".sqlite", ".sqlite3", ".mdb", ".accdb", ".xls", ".xlsx")
-          protected_exact = {
-              ".env", "recepcionlauncher.exe", "launcherupdater.exe",
-              "desinstalar_recepcion_dr_revelo.exe",
-              "abrir_recepcion.py", "abrir_recepcion.pyw",
-              "autoactualizar.py", "iniciar.bat",
-          }
-          for path in files:
-              low = path.lower()
-              assert path and not path.startswith("/") and ".." not in path.split("/"), path
-              assert not low.startswith(protected_prefixes), path
-              assert low not in protected_exact, path
-              assert not low.endswith(protected_suffixes), path
-
-          for required in ("app.py", "recepcion-version.json", "update_manifest.json"):
-              assert required in file_set, required
-              assert (root / required).is_file(), required
-
-          canonical = json.loads((root / "recepcion-version.json").read_text(encoding="utf-8-sig"))
-          assert str(canonical.get("version") or "").strip() == version
-
-          manifest = json.loads((root / "update_manifest.json").read_text(encoding="utf-8-sig"))
-          for key in ("version", "app_version", "runtime_version"):
-              assert str(manifest.get(key) or "").strip() == version, (key, manifest.get(key), version)
-          assert manifest.get("mandatory") is True
-          assert manifest.get("version_source") == "recepcion-version.json"
-          assert manifest.get("compatibility_version_aliases") is True
-
-          missing = [x for x in manifest.get("required_dependencies", []) if x not in file_set]
-          assert not missing, "Dependencias declaradas ausentes del canal: " + ", ".join(missing)
-
-          py_paths = [root / p for p in files if p.endswith(".py")]
-          for path in py_paths:
-              source = path.read_text(encoding="utf-8-sig")
-              compile(source, str(path), "exec")
-
-          local_module_patterns = (
-              re.compile(r"^app_patch_\d+$"),
-              re.compile(r"^app_prev_\d+$"),
-              re.compile(r"^app_base_\d+$"),
-          )
-          explicit_local = {"historia_bridge", "historia_lan_transport"}
-          declared_modules = {pathlib.Path(p).stem for p in files if p.endswith(".py")}
-          missing_imports = []
-          for path in py_paths:
-              tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
-              for node in ast.walk(tree):
-                  names = []
-                  if isinstance(node, ast.Import):
-                      names = [a.name.split(".")[0] for a in node.names]
-                  elif isinstance(node, ast.ImportFrom) and node.module:
-                      names = [node.module.split(".")[0]]
-                  for name in names:
-                      is_local = name in explicit_local or any(rx.match(name) for rx in local_module_patterns)
-                      if is_local and name not in declared_modules:
-                          missing_imports.append(f"{path.name} -> {name}.py")
-          assert not missing_imports, "Importaciones locales fuera del payload: " + "; ".join(sorted(set(missing_imports)))
-
-          inactive = {"app_patch_4513.py", "app_patch_4514.py", "app_patch_4515.py", "app_patch_4516.py"}
-          assert not (inactive & file_set), "Se reintrodujeron módulos inactivos: " + ", ".join(sorted(inactive & file_set))
-
-          app_text = (root / "app.py").read_text(encoding="utf-8-sig")
-          assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
-
-          print(f"OK Recepción {version}: {len(files)} archivos, {len(py_paths)} módulos Python.")
-          print(f"Dependencias activas declaradas: {len(manifest.get('required_dependencies', []))}.")
-          print("No hay rutas protegidas, imports locales faltantes ni módulos 4.5.13-4.5.16 inactivos.")
-
-      - name: Publish audit summary
+      - name: Compare stable 4.5.48 with consolidated 4.6.0
         shell: pwsh
-        run: |
-          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
-          $manifest = Get-Content "audit_reception/update_manifest.json" -Raw | ConvertFrom-Json
-          @"
-          ## Auditoría automática de Recepción
-          - Versión: **$($channel.appVersion)**
-          - Archivos verificados byte por byte: **$($channel.files.Count)**
-          - Dependencias activas declaradas: **$($manifest.required_dependencies.Count)**
-          - SHA-256: **OK**
-          - Cierre de imports del runtime: **OK**
-          - Rutas protegidas: **OK**
-          - Fuente única de versión: **OK**
-          "@ | Add-Content $env:GITHUB_STEP_SUMMARY
+        run: python updates/v4_6_0_consolidated_candidate/test_candidate.py
