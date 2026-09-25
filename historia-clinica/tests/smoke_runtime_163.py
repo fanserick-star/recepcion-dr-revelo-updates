@@ -34,6 +34,8 @@ tree = ast.parse(source)
 wanted = {"save_encounter", "sign_encounter"}
 nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in wanted]
 assert {n.name for n in nodes} == wanted
+for node in nodes:
+    node.decorator_list = []
 
 root = Path(tempfile.mkdtemp(prefix="hc_v163_smoke_"))
 db_path = root / "historia.db"
