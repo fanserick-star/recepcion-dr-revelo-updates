@@ -730,6 +730,147 @@ def v4544_print_visit_exact_status(
         }
 
 
+
+# v4.5.44 — menú Imprimir fuera de la tabla.
+# El <details> original vive dentro de la tabla de Inicio y cualquier ancestro
+# con overflow puede recortar una de las dos opciones. El menú visible se
+# renderiza directamente en document.body con position:fixed, por lo que
+# siempre muestra RECIBO + COMPROBANTE completos.
+V4544_PRINT_PORTAL_CSS = r"""
+.v4544-print-portal{
+  position:fixed!important;
+  z-index:2147483640!important;
+  display:grid!important;
+  gap:5px!important;
+  min-width:190px!important;
+  padding:7px!important;
+  border:1px solid #d7e1ec!important;
+  border-radius:11px!important;
+  background:#fff!important;
+  box-shadow:0 14px 34px rgba(35,55,80,.24)!important;
+  box-sizing:border-box!important;
+}
+.v4544-print-portal button{
+  width:100%!important;
+  min-height:38px!important;
+  display:flex!important;
+  align-items:center!important;
+  gap:8px!important;
+  border:0!important;
+  border-radius:9px!important;
+  background:#fff!important;
+  color:#344c69!important;
+  padding:9px 10px!important;
+  font-size:10px!important;
+  font-weight:850!important;
+  text-align:left!important;
+  white-space:nowrap!important;
+  cursor:pointer!important;
+}
+.v4544-print-portal button:hover{background:#f1f6fb!important}
+.v4544-print-portal button:disabled{
+  opacity:.42!important;
+  cursor:not-allowed!important;
+  background:#f7f8fa!important;
+}
+.v4544-print-portal .v488-home-action-svg{
+  width:14px!important;height:14px!important;flex:0 0 14px!important;
+}
+"""
+
+V4544_PRINT_PORTAL_JS = r"""
+;(()=>{
+  if(window.__v4544PrintPortal)return;
+  window.__v4544PrintPortal=true;
+
+  let portal=null;
+  let anchor=null;
+
+  function closePortal(){
+    if(portal){try{portal.remove()}catch(_){}}
+    portal=null;
+    if(anchor){
+      try{
+        anchor.closest('.v4486-print-menu')?.removeAttribute('open');
+        anchor.setAttribute('aria-expanded','false');
+      }catch(_){}
+    }
+    anchor=null;
+  }
+
+  function place(){
+    if(!portal||!anchor)return;
+    const r=anchor.getBoundingClientRect();
+    const w=Math.max(190,portal.offsetWidth||190);
+    const h=Math.max(86,portal.offsetHeight||86);
+    let left=r.right-w;
+    left=Math.max(8,Math.min(left,window.innerWidth-w-8));
+    let top;
+    // Preferimos abrir arriba, pero solo si CABE COMPLETO.
+    if(r.top>=h+10) top=r.top-h-6;
+    else top=Math.min(window.innerHeight-h-8,r.bottom+6);
+    portal.style.left=Math.round(left)+'px';
+    portal.style.top=Math.max(8,Math.round(top))+'px';
+  }
+
+  function openPortal(summary){
+    closePortal();
+    const details=summary.closest('.v4486-print-menu');
+    const source=details?.querySelector('.v4486-print-pop');
+    if(!details||!source)return;
+
+    details.removeAttribute('open');
+    anchor=summary;
+    anchor.setAttribute('aria-expanded','true');
+
+    portal=document.createElement('div');
+    portal.className='v4544-print-portal';
+    portal.setAttribute('role','menu');
+
+    [...source.querySelectorAll('button')].forEach(original=>{
+      const clone=original.cloneNode(true);
+      clone.removeAttribute('style');
+      clone.addEventListener('click',()=>{
+        setTimeout(closePortal,0);
+      },{once:true});
+      portal.appendChild(clone);
+    });
+
+    document.body.appendChild(portal);
+    place();
+  }
+
+  document.addEventListener('click',e=>{
+    const summary=e.target?.closest?.('.v4486-print-summary');
+    if(summary){
+      // Impide que <details> abra dentro de la tabla.
+      e.preventDefault();
+      e.stopPropagation();
+      openPortal(summary);
+      return;
+    }
+    if(portal&&!portal.contains(e.target))closePortal();
+  },true);
+
+  window.addEventListener('resize',closePortal,{passive:true});
+  window.addEventListener('scroll',closePortal,true);
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape')closePortal();
+  });
+})();
+"""
+
+core.V460_OVERLAY_CSS = (
+    (getattr(core, "V460_OVERLAY_CSS", "") or "")
+    + "\n"
+    + V4544_PRINT_PORTAL_CSS
+)
+core.V460_OVERLAY_JS = (
+    (getattr(core, "V460_OVERLAY_JS", "") or "")
+    + "\n"
+    + V4544_PRINT_PORTAL_JS
+)
+
 @app.get("/api/v4544/health")
 def v4544_health(user=core.Depends(core.current_user)):
     return {
