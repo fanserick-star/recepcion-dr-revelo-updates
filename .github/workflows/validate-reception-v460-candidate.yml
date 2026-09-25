@@ -31,6 +31,41 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Inspect legacy AZUR package interfaces
+        shell: pwsh
+        run: |
+          @'
+          import ast
+          import zipfile
+          from pathlib import Path
+
+          archives = [
+              Path("updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip"),
+              Path("updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip"),
+              Path("updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip"),
+          ]
+          for archive in archives:
+              print("=== ARCHIVE", archive, "===")
+              with zipfile.ZipFile(archive) as zf:
+                  for name in zf.namelist():
+                      if name.endswith(".py") and "azur" in name.lower():
+                          source = zf.read(name).decode("utf-8", "replace")
+                          print("---", name, "---")
+                          try:
+                              tree = ast.parse(source)
+                              funcs = [n.name for n in tree.body if isinstance(n, ast.FunctionDef)]
+                              classes = [n.name for n in tree.body if isinstance(n, ast.ClassDef)]
+                              print("FUNCTIONS:", funcs)
+                              print("CLASSES:", classes)
+                          except Exception as exc:
+                              print("AST ERROR:", exc)
+                          for token in ("query_comprobante", "comprobante", "status", "estado", "autoriz"):
+                              if token in source.lower():
+                                  print("CONTAINS:", token)
+                          print(source)
+          '@ | Set-Content "$env:RUNNER_TEMP\inspect_azur.py" -Encoding utf8
+          python "$env:RUNNER_TEMP\inspect_azur.py"
+
       - name: Build atomic candidate
         shell: pwsh
         run: |
