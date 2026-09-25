@@ -11,6 +11,12 @@ from pathlib import Path as _V460Path
 _V460_APP_ROOT = _V460Path(__file__).resolve().parent
 _v460_boot_os.environ["RP_APP_ROOT"] = str(_V460_APP_ROOT)
 _V460_RUNTIME_ZIP = _V460_APP_ROOT / "recepcion_legacy_runtime.zip"
+
+# En Python embebido con python311._pth la carpeta del script no se añade
+# automáticamente. Registramos explícitamente runtime + carpeta física.
+if str(_V460_APP_ROOT) not in _v460_sys.path:
+    _v460_sys.path.insert(0, str(_V460_APP_ROOT))
+
 if not _V460_RUNTIME_ZIP.is_file():
     raise RuntimeError(
         "Falta recepcion_legacy_runtime.zip. La instalación 4.6.0 está incompleta; "
