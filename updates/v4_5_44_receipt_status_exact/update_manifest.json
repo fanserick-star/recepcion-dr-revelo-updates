@@ -97,7 +97,7 @@
     "historia_attention_kind_from_services": true,
     "historia_cloud_schema": "historia",
     "repairs_recent_handoffs": true,
-    "purpose": "Corregir el recibo automático para que PRIMERO/SUBSECUENTE salga exclusivamente del tipo N/S ya guardado en la atención, sin recalcular por número de consultas previas de la ficha.",
+    "purpose": "Corregir el recibo automático para respetar N/S y sacar el menú Imprimir fuera de la tabla de Inicio para que sus dos opciones nunca sean recortadas.",
     "historia_bridge_backlog_recovery": true,
     "historia_waiting_event_unique_index": true,
     "historia_bridge_remote_schema_additive": true,
@@ -136,7 +136,13 @@
     "automatic_receipt_uses_saved_visit_type": true,
     "automatic_receipt_N_is_primero": true,
     "automatic_receipt_S_is_subsecuente": true,
-    "automatic_receipt_uses_exact_reception_turn": true
+    "automatic_receipt_uses_exact_reception_turn": true,
+    "print_menu_body_portal": true,
+    "print_menu_never_clipped_by_home_table": true,
+    "print_menu_choices": [
+      "Imprimir recibo",
+      "Imprimir comprobante"
+    ]
   },
   "channel": "launcher-v1-stable"
 }
