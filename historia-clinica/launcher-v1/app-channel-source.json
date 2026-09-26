@@ -2,50 +2,50 @@
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.69",
+  "appVersion": "1.3.70",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.69: remaster visual profesional de Configuración y del panel Estado del sistema. No modifica lógica clínica, autosave, Neon, LAN, impresión ni datos.",
+  "notes": "Historia Clínica 1.3.70: recetas y certificados ligados a la consulta clínica; Guardar ya no abre impresión; Imprimir dispara el diálogo automáticamente y reimprimir no duplica documentos.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/app.py"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/app.py"
     },
     {
       "path": "cloud_sync.py",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/cloud_sync.py"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/cloud_sync.py"
     },
     {
       "path": "cloud_presence_patch.py",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/cloud_presence_patch.py"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/cloud_presence_patch.py"
     },
     {
       "path": "lan_bridge.py",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/lan_bridge.py"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/lan_bridge.py"
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/documentos_clinicos.py"
     },
     {
       "path": "requirements.txt",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/requirements.txt"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/requirements.txt"
     },
     {
       "path": "static/style.css",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/static/style.css"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/static/style.css"
     },
     {
       "path": "static/doctor_icon.b64",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/static/doctor_icon.b64"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/static/doctor_icon.b64"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/update_manifest.json"
     }
   ]
 }
