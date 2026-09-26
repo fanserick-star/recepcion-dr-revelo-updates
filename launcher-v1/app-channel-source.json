@@ -2,34 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.4",
+  "appVersion": "4.6.5",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.4: limpieza segura final. Elimina definiciones duplicadas inactivas en historia_lan_transport sin cambiar el flujo activo. Mantiene app.py consolidado, separación estricta Recepción/Historia, envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos. Conserva los hashes contractuales auditados de AZUR y WhatsApp.",
+  "notes": "Recepción 4.6.5: envía a Historia el nombre real del procedimiento en la etiqueta de handoff. No cambia facturación, AZUR, WhatsApp, precios, impresión ni datos.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_6_4_cleanup/app.py"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_6_4_cleanup/recepcion-version.json"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_6_4_cleanup/update_manifest.json"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_6_4_cleanup/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_6_4_cleanup/historia_bridge.py"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_6_4_cleanup/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_5_historia_procedure_names/historia_lan_transport.py"
     }
   ]
 }
