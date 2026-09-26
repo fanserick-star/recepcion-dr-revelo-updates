@@ -4,8 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "historia-clinica/launcher-v1/**"
-      - "historia-clinica/updates/v1_3_5_launcher_v1_migration/**"
+      - "historia-clinica/launcher-v1/app-channel.json"
+      - "historia-clinica/launcher-v1/launcher-channel.json"
+      - "historia-clinica/launcher-v1/HistoriaLauncher/**"
+      - "historia-clinica/launcher-v1/LauncherUpdater/**"
+      - "historia-clinica/launcher-v1/Uninstaller/**"
+      - "historia-clinica/launcher-v1/installer/**"
       - ".github/workflows/validate-active-historia-stack.yml"
   workflow_dispatch:
 
@@ -17,35 +21,91 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Historia launcher v1 architecture
+
+      - name: Validate canonical Historia stack
+        shell: bash
         run: |
+          set -euo pipefail
           python - <<'PY'
           import json,re
           from pathlib import Path
-          root=Path(".")
-          base=root/"historia-clinica"
-          appch=json.loads((base/"launcher-v1/app-channel.json").read_text(encoding="utf-8"))
-          lch=json.loads((base/"launcher-v1/launcher-channel.json").read_text(encoding="utf-8"))
-          ver=json.loads((base/"updates/v1_3_5_launcher_v1_migration/historia-version.json").read_text(encoding="utf-8"))["version"]
-          manifest=json.loads((base/"updates/v1_3_5_launcher_v1_migration/update_manifest.json").read_text(encoding="utf-8"))
-          assert appch["appVersion"]==ver=="1.3.5"
-          assert appch["mandatory"] is True
-          for k in ("version","app_version","runtime_version"):
-              assert manifest[k]==ver,(k,manifest[k],ver)
-          assert manifest["version_source"]=="historia-version.json"
-          forbidden=("data/",".env",".db",".sqlite",".sqlite3",".mdb",".accdb",".xlsx",".xls")
-          for f in appch["files"]:
-              p=f["path"].lower()
-              assert not any(p==x or p.startswith(x) or p.endswith(x) for x in forbidden),p
-              assert p not in ("abrir_historia_clinica.py","iniciar.bat")
-          src=(base/"launcher-v1/HistoriaLauncher/Program.cs").read_text(encoding="utf-8")
-          m=re.search(r'LauncherVersion\s*=\s*"([^"]+)"',src)
-          assert m and m.group(1)==lch["latestVersion"]=="1.0.1"
-          assert "const int Port = 8787;" in src
-          assert "historia-clinica-dr-revelo" in src
-          assert "ABRIR_HISTORIA_CLINICA.py" in src  # only cleanup/compatibility reference
-          assert "historia-version.json" in src
-          assert lch["mandatory"] is True
-          assert lch["installerSha256"] and lch["updaterSha256"]
-          print("OK Historia",ver,"Launcher",m.group(1))
+
+          root=Path('.')
+          base=root/'historia-clinica'
+          appch=json.loads((base/'launcher-v1/app-channel.json').read_text(encoding='utf-8'))
+          lch=json.loads((base/'launcher-v1/launcher-channel.json').read_text(encoding='utf-8'))
+
+          assert appch['product']=='historia-clinica-dr-revelo'
+          version=str(appch['appVersion']).strip()
+          assert version
+          assert appch['mandatory'] is True
+          generated=str(appch.get('generatedFromCommit') or '').strip()
+          assert re.fullmatch(r'[0-9a-f]{40}',generated),generated
+
+          files=appch.get('files') or []
+          targets=[str(x['path']).replace('\\','/') for x in files]
+          assert len(targets)==len(set(targets)),'Rutas duplicadas en canal'
+
+          def source_path(target):
+            row=next(x for x in files if x['path']==target)
+            urls=list(row.get('parts') or ([row['url']] if row.get('url') else []))
+            assert len(urls)==1,(target,'desde 1.3.66 no se permiten partes históricas')
+            marker=f'/{generated}/'
+            assert marker in urls[0],(target,urls[0],generated)
+            return root/urls[0].split(marker,1)[1]
+
+          version_path=source_path('historia-version.json')
+          manifest_path=source_path('update_manifest.json')
+          ver=json.loads(version_path.read_text(encoding='utf-8'))['version']
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+          assert str(ver)==version
+          for k in ('version','app_version','runtime_version'):
+            assert str(manifest[k])==version,(k,manifest[k],version)
+          assert manifest['version_source']=='historia-version.json'
+          assert manifest['mandatory'] is True
+
+          target_set=set(targets)
+          missing=set(manifest.get('required_dependencies') or [])-target_set
+          assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
+
+          protected_prefixes=('data/','backups/','update_backups/')
+          protected_exact={'.env','historiaclinicalauncher.exe','historialauncherupdater.exe','desinstalar_historia_clinica_dr_revelo.exe','abrir_historia_clinica.py','iniciar.bat'}
+          protected_suffixes=('.db','.sqlite','.sqlite3','.mdb','.accdb','.xlsx','.xls')
+          for p in targets:
+            low=p.lower()
+            assert p and not p.startswith('/') and '..' not in p.split('/'),p
+            assert not low.startswith(protected_prefixes),p
+            assert low not in protected_exact,p
+            assert not low.endswith(protected_suffixes),p
+
+          if tuple(map(int,(version.split('.')+['0','0','0'])[:3])) >= (1,3,66):
+            required={
+              'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py',
+              'documentos_clinicos.py','requirements.txt','static/style.css',
+              'static/doctor_icon.b64','historia-version.json','update_manifest.json'
+            }
+            assert target_set==required,(target_set,required)
+            for target in ('app.py','cloud_sync.py'):
+              row=next(x for x in files if x['path']==target)
+              assert not row.get('parts'),f'{target} volvió a runtime por fragmentos'
+
+          launcher_src=(base/'launcher-v1/HistoriaLauncher/Program.cs').read_text(encoding='utf-8')
+          m=re.search(r'LauncherVersion\s*=\s*"([^"]+)"',launcher_src)
+          assert m,'No se encontró LauncherVersion'
+          launcher_version=m.group(1)
+          assert lch['latestVersion']==launcher_version,(lch['latestVersion'],launcher_version)
+          assert lch['mandatory'] is True
+          assert lch.get('installerSha256') and lch.get('updaterSha256')
+          assert 'const int Port = 8787;' in launcher_src
+          assert 'historia-clinica-dr-revelo' in launcher_src
+          assert 'historia-version.json' in launcher_src
+
+          iss=(base/'launcher-v1/installer/LauncherV1.iss').read_text(encoding='utf-8')
+          im=re.search(r'#define\s+MyAppVersion\s+"([^"]+)"',iss)
+          assert im and im.group(1)==launcher_version,(im.group(1) if im else None,launcher_version)
+
+          print('OK Historia',version)
+          print('OK Launcher',launcher_version)
+          print('OK payload closure',len(targets),'files')
+          print('OK protected paths')
           PY
