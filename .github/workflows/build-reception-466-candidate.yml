@@ -67,11 +67,58 @@ jobs:
               assert (base/rel).read_bytes() == (out/rel).read_bytes(), rel
           print('4.6.6 contracts OK')
 
-      - name: Remove test bytecode
+      - name: Install runtime dependencies for import smoke test
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet fastapi uvicorn sqlalchemy python-dotenv pg8000 python-multipart requests openpyxl
+
+      - name: Import exact runtime and verify final active routes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:RP_DATA_DIR = Join-Path $env:RUNNER_TEMP "rp466_data"
+          $env:RP_FORCE_OFFLINE = "1"
+          $env:DATABASE_URL = ""
+          $env:HISTORIA_DATABASE_URL = ""
+          $env:REMOTE_AGENDA_AUTOSTART = "0"
+          $env:WHATSAPP_ENABLED = "0"
+          Push-Location "updates/v4_6_6_fast_attention_save"
+          @'
+          import app
+          assert app.APP_VERSION == '4.6.6', app.APP_VERSION
+          routes = list(app.app.router.routes)
+          batch = [r for r in routes if getattr(r,'path',None)=='/api/visits/batch-payment' and 'POST' in (getattr(r,'methods',set()) or set())]
+          printing = [r for r in routes if getattr(r,'path',None)=='/api/v4470/print-visit/{visit_id}' and 'POST' in (getattr(r,'methods',set()) or set())]
+          assert len(batch) == 1, len(batch)
+          assert len(printing) == 1, len(printing)
+          assert batch[0].endpoint.__name__ == 'v466_fast_local_attention_save', batch[0].endpoint.__name__
+          assert printing[0].endpoint.__name__ == 'v466_print_visit_local_first', printing[0].endpoint.__name__
+          assert app._V466_BUSY_REPLACEMENTS >= 1
+          assert 'Guardando atención…' in app.core.V460_OVERLAY_JS
+          assert app._V466_OLD_BUSY not in app.core.V460_OVERLAY_JS
+          gen = app._v466_local_attention_db()
+          db = next(gen)
+          try:
+              assert db.info.get('offline') is True
+              assert db.info.get('local_first') is True
+              assert app.core.is_offline_db(db) is True
+          finally:
+              try: next(gen)
+              except StopIteration: pass
+          print('RUNTIME IMPORT OK 4.6.6')
+          print('batch route', batch[0].endpoint.__name__)
+          print('print route', printing[0].endpoint.__name__)
+          '@ | Set-Content -Encoding utf8 _runtime_test.py
+          python _runtime_test.py
+          Remove-Item _runtime_test.py -Force
+          Pop-Location
+
+      - name: Remove test artifacts
         shell: bash
         run: |
           find updates/v4_6_6_fast_attention_save -type d -name __pycache__ -prune -exec rm -rf {} + || true
           find updates/v4_6_6_fast_attention_save -type f -name '*.pyc' -delete || true
+          find updates/v4_6_6_fast_attention_save -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -delete || true
 
       - name: Ensure only intended candidate/channel changes
         shell: bash
