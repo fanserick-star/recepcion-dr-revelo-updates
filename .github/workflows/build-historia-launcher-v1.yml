@@ -128,7 +128,7 @@ jobs:
         run: |
           $out = "historia-clinica/launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "historia-clinica/launcher-v1/installer/output/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe" $out -Force
+          Copy-Item "historia-clinica/launcher-v1/installer/output/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaClinicaLauncher.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/HistoriaLauncherUpdater.exe" $out -Force
           Copy-Item "historia-clinica/launcher-v1/installer/build/Desinstalar_Historia_Clinica_Dr_Revelo.exe" $out -Force
@@ -139,7 +139,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8_COMPLETO.zip" -Force
           Get-Content "$out/SHA256SUMS.txt"
 
       - name: Publish permanent Historia launcher release
@@ -147,27 +147,56 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "historia-launcher-v1.0.7"
-          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
-          $zip = "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip"
+          $tag = "historia-launcher-v1.0.8"
+          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
+          $zip = "LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8_COMPLETO.zip"
           $launcher = "historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe"
           $updater = "historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe"
           $uninstaller = "historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe"
           $sums = "historia-clinica/launcher-v1/package/SHA256SUMS.txt"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Launcher Historia Clínica v1.0.7" --notes "Launcher nativo v1.0.7: corrige de forma definitiva los scripts de preprueba aislada de app.py y conserva WebView2, instancia única, actualización obligatoria, SHA-256 y rollback."
+            gh release create $tag --title "Launcher Historia Clínica v1.0.8" --notes "Launcher nativo v1.0.8: impresión directa con WebView2 PrintAsync, protección de about:blank, WebView2, instancia única, actualización obligatoria, SHA-256, preprueba y rollback."
           }
           gh release upload $tag $installer $zip $launcher $updater $uninstaller $sums --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish launcher channel 1.0.8
+        shell: pwsh
+        run: |
+          $installer = "historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
+          $updater = "historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe"
+          $installerHash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          $updaterHash = (Get-FileHash $updater -Algorithm SHA256).Hash.ToLowerInvariant()
+          $channel = [ordered]@{
+            schema = 2
+            product = "historia-launcher-dr-revelo"
+            latestVersion = "1.0.8"
+            mandatory = $true
+            notes = "Launcher Historia 1.0.8: impresión directa nativa de recetas y certificados con WebView2, sin vista previa del navegador; corrige el vínculo about:blank."
+            installerUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
+            installerSha256 = $installerHash
+            updaterUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/HistoriaLauncherUpdater.exe"
+            updaterSha256 = $updaterHash
+          }
+          $json = $channel | ConvertTo-Json -Depth 4
+          Set-Content "historia-clinica/launcher-v1/launcher-channel.json" $json -Encoding utf8
+          git config user.name "fanserick-star"
+          git config user.email "fanserick@hotmail.com"
+          git add historia-clinica/launcher-v1/launcher-channel.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "Publicar canal Launcher Historia 1.0.8"
+            git push origin HEAD:main
+          }
 
       - name: Upload complete package
         uses: actions/upload-artifact@v4
         with:
           name: launcher-historia-v1-completo
           path: |
-            LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7_COMPLETO.zip
-            historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe
+            LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8_COMPLETO.zip
+            historia-clinica/launcher-v1/package/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe
             historia-clinica/launcher-v1/package/HistoriaClinicaLauncher.exe
             historia-clinica/launcher-v1/package/HistoriaLauncherUpdater.exe
             historia-clinica/launcher-v1/package/Desinstalar_Historia_Clinica_Dr_Revelo.exe

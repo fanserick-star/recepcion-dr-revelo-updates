@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.7";
+    const string LauncherVersion = "1.0.8";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -1650,21 +1650,34 @@ internal sealed class HistoriaForm : Form
 {
     readonly string root;
     readonly string url;
+    readonly bool silentPrint;
+    readonly string printerName;
     readonly WebView2 web = new();
+    CoreWebView2Environment? environment;
 
-    public HistoriaForm(string rootPath, string targetUrl, bool childWindow = false)
+    public HistoriaForm(string rootPath, string targetUrl, bool childWindow = false, bool silentPrint = false, string printerName = "")
     {
         root = rootPath;
         url = targetUrl;
+        this.silentPrint = silentPrint;
+        this.printerName = printerName ?? "";
 
         Text = "Historia Clínica - Dr. Armando Revelo";
         StartPosition = FormStartPosition.CenterScreen;
         WindowState = childWindow ? FormWindowState.Normal : FormWindowState.Maximized;
         Size = childWindow ? new Size(1220, 860) : Size;
-        MinimumSize = new Size(960, 640);
+        MinimumSize = silentPrint ? new Size(1, 1) : new Size(960, 640);
         BackColor = Color.FromArgb(244, 239, 229);
-        ShowInTaskbar = true;
-        ShowIcon = true;
+        ShowInTaskbar = !silentPrint;
+        ShowIcon = !silentPrint;
+        if (silentPrint)
+        {
+            StartPosition = FormStartPosition.Manual;
+            Location = new Point(-32000, -32000);
+            Size = new Size(24, 24);
+            Opacity = 0;
+            FormBorderStyle = FormBorderStyle.None;
+        }
 
         try
         {
@@ -1688,6 +1701,7 @@ internal sealed class HistoriaForm : Form
             var env = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
                 userDataFolder: profile);
+            environment = env;
 
             await web.EnsureCoreWebView2Async(env);
 
@@ -1695,10 +1709,107 @@ internal sealed class HistoriaForm : Form
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
             web.CoreWebView2.Settings.IsZoomControlEnabled = true;
+            web.CoreWebView2.WebMessageReceived += async (_, e) =>
+            {
+                try
+                {
+                    using var message = JsonDocument.Parse(e.WebMessageAsJson);
+                    var rootEl = message.RootElement;
+                    if (!rootEl.TryGetProperty("type", out var typeEl) ||
+                        !string.Equals(typeEl.GetString(), "historia-print-url", StringComparison.Ordinal))
+                        return;
+
+                    var rawUrl = rootEl.TryGetProperty("url", out var urlEl)
+                        ? urlEl.GetString() ?? ""
+                        : "";
+                    var requestedPrinter = rootEl.TryGetProperty("printer", out var printerEl)
+                        ? printerEl.GetString() ?? ""
+                        : "";
+
+                    Uri target;
+                    if (Uri.TryCreate(rawUrl, UriKind.Absolute, out var absolute))
+                        target = absolute;
+                    else
+                        target = new Uri(new Uri("http://127.0.0.1:8787/"), rawUrl.TrimStart('/'));
+
+                    if (!target.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                        target.Port != 8787)
+                        throw new InvalidOperationException("La impresión solo admite documentos locales de Historia Clínica.");
+
+                    var printForm = new HistoriaForm(
+                        root,
+                        target.ToString(),
+                        childWindow: true,
+                        silentPrint: true,
+                        printerName: requestedPrinter);
+                    if (!await printForm.InitializeAsync())
+                    {
+                        printForm.Dispose();
+                        throw new InvalidOperationException("No se pudo preparar la impresión nativa.");
+                    }
+                    printForm.FormClosed += (_, _) => printForm.Dispose();
+                    printForm.Show(this);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        "No se pudo imprimir el documento.\n\n" + ex.Message,
+                        "Historia Clínica - Impresión",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+                }
+            };
+
+            if (silentPrint)
+            {
+                bool printStarted = false;
+                web.CoreWebView2.NavigationCompleted += async (_, e) =>
+                {
+                    if (printStarted) return;
+                    printStarted = true;
+                    try
+                    {
+                        if (!e.IsSuccess)
+                            throw new InvalidOperationException("No se pudo cargar el documento para imprimir.");
+
+                        await Task.Delay(180);
+                        var settings = environment!.CreatePrintSettings();
+                        settings.PrinterName = printerName;
+                        settings.ShouldPrintBackgrounds = true;
+                        settings.ShouldPrintHeaderAndFooter = false;
+                        var status = await web.CoreWebView2.PrintAsync(settings);
+                        if (status == CoreWebView2PrintStatus.PrinterUnavailable)
+                            throw new InvalidOperationException(
+                                string.IsNullOrWhiteSpace(printerName)
+                                    ? "La impresora predeterminada de Windows no está disponible."
+                                    : $"La impresora '{printerName}' no está disponible en esta PC.");
+                        if (status != CoreWebView2PrintStatus.Succeeded)
+                            throw new InvalidOperationException("Windows no pudo completar la impresión.");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            "No se pudo imprimir el documento.\n\n" + ex.Message,
+                            "Historia Clínica - Impresión",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Error);
+                    }
+                    finally
+                    {
+                        try { BeginInvoke(new Action(Close)); } catch { }
+                    }
+                };
+            }
             web.CoreWebView2.NewWindowRequested += async (_, e) =>
             {
                 try
                 {
+                    if (string.Equals(e.Uri, "about:blank", StringComparison.OrdinalIgnoreCase))
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+
                     if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var target) &&
                         target.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
                         target.Port == 8787)
