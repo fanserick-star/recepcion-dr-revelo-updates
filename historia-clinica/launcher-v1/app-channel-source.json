@@ -2,50 +2,50 @@
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.70",
+  "appVersion": "1.3.71",
   "mandatory": true,
-  "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.70: recetas y certificados ligados a la consulta clínica; Guardar ya no abre impresión; Imprimir dispara el diálogo automáticamente y reimprimir no duplica documentos.",
+  "minimumLauncher": "1.0.8",
+  "notes": "Historia Clínica 1.3.71: documentos de consulta con diseño profesional, CSS renovado sin caché vieja, Ver sin about:blank e impresión directa nativa sin vista previa del navegador.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/app.py"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/app.py"
     },
     {
       "path": "cloud_sync.py",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/cloud_sync.py"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/cloud_sync.py"
     },
     {
       "path": "cloud_presence_patch.py",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/cloud_presence_patch.py"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/cloud_presence_patch.py"
     },
     {
       "path": "lan_bridge.py",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/lan_bridge.py"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/lan_bridge.py"
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/documentos_clinicos.py"
     },
     {
       "path": "requirements.txt",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/requirements.txt"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/requirements.txt"
     },
     {
       "path": "static/style.css",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/static/style.css"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/static/style.css"
     },
     {
       "path": "static/doctor_icon.b64",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/static/doctor_icon.b64"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/static/doctor_icon.b64"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_70_linked_documents/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_71_document_ui_native_print/update_manifest.json"
     }
   ]
 }
