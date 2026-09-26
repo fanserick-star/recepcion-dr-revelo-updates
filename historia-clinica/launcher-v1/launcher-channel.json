@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-launcher-dr-revelo",
-  "latestVersion": "1.0.7",
+  "latestVersion": "1.0.8",
   "mandatory": true,
-  "notes": "Launcher Historia 1.0.7: nuevo icono azul marino y verde exclusivo de Historia Clínica (H + cruz) para distinguirlo de Recepción. Mantiene WebView2, self-update, SHA-256, preprueba y rollback.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.7/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe",
-  "installerSha256": "839b56e40f39038f569c696a6d1527e713bd39335cf98d2bcef71711ef663cc0",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.7/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "465bc65a329e79de566928c848dfce291e60e1b391654870fb6096a77c1c192e"
+  "notes": "Launcher Historia 1.0.8: impresión directa nativa de recetas y certificados con WebView2, sin vista previa del navegador; corrige el vínculo about:blank.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe",
+  "installerSha256": "7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0a04c13a2cc6",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/HistoriaLauncherUpdater.exe",
+  "updaterSha256": "f288a8fb1c6388ee2ebf26e2581f4f3b9b855fae3066a6e2b5673ac90222e320"
 }
