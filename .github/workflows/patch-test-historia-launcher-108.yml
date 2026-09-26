@@ -60,7 +60,7 @@ jobs:
         run: |
           git config user.name "fanserick-star"
           git config user.email "fanserick@hotmail.com"
-          git add historia-clinica/launcher-v1/HistoriaLauncher/Program.cs historia-clinica/launcher-v1/installer/LauncherV1.iss .github/workflows/build-historia-launcher-v1.yml
+          git add historia-clinica/launcher-v1/HistoriaLauncher/Program.cs historia-clinica/launcher-v1/installer/LauncherV1.iss
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
             git commit -m "Historia Launcher 1.0.8 impresión nativa"
