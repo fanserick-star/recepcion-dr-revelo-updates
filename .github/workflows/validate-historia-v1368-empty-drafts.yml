@@ -1,0 +1,208 @@
+name: Validate Historia 1.3.68 Empty Draft Fix
+
+on:
+  push:
+    branches: ["fix/historia-empty-drafts-1368"]
+    paths:
+      - "historia-clinica/updates/v1_3_68_empty_draft_fix/**"
+      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - ".github/workflows/validate-historia-v1368-empty-drafts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install candidate dependencies
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check -r historia-clinica/updates/v1_3_68_empty_draft_fix/requirements.txt httpx
+
+      - name: Validate package closure and unchanged helpers
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, pathlib, hashlib
+          root=pathlib.Path('.')
+          new=root/'historia-clinica/updates/v1_3_68_empty_draft_fix'
+          old=root/'historia-clinica/updates/v1_3_67_cloud_optional_backfill'
+          manifest=json.loads((new/'update_manifest.json').read_text(encoding='utf-8'))
+          version=json.loads((new/'historia-version.json').read_text(encoding='utf-8'))['version']
+          assert version=='1.3.68',version
+          assert manifest['version']==manifest['app_version']==manifest['runtime_version']==version
+          notes=manifest['notes']
+          for key in (
+              'empty_save_creates_no_history','empty_draft_hidden_from_pending',
+              'empty_finalize_completes_queue','empty_finalize_creates_no_signed_history',
+              'nonempty_draft_recovery_preserved','emergency_local_draft_backup_preserved'):
+              assert notes.get(key) is True,key
+          required={
+            'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py',
+            'documentos_clinicos.py','requirements.txt','static/style.css',
+            'static/doctor_icon.b64','historia-version.json','update_manifest.json'
+          }
+          assert set(manifest['copy'])==required
+          for rel in required:
+              assert (new/rel).is_file(),rel
+          # El fix funcional no debe tocar helpers, LAN, nube, impresión ni estilos.
+          unchanged=['cloud_sync.py','cloud_presence_patch.py','lan_bridge.py','documentos_clinicos.py','requirements.txt','static/style.css','static/doctor_icon.b64']
+          for rel in unchanged:
+              assert (new/rel).read_bytes()==(old/rel).read_bytes(),rel
+          app=(new/'app.py').read_text(encoding='utf-8-sig')
+          compile(app,'app.py','exec')
+          assert '@app.post("/api/encounters/empty/complete")' in app
+          assert '_v1368_has_clinical_content' in app
+          assert "empty_draft_pending_fix\": True" in app
+          assert "Escriba la consulta antes de finalizarla" not in app
+          print('PACKAGE_OK',version)
+          print('APP_SHA256',hashlib.sha256((new/'app.py').read_bytes()).hexdigest())
+          PY
+
+      - name: Run isolated functional regression
+        shell: bash
+        env:
+          HC_PREFLIGHT: "1"
+          HISTORIA_DATABASE_URL: ""
+          DATABASE_URL: ""
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          python - <<'PY'
+          import os, sys, shutil
+          from pathlib import Path
+          root=Path('historia-clinica/updates/v1_3_68_empty_draft_fix').resolve()
+          shutil.rmtree(root/'data',ignore_errors=True)
+          sys.path.insert(0,str(root))
+          os.chdir(root)
+          import app
+          from fastapi.testclient import TestClient
+          from collections import Counter
+
+          assert app.APP_VERSION=='1.3.68'
+          pairs=[]
+          for route in app.app.router.routes:
+              for method in (getattr(route,'methods',None) or set()):
+                  pairs.append((method,route.path))
+          dup=[k for k,v in Counter(pairs).items() if v>1]
+          assert not dup,dup
+          assert ('POST','/api/encounters/empty/complete') in pairs
+
+          client=TestClient(app.app)
+          stamp=app.now_iso()
+
+          def seed(patient_id, queue_id, status='waiting'):
+              with app.db() as conn:
+                  conn.execute("INSERT INTO patients(id,name,name_search,source,created_at,updated_at) VALUES(?,?,?,?,?,?)",
+                               (patient_id,'PACIENTE PRUEBA '+patient_id,'PACIENTE PRUEBA '+patient_id,'test',stamp,stamp))
+                  conn.execute("""INSERT INTO waiting_queue(
+                      id,reception_event_id,reception_patient_id,clinical_patient_id,display_name,
+                      attention_type,queued_at,status,source,created_at,updated_at,patient_status,reception_turn
+                    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (queue_id,'EV-'+queue_id,'RP-'+patient_id,patient_id,'PACIENTE PRUEBA '+patient_id,
+                     'CONSULTA',stamp,status,'test',stamp,stamp,'S',1))
+                  conn.commit()
+
+          # 1) Guardar vacío no crea historia ni deja el turno artificialmente En consulta.
+          seed('P-EMPTY-SAVE','Q-EMPTY-SAVE')
+          r=client.post('/api/encounters/save',json={
+              'patient_id':'P-EMPTY-SAVE','queue_id':'Q-EMPTY-SAVE',
+              'clinical_note':'   ','manual_snapshot':True})
+          assert r.status_code==200,r.text
+          j=r.json(); assert j.get('empty') is True and j.get('encounter_id') is None,j
+          with app.db() as conn:
+              n=conn.execute("SELECT COUNT(*) FROM encounters WHERE patient_id='P-EMPTY-SAVE' AND note_status='draft' AND COALESCE(deleted_at,'')='' ").fetchone()[0]
+              q=conn.execute("SELECT status FROM waiting_queue WHERE id='Q-EMPTY-SAVE'").fetchone()['status']
+          assert n==0,n
+          assert q=='waiting',q
+
+          # 2) Un borrador con una sola letra sigue protegido y no puede cerrarse por la ruta vacía.
+          seed('P-TEXT','Q-TEXT')
+          r=client.post('/api/encounters/save',json={
+              'patient_id':'P-TEXT','queue_id':'Q-TEXT','clinical_note':'A','manual_snapshot':True})
+          assert r.status_code==200,r.text
+          text_id=r.json()['encounter_id']; assert text_id
+          with app.db() as conn:
+              row=conn.execute("SELECT clinical_note,note_status,deleted_at FROM encounters WHERE id=?",(text_id,)).fetchone()
+              q=conn.execute("SELECT status FROM waiting_queue WHERE id='Q-TEXT'").fetchone()['status']
+          assert row['clinical_note']=='A' and row['note_status']=='draft' and not row['deleted_at']
+          assert q=='in_consultation',q
+          r=client.post('/api/encounters/empty/complete',json={
+              'patient_id':'P-TEXT','queue_id':'Q-TEXT','encounter_id':text_id})
+          assert r.status_code==409,r.text
+          with app.db() as conn:
+              row=conn.execute("SELECT note_status,deleted_at FROM encounters WHERE id=?",(text_id,)).fetchone()
+          assert row['note_status']=='draft' and not row['deleted_at']
+
+          # El flujo normal de finalizar con contenido sigue funcionando.
+          r=client.post('/api/encounters/'+text_id+'/sign')
+          assert r.status_code==200,r.text
+          with app.db() as conn:
+              row=conn.execute("SELECT note_status,signed_at FROM encounters WHERE id=?",(text_id,)).fetchone()
+              q=conn.execute("SELECT status,completed_at FROM waiting_queue WHERE id='Q-TEXT'").fetchone()
+          assert row['note_status']=='signed' and row['signed_at']
+          assert q['status']=='completed' and q['completed_at']
+
+          # 3) Un borrador vacío heredado se cierra sin crear historia firmada.
+          seed('P-OLD-EMPTY','Q-OLD-EMPTY','in_consultation')
+          with app.db() as conn:
+              conn.execute("""INSERT INTO encounters(
+                  id,patient_id,encounter_date,encounter_time,clinical_note,diagnosis,treatment,
+                  source,source_record_hash,is_legacy_locked,created_at,updated_at,deleted_at,
+                  note_status,signed_at,signed_by,copied_from_encounter_id,queue_id,created_by
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ('E-OLD-EMPTY','P-OLD-EMPTY','2026-09-26','09:00','','','',
+                 'historia_clinica','test',0,stamp,stamp,None,'draft',None,None,None,'Q-OLD-EMPTY','TEST'))
+              conn.commit()
+          r=client.post('/api/encounters/empty/complete',json={
+              'patient_id':'P-OLD-EMPTY','queue_id':'Q-OLD-EMPTY','encounter_id':'E-OLD-EMPTY'})
+          assert r.status_code==200,r.text
+          with app.db() as conn:
+              e=conn.execute("SELECT note_status,deleted_at,signed_at FROM encounters WHERE id='E-OLD-EMPTY'").fetchone()
+              q=conn.execute("SELECT status,completed_at FROM waiting_queue WHERE id='Q-OLD-EMPTY'").fetchone()
+              signed=conn.execute("SELECT COUNT(*) FROM encounters WHERE patient_id='P-OLD-EMPTY' AND note_status='signed'").fetchone()[0]
+          assert e['note_status']=='draft' and e['deleted_at'] and not e['signed_at']
+          assert q['status']=='completed' and q['completed_at']
+          assert signed==0
+
+          # 4) Un draft vacío heredado no debe generar banner de pendiente.
+          seed('P-BANNER-EMPTY','Q-BANNER-EMPTY')
+          with app.db() as conn:
+              conn.execute("""INSERT INTO encounters(
+                  id,patient_id,encounter_date,encounter_time,clinical_note,diagnosis,treatment,
+                  source,source_record_hash,is_legacy_locked,created_at,updated_at,deleted_at,
+                  note_status,signed_at,signed_by,copied_from_encounter_id,queue_id,created_by
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                ('E-BANNER-EMPTY','P-BANNER-EMPTY','2026-09-26','09:01','','','',
+                 'historia_clinica','test2',0,stamp,stamp,None,'draft',None,None,None,'Q-BANNER-EMPTY','TEST'))
+              conn.commit()
+          home=client.get('/')
+          assert home.status_code==200
+          assert 'CONSULTA PENDIENTE' not in home.text,home.text[:1000]
+
+          # 5) En cambio, cualquier contenido real sí debe producir el banner de pendiente.
+          with app.db() as conn:
+              conn.execute("UPDATE encounters SET clinical_note='X',updated_at=? WHERE id='E-BANNER-EMPTY'",(app.now_iso(),))
+              conn.commit()
+          home=client.get('/')
+          assert home.status_code==200
+          assert 'CONSULTA PENDIENTE' in home.text
+
+          print('FUNCTIONAL_OK empty save')
+          print('FUNCTIONAL_OK nonempty draft protected')
+          print('FUNCTIONAL_OK normal signing preserved')
+          print('FUNCTIONAL_OK legacy empty draft closed without signed history')
+          print('FUNCTIONAL_OK pending banner ignores empty and shows nonempty')
+          print('ROUTES_OK',len(pairs))
+          PY
