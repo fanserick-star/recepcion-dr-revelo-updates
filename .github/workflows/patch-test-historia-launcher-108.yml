@@ -53,7 +53,7 @@ jobs:
 
       - name: Build native launcher
         shell: pwsh
-        run: dotnet build historia-clinica/launcher-v1/HistoriaLauncher/HistoriaLauncher.csproj -c Release
+        run: dotnet build historia-clinica/launcher-v1/HistoriaLauncher/HistoriaLauncher.csproj -c Release -p:ApplicationIcon=
 
       - name: Commit generated launcher source
         shell: pwsh
