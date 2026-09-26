@@ -1,0 +1,231 @@
+name: Build Historia 1.3.68 Empty Draft Fix
+
+on:
+  push:
+    branches:
+      - fix/historia-empty-drafts-1368
+    paths:
+      - "historia-clinica/tools/build_v1368_empty_drafts.py"
+      - ".github/workflows/build-historia-v1368-empty-drafts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-commit:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/historia-empty-drafts-1368
+          fetch-depth: 0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Generate 1.3.68 from exact 1.3.67 baseline
+        shell: pwsh
+        run: python historia-clinica/tools/build_v1368_empty_drafts.py
+
+      - name: Install isolated test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check -r historia-clinica/updates/v1_3_68_empty_draft_fix/requirements.txt
+          python -m pip install --disable-pip-version-check httpx
+
+      - name: Test blank and nonblank consultation flows
+        shell: python
+        env:
+          HC_PREFLIGHT: "1"
+          HISTORIA_DATABASE_URL: ""
+          DATABASE_URL: ""
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          import json
+          import os
+          import shutil
+          import sys
+          import tempfile
+          from datetime import datetime
+          from pathlib import Path
+
+          from fastapi.testclient import TestClient
+
+          src = Path("historia-clinica/updates/v1_3_68_empty_draft_fix").resolve()
+          trial = Path(tempfile.mkdtemp(prefix="historia1368_"))
+          shutil.copytree(src, trial / "runtime", dirs_exist_ok=True)
+          runtime = trial / "runtime"
+          sys.path.insert(0, str(runtime))
+          os.chdir(runtime)
+
+          import app
+
+          assert app.APP_VERSION == "1.3.68", app.APP_VERSION
+          assert app._v1368_has_clinical_content("") is False
+          assert app._v1368_has_clinical_content("X") is True
+
+          stamp = app.now_iso()
+          patient_id = "test-empty-patient"
+          with app.db() as conn:
+              conn.execute(
+                  """INSERT INTO patients(id,name,name_search,source,created_at,updated_at,deleted_at)
+                     VALUES(?,?,?,?,?,?,NULL)""",
+                  (patient_id, "PACIENTE PRUEBA VACIO", "PACIENTE PRUEBA VACIO", "test", stamp, stamp),
+              )
+              for qid in ("q-empty", "q-real", "q-pending"):
+                  conn.execute(
+                      """INSERT INTO waiting_queue(
+                         id,reception_event_id,reception_patient_id,clinical_patient_id,display_name,
+                         attention_type,queued_at,status,source,created_at,updated_at,patient_status
+                         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (qid, "event-"+qid, "rp-"+qid, patient_id, "PACIENTE PRUEBA VACIO",
+                       "Consulta", stamp, "waiting", "test", stamp, stamp, "S"),
+                  )
+              conn.commit()
+
+          client = TestClient(app.app)
+
+          # A) Guardar totalmente vacío NO crea un encounter ni cambia el turno a En consulta.
+          r = client.post("/api/encounters/save", json={
+              "patient_id": patient_id,
+              "queue_id": "q-empty",
+              "clinical_note": "",
+              "encounter_date": "2026-09-26",
+              "encounter_time": "09:00",
+              "manual_snapshot": True,
+          })
+          assert r.status_code == 200, r.text
+          assert r.json().get("empty") is True, r.text
+          assert not r.json().get("encounter_id"), r.text
+          with app.db() as conn:
+              n = conn.execute(
+                  "SELECT COUNT(*) FROM encounters WHERE patient_id=? AND note_status='draft' AND COALESCE(deleted_at,'')=''",
+                  (patient_id,),
+              ).fetchone()[0]
+              qs = conn.execute("SELECT status FROM waiting_queue WHERE id='q-empty'").fetchone()[0]
+          assert n == 0, n
+          assert qs == "waiting", qs
+
+          # B) Un borrador vacío viejo puede finalizar la ATENCIÓN sin crear historia firmada.
+          blank_id = "old-empty-draft"
+          with app.db() as conn:
+              conn.execute("UPDATE waiting_queue SET status='in_consultation' WHERE id='q-empty'")
+              conn.execute(
+                  """INSERT INTO encounters(
+                     id,patient_id,encounter_date,encounter_time,clinical_note,diagnosis,treatment,
+                     source,source_record_hash,is_legacy_locked,created_at,updated_at,deleted_at,
+                     note_status,signed_at,signed_by,copied_from_encounter_id,queue_id,created_by
+                     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (blank_id, patient_id, "2026-09-26", "09:01", "", "", "", "historia_clinica",
+                   "test-empty", 0, stamp, stamp, None, "draft", None, None, None, "q-empty", app.DOCTOR_NAME),
+              )
+              conn.commit()
+          r = client.post("/api/encounters/empty/complete", json={
+              "patient_id": patient_id,
+              "queue_id": "q-empty",
+              "encounter_id": blank_id,
+          })
+          assert r.status_code == 200, r.text
+          with app.db() as conn:
+              row = conn.execute("SELECT note_status,deleted_at,signed_at FROM encounters WHERE id=?", (blank_id,)).fetchone()
+              qs = conn.execute("SELECT status,completed_at FROM waiting_queue WHERE id='q-empty'").fetchone()
+          assert row["note_status"] == "draft"
+          assert row["deleted_at"], row
+          assert row["signed_at"] is None
+          assert qs["status"] == "completed", qs
+          assert qs["completed_at"], qs
+
+          # C) Con una sola palabra se conserva el flujo clínico normal y se firma.
+          r = client.post("/api/encounters/save", json={
+              "patient_id": patient_id,
+              "queue_id": "q-real",
+              "clinical_note": "PRUEBA",
+              "encounter_date": "2026-09-26",
+              "encounter_time": "09:02",
+              "manual_snapshot": False,
+          })
+          assert r.status_code == 200, r.text
+          real_id = r.json().get("encounter_id")
+          assert real_id and r.json().get("empty") is False, r.text
+          with app.db() as conn:
+              row = conn.execute("SELECT note_status,clinical_note FROM encounters WHERE id=?", (real_id,)).fetchone()
+              qs = conn.execute("SELECT status FROM waiting_queue WHERE id='q-real'").fetchone()[0]
+          assert row["note_status"] == "draft" and row["clinical_note"] == "PRUEBA"
+          assert qs == "in_consultation"
+
+          r = client.post(f"/api/encounters/{real_id}/sign")
+          assert r.status_code == 200, r.text
+          with app.db() as conn:
+              row = conn.execute("SELECT note_status,signed_at FROM encounters WHERE id=?", (real_id,)).fetchone()
+              qs = conn.execute("SELECT status FROM waiting_queue WHERE id='q-real'").fetchone()[0]
+          assert row["note_status"] == "signed" and row["signed_at"]
+          assert qs == "completed"
+
+          # D) Un borrador REAL sigue mostrándose como pendiente en Inicio.
+          r = client.post("/api/encounters/save", json={
+              "patient_id": patient_id,
+              "queue_id": "q-pending",
+              "clinical_note": "PENDIENTE REAL",
+              "encounter_date": "2026-09-26",
+              "encounter_time": "09:03",
+          })
+          assert r.status_code == 200 and r.json().get("encounter_id"), r.text
+          home = client.get("/")
+          assert home.status_code == 200
+          assert "CONSULTA PENDIENTE" in home.text
+          assert "PACIENTE PRUEBA VACIO" in home.text
+
+          # E) No hay rutas método+path duplicadas después del import real.
+          from collections import Counter
+          pairs=[]
+          for route in app.app.router.routes:
+              for method in (getattr(route, "methods", set()) or set()):
+                  pairs.append((method, route.path))
+          dup=[k for k,v in Counter(pairs).items() if v>1]
+          assert not dup, dup
+
+          health = client.get("/api/v138/health")
+          assert health.status_code == 200
+          hj = health.json()
+          assert hj.get("empty_draft_pending_fix") is True
+          assert hj.get("empty_attention_closes_without_signed_history") is True
+
+          print("OK blank save creates no pending history")
+          print("OK empty finalize completes queue without signed history")
+          print("OK nonempty autosave/sign preserved")
+          print("OK real drafts remain visible as pending")
+          print("OK zero duplicate active routes")
+
+      - name: Confirm package remains self-contained
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          root=Path("historia-clinica/updates/v1_3_68_empty_draft_fix")
+          manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
+          assert manifest["version"] == "1.3.68"
+          assert manifest["notes"]["empty_finalize_creates_no_signed_history"] is True
+          for rel in manifest["required_dependencies"]:
+              assert (root/rel).is_file(), rel
+          source=json.loads(Path("historia-clinica/launcher-v1/app-channel-source.json").read_text(encoding="utf-8"))
+          assert source["appVersion"] == "1.3.68"
+          assert len(source["files"]) == 10
+          assert all("v1_3_68_empty_draft_fix" in f["sourcePath"] for f in source["files"])
+          print("OK self-contained 1.3.68 channel source")
+
+      - name: Commit generated candidate to repair branch
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historia-clinica/updates/v1_3_68_empty_draft_fix historia-clinica/launcher-v1/app-channel-source.json
+          if (git diff --cached --quiet) {
+            Write-Host "Nothing to commit"
+          } else {
+            git commit -m "Preparar Historia 1.3.68 para cerrar atenciones vacías"
+            git push origin HEAD:fix/historia-empty-drafts-1368
+          }
