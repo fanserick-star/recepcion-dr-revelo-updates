@@ -1,0 +1,32 @@
+name: Test Reception 4.6.6 Functional Flow
+
+on:
+  push:
+    branches:
+      - fix/reception-466-fast-attention-save
+    paths:
+      - tools/test_reception_466_functional.py
+      - .github/workflows/test-reception-466-functional.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  functional:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet fastapi uvicorn sqlalchemy python-dotenv pg8000 python-multipart requests openpyxl
+
+      - name: Run consultation/procedure functional test
+        shell: pwsh
+        run: python tools/test_reception_466_functional.py
