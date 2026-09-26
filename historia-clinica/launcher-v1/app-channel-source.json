@@ -2,50 +2,50 @@
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.66",
+  "appVersion": "1.3.67",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.66: consolida exactamente el runtime probado de 1.3.65 en archivos canónicos únicos y convierte la actualización en un paquete autosuficiente. No cambia la lógica clínica: mantiene guardado, autosave, firma, impresión, LAN, aislamiento Neon y corrección idempotente de revisiones.",
+  "notes": "Historia Clínica 1.3.67: mantiene el runtime consolidado y autosuficiente de 1.3.66 y añade un backfill seguro e idempotente para recetas, certificados y configuración compartida cuando las tablas cloud estén disponibles. No modifica el núcleo de guardado, autosave, firma, impresión ni LAN.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/app.py"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/app.py"
     },
     {
       "path": "cloud_sync.py",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/cloud_sync.py"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/cloud_sync.py"
     },
     {
       "path": "cloud_presence_patch.py",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/cloud_presence_patch.py"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/cloud_presence_patch.py"
     },
     {
       "path": "lan_bridge.py",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/lan_bridge.py"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/lan_bridge.py"
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/documentos_clinicos.py"
     },
     {
       "path": "requirements.txt",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/requirements.txt"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/requirements.txt"
     },
     {
       "path": "static/style.css",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/static/style.css"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/static/style.css"
     },
     {
       "path": "static/doctor_icon.b64",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/static/doctor_icon.b64"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/static/doctor_icon.b64"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_66_consolidated_runtime/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_67_cloud_optional_backfill/update_manifest.json"
     }
   ]
 }
