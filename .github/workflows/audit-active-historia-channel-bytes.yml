@@ -1,10 +1,10 @@
-name: Audit Active Historia Channel Bytes
+name: Audit Active Historia Channel
 
 on:
   push:
+    branches: [main]
     paths:
       - "historia-clinica/launcher-v1/app-channel.json"
-      - "historia-clinica/updates/**"
       - ".github/workflows/audit-active-historia-channel-bytes.yml"
   workflow_dispatch:
 
@@ -17,48 +17,92 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download exact channel URLs and verify SHA
+      - name: Download exact channel URLs and verify SHA-256
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $channel = Get-Content "historia-clinica/launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          Remove-Item "audit_historia" -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force "audit_historia" | Out-Null
-
-          $mismatches = @()
-          foreach ($item in $channel.files) {
-            $dest = Join-Path "audit_historia" ($item.path -replace '/','_')
-            if ($item.parts -and $item.parts.Count -gt 0) {
-              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
-              try {
-                $n = 0
-                foreach ($url in $item.parts) {
-                  $n++
-                  $part = Join-Path "audit_historia" ("part_" + $n + ".bin")
-                  Invoke-WebRequest -Uri ($url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $part -Headers @{"Cache-Control"="no-cache"}
-                  $bytes = [IO.File]::ReadAllBytes($part)
-                  $stream.Write($bytes,0,$bytes.Length)
-                  Write-Host "$($item.path) part $n bytes=$($bytes.Length)"
+          $mismatches=@()
+          foreach($item in $channel.files){
+            $dest=Join-Path "audit_historia" ($item.path -replace '/','\')
+            $parent=Split-Path -Parent $dest
+            if($parent){New-Item -ItemType Directory -Force $parent | Out-Null}
+            if($item.parts -and $item.parts.Count -gt 0){
+              $stream=[IO.File]::Open($dest,[IO.FileMode]::Create)
+              try{
+                foreach($url in $item.parts){
+                  $tmp=[IO.Path]::GetTempFileName()
+                  try{
+                    Invoke-WebRequest -Uri ($url+"?audit="+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $tmp -Headers @{"Cache-Control"="no-cache"}
+                    $bytes=[IO.File]::ReadAllBytes($tmp);$stream.Write($bytes,0,$bytes.Length)
+                  }finally{Remove-Item $tmp -Force -ErrorAction SilentlyContinue}
                 }
-              } finally {
-                $stream.Dispose()
-              }
-            } else {
-              Invoke-WebRequest -Uri ($item.url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
+              }finally{$stream.Dispose()}
+            }else{
+              Invoke-WebRequest -Uri ($item.url+"?audit="+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
             }
-
-            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+            $got=(Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
             Write-Host "AUDIT $($item.path) EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
-            if ($got -ne $item.sha256) {
-              Write-Host "::error::$($item.path) hash mismatch EXPECTED=$($item.sha256) GOT=$got"
-              $mismatches += "$($item.path): expected=$($item.sha256) got=$got"
+            if($got -ne $item.sha256){$mismatches += "$($item.path) expected=$($item.sha256) got=$got"}
+          }
+          if($mismatches.Count -gt 0){$mismatches|ForEach-Object{Write-Host $_};throw "SHA-256 inválido en canal Historia"}
+
+      - name: Audit downloaded runtime closure and clinical guards
+        shell: python
+        run: |
+          import json,re,pathlib,ast
+          root=pathlib.Path('audit_historia')
+          channel=json.loads(pathlib.Path('historia-clinica/launcher-v1/app-channel.json').read_text(encoding='utf-8'))
+          version=str(channel['appVersion']).strip()
+          files=[str(x['path']).replace('\\','/') for x in channel['files']]
+          file_set=set(files)
+          assert len(files)==len(file_set)
+          assert channel['product']=='historia-clinica-dr-revelo'
+          assert channel['mandatory'] is True
+
+          for required in ('app.py','cloud_sync.py','historia-version.json','update_manifest.json'):
+            assert required in file_set and (root/required).is_file(),required
+          canonical=json.loads((root/'historia-version.json').read_text(encoding='utf-8-sig'))['version']
+          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8-sig'))
+          assert str(canonical)==version
+          for key in ('version','app_version','runtime_version'):
+            assert str(manifest[key])==version,(key,manifest[key],version)
+          missing=set(manifest.get('required_dependencies') or [])-file_set
+          assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
+
+          for path in files:
+            if path.endswith('.py'):
+              text=(root/path).read_text(encoding='utf-8-sig');compile(text,path,'exec')
+
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          cloud=(root/'cloud_sync.py').read_text(encoding='utf-8-sig')
+          assert 'HISTORIA_DATABASE_URL' in cloud
+          assert 'HISTORIA_NEON_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"' in cloud
+          assert 'CLOUD_SCHEMA = "public"' in cloud
+          loader=cloud.split('def _load_env',1)[1].split('\ndef ',1)[0]
+          forbidden=['values.get("DATABASE_URL")',"values.get('DATABASE_URL')",'os.environ.get("DATABASE_URL")',"os.environ.get('DATABASE_URL')"]
+          assert not any(x in loader for x in forbidden)
+          assert 'VERSION_PATH = ROOT / "historia-version.json"' in app
+
+          def vt(v):
+            nums=[int(x) for x in re.findall(r'\d+',v)[:3]]
+            return tuple((nums+[0,0,0])[:3])
+          if vt(version)>=(1,3,66):
+            required={
+              'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py','documentos_clinicos.py',
+              'requirements.txt','static/style.css','static/doctor_icon.b64','historia-version.json','update_manifest.json'
             }
-          }
+            assert file_set==required,(file_set,required)
+            for item in channel['files']:
+              assert not item.get('parts'),f"{item['path']} volvió a fragmentos"
+            notes=manifest.get('notes') or {}
+            assert notes.get('runtime_consolidated') is True
+            assert notes.get('self_contained_update') is True
+            assert notes.get('external_historical_parts_required') is False
 
-          if ($mismatches.Count -gt 0) {
-            Write-Host ""
-            Write-Host "=== BLOQUEADO: canal Historia con hashes inválidos ==="
-            $mismatches | ForEach-Object { Write-Host $_ }
-            throw "El canal NO puede publicarse con SHA-256 distintos a los bytes reales servidos por GitHub Raw."
-          }
-
-          Write-Host "OK: todos los archivos del canal coinciden byte por byte con sus SHA-256."
+          print('OK Historia',version,'files',len(files))
+          print('SHA256_OK')
+          print('RUNTIME_CLOSURE_OK')
+          print('NEON_ISOLATION_OK')
