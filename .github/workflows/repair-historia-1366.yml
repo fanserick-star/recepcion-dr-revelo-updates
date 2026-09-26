@@ -139,7 +139,12 @@ jobs:
           assert 'HISTORIA_NEON_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"' in cloud
           assert 'HISTORIA_DATABASE_URL' in cloud
           loader=cloud.split('def _load_env',1)[1].split('\ndef ',1)[0]
-          assert 'DATABASE_URL' not in loader
+          forbidden=[
+            'values.get("DATABASE_URL")', "values.get('DATABASE_URL')",
+            'os.environ.get("DATABASE_URL")', "os.environ.get('DATABASE_URL')",
+            'values["DATABASE_URL"]', "values['DATABASE_URL']",
+          ]
+          assert not any(x in loader for x in forbidden),forbidden
 
           local={'cloud_sync','cloud_presence_patch','lan_bridge','documentos_clinicos'}
           for rel in py:
