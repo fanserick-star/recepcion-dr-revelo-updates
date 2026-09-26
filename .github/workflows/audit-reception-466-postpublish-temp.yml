@@ -1,0 +1,113 @@
+name: Audit Reception 4.6.6 Postpublish Temp
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/audit-reception-466-postpublish-temp.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download exact published payload and verify SHA-256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
+          if ($channel.appVersion -ne "4.6.6") { throw "Canal activo no es 4.6.6: $($channel.appVersion)" }
+          if ($channel.generatedFromCommit -ne "1d3170a8d6033407900bb919db422d3e95172f31") { throw "Commit publicado inesperado" }
+          New-Item -ItemType Directory -Force "audit466" | Out-Null
+          foreach ($item in $channel.files) {
+            $dest = Join-Path "audit466" ($item.path -replace '/', '\')
+            $parent = Split-Path -Parent $dest
+            if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
+            Invoke-WebRequest -Uri ($item.url + "?audit466=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
+            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($got -ne $item.sha256) { throw "$($item.path): $got != $($item.sha256)" }
+            Write-Host "SHA OK $($item.path) $got"
+          }
+
+      - name: Audit versions, runtime and safety contracts
+        shell: python
+        run: |
+          import ast, json, pathlib
+          root = pathlib.Path('audit466')
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          assert channel['product'] == 'recepcion-dr-revelo'
+          assert channel['appVersion'] == '4.6.6'
+          assert channel['mandatory'] is True
+          files = [x['path'].replace('\\','/') for x in channel['files']]
+          assert len(files) == len(set(files))
+          protected_prefixes=('data/','backups/','update_backups/')
+          protected_suffixes=('.db','.sqlite','.sqlite3','.mdb','.accdb','.xls','.xlsx')
+          for p in files:
+              low=p.lower()
+              assert not low.startswith(protected_prefixes),p
+              assert not low.endswith(protected_suffixes),p
+          version=json.loads((root/'recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
+          assert version == '4.6.6'
+          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8-sig'))
+          assert all(str(manifest[k])=='4.6.6' for k in ('version','app_version','runtime_version'))
+          assert manifest['notes']['database_schema_changes'] is False
+          assert manifest['notes']['billing_logic_changes'] is False
+          assert manifest['notes']['azur_logic_changes'] is False
+          assert manifest['notes']['whatsapp_logic_changes'] is False
+          for p in files:
+              if p.endswith('.py'):
+                  compile((root/p).read_text(encoding='utf-8-sig'),p,'exec')
+          app=(root/'app.py').read_text(encoding='utf-8-sig')
+          assert '_v466_local_attention_db' in app
+          assert 'v466_fast_local_attention_save' in app
+          assert 'v466_print_visit_local_first' in app
+          assert 'procedure_auto_print": False' in app
+          assert 'consultation_auto_print": True' in app
+          assert 'reason": "procedure_only"' in app
+          print('STATIC POSTPUBLISH AUDIT OK 4.6.6')
+
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check --quiet fastapi uvicorn sqlalchemy python-dotenv pg8000 python-multipart requests openpyxl
+
+      - name: Import the exact downloaded runtime
+        shell: pwsh
+        run: |
+          $env:RP_DATA_DIR = Join-Path $env:RUNNER_TEMP "rp466_postpublish"
+          $env:RP_FORCE_OFFLINE = "1"
+          $env:DATABASE_URL = ""
+          $env:HISTORIA_DATABASE_URL = ""
+          $env:REMOTE_AGENDA_AUTOSTART = "0"
+          $env:WHATSAPP_ENABLED = "0"
+          Push-Location audit466
+          @'
+          import app
+          assert app.APP_VERSION == '4.6.6'
+          routes=list(app.app.router.routes)
+          batch=[r for r in routes if getattr(r,'path',None)=='/api/visits/batch-payment' and 'POST' in (getattr(r,'methods',set()) or set())]
+          printing=[r for r in routes if getattr(r,'path',None)=='/api/v4470/print-visit/{visit_id}' and 'POST' in (getattr(r,'methods',set()) or set())]
+          assert len(batch)==1 and batch[0].endpoint.__name__=='v466_fast_local_attention_save'
+          assert len(printing)==1 and printing[0].endpoint.__name__=='v466_print_visit_local_first'
+          assert app._V466_BUSY_REPLACEMENTS >= 1
+          assert app._V466_OLD_BUSY not in app.core.V460_OVERLAY_JS
+          assert 'Guardando atención…' in app.core.V460_OVERLAY_JS
+          gen=app._v466_local_attention_db(); db=next(gen)
+          try:
+              assert db.info.get('offline') is True
+              assert db.info.get('local_first') is True
+              assert app.core.is_offline_db(db) is True
+          finally:
+              try: next(gen)
+              except StopIteration: pass
+          print('EXACT PUBLISHED RUNTIME IMPORT OK 4.6.6')
+          '@ | Set-Content -Encoding utf8 _audit_import.py
+          python _audit_import.py
+          Pop-Location
