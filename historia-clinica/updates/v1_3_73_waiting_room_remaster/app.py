@@ -1265,6 +1265,11 @@ def _queue_is_procedure(row) -> bool:
         return True
     if raw in {"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}:
         return False
+    # Compatibilidad con el puente antiguo: cualquier otro valor era el nombre
+    # real del procedimiento (ECOGRAFÍA, CURACIÓN, etc.).
+    return True
+
+
 def _v1373_procedure_label(row) -> str:
     raw = str(row["attention_type"] or "").strip()
     norm = normalize_search(raw).upper().strip()
@@ -1353,12 +1358,6 @@ def _v1373_reconcile_signed_queue_items() -> int:
         except Exception:
             pass
     return fixed
-
-
-    # Compatibilidad con el puente antiguo: enviaba el nombre real del
-    # procedimiento (ECOGRAFÍA, CURACIÓN, etc.) en attention_type.
-    return True
-
 
 def _queue_turn_number(conn, queue_id: str) -> int | None:
     """
