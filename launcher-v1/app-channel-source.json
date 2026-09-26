@@ -2,34 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.5",
+  "appVersion": "4.6.6",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.5: envía a Historia el nombre real del procedimiento en la etiqueta de handoff. No cambia facturación, AZUR, WhatsApp, precios, impresión ni datos. Republicación aislada tras una carrera concurrente de los canales de actualización.",
+  "notes": "Recepción 4.6.6: Nueva atención se confirma primero en SQLite local y sincroniza Neon en segundo plano. Procedimientos no muestran ni ejecutan impresión; consultas conservan recibo automático sin depender de Neon para imprimir.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/app.py"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/recepcion-version.json"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/update_manifest.json"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/historia_bridge.py"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_6_5_historia_procedure_names/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/historia_lan_transport.py"
     }
   ]
 }
