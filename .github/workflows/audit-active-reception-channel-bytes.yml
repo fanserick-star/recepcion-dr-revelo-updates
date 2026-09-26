@@ -281,6 +281,22 @@ jobs:
                   + ", ".join(sorted(forbidden_external))
               )
 
+          if ver_tuple(version) >= (4, 6, 4):
+              lan_path = root / "historia_lan_transport.py"
+              lan_tree = ast.parse(
+                  lan_path.read_text(encoding="utf-8-sig"),
+                  filename=str(lan_path),
+              )
+              top_level_defs = [
+                  node.name for node in lan_tree.body
+                  if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+              ]
+              for helper_name in ("_payload", "hybrid_queue_attention"):
+                  count = top_level_defs.count(helper_name)
+                  assert count == 1, (
+                      f"{helper_name} debe tener una sola definición activa; encontradas={count}"
+                  )
+
           print(f"OK Recepción {version}: {len(files)} archivos, {len(py_paths)} módulos Python.")
           print(f"Dependencias activas declaradas: {len(manifest.get('required_dependencies', []))}.")
           print(f"Capas históricas embebidas heredadas: {len(current_historical)}; nuevas: 0.")

@@ -2,34 +2,34 @@
   "schema": 1,
   "product": "recepcion-dr-revelo",
   "status": "stable",
-  "appVersion": "4.6.3",
+  "appVersion": "4.6.4",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.3: auditoría funcional y rendimiento. Historia usa exclusivamente HISTORIA_DATABASE_URL y se bloquea si coincide con DATABASE_URL de Recepción. Reduce sondeos redundantes de versión/Historia y evita repetir DDL del puente. Envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos se conservan. Manifiesto 4.6.3 conserva los hashes contractuales auditados de AZUR y WhatsApp.",
+  "notes": "Recepción 4.6.4: limpieza segura final. Elimina definiciones duplicadas inactivas en historia_lan_transport sin cambiar el flujo activo. Mantiene app.py consolidado, separación estricta Recepción/Historia, envío LAN inmediato, AZUR, WhatsApp, agenda, facturación, impresión, Bendo, procedimientos y datos. Conserva los hashes contractuales auditados de AZUR y WhatsApp.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "updates/v4_6_3_perf/app.py"
+      "sourcePath": "updates/v4_6_4_cleanup/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "updates/v4_6_3_perf/recepcion-version.json"
+      "sourcePath": "updates/v4_6_4_cleanup/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "updates/v4_6_3_perf/update_manifest.json"
+      "sourcePath": "updates/v4_6_4_cleanup/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "updates/v4_6_3_perf/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_4_cleanup/static/runtime_keep.txt"
     },
     {
       "path": "historia_bridge.py",
-      "sourcePath": "updates/v4_6_3_perf/historia_bridge.py"
+      "sourcePath": "updates/v4_6_4_cleanup/historia_bridge.py"
     },
     {
       "path": "historia_lan_transport.py",
-      "sourcePath": "updates/v4_6_3_perf/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_4_cleanup/historia_lan_transport.py"
     }
   ]
 }
