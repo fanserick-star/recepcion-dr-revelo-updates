@@ -6,6 +6,7 @@ on:
       - feature/historia-1371-document-ui-native-print
     paths:
       - tools/build_historia_1371.py
+      - tools/fix_build_historia_1371.py
       - .github/workflows/build-test-historia-1371.yml
 
 permissions:
@@ -23,6 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      - name: Patch guarded builder
+        shell: pwsh
+        run: python tools/fix_build_historia_1371.py
 
       - name: Generate candidate
         shell: pwsh
