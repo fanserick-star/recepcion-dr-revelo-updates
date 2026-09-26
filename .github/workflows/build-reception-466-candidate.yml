@@ -46,7 +46,7 @@ jobs:
           assert 'procedure_auto_print": False' in app
           assert 'consultation_auto_print": True' in app
           assert 'Guardando atención…' in app
-          assert 'Guardando atención e imprimiendo recibo…' in app  # legacy source remains, runtime replacement is guarded
+          assert 'Guardando atención e imprimiendo recibo…' in app
 
           # Existing offline sync is the durability contract used by 4.6.6.
           assert 'visit.create' in app
@@ -67,6 +67,12 @@ jobs:
               assert (base/rel).read_bytes() == (out/rel).read_bytes(), rel
           print('4.6.6 contracts OK')
 
+      - name: Remove test bytecode
+        shell: bash
+        run: |
+          find updates/v4_6_6_fast_attention_save -type d -name __pycache__ -prune -exec rm -rf {} + || true
+          find updates/v4_6_6_fast_attention_save -type f -name '*.pyc' -delete || true
+
       - name: Ensure only intended candidate/channel changes
         shell: bash
         run: |
@@ -74,7 +80,7 @@ jobs:
           git status --short
           test -f updates/v4_6_6_fast_attention_save/app.py
           test -f launcher-v1/app-channel-source.json
-          ! find updates/v4_6_6_fast_attention_save -type f | grep -E '(__pycache__|\.pyc$|\.db$|\.sqlite|\.env$)'
+          ! find updates/v4_6_6_fast_attention_save -type f | grep -E '(\.pyc$|\.db$|\.sqlite|\.env$)'
 
       - name: Commit generated candidate to branch
         shell: bash
@@ -82,8 +88,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          find updates/v4_6_6_fast_attention_save -type d -name __pycache__ -prune -exec rm -rf {} + || true
-          find updates/v4_6_6_fast_attention_save -type f -name '*.pyc' -delete || true
           git add updates/v4_6_6_fast_attention_save launcher-v1/app-channel-source.json
           if git diff --cached --quiet; then
             echo "Candidate already current"
