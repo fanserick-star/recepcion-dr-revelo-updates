@@ -7,6 +7,12 @@ on:
       - "historia-clinica/updates/v1_3_68_empty_draft_fix/**"
       - "historia-clinica/launcher-v1/app-channel-source.json"
       - ".github/workflows/validate-historia-v1368-empty-drafts.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "historia-clinica/updates/v1_3_68_empty_draft_fix/**"
+      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - ".github/workflows/validate-historia-v1368-empty-drafts.yml"
   workflow_dispatch:
 
 permissions:
@@ -57,7 +63,6 @@ jobs:
           assert set(manifest['copy'])==required
           for rel in required:
               assert (new/rel).is_file(),rel
-          # El fix funcional no debe tocar helpers, LAN, nube, impresión ni estilos.
           unchanged=['cloud_sync.py','cloud_presence_patch.py','lan_bridge.py','documentos_clinicos.py','requirements.txt','static/style.css','static/doctor_icon.b64']
           for rel in unchanged:
               assert (new/rel).read_bytes()==(old/rel).read_bytes(),rel
@@ -114,7 +119,6 @@ jobs:
                      'CONSULTA',stamp,status,'test',stamp,stamp,'S',1))
                   conn.commit()
 
-          # 1) Guardar vacío no crea historia ni deja el turno artificialmente En consulta.
           seed('P-EMPTY-SAVE','Q-EMPTY-SAVE')
           r=client.post('/api/encounters/save',json={
               'patient_id':'P-EMPTY-SAVE','queue_id':'Q-EMPTY-SAVE',
@@ -127,7 +131,6 @@ jobs:
           assert n==0,n
           assert q=='waiting',q
 
-          # 2) Un borrador con una sola letra sigue protegido y no puede cerrarse por la ruta vacía.
           seed('P-TEXT','Q-TEXT')
           r=client.post('/api/encounters/save',json={
               'patient_id':'P-TEXT','queue_id':'Q-TEXT','clinical_note':'A','manual_snapshot':True})
@@ -145,7 +148,6 @@ jobs:
               row=conn.execute("SELECT note_status,deleted_at FROM encounters WHERE id=?",(text_id,)).fetchone()
           assert row['note_status']=='draft' and not row['deleted_at']
 
-          # El flujo normal de finalizar con contenido sigue funcionando.
           r=client.post('/api/encounters/'+text_id+'/sign')
           assert r.status_code==200,r.text
           with app.db() as conn:
@@ -154,7 +156,6 @@ jobs:
           assert row['note_status']=='signed' and row['signed_at']
           assert q['status']=='completed' and q['completed_at']
 
-          # 3) Un borrador vacío heredado se cierra sin crear historia firmada.
           seed('P-OLD-EMPTY','Q-OLD-EMPTY','in_consultation')
           with app.db() as conn:
               conn.execute("""INSERT INTO encounters(
@@ -176,7 +177,6 @@ jobs:
           assert q['status']=='completed' and q['completed_at']
           assert signed==0
 
-          # 4) Un draft vacío heredado no debe generar banner de pendiente.
           seed('P-BANNER-EMPTY','Q-BANNER-EMPTY')
           with app.db() as conn:
               conn.execute("""INSERT INTO encounters(
@@ -191,7 +191,6 @@ jobs:
           assert home.status_code==200
           assert 'CONSULTA PENDIENTE' not in home.text,home.text[:1000]
 
-          # 5) En cambio, cualquier contenido real sí debe producir el banner de pendiente.
           with app.db() as conn:
               conn.execute("UPDATE encounters SET clinical_note='X',updated_at=? WHERE id='E-BANNER-EMPTY'",(app.now_iso(),))
               conn.commit()
