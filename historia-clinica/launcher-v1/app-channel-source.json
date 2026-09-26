@@ -2,50 +2,50 @@
   "schema": 2,
   "product": "historia-clinica-dr-revelo",
   "status": "stable",
-  "appVersion": "1.3.68",
+  "appVersion": "1.3.69",
   "mandatory": true,
   "minimumLauncher": "1.0.6",
-  "notes": "Historia Clínica 1.3.68: corrige el caso de atención con historia completamente vacía. Guardar vacío no crea un borrador; Finalizar vacío cierra la atención sin crear una historia firmada; los borradores con contenido siguen protegidos por autosave, SQLite, respaldo local y Neon.",
+  "notes": "Historia Clínica 1.3.69: remaster visual profesional de Configuración y del panel Estado del sistema. No modifica lógica clínica, autosave, Neon, LAN, impresión ni datos.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/app.py"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/app.py"
     },
     {
       "path": "cloud_sync.py",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/cloud_sync.py"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/cloud_sync.py"
     },
     {
       "path": "cloud_presence_patch.py",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/cloud_presence_patch.py"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/cloud_presence_patch.py"
     },
     {
       "path": "lan_bridge.py",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/lan_bridge.py"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/lan_bridge.py"
     },
     {
       "path": "documentos_clinicos.py",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/documentos_clinicos.py"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/documentos_clinicos.py"
     },
     {
       "path": "requirements.txt",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/requirements.txt"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/requirements.txt"
     },
     {
       "path": "static/style.css",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/static/style.css"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/static/style.css"
     },
     {
       "path": "static/doctor_icon.b64",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/static/doctor_icon.b64"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/static/doctor_icon.b64"
     },
     {
       "path": "historia-version.json",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/historia-version.json"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/historia-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "historia-clinica/updates/v1_3_68_empty_draft_fix/update_manifest.json"
+      "sourcePath": "historia-clinica/updates/v1_3_69_professional_ui/update_manifest.json"
     }
   ]
 }
