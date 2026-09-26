@@ -1,0 +1,509 @@
+name: Build Historia 1.3.69 UI Remaster
+
+on:
+  push:
+    branches:
+      - feature/historia-ui-remaster-1369
+    paths:
+      - .github/workflows/build-historia-v1369-ui-remaster.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-commit:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout UI branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/historia-ui-remaster-1369
+          fetch-depth: 0
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate 1.3.69 from exact 1.3.68 baseline
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json, shutil
+
+          root = Path.cwd()
+          src = root / 'historia-clinica/updates/v1_3_68_empty_draft_fix'
+          dst = root / 'historia-clinica/updates/v1_3_69_professional_ui'
+          if dst.exists():
+              shutil.rmtree(dst)
+          shutil.copytree(src, dst)
+
+          css = r'''
+
+          /* ======================================================================
+             v1.3.69 · Professional UI Remaster
+             Configuración + Estado del sistema
+             Sólo presentación: no cambia lógica, datos ni sincronización.
+             ====================================================================== */
+
+          /* ---------- Configuración: navegación y jerarquía ---------- */
+          .cp-remaster-app .config-nav{
+            display:flex!important;
+            gap:8px!important;
+            flex-wrap:wrap!important;
+            margin:4px 0 18px!important;
+            padding:10px!important;
+            border:1px solid #dbe5ef!important;
+            border-radius:14px!important;
+            background:#f7fafd!important;
+            box-shadow:0 2px 8px rgba(24,49,79,.045)!important;
+          }
+          .cp-remaster-app .config-nav a{
+            display:inline-flex!important;
+            align-items:center!important;
+            min-height:38px!important;
+            padding:0 13px!important;
+            border:1px solid transparent!important;
+            border-radius:9px!important;
+            background:transparent!important;
+            color:#496078!important;
+            text-decoration:none!important;
+            font-size:12.5px!important;
+            font-weight:800!important;
+            transition:background .14s ease,border-color .14s ease,color .14s ease,transform .14s ease!important;
+          }
+          .cp-remaster-app .config-nav a:before{
+            content:'';
+            width:7px;height:7px;
+            margin-right:8px;
+            border-radius:50%;
+            background:#9bb0c7;
+            box-shadow:0 0 0 3px #e9f0f7;
+          }
+          .cp-remaster-app .config-nav a:hover{
+            border-color:#cbd9e7!important;
+            background:#fff!important;
+            color:#173f6e!important;
+            transform:translateY(-1px)!important;
+          }
+          .cp-remaster-app .config-nav a:hover:before{background:#2f6fa8}
+
+          .cp-remaster-app .config-nav ~ .docs-card{
+            margin-top:14px!important;
+            padding:22px 24px!important;
+            border:1px solid #dbe4ee!important;
+            border-radius:15px!important;
+            background:#fff!important;
+            box-shadow:0 6px 20px rgba(20,44,72,.055)!important;
+          }
+          .cp-remaster-app .config-nav ~ .docs-card h2{
+            display:flex!important;
+            align-items:center!important;
+            gap:10px!important;
+            margin:0 0 6px!important;
+            color:#153653!important;
+            font-size:17px!important;
+            font-weight:900!important;
+            letter-spacing:-.01em!important;
+          }
+          .cp-remaster-app .config-nav ~ .docs-card h2:before{
+            content:'';
+            width:9px;height:9px;
+            flex:0 0 9px;
+            border-radius:50%;
+            background:#2e6fa8;
+            box-shadow:0 0 0 5px #e8f1f9;
+          }
+          .cp-remaster-app .config-nav ~ .docs-card > p{
+            margin:2px 0 16px!important;
+            color:#6a7c8f!important;
+            font-size:12.5px!important;
+            line-height:1.5!important;
+          }
+
+          /* Datos compartidos: se ve como el bloque principal de configuración. */
+          .cp-remaster-app #shared-form{
+            border-top:4px solid #245f98!important;
+            background:linear-gradient(180deg,#fbfdff 0,#fff 78px)!important;
+          }
+          .cp-remaster-app #shared-form .docs-fields{
+            gap:14px 16px!important;
+            margin-top:16px!important;
+          }
+          .cp-remaster-app #shared-form label,
+          .cp-remaster-app #local-form label{
+            gap:7px!important;
+            color:#53687d!important;
+            font-size:11.5px!important;
+            letter-spacing:.015em!important;
+          }
+          .cp-remaster-app #shared-form input,
+          .cp-remaster-app #local-form input{
+            min-height:42px!important;
+            padding:10px 12px!important;
+            border:1px solid #cfdbe7!important;
+            border-radius:9px!important;
+            background:#fff!important;
+            color:#17283a!important;
+            font-size:13.5px!important;
+            font-weight:650!important;
+            box-shadow:inset 0 1px 2px rgba(17,42,67,.025)!important;
+            transition:border-color .14s ease,box-shadow .14s ease!important;
+          }
+          .cp-remaster-app #shared-form input:focus,
+          .cp-remaster-app #local-form input:focus{
+            outline:none!important;
+            border-color:#5f91bf!important;
+            box-shadow:0 0 0 3px rgba(70,125,177,.12)!important;
+          }
+          .cp-remaster-app #shared-form .doc-primary,
+          .cp-remaster-app #local-form .doc-primary,
+          .cp-remaster-app #cfg-sync-now{
+            min-height:40px!important;
+            padding:0 16px!important;
+            border-radius:9px!important;
+            background:linear-gradient(180deg,#2e70aa,#255f94)!important;
+            box-shadow:0 4px 10px rgba(35,89,140,.18)!important;
+            font-size:12.5px!important;
+            font-weight:900!important;
+          }
+
+          /* Usuario principal e impresoras con menor peso visual. */
+          .cp-remaster-app h2#usuarios:before{background:#55748f!important;box-shadow:0 0 0 5px #edf2f6!important}
+          .cp-remaster-app #local-form{
+            border-left:4px solid #8aa5bc!important;
+          }
+          .cp-remaster-app h2#impresoras:before{background:#55748f!important;box-shadow:0 0 0 5px #edf2f6!important}
+
+          /* Estado y conexión: panel técnico convertido en tablero legible. */
+          .cp-remaster-app #estado{
+            border-top:4px solid #2d7a57!important;
+            background:linear-gradient(180deg,#fbfefd 0,#fff 74px)!important;
+          }
+          .cp-remaster-app h2#estado:before{background:#2d8b61!important;box-shadow:0 0 0 5px #e7f4ed!important}
+          .cp-remaster-app #estado .config-status-grid{
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:11px!important;
+            margin:16px 0 2px!important;
+          }
+          .cp-remaster-app #estado .config-status-item{
+            min-height:78px!important;
+            padding:14px 15px!important;
+            border:1px solid #d9e5df!important;
+            border-radius:12px!important;
+            background:#fbfdfc!important;
+            box-shadow:none!important;
+            transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease!important;
+          }
+          .cp-remaster-app #estado .config-status-item:hover{
+            transform:translateY(-1px)!important;
+            box-shadow:0 5px 13px rgba(20,55,40,.07)!important;
+          }
+          .cp-remaster-app #estado .config-status-item .mark{
+            width:32px!important;height:32px!important;
+            flex:0 0 32px!important;
+            border-radius:9px!important;
+            background:#e7f5ed!important;
+            color:#21724e!important;
+            font-size:15px!important;
+            box-shadow:inset 0 0 0 1px #cce6d8!important;
+          }
+          .cp-remaster-app #estado .config-status-item.pending .mark{
+            background:#fff5df!important;color:#9a6500!important;box-shadow:inset 0 0 0 1px #f0ddb1!important;
+          }
+          .cp-remaster-app #estado .config-status-item.error .mark{
+            background:#fdecec!important;color:#b42318!important;box-shadow:inset 0 0 0 1px #efcccc!important;
+          }
+          .cp-remaster-app #estado .config-status-item b{
+            color:#183b56!important;
+            font-size:13.5px!important;
+            font-weight:900!important;
+          }
+          .cp-remaster-app #estado .config-status-item small{
+            margin-top:4px!important;
+            color:#6a7d8d!important;
+            font-size:11.5px!important;
+            line-height:1.35!important;
+          }
+
+          /* Herramientas técnicas: acciones claras, no botones enormes. */
+          .cp-remaster-app #herramientas{
+            background:#fbfcfe!important;
+          }
+          .cp-remaster-app h2#herramientas:before{background:#667c94!important;box-shadow:0 0 0 5px #edf1f5!important}
+          .cp-remaster-app #herramientas .config-tool-grid{
+            grid-template-columns:repeat(3,minmax(0,1fr))!important;
+            gap:10px!important;
+            margin-top:14px!important;
+          }
+          .cp-remaster-app #herramientas .config-tool-btn{
+            min-height:88px!important;
+            padding:14px!important;
+            border:1px solid #d6e0e9!important;
+            border-radius:11px!important;
+            background:#fff!important;
+            color:#22435f!important;
+            box-shadow:0 2px 7px rgba(30,54,78,.035)!important;
+            transition:border-color .14s ease,background .14s ease,transform .14s ease!important;
+          }
+          .cp-remaster-app #herramientas .config-tool-btn:hover{
+            border-color:#aac0d4!important;
+            background:#f6fafe!important;
+            transform:translateY(-1px)!important;
+          }
+          .cp-remaster-app #herramientas .config-tool-btn b{
+            font-size:12.5px!important;
+            font-weight:900!important;
+          }
+          .cp-remaster-app #herramientas .config-tool-btn small{
+            margin-top:6px!important;
+            color:#718294!important;
+            font-size:10.8px!important;
+            line-height:1.35!important;
+          }
+          .cp-remaster-app h2#otros:before{background:#8595a5!important;box-shadow:0 0 0 5px #f0f3f6!important}
+
+          /* ---------- Inicio: “Todo lo importante” como tablero profesional ---------- */
+          .cp-remaster-app .system-panel{
+            overflow:hidden!important;
+            border:1px solid #dbe5ee!important;
+            border-radius:16px!important;
+            background:linear-gradient(180deg,#fbfdff 0,#fff 105px)!important;
+            box-shadow:0 7px 22px rgba(20,44,72,.06)!important;
+          }
+          .cp-remaster-app .system-panel-head{
+            display:flex!important;
+            align-items:flex-end!important;
+            justify-content:space-between!important;
+            gap:12px!important;
+            margin:-1px -1px 4px!important;
+            padding:16px 17px 13px!important;
+            border-bottom:1px solid #e6edf4!important;
+            background:linear-gradient(135deg,#f5f9fd,#fbfdff)!important;
+          }
+          .cp-remaster-app .system-panel-head .eyebrow{
+            color:#5d7992!important;
+            font-size:9.5px!important;
+            font-weight:900!important;
+            letter-spacing:.13em!important;
+          }
+          .cp-remaster-app .system-panel-head h2{
+            margin:3px 0 0!important;
+            color:#173954!important;
+            font-size:17px!important;
+            font-weight:950!important;
+            letter-spacing:-.01em!important;
+          }
+          .cp-remaster-app .system-status-grid{
+            display:grid!important;
+            grid-template-columns:repeat(2,minmax(0,1fr))!important;
+            gap:9px!important;
+            padding:12px!important;
+          }
+          .cp-remaster-app .system-status{
+            position:relative!important;
+            min-height:72px!important;
+            display:flex!important;
+            align-items:center!important;
+            gap:11px!important;
+            padding:12px!important;
+            border:1px solid #dde7ef!important;
+            border-radius:12px!important;
+            background:#fff!important;
+            box-shadow:none!important;
+            transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease!important;
+          }
+          .cp-remaster-app .system-status:hover{
+            transform:translateY(-1px)!important;
+            box-shadow:0 5px 13px rgba(25,49,72,.06)!important;
+          }
+          .cp-remaster-app .system-status .status-mark{
+            width:34px!important;height:34px!important;
+            flex:0 0 34px!important;
+            display:grid!important;
+            place-items:center!important;
+            border-radius:10px!important;
+            background:#eef3f7!important;
+            color:#5f7488!important;
+            font-size:15px!important;
+            font-weight:950!important;
+            box-shadow:inset 0 0 0 1px #dbe5ed!important;
+          }
+          .cp-remaster-app .system-status b{
+            display:block!important;
+            color:#183850!important;
+            font-size:12.8px!important;
+            font-weight:900!important;
+            line-height:1.15!important;
+          }
+          .cp-remaster-app .system-status small{
+            display:block!important;
+            margin-top:4px!important;
+            color:#718191!important;
+            font-size:10.8px!important;
+            line-height:1.3!important;
+          }
+          .cp-remaster-app .system-status.ok{
+            border-color:#d3e5db!important;
+            background:#fbfefc!important;
+          }
+          .cp-remaster-app .system-status.ok .status-mark{
+            background:#e8f5ed!important;
+            color:#24734f!important;
+            box-shadow:inset 0 0 0 1px #cde7d8!important;
+          }
+          .cp-remaster-app .system-status.pending{
+            border-color:#eadfca!important;
+            background:#fffdf8!important;
+          }
+          .cp-remaster-app .system-status.pending .status-mark{
+            background:#fff4dc!important;
+            color:#986100!important;
+            box-shadow:inset 0 0 0 1px #efddb4!important;
+          }
+          .cp-remaster-app .system-status.error{
+            border-color:#eed3d3!important;
+            background:#fffafa!important;
+          }
+          .cp-remaster-app .system-status.error .status-mark{
+            background:#fdecec!important;
+            color:#b42318!important;
+            box-shadow:inset 0 0 0 1px #efcece!important;
+          }
+          .cp-remaster-app .cloud-progress-wrap{
+            margin-top:7px!important;
+          }
+          .cp-remaster-app .cloud-progress-track{
+            height:5px!important;
+            overflow:hidden!important;
+            border-radius:999px!important;
+            background:#e7edf3!important;
+          }
+          .cp-remaster-app .cloud-progress-track i{
+            border-radius:999px!important;
+            background:#4d86b6!important;
+          }
+          .cp-remaster-app .cloud-progress-wrap em{
+            display:block!important;
+            margin-top:3px!important;
+            color:#83909e!important;
+            font-size:9.5px!important;
+            font-style:normal!important;
+          }
+
+          @media(max-width:1050px){
+            .cp-remaster-app #herramientas .config-tool-grid{grid-template-columns:1fr!important}
+          }
+          @media(max-width:760px){
+            .cp-remaster-app #estado .config-status-grid,
+            .cp-remaster-app .system-status-grid{grid-template-columns:1fr!important}
+            .cp-remaster-app .config-nav ~ .docs-card{padding:18px!important}
+            .cp-remaster-app .config-nav{padding:8px!important}
+            .cp-remaster-app .config-nav a{flex:1 1 46%!important;justify-content:flex-start!important}
+          }
+          '''
+
+          style = dst / 'static/style.css'
+          original_css = style.read_text(encoding='utf-8')
+          if 'v1.3.69 · Professional UI Remaster' in original_css:
+              raise SystemExit('El remaster ya estaba presente inesperadamente')
+          style.write_text(original_css.rstrip() + css + '\n', encoding='utf-8')
+
+          version_path = dst / 'historia-version.json'
+          version_data = json.loads(version_path.read_text(encoding='utf-8-sig'))
+          version_data['version'] = '1.3.69'
+          version_path.write_text(json.dumps(version_data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          manifest_path = dst / 'update_manifest.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+          manifest['version'] = manifest['app_version'] = manifest['runtime_version'] = '1.3.69'
+          notes = manifest.setdefault('notes', {})
+          notes.update({
+              'purpose': 'Remaster visual profesional de Configuración y Estado del sistema.',
+              'previous_version': '1.3.68',
+              'functional_changes': False,
+              'database_schema_changes': False,
+              'patient_data_destructive_changes': False,
+              'ui_only_release': True,
+              'settings_ui_remaster': True,
+              'home_system_status_ui_remaster': True,
+              'clinical_logic_unchanged_from_1_3_68': True,
+              'cloud_logic_unchanged_from_1_3_68': True,
+              'lan_logic_unchanged_from_1_3_68': True,
+              'printing_logic_unchanged_from_1_3_68': True,
+          })
+          manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          channel_path = root / 'historia-clinica/launcher-v1/app-channel-source.json'
+          channel = json.loads(channel_path.read_text(encoding='utf-8-sig'))
+          channel['appVersion'] = '1.3.69'
+          channel['notes'] = ('Historia Clínica 1.3.69: remaster visual profesional de Configuración y del panel '
+                              'Estado del sistema. No modifica lógica clínica, autosave, Neon, LAN, impresión ni datos.')
+          for item in channel['files']:
+              item['sourcePath'] = item['sourcePath'].replace(
+                  'historia-clinica/updates/v1_3_68_empty_draft_fix/',
+                  'historia-clinica/updates/v1_3_69_professional_ui/'
+              )
+          channel_path.write_text(json.dumps(channel, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          '@ | python
+
+      - name: Verify UI-only byte contract
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import hashlib, json
+
+          root = Path.cwd()
+          src = root / 'historia-clinica/updates/v1_3_68_empty_draft_fix'
+          dst = root / 'historia-clinica/updates/v1_3_69_professional_ui'
+          unchanged = [
+              'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py',
+              'documentos_clinicos.py','requirements.txt','static/doctor_icon.b64'
+          ]
+          for rel in unchanged:
+              a=(src/rel).read_bytes(); b=(dst/rel).read_bytes()
+              assert a == b, f'{rel} cambió en una versión UI-only'
+
+          old_css=(src/'static/style.css').read_text(encoding='utf-8')
+          new_css=(dst/'static/style.css').read_text(encoding='utf-8')
+          assert new_css.startswith(old_css.rstrip())
+          for token in [
+              'v1.3.69 · Professional UI Remaster',
+              '.cp-remaster-app .config-nav',
+              '.cp-remaster-app #estado .config-status-grid',
+              '.cp-remaster-app .system-panel',
+              '.cp-remaster-app .system-status-grid',
+          ]:
+              assert token in new_css, token
+
+          version=json.loads((dst/'historia-version.json').read_text(encoding='utf-8'))
+          manifest=json.loads((dst/'update_manifest.json').read_text(encoding='utf-8'))
+          channel=json.loads((root/'historia-clinica/launcher-v1/app-channel-source.json').read_text(encoding='utf-8'))
+          assert version['version']=='1.3.69'
+          assert manifest['version']=='1.3.69'
+          assert manifest['notes']['ui_only_release'] is True
+          assert channel['appVersion']=='1.3.69'
+          assert len(channel['files']) == 10
+          assert all('v1_3_69_professional_ui' in x['sourcePath'] for x in channel['files'])
+          print('UI-only byte contract: OK')
+          '@ | python
+
+      - name: Compile runtime and verify package
+        shell: pwsh
+        run: |
+          python -m py_compile historia-clinica/updates/v1_3_69_professional_ui/app.py historia-clinica/updates/v1_3_69_professional_ui/cloud_sync.py historia-clinica/updates/v1_3_69_professional_ui/cloud_presence_patch.py historia-clinica/updates/v1_3_69_professional_ui/lan_bridge.py historia-clinica/updates/v1_3_69_professional_ui/documentos_clinicos.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Commit generated candidate to UI branch
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historia-clinica/updates/v1_3_69_professional_ui historia-clinica/launcher-v1/app-channel-source.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "Generar Historia 1.3.69 remaster visual profesional"
+            git push origin HEAD:feature/historia-ui-remaster-1369
+          }
