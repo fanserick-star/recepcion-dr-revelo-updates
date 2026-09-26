@@ -69,8 +69,6 @@ jobs:
           assert str(canonical)==version
           for key in ('version','app_version','runtime_version'):
             assert str(manifest[key])==version,(key,manifest[key],version)
-          missing=set(manifest.get('required_dependencies') or [])-file_set
-          assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
 
           for path in files:
             if path.endswith('.py'):
@@ -89,7 +87,12 @@ jobs:
           def vt(v):
             nums=[int(x) for x in re.findall(r'\d+',v)[:3]]
             return tuple((nums+[0,0,0])[:3])
+
+          # Antes de 1.3.66 el canal era un overlay y podía depender de helpers
+          # instalados. Desde 1.3.66 la descarga debe cerrar todo el runtime.
           if vt(version)>=(1,3,66):
+            missing=set(manifest.get('required_dependencies') or [])-file_set
+            assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
             required={
               'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py','documentos_clinicos.py',
               'requirements.txt','static/style.css','static/doctor_icon.b64','historia-version.json','update_manifest.json'

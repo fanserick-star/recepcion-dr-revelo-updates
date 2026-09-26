@@ -65,8 +65,7 @@ jobs:
           assert manifest['mandatory'] is True
 
           target_set=set(targets)
-          missing=set(manifest.get('required_dependencies') or [])-target_set
-          assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
+          version_tuple=tuple(map(int,(version.split('.')+['0','0','0'])[:3]))
 
           protected_prefixes=('data/','backups/','update_backups/')
           protected_exact={'.env','historiaclinicalauncher.exe','historialauncherupdater.exe','desinstalar_historia_clinica_dr_revelo.exe','abrir_historia_clinica.py','iniciar.bat'}
@@ -78,7 +77,11 @@ jobs:
             assert low not in protected_exact,p
             assert not low.endswith(protected_suffixes),p
 
-          if tuple(map(int,(version.split('.')+['0','0','0'])[:3])) >= (1,3,66):
+          # Los canales anteriores a 1.3.66 eran overlays y podían depender de
+          # helpers ya instalados. Desde 1.3.66 el canal debe ser autosuficiente.
+          if version_tuple >= (1,3,66):
+            missing=set(manifest.get('required_dependencies') or [])-target_set
+            assert not missing,'Dependencias ausentes: '+', '.join(sorted(missing))
             required={
               'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py',
               'documentos_clinicos.py','requirements.txt','static/style.css',
