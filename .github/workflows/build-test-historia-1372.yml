@@ -1,0 +1,155 @@
+name: Build Test Historia 1.3.72 Waiting Opens Card
+
+on:
+  push:
+    branches:
+      - feature/historia-1372-waiting-opens-card
+    paths:
+      - tools/build_historia_1372.py
+      - .github/workflows/build-test-historia-1372.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build-runtime-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/historia-1372-waiting-opens-card
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate candidate
+        shell: pwsh
+        run: python tools/build_historia_1372.py
+
+      - name: Verify byte contract
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import json
+          root=Path.cwd()/'historia-clinica/updates'
+          old=root/'v1_3_71_document_ui_native_print'
+          new=root/'v1_3_72_waiting_opens_card'
+          unchanged=['cloud_sync.py','cloud_presence_patch.py','lan_bridge.py','documentos_clinicos.py','requirements.txt','static/style.css','static/doctor_icon.b64']
+          for rel in unchanged:
+              assert (old/rel).read_bytes()==(new/rel).read_bytes(), rel
+          app=(new/'app.py').read_text(encoding='utf-8')
+          assert 'if(!q)return;' in app
+          assert 'if(!q||!confirmed||!isNew)return;' not in app
+          assert 'Abrir siguiente' in app and 'Abrir ficha' in app and 'Revisar ficha' in app
+          assert 'doctor_confirmed_new' in app
+          ch=json.loads((Path.cwd()/'historia-clinica/launcher-v1/app-channel-source.json').read_text(encoding='utf-8'))
+          assert ch['appVersion']=='1.3.72'
+          assert ch['minimumLauncher']=='1.0.8'
+          assert ch['mandatory'] is True
+          assert all('v1_3_72_waiting_opens_card' in x['sourcePath'] for x in ch['files'])
+          mf=json.loads((new/'update_manifest.json').read_text(encoding='utf-8'))
+          assert mf['version']==mf['app_version']==mf['runtime_version']=='1.3.72'
+          assert mf['notes']['waiting_queue_opens_patient_card'] is True
+          print('1.3.72 byte/static contract OK')
+          '@ | python -
+
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check -r historia-clinica/updates/v1_3_72_waiting_opens_card/requirements.txt httpx
+
+      - name: Runtime waiting-card workflow
+        shell: pwsh
+        run: |
+          @'
+          import os,sys
+          from pathlib import Path
+          root=Path.cwd()/'historia-clinica/updates/v1_3_72_waiting_opens_card'
+          data=root/'data'; data.mkdir(exist_ok=True)
+          dbfile=data/'historia_clinica.db'
+          if dbfile.exists(): dbfile.unlink()
+          os.environ.pop('HISTORIA_DATABASE_URL',None); os.environ.pop('DATABASE_URL',None)
+          sys.path.insert(0,str(root))
+          import app as mod
+          from fastapi.testclient import TestClient
+          client=TestClient(mod.app)
+          now=mod.now_iso()
+
+          def patient(c,pid,name,ident):
+              c.execute("""INSERT INTO patients(id,name,name_search,national_id,national_id_search,source,source_record_hash,created_at,updated_at,deleted_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,NULL)""",(pid,name,mod.normalize_search(name),ident,mod.normalize_search(ident),'test',pid,now,now))
+          def queue(c,qid,pid,rid,name,ident,kind='S'):
+              c.execute("""INSERT INTO waiting_queue(id,reception_event_id,reception_patient_id,clinical_patient_id,display_name,identification,attention_type,queued_at,status,source,created_at,updated_at,deleted_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,NULL)""",(qid,'evt-'+qid,rid,pid,name,ident,kind,now,'waiting','test',now,now))
+
+          with mod.db() as c:
+              patient(c,'p-existing','PACIENTE EXISTENTE','0900000001')
+              queue(c,'q-existing','p-existing','r-existing','PACIENTE EXISTENTE','0900000001','S')
+              patient(c,'p-new','PACIENTE NUEVO','0900000002')
+              queue(c,'q-new','p-new','r-new','PACIENTE NUEVO','0900000002','N')
+              patient(c,'p-manual','PACIENTE MANUAL','0900000003')
+              c.execute("""INSERT INTO waiting_queue(id,reception_event_id,reception_patient_id,clinical_patient_id,display_name,identification,attention_type,queued_at,status,source,created_at,updated_at,deleted_at)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,NULL)""",('q-manual','evt-q-manual','r-manual',None,'PACIENTE MANUAL','', 'S',now,'waiting','test',now,now))
+              c.commit()
+
+          r=client.get('/cola/q-existing/atender',follow_redirects=False)
+          assert r.status_code==303,r.text
+          assert r.headers['location']=='/paciente/p-existing?queue_id=q-existing',r.headers['location']
+          ficha=client.get(r.headers['location'])
+          assert ficha.status_code==200
+          assert 'if(!q)return;' in ficha.text
+          assert "btn.textContent='Atender'" in ficha.text
+          assert "'/nueva?queue_id='" in ficha.text
+
+          consult=client.get('/paciente/p-existing/nueva?queue_id=q-existing',follow_redirects=False)
+          assert consult.status_code==200,consult.status_code
+
+          # Nuevo sin confirmar: jamás salta directo a consulta ni a ficha final.
+          r=client.get('/cola/q-new/atender',follow_redirects=False)
+          assert r.status_code==303
+          assert r.headers['location'].startswith('/paciente/p-new/editar?queue_id=q-new&nuevo=1'),r.headers['location']
+
+          # Una vez confirmado, el mismo turno abre ficha y desde allí Atender.
+          with mod.db() as c:
+              c.execute("""INSERT INTO patient_links(reception_patient_id,clinical_patient_id,matched_by,verified,verified_at,created_at,updated_at)
+                           VALUES(?,?,?,?,?,?,?)
+                           ON CONFLICT(reception_patient_id) DO UPDATE SET clinical_patient_id=excluded.clinical_patient_id,matched_by=excluded.matched_by,verified=1,verified_at=excluded.verified_at,updated_at=excluded.updated_at""",
+                        ('r-new','p-new','doctor_confirmed_new',1,now,now,now))
+              c.commit()
+          r=client.get('/cola/q-new/atender',follow_redirects=False)
+          assert r.status_code==303
+          assert r.headers['location'].startswith('/paciente/p-new?queue_id=q-new&nuevo=1&confirmado=1'),r.headers['location']
+
+          # Selección manual de ficha también termina en ficha, no en consulta.
+          r=client.get('/cola/q-manual/vincular/p-manual',follow_redirects=False)
+          assert r.status_code==303
+          assert r.headers['location']=='/paciente/p-manual?queue_id=q-manual',r.headers['location']
+
+          home=client.get('/')
+          assert home.status_code==200
+          assert 'Abrir siguiente' in home.text
+          assert 'Abrir ficha' in home.text
+          print('RUNTIME 1.3.72 OK: espera -> ficha -> Atender -> consulta, queue_id preservado, nuevo protegido')
+          '@ | python -
+
+      - name: Remove generated runtime artifacts
+        shell: pwsh
+        run: |
+          $dst='historia-clinica/updates/v1_3_72_waiting_opens_card'
+          Get-ChildItem -Path $dst -Directory -Recurse -Filter __pycache__ -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          if (Test-Path "$dst/data") { Remove-Item "$dst/data" -Recurse -Force }
+          if (Test-Path "$dst/static/doctor_logo.png") { Remove-Item "$dst/static/doctor_logo.png" -Force }
+
+      - name: Commit candidate
+        shell: pwsh
+        run: |
+          git config user.name "fanserick-star"
+          git config user.email "fanserick@hotmail.com"
+          git add historia-clinica/updates/v1_3_72_waiting_opens_card historia-clinica/launcher-v1/app-channel-source.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -ne 0) {
+            git commit -m "Generar Historia 1.3.72 espera abre ficha"
+            git push origin HEAD:feature/historia-1372-waiting-opens-card
+          }
