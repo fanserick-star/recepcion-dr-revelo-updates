@@ -1,0 +1,93 @@
+name: Build Reception 4.6.6 Candidate
+
+on:
+  push:
+    branches:
+      - fix/reception-466-fast-attention-save
+    paths:
+      - tools/build_reception_466.py
+      - .github/workflows/build-reception-466-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate exact 4.6.6 candidate
+        shell: pwsh
+        run: python tools/build_reception_466.py
+
+      - name: Static safety and behavior contracts
+        shell: python
+        run: |
+          import json, pathlib, py_compile
+          base = pathlib.Path('updates/v4_6_5_historia_procedure_names')
+          out = pathlib.Path('updates/v4_6_6_fast_attention_save')
+          app = (out/'app.py').read_text(encoding='utf-8-sig')
+          py_compile.compile(str(out/'app.py'), doraise=True)
+
+          assert '_v466_local_attention_db' in app
+          assert 'db.info["offline"] = True' in app
+          assert '_v466_sync_attention_queue_later' in app
+          assert 'core.process_offline_queue()' in app
+          assert 'time.sleep(1.0)' in app
+          assert 'v466_print_visit_local_first' in app
+          assert 'procedure_auto_print": False' in app
+          assert 'consultation_auto_print": True' in app
+          assert 'Guardando atención…' in app
+          assert 'Guardando atención e imprimiendo recibo…' in app  # legacy source remains, runtime replacement is guarded
+
+          # Existing offline sync is the durability contract used by 4.6.6.
+          assert 'visit.create' in app
+          assert 'BillingRecord(visit_id=v.id' in app
+          assert '_v4451_sync_one_operation' in app
+          assert 'source_row' in app
+
+          manifest = json.loads((out/'update_manifest.json').read_text(encoding='utf-8-sig'))
+          version = json.loads((out/'recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
+          assert version == '4.6.6'
+          assert all(manifest[k] == version for k in ('version','app_version','runtime_version'))
+          assert manifest['notes']['database_schema_changes'] is False
+          assert manifest['notes']['billing_logic_changes'] is False
+          assert manifest['notes']['azur_logic_changes'] is False
+          assert manifest['notes']['whatsapp_logic_changes'] is False
+
+          for rel in ('historia_bridge.py','historia_lan_transport.py','static/runtime_keep.txt'):
+              assert (base/rel).read_bytes() == (out/rel).read_bytes(), rel
+          print('4.6.6 contracts OK')
+
+      - name: Ensure only intended candidate/channel changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          test -f updates/v4_6_6_fast_attention_save/app.py
+          test -f launcher-v1/app-channel-source.json
+          ! find updates/v4_6_6_fast_attention_save -type f | grep -E '(__pycache__|\.pyc$|\.db$|\.sqlite|\.env$)'
+
+      - name: Commit generated candidate to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          find updates/v4_6_6_fast_attention_save -type d -name __pycache__ -prune -exec rm -rf {} + || true
+          find updates/v4_6_6_fast_attention_save -type f -name '*.pyc' -delete || true
+          git add updates/v4_6_6_fast_attention_save launcher-v1/app-channel-source.json
+          if git diff --cached --quiet; then
+            echo "Candidate already current"
+            exit 0
+          fi
+          git commit -m "Recepción 4.6.6 fast attention save candidate"
+          git push origin HEAD:fix/reception-466-fast-attention-save
