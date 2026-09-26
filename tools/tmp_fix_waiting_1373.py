@@ -1,40 +1,34 @@
 from pathlib import Path
+import re
 
 path = Path('historia-clinica/updates/v1_3_73_waiting_room_remaster/app.py')
 text = path.read_text(encoding='utf-8')
-old = '''    if raw in {"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}:
-        return False
+pattern = re.compile(
+    r'(    if raw in \{"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"\}:\n        return False\n)'
+    r'(def _v1373_procedure_label\(row\) -> str:)'
+)
+text, n = pattern.subn(
+    r'\1    # Compatibilidad con el puente antiguo: cualquier otro valor era el nombre\n'
+    r'    # real del procedimiento (ECOGRAFÍA, CURACIÓN, etc.).\n'
+    r'    return True\n\n\n\2',
+    text,
+)
+if n != 1:
+    raise RuntimeError(f'procedure fallthrough patch: {n}')
 
-def _v1373_procedure_label(row) -> str:'''
-new = '''    if raw in {"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}:
-        return False
-    # Compatibilidad con el puente antiguo: cualquier otro valor era el nombre
-    # real del procedimiento (ECOGRAFÍA, CURACIÓN, etc.).
-    return True
+tail = re.compile(
+    r'(    return fixed\n)\n+' 
+    r'    # Compatibilidad con el puente antiguo: enviaba el nombre real del\n'
+    r'    # procedimiento \(ECOGRAFÍA, CURACIÓN, etc\.\) en attention_type\.\n'
+    r'    return True\n\n\n(def _queue_turn_number)'
+)
+text, n = tail.subn(r'\1\n\2', text)
+if n != 1:
+    raise RuntimeError(f'unreachable legacy tail patch: {n}')
 
-
-def _v1373_procedure_label(row) -> str:'''
-if text.count(old) != 1:
-    raise RuntimeError(f'procedure fallthrough anchor: {text.count(old)}')
-text = text.replace(old, new)
-old_tail = '''    return fixed
-
-
-    # Compatibilidad con el puente antiguo: enviaba el nombre real del
-    # procedimiento (ECOGRAFÍA, CURACIÓN, etc.) en attention_type.
-    return True
-
-
-def _queue_turn_number'''
-new_tail = '''    return fixed
-
-
-def _queue_turn_number'''
-if text.count(old_tail) != 1:
-    raise RuntimeError(f'unreachable legacy tail: {text.count(old_tail)}')
-text = text.replace(old_tail, new_tail)
 compile(text, str(path), 'exec')
 assert 'def _v1373_procedure_label' in text
 assert 'raw.startswith("PROCEDIMIENTO ")' in text
+assert text.count('Compatibilidad con el puente antiguo: cualquier otro valor era el nombre') == 1
 path.write_text(text, encoding='utf-8')
 print('FIX_OK')
