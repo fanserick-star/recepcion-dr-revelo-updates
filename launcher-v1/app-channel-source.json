@@ -5,7 +5,7 @@
   "appVersion": "4.6.5",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "Recepción 4.6.5: envía a Historia el nombre real del procedimiento en la etiqueta de handoff. No cambia facturación, AZUR, WhatsApp, precios, impresión ni datos.",
+  "notes": "Recepción 4.6.5: envía a Historia el nombre real del procedimiento en la etiqueta de handoff. No cambia facturación, AZUR, WhatsApp, precios, impresión ni datos. Republicación aislada tras una carrera concurrente de los canales de actualización.",
   "files": [
     {
       "path": "app.py",
