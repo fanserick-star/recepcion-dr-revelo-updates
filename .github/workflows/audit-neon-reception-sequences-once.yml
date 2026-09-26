@@ -43,7 +43,8 @@ jobs:
           print(secrets.token_hex(32))
           PY
           )"
-          printf 'AUDIT_PATH=/__rp_seq_audit_%s\n' "$TOKEN" >> "$GITHUB_ENV"
+          export AUDIT_PATH="/__rp_seq_audit_$TOKEN"
+          printf 'AUDIT_PATH=%s\n' "$AUDIT_PATH" >> "$GITHUB_ENV"
 
           python - <<'PY'
           from pathlib import Path
