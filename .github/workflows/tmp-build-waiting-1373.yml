@@ -6,6 +6,7 @@ on:
       - feat/waiting-room-1373-procedure-names
     paths:
       - tools/tmp_build_waiting_1373.py
+      - tools/tmp_build_waiting_1373_v2.py
       - .github/workflows/tmp-build-waiting-1373.yml
 
 permissions:
@@ -19,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Generate candidates
-        run: python tools/tmp_build_waiting_1373.py
+        run: python tools/tmp_build_waiting_1373_v2.py
       - name: Commit candidates
         shell: pwsh
         run: |
