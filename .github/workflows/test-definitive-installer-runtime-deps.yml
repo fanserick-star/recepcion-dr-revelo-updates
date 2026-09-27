@@ -1,0 +1,75 @@
+name: Test Definitive Installer Runtime Dependencies
+
+on:
+  push:
+    branches: [build/definitive-private-installer]
+    paths:
+      - ".github/workflows/test-definitive-installer-runtime-deps.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-runtime-deps:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create clean venv
+        shell: pwsh
+        run: |
+          py -3.11 -m venv "$env:RUNNER_TEMP\consultorio-venv"
+          Add-Content $env:GITHUB_ENV "PY=$env:RUNNER_TEMP\consultorio-venv\Scripts\python.exe"
+
+      - name: Install Reception dependencies proposed for definitive installer
+        shell: pwsh
+        run: |
+          & $env:PY -m pip install --disable-pip-version-check `
+            "fastapi==0.128.2" `
+            "uvicorn==0.48.0" `
+            "SQLAlchemy==2.0.43" `
+            "pg8000==1.31.2" `
+            "python-dotenv==1.1.1" `
+            "python-multipart==0.0.20"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Import Reception canonical runtime in clean environment
+        shell: pwsh
+        env:
+          DATABASE_URL: ""
+          HISTORIA_DATABASE_URL: ""
+          RP_FORCE_OFFLINE: "1"
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          Push-Location "recepcion/app"
+          & $env:PY -m py_compile (Get-ChildItem *.py | ForEach-Object FullName)
+          & $env:PY -c "import app; assert app.APP_VERSION == '4.6.7', app.APP_VERSION; print('RECEPTION_IMPORT_OK', app.APP_VERSION, len(app.app.router.routes))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+
+      - name: Recreate clean venv and install Historia exact requirements
+        shell: pwsh
+        run: |
+          Remove-Item "$env:RUNNER_TEMP\consultorio-venv" -Recurse -Force
+          py -3.11 -m venv "$env:RUNNER_TEMP\consultorio-venv"
+          & $env:PY -m pip install --disable-pip-version-check -r "historia-clinica/app/requirements.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Import Historia canonical runtime in clean environment
+        shell: pwsh
+        env:
+          HC_PREFLIGHT: "1"
+          DATABASE_URL: ""
+          HISTORIA_DATABASE_URL: ""
+          HISTORIA_SYNC_ENABLED: "0"
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: |
+          Push-Location "historia-clinica/app"
+          & $env:PY -c "import app; assert app.APP_VERSION == '1.3.73', app.APP_VERSION; print('HISTORIA_IMPORT_OK', app.APP_VERSION, len(app.app.router.routes))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
