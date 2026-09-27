@@ -1,0 +1,31 @@
+name: Guard Installer Branch
+
+on:
+  push:
+    branches: [build/definitive-private-installer]
+    paths:
+      - ".github/workflows/guard-installer-branch.yml"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel-legacy-publisher:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel legacy master-installer runs from this branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          gh api "/repos/${repo}/actions/runs?branch=build%2Fdefinitive-private-installer&per_page=100" \
+            --jq '.workflow_runs[] | select(.path==".github/workflows/build-consultorio-master-installer.yml") | select(.status=="queued" or .status=="in_progress") | .id' \
+            | while read -r run_id; do
+                [ -n "$run_id" ] || continue
+                echo "Cancelando workflow legado $run_id"
+                gh api -X POST "/repos/${repo}/actions/runs/${run_id}/cancel" || true
+              done
