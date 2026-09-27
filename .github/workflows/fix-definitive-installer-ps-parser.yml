@@ -1,0 +1,35 @@
+name: Fix Definitive Installer PowerShell Parser
+
+on:
+  push:
+    branches: [build/definitive-private-installer]
+    paths:
+      - ".github/workflows/fix-definitive-installer-ps-parser.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: build/definitive-private-installer
+          fetch-depth: 0
+      - name: Fix variable delimiters
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/definitive-installer/installer.ps1')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('"$Product: conexión Neon verificada."','"${Product}: conexión Neon verificada."')
+          s=s.replace('"$Product: no se pudo verificar Neon ahora; la instalación se conserva y reintentará al abrir."','"${Product}: no se pudo verificar Neon ahora; la instalación se conserva y reintentará al abrir."')
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tools/definitive-installer/installer.ps1
+          git commit -m "fix(installer): delimitar variables en PowerShell"
+          git push origin HEAD:build/definitive-private-installer
