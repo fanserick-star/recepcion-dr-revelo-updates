@@ -174,3 +174,5 @@ jobs:
           - Rutas protegidas: **OK**
           - Fuente única de versión: **OK**
           "@ | Add-Content $env:GITHUB_STEP_SUMMARY
+
+# postpublish audit trigger: 4.6.7
