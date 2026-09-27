@@ -7,6 +7,8 @@ on:
       - refactor/reception-definitive-runtime
     paths:
       - tools/build_reception_flat_prototype.py
+      - tools/remove_reception_legacy_layer_chain.py
+      - tools/test_reception_no_legacy_chains.py
       - tools/finalize_reception_flat_candidate.py
       - tools/test_reception_flat_prototype.py
       - tools/test_reception_runtime_bindings.py
@@ -47,6 +49,14 @@ jobs:
       - name: Build flat prototype
         shell: pwsh
         run: python tools/build_reception_flat_prototype.py
+
+      - name: Remove historical release-layer chain
+        shell: pwsh
+        run: python tools/remove_reception_legacy_layer_chain.py
+
+      - name: Enforce semantic runtime with no legacy chains
+        shell: pwsh
+        run: python tools/test_reception_no_legacy_chains.py
 
       - name: Finalize candidate packaging contract
         shell: pwsh
@@ -94,7 +104,7 @@ jobs:
             workflow_run_id = "${{ github.run_id }}"
             workflow_run_number = "${{ github.run_number }}"
             verified_utc = (Get-Date).ToUniversalTime().ToString("o")
-            contract = "Recepcion 4.6.6 isolated runtime + bindings + equivalence + layout + OpenAPI + packaged staging + update/rollback + historical protection"
+            contract = "Recepcion 4.6.6 semantic runtime + no legacy release chain + bindings + equivalence + layout + OpenAPI + packaged staging + update/rollback + historical protection"
           } | ConvertTo-Json
           Set-Content -Path "$candidate/VERIFICATION.json" -Value $verification -Encoding utf8
 
@@ -106,5 +116,5 @@ jobs:
             Write-Host "Verified candidate already materialized; nothing to commit."
             exit 0
           }
-          git commit -m "refactor: materializar candidato plano verificado"
+          git commit -m "refactor: materializar runtime semantico verificado"
           git push origin HEAD:refactor/reception-definitive-runtime
