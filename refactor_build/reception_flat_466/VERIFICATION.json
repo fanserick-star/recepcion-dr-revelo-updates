@@ -1,7 +1,7 @@
 {
-  "source_commit": "ae168bd1212f7865206508b5961e952f3b69b8dc",
-  "workflow_run_id": "36287780422",
-  "workflow_run_number": "10",
-  "verified_utc": "2026-09-27T02:12:02.8642320Z",
+  "source_commit": "5117e7a994dce414e557cfa8552fe140cd9b2da7",
+  "workflow_run_id": "36288026695",
+  "workflow_run_number": "12",
+  "verified_utc": "2026-09-27T02:17:11.9908357Z",
   "contract": "Recepcion 4.6.6 flat runtime equivalence + packaging contract"
 }
