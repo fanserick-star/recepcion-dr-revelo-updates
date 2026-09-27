@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - "historia-clinica/app/**"
       - "historia-clinica/launcher-v1/app-channel-source.json"
-      - "historia-clinica/updates/**"
       - ".github/workflows/validate-historia-runtime-import.yml"
   workflow_dispatch:
 
@@ -23,40 +23,35 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Build isolated trial from active source payload only
+      - name: Build isolated trial from canonical runtime manifest
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $root = (Get-Location).Path
           $source = Get-Content "historia-clinica/launcher-v1/app-channel-source.json" -Raw | ConvertFrom-Json
+          if ($source.sourceRoot -ne "historia-clinica/app") { throw "sourceRoot no canónico: $($source.sourceRoot)" }
+          $appRoot = Join-Path $root $source.sourceRoot
+          $manifest = Get-Content (Join-Path $appRoot "update_manifest.json") -Raw | ConvertFrom-Json
+          $version = (Get-Content (Join-Path $appRoot "historia-version.json") -Raw | ConvertFrom-Json).version
+          if ($manifest.version -ne $version -or $manifest.app_version -ne $version -or $manifest.runtime_version -ne $version) {
+            throw "Versiones del manifiesto no coinciden con historia-version.json"
+          }
+
           $trial = Join-Path $env:RUNNER_TEMP "historia_active_runtime"
           Remove-Item $trial -Recurse -Force -ErrorAction SilentlyContinue
           New-Item -ItemType Directory -Force $trial | Out-Null
 
-          foreach ($item in $source.files) {
-            if ($item.sourcePaths -and $item.sourcePaths.Count -gt 0) {
-              $dest = Join-Path $trial ($item.path -replace '/','\')
-              $parent = Split-Path -Parent $dest
-              if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
-              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
-              try {
-                foreach ($srcRel in $item.sourcePaths) {
-                  $src = Join-Path $root $srcRel
-                  $bytes = [IO.File]::ReadAllBytes($src)
-                  $stream.Write($bytes,0,$bytes.Length)
-                }
-              } finally { $stream.Dispose() }
-            } else {
-              $src = Join-Path $root $item.sourcePath
-              $dest = Join-Path $trial ($item.path -replace '/','\')
-              $parent = Split-Path -Parent $dest
-              if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
-              Copy-Item $src $dest -Force
-            }
+          foreach ($rel in $manifest.copy) {
+            $src = Join-Path $appRoot ($rel -replace '/','\')
+            $dest = Join-Path $trial ($rel -replace '/','\')
+            if (-not (Test-Path $src -PathType Leaf)) { throw "Falta origen canónico: $rel" }
+            $parent = Split-Path -Parent $dest
+            if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
+            Copy-Item $src $dest -Force
           }
           New-Item -ItemType Directory -Force "$trial\data" | Out-Null
           Add-Content -Path $env:GITHUB_ENV -Value "TRIAL=$trial"
-          Add-Content -Path $env:GITHUB_ENV -Value "EXPECTED_VERSION=$($source.appVersion)"
+          Add-Content -Path $env:GITHUB_ENV -Value "EXPECTED_VERSION=$version"
 
       - name: Validate payload essentials
         shell: pwsh
