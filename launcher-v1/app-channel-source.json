@@ -1,55 +1,35 @@
 {
   "schema": 1,
   "product": "recepcion-dr-revelo",
-  "status": "candidate",
+  "status": "stable",
   "appVersion": "4.6.6",
   "mandatory": true,
   "minimumLauncher": "1.0.12",
-  "notes": "ENSAYO AISLADO DEL REFACTOR: runtime físico 4.6.6 de 11 archivos. No publicar desde esta rama.",
+  "notes": "Recepción 4.6.6: Nueva atención se confirma primero en SQLite local y sincroniza Neon en segundo plano. Procedimientos no muestran ni ejecutan impresión; consultas conservan recibo automático sin depender de Neon para imprimir.",
   "files": [
     {
       "path": "app.py",
-      "sourcePath": "refactor_build/reception_flat_466/app.py"
-    },
-    {
-      "path": "core_runtime.py",
-      "sourcePath": "refactor_build/reception_flat_466/core_runtime.py"
-    },
-    {
-      "path": "features_runtime.py",
-      "sourcePath": "refactor_build/reception_flat_466/features_runtime.py"
-    },
-    {
-      "path": "azur_client.py",
-      "sourcePath": "refactor_build/reception_flat_466/azur_client.py"
-    },
-    {
-      "path": "remote_agenda.py",
-      "sourcePath": "refactor_build/reception_flat_466/remote_agenda.py"
-    },
-    {
-      "path": "whatsapp_client.py",
-      "sourcePath": "refactor_build/reception_flat_466/whatsapp_client.py"
-    },
-    {
-      "path": "historia_bridge.py",
-      "sourcePath": "refactor_build/reception_flat_466/historia_bridge.py"
-    },
-    {
-      "path": "historia_lan_transport.py",
-      "sourcePath": "refactor_build/reception_flat_466/historia_lan_transport.py"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/app.py"
     },
     {
       "path": "recepcion-version.json",
-      "sourcePath": "refactor_build/reception_flat_466/recepcion-version.json"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/recepcion-version.json"
     },
     {
       "path": "update_manifest.json",
-      "sourcePath": "refactor_build/reception_flat_466/update_manifest.json"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/update_manifest.json"
     },
     {
       "path": "static/runtime_keep.txt",
-      "sourcePath": "refactor_build/reception_flat_466/static/runtime_keep.txt"
+      "sourcePath": "updates/v4_6_6_fast_attention_save/static/runtime_keep.txt"
+    },
+    {
+      "path": "historia_bridge.py",
+      "sourcePath": "updates/v4_6_6_fast_attention_save/historia_bridge.py"
+    },
+    {
+      "path": "historia_lan_transport.py",
+      "sourcePath": "updates/v4_6_6_fast_attention_save/historia_lan_transport.py"
     }
   ]
 }
