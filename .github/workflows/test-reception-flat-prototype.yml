@@ -1,4 +1,5 @@
 name: Test Reception Flat Prototype
+# rerun: dynamic historical lookups use the consolidated layer registry
 
 on:
   push:
