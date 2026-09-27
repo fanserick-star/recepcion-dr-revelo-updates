@@ -14,11 +14,13 @@ OUT = ROOT / "refactor_build" / "reception_flat_466"
 text = SOURCE_APP.read_text(encoding="utf-8-sig")
 tree = ast.parse(text, filename=str(SOURCE_APP))
 embedded = None
+embedded_node = None
 for node in tree.body:
     if isinstance(node, ast.Assign):
         for target in node.targets:
             if isinstance(target, ast.Name) and target.id == "_EMBEDDED_RUNTIME_SOURCES":
                 embedded = ast.literal_eval(node.value)
+                embedded_node = node
                 break
 if not isinstance(embedded, dict):
     raise SystemExit("No se encontró _EMBEDDED_RUNTIME_SOURCES")
@@ -213,12 +215,15 @@ def transform_module(modname: str, source: str):
     return ast.unparse(parsed), export_expr, transformer.alias_map
 
 
-# Outer source begins after the embedded loader. Keep all modern 4.5.33+ code.
+# Outer source begins after the embedded loader. The same comment text also
+# exists inside the serialized historical sources, so use the LAST occurrence.
 MARKER = "# Capa final vigente de Recepción (derivada de 4.5.48)"
-pos = text.find(MARKER)
+pos = text.rfind(MARKER)
 if pos < 0:
     raise RuntimeError("No se encontró marcador de capa final")
-# Include from the next code line after the marker/comment block; comments are harmless.
+assert embedded_node is not None and pos > embedded_node.end_lineno, (
+    "El marcador externo quedó dentro del diccionario embebido"
+)
 outer_source = text[pos:]
 outer_ast = ast.parse(outer_source, filename="<outer-current>")
 outer_transform = EmbeddedImportTransformer("outer_current", "_rf_legacy._rf_layers")
