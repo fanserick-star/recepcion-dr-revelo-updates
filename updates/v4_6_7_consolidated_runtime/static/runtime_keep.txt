@@ -1,1 +1,0 @@
-Recepción 4.6.0 consolidated runtime - static staging marker.

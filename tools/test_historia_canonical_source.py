@@ -9,7 +9,7 @@ from validate_historia_runtime import validate_runtime
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "historia-clinica/app"
 SOURCE = ROOT / "historia-clinica/launcher-v1/app-channel-source.json"
-FROZEN_UPDATES_TREE = "c4759d655845a1f299b0a8569761a0fa128ac6f8"
+FROZEN_UPDATES_TREE = "e30f1eedeffc44860ea0d174f5728a942f923442"
 BASELINE_1373_TREE = "0053461d898cdf2b8d245c9396094c55309e8139"
 ROLLBACK_1372_TREE = "23f1714a3620a5fd49c2adc7ec6c1bfc636b1591"
 

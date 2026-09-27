@@ -1,1 +1,0 @@
-Auditoría final del canal público v4.3.61 después de su publicación. Archivo técnico; no forma parte del payload del actualizador.

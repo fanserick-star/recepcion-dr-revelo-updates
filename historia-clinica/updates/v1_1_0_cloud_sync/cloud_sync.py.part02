@@ -1,2 +1,0 @@
-def get_sync_service() -> CloudSyncService | None:
-    return _SERVICE
