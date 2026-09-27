@@ -93,7 +93,7 @@ jobs:
             --repository "$REPOSITORY" \
             --output /tmp/canonical-channel.json
           python - <<'PY'
-          import json, pathlib, subprocess
+          import json, pathlib
 
           generated = json.loads(pathlib.Path('/tmp/canonical-channel.json').read_text(encoding='utf-8'))
           version = str(generated.get('appVersion') or '').strip()
@@ -106,16 +106,7 @@ jobs:
               got = {x['path']: x['sha256'] for x in generated.get('files', [])}
               old = {x['path']: x['sha256'] for x in current.get('files', [])}
               assert got == old, 'La fuente canónica 4.6.7 no coincide byte por byte con el canal estable'
-              canonical_tree = subprocess.check_output(
-                  ['git','rev-parse','HEAD:recepcion/app'], text=True
-              ).strip()
-              migration_tree = subprocess.check_output(
-                  ['git','rev-parse','HEAD:updates/v4_6_7_consolidated_runtime'], text=True
-              ).strip()
-              assert canonical_tree == migration_tree, (
-                  canonical_tree, migration_tree
-              )
-              print('Migration 4.6.7 byte identity OK')
+              print('Canonical 4.6.7 byte identity OK')
           else:
               print('Canonical dry-run OK for future version', version)
           PY

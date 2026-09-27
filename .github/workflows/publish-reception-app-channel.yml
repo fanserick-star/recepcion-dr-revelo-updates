@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "recepcion/app/recepcion-version.json"
+      - "launcher-v1/app-channel-source.json"
   workflow_dispatch:
 
 permissions:

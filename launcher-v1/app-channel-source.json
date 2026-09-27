@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Runtime semántico consolidado de Recepción, sin cadena ejecutable app_patch/app_prev/app_base. El payload se deriva del update_manifest.json canónico y la versión de recepcion-version.json."
+  "notes": "Runtime semántico consolidado de Recepción. La fuente viva única es recepcion/app; updates/ queda solo como marcador histórico. El payload se deriva del update_manifest.json canónico y la versión de recepcion-version.json."
 }
