@@ -7,7 +7,6 @@ on:
     paths:
       - "launcher-v1/app-channel-source.json"
       - ".github/workflows/publish-reception-app-channel.yml"
-      - "tools/validate_reception_runtime_layout.py"
   workflow_dispatch:
 
 permissions:
@@ -163,7 +162,6 @@ jobs:
           foreach ($item in $channel.files) {
             $rel = $item.path -replace '/', [IO.Path]::DirectorySeparatorChar
             $dest = Join-Path "channel_verify" $rel
-            New-Item -ItemType Directory -Force ([IO.Path]::GetDirectoryName((Resolve-Path "channel_verify").Path + [IO.Path]::DirectorySeparatorChar + $rel)) -ErrorAction SilentlyContinue | Out-Null
             $parent = Split-Path $dest -Parent
             if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
             if ($item.parts -and $item.parts.Count -gt 0) {
