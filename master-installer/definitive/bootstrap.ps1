@@ -31,8 +31,9 @@ function Invoke-Checked {
         [Parameter()][string[]]$Arguments = @()
     )
     Write-Step ("Ejecutando: " + [IO.Path]::GetFileName($FilePath))
-    & $FilePath @Arguments
+    $output = & $FilePath @Arguments 2>&1
     $code = $LASTEXITCODE
+    foreach ($line in $output) { Write-Host $line }
     if ($null -eq $code) { $code = 0 }
     if ($code -ne 0) {
         throw "El proceso $FilePath termino con codigo $code."
