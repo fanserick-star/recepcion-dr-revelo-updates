@@ -43,6 +43,14 @@ Source: "build\INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"; DestDir: "{tm
 Source: "build\INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall; Components: historia
 
 [Code]
+var
+  InstallerExitCode: Integer;
+
+function GetCustomSetupExitCode: Integer;
+begin
+  Result := InstallerExitCode;
+end;
+
 procedure CurPageChanged(CurPageID: Integer);
 begin
   if CurPageID = wpSelectComponents then
@@ -88,12 +96,18 @@ begin
 
     WizardForm.StatusLabel.Caption := 'Preparando el consultorio. Esto puede tardar unos minutos...';
     if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      InstallerExitCode := 51;
       RaiseException('No se pudo iniciar el preparador del consultorio.');
+    end;
 
     if ResultCode <> 0 then
+    begin
+      InstallerExitCode := 100 + ResultCode;
       RaiseException(
         'La instalación no pudo completarse. Se restauró la instalación anterior cuando correspondía. ' +
         'Código: ' + IntToStr(ResultCode) + '. Revisa C:\ProgramData\ConsultorioDrRevelo\InstallerLogs.'
       );
+    end;
   end;
 end;
