@@ -119,7 +119,7 @@ function Move-ToBackup {
 }
 
 function Restore-Backup {
-    param([string]$Root, [string]$Backup)
+    param([string]$Root, [AllowNull()][string]$Backup)
     if (Test-Path -LiteralPath $Root) {
         Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -129,10 +129,10 @@ function Restore-Backup {
 }
 
 function Copy-ProtectedState {
-    param([string]$Backup, [string]$Target)
+    param([AllowNull()][string]$Backup, [string]$Target)
     if (-not $Backup -or -not (Test-Path -LiteralPath $Backup)) { return }
 
-    $dirs = @('data', 'backups', 'update_backups', 'logs')
+    $dirs = @('data', 'backups', 'update_backups', 'logs', 'documentos', 'documents', 'exports', 'exportaciones', 'reportes', 'uploads')
     foreach ($dir in $dirs) {
         $source = Join-Path $Backup $dir
         if (Test-Path -LiteralPath $source) {
@@ -159,7 +159,7 @@ function Ensure-PrivateEnv {
     if (-not (Test-Path -LiteralPath $envPath)) {
         [IO.File]::WriteAllBytes($envPath, $ConfigBytes)
         try {
-            & icacls.exe $envPath /inheritance:r /grant:r "SYSTEM:F" "Administrators:F" "$env:USERNAME`:F" | Out-Null
+            & icacls.exe $envPath /inheritance:r /grant:r 'SYSTEM:F' 'Administrators:F' "$env:USERNAME`:F" | Out-Null
         }
         catch {
             Write-Step 'No se pudo endurecer el ACL de .env; el archivo se mantiene instalado.'
@@ -221,14 +221,16 @@ function Ensure-Venv {
 function Test-ReceptionRuntime([string]$Target, [string]$VenvPython) {
     $oldOffline = $env:RP_FORCE_OFFLINE
     $oldBytecode = $env:PYTHONDONTWRITEBYTECODE
+    $pushed = $false
     try {
         $env:RP_FORCE_OFFLINE = '1'
         $env:PYTHONDONTWRITEBYTECODE = '1'
         Push-Location $Target
+        $pushed = $true
         Invoke-Checked $VenvPython @('-c', "import app; assert app.APP_VERSION; print('RECEPTION_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))")
     }
     finally {
-        Pop-Location -ErrorAction SilentlyContinue
+        if ($pushed) { Pop-Location }
         $env:RP_FORCE_OFFLINE = $oldOffline
         $env:PYTHONDONTWRITEBYTECODE = $oldBytecode
     }
@@ -238,15 +240,17 @@ function Test-HistoriaRuntime([string]$Target, [string]$VenvPython) {
     $oldPreflight = $env:HC_PREFLIGHT
     $oldSync = $env:HISTORIA_SYNC_ENABLED
     $oldBytecode = $env:PYTHONDONTWRITEBYTECODE
+    $pushed = $false
     try {
         $env:HC_PREFLIGHT = '1'
         $env:HISTORIA_SYNC_ENABLED = '0'
         $env:PYTHONDONTWRITEBYTECODE = '1'
         Push-Location $Target
+        $pushed = $true
         Invoke-Checked $VenvPython @('-c', "import app; assert app.APP_VERSION; print('HISTORIA_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))")
     }
     finally {
-        Pop-Location -ErrorAction SilentlyContinue
+        if ($pushed) { Pop-Location }
         $env:HC_PREFLIGHT = $oldPreflight
         $env:HISTORIA_SYNC_ENABLED = $oldSync
         $env:PYTHONDONTWRITEBYTECODE = $oldBytecode
@@ -276,6 +280,7 @@ function Install-OneApp {
         & $RuntimeTest $Target $venvPython
         Invoke-Checked $LauncherInstaller @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
         Write-Step "$Name quedo instalado y validado."
+        return [pscustomobject]@{ Name = $Name; Target = $Target; Backup = $backup }
     }
     catch {
         Write-Step "Fallo $Name. Restaurando la instalacion anterior..."
@@ -284,37 +289,49 @@ function Install-OneApp {
     }
 }
 
+$completed = New-Object System.Collections.Generic.List[object]
 try {
     if (-not $Reception -and -not $Historia) { throw 'No se selecciono ningun programa.' }
     $configBytes = Get-PrivateConfig $SourceInstaller
     Ensure-Python
 
     if ($Reception) {
-        Install-OneApp \
-            -Name 'Recepcion' \
-            -Target $ReceptionRoot \
-            -Payload (Join-Path $StageRoot 'payload\recepcion') \
-            -Requirements (Join-Path $StageRoot 'requirements-recepcion.txt') \
-            -LauncherInstaller (Join-Path $StageRoot 'INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe') \
-            -ConfigBytes $configBytes \
-            -RuntimeTest ${function:Test-ReceptionRuntime}
+        $params = @{
+            Name = 'Recepcion'
+            Target = $ReceptionRoot
+            Payload = (Join-Path $StageRoot 'payload\recepcion')
+            Requirements = (Join-Path $StageRoot 'requirements-recepcion.txt')
+            LauncherInstaller = (Join-Path $StageRoot 'INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe')
+            ConfigBytes = $configBytes
+            RuntimeTest = ${function:Test-ReceptionRuntime}
+        }
+        $completed.Add((Install-OneApp @params))
     }
 
     if ($Historia) {
-        Install-OneApp \
-            -Name 'Historia' \
-            -Target $HistoriaRoot \
-            -Payload (Join-Path $StageRoot 'payload\historia') \
-            -Requirements (Join-Path $StageRoot 'requirements-historia.txt') \
-            -LauncherInstaller (Join-Path $StageRoot 'INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe') \
-            -ConfigBytes $configBytes \
-            -RuntimeTest ${function:Test-HistoriaRuntime}
+        $params = @{
+            Name = 'Historia'
+            Target = $HistoriaRoot
+            Payload = (Join-Path $StageRoot 'payload\historia')
+            Requirements = (Join-Path $StageRoot 'requirements-historia.txt')
+            LauncherInstaller = (Join-Path $StageRoot 'INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe')
+            ConfigBytes = $configBytes
+            RuntimeTest = ${function:Test-HistoriaRuntime}
+        }
+        $completed.Add((Install-OneApp @params))
     }
 
     Write-Step 'INSTALACION_DEFINITIVA_OK'
     exit 0
 }
 catch {
+    if ($completed.Count -gt 0) {
+        Write-Step 'La instalacion conjunta fallo. Restaurando programas ya modificados en esta operacion...'
+        for ($i = $completed.Count - 1; $i -ge 0; $i--) {
+            $item = $completed[$i]
+            Restore-Backup $item.Target $item.Backup
+        }
+    }
     Write-Error $_
     exit 1
 }
