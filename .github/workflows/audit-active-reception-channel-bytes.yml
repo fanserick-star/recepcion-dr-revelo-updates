@@ -1,5 +1,4 @@
 name: Audit Active Reception Channel
-# Validates both legacy embedded runtime and definitive physical runtime.
 
 on:
   push:
@@ -14,7 +13,7 @@ permissions:
 
 jobs:
   audit:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -23,46 +22,33 @@ jobs:
           python-version: '3.12'
 
       - name: Download exact channel payload and verify SHA-256
-        shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
-          Remove-Item "audit_reception" -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "audit_reception" | Out-Null
-          $mismatches = @()
-          foreach ($item in $channel.files) {
-            $rel = [string]$item.path
-            $dest = Join-Path "audit_reception" ($rel -replace '/', '\')
-            $parent = Split-Path -Parent $dest
-            if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
-            if ($item.parts -and $item.parts.Count -gt 0) {
-              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
-              try {
-                foreach ($url in $item.parts) {
-                  $part = Join-Path $env:TEMP ("rp_audit_" + [guid]::NewGuid().ToString("N") + ".bin")
-                  try {
-                    Invoke-WebRequest -Uri ($url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $part -Headers @{"Cache-Control"="no-cache"}
-                    $bytes = [IO.File]::ReadAllBytes($part)
-                    $stream.Write($bytes,0,$bytes.Length)
-                  } finally { Remove-Item $part -Force -ErrorAction SilentlyContinue }
-                }
-              } finally { $stream.Dispose() }
-            } else {
-              Invoke-WebRequest -Uri ($item.url + "?audit=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
-            }
-            $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
-            Write-Host "AUDIT $rel EXPECTED=$($item.sha256) GOT=$got SIZE=$((Get-Item $dest).Length)"
-            if ($got -ne $item.sha256) { $mismatches += "$rel expected=$($item.sha256) got=$got" }
-          }
-          if ($mismatches.Count -gt 0) {
-            $mismatches | ForEach-Object { Write-Host $_ }
-            throw "El canal de Recepción tiene SHA-256 distintos a los bytes reales."
-          }
+          python - <<'PY'
+          import hashlib, json, pathlib, shutil, urllib.request
 
-      - name: Audit channel metadata and manifest closure
-        shell: python
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          out = pathlib.Path('audit_reception')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+          for item in channel['files']:
+              rel = str(item['path']).replace('\\','/')
+              assert item.get('url') and not item.get('parts'), f'El canal físico debe usar un blob por archivo: {rel}'
+              req = urllib.request.Request(item['url'] + '?audit=1', headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = response.read()
+              got = hashlib.sha256(payload).hexdigest()
+              assert got == item['sha256'], (rel, got, item['sha256'])
+              dest = out / rel
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              dest.write_bytes(payload)
+              print('AUDIT OK', rel, got, len(payload))
+          PY
+
+      - name: Audit metadata and manifest closure
         run: |
+          python - <<'PY'
           import json, pathlib
+
           root = pathlib.Path('audit_reception')
           channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
           files = [str(x['path']).replace('\\','/') for x in channel.get('files', [])]
@@ -72,7 +58,7 @@ jobs:
           assert version and channel.get('mandatory') is True
           assert len(files) == len(file_set), 'Hay rutas duplicadas en el canal'
 
-          protected_prefixes = ('data/', 'backups/', 'update_backups/')
+          protected_prefixes = ('data/','backups/','update_backups/')
           protected_suffixes = ('.db','.sqlite','.sqlite3','.mdb','.accdb','.xls','.xlsx')
           protected_exact = {
               '.env','recepcionlauncher.exe','launcherupdater.exe',
@@ -85,7 +71,7 @@ jobs:
               assert not low.startswith(protected_prefixes), path
               assert low not in protected_exact, path
               assert not low.endswith(protected_suffixes), path
-              assert (root / path).is_file(), path
+              assert (root/path).is_file(), path
 
           canonical = json.loads((root/'recepcion-version.json').read_text(encoding='utf-8-sig'))
           assert str(canonical.get('version') or '').strip() == version
@@ -99,35 +85,22 @@ jobs:
           assert manifest_copy == file_set, (
               'Canal != manifest.copy', sorted(manifest_copy-file_set), sorted(file_set-manifest_copy)
           )
-          missing = {str(x).replace('\\','/') for x in manifest.get('required_dependencies', [])} - file_set
-          assert not missing, 'Dependencias ausentes: ' + ', '.join(sorted(missing))
+          required = {str(x).replace('\\','/') for x in manifest.get('required_dependencies', [])}
+          assert required.issubset(file_set), sorted(required-file_set)
           print('CHANNEL MANIFEST CLOSURE OK', version, len(files))
+          PY
 
-      - name: Audit runtime layout in downloaded payload
-        shell: pwsh
-        run: |
-          python tools/validate_reception_runtime_layout.py audit_reception --baseline-app updates/v4_6_0_consolidated_runtime/app.py
+      - name: Audit runtime layout
+        run: python tools/validate_reception_runtime_layout.py audit_reception
 
-      - name: Audit helper hash contract and Historia LAN uniqueness
-        shell: python
+      - name: Audit critical helper hashes and Historia LAN uniqueness
         run: |
+          python - <<'PY'
           import ast, hashlib, json, pathlib, re
+
           root = pathlib.Path('audit_reception')
           manifest = json.loads((root/'update_manifest.json').read_text(encoding='utf-8-sig'))
           version = str(manifest.get('version') or '').strip()
-          app_text = (root/'app.py').read_text(encoding='utf-8-sig')
-          app_tree = ast.parse(app_text)
-
-          embedded = {}
-          for node in app_tree.body:
-              if isinstance(node, ast.Assign) and any(
-                  isinstance(t, ast.Name) and t.id == '_EMBEDDED_RUNTIME_SOURCES'
-                  for t in node.targets
-              ):
-                  embedded = ast.literal_eval(node.value)
-                  break
-          assert isinstance(embedded, dict)
-
           notes = manifest.get('notes') or {}
           contracts = {
               'azur_client': str(notes.get('azur_source_sha256') or '').strip().lower(),
@@ -135,14 +108,9 @@ jobs:
           }
           for helper, expected in contracts.items():
               assert len(expected) == 64, f'Falta hash contractual de {helper}'
-              if embedded:
-                  source = embedded.get(helper)
-                  assert isinstance(source, str) and source, helper
-                  got = hashlib.sha256(source.lstrip('\ufeff').encode('utf-8')).hexdigest()
-              else:
-                  path = root / f'{helper}.py'
-                  assert path.is_file(), path
-                  got = hashlib.sha256(path.read_bytes()).hexdigest()
+              path = root/f'{helper}.py'
+              assert path.is_file(), path
+              got = hashlib.sha256(path.read_bytes()).hexdigest()
               assert got == expected, f'{helper}: {got} != {expected}'
 
           def ver_tuple(value):
@@ -150,29 +118,30 @@ jobs:
               return tuple(int(x) for x in (parts + ['0','0','0'])[:3])
           if ver_tuple(version) >= (4,6,4):
               lan = root/'historia_lan_transport.py'
-              assert lan.is_file(), lan
               tree = ast.parse(lan.read_text(encoding='utf-8-sig'))
               defs = [n.name for n in tree.body if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))]
               for name in ('_payload','hybrid_queue_attention'):
                   assert defs.count(name) == 1, f'{name}: definiciones={defs.count(name)}'
-          print('HELPER HASH + LAN CONTRACT OK', 'embedded' if embedded else 'physical')
+          print('HELPER HASH + LAN CONTRACT OK')
+          PY
 
       - name: Publish audit summary
-        shell: pwsh
         run: |
-          $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
-          $manifest = Get-Content "audit_reception/update_manifest.json" -Raw | ConvertFrom-Json
-          @"
-          ## Auditoría automática de Recepción
-          - Versión: **$($channel.appVersion)**
-          - Archivos verificados byte por byte: **$($channel.files.Count)**
-          - Dependencias activas declaradas: **$($manifest.required_dependencies.Count)**
+          python - <<'PY'
+          import json, os, pathlib
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          manifest = json.loads(pathlib.Path('audit_reception/update_manifest.json').read_text(encoding='utf-8-sig'))
+          summary = f'''## Auditoría automática de Recepción
+          - Versión: **{channel['appVersion']}**
+          - Archivos verificados byte por byte: **{len(channel['files'])}**
+          - Dependencias activas declaradas: **{len(manifest.get('required_dependencies', []))}**
           - SHA-256: **OK**
           - Cierre del payload/manifiesto: **OK**
-          - Runtime embebido o físico: **OK**
+          - Runtime físico: **OK**
           - Hash de helpers críticos: **OK**
           - Rutas protegidas: **OK**
           - Fuente única de versión: **OK**
-          "@ | Add-Content $env:GITHUB_STEP_SUMMARY
-
-# postpublish audit trigger: 4.6.7
+          '''
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as fh:
+              fh.write(summary)
+          PY

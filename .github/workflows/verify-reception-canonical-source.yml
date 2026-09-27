@@ -1,0 +1,89 @@
+name: Verify Reception Canonical Source
+
+on:
+  push:
+    branches: [main, cleanup/reception-canonical-source]
+    paths:
+      - "recepcion/app/**"
+      - "launcher-v1/app-channel-source.json"
+      - "tools/build_reception_app_channel.py"
+      - "tools/test_reception_canonical_source.py"
+      - "tools/validate_reception_runtime_layout.py"
+      - "updates/**"
+      - "releases/reception/**"
+      - ".github/workflows/publish-reception-app-channel.yml"
+      - ".github/workflows/audit-active-reception-channel-bytes.yml"
+      - ".github/workflows/verify-reception-canonical-source.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "recepcion/app/**"
+      - "launcher-v1/app-channel-source.json"
+      - "tools/**reception**"
+      - "updates/**"
+      - "releases/reception/**"
+      - ".github/workflows/*reception*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify canonical source contract
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+
+      - name: Block new versioned Reception folders under updates
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, subprocess
+
+          event = os.environ.get('GITHUB_EVENT_NAME', '')
+          sha = os.environ.get('GITHUB_SHA', 'HEAD')
+          if event == 'pull_request':
+              base = os.environ.get('PR_BASE_SHA', '').strip()
+          else:
+              base = os.environ.get('BEFORE_SHA', '').strip()
+          if not base or set(base) == {'0'}:
+              print('No comparable base SHA; static canonical checks already passed.')
+              raise SystemExit(0)
+
+          result = subprocess.run(
+              ['git','diff','--name-status',base,sha,'--','updates/'],
+              check=True, text=True, capture_output=True
+          ).stdout.splitlines()
+          forbidden = []
+          for line in result:
+              parts = line.split('\t')
+              if not parts:
+                  continue
+              status = parts[0]
+              path = parts[-1].replace('\\','/')
+              if status.startswith('A') and path != 'updates/README.md':
+                  forbidden.append(path)
+          assert not forbidden, (
+              'No se permiten nuevas versiones de Recepción bajo updates/: ' + ', '.join(forbidden)
+          )
+          print('No new Reception version folders were added under updates/.')
+          PY
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
+      - name: Prove 4.6.7 canonical tree matches published source snapshot
+        run: |
+          test "$(git rev-parse HEAD:recepcion/app)" = "$(git rev-parse HEAD:updates/v4_6_7_consolidated_runtime)"
+          echo "Canonical 4.6.7 tree is byte-identical to the verified historical snapshot."
