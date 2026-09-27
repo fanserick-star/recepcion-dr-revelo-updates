@@ -225,4 +225,6 @@ if duplicate_runtime_routes:
 else:
     lines.append("- Ninguno")
 MD_OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
-print(MD_OUT.read_text(encoding="utf-8"))
+print(f"Inventory written: {JSON_OUT}")
+print(f"Inventory written: {MD_OUT}")
+print(f"Embedded modules={len(embedded)} historical={len(historical_modules)} runtime_routes={len(runtime_routes)} duplicate_routes={len(duplicate_runtime_routes)}")
