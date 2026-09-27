@@ -316,23 +316,18 @@ def _rewrite_python(path: Path) -> dict:
 
 
 def _current_app_version() -> str:
-    """Read the definitive version from the rewritten top-level app.
+    """Read the definitive version from the package's single version document.
 
-    Historically this value was propagated by walking every `.previous` link.
-    The semantic runtime has no linked list, so startup applies the same final
-    value directly to the modules that own endpoint globals.
+    Production already treats recepcion-version.json as the canonical source.
+    The old chain merely copied that value through `.previous`; the semantic
+    runtime copies it directly to current feature modules instead.
     """
-    path = OUT / "app.py"
-    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
-    for node in tree.body:
-        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
-            continue
-        target = node.targets[0]
-        if not isinstance(target, ast.Name) or target.id != "APP_VERSION":
-            continue
-        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
-            return node.value.value
-    raise RuntimeError("No se encontró APP_VERSION final en app.py")
+    version_path = OUT / "recepcion-version.json"
+    doc = json.loads(version_path.read_text(encoding="utf-8-sig"))
+    value = str(doc.get("version") or "").strip()
+    if not value:
+        raise RuntimeError("recepcion-version.json no contiene una versión válida")
+    return value
 
 
 def _rewrite_features_runtime() -> list[str]:
