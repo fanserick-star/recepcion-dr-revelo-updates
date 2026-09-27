@@ -104,11 +104,19 @@ function Ensure-Python {
         try { $ok = ((& $PythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim() -eq '3.11') } catch { $ok = $false }
     }
     if ($ok) { return }
+
+    $runtime = Join-Path $StageRoot 'python-runtime'
+    $runtimePython = Join-Path $runtime 'python.exe'
+    if (-not (Test-Path -LiteralPath $runtimePython)) { throw 'Falta el runtime privado Python 3.11 en el instalador.' }
+
     if (Test-Path -LiteralPath $PythonRoot) { Remove-Item -LiteralPath $PythonRoot -Recurse -Force }
-    $installer = Join-Path $StageRoot 'python-3.11.9-amd64.exe'
-    if (-not (Test-Path -LiteralPath $installer)) { throw 'Falta Python 3.11 en el instalador.' }
-    Invoke-Checked $installer @('/quiet','InstallAllUsers=1',"TargetDir=$PythonRoot",'PrependPath=0','Include_launcher=0','InstallLauncherAllUsers=0','Include_pip=1','Include_test=0','Include_doc=0','Include_dev=0')
-    if (-not (Test-Path -LiteralPath $PythonExe)) { throw 'Python 3.11 no quedo instalado.' }
+    New-Item -ItemType Directory -Force $PythonRoot | Out-Null
+    Copy-Item -Path (Join-Path $runtime '*') -Destination $PythonRoot -Recurse -Force
+
+    if (-not (Test-Path -LiteralPath $PythonExe)) { throw 'El runtime privado Python 3.11 no se copio correctamente.' }
+    $version = (& $PythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
+    if ($version -ne '3.11') { throw "Runtime privado Python inesperado: $version" }
+    Write-Step 'Runtime privado Python 3.11 listo.'
 }
 
 function Ensure-Venv([string]$Dest) {
