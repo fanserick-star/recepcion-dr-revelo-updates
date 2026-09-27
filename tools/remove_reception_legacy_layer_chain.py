@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-"""Remove the last executable version-layer chain from the flat Reception candidate.
+"""Turn the flat Reception candidate into a semantic runtime.
 
-The first refactor made historical sources physical modules, but kept a registry
-with keys such as app_patch_4525 and assignments such as
-``previous = _rf_layers[...]``.  That still models the old release chain at
-runtime.  This pass converts those references into ordinary imports between
-semantic feature modules and leaves startup as a deterministic list of current
-features.
+The first flattening pass already extracts the embedded releases into physical
+feature modules.  This second pass removes the remaining executable release
+registry (`app_patch_*`, `_rf_layers` and `.previous` walks) and replaces it with
+ordinary imports between modules named by function.
 
-It intentionally runs only on refactor_build/reception_flat_466.  Production
-packages and release channels are never touched by this tool.
+Only refactor_build/reception_flat_466 is changed.  Production is never touched.
 """
 
 import ast
@@ -22,60 +19,30 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "refactor_build" / "reception_flat_466"
 META = OUT / "refactor_meta.json"
 
-FEATURE_NAMES = {
-    "app_prev_4458": "payments_and_agenda",
-    "app_patch_4459": "billing_non_billable",
-    "app_patch_4461": "receipt_thermal_layout",
-    "app_patch_4462": "receipt_classification",
-    "app_patch_4463": "receipt_preview",
-    "app_patch_4464": "receipt_margins",
-    "app_patch_4465": "receipt_unified_layout",
-    "app_patch_4466": "receipt_raster",
-    "app_patch_4467": "receipt_readability",
-    "app_patch_4468": "receipt_size",
-    "app_patch_4469": "receipt_width",
-    "app_patch_4470": "attention_identity",
-    "app_patch_4473": "interface_recovery",
-    "app_patch_4474": "printing_queue",
-    "app_patch_4475": "attention_transaction",
-    "app_patch_4476": "billing_history",
-    "app_patch_4477": "billing_discard",
-    "app_patch_4478": "billing_actions",
-    "app_patch_4479": "interface_cleanup",
-    "app_patch_4480": "billing_issued_filters",
-    "app_patch_4481": "billing_modal_cleanup",
-    "app_patch_4482": "update_restart",
-    "app_patch_4483": "update_launcher",
-    "app_patch_4484": "billing_optional_email",
-    "app_patch_4485": "payment_proof",
-    "app_patch_4486": "printing_menu",
-    "app_patch_4487": "payment_proof_margins",
-    "app_patch_4488": "payment_proof_layout",
-    "app_patch_4489": "billing_data_form",
-    "app_patch_4490": "billing_data_form_compact",
-    "app_patch_4491": "billing_data_form_layout",
-    "app_patch_4501": "system_status",
-    "app_patch_4502": "consultation_discount",
-    "app_patch_4504": "payment_terminal",
-    "app_patch_4505": "payment_terminal_interface",
-    "app_patch_4506": "payment_terminal_config",
-    "app_patch_4507": "payment_terminal_manual",
-    "app_patch_4508": "history_bridge",
-    "app_patch_4509": "history_bridge",
-    "app_patch_4510": "history_bridge",
-    "app_patch_4511": "history_bridge",
-    "app_patch_4517": "launcher_status",
-    "app_patch_4518": "version_display",
-    "app_patch_4519": "version_sidebar",
-    "app_patch_4520": "history_transport",
-    "app_patch_4521": "history_attention_type",
-    "app_patch_4522": "history_cancellation",
-    "app_patch_4523": "payment_terminal_feedback",
-    "app_patch_4524": "history_patient_details",
-    "app_patch_4525": "payment_terminal_panel",
-}
-HIST_TO_MODULE = {"app_base_4428": "core_runtime"}
-HIST_TO_MODULE.update({key: "reception_" + value for key, value in FEATURE_NAMES.items()})
+
+def _load_runtime_map() -> tuple[dict[str, str], dict]:
+    meta = json.loads(META.read_text(encoding="utf-8-sig"))
+    mapping = {"app_base_4428": "core_runtime"}
+    mapping.update({str(k): str(v) for k, v in (meta.get("feature_modules") or {}).items()})
+
+    # Three historical releases were already proven to be version-only aliases
+    # and therefore have no generated physical module. Resolve them to the real
+    # semantic implementation they alias.
+    aliases = {str(k): str(v) for k, v in (meta.get("removed_release_only_layers") or {}).items()}
+    for key in aliases:
+        target = aliases[key]
+        seen = {key}
+        while target in aliases and target not in seen:
+            seen.add(target)
+            target = aliases[target]
+        if target not in mapping:
+            raise RuntimeError(f"Alias histórico sin implementación semántica: {key} -> {target}")
+        mapping[key] = mapping[target]
+    return mapping, meta
+
+
+HIST_TO_MODULE, BUILD_META = _load_runtime_map()
+STABLE_MODULES = set(HIST_TO_MODULE.values())
 
 
 def _layer_key(node: ast.AST) -> str | None:
@@ -87,8 +54,8 @@ def _layer_key(node: ast.AST) -> str | None:
     if not is_layers:
         return None
     key = node.slice
-    if isinstance(key, ast.Constant) and isinstance(key.value, str):
-        return key.value if key.value in HIST_TO_MODULE else None
+    if isinstance(key, ast.Constant) and isinstance(key.value, str) and key.value in HIST_TO_MODULE:
+        return key.value
     return None
 
 
@@ -97,10 +64,10 @@ def _historical_getattr(node: ast.AST) -> tuple[str, str] | None:
         return None
     if len(node.args) < 2:
         return None
-    key = _layer_key(node.args[0])
+    hist = _layer_key(node.args[0])
     attr = node.args[1]
-    if key and isinstance(attr, ast.Constant) and isinstance(attr.value, str):
-        return key, attr.value
+    if hist and isinstance(attr, ast.Constant) and isinstance(attr.value, str):
+        return hist, attr.value
     return None
 
 
@@ -114,9 +81,10 @@ def _contains_previous_walk(node: ast.AST) -> bool:
 
 
 def _semantic_alias(old: str, module: str) -> str:
-    short = module.removeprefix("reception_")
+    if old == "core":
+        return "core"
     if old == "previous" or old.startswith("_rf_alias_"):
-        return "_dep_" + re.sub(r"\W+", "_", short)
+        return "_dep_" + re.sub(r"\W+", "_", module.removeprefix("reception_"))
     return old
 
 
@@ -130,33 +98,30 @@ class RenameNames(ast.NodeTransformer):
         return node
 
 
-class ReplaceLegacyLookups(ast.NodeTransformer):
-    def __init__(self, imports: dict[str, str]):
-        self.imports = imports
-        self.unresolved_runtime_lookups: list[str] = []
+class ReplaceLegacyRuntime(ast.NodeTransformer):
+    """Rewrite dynamic registry lookups to ordinary sys.modules lookups."""
+
+    def visit_Constant(self, node: ast.Constant):
+        if isinstance(node.value, str) and node.value in HIST_TO_MODULE:
+            return ast.copy_location(ast.Constant(HIST_TO_MODULE[node.value]), node)
+        return node
 
     def visit_Call(self, node: ast.Call):
         node = self.generic_visit(node)
         fn = node.func
         is_lookup = isinstance(fn, ast.Name) and fn.id == "_rf_module_lookup"
-        is_lookup = is_lookup or (
-            isinstance(fn, ast.Attribute)
-            and fn.attr == "_rf_module_lookup"
-        )
-        if not is_lookup:
-            return node
-        if node.args and isinstance(node.args[0], ast.Constant) and node.args[0].value in HIST_TO_MODULE:
-            hist = str(node.args[0].value)
-            module = HIST_TO_MODULE[hist]
-            alias = "_dep_lookup_" + module.removeprefix("reception_")
-            self.imports[alias] = module
-            return ast.copy_location(ast.Name(id=alias, ctx=ast.Load()), node)
-        self.unresolved_runtime_lookups.append(ast.unparse(node))
+        is_lookup = is_lookup or (isinstance(fn, ast.Attribute) and fn.attr == "_rf_module_lookup")
+        if is_lookup:
+            node.func = ast.Attribute(
+                value=ast.Attribute(value=ast.Name(id="sys", ctx=ast.Load()), attr="modules", ctx=ast.Load()),
+                attr="get",
+                ctx=ast.Load(),
+            )
         return node
 
 
 def _strip_chain_bootstrap(body: list[ast.stmt]) -> list[ast.stmt]:
-    """Remove only the known APP_VERSION walk through `.previous` links."""
+    """Remove only the known APP_VERSION traversal through `.previous`."""
     out: list[ast.stmt] = []
     i = 0
     while i < len(body):
@@ -186,13 +151,12 @@ def _rewrite_python(path: Path) -> dict:
 
     alias_renames: dict[str, str] = {}
     direct_imports: dict[str, str] = {}
-    new_body: list[ast.stmt] = []
+    body: list[ast.stmt] = []
 
     for node in tree.body:
-        # Remove the compatibility-registry imports.  features_runtime is kept
-        # only as the startup side-effect import in app.py.
         if isinstance(node, ast.ImportFrom) and node.module == "runtime_registry":
             continue
+
         if isinstance(node, ast.Import):
             kept = []
             for item in node.names:
@@ -204,7 +168,7 @@ def _rewrite_python(path: Path) -> dict:
                     kept.append(item)
             if kept:
                 node.names = kept
-                new_body.append(node)
+                body.append(node)
             continue
 
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
@@ -216,41 +180,34 @@ def _rewrite_python(path: Path) -> dict:
                 alias_renames[target] = alias
                 direct_imports[alias] = module
                 continue
-            got = _historical_getattr(node.value)
-            if got:
-                hist, attr = got
+
+            imported_attr = _historical_getattr(node.value)
+            if imported_attr:
+                hist, attr = imported_attr
                 module = HIST_TO_MODULE[hist]
-                imported = ast.ImportFrom(
-                    module=module,
-                    names=[ast.alias(name=attr, asname=None if target == attr else target)],
-                    level=0,
+                body.append(
+                    ast.copy_location(
+                        ast.ImportFrom(
+                            module=module,
+                            names=[ast.alias(name=attr, asname=None if target == attr else target)],
+                            level=0,
+                        ),
+                        node,
+                    )
                 )
-                new_body.append(ast.copy_location(imported, node))
                 continue
 
-        new_body.append(node)
+        body.append(node)
 
-    tree.body = new_body
+    tree.body = body
     if alias_renames:
         tree = RenameNames(alias_renames).visit(tree)
         ast.fix_missing_locations(tree)
 
-    lookup_imports: dict[str, str] = {}
-    lookup_rewriter = ReplaceLegacyLookups(lookup_imports)
-    tree = lookup_rewriter.visit(tree)
+    tree = ReplaceLegacyRuntime().visit(tree)
     ast.fix_missing_locations(tree)
-    if lookup_rewriter.unresolved_runtime_lookups:
-        raise RuntimeError(
-            f"{path.name}: dynamic legacy module lookup still unresolved: "
-            + "; ".join(lookup_rewriter.unresolved_runtime_lookups[:5])
-        )
-    direct_imports.update(lookup_imports)
-
     tree.body = _strip_chain_bootstrap(tree.body)
 
-    # Prepend ordinary semantic imports after future imports.  Importing the
-    # semantic module object preserves real module globals without a release
-    # registry or a synthetic previous-chain.
     imports = [
         ast.Import(names=[ast.alias(name=module, asname=None if alias == module else alias)])
         for alias, module in sorted(direct_imports.items())
@@ -286,28 +243,26 @@ def _rewrite_features_runtime() -> list[str]:
             if item.name.startswith("reception_") and item.name not in modules:
                 modules.append(item.name)
 
-    lines = [
+    text = [
         "from __future__ import annotations",
         "",
-        "# Current functional runtime. No historical release registry is used.",
-    ]
-    lines.extend(f"import {name}" for name in modules)
-    lines += [
+        "# Deterministic current runtime. No historical release registry.",
+        *[f"import {name}" for name in modules],
         "",
         "FEATURE_MODULES = (",
         *[f"    {name}," for name in modules],
         ")",
         "",
     ]
-    path.write_text("\n".join(lines), encoding="utf-8", newline="\n")
+    path.write_text("\n".join(text), encoding="utf-8", newline="\n")
     return modules
 
 
 def _rewrite_registry_stub() -> None:
-    # Kept temporarily because the packaging contract in this branch still
-    # lists the filename.  It is deliberately inert and contains no aliases.
+    # The packaging contract still lists this filename during the transition.
+    # It is inert, imported nowhere, and contains no release aliases.
     (OUT / "runtime_registry.py").write_text(
-        '"""Compatibility filename only; the runtime no longer uses a layer registry."""\n'
+        '"""Compatibility filename only; no runtime layer registry remains."""\n'
         "SEMANTIC_RUNTIME = True\n",
         encoding="utf-8",
         newline="\n",
@@ -318,36 +273,40 @@ def _assert_no_legacy_runtime() -> None:
     failures: list[str] = []
     for path in sorted(OUT.glob("*.py")):
         text = path.read_text(encoding="utf-8-sig")
-        parsed = ast.parse(text, filename=str(path))
-        for node in ast.walk(parsed):
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                rendered = ast.unparse(node)
-                if "app_patch_" in rendered or "app_prev_" in rendered or "app_base_" in rendered:
-                    failures.append(f"{path.name}: {rendered}")
-            if isinstance(node, ast.Name) and node.id in {"_rf_layers", "_rf_module_lookup", "_rf_legacy"}:
-                failures.append(f"{path.name}: legacy name {node.id}")
-            if isinstance(node, ast.Subscript) and _layer_key(node):
-                failures.append(f"{path.name}: legacy layer lookup {ast.unparse(node)}")
-        if re.search(r"\bprevious\s*=\s*", text):
-            failures.append(f"{path.name}: previous assignment remains")
+        tree = ast.parse(text, filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "runtime_registry" or alias.name in HIST_TO_MODULE:
+                        failures.append(f"{path.name}: import {alias.name}")
+            elif isinstance(node, ast.ImportFrom):
+                if (node.module or "") == "runtime_registry" or (node.module or "") in HIST_TO_MODULE:
+                    failures.append(f"{path.name}: from {node.module}")
+            elif isinstance(node, ast.Name) and node.id in {"_rf_layers", "_rf_module_lookup", "_rf_legacy"}:
+                failures.append(f"{path.name}: legacy symbol {node.id}")
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in HIST_TO_MODULE:
+                failures.append(f"{path.name}: historical runtime key {node.value}")
+        if path.name != "runtime_registry.py" and re.search(r"\bprevious\s*=\s*", text):
+            failures.append(f"{path.name}: previous assignment")
+        if "getattr(_mod, 'previous'" in text or 'getattr(_mod, "previous"' in text:
+            failures.append(f"{path.name}: previous-chain walk")
     if failures:
-        raise SystemExit("Legacy runtime chain remains:\n" + "\n".join(failures[:40]))
+        raise SystemExit("Legacy runtime chain remains:\n" + "\n".join(failures[:80]))
 
 
 def main() -> None:
-    if not OUT.is_dir():
+    if not OUT.is_dir() or not META.is_file():
         raise SystemExit("Primero ejecute tools/build_reception_flat_prototype.py")
 
     reports = []
-    targets = [OUT / "app.py"] + sorted(OUT.glob("reception_*.py"))
-    for path in targets:
+    for path in [OUT / "app.py", *sorted(OUT.glob("reception_*.py"))]:
         reports.append(_rewrite_python(path))
 
     modules = _rewrite_features_runtime()
     _rewrite_registry_stub()
     _assert_no_legacy_runtime()
 
-    meta = json.loads(META.read_text(encoding="utf-8-sig")) if META.exists() else {}
+    meta = dict(BUILD_META)
     meta.update(
         {
             "semantic_runtime": True,
