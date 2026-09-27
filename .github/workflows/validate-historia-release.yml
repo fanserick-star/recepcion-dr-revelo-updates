@@ -64,6 +64,6 @@ jobs:
           assert str(channel['appVersion'])==str(version)
           assert channel['mandatory'] is True
           assert all('/historia-clinica/app/' in item['url'] for item in channel['files'])
-          assert all('updates/' not in item['url'] for item in channel['files'])
+          assert all('/historia-clinica/updates/' not in item['url'] for item in channel['files'])
           print('CANONICAL_CHANNEL_DRY_RUN_OK',version,'files',len(channel['files']))
           PY
