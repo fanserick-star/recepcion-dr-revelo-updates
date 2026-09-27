@@ -137,6 +137,9 @@ class EmbeddedImportTransformer(ast.NodeTransformer):
         return ast.parse(self.layer_expr_prefix, mode="eval").body
 
     def _unique(self, alias: str) -> str:
+        if self.module_name != "outer_current":
+            # Real modules preserve public aliases and their live globals.
+            return alias
         return f"_rf_alias_{safe(self.module_name)}__{safe(alias)}"
 
     def visit_Import(self, node: ast.Import):
@@ -278,7 +281,20 @@ outer_flat = outer_flat.replace(
 
 if OUT.exists():
     shutil.rmtree(OUT)
-shutil.copytree(SOURCE_DIR, OUT)
+OUT.mkdir(parents=True)
+# Only declared program files belong in a reproducible candidate. Test-created
+# databases, user data and bytecode must never leak from a working directory.
+source_manifest = json.loads((SOURCE_DIR / "update_manifest.json").read_text(encoding="utf-8-sig"))
+for rel in source_manifest["copy"]:
+    rel = str(rel).replace("\\", "/")
+    low = rel.lower()
+    if (Path(rel).is_absolute() or ".." in rel.split("/") or ":" in rel
+            or low.startswith(("data/", "backups/", "update_backups/"))
+            or low == ".env" or low.endswith((".db", ".sqlite", ".xlsx", ".xls", ".mdb"))):
+        raise ValueError(f"Source manifest includes a protected or invalid path: {rel}")
+    target = OUT / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(SOURCE_DIR / rel, target)
 
 # Physical audited helpers.
 for helper in sorted(HELPERS):
@@ -287,35 +303,104 @@ for helper in sorted(HELPERS):
 # Stable base becomes a real module, no import hook and no source string.
 (OUT / "core_runtime.py").write_text(embedded[BASE], encoding="utf-8", newline="\n")
 
-parts = [
-    "from __future__ import annotations",
-    "import sys as _rf_sys",
-    "import types as _rf_types",
-    "import core_runtime as _rf_core_runtime",
-    "",
-    "# Consolidated historical feature runtime. No import hooks, no embedded source strings.",
-    "_rf_layers = {'app_base_4428': _rf_core_runtime}",
-    "",
-    "def _rf_module_lookup(name, default=None):",
-    "    if name in _rf_layers:",
-    "        return _rf_layers[name]",
-    "    return _rf_sys.modules.get(name, default)",
-    "",
-]
+# Each feature keeps a real Python module dictionary. Flattening all feature
+# bodies into one dictionary silently redirects earlier functions to later
+# globals (billing recursion, stale print renderers and version drift).
+# The registry preserves audited cross-feature mutations without import hooks.
+FEATURE_NAMES = {
+    "app_prev_4458": "payments_and_agenda",
+    "app_patch_4459": "billing_non_billable",
+    "app_patch_4461": "receipt_thermal_layout",
+    "app_patch_4462": "receipt_classification",
+    "app_patch_4463": "receipt_preview",
+    "app_patch_4464": "receipt_margins",
+    "app_patch_4465": "receipt_unified_layout",
+    "app_patch_4466": "receipt_raster",
+    "app_patch_4467": "receipt_readability",
+    "app_patch_4468": "receipt_size",
+    "app_patch_4469": "receipt_width",
+    "app_patch_4470": "attention_identity",
+    "app_patch_4473": "interface_recovery",
+    "app_patch_4474": "printing_queue",
+    "app_patch_4475": "attention_transaction",
+    "app_patch_4476": "billing_history",
+    "app_patch_4477": "billing_discard",
+    "app_patch_4478": "billing_actions",
+    "app_patch_4479": "interface_cleanup",
+    "app_patch_4480": "billing_issued_filters",
+    "app_patch_4481": "billing_modal_cleanup",
+    "app_patch_4482": "update_restart",
+    "app_patch_4483": "update_launcher",
+    "app_patch_4484": "billing_optional_email",
+    "app_patch_4485": "payment_proof",
+    "app_patch_4486": "printing_menu",
+    "app_patch_4487": "payment_proof_margins",
+    "app_patch_4488": "payment_proof_layout",
+    "app_patch_4489": "billing_data_form",
+    "app_patch_4490": "billing_data_form_compact",
+    "app_patch_4491": "billing_data_form_layout",
+    "app_patch_4501": "system_status",
+    "app_patch_4502": "consultation_discount",
+    "app_patch_4504": "payment_terminal",
+    "app_patch_4505": "payment_terminal_interface",
+    "app_patch_4506": "payment_terminal_config",
+    "app_patch_4507": "payment_terminal_manual",
+    "app_patch_4508": "history_bridge",
+    "app_patch_4509": "history_bridge_release",
+    "app_patch_4510": "update_recovery",
+    "app_patch_4511": "desktop_identity",
+    "app_patch_4517": "launcher_status",
+    "app_patch_4518": "version_display",
+    "app_patch_4519": "version_sidebar",
+    "app_patch_4520": "history_transport",
+    "app_patch_4521": "history_attention_type",
+    "app_patch_4522": "history_cancellation",
+    "app_patch_4523": "payment_terminal_feedback",
+    "app_patch_4524": "history_patient_details",
+    "app_patch_4525": "payment_terminal_panel",
+}
+assert set(FEATURE_NAMES) == HIST - {BASE}
+assert len(set(FEATURE_NAMES.values())) == len(FEATURE_NAMES)
+registry_text = """import sys
+import core_runtime
 
+layers = {'app_base_4428': core_runtime}
+
+def module_lookup(name, default=None):
+    return layers.get(name, sys.modules.get(name, default))
+"""
+(OUT / "runtime_registry.py").write_text(registry_text, encoding="utf-8")
+parts = [
+    "from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup",
+    "# Explicit deterministic startup; all feature globals remain isolated.",
+]
+feature_files = []
+# These three releases only changed the version, traversed `previous`, and set
+# PATCH_BOOT_OK. Final app.py already sets the canonical version for every
+# feature. Keep compatibility keys, but stop executing those obsolete layers.
+release_only_aliases = {
+    "app_patch_4509": "app_patch_4508",
+    "app_patch_4510": "app_patch_4509",
+    "app_patch_4511": "app_patch_4510",
+}
 for modname in order:
     if modname == BASE:
         continue
+    if modname in release_only_aliases:
+        parts.append(f"_rf_layers[{modname!r}] = _rf_layers[{release_only_aliases[modname]!r}]")
+        continue
+    module_name = "reception_" + FEATURE_NAMES[modname]
     flat, exports, alias_map = transform_module(modname, embedded[modname])
-    parts += [f"# ---- {modname} ----", flat, ""]
-    snapvar = f"_rf_snapshot_{safe(modname)}"
-    parts.append(f"{snapvar} = _rf_types.SimpleNamespace()")
-    parts.append(f"setattr({snapvar}, '__name__', {modname!r})")
-    for original, expr in sorted(exports.items()):
-        parts.append(f"if {expr!r} in globals(): setattr({snapvar}, {original!r}, globals()[{expr!r}])")
-    parts.append(f"_rf_layers[{modname!r}] = {snapvar}")
-    parts.append("")
-
+    feature_text = (
+        "from __future__ import annotations\n"
+        "from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup\n\n"
+        + flat + "\n"
+    )
+    compile(feature_text, module_name + ".py", "exec")
+    (OUT / (module_name + ".py")).write_text(feature_text, encoding="utf-8", newline="\n")
+    feature_files.append(module_name + ".py")
+    parts.append(f"import {module_name}")
+    parts.append(f"_rf_layers[{modname!r}] = {module_name}")
 features_text = "\n".join(parts) + "\n"
 (OUT / "features_runtime.py").write_text(features_text, encoding="utf-8", newline="\n")
 
@@ -327,7 +412,10 @@ meta = {
     "historical_modules": len(HIST),
     "order": order,
     "outer_aliases": outer_transform.alias_map,
-    "generated_files": ["app.py", "core_runtime.py", "features_runtime.py"] + [f"{h}.py" for h in sorted(HELPERS)],
+    "generated_files": ["app.py", "core_runtime.py", "features_runtime.py", "runtime_registry.py"] + feature_files + [f"{h}.py" for h in sorted(HELPERS)],
+    "feature_modules": {k: "reception_" + v for k, v in FEATURE_NAMES.items()},
+    "isolated_feature_globals": True,
+    "removed_release_only_layers": release_only_aliases,
 }
 (OUT / "refactor_meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

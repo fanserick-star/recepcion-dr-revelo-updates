@@ -35,6 +35,10 @@ REQUIRED_DEPENDENCIES = [
     "historia_lan_transport.py",
 ]
 
+FEATURE_FILES = sorted(p.name for p in OUT.glob("reception_*.py"))
+RUNTIME_FILES += ["runtime_registry.py"] + FEATURE_FILES
+REQUIRED_DEPENDENCIES += ["runtime_registry.py"] + FEATURE_FILES
+
 if not OUT.is_dir():
     raise SystemExit("Primero ejecute tools/build_reception_flat_prototype.py")
 
@@ -54,18 +58,12 @@ notes.update(
         "production_status": "refactor-verified-not-published",
         "consolidated_runtime": True,
         "external_patch_chain_required": False,
-        "flat_runtime_physical_files": [
-            "app.py",
-            "core_runtime.py",
-            "features_runtime.py",
-            "azur_client.py",
-            "remote_agenda.py",
-            "whatsapp_client.py",
-        ],
+        "flat_runtime_physical_files": [name for name in RUNTIME_FILES if name.endswith(".py")],
+        "isolated_feature_globals": True,
         "embedded_runtime_sources": False,
         "runtime_import_hook": False,
         "manifest_rebuilt_for_flat_candidate": True,
-        "runtime_smoke_test": "validated by tools/test_reception_flat_prototype.py",
+        "runtime_smoke_test": "required: equivalence, bindings, packaged staging and update/rollback",
         "release_channel_modified": False,
     }
 )
@@ -76,7 +74,9 @@ MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", e
 # metadata, but never as executable imports or embedded source loaders.
 app_text = (OUT / "app.py").read_text(encoding="utf-8-sig")
 features_text = (OUT / "features_runtime.py").read_text(encoding="utf-8-sig")
-combined = app_text + "\n" + features_text
+combined = app_text + "\n" + features_text + "\n" + "\n".join(
+    (OUT / name).read_text(encoding="utf-8-sig") for name in FEATURE_FILES
+)
 for forbidden in ("_EMBEDDED_RUNTIME_SOURCES", "MetaPathFinder", "exec(code"):
     if forbidden in combined:
         raise SystemExit(f"Residuo estructural prohibido: {forbidden}")
@@ -157,6 +157,7 @@ contract = {
     "runtime_files": RUNTIME_FILES,
     "required_dependencies": REQUIRED_DEPENDENCIES,
     "forbidden_loader_residues": 0,
+    "isolated_feature_modules": len(FEATURE_FILES),
     "historical_executable_imports": 0,
     "helper_source_sha256": helper_source_sha256,
     "copied_runtime_sha256": copied_runtime_sha256,

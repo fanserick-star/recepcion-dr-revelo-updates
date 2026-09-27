@@ -97,6 +97,8 @@ try:
         "BASE DE DATOS 2026.xlsx": b"excel-user-data-sentinel",
         "backups/keep.txt": b"backup-user-data-sentinel",
     }
+    for year in range(2020, 2026):
+        protected_bytes[f"historico/BASE DE DATOS {year}.xlsx"] = f"historico-{year}-keep".encode()
     for rel, content in protected_bytes.items():
         path = install / rel
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,12 +111,7 @@ try:
         conn.execute("INSERT INTO sentinel(value) VALUES (?)", ("keep-me",))
         conn.commit()
 
-    protected = [
-        ".env",
-        "data/recepcion.db",
-        "BASE DE DATOS 2026.xlsx",
-        "backups/keep.txt",
-    ]
+    protected = list(protected_bytes) + ["data/recepcion.db"]
     protected_hashes = {rel: sha(install / rel) for rel in protected}
 
     baseline = {

@@ -54,7 +54,7 @@ out={
  'openapi_sha':hashlib.sha256(openapi_blob.encode('utf-8')).hexdigest(),
  'openapi_paths':len(openapi.get('paths') or {}),
  'openapi_schemas':len(((openapi.get('components') or {}).get('schemas') or {})),
- 'historical_modules_loaded':sorted(k for k in sys.modules if re.match(r'^app_(?:base|prev|patch)_\\d+$',k)),
+ 'historical_modules_loaded':sorted(k for k in sys.modules if re.match(r'^app_(?:base|prev|patch)_\d+$',k)),
  'core_sync_name':getattr(getattr(core,'sync_one_operation',None),'__name__',None),
  'core_normalize_patient_name':getattr(getattr(core,'normalize_patient_payload',None),'__name__',None),
 }

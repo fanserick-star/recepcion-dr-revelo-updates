@@ -16,7 +16,7 @@ PROTECTED_EXACT = {
 }
 FLAT_REQUIRED = {
     "core_runtime.py", "features_runtime.py", "azur_client.py",
-    "remote_agenda.py", "whatsapp_client.py",
+    "remote_agenda.py", "whatsapp_client.py", "runtime_registry.py",
 }
 
 
@@ -146,7 +146,9 @@ def validate(runtime: Path, baseline_app: Path | None = None) -> dict[str, objec
     }
     assert not historical_imports, sorted(historical_imports)
 
-    known_local = {
+    known_local = {"runtime_registry"} | {
+        name for names in all_imports.values() for name in names if name.startswith("reception_")
+    } | {
         "core_runtime", "features_runtime", "azur_client", "remote_agenda",
         "whatsapp_client", "historia_bridge", "historia_lan_transport",
     }

@@ -9,6 +9,7 @@ on:
       - tools/build_reception_flat_prototype.py
       - tools/finalize_reception_flat_candidate.py
       - tools/test_reception_flat_prototype.py
+      - tools/test_reception_runtime_bindings.py
       - tools/test_reception_flat_packaged_staging.py
       - tools/test_reception_flat_update_cycle.py
       - tools/validate_reception_runtime_layout.py
@@ -63,6 +64,10 @@ jobs:
         shell: pwsh
         run: python tools/test_reception_flat_prototype.py
 
+      - name: Verify billing, print renderer and version bindings
+        shell: pwsh
+        run: python tools/test_reception_runtime_bindings.py
+
       - name: Import candidate from manifest-only staging
         shell: pwsh
         run: python tools/test_reception_flat_packaged_staging.py
@@ -77,13 +82,19 @@ jobs:
           $candidate = "refactor_build/reception_flat_466"
           Get-ChildItem -Path $candidate -Recurse -Directory -Filter __pycache__ -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
           Get-ChildItem -Path $candidate -Recurse -File -Filter *.pyc -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+          # Import probes can initialize an empty bridge outbox. Never commit
+          # test databases or local configuration as program artifacts.
+          Remove-Item -Recurse -Force "$candidate/data" -ErrorAction SilentlyContinue
+          if (Get-ChildItem -Path $candidate -Recurse -File | Where-Object { $_.Extension -in '.db','.sqlite','.sqlite3','.xlsx','.xls','.mdb' -or $_.Name -eq '.env' }) {
+            throw "Candidate contains local data or configuration"
+          }
 
           $verification = [ordered]@{
             source_commit = "${{ github.sha }}"
             workflow_run_id = "${{ github.run_id }}"
             workflow_run_number = "${{ github.run_number }}"
             verified_utc = (Get-Date).ToUniversalTime().ToString("o")
-            contract = "Recepcion 4.6.6 flat runtime equivalence + layout + OpenAPI + packaged staging + update/rollback"
+            contract = "Recepcion 4.6.6 isolated runtime + bindings + equivalence + layout + OpenAPI + packaged staging + update/rollback + historical protection"
           } | ConvertTo-Json
           Set-Content -Path "$candidate/VERIFICATION.json" -Value $verification -Encoding utf8
 
