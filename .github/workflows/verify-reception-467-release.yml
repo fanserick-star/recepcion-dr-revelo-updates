@@ -49,4 +49,4 @@ jobs:
 
       - name: Verify 4.6.6 to 4.6.7 release and rollback
         shell: pwsh
-        run: python tools/verify_reception_467_release.py
+        run: python tools/verify_reception_467_release_v2.py
