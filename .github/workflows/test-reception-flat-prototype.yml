@@ -10,6 +10,7 @@ on:
       - tools/finalize_reception_flat_candidate.py
       - tools/test_reception_flat_prototype.py
       - tools/test_reception_flat_packaged_staging.py
+      - tools/test_reception_flat_update_cycle.py
       - tools/diagnose_reception_flat_overlay.py
       - .github/workflows/test-reception-flat-prototype.yml
   workflow_dispatch:
@@ -54,6 +55,10 @@ jobs:
         shell: pwsh
         run: python tools/test_reception_flat_packaged_staging.py
 
+      - name: Simulate update and rollback from production 4.6.6
+        shell: pwsh
+        run: python tools/test_reception_flat_update_cycle.py
+
       - name: Materialize verified candidate on refactor branch
         shell: pwsh
         run: |
@@ -66,7 +71,7 @@ jobs:
             workflow_run_id = "${{ github.run_id }}"
             workflow_run_number = "${{ github.run_number }}"
             verified_utc = (Get-Date).ToUniversalTime().ToString("o")
-            contract = "Recepcion 4.6.6 flat runtime equivalence + OpenAPI + packaged staging"
+            contract = "Recepcion 4.6.6 flat runtime equivalence + OpenAPI + packaged staging + update/rollback"
           } | ConvertTo-Json
           Set-Content -Path "$candidate/VERIFICATION.json" -Value $verification -Encoding utf8
 
