@@ -910,6 +910,61 @@ def render_legacy_segments(value, encounter_date=""):
     return "".join(cards), detected, len(segments)
 
 
+def _history_date_iso(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    return ""
+
+
+def legacy_effective_date(value, encounter_date=""):
+    """Fecha clínica efectiva de un registro importado sin modificar su texto.
+
+    Consulta Práctica podía guardar varios controles fechados dentro de una sola
+    historia cuyo encounter_date corresponde únicamente al registro contenedor.
+    Para ordenar/mostrar el historial usamos la fecha conocida más reciente entre
+    el registro original y los marcadores internos; el dato almacenado no cambia.
+    """
+    candidates = []
+    base_date = _history_date_iso(encounter_date)
+    if base_date:
+        candidates.append(base_date)
+    _text, markers = legacy_date_markers(value)
+    for marker in markers:
+        normalized = marker.get("normalized")
+        effective = _history_date_iso(normalized)
+        if effective:
+            candidates.append(effective)
+    return max(candidates) if candidates else str(encounter_date or "").strip()
+
+
+def history_effective_date(h):
+    status = h["note_status"] or ("legacy" if h["is_legacy_locked"] else "signed")
+    raw_date = h["encounter_date"] or ""
+    if status == "legacy":
+        return legacy_effective_date(h["clinical_note"], raw_date)
+    return _history_date_iso(raw_date) or str(raw_date).strip()
+
+
+def history_sort_key(h):
+    effective = history_effective_date(h)
+    original = _history_date_iso(h["encounter_date"])
+    status = h["note_status"] or ("legacy" if h["is_legacy_locked"] else "signed")
+    # Si un registro legacy representa un control interno posterior, la hora del
+    # contenedor antiguo no pertenece a ese control y no debe influir en el orden.
+    time_value = "" if status == "legacy" and effective != original else str(h["encounter_time"] or "")[:8]
+    try:
+        legacy_id = int(h["legacy_history_id"] or -1)
+    except Exception:
+        legacy_id = -1
+    return (effective, time_value, legacy_id, str(h["updated_at"] or ""))
+
+
 def clean_title(value, fallback="Consulta"):
     text = rtf_to_text(value).strip()
     if not text:
@@ -2619,14 +2674,20 @@ def render_history_card(h, addenda, open_by_default=False):
     if status == "signed":
         actions += f"<button class='text-btn js-addendum' data-id='{e(h['id'])}'>Seguir editando historia</button>"
     summary_title = clean_title(h["clinical_note"], "Registro clínico")
-    date_label = human_date(h["encounter_date"]) or h["encounter_date"] or "Sin fecha"
-    time_label = (h["encounter_time"] or "")[:5]
+    original_date = _history_date_iso(h["encounter_date"]) or str(h["encounter_date"] or "").strip()
+    effective_date = history_effective_date(h)
+    legacy_rollup = status == "legacy" and bool(effective_date) and bool(original_date) and effective_date != original_date
+    date_label = human_date(effective_date or h["encounter_date"]) or h["encounter_date"] or "Sin fecha"
+    time_label = "" if legacy_rollup else (h["encounter_time"] or "")[:5]
+    date_caption = "Último control:" if legacy_rollup else "Fecha de consulta:"
     origin = "Registro histórico" if status == "legacy" else "Consulta registrada"
+    if legacy_rollup:
+        origin += f" · registro original {human_date(original_date)}"
     return f"""
 <article class="history-card cp-history-card{' open' if open_by_default else ''}">
   <button class="history-toggle cp-history-toggle" onclick="this.parentElement.classList.toggle('open')">
     <div class="cp-history-toggle-main">
-      <div class="cp-history-date"><span>Fecha de consulta:</span><strong>{e(date_label)}</strong>{f'<time>{e(time_label)}</time>' if time_label else ''}</div>
+      <div class="cp-history-date"><span>{e(date_caption)}</span><strong>{e(date_label)}</strong>{f'<time>{e(time_label)}</time>' if time_label else ''}</div>
       <b>{e(summary_title)}</b>
       <small>{origin}</small>
     </div>
@@ -2654,17 +2715,19 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         merged_to = str(p["merged_into_patient_id"] or "").strip()
         if merged_to:
             return RedirectResponse(f"/paciente/{merged_to}", status_code=303)
-        all_histories = conn.execute(
+        all_histories = list(conn.execute(
             "SELECT * FROM encounters WHERE patient_id=? AND note_status!='draft' ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC",
             (patient_id,),
-        ).fetchall()
+        ).fetchall())
+        all_histories.sort(key=history_sort_key, reverse=True)
         if term:
             like = f"%{term}%"
-            histories = conn.execute("""
+            histories = list(conn.execute("""
                 SELECT * FROM encounters WHERE patient_id=? AND
                 note_status!='draft' AND (clinical_note LIKE ? OR legacy_history_t LIKE ?)
                 ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC
-            """, (patient_id, like, like)).fetchall()
+            """, (patient_id, like, like)).fetchall())
+            histories.sort(key=history_sort_key, reverse=True)
         else:
             histories = all_histories
         total_histories = len(all_histories)
@@ -2696,7 +2759,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
     alert_html = f"<section class='alert-card patient-alert'><strong>Alerta clínica</strong><span>{display_text(alert_text)}</span></section>" if alert_text else ""
 
     timeline = "".join(render_history_card(h, addenda_by.get(h["id"], []), open_by_default=(i == 0)) for i, h in enumerate(histories))
-    last_date = human_date(last_signed["encounter_date"]) if last_signed else "Sin registros"
+    last_date = human_date(history_effective_date(last_signed)) if last_signed else "Sin registros"
 
     consult_action = (
         f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva?encounter_id={e(active_edit["id"])}">Continuar consulta</a>'
