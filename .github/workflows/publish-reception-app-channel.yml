@@ -1,5 +1,5 @@
 name: Publish Validated Reception App Channel
-# republish refresh: Reception 4.6.3 helper hash contract
+# Supports both legacy embedded 4.6.x runtime and the definitive physical runtime.
 
 on:
   push:
@@ -20,6 +20,35 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Reconstruct source package and validate runtime layout
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, shutil
+          from pathlib import Path
+
+          src = json.loads(Path('launcher-v1/app-channel-source.json').read_text(encoding='utf-8'))
+          out = Path('channel_runtime_validate')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+
+          for item in src['files']:
+              target = str(item['path']).replace('\\','/').strip()
+              paths = list(item.get('sourcePaths') or [item['sourcePath']])
+              dest = out / target
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              with dest.open('wb') as fh:
+                  for source in paths:
+                      fh.write(Path(source).read_bytes())
+          PY
+          python tools/validate_reception_runtime_layout.py \
+            channel_runtime_validate \
+            --baseline-app updates/v4_6_0_consolidated_runtime/app.py
+
       - name: Generate channel from exact Git blobs
         shell: bash
         env:
@@ -27,242 +56,101 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           python - <<'PY'
-          import ast
           import hashlib
           import json
-          import re
           import os
           import subprocess
           from pathlib import Path
 
-          root = Path(".")
-          source_path = root / "launcher-v1/app-channel-source.json"
-          output_path = root / "launcher-v1/app-channel.json"
-          src = json.loads(source_path.read_text(encoding="utf-8"))
-          sha = os.environ["RELEASE_SHA"]
-          repo = os.environ["REPOSITORY"]
+          root = Path('.')
+          source_path = root / 'launcher-v1/app-channel-source.json'
+          output_path = root / 'launcher-v1/app-channel.json'
+          src = json.loads(source_path.read_text(encoding='utf-8'))
+          sha = os.environ['RELEASE_SHA']
+          repo = os.environ['REPOSITORY']
 
-          protected_prefixes = ("data/", "backups/", "update_backups/")
-          protected_suffixes = (
-              ".db", ".sqlite", ".sqlite3", ".mdb", ".accdb", ".xls", ".xlsx"
-          )
+          protected_prefixes = ('data/', 'backups/', 'update_backups/')
+          protected_suffixes = ('.db', '.sqlite', '.sqlite3', '.mdb', '.accdb', '.xls', '.xlsx')
           protected_exact = {
-              ".env",
-              "recepcionlauncher.exe",
-              "launcherupdater.exe",
-              "desinstalar_recepcion_dr_revelo.exe",
-              "abrir_recepcion.py",
-              "abrir_recepcion.pyw",
-              "autoactualizar.py",
-              "iniciar.bat",
+              '.env', 'recepcionlauncher.exe', 'launcherupdater.exe',
+              'desinstalar_recepcion_dr_revelo.exe', 'abrir_recepcion.py',
+              'abrir_recepcion.pyw', 'autoactualizar.py', 'iniciar.bat',
           }
-          forbidden_runtime_module_prefixes = (
-              "app_patch_",
-              "app_prev_",
-              "app_base_",
-          )
+          forbidden_runtime_module_prefixes = ('app_patch_', 'app_prev_', 'app_base_')
 
           generated_files = []
           payloads = {}
-
-          for item in src["files"]:
-              target = item["path"].replace("\\", "/").strip()
+          for item in src['files']:
+              target = item['path'].replace('\\', '/').strip()
               low = target.lower()
-              assert target and not target.startswith("/") and ".." not in target.split("/")
+              assert target and not target.startswith('/') and '..' not in target.split('/')
               basename = Path(low).name
               assert not (
-                  basename.endswith(".py")
-                  and basename.startswith(forbidden_runtime_module_prefixes)
-              ), f"Runtime encadenado prohibido: {target}"
+                  basename.endswith('.py') and basename.startswith(forbidden_runtime_module_prefixes)
+              ), f'Runtime encadenado prohibido: {target}'
               assert not low.startswith(protected_prefixes), target
               assert low not in protected_exact, target
               assert not low.endswith(protected_suffixes), target
 
-              source_paths = item.get("sourcePaths")
-              if source_paths:
-                  paths = list(source_paths)
-              else:
-                  paths = [item["sourcePath"]]
-
-              chunks = []
-              urls = []
+              paths = list(item.get('sourcePaths') or [item['sourcePath']])
+              chunks, urls = [], []
               for source in paths:
-                  blob = subprocess.check_output(["git", "show", f"{sha}:{source}"])
+                  blob = subprocess.check_output(['git', 'show', f'{sha}:{source}'])
                   chunks.append(blob)
-                  urls.append(
-                      f"https://raw.githubusercontent.com/{repo}/{sha}/{source}"
-                  )
-
-              payload = b"".join(chunks)
+                  urls.append(f'https://raw.githubusercontent.com/{repo}/{sha}/{source}')
+              payload = b''.join(chunks)
               digest = hashlib.sha256(payload).hexdigest()
+              assert target not in payloads, f'Target duplicado: {target}'
               payloads[target] = payload
 
-              row = {"path": target}
+              row = {'path': target, 'sha256': digest}
               if len(urls) == 1:
-                  row["url"] = urls[0]
+                  row['url'] = urls[0]
               else:
-                  row["parts"] = urls
-              row["sha256"] = digest
+                  row['parts'] = urls
               generated_files.append(row)
-              print(f"{target}: bytes={len(payload)} sha256={digest}")
+              print(f'{target}: bytes={len(payload)} sha256={digest}')
 
-          version = json.loads(
-              payloads["recepcion-version.json"].decode("utf-8-sig")
-          )["version"]
-          assert version == src["appVersion"], (version, src["appVersion"])
+          version = json.loads(payloads['recepcion-version.json'].decode('utf-8-sig'))['version']
+          assert version == src['appVersion'], (version, src['appVersion'])
+          manifest = json.loads(payloads['update_manifest.json'].decode('utf-8-sig'))
+          for key in ('version', 'app_version', 'runtime_version'):
+              assert str(manifest.get(key, '')).strip() == version, (key, manifest.get(key), version)
+          assert manifest.get('mandatory') is True
+          assert str(manifest.get('launcher_minimum', '')).strip() == str(src['minimumLauncher'])
+          assert manifest.get('version_source') == 'recepcion-version.json'
+          assert manifest.get('compatibility_version_aliases') is True
 
-          manifest = json.loads(
-              payloads["update_manifest.json"].decode("utf-8-sig")
+          manifest_copy = {str(x).replace('\\','/') for x in manifest.get('copy', [])}
+          channel_targets = set(payloads)
+          assert manifest_copy == channel_targets, (
+              'El canal y update_manifest.json no contienen exactamente el mismo payload',
+              sorted(manifest_copy - channel_targets), sorted(channel_targets - manifest_copy)
           )
-          for key in ("version", "app_version", "runtime_version"):
-              assert str(manifest.get(key, "")).strip() == version, (
-                  key, manifest.get(key), version
-              )
-          assert manifest.get("mandatory") is True
-          assert str(manifest.get("launcher_minimum", "")).strip() == str(
-              src["minimumLauncher"]
-          )
-          assert manifest.get("version_source") == "recepcion-version.json"
-          assert manifest.get("compatibility_version_aliases") is True
+          required = {str(x).replace('\\','/') for x in manifest.get('required_dependencies', [])}
+          assert required.issubset(channel_targets), sorted(required - channel_targets)
 
-          app_text = payloads["app.py"].decode("utf-8-sig")
-          compile(app_text, "app.py", "exec")
-          tree = ast.parse(app_text, filename="app.py")
-
-          def embedded_module_names(parsed_tree):
-              for node in parsed_tree.body:
-                  if isinstance(node, ast.Assign):
-                      for target in node.targets:
-                          if (
-                              isinstance(target, ast.Name)
-                              and target.id == "_EMBEDDED_RUNTIME_SOURCES"
-                          ):
-                              value = ast.literal_eval(node.value)
-                              assert isinstance(value, dict)
-                              return set(value)
-              return set()
-
-          embedded_modules = embedded_module_names(tree)
-
-          # 4.6.0 es el techo histórico permitido. Las versiones futuras pueden
-          # reducir esta compatibilidad interna, pero no añadir otra capa
-          # app_patch/app_prev/app_base. Así seguimos teniendo un solo app.py
-          # físico sin volver a crecer la cadena.
-          baseline_path = root / "updates/v4_6_0_consolidated_runtime/app.py"
-          baseline_tree = ast.parse(
-              baseline_path.read_text(encoding="utf-8-sig"),
-              filename=str(baseline_path),
-          )
-          baseline_embedded = embedded_module_names(baseline_tree)
-
-          def is_historical_runtime_module(name):
-              return name.startswith(forbidden_runtime_module_prefixes)
-
-          current_historical = {
-              name for name in embedded_modules
-              if is_historical_runtime_module(name)
-          }
-          baseline_historical = {
-              name for name in baseline_embedded
-              if is_historical_runtime_module(name)
-          }
-          unexpected_historical = current_historical - baseline_historical
-          assert not unexpected_historical, (
-              "Se intentó añadir una nueva capa histórica embebida: "
-              + ", ".join(sorted(unexpected_historical))
-          )
-
-          unresolved_historical_imports = []
-          for node in ast.walk(tree):
-              names = []
-              if isinstance(node, ast.Import):
-                  names = [a.name.split(".")[0] for a in node.names]
-              elif isinstance(node, ast.ImportFrom) and node.module:
-                  names = [node.module.split(".")[0]]
-              for name in names:
-                  if (
-                      is_historical_runtime_module(name)
-                      and name not in embedded_modules
-                  ):
-                      unresolved_historical_imports.append(name)
-          assert not unresolved_historical_imports, (
-              "app.py depende de módulos históricos externos: "
-              + ", ".join(sorted(set(unresolved_historical_imports)))
-          )
-
-          # remote_agenda queda retirado como helper externo desde 4.6.1.
-          if "remote_agenda" in {
-              name
-              for node in ast.walk(tree)
-              for name in (
-                  [a.name.split(".")[0] for a in node.names]
-                  if isinstance(node, ast.Import)
-                  else (
-                      [node.module.split(".")[0]]
-                      if isinstance(node, ast.ImportFrom) and node.module
-                      else []
-                  )
-              )
-          }:
-              assert "remote_agenda" in embedded_modules, (
-                  "remote_agenda no puede volver a ser dependencia externa"
-              )
-
-          def ver_tuple(value):
-              parts = re.findall(r"\d+", str(value))
-              return tuple(int(x) for x in (parts + ["0","0","0"])[:3])
-
-          # Desde 4.6.2 los helpers funcionales quedan dentro del runtime único.
-          if ver_tuple(version) >= (4, 6, 2):
-              required_embedded_helpers = {
-                  "remote_agenda",
-                  "azur_client",
-                  "whatsapp_client",
-              }
-              missing_helpers = required_embedded_helpers - embedded_modules
-              assert not missing_helpers, (
-                  "Faltan helpers embebidos obligatorios: "
-                  + ", ".join(sorted(missing_helpers))
-              )
-              prereq = {
-                  str(x).strip().lower()
-                  for x in manifest.get("installation_prerequisites", [])
-              }
-              forbidden_external = {
-                  "remote_agenda.py",
-                  "azur_client.py",
-                  "whatsapp_client.py",
-              } & prereq
-              assert not forbidden_external, (
-                  "La versión intenta volver a depender de helpers externos: "
-                  + ", ".join(sorted(forbidden_external))
-              )
-
-          assert 'Path(__file__).with_name("recepcion-version.json")' in app_text
-          print(
-              "syntax OK: app.py; sin cadena externa; "
-              f"capas históricas embebidas={len(current_historical)}"
-          )
+          for target, payload in payloads.items():
+              if target.lower().endswith('.py'):
+                  compile(payload.decode('utf-8-sig'), target, 'exec')
 
           channel = {
-              "schema": 3,
-              "product": src["product"],
-              "status": src.get("status", "stable"),
-              "appVersion": version,
-              "mandatory": bool(src["mandatory"]),
-              "minimumLauncher": str(src["minimumLauncher"]),
-              "notes": src.get("notes", "") +
-                  " Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.",
-              "generatedFromCommit": sha,
-              "files": generated_files,
+              'schema': 3,
+              'product': src['product'],
+              'status': src.get('status', 'stable'),
+              'appVersion': version,
+              'mandatory': bool(src['mandatory']),
+              'minimumLauncher': str(src['minimumLauncher']),
+              'notes': src.get('notes', '') +
+                  ' Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.',
+              'generatedFromCommit': sha,
+              'files': generated_files,
           }
-
           output_path.write_text(
-              json.dumps(channel, ensure_ascii=False, indent=2) + "\n",
-              encoding="utf-8",
-              newline="\n",
+              json.dumps(channel, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8', newline='\n'
           )
-          print("Generated", output_path)
+          print('Generated', output_path, 'files', len(generated_files))
           PY
 
       - name: Re-download generated channel and verify exact Raw bytes
@@ -272,7 +160,10 @@ jobs:
           $channel = Get-Content "launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
           New-Item -ItemType Directory -Force "channel_verify" | Out-Null
           foreach ($item in $channel.files) {
-            $dest = Join-Path "channel_verify" ($item.path -replace '/','_')
+            $rel = $item.path -replace '/', [IO.Path]::DirectorySeparatorChar
+            $dest = Join-Path "channel_verify" $rel
+            $parent = Split-Path $dest -Parent
+            if ($parent) { New-Item -ItemType Directory -Force $parent | Out-Null }
             if ($item.parts -and $item.parts.Count -gt 0) {
               $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
               try {
@@ -283,20 +174,24 @@ jobs:
                   $stream.Write($bytes,0,$bytes.Length)
                   Remove-Item $tmp -Force
                 }
-              } finally {
-                $stream.Dispose()
-              }
+              } finally { $stream.Dispose() }
             } else {
               Invoke-WebRequest -Uri ($item.url + "?verify=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
             }
             $got = (Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($got -ne $item.sha256) {
-              throw "$($item.path): SHA real=$got, canal=$($item.sha256)"
-            }
+            if ($got -ne $item.sha256) { throw "$($item.path): SHA real=$got, canal=$($item.sha256)" }
             Write-Host "RAW OK $($item.path) $got"
           }
 
+      - name: Validate downloaded channel runtime layout
+        shell: bash
+        run: |
+          python tools/validate_reception_runtime_layout.py \
+            channel_verify \
+            --baseline-app updates/v4_6_0_consolidated_runtime/app.py
+
       - name: Publish only after all validation passed
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           if git diff --quiet -- launcher-v1/app-channel.json; then
