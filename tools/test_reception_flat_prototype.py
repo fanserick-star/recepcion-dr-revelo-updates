@@ -137,6 +137,7 @@ import app as candidate
 candidate.core.Base.metadata.create_all(candidate.core.local_engine)
 
 from datetime import date, datetime
+from reception_payment_terminal import V4504VisitBatchPaymentIn
 
 def required_patient_kwargs():
     out={}
@@ -160,10 +161,9 @@ with candidate.core.LocalSessionLocal() as db:
 
 User=SimpleNamespace(username='refactor-test')
 Service=candidate.core.VisitBatchServiceIn
-# `bridge_v4508` was only the legacy outer alias. Resolve the same historical
-# payment schema through the consolidated static layer registry instead of
-# requiring that obsolete alias to remain public in the flat runtime.
-Batch=candidate._rf_legacy._rf_layers['app_patch_4508'].payment_core.V4504VisitBatchPaymentIn
+# Use the semantic payment module directly. The old `_rf_legacy._rf_layers`
+# registry is intentionally absent from the consolidated runtime.
+Batch=V4504VisitBatchPaymentIn
 
 def local_db():
     g=candidate._v466_local_attention_db(); db=next(g); return g,db
