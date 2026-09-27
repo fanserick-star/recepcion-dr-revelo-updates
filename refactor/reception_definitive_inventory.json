@@ -1,0 +1,4614 @@
+{
+  "source": "updates/v4_6_6_fast_attention_save/app.py",
+  "embedded_module_count": 54,
+  "historical_module_count": 51,
+  "helper_module_count": 3,
+  "historical_modules": [
+    "app_base_4428",
+    "app_patch_4459",
+    "app_patch_4461",
+    "app_patch_4462",
+    "app_patch_4463",
+    "app_patch_4464",
+    "app_patch_4465",
+    "app_patch_4466",
+    "app_patch_4467",
+    "app_patch_4468",
+    "app_patch_4469",
+    "app_patch_4470",
+    "app_patch_4473",
+    "app_patch_4474",
+    "app_patch_4475",
+    "app_patch_4476",
+    "app_patch_4477",
+    "app_patch_4478",
+    "app_patch_4479",
+    "app_patch_4480",
+    "app_patch_4481",
+    "app_patch_4482",
+    "app_patch_4483",
+    "app_patch_4484",
+    "app_patch_4485",
+    "app_patch_4486",
+    "app_patch_4487",
+    "app_patch_4488",
+    "app_patch_4489",
+    "app_patch_4490",
+    "app_patch_4491",
+    "app_patch_4501",
+    "app_patch_4502",
+    "app_patch_4504",
+    "app_patch_4505",
+    "app_patch_4506",
+    "app_patch_4507",
+    "app_patch_4508",
+    "app_patch_4509",
+    "app_patch_4510",
+    "app_patch_4511",
+    "app_patch_4517",
+    "app_patch_4518",
+    "app_patch_4519",
+    "app_patch_4520",
+    "app_patch_4521",
+    "app_patch_4522",
+    "app_patch_4523",
+    "app_patch_4524",
+    "app_patch_4525",
+    "app_prev_4458"
+  ],
+  "helper_modules": [
+    "azur_client",
+    "remote_agenda",
+    "whatsapp_client"
+  ],
+  "roots": [
+    "app_patch_4525"
+  ],
+  "leaves": [
+    "azur_client",
+    "remote_agenda",
+    "whatsapp_client"
+  ],
+  "chains": {
+    "app_patch_4525": [
+      "app_patch_4525",
+      "app_patch_4524"
+    ]
+  },
+  "module_stats": [
+    {
+      "name": "app_base_4428",
+      "bytes": 753194,
+      "lines": 12486,
+      "imports_embedded": [
+        "azur_client",
+        "remote_agenda",
+        "whatsapp_client"
+      ],
+      "top_level_defs": 434,
+      "top_level_assigns": 222,
+      "decorated_routes": 150
+    },
+    {
+      "name": "app_patch_4459",
+      "bytes": 13371,
+      "lines": 223,
+      "imports_embedded": [
+        "app_prev_4458"
+      ],
+      "top_level_defs": 4,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4461",
+      "bytes": 8330,
+      "lines": 238,
+      "imports_embedded": [
+        "app_patch_4459"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4462",
+      "bytes": 8224,
+      "lines": 238,
+      "imports_embedded": [
+        "app_patch_4461"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4463",
+      "bytes": 15464,
+      "lines": 382,
+      "imports_embedded": [
+        "app_patch_4462"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4464",
+      "bytes": 10423,
+      "lines": 276,
+      "imports_embedded": [
+        "app_patch_4463"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4465",
+      "bytes": 16535,
+      "lines": 351,
+      "imports_embedded": [
+        "app_patch_4464"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4466",
+      "bytes": 16585,
+      "lines": 369,
+      "imports_embedded": [
+        "app_patch_4465"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4467",
+      "bytes": 15663,
+      "lines": 414,
+      "imports_embedded": [
+        "app_patch_4466"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4468",
+      "bytes": 18082,
+      "lines": 484,
+      "imports_embedded": [
+        "app_patch_4467"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4469",
+      "bytes": 11744,
+      "lines": 328,
+      "imports_embedded": [
+        "app_patch_4468"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 5,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4470",
+      "bytes": 19100,
+      "lines": 302,
+      "imports_embedded": [
+        "app_patch_4469"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4473",
+      "bytes": 2105,
+      "lines": 74,
+      "imports_embedded": [
+        "app_patch_4470"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4474",
+      "bytes": 6354,
+      "lines": 189,
+      "imports_embedded": [
+        "app_patch_4473"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 10,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4475",
+      "bytes": 18592,
+      "lines": 529,
+      "imports_embedded": [
+        "app_patch_4474"
+      ],
+      "top_level_defs": 3,
+      "top_level_assigns": 9,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4476",
+      "bytes": 45529,
+      "lines": 1176,
+      "imports_embedded": [
+        "app_patch_4475"
+      ],
+      "top_level_defs": 16,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4477",
+      "bytes": 8640,
+      "lines": 267,
+      "imports_embedded": [
+        "app_patch_4476"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4478",
+      "bytes": 7363,
+      "lines": 238,
+      "imports_embedded": [
+        "app_patch_4477"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4479",
+      "bytes": 8750,
+      "lines": 277,
+      "imports_embedded": [
+        "app_patch_4478"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 10,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4480",
+      "bytes": 4801,
+      "lines": 166,
+      "imports_embedded": [
+        "app_patch_4479"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4481",
+      "bytes": 6028,
+      "lines": 213,
+      "imports_embedded": [
+        "app_patch_4480"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 7,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4482",
+      "bytes": 6049,
+      "lines": 196,
+      "imports_embedded": [
+        "app_patch_4481"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4483",
+      "bytes": 6223,
+      "lines": 176,
+      "imports_embedded": [
+        "app_patch_4482"
+      ],
+      "top_level_defs": 4,
+      "top_level_assigns": 7,
+      "decorated_routes": 3
+    },
+    {
+      "name": "app_patch_4484",
+      "bytes": 3758,
+      "lines": 100,
+      "imports_embedded": [
+        "app_patch_4483"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4485",
+      "bytes": 16259,
+      "lines": 527,
+      "imports_embedded": [
+        "app_patch_4484"
+      ],
+      "top_level_defs": 5,
+      "top_level_assigns": 9,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4486",
+      "bytes": 5868,
+      "lines": 148,
+      "imports_embedded": [
+        "app_patch_4485"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4487",
+      "bytes": 13012,
+      "lines": 391,
+      "imports_embedded": [
+        "app_patch_4486"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4488",
+      "bytes": 12566,
+      "lines": 376,
+      "imports_embedded": [
+        "app_patch_4487"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4489",
+      "bytes": 11155,
+      "lines": 331,
+      "imports_embedded": [
+        "app_patch_4488"
+      ],
+      "top_level_defs": 3,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4490",
+      "bytes": 8101,
+      "lines": 262,
+      "imports_embedded": [
+        "app_patch_4489"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4491",
+      "bytes": 7822,
+      "lines": 253,
+      "imports_embedded": [
+        "app_patch_4490"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4501",
+      "bytes": 25872,
+      "lines": 700,
+      "imports_embedded": [
+        "app_patch_4491"
+      ],
+      "top_level_defs": 15,
+      "top_level_assigns": 11,
+      "decorated_routes": 4
+    },
+    {
+      "name": "app_patch_4502",
+      "bytes": 18835,
+      "lines": 551,
+      "imports_embedded": [
+        "app_patch_4501"
+      ],
+      "top_level_defs": 4,
+      "top_level_assigns": 13,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4504",
+      "bytes": 60822,
+      "lines": 2066,
+      "imports_embedded": [
+        "app_patch_4502"
+      ],
+      "top_level_defs": 18,
+      "top_level_assigns": 13,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4505",
+      "bytes": 10874,
+      "lines": 390,
+      "imports_embedded": [
+        "app_patch_4504"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4506",
+      "bytes": 36218,
+      "lines": 1069,
+      "imports_embedded": [
+        "app_patch_4505"
+      ],
+      "top_level_defs": 9,
+      "top_level_assigns": 9,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4507",
+      "bytes": 31744,
+      "lines": 1140,
+      "imports_embedded": [
+        "app_patch_4506"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4508",
+      "bytes": 2944,
+      "lines": 80,
+      "imports_embedded": [
+        "app_patch_4504",
+        "app_patch_4507"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4509",
+      "bytes": 676,
+      "lines": 27,
+      "imports_embedded": [
+        "app_patch_4508"
+      ],
+      "top_level_defs": 0,
+      "top_level_assigns": 6,
+      "decorated_routes": 0
+    },
+    {
+      "name": "app_patch_4510",
+      "bytes": 648,
+      "lines": 27,
+      "imports_embedded": [
+        "app_patch_4509"
+      ],
+      "top_level_defs": 0,
+      "top_level_assigns": 6,
+      "decorated_routes": 0
+    },
+    {
+      "name": "app_patch_4511",
+      "bytes": 590,
+      "lines": 26,
+      "imports_embedded": [
+        "app_patch_4510"
+      ],
+      "top_level_defs": 0,
+      "top_level_assigns": 6,
+      "decorated_routes": 0
+    },
+    {
+      "name": "app_patch_4517",
+      "bytes": 5908,
+      "lines": 71,
+      "imports_embedded": [
+        "app_patch_4511"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 8,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4518",
+      "bytes": 4276,
+      "lines": 133,
+      "imports_embedded": [
+        "app_patch_4517"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 8,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4519",
+      "bytes": 6018,
+      "lines": 221,
+      "imports_embedded": [
+        "app_patch_4518"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 8,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4520",
+      "bytes": 4904,
+      "lines": 162,
+      "imports_embedded": [
+        "app_patch_4519"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4521",
+      "bytes": 3337,
+      "lines": 99,
+      "imports_embedded": [
+        "app_patch_4508",
+        "app_patch_4520"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4522",
+      "bytes": 4488,
+      "lines": 141,
+      "imports_embedded": [
+        "app_patch_4521"
+      ],
+      "top_level_defs": 4,
+      "top_level_assigns": 9,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4523",
+      "bytes": 17649,
+      "lines": 566,
+      "imports_embedded": [
+        "app_patch_4522"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_patch_4524",
+      "bytes": 3559,
+      "lines": 110,
+      "imports_embedded": [
+        "app_patch_4508",
+        "app_patch_4523"
+      ],
+      "top_level_defs": 2,
+      "top_level_assigns": 7,
+      "decorated_routes": 2
+    },
+    {
+      "name": "app_patch_4525",
+      "bytes": 14573,
+      "lines": 460,
+      "imports_embedded": [
+        "app_patch_4524"
+      ],
+      "top_level_defs": 1,
+      "top_level_assigns": 8,
+      "decorated_routes": 1
+    },
+    {
+      "name": "app_prev_4458",
+      "bytes": 116092,
+      "lines": 2473,
+      "imports_embedded": [
+        "app_base_4428"
+      ],
+      "top_level_defs": 4,
+      "top_level_assigns": 6,
+      "decorated_routes": 0
+    },
+    {
+      "name": "azur_client",
+      "bytes": 20129,
+      "lines": 464,
+      "imports_embedded": [],
+      "top_level_defs": 17,
+      "top_level_assigns": 0,
+      "decorated_routes": 0
+    },
+    {
+      "name": "remote_agenda",
+      "bytes": 833,
+      "lines": 30,
+      "imports_embedded": [],
+      "top_level_defs": 7,
+      "top_level_assigns": 0,
+      "decorated_routes": 0
+    },
+    {
+      "name": "whatsapp_client",
+      "bytes": 3178,
+      "lines": 99,
+      "imports_embedded": [],
+      "top_level_defs": 3,
+      "top_level_assigns": 0,
+      "decorated_routes": 0
+    }
+  ],
+  "import_graph": {
+    "app_base_4428": [
+      "azur_client",
+      "remote_agenda",
+      "whatsapp_client"
+    ],
+    "app_prev_4458": [
+      "app_base_4428"
+    ],
+    "app_patch_4459": [
+      "app_prev_4458"
+    ],
+    "app_patch_4461": [
+      "app_patch_4459"
+    ],
+    "app_patch_4462": [
+      "app_patch_4461"
+    ],
+    "app_patch_4463": [
+      "app_patch_4462"
+    ],
+    "app_patch_4464": [
+      "app_patch_4463"
+    ],
+    "app_patch_4465": [
+      "app_patch_4464"
+    ],
+    "app_patch_4466": [
+      "app_patch_4465"
+    ],
+    "app_patch_4467": [
+      "app_patch_4466"
+    ],
+    "app_patch_4468": [
+      "app_patch_4467"
+    ],
+    "app_patch_4469": [
+      "app_patch_4468"
+    ],
+    "app_patch_4470": [
+      "app_patch_4469"
+    ],
+    "app_patch_4473": [
+      "app_patch_4470"
+    ],
+    "app_patch_4474": [
+      "app_patch_4473"
+    ],
+    "app_patch_4475": [
+      "app_patch_4474"
+    ],
+    "app_patch_4476": [
+      "app_patch_4475"
+    ],
+    "app_patch_4477": [
+      "app_patch_4476"
+    ],
+    "app_patch_4478": [
+      "app_patch_4477"
+    ],
+    "app_patch_4479": [
+      "app_patch_4478"
+    ],
+    "app_patch_4480": [
+      "app_patch_4479"
+    ],
+    "app_patch_4481": [
+      "app_patch_4480"
+    ],
+    "app_patch_4482": [
+      "app_patch_4481"
+    ],
+    "app_patch_4483": [
+      "app_patch_4482"
+    ],
+    "app_patch_4484": [
+      "app_patch_4483"
+    ],
+    "app_patch_4485": [
+      "app_patch_4484"
+    ],
+    "app_patch_4486": [
+      "app_patch_4485"
+    ],
+    "app_patch_4487": [
+      "app_patch_4486"
+    ],
+    "app_patch_4488": [
+      "app_patch_4487"
+    ],
+    "app_patch_4489": [
+      "app_patch_4488"
+    ],
+    "app_patch_4490": [
+      "app_patch_4489"
+    ],
+    "app_patch_4491": [
+      "app_patch_4490"
+    ],
+    "app_patch_4501": [
+      "app_patch_4491"
+    ],
+    "app_patch_4502": [
+      "app_patch_4501"
+    ],
+    "app_patch_4504": [
+      "app_patch_4502"
+    ],
+    "app_patch_4505": [
+      "app_patch_4504"
+    ],
+    "app_patch_4506": [
+      "app_patch_4505"
+    ],
+    "app_patch_4507": [
+      "app_patch_4506"
+    ],
+    "app_patch_4508": [
+      "app_patch_4504",
+      "app_patch_4507"
+    ],
+    "app_patch_4509": [
+      "app_patch_4508"
+    ],
+    "app_patch_4510": [
+      "app_patch_4509"
+    ],
+    "app_patch_4511": [
+      "app_patch_4510"
+    ],
+    "app_patch_4517": [
+      "app_patch_4511"
+    ],
+    "app_patch_4518": [
+      "app_patch_4517"
+    ],
+    "app_patch_4519": [
+      "app_patch_4518"
+    ],
+    "app_patch_4520": [
+      "app_patch_4519"
+    ],
+    "app_patch_4521": [
+      "app_patch_4508",
+      "app_patch_4520"
+    ],
+    "app_patch_4522": [
+      "app_patch_4521"
+    ],
+    "app_patch_4523": [
+      "app_patch_4522"
+    ],
+    "app_patch_4524": [
+      "app_patch_4508",
+      "app_patch_4523"
+    ],
+    "app_patch_4525": [
+      "app_patch_4524"
+    ],
+    "remote_agenda": [],
+    "azur_client": [],
+    "whatsapp_client": []
+  },
+  "embedded_decorated_route_defs": [
+    {
+      "module": "app_base_4428",
+      "endpoint": "home",
+      "method": "GET",
+      "path": "/"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "app_version",
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "connectivity",
+      "method": "GET",
+      "path": "/api/connectivity"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "enter_power_idle",
+      "method": "POST",
+      "path": "/api/power/idle"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "leave_power_idle",
+      "method": "POST",
+      "path": "/api/power/wake"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "get_window_mode",
+      "method": "GET",
+      "path": "/api/window-mode"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "set_window_mode",
+      "method": "POST",
+      "path": "/api/window-mode"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "get_preferences",
+      "method": "GET",
+      "path": "/api/preferences"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "set_preferences",
+      "method": "POST",
+      "path": "/api/preferences"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "printing_status",
+      "method": "GET",
+      "path": "/api/printing/status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "print_receipt",
+      "method": "POST",
+      "path": "/api/printing/receipt"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "system_status",
+      "method": "GET",
+      "path": "/api/system-status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "open_external",
+      "method": "POST",
+      "path": "/api/open-external/{target}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "manual_sync",
+      "method": "POST",
+      "path": "/api/offline/sync"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "offline_queue_review",
+      "method": "GET",
+      "path": "/api/offline/queue"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "offline_queue_retry",
+      "method": "POST",
+      "path": "/api/offline/queue/retry"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "offline_queue_discard_one",
+      "method": "DELETE",
+      "path": "/api/offline/queue/{queue_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "offline_queue_discard_all",
+      "method": "DELETE",
+      "path": "/api/offline/queue"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "recover_connectivity",
+      "method": "POST",
+      "path": "/api/connectivity/recover"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "backup_now",
+      "method": "POST",
+      "path": "/api/backup/now"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "backup_now",
+      "method": "POST",
+      "path": "/api/data-protection/backup"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "restart_app",
+      "method": "POST",
+      "path": "/api/app/restart"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "login",
+      "method": "POST",
+      "path": "/api/login"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "logout",
+      "method": "POST",
+      "path": "/api/logout"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "me",
+      "method": "GET",
+      "path": "/api/me"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "bootstrap",
+      "method": "GET",
+      "path": "/api/bootstrap"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "import_historical_registry",
+      "method": "POST",
+      "path": "/api/historical/import"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "historical_stats",
+      "method": "GET",
+      "path": "/api/historical/stats"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "search_patients",
+      "method": "GET",
+      "path": "/api/patients"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "similar_patients",
+      "method": "GET",
+      "path": "/api/patients/similar"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "patient_review_detail",
+      "method": "GET",
+      "path": "/api/patients/{pid}/review-detail"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "link_historical_to_patient",
+      "method": "POST",
+      "path": "/api/patients/{pid}/link-historical/{hid}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "create_patient",
+      "method": "POST",
+      "path": "/api/patients"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "update_patient",
+      "method": "PUT",
+      "path": "/api/patients/{pid}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "link_duplicate_patient",
+      "method": "POST",
+      "path": "/api/patients/{source_id}/link/{target_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "merge_patient_confirmed",
+      "method": "POST",
+      "path": "/api/patients/{source_id}/merge/{target_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "delete_confirmafy_imported_patient",
+      "method": "DELETE",
+      "path": "/api/patients/{pid}/confirmafy-imported"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "delete_patient",
+      "method": "DELETE",
+      "path": "/api/patients/{pid}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "get_patient",
+      "method": "GET",
+      "path": "/api/patients/{pid}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "patient_profile",
+      "method": "GET",
+      "path": "/api/patients/{pid}/profile"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "activate_historical_patient",
+      "method": "POST",
+      "path": "/api/historical/{hid}/activate"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "create_visit",
+      "method": "POST",
+      "path": "/api/visits"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "create_visit_batch",
+      "method": "POST",
+      "path": "/api/visits/batch"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "delete_visit",
+      "method": "DELETE",
+      "path": "/api/visits/{visit_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "dashboard",
+      "method": "GET",
+      "path": "/api/dashboard"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "today",
+      "method": "GET",
+      "path": "/api/today"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "home_week",
+      "method": "GET",
+      "path": "/api/home/week"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "report",
+      "method": "GET",
+      "path": "/api/report"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_agenda_page",
+      "method": "GET",
+      "path": "/mobile"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_agenda_page",
+      "method": "GET",
+      "path": "/mobile/"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_manifest",
+      "method": "GET",
+      "path": "/mobile/manifest.webmanifest"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_service_worker",
+      "method": "GET",
+      "path": "/mobile/sw.js"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_me",
+      "method": "GET",
+      "path": "/api/mobile/me"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_config",
+      "method": "GET",
+      "path": "/api/mobile/config"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_network_enable",
+      "method": "POST",
+      "path": "/api/mobile/network/enable"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_remote_status",
+      "method": "GET",
+      "path": "/api/mobile/remote/status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_remote_quick_start",
+      "method": "POST",
+      "path": "/api/mobile/remote/quick/start"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_remote_stable_restart",
+      "method": "POST",
+      "path": "/api/mobile/remote/stable/restart"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_remote_stop",
+      "method": "POST",
+      "path": "/api/mobile/remote/stop"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_rotate_links",
+      "method": "POST",
+      "path": "/api/mobile/links/rotate"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_agenda_week",
+      "method": "GET",
+      "path": "/api/mobile/agenda/week"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_create_appointment",
+      "method": "POST",
+      "path": "/api/mobile/appointments"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_update_unlinked",
+      "method": "PUT",
+      "path": "/api/mobile/unlinked/{item_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_delete_unlinked",
+      "method": "DELETE",
+      "path": "/api/mobile/unlinked/{item_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_update_linked",
+      "method": "PUT",
+      "path": "/api/mobile/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "mobile_delete_linked",
+      "method": "DELETE",
+      "path": "/api/mobile/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_outbox",
+      "method": "GET",
+      "path": "/api/whatsapp/outbox"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_process",
+      "method": "POST",
+      "path": "/api/whatsapp/process"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_recent_patients",
+      "method": "GET",
+      "path": "/api/agenda/recent-patients"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_pending_count",
+      "method": "GET",
+      "path": "/api/agenda/pending-count"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_appointments",
+      "method": "GET",
+      "path": "/api/agenda/appointments"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_appointment_whatsapp_timeline",
+      "method": "GET",
+      "path": "/api/agenda/appointments/{appointment_id}/whatsapp-timeline"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_staged_whatsapp_timeline",
+      "method": "GET",
+      "path": "/api/agenda/confirmafy-staged/{item_id}/whatsapp-timeline"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_appointment_detail",
+      "method": "GET",
+      "path": "/api/agenda/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_week",
+      "method": "GET",
+      "path": "/api/agenda/week"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_dashboard",
+      "method": "GET",
+      "path": "/api/agenda/dashboard"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_slots",
+      "method": "GET",
+      "path": "/api/agenda/slots"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_create",
+      "method": "POST",
+      "path": "/api/agenda/appointments"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_update",
+      "method": "PUT",
+      "path": "/api/agenda/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_mark_loaded",
+      "method": "POST",
+      "path": "/api/agenda/appointments/{appointment_id}/loaded"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_mark_pending",
+      "method": "POST",
+      "path": "/api/agenda/appointments/{appointment_id}/pending"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_delete",
+      "method": "DELETE",
+      "path": "/api/agenda/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_delete_unlinked",
+      "method": "DELETE",
+      "path": "/api/agenda/unlinked/{item_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_confirmafy_legacy_stage",
+      "method": "POST",
+      "path": "/api/agenda/confirmafy-legacy/{appointment_id}/stage"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_confirmafy_staged_detail",
+      "method": "GET",
+      "path": "/api/agenda/confirmafy-staged/{item_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_confirmafy_staged_attended",
+      "method": "POST",
+      "path": "/api/agenda/confirmafy-staged/{item_id}/attended"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_import_confirmafy_preview",
+      "method": "POST",
+      "path": "/api/agenda/import-confirmafy/preview"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_import_confirmafy",
+      "method": "POST",
+      "path": "/api/agenda/import-confirmafy"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "agenda_export_csv",
+      "method": "POST",
+      "path": "/api/agenda/export.csv"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "azur_status",
+      "method": "GET",
+      "path": "/api/azur/status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "azur_save_config",
+      "method": "POST",
+      "path": "/api/azur/config"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "azur_test",
+      "method": "POST",
+      "path": "/api/azur/test"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_preview",
+      "method": "POST",
+      "path": "/api/billing/azur/preview"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_emit",
+      "method": "POST",
+      "path": "/api/billing/azur/emit"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_check_status",
+      "method": "POST",
+      "path": "/api/billing/azur/check-status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_check_all_status",
+      "method": "POST",
+      "path": "/api/billing/azur/check-all-status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_batch_preview",
+      "method": "GET",
+      "path": "/api/billing/azur/batch-preview"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_azur_emit_all_pending",
+      "method": "POST",
+      "path": "/api/billing/azur/emit-all-pending"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "pending_summary",
+      "method": "GET",
+      "path": "/api/pending-summary"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "get_billing_preference",
+      "method": "GET",
+      "path": "/api/patients/{pid}/billing-preference"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "save_billing_preference",
+      "method": "PUT",
+      "path": "/api/patients/{pid}/billing-preference"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "delete_billing_preference",
+      "method": "DELETE",
+      "path": "/api/patients/{pid}/billing-preference"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_pending_count",
+      "method": "GET",
+      "path": "/api/billing/pending-count"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_next",
+      "method": "GET",
+      "path": "/api/billing/next"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_list",
+      "method": "GET",
+      "path": "/api/billing"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_approve",
+      "method": "POST",
+      "path": "/api/billing/approve"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_approve_all_pending",
+      "method": "POST",
+      "path": "/api/billing/approve-all-pending"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_back_to_pending",
+      "method": "POST",
+      "path": "/api/billing/pending"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "billing_emit",
+      "method": "POST",
+      "path": "/api/billing/emit"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_safe_delete_patient",
+      "method": "DELETE",
+      "path": "/api/safety/patients/{pid}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_safe_delete_visit",
+      "method": "DELETE",
+      "path": "/api/safety/visits/{visit_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_safe_delete_appointment",
+      "method": "DELETE",
+      "path": "/api/safety/appointments/{appointment_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_safe_delete_unlinked",
+      "method": "DELETE",
+      "path": "/api/safety/unlinked/{item_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_trash",
+      "method": "GET",
+      "path": "/api/ops/trash"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_restore_trash",
+      "method": "POST",
+      "path": "/api/ops/trash/{trash_id}/restore"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_delete_trash_forever",
+      "method": "DELETE",
+      "path": "/api/ops/trash/{trash_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_activity",
+      "method": "GET",
+      "path": "/api/ops/activity"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "ops_diagnostics",
+      "method": "GET",
+      "path": "/api/ops/diagnostics"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "procedures",
+      "method": "GET",
+      "path": "/api/procedures"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "add_procedure",
+      "method": "POST",
+      "path": "/api/procedures"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "update_procedure_value",
+      "method": "PUT",
+      "path": "/api/procedures/{procedure_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "delete_procedure",
+      "method": "DELETE",
+      "path": "/api/procedures/{procedure_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "change_password",
+      "method": "POST",
+      "path": "/api/change-password"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_cloud_test",
+      "method": "POST",
+      "path": "/api/whatsapp/cloud-test"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_cloud_test_status",
+      "method": "GET",
+      "path": "/api/whatsapp/cloud-test/{test_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_cloud_test_finish",
+      "method": "DELETE",
+      "path": "/api/whatsapp/cloud-test/{test_id}"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_test_message",
+      "method": "POST",
+      "path": "/api/whatsapp/test-message"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_test_recordatorio_cita",
+      "method": "POST",
+      "path": "/api/whatsapp/test-recordatorio-cita"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_cloud_delivery_status",
+      "method": "GET",
+      "path": "/api/whatsapp/cloud-status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_status",
+      "method": "GET",
+      "path": "/api/whatsapp/status"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "services_check",
+      "method": "POST",
+      "path": "/api/services/check"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v458_settings_css",
+      "method": "GET",
+      "path": "/v458/settings.css"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v458_settings_js",
+      "method": "GET",
+      "path": "/v458/settings.js"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v459_settings_css",
+      "method": "GET",
+      "path": "/v459/settings.css"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v459_settings_js",
+      "method": "GET",
+      "path": "/v459/settings.js"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v460_overlay_css",
+      "method": "GET",
+      "path": "/v460/overlay.css"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "v460_overlay_js",
+      "method": "GET",
+      "path": "/v460/overlay.js"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "update_info",
+      "method": "GET",
+      "path": "/api/update/info"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "apply_update_package",
+      "method": "POST",
+      "path": "/api/update/apply"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "save_xlsx_to_downloads",
+      "method": "POST",
+      "path": "/api/export.xlsx/save"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "export_xlsx",
+      "method": "GET",
+      "path": "/api/export.xlsx"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "save_csv_to_downloads",
+      "method": "POST",
+      "path": "/api/export.csv/save"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "export_csv",
+      "method": "GET",
+      "path": "/api/export.csv"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "program_update_now",
+      "method": "POST",
+      "path": "/api/program/update-now"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_cleanup_old_tests_v4424",
+      "method": "POST",
+      "path": "/api/whatsapp-responses/cleanup-old-tests"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "auto_bookings_recent_v4425",
+      "method": "GET",
+      "path": "/api/auto-bookings/recent"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_responses_count",
+      "method": "GET",
+      "path": "/api/whatsapp-responses/count"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_responses_list",
+      "method": "GET",
+      "path": "/api/whatsapp-responses"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_response_resolve",
+      "method": "POST",
+      "path": "/api/whatsapp-responses/{response_id}/resolve"
+    },
+    {
+      "module": "app_base_4428",
+      "endpoint": "whatsapp_response_audio",
+      "method": "GET",
+      "path": "/api/whatsapp-responses/{response_id}/audio"
+    },
+    {
+      "module": "app_patch_4459",
+      "endpoint": "v4459_health",
+      "method": "GET",
+      "path": "/api/v4459/non-billable-health"
+    },
+    {
+      "module": "app_patch_4461",
+      "endpoint": "v4461_receipt_health",
+      "method": "GET",
+      "path": "/api/v4461/receipt-health"
+    },
+    {
+      "module": "app_patch_4462",
+      "endpoint": "v4462_receipt_health",
+      "method": "GET",
+      "path": "/api/v4462/receipt-health"
+    },
+    {
+      "module": "app_patch_4463",
+      "endpoint": "v4463_receipt_health",
+      "method": "GET",
+      "path": "/api/v4463/receipt-health"
+    },
+    {
+      "module": "app_patch_4464",
+      "endpoint": "v4464_receipt_health",
+      "method": "GET",
+      "path": "/api/v4464/receipt-health"
+    },
+    {
+      "module": "app_patch_4465",
+      "endpoint": "v4465_receipt_health",
+      "method": "GET",
+      "path": "/api/v4465/receipt-health"
+    },
+    {
+      "module": "app_patch_4466",
+      "endpoint": "v4466_receipt_health",
+      "method": "GET",
+      "path": "/api/v4466/receipt-health"
+    },
+    {
+      "module": "app_patch_4467",
+      "endpoint": "v4467_receipt_health",
+      "method": "GET",
+      "path": "/api/v4467/receipt-health"
+    },
+    {
+      "module": "app_patch_4468",
+      "endpoint": "v4468_receipt_health",
+      "method": "GET",
+      "path": "/api/v4468/receipt-health"
+    },
+    {
+      "module": "app_patch_4469",
+      "endpoint": "v4469_receipt_health",
+      "method": "GET",
+      "path": "/api/v4469/receipt-health"
+    },
+    {
+      "module": "app_patch_4470",
+      "endpoint": "v4470_health",
+      "method": "GET",
+      "path": "/api/v4470/health"
+    },
+    {
+      "module": "app_patch_4473",
+      "endpoint": "v4473_recovery_health",
+      "method": "GET",
+      "path": "/api/v4473/recovery-health"
+    },
+    {
+      "module": "app_patch_4474",
+      "endpoint": "v4474_print_queue_health",
+      "method": "GET",
+      "path": "/api/v4474/print-queue-health"
+    },
+    {
+      "module": "app_patch_4475",
+      "endpoint": "v4475_health",
+      "method": "GET",
+      "path": "/api/v4475/health"
+    },
+    {
+      "module": "app_patch_4476",
+      "endpoint": "v4476_health",
+      "method": "GET",
+      "path": "/api/v4476/health"
+    },
+    {
+      "module": "app_patch_4477",
+      "endpoint": "v4477_health",
+      "method": "GET",
+      "path": "/api/v4477/health"
+    },
+    {
+      "module": "app_patch_4478",
+      "endpoint": "v4478_health",
+      "method": "GET",
+      "path": "/api/v4478/health"
+    },
+    {
+      "module": "app_patch_4479",
+      "endpoint": "v4479_health",
+      "method": "GET",
+      "path": "/api/v4479/health"
+    },
+    {
+      "module": "app_patch_4480",
+      "endpoint": "v4480_health",
+      "method": "GET",
+      "path": "/api/v4480/health"
+    },
+    {
+      "module": "app_patch_4481",
+      "endpoint": "v4481_health",
+      "method": "GET",
+      "path": "/api/v4481/health"
+    },
+    {
+      "module": "app_patch_4482",
+      "endpoint": "v4482_launch_updater",
+      "method": "POST",
+      "path": "/api/v4482/launch-updater"
+    },
+    {
+      "module": "app_patch_4482",
+      "endpoint": "v4482_health",
+      "method": "GET",
+      "path": "/api/v4482/health"
+    },
+    {
+      "module": "app_patch_4483",
+      "endpoint": "restart_v4483",
+      "method": "POST",
+      "path": "/api/app/restart"
+    },
+    {
+      "module": "app_patch_4483",
+      "endpoint": "launch_updater_v4483",
+      "method": "POST",
+      "path": "/api/v4483/launch-updater"
+    },
+    {
+      "module": "app_patch_4483",
+      "endpoint": "v4483_health",
+      "method": "GET",
+      "path": "/api/v4483/health"
+    },
+    {
+      "module": "app_patch_4484",
+      "endpoint": "v4484_health",
+      "method": "GET",
+      "path": "/api/v4484/health"
+    },
+    {
+      "module": "app_patch_4485",
+      "endpoint": "v4485_print_payment_proof",
+      "method": "POST",
+      "path": "/api/v4485/payment-proof/{patient_id}/{fecha}"
+    },
+    {
+      "module": "app_patch_4485",
+      "endpoint": "v4485_health",
+      "method": "GET",
+      "path": "/api/v4485/health"
+    },
+    {
+      "module": "app_patch_4486",
+      "endpoint": "v4486_health",
+      "method": "GET",
+      "path": "/api/v4486/health"
+    },
+    {
+      "module": "app_patch_4487",
+      "endpoint": "v4487_health",
+      "method": "GET",
+      "path": "/api/v4487/health"
+    },
+    {
+      "module": "app_patch_4488",
+      "endpoint": "v4488_health",
+      "method": "GET",
+      "path": "/api/v4488/health"
+    },
+    {
+      "module": "app_patch_4489",
+      "endpoint": "v4489_print_billing_data_form",
+      "method": "POST",
+      "path": "/api/v4489/print-billing-data-form"
+    },
+    {
+      "module": "app_patch_4489",
+      "endpoint": "v4489_health",
+      "method": "GET",
+      "path": "/api/v4489/health"
+    },
+    {
+      "module": "app_patch_4490",
+      "endpoint": "v4490_health",
+      "method": "GET",
+      "path": "/api/v4490/health"
+    },
+    {
+      "module": "app_patch_4491",
+      "endpoint": "v4491_health",
+      "method": "GET",
+      "path": "/api/v4491/health"
+    },
+    {
+      "module": "app_patch_4501",
+      "endpoint": "v4501_system_status",
+      "method": "GET",
+      "path": "/api/v4501/system-status"
+    },
+    {
+      "module": "app_patch_4501",
+      "endpoint": "v4501_cleanup",
+      "method": "POST",
+      "path": "/api/v4501/maintenance/cleanup"
+    },
+    {
+      "module": "app_patch_4501",
+      "endpoint": "v4501_print_test",
+      "method": "POST",
+      "path": "/api/v4501/printing/test"
+    },
+    {
+      "module": "app_patch_4501",
+      "endpoint": "v4501_health",
+      "method": "GET",
+      "path": "/api/v4501/health"
+    },
+    {
+      "module": "app_patch_4502",
+      "endpoint": "v4502_health",
+      "method": "GET",
+      "path": "/api/v4502/health"
+    },
+    {
+      "module": "app_patch_4504",
+      "endpoint": "v4504_health",
+      "method": "GET",
+      "path": "/api/v4504/health"
+    },
+    {
+      "module": "app_patch_4505",
+      "endpoint": "v4505_dataphone_status",
+      "method": "GET",
+      "path": "/api/v4505/dataphone/status"
+    },
+    {
+      "module": "app_patch_4505",
+      "endpoint": "v4505_health",
+      "method": "GET",
+      "path": "/api/v4505/health"
+    },
+    {
+      "module": "app_patch_4506",
+      "endpoint": "v4506_health",
+      "method": "GET",
+      "path": "/api/v4506/health"
+    },
+    {
+      "module": "app_patch_4507",
+      "endpoint": "v4507_bendo_status",
+      "method": "GET",
+      "path": "/api/v4507/bendo/status"
+    },
+    {
+      "module": "app_patch_4507",
+      "endpoint": "v4507_health",
+      "method": "GET",
+      "path": "/api/v4507/health"
+    },
+    {
+      "module": "app_patch_4508",
+      "endpoint": "v4508_create_visit_batch_payment",
+      "method": "POST",
+      "path": "/api/visits/batch-payment"
+    },
+    {
+      "module": "app_patch_4508",
+      "endpoint": "v4508_historia_bridge_status",
+      "method": "GET",
+      "path": "/api/historia-bridge/status"
+    },
+    {
+      "module": "app_patch_4517",
+      "endpoint": "v4517_historia_bridge_status",
+      "method": "GET",
+      "path": "/api/historia-bridge/status"
+    },
+    {
+      "module": "app_patch_4517",
+      "endpoint": "v4517_health",
+      "method": "GET",
+      "path": "/api/v4517/health"
+    },
+    {
+      "module": "app_patch_4518",
+      "endpoint": "v4518_app_version",
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "module": "app_patch_4518",
+      "endpoint": "v4518_health",
+      "method": "GET",
+      "path": "/api/v4518/health"
+    },
+    {
+      "module": "app_patch_4519",
+      "endpoint": "v4519_app_version",
+      "method": "GET",
+      "path": "/api/version"
+    },
+    {
+      "module": "app_patch_4519",
+      "endpoint": "v4519_health",
+      "method": "GET",
+      "path": "/api/v4519/health"
+    },
+    {
+      "module": "app_patch_4520",
+      "endpoint": "v4520_health",
+      "method": "GET",
+      "path": "/api/v4520/health"
+    },
+    {
+      "module": "app_patch_4521",
+      "endpoint": "v4521_create_visit_batch_payment",
+      "method": "POST",
+      "path": "/api/visits/batch-payment"
+    },
+    {
+      "module": "app_patch_4521",
+      "endpoint": "v4521_health",
+      "method": "GET",
+      "path": "/api/v4521/health"
+    },
+    {
+      "module": "app_patch_4522",
+      "endpoint": "v4522_health",
+      "method": "GET",
+      "path": "/api/v4522/health"
+    },
+    {
+      "module": "app_patch_4523",
+      "endpoint": "v4523_health",
+      "method": "GET",
+      "path": "/api/v4523/health"
+    },
+    {
+      "module": "app_patch_4524",
+      "endpoint": "v4524_create_visit_batch_payment",
+      "method": "POST",
+      "path": "/api/visits/batch-payment"
+    },
+    {
+      "module": "app_patch_4524",
+      "endpoint": "v4524_health",
+      "method": "GET",
+      "path": "/api/v4524/health"
+    },
+    {
+      "module": "app_patch_4525",
+      "endpoint": "v4525_health",
+      "method": "GET",
+      "path": "/api/v4525/health"
+    }
+  ],
+  "outer_top_level_defs": [
+    "_EmbeddedRuntimeLoader",
+    "_EmbeddedRuntimeFinder",
+    "_canonical_update_channel_status",
+    "program_update_now_canonical",
+    "_v4541_consultation_turn",
+    "v4535_create_visit_batch_payment",
+    "_v4541_repair_recent_historia_handoffs",
+    "v4535_health",
+    "v4533_health",
+    "_v4536_flush_historia_backlog",
+    "v4541_health",
+    "v4539_health",
+    "v4537_health",
+    "v4536_health",
+    "v4543_activate_historical_patient",
+    "v4543_health",
+    "_V4544PrintVisitIn",
+    "v4544_print_visit_exact_status",
+    "v4544_health",
+    "_remove_legacy_dead_routes",
+    "_v466_local_attention_db",
+    "_v466_sync_attention_queue_later",
+    "v466_fast_local_attention_save",
+    "v466_print_visit_local_first",
+    "v466_health"
+  ],
+  "outer_decorated_routes": [
+    {
+      "module": "__outer__",
+      "endpoint": "program_update_now_canonical",
+      "method": "POST",
+      "path": "/api/program/update-now"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4535_create_visit_batch_payment",
+      "method": "POST",
+      "path": "/api/visits/batch-payment"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4535_health",
+      "method": "GET",
+      "path": "/api/v4535/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4533_health",
+      "method": "GET",
+      "path": "/api/v4533/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4541_health",
+      "method": "GET",
+      "path": "/api/v4541/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4539_health",
+      "method": "GET",
+      "path": "/api/v4539/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4537_health",
+      "method": "GET",
+      "path": "/api/v4537/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4536_health",
+      "method": "GET",
+      "path": "/api/v4536/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4543_activate_historical_patient",
+      "method": "POST",
+      "path": "/api/historical/{hid}/activate"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4543_health",
+      "method": "GET",
+      "path": "/api/v4543/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4544_print_visit_exact_status",
+      "method": "POST",
+      "path": "/api/v4470/print-visit/{visit_id}"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v4544_health",
+      "method": "GET",
+      "path": "/api/v4544/health"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v466_fast_local_attention_save",
+      "method": "POST",
+      "path": "/api/visits/batch-payment"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v466_print_visit_local_first",
+      "method": "POST",
+      "path": "/api/v4470/print-visit/{visit_id}"
+    },
+    {
+      "module": "__outer__",
+      "endpoint": "v466_health",
+      "method": "GET",
+      "path": "/api/v466/health"
+    }
+  ],
+  "runtime_route_count": 243,
+  "runtime_routes": [
+    {
+      "path": "/openapi.json",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "endpoint": "openapi",
+      "endpoint_module": "fastapi.applications"
+    },
+    {
+      "path": "/docs",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "endpoint": "swagger_ui_html",
+      "endpoint_module": "fastapi.applications"
+    },
+    {
+      "path": "/docs/oauth2-redirect",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "endpoint": "swagger_ui_redirect",
+      "endpoint_module": "fastapi.applications"
+    },
+    {
+      "path": "/redoc",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "endpoint": "redoc_html",
+      "endpoint_module": "fastapi.applications"
+    },
+    {
+      "path": "/static",
+      "methods": [],
+      "endpoint": null,
+      "endpoint_module": null
+    },
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "home",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/connectivity",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "connectivity",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/power/idle",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "enter_power_idle",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/power/wake",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "leave_power_idle",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/window-mode",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "get_window_mode",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/window-mode",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "set_window_mode",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/preferences",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "get_preferences",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/preferences",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "set_preferences",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/printing/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "printing_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/printing/receipt",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "print_receipt",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/system-status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "system_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/open-external/{target}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "open_external",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/offline/sync",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "manual_sync",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/offline/queue",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "offline_queue_review",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/offline/queue/retry",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "offline_queue_retry",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/offline/queue/{queue_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "offline_queue_discard_one",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/offline/queue",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "offline_queue_discard_all",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/connectivity/recover",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "recover_connectivity",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/data-protection/backup",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "backup_now",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/backup/now",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "backup_now",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/login",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "login",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/logout",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "logout",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/me",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "me",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/bootstrap",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "bootstrap",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/historical/import",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "import_historical_registry",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/historical/stats",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "historical_stats",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "search_patients",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/similar",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "similar_patients",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/review-detail",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "patient_review_detail",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/link-historical/{hid}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "link_historical_to_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "create_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "update_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{source_id}/link/{target_id}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "link_duplicate_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{source_id}/merge/{target_id}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "merge_patient_confirmed",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/confirmafy-imported",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "delete_confirmafy_imported_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "delete_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "get_patient",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/profile",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "patient_profile",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/visits",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "create_visit",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/visits/batch",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "create_visit_batch",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "dashboard",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/today",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "today",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/home/week",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "home_week",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/report",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "report",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/mobile/",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_agenda_page",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/mobile",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_agenda_page",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/mobile/manifest.webmanifest",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_manifest",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/mobile/sw.js",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_service_worker",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/me",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_me",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/config",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_config",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/network/enable",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "mobile_network_enable",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/links/rotate",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "mobile_rotate_links",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/agenda/week",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "mobile_agenda_week",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/appointments",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "mobile_create_appointment",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/unlinked/{item_id}",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "mobile_update_unlinked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/unlinked/{item_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "mobile_delete_unlinked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/appointments/{appointment_id}",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "mobile_update_linked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/mobile/appointments/{appointment_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "mobile_delete_linked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/outbox",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_outbox",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/process",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_process",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/recent-patients",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_recent_patients",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/pending-count",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_pending_count",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_appointments",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}/whatsapp-timeline",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_appointment_whatsapp_timeline",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/confirmafy-staged/{item_id}/whatsapp-timeline",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_staged_whatsapp_timeline",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_appointment_detail",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/week",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_week",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/dashboard",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_dashboard",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/slots",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_slots",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_create",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "agenda_update",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}/loaded",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_mark_loaded",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}/pending",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_mark_pending",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/appointments/{appointment_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "agenda_delete",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/unlinked/{item_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "agenda_delete_unlinked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/confirmafy-legacy/{appointment_id}/stage",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_confirmafy_legacy_stage",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/confirmafy-staged/{item_id}",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_confirmafy_staged_detail",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/confirmafy-staged/{item_id}/attended",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_confirmafy_staged_attended",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/import-confirmafy/preview",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_import_confirmafy_preview",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/import-confirmafy",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_import_confirmafy",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/agenda/export.csv",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_export_csv",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/azur/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "azur_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/azur/config",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "azur_save_config",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/azur/test",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "azur_test",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/preview",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_azur_preview",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/emit",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_azur_emit",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/check-status",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_azur_check_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/check-all-status",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_azur_check_all_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/batch-preview",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "billing_azur_batch_preview",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/azur/emit-all-pending",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_azur_emit_all_pending",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/pending-summary",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "pending_summary",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/billing-preference",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "get_billing_preference",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/billing-preference",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "save_billing_preference",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/patients/{pid}/billing-preference",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "delete_billing_preference",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/pending-count",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "billing_pending_count",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/next",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "billing_next",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/approve",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_approve",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/approve-all-pending",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_approve_all_pending",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/pending",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_back_to_pending",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/billing/emit",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "billing_emit",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/safety/appointments/{appointment_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "ops_safe_delete_appointment",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/safety/unlinked/{item_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "ops_safe_delete_unlinked",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/ops/trash",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "ops_trash",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/ops/trash/{trash_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "ops_delete_trash_forever",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/ops/activity",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "ops_activity",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/ops/diagnostics",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "ops_diagnostics",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/procedures",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "procedures",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/procedures",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "add_procedure",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/procedures/{procedure_id}",
+      "methods": [
+        "PUT"
+      ],
+      "endpoint": "update_procedure_value",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/procedures/{procedure_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "delete_procedure",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/change-password",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "change_password",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/cloud-test",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_cloud_test",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/cloud-test/{test_id}",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_cloud_test_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/cloud-test/{test_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "whatsapp_cloud_test_finish",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/test-message",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_test_message",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/test-recordatorio-cita",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_test_recordatorio_cita",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/cloud-status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_cloud_delivery_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_status",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/services/check",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "services_check",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v458/settings.css",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v458_settings_css",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v458/settings.js",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v458_settings_js",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v459/settings.css",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v459_settings_css",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v459/settings.js",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v459_settings_js",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v460/overlay.css",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v460_overlay_css",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/v460/overlay.js",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v460_overlay_js",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/update/info",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "update_info",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/export.xlsx/save",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "save_xlsx_to_downloads",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/export.xlsx",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "export_xlsx",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/export.csv/save",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "save_csv_to_downloads",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/export.csv",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "export_csv",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp-responses/cleanup-old-tests",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_cleanup_old_tests_v4424",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/auto-bookings/recent",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "auto_bookings_recent_v4425",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp-responses/count",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_responses_count",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp-responses",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_responses_list",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp-responses/{response_id}/resolve",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "whatsapp_response_resolve",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/whatsapp-responses/{response_id}/audio",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "whatsapp_response_audio",
+      "endpoint_module": "app_base_4428"
+    },
+    {
+      "path": "/api/startup-guard",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "startup_guard_status",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/agenda/week-conflict",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "agenda_week_conflict_v4444",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/agenda/appointments/guarded",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "agenda_create_guarded_v4444",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/identity/phone-owner",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4446_phone_owner",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/local-cache/reconcile-patients",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4450_reconcile_patients",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/historical/{hid}/activate-for-staged/{item_id}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4450_activate_historical_for_staged",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/agenda/unlinked/guarded",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4452_create_quick_unlinked_appointment",
+      "endpoint_module": "app_prev_4458"
+    },
+    {
+      "path": "/api/billing/non-billable",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "mark_non_billable",
+      "endpoint_module": "app_patch_4459"
+    },
+    {
+      "path": "/api/billing/non-billable/restore",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "restore_non_billable",
+      "endpoint_module": "app_patch_4459"
+    },
+    {
+      "path": "/api/billing/non-billable",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "list_non_billable",
+      "endpoint_module": "app_patch_4459"
+    },
+    {
+      "path": "/api/v4459/non-billable-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4459_health",
+      "endpoint_module": "app_patch_4459"
+    },
+    {
+      "path": "/api/v4461/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4461_receipt_health",
+      "endpoint_module": "app_patch_4461"
+    },
+    {
+      "path": "/api/v4462/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4462_receipt_health",
+      "endpoint_module": "app_patch_4462"
+    },
+    {
+      "path": "/api/v4463/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4463_receipt_health",
+      "endpoint_module": "app_patch_4463"
+    },
+    {
+      "path": "/api/v4464/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4464_receipt_health",
+      "endpoint_module": "app_patch_4464"
+    },
+    {
+      "path": "/api/v4465/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4465_receipt_health",
+      "endpoint_module": "app_patch_4465"
+    },
+    {
+      "path": "/api/v4466/receipt-image",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4466_receipt_image",
+      "endpoint_module": "app_patch_4466"
+    },
+    {
+      "path": "/api/v4466/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4466_receipt_health",
+      "endpoint_module": "app_patch_4466"
+    },
+    {
+      "path": "/api/v4467/receipt-image",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4467_receipt_image",
+      "endpoint_module": "app_patch_4467"
+    },
+    {
+      "path": "/api/v4467/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4467_receipt_health",
+      "endpoint_module": "app_patch_4467"
+    },
+    {
+      "path": "/api/v4468/receipt-image",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4468_receipt_image",
+      "endpoint_module": "app_patch_4468"
+    },
+    {
+      "path": "/api/v4468/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4468_receipt_health",
+      "endpoint_module": "app_patch_4468"
+    },
+    {
+      "path": "/api/v4469/receipt-image",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4469_receipt_image",
+      "endpoint_module": "app_patch_4469"
+    },
+    {
+      "path": "/api/v4469/receipt-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4469_receipt_health",
+      "endpoint_module": "app_patch_4469"
+    },
+    {
+      "path": "/api/v4470/version",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4470_version",
+      "endpoint_module": "app_patch_4470"
+    },
+    {
+      "path": "/api/v4470/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4470_health",
+      "endpoint_module": "app_patch_4470"
+    },
+    {
+      "path": "/api/v4473/recovery-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4473_recovery_health",
+      "endpoint_module": "app_patch_4473"
+    },
+    {
+      "path": "/api/v4474/print-queue-health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4474_print_queue_health",
+      "endpoint_module": "app_patch_4474"
+    },
+    {
+      "path": "/api/v4475/procedures/{procedure_id}/delete",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4475_delete_procedure",
+      "endpoint_module": "app_patch_4475"
+    },
+    {
+      "path": "/api/v4475/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4475_health",
+      "endpoint_module": "app_patch_4475"
+    },
+    {
+      "path": "/api/billing",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4476_billing_list",
+      "endpoint_module": "app_patch_4476"
+    },
+    {
+      "path": "/api/safety/patients/{pid}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "v4476_safe_delete_patient",
+      "endpoint_module": "app_patch_4476"
+    },
+    {
+      "path": "/api/v4476/billing/prior-emissions",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4476_prior_emissions",
+      "endpoint_module": "app_patch_4476"
+    },
+    {
+      "path": "/api/v4476/procedures/upsert",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4476_procedure_upsert",
+      "endpoint_module": "app_patch_4476"
+    },
+    {
+      "path": "/api/v4476/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4476_health",
+      "endpoint_module": "app_patch_4476"
+    },
+    {
+      "path": "/api/v4477/billing/discard",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4477_discard_pending_billing",
+      "endpoint_module": "app_patch_4477"
+    },
+    {
+      "path": "/api/v4477/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4477_health",
+      "endpoint_module": "app_patch_4477"
+    },
+    {
+      "path": "/api/v4478/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4478_health",
+      "endpoint_module": "app_patch_4478"
+    },
+    {
+      "path": "/api/v4479/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4479_health",
+      "endpoint_module": "app_patch_4479"
+    },
+    {
+      "path": "/api/v4480/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4480_health",
+      "endpoint_module": "app_patch_4480"
+    },
+    {
+      "path": "/api/v4481/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4481_health",
+      "endpoint_module": "app_patch_4481"
+    },
+    {
+      "path": "/api/v4482/launch-updater",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4482_launch_updater",
+      "endpoint_module": "app_patch_4482"
+    },
+    {
+      "path": "/api/v4482/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4482_health",
+      "endpoint_module": "app_patch_4482"
+    },
+    {
+      "path": "/api/app/restart",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "restart_v4483",
+      "endpoint_module": "app_patch_4483"
+    },
+    {
+      "path": "/api/v4483/launch-updater",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "launch_updater_v4483",
+      "endpoint_module": "app_patch_4483"
+    },
+    {
+      "path": "/api/v4483/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4483_health",
+      "endpoint_module": "app_patch_4483"
+    },
+    {
+      "path": "/api/v4484/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4484_health",
+      "endpoint_module": "app_patch_4484"
+    },
+    {
+      "path": "/api/v4485/payment-proof/{patient_id}/{fecha}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4485_print_payment_proof",
+      "endpoint_module": "app_patch_4485"
+    },
+    {
+      "path": "/api/v4485/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4485_health",
+      "endpoint_module": "app_patch_4485"
+    },
+    {
+      "path": "/api/v4486/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4486_health",
+      "endpoint_module": "app_patch_4486"
+    },
+    {
+      "path": "/api/v4487/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4487_health",
+      "endpoint_module": "app_patch_4487"
+    },
+    {
+      "path": "/api/v4488/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4488_health",
+      "endpoint_module": "app_patch_4488"
+    },
+    {
+      "path": "/api/v4489/print-billing-data-form",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4489_print_billing_data_form",
+      "endpoint_module": "app_patch_4489"
+    },
+    {
+      "path": "/api/v4489/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4489_health",
+      "endpoint_module": "app_patch_4489"
+    },
+    {
+      "path": "/api/v4490/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4490_health",
+      "endpoint_module": "app_patch_4490"
+    },
+    {
+      "path": "/api/v4491/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4491_health",
+      "endpoint_module": "app_patch_4491"
+    },
+    {
+      "path": "/api/v4501/system-status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4501_system_status",
+      "endpoint_module": "app_patch_4501"
+    },
+    {
+      "path": "/api/v4501/maintenance/cleanup",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4501_cleanup",
+      "endpoint_module": "app_patch_4501"
+    },
+    {
+      "path": "/api/v4501/printing/test",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4501_print_test",
+      "endpoint_module": "app_patch_4501"
+    },
+    {
+      "path": "/api/v4501/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4501_health",
+      "endpoint_module": "app_patch_4501"
+    },
+    {
+      "path": "/api/v4502/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4502_health",
+      "endpoint_module": "app_patch_4502"
+    },
+    {
+      "path": "/api/billing/payment-methods",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4504_billing_payment_methods",
+      "endpoint_module": "app_patch_4504"
+    },
+    {
+      "path": "/api/billing/payment-method",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4504_set_billing_payment_method",
+      "endpoint_module": "app_patch_4504"
+    },
+    {
+      "path": "/api/v4504/day-summary",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4504_day_summary",
+      "endpoint_module": "app_patch_4504"
+    },
+    {
+      "path": "/api/v4504/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4504_health",
+      "endpoint_module": "app_patch_4504"
+    },
+    {
+      "path": "/api/v4505/dataphone/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4505_dataphone_status",
+      "endpoint_module": "app_patch_4505"
+    },
+    {
+      "path": "/api/v4505/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4505_health",
+      "endpoint_module": "app_patch_4505"
+    },
+    {
+      "path": "/api/v4506/dataphone/config",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4506_dataphone_config",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4506/dataphone/config",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4506_save_dataphone_config",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4506/dataphone/validate",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4506_validate_dataphone",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4506/dataphone/test",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4506_test_dataphone",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4506/dataphone/payment-preview",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4506_dataphone_payment_preview",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4506/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4506_health",
+      "endpoint_module": "app_patch_4506"
+    },
+    {
+      "path": "/api/v4507/bendo/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4507_bendo_status",
+      "endpoint_module": "app_patch_4507"
+    },
+    {
+      "path": "/api/v4507/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4507_health",
+      "endpoint_module": "app_patch_4507"
+    },
+    {
+      "path": "/api/historia-bridge/status",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4517_historia_bridge_status",
+      "endpoint_module": "app_patch_4517"
+    },
+    {
+      "path": "/api/v4517/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4517_health",
+      "endpoint_module": "app_patch_4517"
+    },
+    {
+      "path": "/api/v4518/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4518_health",
+      "endpoint_module": "app_patch_4518"
+    },
+    {
+      "path": "/api/version",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4519_app_version",
+      "endpoint_module": "app_patch_4519"
+    },
+    {
+      "path": "/api/v4519/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4519_health",
+      "endpoint_module": "app_patch_4519"
+    },
+    {
+      "path": "/api/v4520/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4520_health",
+      "endpoint_module": "app_patch_4520"
+    },
+    {
+      "path": "/api/v4521/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4521_health",
+      "endpoint_module": "app_patch_4521"
+    },
+    {
+      "path": "/api/safety/visits/{visit_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "v4522_safe_delete_visit",
+      "endpoint_module": "app_patch_4522"
+    },
+    {
+      "path": "/api/visits/{visit_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "endpoint": "v4522_direct_delete_visit",
+      "endpoint_module": "app_patch_4522"
+    },
+    {
+      "path": "/api/ops/trash/{trash_id}/restore",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4522_restore_trash",
+      "endpoint_module": "app_patch_4522"
+    },
+    {
+      "path": "/api/v4522/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4522_health",
+      "endpoint_module": "app_patch_4522"
+    },
+    {
+      "path": "/api/v4523/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4523_health",
+      "endpoint_module": "app_patch_4523"
+    },
+    {
+      "path": "/api/v4524/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4524_health",
+      "endpoint_module": "app_patch_4524"
+    },
+    {
+      "path": "/api/v4525/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4525_health",
+      "endpoint_module": "app_patch_4525"
+    },
+    {
+      "path": "/api/program/update-now",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "program_update_now_canonical",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4535/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4535_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4533/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4533_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4541/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4541_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4539/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4539_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4537/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4537_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4536/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4536_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/historical/{hid}/activate",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v4543_activate_historical_patient",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4543/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4543_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4544/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v4544_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/visits/batch-payment",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v466_fast_local_attention_save",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v4470/print-visit/{visit_id}",
+      "methods": [
+        "POST"
+      ],
+      "endpoint": "v466_print_visit_local_first",
+      "endpoint_module": "reception_466_inventory_runtime"
+    },
+    {
+      "path": "/api/v466/health",
+      "methods": [
+        "GET"
+      ],
+      "endpoint": "v466_health",
+      "endpoint_module": "reception_466_inventory_runtime"
+    }
+  ],
+  "duplicate_runtime_routes": [],
+  "overridden_top_level_names_top100": [
+    {
+      "name": "APP_VERSION",
+      "modules": [
+        "app_base_4428",
+        "app_prev_4458",
+        "app_patch_4459",
+        "app_patch_4461",
+        "app_patch_4462",
+        "app_patch_4463",
+        "app_patch_4464",
+        "app_patch_4465",
+        "app_patch_4466",
+        "app_patch_4467",
+        "app_patch_4468",
+        "app_patch_4469",
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 51
+    },
+    {
+      "name": "app",
+      "modules": [
+        "app_base_4428",
+        "app_prev_4458",
+        "app_patch_4459",
+        "app_patch_4461",
+        "app_patch_4462",
+        "app_patch_4463",
+        "app_patch_4464",
+        "app_patch_4465",
+        "app_patch_4466",
+        "app_patch_4467",
+        "app_patch_4468",
+        "app_patch_4469",
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 51
+    },
+    {
+      "name": "PATCH_BOOT_OK",
+      "modules": [
+        "app_patch_4459",
+        "app_patch_4461",
+        "app_patch_4462",
+        "app_patch_4463",
+        "app_patch_4464",
+        "app_patch_4465",
+        "app_patch_4466",
+        "app_patch_4467",
+        "app_patch_4468",
+        "app_patch_4469",
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 49
+    },
+    {
+      "name": "core",
+      "modules": [
+        "app_patch_4459",
+        "app_patch_4461",
+        "app_patch_4462",
+        "app_patch_4463",
+        "app_patch_4464",
+        "app_patch_4465",
+        "app_patch_4466",
+        "app_patch_4467",
+        "app_patch_4468",
+        "app_patch_4469",
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 49
+    },
+    {
+      "name": "_mod",
+      "modules": [
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 39
+    },
+    {
+      "name": "_seen",
+      "modules": [
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507",
+        "app_patch_4508",
+        "app_patch_4509",
+        "app_patch_4510",
+        "app_patch_4511",
+        "app_patch_4517",
+        "app_patch_4518",
+        "app_patch_4519",
+        "app_patch_4520",
+        "app_patch_4521",
+        "app_patch_4522",
+        "app_patch_4523",
+        "app_patch_4524",
+        "app_patch_4525"
+      ],
+      "count": 39
+    },
+    {
+      "name": "PATCH_BOOT_ERROR",
+      "modules": [
+        "app_patch_4459",
+        "app_patch_4461",
+        "app_patch_4462",
+        "app_patch_4463",
+        "app_patch_4464",
+        "app_patch_4465",
+        "app_patch_4466",
+        "app_patch_4467",
+        "app_patch_4468",
+        "app_patch_4469",
+        "app_patch_4470",
+        "app_patch_4473",
+        "app_patch_4474",
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4477",
+        "app_patch_4478",
+        "app_patch_4479",
+        "app_patch_4480",
+        "app_patch_4481",
+        "app_patch_4482",
+        "app_patch_4483",
+        "app_patch_4484",
+        "app_patch_4485",
+        "app_patch_4486",
+        "app_patch_4487",
+        "app_patch_4488",
+        "app_patch_4489",
+        "app_patch_4490",
+        "app_patch_4491",
+        "app_patch_4501",
+        "app_patch_4502",
+        "app_patch_4504",
+        "app_patch_4505",
+        "app_patch_4506",
+        "app_patch_4507"
+      ],
+      "count": 36
+    },
+    {
+      "name": "PAYMENT_SENTINELS",
+      "modules": [
+        "app_prev_4458",
+        "app_patch_4475",
+        "app_patch_4502",
+        "app_patch_4504"
+      ],
+      "count": 4
+    },
+    {
+      "name": "SRI_PAYMENT_CODES",
+      "modules": [
+        "app_prev_4458",
+        "app_patch_4475",
+        "app_patch_4502"
+      ],
+      "count": 3
+    },
+    {
+      "name": "_normalize_payment_method",
+      "modules": [
+        "app_prev_4458",
+        "app_patch_4475",
+        "app_patch_4502"
+      ],
+      "count": 3
+    },
+    {
+      "name": "_remove_api_route",
+      "modules": [
+        "app_patch_4475",
+        "app_patch_4476",
+        "app_patch_4502"
+      ],
+      "count": 3
+    },
+    {
+      "name": "FORM_RENDER_PATCHED",
+      "modules": [
+        "app_patch_4490",
+        "app_patch_4491"
+      ],
+      "count": 2
+    },
+    {
+      "name": "PAYMENT_RENDER_PATCHED",
+      "modules": [
+        "app_patch_4487",
+        "app_patch_4488"
+      ],
+      "count": 2
+    },
+    {
+      "name": "_TYPE_LABELS",
+      "modules": [
+        "app_patch_4521",
+        "app_patch_4524"
+      ],
+      "count": 2
+    },
+    {
+      "name": "_remove_route",
+      "modules": [
+        "app_patch_4504",
+        "app_patch_4522"
+      ],
+      "count": 2
+    },
+    {
+      "name": "_state",
+      "modules": [
+        "app_base_4428",
+        "app_patch_4459"
+      ],
+      "count": 2
+    }
+  ]
+}
