@@ -3,7 +3,7 @@ name: Publish Validated Reception App Channel
 
 on:
   push:
-    branches: [main, refactor/reception-definitive-runtime]
+    branches: [main]
     paths:
       - "launcher-v1/app-channel-source.json"
       - ".github/workflows/publish-reception-app-channel.yml"
