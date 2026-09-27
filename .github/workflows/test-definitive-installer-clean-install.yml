@@ -1,0 +1,71 @@
+name: Test Definitive Installer Clean Windows
+
+on:
+  push:
+    branches: [build/definitive-private-installer]
+    paths:
+      - "tools/definitive-installer/installer.ps1"
+      - ".github/workflows/test-definitive-installer-clean-install.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  clean-install-both:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare harmless private-config stand-ins
+        shell: pwsh
+        run: |
+          @'
+          DATABASE_URL=
+          AZUR_BASE_URL=https://azur.com.ec
+          AZUR_API_KEY=
+          MOBILE_DOCTOR_TOKEN=
+          MOBILE_RECEPTION_TOKEN=
+          '@ | Set-Content "$env:RUNNER_TEMP\recepcion.env" -Encoding utf8
+          @'
+          HISTORIA_DATABASE_URL=
+          HISTORIA_SYNC_ENABLED=0
+          '@ | Set-Content "$env:RUNNER_TEMP\historia.env" -Encoding utf8
+
+      - name: Run definitive installer engine on clean Windows
+        shell: cmd
+        run: >-
+          powershell.exe -NoProfile -ExecutionPolicy Bypass
+          -File tools\definitive-installer\installer.ps1
+          -ReceptionEnvPath "%RUNNER_TEMP%\recepcion.env"
+          -HistoriaEnvPath "%RUNNER_TEMP%\historia.env"
+          -Mode both -NonInteractive
+
+      - name: Verify clean installation result
+        shell: pwsh
+        run: |
+          $r='C:\Recepcion Dr Revelo'
+          $h='C:\Historia Clinica Dr Revelo'
+          foreach($p in @(
+            "$r\app.py", "$r\recepcion-version.json", "$r\.venv\Scripts\python.exe", "$r\RecepcionLauncher.exe",
+            "$h\app.py", "$h\historia-version.json", "$h\.venv\Scripts\python.exe", "$h\HistoriaClinicaLauncher.exe"
+          )) { if(-not (Test-Path $p -PathType Leaf)){ throw "Falta $p" } }
+          $rv=(Get-Content "$r\recepcion-version.json" -Raw | ConvertFrom-Json).version
+          $hv=(Get-Content "$h\historia-version.json" -Raw | ConvertFrom-Json).version
+          if($rv -ne '4.6.7'){ throw "Recepción inesperada: $rv" }
+          if($hv -ne '1.3.73'){ throw "Historia inesperada: $hv" }
+          & "$r\.venv\Scripts\python.exe" -c "import sys; sys.path.insert(0,r'C:\Recepcion Dr Revelo'); import app; assert app.APP_VERSION=='4.6.7'; print('RECEPTION_FINAL_OK')"
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+          $env:HC_PREFLIGHT='1'; $env:HISTORIA_SYNC_ENABLED='0'; $env:HISTORIA_DATABASE_URL=''
+          & "$h\.venv\Scripts\python.exe" -c "import sys; sys.path.insert(0,r'C:\Historia Clinica Dr Revelo'); import app; assert app.APP_VERSION=='1.3.73'; print('HISTORIA_FINAL_OK')"
+          if($LASTEXITCODE -ne 0){ exit $LASTEXITCODE }
+
+      - name: Verify installer log completed
+        shell: pwsh
+        run: |
+          $log=Get-ChildItem "$env:ProgramData\DrRevelo\Installer\install-*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if(-not $log){ throw 'No se generó log' }
+          $text=Get-Content $log.FullName -Raw
+          if($text -notmatch 'INSTALACION_OK'){ throw "El log no terminó OK" }
+          Write-Host 'DEFINITIVE_INSTALLER_CLEAN_WINDOWS_OK'
