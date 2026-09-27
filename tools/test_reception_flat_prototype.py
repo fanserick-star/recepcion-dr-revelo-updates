@@ -6,8 +6,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import textwrap
-import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -43,6 +41,8 @@ if base is not None:
             cols.append((c.name, str(c.type), bool(c.nullable), bool(c.primary_key)))
         tables.append((name, cols))
 def sh(v): return hashlib.sha256(str(v or '').encode('utf-8')).hexdigest()
+openapi = app.app.openapi()
+openapi_blob = json.dumps(openapi, ensure_ascii=False, sort_keys=True, separators=(',',':'))
 out={
  'version':str(getattr(app,'APP_VERSION','')),
  'route_count':len(routes),
@@ -51,6 +51,9 @@ out={
  'tables':tables,
  'overlay_js_sha':sh(getattr(core,'V460_OVERLAY_JS','')),
  'overlay_css_sha':sh(getattr(core,'V460_OVERLAY_CSS','')),
+ 'openapi_sha':hashlib.sha256(openapi_blob.encode('utf-8')).hexdigest(),
+ 'openapi_paths':len(openapi.get('paths') or {}),
+ 'openapi_schemas':len(((openapi.get('components') or {}).get('schemas') or {})),
  'historical_modules_loaded':sorted(k for k in sys.modules if re.match(r'^app_(?:base|prev|patch)_\\d+$',k)),
  'core_sync_name':getattr(getattr(core,'sync_one_operation',None),'__name__',None),
  'core_normalize_patient_name':getattr(getattr(core,'normalize_patient_payload',None),'__name__',None),
@@ -98,6 +101,13 @@ assert route_contract(orig['routes']) == route_contract(flat['routes']), (
 assert orig['tables'] == flat['tables'], 'SQLAlchemy metadata drift'
 assert orig['overlay_js_sha'] == flat['overlay_js_sha'], (orig['overlay_js_sha'], flat['overlay_js_sha'])
 assert orig['overlay_css_sha'] == flat['overlay_css_sha'], (orig['overlay_css_sha'], flat['overlay_css_sha'])
+# OpenAPI is a stronger API contract than route names alone: it captures path
+# params, query/body validation, request/response schemas and operation metadata.
+assert orig['openapi_sha'] == flat['openapi_sha'], (
+    orig['openapi_sha'], flat['openapi_sha'],
+    orig['openapi_paths'], flat['openapi_paths'],
+    orig['openapi_schemas'], flat['openapi_schemas'],
+)
 # The production 4.6.6 embedded loader cleans historical module names from
 # sys.modules after bootstrap, so their post-import count is not a production
 # contract. The definitive candidate must still guarantee that no historical
@@ -186,5 +196,6 @@ with candidate.core.LocalSessionLocal() as db:
 
 print('FLAT EQUIVALENCE OK')
 print('routes', flat['route_count'], 'tables', len(flat['tables']))
+print('openapi paths', flat['openapi_paths'], 'schemas', flat['openapi_schemas'], flat['openapi_sha'])
 print('original historical modules', len(orig['historical_modules_loaded']), 'flat', len(flat['historical_modules_loaded']))
 print('overlay js', flat['overlay_js_sha'])
