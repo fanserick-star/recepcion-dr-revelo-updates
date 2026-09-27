@@ -1,0 +1,19 @@
+{
+  "version": "4.6.7",
+  "release_source_commit": "1f3312c81653bcf671c6dcdf85346a32eac3dac8",
+  "verification_workflow_run": 36296181344,
+  "verification_job": 108555339907,
+  "verification_result": "success",
+  "runtime_layout": "flat-semantic",
+  "payload_files": 59,
+  "required_dependencies": 55,
+  "routes": 243,
+  "tables": 12,
+  "openapi_paths": 220,
+  "openapi_schemas": 36,
+  "historical_executable_modules": 0,
+  "endpoint_versions_checked": 66,
+  "overlay_drift": "canonical-version-only",
+  "upgrade_cycle": "4.6.6 -> 4.6.7 ok",
+  "rollback_cycle": "4.6.7 -> 4.6.6 ok"
+}

@@ -1,0 +1,4 @@
+Recepción 4.6.7 — primera publicación del runtime semántico consolidado.
+Base funcional: 4.6.6 verificada.
+Cadena histórica ejecutable: no.
+Rollback preservado: 4.6.6.

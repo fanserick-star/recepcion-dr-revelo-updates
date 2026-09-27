@@ -1,0 +1,502 @@
+[data-config-tab="agenda"]\');makeTab(tabs,\'whatsapp\',\'WhatsApp\',agendaBtn);\n}\nfunction prepareProgramSection(sec){\n  if(!sec)return;\n  $$(\'.v451-update-box\',sec).forEach(x=>x.remove());\n  const perf=$(\'.performance-panel\',sec);if(perf){perf.innerHTML=`<div class="config-panel-head"><div><h3>Inicio y rendimiento</h3><p class="muted">Arquitectura actual del iniciador.</p></div><span class="performance-pill">⚡ ESTABLE</span></div><div class="v458-program-card"><div><span>Ventana principal</span><b>WebView2</b><small>Edge se usa solo como respaldo automático.</small></div><div><span>Protección</span><b>Una sola instancia</b><small>Un segundo clic no abre otro backend ni otra ventana.</small></div><div><span>Ahorro de nube</span><b>AFK automático</b><small>Neon descansa cuando Recepción no se está usando.</small></div></div>`}\n  const up=$(\'.updater-panel\',sec);if(up){up.innerHTML=`<div class="config-panel-head"><div><h3>Actualizaciones automáticas</h3><p class="muted">El launcher verifica SHA, staging y rollback antes de iniciar el programa.</p></div><span id="currentVersionBadge" class="version-badge">v${V}</span></div><div class="actions"><button id="v458CheckChannel" class="primary-soft" type="button">↻ Comprobar canal</button><button type="button" onclick="restartReception()">Reiniciar Recepción</button></div><div id="updateStatus" class="muted update-status">El launcher instala las versiones nuevas al abrir Recepción.</div>`;$(\'#v458CheckChannel\',up)?.addEventListener(\'click\',checkUpdateChannel)}\n}\nasync function checkUpdateChannel(){const b=$(\'#v458CheckChannel\'),s=$(\'#updateStatus\');try{if(b){b.disabled=true;b.textContent=\'Comprobando…\'}const d=await apiCall(\'/api/program/update-now\',{method:\'POST\',body:\'{}\'});if(s)s.textContent=d.message||\'Canal comprobado.\'}catch(e){if(s)s.textContent=e.message||e}finally{if(b){b.disabled=false;b.textContent=\'↻ Comprobar canal\'}}}\n\nfunction installTabLoader(){\n  window.showConfigTab=function(tab=\'general\',button=null){\n    $$(\'[data-config-section]\').forEach(x=>x.classList.toggle(\'hidden\',x.dataset.configSection!==tab));\n    $$(\'[data-config-tab]\').forEach(x=>x.classList.toggle(\'active\',x.dataset.configTab===tab));\n    if(button)button.classList.add(\'active\');\n    let task=null;\n    try{\n      if(tab===\'general\')task=window.loadReceptionConfig?.();\n      else if(tab===\'agenda\')task=window.loadMobileConfigLinks?.(false);\n      else if(tab===\'whatsapp\')task=window.loadWhatsappStatus?.();\n      else if(tab===\'procedimientos\')task=window.loadProcedures?.();\n      else if(tab===\'facturacion\')task=window.loadAzurStatus?.();\n      else if(tab===\'sistema\')task=window.refreshProtectionStatus?.(false);\n      else if(tab===\'actualizaciones\')task=window.loadUpdateInfo?.();\n    }catch(_e){}\n    Promise.resolve(task).catch(()=>{});\n  };\n}\nfunction upgrade(){\n  const config=$(\'#config\');if(!config||config.dataset.v458===\'1\')return;\n  config.dataset.v458=\'1\';config.classList.add(\'v458-settings\');\n  const subtitle=$(\'.config-title-row .muted\',config);if(subtitle)subtitle.textContent=\'Conexiones, agenda, WhatsApp y preferencias organizadas para revisar todo rápido.\';\n  createServicePanel(config);\n  const tabs=$(\'.config-tabs\',config),agendaSec=config.querySelector(\'[data-config-section="agenda"]\');if(!tabs||!agendaSec)return;\n  const agendaBtn=tabs.querySelector(\'[data-config-tab="agenda"]\');if(agendaBtn)agendaBtn.textContent=\'Agenda 24/7\';\n  const fact=tabs.querySelector(\'[data-config-tab="facturacion"]\');if(fact)fact.textContent=\'AZUR\';\n  const sys=tabs.querySelector(\'[data-config-tab="sistema"]\');if(sys)sys.textContent=\'Nube y respaldo\';\n  prepareAgendaSection(agendaSec);prepareWhatsappSection(config,agendaSec,tabs);prepareProgramSection(config.querySelector(\'[data-config-section="actualizaciones"]\'));\n  installTabLoader();\n  // Renderiza de nuevo Agenda con los botones Abrir/Copiar si ya había datos cargados.\n  try{if(window.mobileConfigCache?.cloud)professionalCloudAgenda(window.mobileConfigCache.cloud)}catch(_e){}\n}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',upgrade,{once:true});else upgrade();\nsetTimeout(upgrade,250);\n})();'
+UPDATE_CHANNEL_URL = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/latest-v3.json"
+
+
+def _service_result(label: str, status: str, detail: str, *, latency_ms: Optional[float] = None, **extra) -> dict:
+    data = {"label": label, "status": status, "detail": str(detail or "")[:240]}
+    if latency_ms is not None:
+        data["latency_ms"] = round(float(latency_ms), 1)
+    data.update(extra)
+    return data
+
+
+def _probe_local_service() -> dict:
+    pending = queue_count()
+    return _service_result(
+        "Recepción local", "ONLINE",
+        f"Programa v{APP_VERSION} listo · {pending} cambio(s) pendiente(s) de sincronizar." if pending else f"Programa v{APP_VERSION} listo · copia local disponible.",
+    )
+
+
+def _probe_neon_service() -> dict:
+    if not cloud_configured():
+        return _service_result("Neon", "NO_CONFIGURADO", "DATABASE_URL no está configurado en esta PC.")
+    if FORCE_OFFLINE:
+        return _service_result("Neon", "OFFLINE", "Modo sin conexión forzado para diagnóstico.")
+    started = time.perf_counter()
+    ok = check_cloud(force=True)
+    with _state_lock:
+        probe_ms = _state.get("last_probe_ms")
+        error = str(_state.get("last_error") or "")
+    latency = probe_ms if probe_ms is not None else (time.perf_counter() - started) * 1000.0
+    return _service_result("Neon", "ONLINE" if ok else "OFFLINE", "Base en la nube disponible." if ok else (error or "Neon no respondió."), latency_ms=latency)
+
+
+def _probe_azur_service() -> dict:
+    if not AZUR_BASE_URL or not AZUR_API_KEY:
+        return _service_result("AZUR", "NO_CONFIGURADO", "Falta configurar la dirección o la API key de AZUR.")
+    started = time.perf_counter()
+    try:
+        azur_test_connection(AZUR_BASE_URL, AZUR_API_KEY, timeout=8)
+        return _service_result("AZUR", "ONLINE", f"Conexión autenticada con {urlparse(AZUR_BASE_URL).hostname or 'AZUR'}. No se emitió ninguna factura.", latency_ms=(time.perf_counter()-started)*1000)
+    except Exception as exc:
+        return _service_result("AZUR", "OFFLINE", str(exc)[:220], latency_ms=(time.perf_counter()-started)*1000)
+
+
+def _probe_whatsapp_service() -> dict:
+    if WHATSAPP_CLOUD_MODE:
+        if not cloud_configured() or not CloudSessionLocal or FORCE_OFFLINE:
+            return _service_result("WhatsApp Cloud", "OFFLINE", "El canal Cloud necesita Neon para consultar los envíos.")
+        started = time.perf_counter()
+        try:
+            with CloudSessionLocal() as cdb:
+                row = cdb.execute(text("""
+                    SELECT status, updated_at
+                    FROM whatsapp_cloud.events
+                    ORDER BY updated_at DESC NULLS LAST, created_at DESC
+                    LIMIT 1
+                """)).mappings().first()
+            detail = "Credenciales Meta administradas en Cloudflare; esta PC no guarda token de WhatsApp."
+            if row:
+                st = str(row.get("status") or "").upper()
+                updated = row.get("updated_at")
+                when = updated.isoformat(timespec="minutes") if updated else ""
+                detail += f" Último evento: {st or 'registrado'}" + (f" · {when}" if when else "") + "."
+            return _service_result("WhatsApp Cloud", "ONLINE", detail, latency_ms=(time.perf_counter()-started)*1000)
+        except Exception as exc:
+            return _service_result("WhatsApp Cloud", "DEGRADADO", f"Cloud configurado, pero no se pudo leer el registro de mensajes: {str(exc)[:160]}", latency_ms=(time.perf_counter()-started)*1000)
+
+    missing = [name for name, value in (("WHATSAPP_GRAPH_VERSION", WHATSAPP_GRAPH_VERSION), ("WHATSAPP_PHONE_NUMBER_ID", WHATSAPP_PHONE_NUMBER_ID), ("WHATSAPP_ACCESS_TOKEN", WHATSAPP_ACCESS_TOKEN)) if not value]
+    if missing:
+        return _service_result("WhatsApp Meta", "NO_CONFIGURADO", "Falta configurar: " + ", ".join(missing))
+    started = time.perf_counter()
+    url = f"https://graph.facebook.com/{WHATSAPP_GRAPH_VERSION}/{WHATSAPP_PHONE_NUMBER_ID}?fields=display_phone_number,verified_name"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {WHATSAPP_ACCESS_TOKEN}", "User-Agent": f"Recepcion-Dr-Revelo/{APP_VERSION}", "Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as response:
+            payload = json.loads(response.read(512_000).decode("utf-8-sig"))
+        verified = str(payload.get("verified_name") or "Meta").strip()[:80]
+        number = re.sub(r"\D", "", str(payload.get("display_phone_number") or ""))
+        suffix = (" · ••••" + number[-4:]) if len(number) >= 4 else ""
+        return _service_result("WhatsApp Meta", "ONLINE", f"Meta respondió correctamente · {verified}{suffix}. No se envió ningún mensaje.", latency_ms=(time.perf_counter()-started)*1000)
+    except urllib.error.HTTPError as exc:
+        detail = "Meta rechazó la comprobación. Revisa el token o Phone Number ID." if exc.code in (400, 401, 403) else f"Meta respondió HTTP {exc.code}."
+        return _service_result("WhatsApp Meta", "OFFLINE", detail, latency_ms=(time.perf_counter()-started)*1000)
+    except Exception as exc:
+        return _service_result("WhatsApp Meta", "OFFLINE", f"No se pudo consultar Meta: {str(exc)[:170]}", latency_ms=(time.perf_counter()-started)*1000)
+
+
+def _probe_messages_service() -> dict:
+    if not WHATSAPP_CLOUD_MODE:
+        return _service_result("Mensajes 24/7", "DEGRADADO", "El modo Cloud 24/7 está desactivado; la PC no debe duplicar envíos del worker.")
+    if not cloud_configured() or not CloudSessionLocal:
+        return _service_result("Mensajes 24/7", "OFFLINE", "Necesita Neon para registrar envíos y respuestas.")
+    started = time.perf_counter()
+    try:
+        with CloudSessionLocal() as cdb:
+            total = cdb.execute(text("SELECT count(*) FROM whatsapp_cloud.events WHERE created_at >= now() - interval '24 hours'" )).scalar()
+        return _service_result("Mensajes 24/7", "ONLINE", f"Canal Cloud conectado a Neon · {int(total or 0)} evento(s) en las últimas 24 h. No se envió nada en esta prueba.", latency_ms=(time.perf_counter()-started)*1000)
+    except Exception as exc:
+        return _service_result("Mensajes 24/7", "DEGRADADO", f"No se pudo leer el registro Cloud: {str(exc)[:170]}", latency_ms=(time.perf_counter()-started)*1000)
+
+
+def _probe_agenda_service() -> dict:
+    if not AGENDA_CLOUD_BASE_URL:
+        return _service_result("Agenda web 24/7", "NO_CONFIGURADO", "No hay URL pública de Agenda configurada.")
+    started = time.perf_counter()
+    req = urllib.request.Request(AGENDA_CLOUD_BASE_URL, headers={"User-Agent": f"Recepcion-Dr-Revelo/{APP_VERSION}", "Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as response:
+            code = getattr(response, "status", 200)
+            response.read(32_768)
+        registered = bool(MOBILE_DOCTOR_TOKEN and MOBILE_RECEPTION_TOKEN and AGENDA_CLOUD_KEYS_SYNCED_SHA and hmac.compare_digest(AGENDA_CLOUD_KEYS_SYNCED_SHA, _agenda_cloud_signature(MOBILE_DOCTOR_TOKEN, MOBILE_RECEPTION_TOKEN)))
+        status = "ONLINE" if code == 200 and registered else "DEGRADADO"
+        detail = "Página pública disponible y accesos registrados en Neon." if registered else "Página pública disponible; pulsa Verificar ahora en Agenda para confirmar los accesos de esta PC."
+        return _service_result("Agenda web 24/7", status, detail, latency_ms=(time.perf_counter()-started)*1000)
+    except Exception as exc:
+        return _service_result("Agenda web 24/7", "OFFLINE", f"La página pública no respondió: {str(exc)[:170]}", latency_ms=(time.perf_counter()-started)*1000)
+
+
+def _read_update_channel_status() -> dict:
+    local = _read_json_file(os.path.join(BASE_DIR, "update_manifest.json"))
+    local_version = str(local.get("version") or APP_VERSION).strip()
+    started = time.perf_counter()
+    req = urllib.request.Request(UPDATE_CHANNEL_URL + f"?rp_ts={time.time_ns()}", headers={"User-Agent": f"Recepcion-Dr-Revelo/{APP_VERSION}", "Cache-Control": "no-cache"})
+    with urllib.request.urlopen(req, timeout=8) as response:
+        remote = json.loads(response.read(512_000).decode("utf-8-sig"))
+    latest = str(remote.get("version") or "").strip()
+    if remote.get("product") != "recepcion-pacientes" or not latest:
+        raise RuntimeError("El canal respondió con un manifiesto no válido")
+    def vt(value):
+        out=[]
+        for part in str(value or "0").split("."):
+            m=re.match(r"^(\d+)",part);out.append(int(m.group(1)) if m else 0)
+        return tuple((out+[0,0,0,0])[:4])
+    return {"local": local_version, "latest": latest, "update_available": vt(latest)>vt(local_version), "latency_ms": (time.perf_counter()-started)*1000}
+
+
+def _probe_updates_service() -> dict:
+    started=time.perf_counter()
+    try:
+        info=_read_update_channel_status()
+        detail=(f"Actualización {info['latest']} disponible; se instalará al volver a abrir Recepción." if info["update_available"] else f"Canal accesible · paquete {info['local']} al día.")
+        return _service_result("Actualizaciones", "ONLINE", detail, latency_ms=info.get("latency_ms"), update_available=info["update_available"], latest=info["latest"])
+    except Exception as exc:
+        return _service_result("Actualizaciones", "OFFLINE", f"No se pudo consultar el canal: {str(exc)[:170]}", latency_ms=(time.perf_counter()-started)*1000)
+
+
+@app.post("/api/services/check")
+def services_check(request: Request, user: User = Depends(current_user)):
+    """Comprueba servicios externos solo cuando el usuario pulsa el botón.
+
+    Todas las sondas son de lectura: no envían WhatsApp, no crean citas y no emiten facturas.
+    """
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Esta comprobación solo se ejecuta desde la PC de Recepción")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    checks = {
+        "neon": _probe_neon_service,
+        "azur": _probe_azur_service,
+        "whatsapp": _probe_whatsapp_service,
+        "mensajes": _probe_messages_service,
+        "agenda": _probe_agenda_service,
+        "updates": _probe_updates_service,
+    }
+    services = {"local": _probe_local_service()}
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="rp-services") as pool:
+        future_map = {pool.submit(fn): key for key, fn in checks.items()}
+        for future in as_completed(future_map):
+            key = future_map[future]
+            try:
+                services[key] = future.result()
+            except Exception as exc:
+                label = {"neon":"Neon","azur":"AZUR","whatsapp":"WhatsApp Cloud" if WHATSAPP_CLOUD_MODE else "WhatsApp Meta","mensajes":"Mensajes 24/7","agenda":"Agenda web 24/7","updates":"Actualizaciones"}.get(key, key)
+                services[key] = _service_result(label, "OFFLINE", f"Comprobación fallida: {str(exc)[:170]}")
+    return {"ok": True, "checked_at": datetime.now().astimezone().isoformat(timespec="seconds"), "services": services}
+
+
+@app.get("/v458/settings.css")
+def v458_settings_css():
+    return Response(content=V458_SETTINGS_CSS, media_type="text/css; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+@app.get("/v458/settings.js")
+def v458_settings_js():
+    return Response(content=V458_SETTINGS_JS, media_type="application/javascript; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+# ---------------------------------------------------------------------------
+# v4.3.59 — Estado en pestaña + prueba Cloud + timeline por cita
+# ---------------------------------------------------------------------------
+V459_SETTINGS_CSS = "/* v4.3.59 — Estado en pestaña + timeline WhatsApp por cita */\n#config.v458-settings .v459-services-section .v458-service-panel{margin:0!important}\n.v459-whatsapp-timeline{margin:14px 0 4px;padding:13px 14px;border:1px solid #dfe6ef;border-radius:13px;background:#fbfcfe}\n.v459-whatsapp-timeline h3{font-size:14px;margin:0 0 11px;color:#253a57}\n.v459-wa-flow{position:relative;display:flex;flex-direction:column;gap:0}\n.v459-wa-step{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;min-height:64px;padding-bottom:10px}\n.v459-wa-step:last-child{min-height:44px;padding-bottom:0}\n.v459-wa-step:not(:last-child):before{content:'';position:absolute;left:10px;top:22px;bottom:-2px;width:2px;background:#dce4ee}\n.v459-wa-dot{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;background:#eef2f7;border:2px solid #cbd5e2;color:#718096;font-size:10px;font-weight:900;z-index:1}\n.v459-wa-step.success .v459-wa-dot{background:#e6f7ec;border-color:#8ed1a6;color:#187342}.v459-wa-step.info .v459-wa-dot{background:#eaf2ff;border-color:#9cbcf0;color:#2e61a4}.v459-wa-step.danger .v459-wa-dot{background:#ffeceb;border-color:#e6a29d;color:#a03a34}\n.v459-wa-copy{display:flex;flex-direction:column;gap:3px}.v459-wa-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.v459-wa-title b{font-size:13px;color:#273b56}.v459-wa-badge{font-size:9px;font-weight:800;border-radius:999px;padding:3px 7px;background:#eef2f6;color:#66768b;white-space:nowrap}.v459-wa-step.success .v459-wa-badge{background:#e6f7ec;color:#187342}.v459-wa-step.info .v459-wa-badge{background:#eaf2ff;color:#2e61a4}.v459-wa-step.danger .v459-wa-badge{background:#ffeceb;color:#a03a34}.v459-wa-copy small{font-size:11px;line-height:1.35;color:#728095}.v459-wa-response{font-size:11px;font-weight:700;color:#2c6f49;margin-top:2px}\n.v459-timeline-loading{font-size:12px;color:#738198;padding:8px 0}\n.v459-cloud-test-note{margin-top:8px;padding:9px 10px;border-radius:9px;background:#eef6ff;color:#45627e;font-size:12px;line-height:1.4}\n#v459FinishCloudTest{margin-left:7px}\n@media(max-width:760px){.v459-wa-title{align-items:flex-start;flex-direction:column;gap:4px}}\n"
+V459_SETTINGS_JS = '(()=>{\n\'use strict\';\nconst V=\'4.3.59\';\nconst q=(s,r=document)=>r.querySelector(s), qa=(s,r=document)=>[...r.querySelectorAll(s)];\nconst eh=v=>String(v??\'\').replace(/[&<>"\']/g,c=>({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[c]));\nconst call=async(url,opt={})=>{if(typeof window.api===\'function\')return window.api(url,opt);const r=await fetch(url,{headers:{\'Content-Type\':\'application/json\',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||d.message||\'Error\');return d};\nconst lower=v=>String(v||\'\').trim().toLowerCase();\n\nfunction moveServicesToTab(){\n const config=q(\'#config\'),tabs=q(\'.config-tabs\',config),panel=q(\'#v458ServicePanel\',config);if(!config||!tabs||!panel)return;\n let sec=q(\'[data-config-section="services"]\',config);if(!sec){sec=document.createElement(\'div\');sec.dataset.configSection=\'services\';sec.className=\'config-section hidden v459-services-section\';const general=q(\'[data-config-section="general"]\',config);general?.after(sec)||config.appendChild(sec)}\n sec.appendChild(panel);\n let btn=q(\'[data-config-tab="services"]\',tabs);if(!btn){btn=document.createElement(\'button\');btn.type=\'button\';btn.dataset.configTab=\'services\';btn.textContent=\'Estado de servicios\';const generalBtn=q(\'[data-config-tab="general"]\',tabs);generalBtn?.after(btn)||tabs.prepend(btn);btn.onclick=()=>window.showConfigTab?.(\'services\',btn)}\n const badge=q(\'#currentVersionBadge\');if(badge)badge.textContent=\'v\'+V;\n}\n\nfunction cleanWhatsappConfig(){\n const sec=q(\'[data-config-section="whatsapp"]\');if(!sec)return;\n q(\'#v458Delivery\',sec)?.remove();\n const over=q(\'#v458WaOverview\',sec);if(over){const p=q(\'.config-panel-head p\',over);if(p)p.textContent=\'Conexión Cloud y estado de las plantillas. El historial de cada paciente se consulta directamente desde Agenda.\'}\n qa(\'.panel\',sec).forEach(p=>{const h=lower(q(\'h1,h2,h3,h4\',p)?.textContent);if(h===\'mensajes de whatsapp\'||h.startsWith(\'mensajes de whatsapp \'))p.remove()});\n const test=q(\'.whatsapp-test-panel\',sec);if(test){const h=q(\'h3\',test);if(h)h.textContent=\'Prueba Cloud controlada\';const p=q(\'.config-panel-head p\',test);if(p)p.textContent=\'Prueba el mismo worker 24/7 sin guardar tokens de Meta en esta PC.\';const note=q(\'.config-info-note span\',test);if(note)note.textContent=\'La solicitud viaja por Neon y el worker Cloud. No crea pacientes ni modifica citas reales. Puede tardar hasta 5 minutos porque usa el ciclo real del worker.\'}\n}\n\nfunction fmtStamp(v){if(!v)return\'\';try{return new Date(v).toLocaleString(\'es-EC\',{day:\'2-digit\',month:\'2-digit\',hour:\'2-digit\',minute:\'2-digit\'})}catch{return\'\'}}\nfunction timelineHtml(data){\n const items=data?.items||[];if(!items.length)return \'<div class="v459-timeline-loading">Sin información de mensajes para esta cita.</div>\';\n return `<div class="v459-wa-flow">${items.map((x,i)=>{const detail=x.error?`Error: ${eh(x.error)}`:(x.timestamp?fmtStamp(x.timestamp):(x.planned||\'\'));return `<div class="v459-wa-step ${eh(x.tone||\'muted\')}"><span class="v459-wa-dot">${i+1}</span><div class="v459-wa-copy"><div class="v459-wa-title"><b>${eh(x.label)}</b><span class="v459-wa-badge">${eh(x.status_label||\'—\')}</span></div><small>${eh(detail)}</small>${x.response?`<div class="v459-wa-response">${eh(x.response)}</div>`:\'\'}</div></div>`}).join(\'\')}</div>`\n}\nasync function loadTimeline(source,id,host){try{const d=await call(source===\'appointment\'?`/api/agenda/appointments/${id}/whatsapp-timeline`:`/api/agenda/confirmafy-staged/${id}/whatsapp-timeline`);host.innerHTML=timelineHtml(d)}catch(e){host.innerHTML=`<div class="v459-timeline-loading">No se pudo consultar el estado Cloud: ${eh(e.message||e)}</div>`}}\n\nwindow.openLinkedAgendaDetail=async function(appointmentId,patientId,fecha){\n try{const row=await call(`/api/agenda/appointments/${Number(appointmentId)}`),a=row.appointment||{},p=row.patient||{},state=String(a.estado||\'PENDIENTE\').toUpperCase();let status=\'Pendiente\',cls=\'pending\';if([\'CONFIRMADA\',\'CONFIRMADO\'].includes(state)){status=\'Confirmada\';cls=\'confirmed\'}else if([\'NO_ASISTIRA\',\'CANCELADA\',\'CANCELADO\'].includes(state)){status=\'No asistirá\';cls=\'cancelled\'}else if(state===\'REAGENDADA\'){status=\'Reagendada\';cls=\'rescheduled\'};\n  const date=typeof window.fmtDate===\'function\'?window.fmtDate(a.fecha):String(a.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(a.hora):String(a.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading"><h2>${eh(p.nombre||\'Paciente\')}</h2><p>${eh(date)} · ${eh(time)}</p></div><div class="native-detail-status ${cls}">${eh(status)}</div>${a.nota?`<div class="native-detail-note">${eh(a.nota)}</div>`:\'\'}<section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button onclick="openPatient(${Number(p.id)},\'patients\')">Ver paciente</button><button onclick="attendFromAgenda(${Number(p.id)},\'${String(fecha||a.fecha).slice(0,10)}\')">✓ Atender</button><button onclick="openAgendaPatient(${Number(p.id)},${Number(a.id)})">✎ Editar cita</button><button class="danger ghost" onclick="deleteAgendaAppointment(${Number(a.id)})">Eliminar cita</button></div></div>`);\n  const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'appointment\',Number(a.id),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\nwindow.openUnlinkedAgendaDetail=async function(itemId,fecha){\n try{const d=await call(`/api/agenda/confirmafy-staged/${Number(itemId)}`),st=d.staged||{},date=typeof window.fmtDate===\'function\'?window.fmtDate(st.fecha):String(st.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(st.hora):String(st.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading"><h2>${eh(st.nombre||\'Paciente\')}</h2><p>${eh(date)} · ${eh(time)}</p></div><div class="native-detail-status pending">Pendiente · sin ficha vinculada</div><p class="muted">La identidad se resolverá cuando el paciente sea atendido.</p><section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button class="primary" onclick="attendConfirmafyStaged(${Number(itemId)},\'${String(fecha||st.fecha).slice(0,10)}\')">✓ Atender</button><button class="danger ghost" onclick="deleteUnlinkedAppointment(${Number(itemId)})">Eliminar cita</button></div></div>`);\n  const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'staged\',Number(itemId),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\n\nlet cloudTest=null,cloudTestTimer=null,cloudTestNotified=false;\nfunction testTemplate(){return window.__v464WaTemplateValue||q(\'#waTestTemplate\')?.value||\'recordatorio_cita\'}\nasync function pollCloudTest(){if(!cloudTest)return;try{const d=await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`),r=q(\'#whatsappTestResult\');if(r){const extra=d.timestamp?\' · \'+fmtStamp(d.timestamp):\'\';r.textContent=`${d.status_label||d.status}${extra}${d.error?\' · \'+d.error:\'\'}`};if(d.terminal){clearInterval(cloudTestTimer);cloudTestTimer=null;if(d.ok&&!cloudTestNotified){cloudTestNotified=true;window.rpNotice(\'✅ El worker Cloud procesó la prueba.\\n\\nRevisa WhatsApp en el teléfono destino. Puedes probar los botones Sí / No y luego pulsar “Finalizar prueba”.\')}}}catch(e){const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'No se pudo consultar la prueba: \'+(e.message||e)}}\nwindow.finishWhatsappCloudTest=async function(){if(!cloudTest)return;try{await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`,{method:\'DELETE\'});cloudTest=null;clearInterval(cloudTestTimer);cloudTestTimer=null;const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'Prueba finalizada. La fila técnica fue retirada de la agenda Cloud.\';q(\'#v459FinishCloudTest\')?.remove()}catch(e){window.rpNotice(e.message||e)}};\nwindow.sendWhatsappTest=async function(){\n const phone=(q(\'#waTestPhone\')?.value||\'\').trim(),name=(q(\'#waTestName\')?.value||\'Prueba\').trim(),date=q(\'#waTestDate\')?.value||\'\',time=q(\'#waTestTime\')?.value||\'\',template=testTemplate(),result=q(\'#whatsappTestResult\'),btn=q(\'#waTestSendBtn\');\n if(!phone){window.rpNotice(\'Ingresa el número que recibirá la prueba.\');return}if(!date||!time){window.rpNotice(\'Selecciona fecha y hora para mostrar en el mensaje.\');return}if(![\'recordatorio_cita\',\'cita_agendada\',\'recordatorio_hoy\'].includes(template)){window.rpNotice(\'Plantilla de prueba no válida.\');return}\n if(!(await window.rpConfirm(`¿Enviar UNA prueba Cloud a ${phone}?\\n\\nNo se usará ningún token de Meta de esta PC y no se tocará ningún paciente real.`,\'Confirmar prueba WhatsApp\')))return;\n try{if(btn){btn.disabled=true;btn.textContent=\'Registrando en Cloud…\'}if(result)result.textContent=\'Registrando prueba técnica en Neon…\';const d=await call(\'/api/whatsapp/cloud-test\',{method:\'POST\',body:JSON.stringify({phone,name,date,time,template})});cloudTest={id:d.test_id,token:d.token};cloudTestNotified=false;if(result)result.textContent=\'✅ Solicitud registrada. Esperando al worker Cloud (ciclo de hasta 5 minutos)…\';let finish=q(\'#v459FinishCloudTest\');if(!finish&&btn){finish=document.createElement(\'button\');finish.id=\'v459FinishCloudTest\';finish.type=\'button\';finish.textContent=\'Finalizar prueba\';finish.onclick=window.finishWhatsappCloudTest;btn.after(finish)}clearInterval(cloudTestTimer);cloudTestTimer=setInterval(pollCloudTest,5000);pollCloudTest()}catch(e){if(result)result.textContent=\'❌ \'+(e.message||e);window.rpNotice(e.message||e)}finally{if(btn){btn.disabled=false;btn.textContent=\'☁ Enviar prueba por Cloud\'}}\n};\n\nwindow.loadWhatsappStatus=async function(){\n const pill=q(\'#whatsappStatusPill\'),text=q(\'#whatsappStatusText\'),testPill=q(\'#whatsappTestPill\');\n try{const d=await call(\'/api/whatsapp/status\');if(pill){pill.textContent=d.cloud_mode?\'ONLINE 24/7\':(d.enabled?\'ACTIVO\':\'LOCAL APAGADO\');pill.classList.toggle(\'ready\',!!(d.cloud_mode||d.enabled))}if(text)text.innerHTML=d.cloud_mode?\'<b>WhatsApp Cloud 24/7 activo.</b> Las credenciales de Meta permanecen en Cloudflare; esta PC no necesita token local. Las respuestas Sí / No se sincronizan mediante Neon.\':eh(d.message||\'\');\n  if(typeof window.renderTemplateCards===\'function\')window.renderTemplateCards(d);else{const grid=q(\'#v458TemplateGrid\');if(grid){const defs=[[\'recordatorio_cita\',\'Confirmación de cita\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio del día\']];grid.innerHTML=defs.map(([k,l])=>{const x=d.templates?.[k]||{},ok=!!x.approved;return `<div class="v458-template-card"><div class="top"><b>${eh(l)}</b><span class="v458-template-badge ${ok?\'approved\':\'\'}">${ok?\'APROBADA\':\'EN ESPERA\'}</span></div><code>${eh(x.name||k)} · ${eh(x.language||\'\')}</code><small>${ok?(x.automatic?\'Activa en la automatización 24/7.\':\'Aprobada, no automática.\'):\'No se usa hasta que Meta la apruebe.\'}</small></div>`}).join(\'\')}}\n  if(testPill){const ready=!!d.manual_test?.ready;testPill.textContent=ready?\'CLOUD LISTO\':\'NO DISPONIBLE\';testPill.classList.toggle(\'ready\',ready)}const dateInput=q(\'#waTestDate\');if(dateInput&&!dateInput.value){const x=new Date();x.setDate(x.getDate()+1);dateInput.value=x.toISOString().slice(0,10)}const btn=q(\'#waTestSendBtn\');if(btn)btn.textContent=\'☁ Enviar prueba por Cloud\';const sel=q(\'#waTestTemplate\');if(sel){[...sel.options].forEach(o=>{const k=o.value||\'\';o.disabled=k!==\'recordatorio_cita\'});sel.value=\'recordatorio_cita\'}\n }catch(e){if(text)text.textContent=e.message||e}\n};\n\nfunction upgrade(){moveServicesToTab();cleanWhatsappConfig();const sub=q(\'.config-title-row .muted\',\'#config\');if(sub)sub.textContent=\'Preferencias, servicios, agenda y conexiones organizadas por pestañas.\';setTimeout(()=>window.loadWhatsappStatus?.(),50)}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',()=>setTimeout(upgrade,20),{once:true});else setTimeout(upgrade,20);setTimeout(upgrade,350);\n})();\n;(()=>{\n  function installV464TemplatePicker(){\n    const sel=document.querySelector(\'#waTestTemplate\');\n    if(!sel||sel.dataset.v464Picker===\'1\')return;\n    sel.dataset.v464Picker=\'1\';\n    sel.style.display=\'none\';\n    const current=window.__v464WaTemplateValue||sel.value||\'recordatorio_cita\';\n    window.__v464WaTemplateValue=current;\n    const wrap=document.createElement(\'div\');wrap.className=\'v464-template-picker\';wrap.setAttribute(\'role\',\'group\');wrap.setAttribute(\'aria-label\',\'Mensaje a probar\');\n    const defs=[[\'recordatorio_cita\',\'Confirmación\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio de hoy\']];\n    const paint=()=>wrap.querySelectorAll(\'button\').forEach(b=>b.classList.toggle(\'active\',b.dataset.template===window.__v464WaTemplateValue));\n    defs.forEach(([value,label])=>{const b=document.createElement(\'button\');b.type=\'button\';b.dataset.template=value;b.textContent=label;b.addEventListener(\'click\',()=>{window.__v464WaTemplateValue=value;sel.value=value;paint();});wrap.appendChild(b)});\n    sel.insertAdjacentElement(\'afterend\',wrap);paint();\n  }\n  function installV464PickerStyle(){if(document.getElementById(\'v464PickerStyle\'))return;const st=document.createElement(\'style\');st.id=\'v464PickerStyle\';st.textContent=`.v464-template-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}.v464-template-picker button{border:1px solid #cfd9e6;background:#fff;color:#38516f;border-radius:11px;padding:10px 9px;font-weight:800;cursor:pointer}.v464-template-picker button.active{background:#2767ad;color:#fff;border-color:#2767ad;box-shadow:0 4px 14px rgba(39,103,173,.18)}@media(max-width:850px){.v464-template-picker{grid-template-columns:1fr}}`;document.head.appendChild(st)}\n  function boot(){installV464PickerStyle();installV464TemplatePicker()}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',boot,{once:true});else boot();\n  setTimeout(boot,250);setTimeout(boot,900);\n  new MutationObserver(()=>installV464TemplatePicker()).observe(document.documentElement,{childList:true,subtree:true});\n})();\n'
+
+
+@app.get("/v459/settings.css")
+def v459_settings_css():
+    return Response(content=V459_SETTINGS_CSS, media_type="text/css; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+@app.get("/v459/settings.js")
+def v459_settings_js():
+    return Response(content=V459_SETTINGS_JS, media_type="application/javascript; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+
+
+# ---------------------------------------------------------------------------
+# v4.3.60 — visibilidad de versión + estados de Agenda con alto contraste
+# ---------------------------------------------------------------------------
+V460_OVERLAY_CSS = r"""
+#connectionBadge .v460-version{margin-left:auto;padding-left:8px;border-left:1px solid currentColor;font-size:9px;font-weight:900;letter-spacing:.035em;white-space:nowrap;opacity:.88}
+.native-slot.occupied.pending{background:#fff1b8!important;border-color:#dfaa14!important;box-shadow:inset 5px 0 0 #c88c00!important;color:#624800!important}
+.native-slot.occupied.pending b,.native-slot.occupied.pending span{color:#624800!important}.native-slot.occupied.pending span{font-weight:850!important}
+.native-slot.occupied.confirmed{background:#cdf2db!important;border-color:#35a967!important;box-shadow:inset 5px 0 0 #138c46!important;color:#0d5b2c!important}
+.native-slot.occupied.confirmed b,.native-slot.occupied.confirmed span{color:#0d5b2c!important}.native-slot.occupied.confirmed span{font-weight:900!important}
+.native-slot.occupied.cancelled{background:#ffd5da!important;border-color:#df5d6e!important;box-shadow:inset 5px 0 0 #c82e43!important;color:#81202d!important}
+.native-slot.occupied.cancelled b,.native-slot.occupied.cancelled span{color:#81202d!important}.native-slot.occupied.cancelled span{font-weight:900!important}
+.native-slot.occupied.rescheduled{background:#dce9ff!important;border-color:#648fd6!important;box-shadow:inset 5px 0 0 #356cc0!important;color:#214d91!important}
+.native-slot.occupied.rescheduled b,.native-slot.occupied.rescheduled span{color:#214d91!important}.native-slot.occupied.rescheduled span{font-weight:900!important}
+.native-detail-status.confirmed{background:#cdf2db!important;border:1px solid #35a967!important;color:#0d5b2c!important;font-weight:900!important}
+.native-detail-status.cancelled{background:#ffd5da!important;border:1px solid #df5d6e!important;color:#81202d!important;font-weight:900!important}
+.native-detail-status.pending{background:#fff1b8!important;border:1px solid #dfaa14!important;color:#624800!important;font-weight:900!important}
+.native-detail-status.rescheduled{background:#dce9ff!important;border:1px solid #648fd6!important;color:#214d91!important;font-weight:900!important}
+.v459-wa-step.success .v459-wa-copy{border-left:3px solid #2e9d5a;padding-left:8px}
+.v459-wa-step.danger .v459-wa-copy{border-left:3px solid #cf3345;padding-left:8px}
+"""
+
+V460_OVERLAY_JS = '\n(()=>{\n\'use strict\';\nconst VERSION=\'4.3.66\';\nconst norm=v=>String(v||\'\').normalize(\'NFD\').replace(/[\\u0300-\\u036f]/g,\'\').toLowerCase().replace(/\\s+/g,\' \').trim();\nconst esc=v=>String(v??\'\').replace(/[&<>"\']/g,c=>({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[c]));\n\nfunction paintVersion(){\n  const badge=document.querySelector(\'#connectionBadge\');\n  if(badge){let v=badge.querySelector(\'.v460-version\');if(!v){v=document.createElement(\'span\');v.className=\'v460-version\';badge.appendChild(v)}if(v.textContent!==`v${VERSION}`)v.textContent=`v${VERSION}`;}\n  const configBadge=document.querySelector(\'#currentVersionBadge\');if(configBadge&&configBadge.textContent!==`v${VERSION}`)configBadge.textContent=`v${VERSION}`;\n}\nfunction installStyle(){\n if(document.querySelector(\'#v463UiStyle\'))return;\n const st=document.createElement(\'style\');st.id=\'v463UiStyle\';st.textContent=`\n .v463-notice-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(22,31,46,.36);display:grid;place-items:center;padding:20px;backdrop-filter:blur(2px)}\n .v463-notice{width:min(440px,92vw);background:#fff;border:1px solid #dce4ee;border-radius:18px;box-shadow:0 20px 60px rgba(25,39,60,.24);padding:21px 22px 18px;font-family:inherit;color:#26384f}\n .v463-notice-head{display:flex;align-items:center;gap:11px;margin-bottom:10px}.v463-notice-icon{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;background:#edf5ff;color:#2465a8;font-size:19px;font-weight:900}.v463-notice h3{margin:0;font-size:18px}.v463-notice-body{white-space:pre-wrap;line-height:1.45;font-size:14px;color:#53657a;max-height:45vh;overflow:auto}.v463-notice-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:17px}.v463-notice button{border-radius:10px;padding:9px 15px;font-weight:800}.v463-notice .primary{background:#2767ad;color:#fff;border:1px solid #2767ad}\n .v463-use-patient-email{display:flex;align-items:center;gap:8px;margin:7px 0 4px;padding:8px 10px;border-radius:10px;background:#eef6ff;color:#385d82;font-size:12px;font-weight:700}.v463-use-patient-email input{width:16px;height:16px}\n `;document.head.appendChild(st);\n}\nfunction prettyAlert(message,title=\'Recepción\'){\n installStyle();document.querySelector(\'.v463-notice-backdrop\')?.remove();\n const back=document.createElement(\'div\');back.className=\'v463-notice-backdrop\';back.innerHTML=`<div class="v463-notice" role="alertdialog" aria-modal="true"><div class="v463-notice-head"><span class="v463-notice-icon">i</span><h3>${esc(title)}</h3></div><div class="v463-notice-body">${esc(message)}</div><div class="v463-notice-actions"><button class="primary" type="button">Aceptar</button></div></div>`;\n const close=()=>back.remove();back.querySelector(\'button\').onclick=close;back.onclick=e=>{if(e.target===back)close()};document.body.appendChild(back);back.querySelector(\'button\').focus();\n}\nwindow.rpNotice=prettyAlert;const v464BindAlert=()=>{window.alert=(message)=>prettyAlert(message)};v464BindAlert();setTimeout(v464BindAlert,0);setTimeout(v464BindAlert,500);setInterval(v464BindAlert,5000);\nwindow.rpConfirm=(message,title=\'Confirmar\')=>new Promise(resolve=>{installStyle();document.querySelector(\'.v463-notice-backdrop\')?.remove();const back=document.createElement(\'div\');back.className=\'v463-notice-backdrop\';back.innerHTML=`<div class="v463-notice" role="dialog" aria-modal="true"><div class="v463-notice-head"><span class="v463-notice-icon">?</span><h3>${esc(title)}</h3></div><div class="v463-notice-body">${esc(message)}</div><div class="v463-notice-actions"><button type="button" data-no>Cancelar</button><button class="primary" type="button" data-yes>Aceptar</button></div></div>`;const done=v=>{back.remove();resolve(v)};back.querySelector(\'[data-no]\').onclick=()=>done(false);back.querySelector(\'[data-yes]\').onclick=()=>done(true);document.body.appendChild(back);back.querySelector(\'[data-yes]\').focus();});\n\nconst patientCache=new Map();\nfunction cacheBilling(data){for(const item of data?.items||[]){const p=item?.patient||{};if(!p.id)continue;patientCache.set(String(p.id),p);if(p.nombre)patientCache.set(\'n:\'+norm(p.nombre),p)}}\nif(window.fetch&&!window.fetch.__v463){const original=window.fetch.bind(window);const wrapped=async(...args)=>{const r=await original(...args);try{const u=String(args[0]?.url||args[0]||\'\');if(u.includes(\'/api/billing\'))r.clone().json().then(cacheBilling).catch(()=>{})}catch{}return r};wrapped.__v463=true;window.fetch=wrapped;}\nfunction patientFromHost(host){const text=norm(host?.textContent);let best=null;for(const [key,p] of patientCache){if(!key.startsWith(\'n:\')||!key.slice(2)||!text.includes(key.slice(2)))continue;if(!best||String(p.nombre||\'\').length>String(best.nombre||\'\').length)best=p}return best;}\nfunction emailInput(host){const direct=[...host.querySelectorAll(\'input\')].find(x=>x.type===\'email\'||/correo|email/i.test(`${x.id} ${x.name} ${x.placeholder}`));if(direct)return direct;for(const label of host.querySelectorAll(\'label\')){if(!/correo|email/i.test(label.textContent||\'\'))continue;const x=label.querySelector(\'input\')||document.getElementById(label.htmlFor);if(x)return x}return null;}\nfunction enhanceOtherBillingEmail(){\n for(const host of document.querySelectorAll(\'.modal,.modal-content,.modal-card,[role="dialog"]\')){\n  const txt=norm(host.textContent);if(!txt.includes(\'factur\')||!(txt.includes(\'otro\')||txt.includes(\'otra\')))continue;if(host.querySelector(\'.v463-use-patient-email\'))continue;\n  const input=emailInput(host);if(!input)continue;const p=patientFromHost(host);if(!p?.correo)continue;\n  const box=document.createElement(\'label\');box.className=\'v463-use-patient-email\';box.innerHTML=`<input type="checkbox"> Usar correo registrado del paciente · ${esc(p.correo)}`;input.parentElement?.appendChild(box);box.querySelector(\'input\').onchange=e=>{if(e.target.checked){input.value=p.correo;input.dispatchEvent(new Event(\'input\',{bubbles:true}));input.dispatchEvent(new Event(\'change\',{bubbles:true}))}};\n }\n}\nfunction hideResolvedAzurButtons(){\n for(const btn of document.querySelectorAll(\'button\')){const t=norm(btn.textContent);if(!(t.includes(\'actualizar\')&&t.includes(\'estado\')))continue;let node=btn.parentElement,hide=false;for(let i=0;i<5&&node;i++,node=node.parentElement){const badges=[...node.querySelectorAll(\'[class*="status"],[class*="badge"],.pill,.tag\')].map(x=>norm(x.textContent));if(badges.some(x=>x===\'emitida\'||x.includes(\'autorizada\'))){hide=true;break}const all=norm(node.textContent);if(all.length<1800&&(/\\bemitida\\b/.test(all)||all.includes(\'autorizada por azur\'))){hide=true;break}}if(hide){btn.style.display=\'none\';btn.dataset.v463Hidden=\'1\'}}\n}\nfunction watch(){paintVersion();installStyle();hideResolvedAzurButtons();enhanceOtherBillingEmail();const root=document.body;if(root&&!root.dataset.v463Watch){root.dataset.v463Watch=\'1\';new MutationObserver(()=>{paintVersion();hideResolvedAzurButtons();enhanceOtherBillingEmail()}).observe(root,{childList:true,subtree:true})}}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',watch,{once:true});else watch();setTimeout(watch,250);\n})();\n\n;(()=>{\n  const normV465=s=>String(s||\'\').normalize(\'NFD\').replace(/[\\u0300-\\u036f]/g,\'\').replace(/\\s+/g,\' \').trim().toLowerCase();\n  let v465BillingTimer=0;\n  function hideV465BillingQueue(){\n    const wanted=\'cola de facturacion\';\n    const selectors=\'h1,h2,h3,h4,h5,h6,legend,.card-title,.panel-title,.section-title,strong,b\';\n    let title=[...document.querySelectorAll(selectors)].find(el=>normV465(el.textContent).startsWith(wanted));\n    if(!title){\n      title=[...document.querySelectorAll(\'div,span\')].find(el=>{const t=normV465(el.textContent);return t.startsWith(wanted)&&t.length<90&&el.children.length<=2});\n    }\n    if(!title)return false;\n    let box=title.closest(\'.billing-queue,.billing-next,.queue-card,.card,.panel,.box\');\n    if(!box){\n      const p=title.parentElement;\n      if(p&&normV465(p.textContent).startsWith(wanted)&&normV465(p.textContent).length<1200)box=p;\n    }\n    if(!box||box.dataset.v465BillingQueueHidden===\'1\')return !!box;\n    box.dataset.v465BillingQueueHidden=\'1\';\n    box.style.display=\'none\';\n    box.setAttribute(\'aria-hidden\',\'true\');\n    return true;\n  }\n  function scheduleV465BillingCleanup(){\n    if(v465BillingTimer)return;\n    v465BillingTimer=setTimeout(()=>{v465BillingTimer=0;hideV465BillingQueue()},100);\n  }\n  function bootV465Billing(){hideV465BillingQueue();setTimeout(hideV465BillingQueue,250);setTimeout(hideV465BillingQueue,900)}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',bootV465Billing,{once:true});else bootV465Billing();\n  const root=document.documentElement;\n  if(root)new MutationObserver(scheduleV465BillingCleanup).observe(root,{childList:true,subtree:true});\n})();\n\n;(()=>{\n  const v466BillingPrompt=/factur|azur|sri|comprobante/i;\n  const v466NativeConfirm=window.confirm.bind(window);\n  let v466ClickTarget=null;\n  let v466ClickAt=0;\n  let v466AllowTarget=null;\n  let v466Pending=false;\n\n  function v466ActionTarget(e){\n    const path=typeof e.composedPath===\'function\'?e.composedPath():[];\n    for(const el of path){\n      if(!el||el===document||el===window||typeof el.matches!==\'function\')continue;\n      if(el.matches(\'button,input[type="button"],input[type="submit"],a,[role="button"]\'))return el;\n    }\n    const t=e.target;\n    return t&&typeof t.closest===\'function\'?(t.closest(\'button,input[type="button"],input[type="submit"],a,[role="button"]\')||t):t;\n  }\n\n  document.addEventListener(\'click\',e=>{\n    const target=v466ActionTarget(e);\n    if(!target)return;\n    v466ClickTarget=target;\n    v466ClickAt=Date.now();\n    const stamp=v466ClickAt;\n    setTimeout(()=>{if(v466ClickAt===stamp&&Date.now()-stamp>=10000)v466ClickTarget=null},10050);\n  },true);\n\n  function v466InstallConfirmBridge(){\n    if(window.confirm&&window.confirm.__v466BillingBridge)return;\n    const bridge=function(message){\n      const text=String(message??\'\');\n      if(!v466BillingPrompt.test(text))return v466NativeConfirm(text);\n      const target=(v466ClickTarget&&Date.now()-v466ClickAt<10000)?v466ClickTarget:null;\n      if(v466AllowTarget&&target===v466AllowTarget){v466AllowTarget=null;return true;}\n      if(v466Pending)return false;\n      if(!target||typeof window.rpConfirm!==\'function\')return v466NativeConfirm(text);\n      v466Pending=true;\n      const title=/azur|sri/i.test(text)?\'Confirmar emisión en AZUR\':\'Confirmar facturación\';\n      const originalClickAt=v466ClickAt;\n      Promise.resolve(window.rpConfirm(text,title)).then(ok=>{\n        v466Pending=false;\n        if(!ok)return;\n        const wait=Math.max(0,720-(Date.now()-originalClickAt));\n        setTimeout(()=>{\n          v466AllowTarget=target;\n          try{target.click()}finally{setTimeout(()=>{if(v466AllowTarget===target)v466AllowTarget=null},0)}\n        },wait);\n      }).catch(()=>{v466Pending=false});\n      return false;\n    };\n    bridge.__v466BillingBridge=true;\n    window.confirm=bridge;\n  }\n\n  v466InstallConfirmBridge();\n  setTimeout(v466InstallConfirmBridge,0);\n  setTimeout(v466InstallConfirmBridge,500);\n})();\n'
+
+@app.get("/v460/overlay.css")
+def v460_overlay_css():
+    return Response(content=V460_OVERLAY_CSS, media_type="text/css; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+@app.get("/v460/overlay.js")
+def v460_overlay_js():
+    return Response(content=V460_OVERLAY_JS, media_type="application/javascript; charset=utf-8", headers={"Cache-Control":"no-store"})
+
+
+@app.get("/api/update/info")
+def update_info(user: User = Depends(current_user)):
+    return {
+        "version": APP_VERSION,
+        "mode": "package",
+        "message": "Paquetes compatibles pueden aplicarse aquí; siempre se crea un respaldo antes de actualizar.",
+    }
+
+
+@app.post("/api/update/apply")
+async def apply_update_package(
+    package: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    if user.role != "admin":
+        raise HTTPException(403, "Solo el administrador puede actualizar el programa")
+    filename = (package.filename or "").lower()
+    if not filename.endswith(".zip"):
+        raise HTTPException(400, "Selecciona un paquete ZIP de actualización")
+
+    raw = await package.read()
+    if len(raw) > 50 * 1024 * 1024:
+        raise HTTPException(400, "El paquete de actualización es demasiado grande")
+
+    with tempfile.TemporaryDirectory(prefix="rp_update_") as tmp:
+        tmp_path = Path(tmp)
+        zip_path = tmp_path / "update.zip"
+        zip_path.write_bytes(raw)
+        try:
+            with zipfile.ZipFile(zip_path) as zf:
+                for member in zf.namelist():
+                    _safe_update_member_path(tmp_path / "extract", member)
+                zf.extractall(tmp_path / "extract")
+        except zipfile.BadZipFile:
+            raise HTTPException(400, "El archivo ZIP está dañado")
+
+        manifests = list((tmp_path / "extract").rglob("update_manifest.json"))
+        if not manifests:
+            raise HTTPException(400, "Este ZIP no es un paquete de actualización compatible")
+        manifest_path = manifests[0]
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            raise HTTPException(400, "No se pudo leer el manifiesto de actualización")
+        if manifest.get("product") != "recepcion-pacientes":
+            raise HTTPException(400, "El paquete no corresponde a Recepción de Pacientes")
+        new_version = str(manifest.get("version") or "").strip()
+        if not new_version:
+            raise HTTPException(400, "El paquete no indica su versión")
+        if new_version == APP_VERSION:
+            raise HTTPException(409, f"La versión {new_version} ya está instalada")
+
+        package_root = manifest_path.parent
+        copy_items = manifest.get("copy") or [
+            "app.py", "requirements.txt", "ABRIR_RECEPCION.py", "INICIAR.bat",
+            "ABRIR_RECEPCION.bat", "CERRAR_RECEPCION.bat", "CREAR_ACCESO_DIRECTO.bat",
+            "REPARAR_ACCESO_DIRECTO.bat", "static", "README.md", "MODO_DE_USO.txt", "NUBE_LEEME.txt"
+        ]
+        prohibited = {".env", "data", ".venv", "BASE DE DATOS 2026.xlsx"}
+        for item in copy_items:
+            top = Path(item).parts[0] if Path(item).parts else ""
+            if top in prohibited:
+                raise HTTPException(400, f"El paquete intenta reemplazar un archivo protegido: {top}")
+            if not (package_root / item).exists():
+                raise HTTPException(400, f"Falta un componente de actualización: {item}")
+
+        backup_path = _app_backup_zip()
+        for item in copy_items:
+            src = package_root / item
+            dst = Path(BASE_DIR) / item
+            if src.is_dir():
+                dst.mkdir(parents=True, exist_ok=True)
+                for child in src.rglob("*"):
+                    rel = child.relative_to(src)
+                    target = dst / rel
+                    if child.is_dir():
+                        target.mkdir(parents=True, exist_ok=True)
+                    else:
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(child, target)
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+
+        audit(db, user, "aplicar_actualizacion", f"{APP_VERSION} -> {new_version}; respaldo {Path(backup_path).name}")
+        db.commit()
+
+        # Desde v3.9.5 las futuras actualizaciones se reinician solas.
+        # El ayudante se inicia con el Python de la instalación, espera a que
+        # esta respuesta salga y luego levanta app.py ya reemplazado.
+        python_exe = sys.executable
+        app_path = os.path.join(BASE_DIR, "app.py")
+        helper = (
+            "import os,subprocess,time;"
+            "time.sleep(2.0);"
+            "flags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0;"
+            f"subprocess.Popen([{python_exe!r},{app_path!r}],cwd={BASE_DIR!r},stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,creationflags=flags,close_fds=True)"
+        )
+        try:
+            subprocess.Popen([python_exe, "-c", helper], cwd=BASE_DIR, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=(getattr(subprocess,'CREATE_NO_WINDOW',0)|getattr(subprocess,'DETACHED_PROCESS',0)) if os.name=='nt' else 0, close_fds=True)
+            threading.Timer(0.9, lambda: os._exit(0)).start()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "from_version": APP_VERSION,
+            "to_version": new_version,
+            "backup": Path(backup_path).name,
+            "restart_required": False,
+            "restarting": True,
+        }
+
+
+def _downloads_dir() -> Path:
+    """Carpeta Descargas del mismo usuario que ejecuta Recepción.
+
+    En WebView2 evitamos depender del gestor de descargas del navegador y
+    guardamos el archivo desde el servidor local.
+    """
+    candidates = []
+    profile = (os.getenv("USERPROFILE") or "").strip()
+    if profile:
+        candidates.append(Path(profile) / "Downloads")
+    try:
+        candidates.append(Path.home() / "Downloads")
+    except Exception:
+        pass
+    candidates.append(Path(DATA_DIR) / "exports")
+    for folder in candidates:
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            test = folder / ".recepcion_write_test"
+            test.write_text("ok", encoding="utf-8")
+            test.unlink(missing_ok=True)
+            return folder
+        except Exception:
+            continue
+    raise HTTPException(500, "No se encontró una carpeta donde guardar el Excel")
+
+
+def _unique_export_path(folder: Path, filename: str) -> Path:
+    target = folder / filename
+    if not target.exists():
+        return target
+    stem, suffix = target.stem, target.suffix
+    for n in range(2, 1000):
+        candidate = folder / f"{stem} ({n}){suffix}"
+        if not candidate.exists():
+            return candidate
+    return folder / f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{suffix}"
+
+
+@app.post("/api/export.xlsx/save")
+def save_xlsx_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    folder = _downloads_dir()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    target = _unique_export_path(folder, filename)
+    try:
+        target.write_bytes(content)
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el Excel: {exc}")
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; guardado en {target}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    return {
+        "ok": True,
+        "filename": target.name,
+        "folder": str(target.parent),
+        "path": str(target),
+        "patients": data["patients"],
+        "total": data["total"],
+    }
+
+
+@app.get("/api/export.xlsx")
+def export_xlsx(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = build_report_payload(db, desde, hasta)
+    content = build_report_xlsx(data, desde, hasta)
+    audit(db, user, "exportar_excel", f"{desde} a {hasta}; {data['patients']} pacientes; total {data['total']:.2f}")
+    db.commit()
+    filename = f"reporte_atenciones_{desde}_{hasta}.xlsx"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _build_report_csv(db: Session, desde: date, hasta: date) -> str:
+    rows = db.execute(
+        select(Visit, Patient).join(Patient).where(Visit.fecha >= desde, Visit.fecha <= hasta).order_by(Visit.fecha, Visit.id)
+    ).all()
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["Fecha", "Cédula", "Nombre", "Nacimiento", "Celular", "Estado", "Procedimiento", "Correo", "Lugar", "Valor", "Observación"])
+    for v, p in rows:
+        w.writerow([
+            v.fecha, p.cedula or "", p.nombre, p.fecha_nacimiento or "", p.celular or "", v.tipo,
+            v.procedimiento or "CONSULTA", p.correo or "", p.lugar or "",
+            float(v.valor) if v.valor is not None else "", v.observacion or "",
+        ])
+    return "\ufeff" + out.getvalue()
+
+
+@app.post("/api/export.csv/save")
+def save_csv_to_downloads(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    folder = _downloads_dir()
+    target = _unique_export_path(folder, f"atenciones_{desde}_{hasta}.csv")
+    try:
+        target.write_bytes(data.encode("utf-8"))
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo guardar el CSV: {exc}")
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}; guardado en {target}")
+    db.commit()
+    return {"ok": True, "filename": target.name, "folder": str(target.parent), "path": str(target)}
+
+
+@app.get("/api/export.csv")
+def export_csv(desde: date, hasta: date, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    if hasta < desde:
+        raise HTTPException(400, "La fecha Hasta no puede ser anterior a Desde")
+    data = _build_report_csv(db, desde, hasta)
+    audit(db, user, "exportar_csv", f"{desde} a {hasta}")
+    db.commit()
+    return StreamingResponse(
+        iter([data.encode("utf-8")]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="atenciones_{desde}_{hasta}.csv"'},
+    )
+
+
+
+
+# v4.3.58 — el launcher autocontenido es el único instalador.
+@app.post("/api/program/update-now")
+def program_update_now():
+    """Comprueba el canal sin reemplazar archivos desde el backend en ejecución."""
+    try:
+        info = _read_update_channel_status()
+        if info["update_available"]:
+            return {
+                "ok": True, "update": True, "current": info["local"], "latest": info["latest"],
+                "message": f"Hay una actualización {info['latest']} disponible. Cierra y vuelve a abrir Recepción para que el launcher la instale de forma segura.",
+            }
+        return {
+            "ok": True, "update": False, "current": info["local"], "latest": info["latest"],
+            "message": f"Programa actualizado. El paquete {info['local']} coincide con el canal oficial.",
+        }
+    except Exception as exc:
+        return {"ok": False, "update": False, "current": APP_VERSION, "message": f"No se pudo consultar el canal: {str(exc)[:200]}"}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=False, access_log=False, log_level="warning", workers=1)
