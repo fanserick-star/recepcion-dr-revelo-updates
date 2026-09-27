@@ -42,5 +42,20 @@
   },
   "packaged_staging_import": "ok",
   "packaged_staging_files": 11,
-  "packaged_openapi_sha": "c09688ae885188368155b588d1c4d82024240c3f082a1c1068679cff20190220"
+  "packaged_openapi_sha": "c09688ae885188368155b588d1c4d82024240c3f082a1c1068679cff20190220",
+  "update_cycle": "ok",
+  "rollback_cycle": "ok",
+  "candidate_only_files_removed_on_rollback": [
+    "azur_client.py",
+    "core_runtime.py",
+    "features_runtime.py",
+    "remote_agenda.py",
+    "whatsapp_client.py"
+  ],
+  "protected_files_unchanged": [
+    ".env",
+    "data/recepcion.db",
+    "BASE DE DATOS 2026.xlsx",
+    "backups/keep.txt"
+  ]
 }

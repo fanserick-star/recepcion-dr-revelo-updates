@@ -1,7 +1,7 @@
 {
-  "source_commit": "8bf93bd0d683cb62326b4d5702a4665e945c1db0",
-  "workflow_run_id": "36288151702",
-  "workflow_run_number": "13",
-  "verified_utc": "2026-09-27T02:19:35.8812486Z",
-  "contract": "Recepcion 4.6.6 flat runtime equivalence + OpenAPI + packaged staging"
+  "source_commit": "4afccba101e0ed50bc1962793215d295f5ac3d15",
+  "workflow_run_id": "36288508385",
+  "workflow_run_number": "17",
+  "verified_utc": "2026-09-27T02:27:07.3363847Z",
+  "contract": "Recepcion 4.6.6 flat runtime equivalence + layout + OpenAPI + packaged staging + update/rollback"
 }
