@@ -1,23 +1,10 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
-previous = _rf_layers['app_patch_4519']
+import reception_version_sidebar as _dep_version_sidebar
 import historia_bridge
 import historia_lan_transport
-core = previous.core
-app = previous.app
+core = _dep_version_sidebar.core
+app = _dep_version_sidebar.app
 APP_VERSION = '4.5.20'
-_mod = previous
-_seen = set()
-for _ in range(480):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 historia_lan_transport.install(historia_bridge)
 V4520_CSS = '\n#historiaDoctorBadge.lan{\n  border-color:rgba(68,201,124,.58)!important;\n  color:#e3faeb!important;\n  background:rgba(27,116,68,.28)!important\n}\n#historiaDoctorBadge.lan:before{\n  background:#35d174!important;\n  box-shadow:0 0 0 3px rgba(53,209,116,.18)!important\n}\n'

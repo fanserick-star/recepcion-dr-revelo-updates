@@ -1,16 +1,15 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_receipt_margins as _dep_chain_receipt_margins
+import reception_receipt_unified_layout as _dep_receipt_unified_layout
 import io
 import os
-previous = _rf_layers['app_patch_4465']
-core = previous.core
-app = previous.app
+core = _dep_receipt_unified_layout.core
+app = _dep_receipt_unified_layout.app
 APP_VERSION = '4.4.66'
-previous.APP_VERSION = APP_VERSION
+_dep_receipt_unified_layout.APP_VERSION = APP_VERSION
 core.APP_VERSION = APP_VERSION
 try:
-    previous.previous.APP_VERSION = APP_VERSION
+    _dep_chain_receipt_margins.APP_VERSION = APP_VERSION
 except Exception:
     pass
 PATCH_BOOT_OK = False

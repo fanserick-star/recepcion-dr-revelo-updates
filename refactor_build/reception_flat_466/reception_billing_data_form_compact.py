@@ -1,23 +1,10 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_billing_data_form as _dep_billing_data_form
 import os as _os
 import re as _re
-previous = _rf_layers['app_patch_4489']
-core = previous.core
-app = previous.app
+core = _dep_billing_data_form.core
+app = _dep_billing_data_form.app
 APP_VERSION = '4.4.90'
-_mod = previous
-_seen = set()
-for _ in range(88):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
@@ -137,7 +124,7 @@ def _print_billing_data_form_windows_v4490(printer_name: str='') -> str:
             pass
     return chosen
 try:
-    previous._print_billing_data_form_windows = _print_billing_data_form_windows_v4490
+    _dep_billing_data_form._print_billing_data_form_windows = _print_billing_data_form_windows_v4490
     FORM_RENDER_PATCHED = True
     _js = getattr(core, 'V460_OVERLAY_JS', '') or ''
     _js = _re.sub('const\\s+VERSION\\s*=\\s*[\'\\"]4\\.4\\.\\d+[\'\\"]\\s*;', "const VERSION='4.4.90';", _js)

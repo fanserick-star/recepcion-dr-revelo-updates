@@ -1,13 +1,11 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_payments_and_agenda as _dep_payments_and_agenda
 from datetime import date as _date
 import traceback as _traceback
-previous = _rf_layers['app_prev_4458']
-core = previous.core
-app = previous.app
+core = _dep_payments_and_agenda.core
+app = _dep_payments_and_agenda.app
 APP_VERSION = '4.4.59'
-previous.APP_VERSION = APP_VERSION
+_dep_payments_and_agenda.APP_VERSION = APP_VERSION
 core.APP_VERSION = APP_VERSION
 NON_BILLABLE_STATE = 'NO_FACTURABLE'
 NON_BILLABLE_REASON = 'Paciente sin cédula/identificación'
@@ -126,7 +124,7 @@ try:
 except Exception as exc:
     PATCH_BOOT_ERROR = f'{type(exc).__name__}: {exc}'
     try:
-        previous.FEATURE_BOOT_ERROR = (str(getattr(previous, 'FEATURE_BOOT_ERROR', '') or '') + ' | v4.4.59: ' + PATCH_BOOT_ERROR).strip(' |')[:1200]
+        _dep_payments_and_agenda.FEATURE_BOOT_ERROR = (str(getattr(_dep_payments_and_agenda, 'FEATURE_BOOT_ERROR', '') or '') + ' | v4.4.59: ' + PATCH_BOOT_ERROR).strip(' |')[:1200]
     except Exception:
         pass
     try:

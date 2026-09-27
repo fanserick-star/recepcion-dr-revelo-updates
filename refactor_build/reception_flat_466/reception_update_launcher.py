@@ -1,26 +1,13 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_update_restart as _dep_update_restart
 import os as _os
 import re as _re
 import subprocess as _subprocess
 import sys as _sys
 from pathlib import Path as _Path
-previous = _rf_layers['app_patch_4482']
-core = previous.core
-app = previous.app
+core = _dep_update_restart.core
+app = _dep_update_restart.app
 APP_VERSION = '4.4.83'
-_mod = previous
-_seen = set()
-for _ in range(60):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''

@@ -1,21 +1,20 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_receipt_readability as _dep_chain_receipt_readability
+import reception_receipt_size as _dep_receipt_size
 import os
-previous = _rf_layers['app_patch_4468']
-core = previous.core
-app = previous.app
+core = _dep_receipt_size.core
+app = _dep_receipt_size.app
 APP_VERSION = '4.4.69'
-previous.APP_VERSION = APP_VERSION
+_dep_receipt_size.APP_VERSION = APP_VERSION
 core.APP_VERSION = APP_VERSION
 try:
-    previous.previous.APP_VERSION = APP_VERSION
+    _dep_chain_receipt_readability.APP_VERSION = APP_VERSION
 except Exception:
     pass
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
 try:
-    _render_v4468 = previous._render_receipt_png_v4468
+    _render_v4468 = _dep_receipt_size._render_receipt_png_v4468
 
     def _render_receipt_png_v4469(payload, show_blood_pressure=True):
         """Mantiene el diseño de 4.4.68, usando mejor los 576 puntos imprimibles."""

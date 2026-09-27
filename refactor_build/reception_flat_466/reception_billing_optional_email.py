@@ -1,22 +1,9 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_update_launcher as _dep_update_launcher
 import re as _re
-previous = _rf_layers['app_patch_4483']
-core = previous.core
-app = previous.app
+core = _dep_update_launcher.core
+app = _dep_update_launcher.app
 APP_VERSION = '4.4.84'
-_mod = previous
-_seen = set()
-for _ in range(64):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''

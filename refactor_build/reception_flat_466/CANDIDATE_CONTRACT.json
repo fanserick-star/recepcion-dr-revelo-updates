@@ -3,9 +3,9 @@
   "production_published": false,
   "version": "4.6.6",
   "source_app_bytes": 1601566,
-  "candidate_app_bytes": 28845,
+  "candidate_app_bytes": 28452,
   "core_runtime_bytes": 753194,
-  "features_runtime_bytes": 4882,
+  "features_runtime_bytes": 3660,
   "runtime_files": [
     "app.py",
     "core_runtime.py",

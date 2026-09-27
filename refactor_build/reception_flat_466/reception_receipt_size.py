@@ -1,15 +1,14 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_receipt_raster as _dep_chain_receipt_raster
+import reception_receipt_readability as _dep_receipt_readability
 import os
-previous = _rf_layers['app_patch_4467']
-core = previous.core
-app = previous.app
+core = _dep_receipt_readability.core
+app = _dep_receipt_readability.app
 APP_VERSION = '4.4.68'
-previous.APP_VERSION = APP_VERSION
+_dep_receipt_readability.APP_VERSION = APP_VERSION
 core.APP_VERSION = APP_VERSION
 try:
-    previous.previous.APP_VERSION = APP_VERSION
+    _dep_chain_receipt_raster.APP_VERSION = APP_VERSION
 except Exception:
     pass
 PATCH_BOOT_OK = False
@@ -88,7 +87,7 @@ try:
             logo_path = os.path.join(core.BASE_DIR, 'static', 'doctor_isotype.png')
             if os.path.exists(logo_path):
                 try:
-                    logo_func = getattr(getattr(previous, 'previous', None), '_thermal_logo_v4466', None)
+                    logo_func = getattr(_dep_chain_receipt_raster, '_thermal_logo_v4466', None)
                     if logo_func:
                         logo = logo_func(logo_path)
                     if logo is not None:

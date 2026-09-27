@@ -1,22 +1,9 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_payment_terminal as _dep_payment_terminal
 import os
-previous = _rf_layers['app_patch_4504']
-core = previous.core
-app = previous.app
+core = _dep_payment_terminal.core
+app = _dep_payment_terminal.app
 APP_VERSION = '4.5.5'
-_mod = previous
-_seen = set()
-for _ in range(130):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''

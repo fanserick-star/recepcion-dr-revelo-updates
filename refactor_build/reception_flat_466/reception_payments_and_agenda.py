@@ -1,10 +1,8 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import core_runtime as core
 import traceback
 import re as _re
 from datetime import date as _date
-core = _rf_layers['app_base_4428']
 APP_VERSION = '4.4.58'
 core.APP_VERSION = APP_VERSION
 app = core.app

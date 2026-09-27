@@ -1,28 +1,16 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_printing_menu as _dep_printing_menu
 import re as _re
-previous = _rf_layers['app_patch_4486']
-core = previous.core
-app = previous.app
+import reception_payment_proof as _dep_chain_payment_proof
+core = _dep_printing_menu.core
+app = _dep_printing_menu.app
 APP_VERSION = '4.4.87'
-_mod = previous
-_seen = set()
-for _ in range(76):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
 PAYMENT_RENDER_PATCHED = False
 try:
-    _payment_mod = getattr(previous, 'previous', None)
+    _payment_mod = _dep_chain_payment_proof
     if _payment_mod is None:
         raise RuntimeError('No se encontró la capa del comprobante v4.4.85')
 

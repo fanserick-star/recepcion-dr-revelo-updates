@@ -1,16 +1,16 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_billing_non_billable as _dep_chain_billing_non_billable
+import reception_payments_and_agenda as _dep_chain_payments_and_agenda
+import reception_receipt_thermal_layout as _dep_receipt_thermal_layout
 import os
-previous = _rf_layers['app_patch_4461']
-core = previous.core
-app = previous.app
+core = _dep_receipt_thermal_layout.core
+app = _dep_receipt_thermal_layout.app
 APP_VERSION = '4.4.62'
-previous.APP_VERSION = APP_VERSION
+_dep_receipt_thermal_layout.APP_VERSION = APP_VERSION
 core.APP_VERSION = APP_VERSION
 try:
-    previous.previous.APP_VERSION = APP_VERSION
-    previous.previous.previous.APP_VERSION = APP_VERSION
+    _dep_chain_billing_non_billable.APP_VERSION = APP_VERSION
+    _dep_chain_payments_and_agenda.APP_VERSION = APP_VERSION
 except Exception:
     pass
 PATCH_BOOT_OK = False

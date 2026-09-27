@@ -1,23 +1,10 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_attention_transaction as _dep_attention_transaction
 import json as _json
 from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
-previous = _rf_layers['app_patch_4475']
-core = previous.core
-app = previous.app
+core = _dep_attention_transaction.core
+app = _dep_attention_transaction.app
 APP_VERSION = '4.4.76'
-_mod = previous
-_seen = set()
-for _ in range(32):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''

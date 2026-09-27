@@ -1,23 +1,10 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
-previous = _rf_layers['app_patch_4507']
-payment_core = _rf_layers['app_patch_4504']
+import reception_payment_terminal_manual as _dep_payment_terminal_manual
+import reception_payment_terminal as payment_core
 import historia_bridge
-core = previous.core
-app = previous.app
+core = _dep_payment_terminal_manual.core
+app = _dep_payment_terminal_manual.app
 APP_VERSION = '4.5.8'
-_mod = previous
-_seen = set()
-for _ in range(180):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 _old_batch = None
 for _route in list(app.router.routes):

@@ -1,27 +1,14 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_billing_data_form_layout as _dep_billing_data_form_layout
 import json
 import os
 import shutil
 import sys
 import time
 from pathlib import Path
-previous = _rf_layers['app_patch_4491']
-core = previous.core
-app = previous.app
+core = _dep_billing_data_form_layout.core
+app = _dep_billing_data_form_layout.app
 APP_VERSION = '4.5.1'
-_mod = previous
-_seen = set()
-for _ in range(96):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
@@ -36,11 +23,11 @@ def _strip_redundant_version_overlays():
     """
     global REMOVED_REDUNDANT_JS_BLOCKS, REMOVED_REDUNDANT_TIMEOUTS
     js = getattr(core, 'V460_OVERLAY_JS', '') or ''
-    targets = [('app_patch_4482', 'V4482_JS'), ('app_patch_4483', 'V4483_JS'), ('app_patch_4487', 'V4487_JS'), ('app_patch_4488', 'V4488_JS'), ('app_patch_4490', 'V4490_JS'), ('app_patch_4491', 'V4491_JS')]
+    targets = [('reception_update_restart', 'V4482_JS'), ('reception_update_launcher', 'V4483_JS'), ('reception_payment_proof_margins', 'V4487_JS'), ('reception_payment_proof_layout', 'V4488_JS'), ('reception_billing_data_form_compact', 'V4490_JS'), ('reception_billing_data_form_layout', 'V4491_JS')]
     blocks = 0
     timers = 0
     for module_name, attr in targets:
-        mod = _rf_module_lookup(module_name)
+        mod = sys.modules.get(module_name)
         block = getattr(mod, attr, '') if mod is not None else ''
         if block and block in js:
             timers += block.count('setTimeout(')
@@ -108,7 +95,7 @@ def _printer_status() -> dict:
     selected = str(prefs.get('printer') or info.get('default_printer') or '').strip()
     printers = list(info.get('printers') or [])
     queue_state = {}
-    qmod = _rf_module_lookup('app_patch_4474')
+    qmod = sys.modules.get('reception_printing_queue')
     try:
         lock = getattr(qmod, '_PRINT_LOCK', None)
         raw = getattr(qmod, '_PRINT_STATE', {}) or {}

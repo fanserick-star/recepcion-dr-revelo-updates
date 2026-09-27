@@ -1,33 +1,21 @@
 from __future__ import annotations
-import features_runtime as _rf_legacy
-
+import reception_history_bridge as _dep_history_bridge
+import reception_payment_terminal_panel as _dep_payment_terminal_panel
+import features_runtime
 import json
 import time
 import urllib.request
 from pathlib import Path
 from datetime import datetime, timedelta
 import sqlite3
-_rf_alias_outer_current__previous = _rf_legacy._rf_layers['app_patch_4525']
-_rf_alias_outer_current__bridge_v4508 = _rf_legacy._rf_layers['app_patch_4508']
 import historia_bridge
-core = _rf_alias_outer_current__previous.core
-app = _rf_alias_outer_current__previous.app
+core = _dep_payment_terminal_panel.core
+app = _dep_payment_terminal_panel.app
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()
 if not APP_VERSION:
     raise RuntimeError('recepcion-version.json no contiene una versión válida')
-_mod = _rf_alias_outer_current__previous
-_seen = set()
-for _ in range(720):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 V4533_VERSION_CSS = f'\n.v460-version::after,#currentVersionBadge::after{{\n  content:"v{APP_VERSION}"!important;\n}}\n'
 core.V460_OVERLAY_CSS = (getattr(core, 'V460_OVERLAY_CSS', '') or '') + '\n' + V4533_VERSION_CSS
@@ -100,7 +88,7 @@ for _route in list(app.router.routes):
         app.router.routes.remove(_route)
 
 @app.post('/api/visits/batch-payment')
-def v4535_create_visit_batch_payment(data: _rf_alias_outer_current__bridge_v4508.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
+def v4535_create_visit_batch_payment(data: _dep_history_bridge.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
     try:
         _hist_patient = db.get(core.Patient, int(data.patient_id))
         if _hist_patient and core.historical_summary_for_patient(_hist_patient):
@@ -110,7 +98,7 @@ def v4535_create_visit_batch_payment(data: _rf_alias_outer_current__bridge_v4508
                 object.__setattr__(data, 'tipo', 'S')
     except Exception:
         pass
-    result = _rf_alias_outer_current__bridge_v4508._old_batch(data, db, user)
+    result = _dep_history_bridge._old_batch(data, db, user)
     try:
         patient = db.get(core.Patient, int(data.patient_id))
         if patient:
@@ -388,7 +376,7 @@ def _v466_sync_attention_queue_later():
         pass
 
 @app.post('/api/visits/batch-payment')
-def v466_fast_local_attention_save(data: _rf_alias_outer_current__bridge_v4508.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(_v466_local_attention_db), user=core.Depends(core.current_user)):
+def v466_fast_local_attention_save(data: _dep_history_bridge.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(_v466_local_attention_db), user=core.Depends(core.current_user)):
     started = time.perf_counter()
     result = _V466_BASE_BATCH(data, db, user)
     save_ms = (time.perf_counter() - started) * 1000.0

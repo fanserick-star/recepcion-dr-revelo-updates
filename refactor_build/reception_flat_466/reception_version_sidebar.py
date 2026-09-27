@@ -1,22 +1,9 @@
 from __future__ import annotations
-from runtime_registry import layers as _rf_layers, module_lookup as _rf_module_lookup
-
+import reception_version_display as _dep_version_display
 import os
-previous = _rf_layers['app_patch_4518']
-core = previous.core
-app = previous.app
+core = _dep_version_display.core
+app = _dep_version_display.app
 APP_VERSION = '4.5.19'
-_mod = previous
-_seen = set()
-for _ in range(380):
-    if _mod is None or id(_mod) in _seen:
-        break
-    _seen.add(id(_mod))
-    try:
-        _mod.APP_VERSION = APP_VERSION
-    except Exception:
-        pass
-    _mod = getattr(_mod, 'previous', None)
 core.APP_VERSION = APP_VERSION
 for _route in list(app.router.routes):
     if getattr(_route, 'path', None) == '/api/version' and 'GET' in set(getattr(_route, 'methods', set()) or set()):
