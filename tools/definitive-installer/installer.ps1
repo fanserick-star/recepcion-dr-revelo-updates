@@ -438,9 +438,9 @@ cur=conn.cursor(); cur.execute('select 1'); cur.fetchone(); conn.close(); print(
 '@
   try {
     & $py -c $code $envFile $Key 2>$null | Out-Null
-    if ($LASTEXITCODE -eq 0) { Write-Log "$Product: conexión Neon verificada."; return $true }
+    if ($LASTEXITCODE -eq 0) { Write-Log "${Product}: conexión Neon verificada."; return $true }
   } catch {}
-  Write-Log "$Product: no se pudo verificar Neon ahora; la instalación se conserva y reintentará al abrir."
+  Write-Log "${Product}: no se pudo verificar Neon ahora; la instalación se conserva y reintentará al abrir."
   return $false
 }
 
