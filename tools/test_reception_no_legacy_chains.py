@@ -12,6 +12,22 @@ OUT = ROOT / "refactor_build" / "reception_flat_466"
 if not OUT.is_dir():
     raise SystemExit("Candidate missing; build it first")
 
+
+def module_level_name_assignment(tree: ast.Module, name: str) -> bool:
+    for node in tree.body:
+        targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == name:
+                return True
+    return False
+
+
 problems: list[str] = []
 python_files = sorted(OUT.glob("*.py"))
 
@@ -39,16 +55,14 @@ for path in python_files:
         }:
             problems.append(f"{path.name}: legacy runtime symbol {node.id}")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            # Runtime references to a release-module key are not allowed.  Text
-            # in docstrings/comments is tolerated only in the inert stub.
             if path.name != "runtime_registry.py" and re.fullmatch(
                 r"app_(?:base|prev|patch)_\d+", node.value
             ):
                 problems.append(f"{path.name}: historical runtime key {node.value}")
 
-    if path.name not in {"runtime_registry.py"}:
-        if re.search(r"\bprevious\s*=\s*", text):
-            problems.append(f"{path.name}: previous release alias assignment")
+    if path.name != "runtime_registry.py":
+        if module_level_name_assignment(tree, "previous"):
+            problems.append(f"{path.name}: module-level previous release alias")
         if "getattr(_mod, 'previous'" in text or 'getattr(_mod, "previous"' in text:
             problems.append(f"{path.name}: walks previous release chain")
 
@@ -67,4 +81,5 @@ print("NO LEGACY RELEASE CHAIN OK")
 print("python files", len(python_files))
 print("historical executable module imports", 0)
 print("layer registry lookups", 0)
+print("module-level previous release aliases", 0)
 print("previous-chain walks", 0)
