@@ -127,6 +127,13 @@ function Validate-PayloadVersion([string]$Dest) {
     if (Get-ChildItem -LiteralPath $Dest -Recurse -File -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue) { throw 'Se detecto una cadena app_patch_* prohibida.' }
 }
 
+function Test-LocalRuntime([string]$Dest, [string]$VenvPython) {
+    $appPy = Join-Path $Dest 'app.py'
+    if (-not (Test-Path -LiteralPath $appPy)) { throw 'Falta app.py.' }
+    Invoke-Checked $VenvPython @('-m','py_compile',$appPy)
+    Invoke-Checked $VenvPython @('-c','import fastapi, sqlalchemy, dotenv; print("LOCAL_RUNTIME_OK")')
+}
+
 $backup = $null
 try {
     Write-Step "Instalando version $ExpectedVersion..."
@@ -139,19 +146,7 @@ try {
     Validate-PayloadVersion $Target
     Ensure-Python
     $venvPython = Ensure-Venv $Target
-
-    if (Test-Path -LiteralPath (Join-Path $Target '.env')) {
-        $oldOffline = $env:RP_FORCE_OFFLINE
-        $oldPreflight = $env:HC_PREFLIGHT
-        $oldSync = $env:HISTORIA_SYNC_ENABLED
-        $env:RP_FORCE_OFFLINE = '1'; $env:HC_PREFLIGHT = '1'; $env:HISTORIA_SYNC_ENABLED = '0'
-        Push-Location $Target
-        try { Invoke-Checked $venvPython @('-c',"import app; assert str(app.APP_VERSION) == '$ExpectedVersion'; print('RUNTIME_OK', app.APP_VERSION)") }
-        finally { Pop-Location; $env:RP_FORCE_OFFLINE=$oldOffline; $env:HC_PREFLIGHT=$oldPreflight; $env:HISTORIA_SYNC_ENABLED=$oldSync }
-    } else {
-        Write-Step 'Prueba online omitida porque esta PC aun no tiene .env.'
-    }
-
+    Test-LocalRuntime $Target $venvPython
     Invoke-Checked $LauncherInstaller @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-')
     Write-Step "INSTALL_OK $App $ExpectedVersion"
     exit 0
