@@ -208,7 +208,6 @@ def transform_module(modname: str, source: str):
         else: new_body.append(transformed)
     parsed.body = new_body
     ast.fix_missing_locations(parsed)
-    # Original attribute name -> generated flat variable name.
     export_expr = {}
     for name in sorted(bound):
         export_expr[name] = transformer.alias_map.get(name, name)
@@ -216,14 +215,14 @@ def transform_module(modname: str, source: str):
 
 
 # Outer source begins after the embedded loader. The same comment text also
-# exists inside the serialized historical sources, so use the LAST occurrence.
+# exists inside serialized historical sources, so use the LAST occurrence.
 MARKER = "# Capa final vigente de Recepción (derivada de 4.5.48)"
 pos = text.rfind(MARKER)
 if pos < 0:
     raise RuntimeError("No se encontró marcador de capa final")
-assert embedded_node is not None and pos > embedded_node.end_lineno, (
-    "El marcador externo quedó dentro del diccionario embebido"
-)
+assert embedded_node is not None
+embedded_end_char = sum(len(line) for line in text.splitlines(True)[: embedded_node.end_lineno])
+assert pos >= embedded_end_char, "El marcador externo quedó dentro del diccionario embebido"
 outer_source = text[pos:]
 outer_ast = ast.parse(outer_source, filename="<outer-current>")
 outer_transform = EmbeddedImportTransformer("outer_current", "_rf_legacy._rf_layers")
@@ -236,6 +235,19 @@ for node in outer_ast.body:
 outer_ast.body = outer_body
 ast.fix_missing_locations(outer_ast)
 outer_flat = ast.unparse(outer_ast)
+
+# Diagnostics from 4.6.2 described the old embedded loader. They must describe
+# the physical definitive runtime truthfully after the refactor.
+outer_flat = outer_flat.replace(
+    "RUNTIME_CONSOLIDATED_EMBEDDED_MODULE_COUNT = len(_EMBEDDED_RUNTIME_SOURCES)",
+    "RUNTIME_CONSOLIDATED_EMBEDDED_MODULE_COUNT = 0",
+)
+outer_flat = outer_flat.replace("RUNTIME_AZUR_HELPER_EMBEDDED = True", "RUNTIME_AZUR_HELPER_EMBEDDED = False")
+outer_flat = outer_flat.replace("RUNTIME_WHATSAPP_HELPER_EMBEDDED = True", "RUNTIME_WHATSAPP_HELPER_EMBEDDED = False")
+outer_flat = outer_flat.replace(
+    "RUNTIME_EXTERNAL_FUNCTIONAL_HELPERS_REQUIRED = False",
+    "RUNTIME_EXTERNAL_FUNCTIONAL_HELPERS_REQUIRED = True",
+)
 
 if OUT.exists():
     shutil.rmtree(OUT)
