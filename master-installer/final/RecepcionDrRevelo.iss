@@ -1,6 +1,7 @@
 #define MyAppName "Recepción Dr. Armando Revelo"
 #define MyAppVersion "4.6.7"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
+#define PythonRuntime GetEnv("pythonLocation")
 
 [Setup]
 AppId={{2D7B7444-D35B-4A28-A02A-54D01CD927A1}
@@ -27,7 +28,7 @@ SetupLogging=yes
 
 [Files]
 Source: "install-child.ps1"; DestDir: "{tmp}\DrReveloReception"; Flags: deleteafterinstall
-Source: "build\python-3.11.9-amd64.exe"; DestDir: "{tmp}\DrReveloReception"; Flags: deleteafterinstall
+Source: "{#PythonRuntime}\*"; DestDir: "{tmp}\DrReveloReception\python-runtime"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "build\wheelhouse\*"; DestDir: "{tmp}\DrReveloReception\wheelhouse"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "build\reception\requirements.txt"; DestDir: "{tmp}\DrReveloReception"; DestName: "requirements.txt"; Flags: deleteafterinstall
 Source: "build\reception\payload\*"; DestDir: "{tmp}\DrReveloReception\payload"; Flags: recursesubdirs createallsubdirs deleteafterinstall
@@ -36,7 +37,7 @@ Source: "uninstall-child.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\reception\managed-files.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\uninstall-child.ps1"" -App Reception -ManifestPath ""{app}\managed-files.txt"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\uninstall-child.ps1"" -App Reception -ManifestPath ""{app}\managed-files.txt"""; Flags: runhidden waituntilterminated; RunOnceId: "ReceptionCleanup"
 
 [Code]
 var
