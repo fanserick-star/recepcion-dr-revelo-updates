@@ -1,5 +1,5 @@
 name: Test Definitive Installer Clean Windows
-# rerun-after-powershell-parser-fix
+# dump-log-on-failure
 
 on:
   push:
@@ -42,6 +42,14 @@ jobs:
           -ReceptionEnvPath "%RUNNER_TEMP%\recepcion.env"
           -HistoriaEnvPath "%RUNNER_TEMP%\historia.env"
           -Mode both -NonInteractive
+
+      - name: Dump installer log
+        if: always()
+        shell: pwsh
+        run: |
+          $log=Get-ChildItem "$env:ProgramData\DrRevelo\Installer\install-*.log" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if($log){ Write-Host '=== INSTALLER LOG ==='; Get-Content $log.FullName }
+          else { Write-Host 'No installer log found.' }
 
       - name: Verify clean installation result
         shell: pwsh
