@@ -9,12 +9,22 @@
   "launcher_minimum": "1.0.12",
   "updater_version": "launcher-v1-app-update",
   "required_dependencies": [
+    "core_runtime.py",
+    "features_runtime.py",
+    "azur_client.py",
+    "remote_agenda.py",
+    "whatsapp_client.py",
     "historia_bridge.py",
     "historia_lan_transport.py"
   ],
   "installation_prerequisites": [],
   "copy": [
     "app.py",
+    "core_runtime.py",
+    "features_runtime.py",
+    "azur_client.py",
+    "remote_agenda.py",
+    "whatsapp_client.py",
     "historia_bridge.py",
     "historia_lan_transport.py",
     "recepcion-version.json",
@@ -24,7 +34,7 @@
   "notes": {
     "purpose": "Guardado de Nueva atención local-first para respuesta inmediata; sincronización a Neon en segundo plano e impresión local sin espera de nube.",
     "previous_version": "4.6.5",
-    "candidate_only": false,
+    "candidate_only": true,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
@@ -49,9 +59,9 @@
     "procedure_logic_changes": false,
     "printing_changes": true,
     "procedure_regression_test": "inherited unchanged from 4.6.3: FULGURACION/CISTOSCOPIA/DILATACION/CIRCUNSICION editable null; INSTILACION 80",
-    "runtime_smoke_test": "app.py unchanged from audited 4.6.3; helper cleanup only",
+    "runtime_smoke_test": "validated by tools/test_reception_flat_prototype.py",
     "database_separation_test": "inherited unchanged from 4.6.3: DATABASE_URL alone cannot configure Historia; same DB identity is blocked",
-    "production_status": "stable",
+    "production_status": "refactor-verified-not-published",
     "rollback_safe": true,
     "azur_source_sha256": "1d1732504a20d348ea83c4ba7f925976f1b0d3026af4e84b8b28a0ecb815a5af",
     "whatsapp_source_sha256": "df70ee0683976bac19b3d38c6ac5c509424abb356844002cf21f7e116589b261",
@@ -61,7 +71,19 @@
     "procedure_auto_print": false,
     "consultation_auto_print_preserved": true,
     "attention_write_mode": "sqlite-first-cloud-write-behind",
-    "offline_queue_reused": true
+    "offline_queue_reused": true,
+    "flat_runtime_physical_files": [
+      "app.py",
+      "core_runtime.py",
+      "features_runtime.py",
+      "azur_client.py",
+      "remote_agenda.py",
+      "whatsapp_client.py"
+    ],
+    "embedded_runtime_sources": false,
+    "runtime_import_hook": false,
+    "manifest_rebuilt_for_flat_candidate": true,
+    "release_channel_modified": false
   },
   "channel": "launcher-v1-stable"
 }

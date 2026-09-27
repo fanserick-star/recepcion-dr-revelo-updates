@@ -1,0 +1,33 @@
+{
+  "status": "candidate",
+  "production_published": false,
+  "version": "4.6.6",
+  "source_app_bytes": 1601566,
+  "candidate_app_bytes": 28845,
+  "core_runtime_bytes": 753194,
+  "features_runtime_bytes": 794993,
+  "runtime_files": [
+    "app.py",
+    "core_runtime.py",
+    "features_runtime.py",
+    "azur_client.py",
+    "remote_agenda.py",
+    "whatsapp_client.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py",
+    "recepcion-version.json",
+    "update_manifest.json",
+    "static/runtime_keep.txt"
+  ],
+  "required_dependencies": [
+    "core_runtime.py",
+    "features_runtime.py",
+    "azur_client.py",
+    "remote_agenda.py",
+    "whatsapp_client.py",
+    "historia_bridge.py",
+    "historia_lan_transport.py"
+  ],
+  "forbidden_loader_residues": 0,
+  "historical_executable_imports": 0
+}
