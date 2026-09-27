@@ -1,0 +1,7 @@
+{
+  "source_commit": "e8e4cb2aa9695367bd7b73dc87dc5dd2dedaa7a3",
+  "workflow_run_id": "36292720144",
+  "workflow_run_number": "18",
+  "verified_utc": "2026-09-27T03:54:37.7092369Z",
+  "contract": "Recepcion 4.6.6 isolated runtime + bindings + equivalence + layout + OpenAPI + packaged staging + update/rollback + historical protection"
+}

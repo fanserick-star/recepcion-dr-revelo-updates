@@ -135,7 +135,7 @@
   "copied_runtime_sha256": {
     "historia_bridge.py": "f511c287347889f72c12980f5e572805d69caa5d35df3e270058b01c3856f04e",
     "historia_lan_transport.py": "e061b3f113b6d24fcbc92943823debf2ef5813faa191d8e4c0b72c0aff8cf710",
-    "recepcion-version.json": "d35425cec4b86c69a7a61f637a636fafadc1e9c5de111869a72f2b176e0d75ba"
+    "recepcion-version.json": "158cbdab0dba48fc1085c694c9c4da80b8d10db50943ed2c419d776b8b287086"
   },
   "packaged_staging_import": "ok",
   "packaged_staging_files": 59,

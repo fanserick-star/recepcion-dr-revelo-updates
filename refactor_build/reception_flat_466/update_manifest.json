@@ -226,11 +226,11 @@
       "reception_version_display.py",
       "reception_version_sidebar.py"
     ],
+    "isolated_feature_globals": true,
     "embedded_runtime_sources": false,
     "runtime_import_hook": false,
     "manifest_rebuilt_for_flat_candidate": true,
-    "release_channel_modified": false,
-    "isolated_feature_globals": true
+    "release_channel_modified": false
   },
   "channel": "launcher-v1-stable"
 }
