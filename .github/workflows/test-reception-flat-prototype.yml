@@ -1,5 +1,5 @@
 name: Test Reception Flat Prototype
-# rerun: sys.modules lookups now use the consolidated resolver, including variable names
+# definitive refactor: validate and materialize the verified flat candidate on the isolated branch
 
 on:
   push:
@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   flat-equivalence:
@@ -43,3 +43,30 @@ jobs:
       - name: Compare exact runtime contracts and functional flow
         shell: pwsh
         run: python tools/test_reception_flat_prototype.py
+
+      - name: Materialize verified candidate on refactor branch
+        shell: pwsh
+        run: |
+          $candidate = "refactor_build/reception_flat_466"
+          Get-ChildItem -Path $candidate -Recurse -Directory -Filter __pycache__ -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          Get-ChildItem -Path $candidate -Recurse -File -Filter *.pyc -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+          $verification = [ordered]@{
+            source_commit = "${{ github.sha }}"
+            workflow_run_id = "${{ github.run_id }}"
+            workflow_run_number = "${{ github.run_number }}"
+            verified_utc = (Get-Date).ToUniversalTime().ToString("o")
+            contract = "Recepcion 4.6.6 flat runtime equivalence"
+          } | ConvertTo-Json
+          Set-Content -Path "$candidate/VERIFICATION.json" -Value $verification -Encoding utf8
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f $candidate
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Verified candidate already materialized; nothing to commit."
+            exit 0
+          }
+          git commit -m "refactor: materializar candidato plano verificado"
+          git push origin HEAD:refactor/reception-definitive-runtime
