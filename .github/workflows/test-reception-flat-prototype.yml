@@ -8,6 +8,7 @@ on:
     paths:
       - tools/build_reception_flat_prototype.py
       - tools/remove_reception_legacy_layer_chain.py
+      - tools/materialize_reception_predecessor_getattrs.py
       - tools/test_reception_no_legacy_chains.py
       - tools/finalize_reception_flat_candidate.py
       - tools/test_reception_flat_prototype.py
@@ -53,6 +54,10 @@ jobs:
       - name: Remove historical release-layer chain
         shell: pwsh
         run: python tools/remove_reception_legacy_layer_chain.py
+
+      - name: Materialize predecessor getattr references
+        shell: pwsh
+        run: python tools/materialize_reception_predecessor_getattrs.py
 
       - name: Enforce semantic runtime with no legacy chains
         shell: pwsh
