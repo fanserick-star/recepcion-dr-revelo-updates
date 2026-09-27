@@ -269,6 +269,21 @@ def _rewrite_registry_stub() -> None:
     )
 
 
+def _module_level_name_assignment(tree: ast.Module, name: str) -> bool:
+    for node in tree.body:
+        targets: list[ast.AST] = []
+        if isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        elif isinstance(node, ast.AugAssign):
+            targets = [node.target]
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id == name:
+                return True
+    return False
+
+
 def _assert_no_legacy_runtime() -> None:
     failures: list[str] = []
     for path in sorted(OUT.glob("*.py")):
@@ -286,8 +301,8 @@ def _assert_no_legacy_runtime() -> None:
                 failures.append(f"{path.name}: legacy symbol {node.id}")
             elif isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in HIST_TO_MODULE:
                 failures.append(f"{path.name}: historical runtime key {node.value}")
-        if path.name != "runtime_registry.py" and re.search(r"\bprevious\s*=\s*", text):
-            failures.append(f"{path.name}: previous assignment")
+        if path.name != "runtime_registry.py" and _module_level_name_assignment(tree, "previous"):
+            failures.append(f"{path.name}: module-level previous release alias")
         if "getattr(_mod, 'previous'" in text or 'getattr(_mod, "previous"' in text:
             failures.append(f"{path.name}: previous-chain walk")
     if failures:
