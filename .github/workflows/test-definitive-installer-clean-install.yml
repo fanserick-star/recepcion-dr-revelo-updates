@@ -1,4 +1,5 @@
 name: Test Definitive Installer Clean Windows
+# rerun-after-powershell-parser-fix
 
 on:
   push:
