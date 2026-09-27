@@ -1,3 +1,4 @@
+# Reauditoría post-limpieza canónica 2026-09-27
 name: Audit Active Reception Channel
 
 on:
@@ -33,6 +34,7 @@ jobs:
           for item in channel['files']:
               rel = str(item['path']).replace('\\','/')
               assert item.get('url') and not item.get('parts'), f'El canal físico debe usar un blob por archivo: {rel}'
+              assert '/recepcion/app/' in item['url'], f'URL fuera de fuente canónica: {rel}'
               req = urllib.request.Request(item['url'] + '?audit=1', headers={'Cache-Control':'no-cache'})
               with urllib.request.urlopen(req, timeout=60) as response:
                   payload = response.read()
@@ -135,6 +137,7 @@ jobs:
           - Versión: **{channel['appVersion']}**
           - Archivos verificados byte por byte: **{len(channel['files'])}**
           - Dependencias activas declaradas: **{len(manifest.get('required_dependencies', []))}**
+          - Fuente del canal: **recepcion/app**
           - SHA-256: **OK**
           - Cierre del payload/manifiesto: **OK**
           - Runtime físico: **OK**
