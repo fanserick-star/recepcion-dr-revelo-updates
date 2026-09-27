@@ -1,0 +1,54 @@
+name: Diagnose Master Child
+
+on:
+  push:
+    branches: [build/master-installer-consolidated]
+    paths:
+      - ".github/workflows/diagnose-master-child.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reception-direct:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Stage Reception directly
+        shell: pwsh
+        run: |
+          $stage = 'D:\master-diag'
+          New-Item -ItemType Directory -Force "$stage\payload","$stage\wheelhouse" | Out-Null
+          Copy-Item 'recepcion/app/*' "$stage\payload" -Recurse -Force
+          Remove-Item "$stage\payload\.env","$stage\payload\data" -Recurse -Force -ErrorAction SilentlyContinue
+          Copy-Item 'master-installer/definitive/requirements-recepcion.txt' "$stage\requirements.txt"
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile "$stage\python-3.11.9-amd64.exe"
+          python -m pip wheel --disable-pip-version-check --wheel-dir "$stage\wheelhouse" -r "$stage\requirements.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe' -OutFile "$stage\launcher-setup.exe"
+          @'
+          DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
+          HISTORIA_DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
+          MOBILE_DOCTOR_TOKEN=dummy-doctor-token
+          MOBILE_RECEPTION_TOKEN=dummy-reception-token
+          '@ | Set-Content 'D:\consultorio.private.env' -Encoding utf8
+
+      - name: Run Reception child bootstrap directly
+        shell: pwsh
+        run: |
+          & 'master-installer/final/install-child.ps1' -App Reception -StageRoot 'D:\master-diag' -SourceDir 'D:\'
+          $code = $LASTEXITCODE
+          Write-Host "DIRECT_CHILD_EXIT=$code"
+          if (Test-Path 'C:\ProgramData\ConsultorioDrRevelo\InstallerLogs') {
+            Get-ChildItem 'C:\ProgramData\ConsultorioDrRevelo\InstallerLogs' -File | ForEach-Object {
+              Write-Host "===== $($_.FullName) ====="
+              Get-Content $_.FullName
+            }
+          }
+          if ($code -ne 0) { exit $code }
