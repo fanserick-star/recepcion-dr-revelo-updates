@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -87,17 +88,33 @@ try:
     for rel in old_payload:
         copy_file(SOURCE / rel, install / rel)
 
-    # Protected/user data that an update must never modify or delete.
-    protected = {
+    # Protected/user data that an update must never modify or delete. The local
+    # DB sentinel is a real SQLite file because production boot may use it as a
+    # seed for a fresh RP_DATA_DIR; using arbitrary bytes would test corruption,
+    # not update/rollback behavior.
+    protected_bytes = {
         ".env": b"DATABASE_URL=postgresql://protected\nSECRET=keep-me\n",
-        "data/recepcion.db": b"sqlite-user-data-sentinel",
         "BASE DE DATOS 2026.xlsx": b"excel-user-data-sentinel",
         "backups/keep.txt": b"backup-user-data-sentinel",
     }
-    for rel, content in protected.items():
+    for rel, content in protected_bytes.items():
         path = install / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
+
+    protected_db = install / "data" / "recepcion.db"
+    protected_db.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(protected_db) as conn:
+        conn.execute("CREATE TABLE sentinel (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+        conn.execute("INSERT INTO sentinel(value) VALUES (?)", ("keep-me",))
+        conn.commit()
+
+    protected = [
+        ".env",
+        "data/recepcion.db",
+        "BASE DE DATOS 2026.xlsx",
+        "backups/keep.txt",
+    ]
     protected_hashes = {rel: sha(install / rel) for rel in protected}
 
     baseline = {
@@ -129,8 +146,8 @@ try:
 
     for rel in payload:
         assert sha(install / rel) == sha(CANDIDATE / rel), rel
-    for rel, expected in protected_hashes.items():
-        assert sha(install / rel) == expected, f"protected file changed after apply: {rel}"
+    for rel, expected_hash in protected_hashes.items():
+        assert sha(install / rel) == expected_hash, f"protected file changed after apply: {rel}"
 
     # Candidate must really import from the upgraded installation.
     import_probe(install)
@@ -146,16 +163,16 @@ try:
         elif not entry["existed"] and dest.is_file():
             dest.unlink()
 
-    for rel, expected in baseline.items():
+    for rel, expected_hash in baseline.items():
         assert (install / rel).is_file(), f"baseline file missing after rollback: {rel}"
-        assert sha(install / rel) == expected, f"baseline bytes drifted after rollback: {rel}"
+        assert sha(install / rel) == expected_hash, f"baseline bytes drifted after rollback: {rel}"
 
     candidate_only = sorted(set(payload) - set(old_payload))
     leftovers = [rel for rel in candidate_only if (install / rel).exists()]
     assert not leftovers, f"candidate-only leftovers after rollback: {leftovers}"
 
-    for rel, expected in protected_hashes.items():
-        assert sha(install / rel) == expected, f"protected file changed after rollback: {rel}"
+    for rel, expected_hash in protected_hashes.items():
+        assert sha(install / rel) == expected_hash, f"protected file changed after rollback: {rel}"
 
     # The restored production package must still import after rollback.
     import_probe(install)
@@ -166,7 +183,7 @@ try:
         contract["update_cycle"] = "ok"
         contract["rollback_cycle"] = "ok"
         contract["candidate_only_files_removed_on_rollback"] = candidate_only
-        contract["protected_files_unchanged"] = sorted(protected)
+        contract["protected_files_unchanged"] = protected
         contract_path.write_text(
             json.dumps(contract, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
