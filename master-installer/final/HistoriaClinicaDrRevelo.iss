@@ -1,6 +1,7 @@
 #define MyAppName "Historia Clínica Dr. Armando Revelo"
 #define MyAppVersion "1.3.73"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
+#define PythonRuntime GetEnv("pythonLocation")
 
 [Setup]
 AppId={{99B40218-3A71-44F4-9AB1-75663F14E2D4}
@@ -27,7 +28,7 @@ SetupLogging=yes
 
 [Files]
 Source: "install-child.ps1"; DestDir: "{tmp}\DrReveloHistoria"; Flags: deleteafterinstall
-Source: "build\python-3.11.9-amd64.exe"; DestDir: "{tmp}\DrReveloHistoria"; Flags: deleteafterinstall
+Source: "{#PythonRuntime}\*"; DestDir: "{tmp}\DrReveloHistoria\python-runtime"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "build\wheelhouse\*"; DestDir: "{tmp}\DrReveloHistoria\wheelhouse"; Flags: recursesubdirs createallsubdirs deleteafterinstall
 Source: "build\historia\requirements.txt"; DestDir: "{tmp}\DrReveloHistoria"; DestName: "requirements.txt"; Flags: deleteafterinstall
 Source: "build\historia\payload\*"; DestDir: "{tmp}\DrReveloHistoria\payload"; Flags: recursesubdirs createallsubdirs deleteafterinstall
@@ -36,7 +37,7 @@ Source: "uninstall-child.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\historia\managed-files.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\uninstall-child.ps1"" -App Historia -ManifestPath ""{app}\managed-files.txt"""; Flags: runhidden waituntilterminated
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\uninstall-child.ps1"" -App Historia -ManifestPath ""{app}\managed-files.txt"""; Flags: runhidden waituntilterminated; RunOnceId: "HistoriaCleanup"
 
 [Code]
 var
