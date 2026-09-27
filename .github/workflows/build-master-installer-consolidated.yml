@@ -1,0 +1,235 @@
+name: Build Master Installer Consolidated
+
+on:
+  push:
+    branches: [build/master-installer-consolidated]
+    paths:
+      - "master-installer/final/**"
+      - ".github/workflows/build-master-installer-consolidated.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: |
+          foreach ($file in @('master-installer/final/install-child.ps1','master-installer/final/uninstall-child.ps1')) {
+            $tokens = $null; $errors = $null
+            $text = Get-Content $file -Raw
+            [void][System.Management.Automation.Language.Parser]::ParseInput($text,[ref]$tokens,[ref]$errors)
+            if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; throw "PowerShell invalido: $file" }
+          }
+          Write-Host 'POWERSHELL_PARSE_OK'
+
+      - name: Stage consolidated applications and guard versions
+        shell: pwsh
+        run: |
+          $root = 'master-installer/final'
+          $build = "$root/build"
+          Remove-Item $build -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force "$build/reception/payload","$build/historia/payload","$build/wheelhouse","$root/output" | Out-Null
+
+          Copy-Item 'recepcion/app/*' "$build/reception/payload" -Recurse -Force
+          Copy-Item 'historia-clinica/app/*' "$build/historia/payload" -Recurse -Force
+          Copy-Item 'master-installer/definitive/requirements-recepcion.txt' "$build/reception/requirements.txt" -Force
+          Copy-Item 'historia-clinica/app/requirements.txt' "$build/historia/requirements.txt" -Force
+
+          foreach ($payload in @("$build/reception/payload","$build/historia/payload")) {
+            Remove-Item (Join-Path $payload '.env') -Force -ErrorAction SilentlyContinue
+            Remove-Item (Join-Path $payload 'data') -Recurse -Force -ErrorAction SilentlyContinue
+            $badFiles = @(Get-ChildItem $payload -Recurse -File -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue)
+            if ($badFiles.Count -gt 0) { throw "Se detectaron archivos app_patch_* en $payload" }
+            $badImports = @(Get-ChildItem $payload -Recurse -File -Filter '*.py' | Select-String -Pattern '(?m)^\s*(from|import)\s+app_patch_\d+')
+            if ($badImports.Count -gt 0) { throw "Se detectaron imports app_patch_* en $payload" }
+          }
+
+          $rv = (Get-Content "$build/reception/payload/recepcion-version.json" -Raw | ConvertFrom-Json).version
+          $hv = (Get-Content "$build/historia/payload/historia-version.json" -Raw | ConvertFrom-Json).version
+          if ($rv -ne '4.6.7') { throw "Recepcion inesperada: $rv" }
+          if ($hv -ne '1.3.73') { throw "Historia inesperada: $hv" }
+
+          foreach ($pair in @(@('reception',"$build/reception/payload"),@('historia',"$build/historia/payload"))) {
+            $name = $pair[0]; $payload = (Resolve-Path $pair[1]).Path
+            Get-ChildItem $payload -Recurse -File | ForEach-Object {
+              $_.FullName.Substring($payload.Length + 1)
+            } | Sort-Object -Unique | Set-Content "$build/$name/managed-files.txt" -Encoding utf8
+          }
+          Write-Host "CANONICAL_SOURCES_OK reception=$rv historia=$hv"
+
+      - name: Download and verify Python 3.11
+        shell: pwsh
+        run: |
+          $dst = 'master-installer/final/build/python-3.11.9-amd64.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile $dst
+          $sig = Get-AuthenticodeSignature $dst
+          if ($sig.Status -ne 'Valid') { throw "Firma de Python invalida: $($sig.Status)" }
+          if ($sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') { throw 'Python no esta firmado por Python Software Foundation.' }
+          Write-Host 'PYTHON_SIGNATURE_OK'
+
+      - name: Build offline wheelhouse
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --upgrade pip wheel
+          python -m pip wheel --disable-pip-version-check --wheel-dir 'master-installer/final/build/wheelhouse' -r 'master-installer/final/build/reception/requirements.txt' -r 'master-installer/final/build/historia/requirements.txt'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $count = @(Get-ChildItem 'master-installer/final/build/wheelhouse' -File).Count
+          if ($count -lt 6) { throw "Wheelhouse demasiado pequeno: $count" }
+          Write-Host "WHEELHOUSE_OK files=$count"
+
+      - name: Download verified launchers
+        shell: pwsh
+        run: |
+          $items = @(
+            @{ Url='https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe'; File='master-installer/final/build/reception/launcher-setup.exe'; Sha='9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0' },
+            @{ Url='https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe'; File='master-installer/final/build/historia/launcher-setup.exe'; Sha='7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0a04c13a2cc6' }
+          )
+          foreach ($item in $items) {
+            Invoke-WebRequest -UseBasicParsing -Uri $item.Url -OutFile $item.File
+            $got = (Get-FileHash $item.File -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($got -ne $item.Sha) { throw "SHA-256 incorrecto para $($item.File): $got" }
+          }
+          Write-Host 'LAUNCHERS_SHA256_OK'
+
+      - name: Generate installer icon
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $bmp = New-Object System.Drawing.Bitmap 64,64
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+          $g.Clear([System.Drawing.Color]::FromArgb(27,61,91))
+          $font = New-Object System.Drawing.Font('Segoe UI',22,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+          $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
+          $fmt = New-Object System.Drawing.StringFormat
+          $fmt.Alignment = [System.Drawing.StringAlignment]::Center
+          $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
+          $g.DrawString('DR',$font,$brush,[System.Drawing.RectangleF]::new(0,0,64,64),$fmt)
+          $h = $bmp.GetHicon(); $ico = [System.Drawing.Icon]::FromHandle($h)
+          $fs = [IO.File]::Create('master-installer/final/build/consultorio_icon.ico')
+          try { $ico.Save($fs) } finally { $fs.Dispose() }
+          $ico.Dispose(); $fmt.Dispose(); $brush.Dispose(); $font.Dispose(); $g.Dispose(); $bmp.Dispose()
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compile two child installers and master
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe no encontrado.' }
+          Push-Location 'master-installer/final'
+          try {
+            & $iscc 'RecepcionDrRevelo.iss'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $iscc 'HistoriaClinicaDrRevelo.iss'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $iscc 'ConsultorioDrReveloMaster.iss'; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally { Pop-Location }
+          foreach ($file in @('master-installer/final/output/INSTALAR_RECEPCION_DR_REVELO_4_6_7.exe','master-installer/final/output/INSTALAR_HISTORIA_CLINICA_DR_REVELO_1_3_73.exe','master-installer/final/output/INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe')) {
+            if (-not (Test-Path $file)) { throw "No se genero $file" }
+          }
+          Write-Host 'INNO_BUILD_OK'
+
+      - name: Test clean master install and independent uninstallers
+        shell: pwsh
+        run: |
+          Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo' -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "$env:ProgramFiles\Consultorio Dr Revelo\Recepcion","$env:ProgramFiles\Consultorio Dr Revelo\Historia Clinica" -Recurse -Force -ErrorAction SilentlyContinue
+
+          $out = (Resolve-Path 'master-installer/final/output').Path
+          @'
+          DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
+          HISTORIA_DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
+          MOBILE_DOCTOR_TOKEN=dummy-doctor-token
+          MOBILE_RECEPTION_TOKEN=dummy-reception-token
+          AZUR_API_KEY=dummy-azur-key
+          '@ | Set-Content (Join-Path $out 'consultorio.private.env') -Encoding utf8
+
+          $master = Join-Path $out 'INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe'
+          $p = Start-Process -FilePath $master -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/TYPE=full' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Instalacion maestra fallo: $($p.ExitCode)" }
+
+          foreach ($path in @('C:\Recepcion Dr Revelo\app.py','C:\Recepcion Dr Revelo\.venv\Scripts\pythonw.exe','C:\Historia Clinica Dr Revelo\app.py','C:\Historia Clinica Dr Revelo\.venv\Scripts\pythonw.exe')) {
+            if (-not (Test-Path $path)) { throw "Falta tras instalar: $path" }
+          }
+          $rUnins = "$env:ProgramFiles\Consultorio Dr Revelo\Recepcion\unins000.exe"
+          $hUnins = "$env:ProgramFiles\Consultorio Dr Revelo\Historia Clinica\unins000.exe"
+          if (-not (Test-Path $rUnins)) { throw 'Falta desinstalador independiente de Recepcion.' }
+          if (-not (Test-Path $hUnins)) { throw 'Falta desinstalador independiente de Historia.' }
+
+          $entries = @()
+          foreach ($key in @('HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')) {
+            $entries += Get-ItemProperty $key -ErrorAction SilentlyContinue
+          }
+          if (-not ($entries | Where-Object DisplayName -eq 'Recepción Dr. Armando Revelo')) { throw 'Recepcion no aparece como producto desinstalable.' }
+          if (-not ($entries | Where-Object DisplayName -eq 'Historia Clínica Dr. Armando Revelo')) { throw 'Historia no aparece como producto desinstalable.' }
+
+          New-Item -ItemType Directory -Force 'C:\Recepcion Dr Revelo\data','C:\Historia Clinica Dr Revelo\data' | Out-Null
+          'KEEP_RECEPTION' | Set-Content 'C:\Recepcion Dr Revelo\data\installer-preserve.txt'
+          'KEEP_HISTORIA' | Set-Content 'C:\Historia Clinica Dr Revelo\data\installer-preserve.txt'
+          $rEnvHash = (Get-FileHash 'C:\Recepcion Dr Revelo\.env' -Algorithm SHA256).Hash
+          $hEnvHash = (Get-FileHash 'C:\Historia Clinica Dr Revelo\.env' -Algorithm SHA256).Hash
+
+          $p = Start-Process -FilePath $rUnins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Desinstalar Recepcion fallo: $($p.ExitCode)" }
+          if (Test-Path 'C:\Recepcion Dr Revelo\app.py') { throw 'El codigo de Recepcion quedo instalado.' }
+          if ((Get-Content 'C:\Recepcion Dr Revelo\data\installer-preserve.txt' -Raw).Trim() -ne 'KEEP_RECEPTION') { throw 'Desinstalar Recepcion borro sus datos.' }
+          if ((Get-FileHash 'C:\Recepcion Dr Revelo\.env' -Algorithm SHA256).Hash -ne $rEnvHash) { throw 'Desinstalar Recepcion modifico .env.' }
+          if (-not (Test-Path 'C:\Historia Clinica Dr Revelo\app.py')) { throw 'Desinstalar Recepcion afecto Historia.' }
+          if ((Get-FileHash 'C:\Historia Clinica Dr Revelo\.env' -Algorithm SHA256).Hash -ne $hEnvHash) { throw 'Desinstalar Recepcion afecto .env de Historia.' }
+
+          $p = Start-Process -FilePath $hUnins -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Desinstalar Historia fallo: $($p.ExitCode)" }
+          if (Test-Path 'C:\Historia Clinica Dr Revelo\app.py') { throw 'El codigo de Historia quedo instalado.' }
+          if ((Get-Content 'C:\Historia Clinica Dr Revelo\data\installer-preserve.txt' -Raw).Trim() -ne 'KEEP_HISTORIA') { throw 'Desinstalar Historia borro sus datos.' }
+          Write-Host 'INDEPENDENT_UNINSTALLERS_OK'
+
+      - name: Verify no private configuration is embedded
+        shell: pwsh
+        run: |
+          $master = 'master-installer/final/output/INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe'
+          $bytes = [IO.File]::ReadAllBytes($master)
+          $ascii = [Text.Encoding]::ASCII.GetString($bytes)
+          foreach ($needle in @('postgresql://dummy:dummy','dummy-doctor-token','DRREVELO_PRIVATE_CONFIG_V1')) {
+            if ($ascii.Contains($needle)) { throw "El instalador contiene configuracion privada: $needle" }
+          }
+          Remove-Item 'master-installer/final/output/consultorio.private.env' -Force -ErrorAction SilentlyContinue
+          $hash = (Get-FileHash $master -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe" | Set-Content 'master-installer/final/output/SHA256SUMS.txt' -Encoding ascii
+          $manifest = [ordered]@{
+            masterVersion='3.0.0'
+            receptionVersion='4.6.7'
+            historiaVersion='1.3.73'
+            receptionUninstaller='independent'
+            historiaUninstaller='independent'
+            privateConfigEmbedded=$false
+            sha256=$hash
+            sourceCommit='${{ github.sha }}'
+          }
+          $manifest | ConvertTo-Json | Set-Content 'master-installer/final/output/BUILD-MANIFEST.json' -Encoding utf8
+          Write-Host "MASTER_INSTALLER_OK sha256=$hash"
+
+      - name: Upload master installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Consultorio-Dr-Revelo-Instalador-Maestro
+          path: |
+            master-installer/final/output/INSTALAR_CONSULTORIO_DR_REVELO_MAESTRO.exe
+            master-installer/final/output/SHA256SUMS.txt
+            master-installer/final/output/BUILD-MANIFEST.json
+          if-no-files-found: error
+          retention-days: 30
