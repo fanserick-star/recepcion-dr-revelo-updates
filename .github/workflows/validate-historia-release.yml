@@ -1,16 +1,26 @@
-name: Validate Historia Active Release Sources
+name: Validate Historia Canonical Source
 
 on:
   push:
-    branches: [main]
+    branches: [main, cleanup/historia-canonical-source]
     paths:
-      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - "historia-clinica/app/**"
       - "historia-clinica/updates/**"
+      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - "releases/historia/**"
+      - "tools/test_historia_canonical_source.py"
+      - "tools/validate_historia_runtime.py"
+      - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
   pull_request:
     paths:
-      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - "historia-clinica/app/**"
       - "historia-clinica/updates/**"
+      - "historia-clinica/launcher-v1/app-channel-source.json"
+      - "releases/historia/**"
+      - "tools/test_historia_canonical_source.py"
+      - "tools/validate_historia_runtime.py"
+      - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
   workflow_dispatch:
 
@@ -22,70 +32,38 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Validate active release source and clinical guards
-        shell: bash
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Enforce canonical source and frozen history
         run: |
-          set -euo pipefail
+          python tools/test_historia_canonical_source.py
+
+      - name: Validate current clinical runtime
+        run: |
+          python tools/validate_historia_runtime.py historia-clinica/app
+
+      - name: Dry-run canonical channel generation
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          cp historia-clinica/launcher-v1/app-channel.json /tmp/historia-channel-before.json
+          python tools/build_historia_app_channel.py --commit "$RELEASE_SHA" --repository "$REPOSITORY"
           python - <<'PY'
+          import json
           from pathlib import Path
-          import ast,json,re
-
-          root=Path('.')
-          src=json.loads((root/'historia-clinica/launcher-v1/app-channel-source.json').read_text(encoding='utf-8'))
-          version=str(src['appVersion']).strip()
-          assert src['product']=='historia-clinica-dr-revelo'
-          assert src['mandatory'] is True
-
-          payload={}
-          for item in src['files']:
-            paths=item.get('sourcePaths') or [item['sourcePath']]
-            data=b''.join((root/p).read_bytes() for p in paths)
-            payload[item['path']]=data
-
-          ver=json.loads(payload['historia-version.json'].decode('utf-8-sig'))['version']
-          manifest=json.loads(payload['update_manifest.json'].decode('utf-8-sig'))
-          assert str(ver)==version
-          for key in ('version','app_version','runtime_version'):
-            assert str(manifest[key])==version,(key,manifest[key],version)
-          assert manifest['version_source']=='historia-version.json'
-          assert manifest['mandatory'] is True
-          assert set(manifest.get('required_dependencies') or []) <= set(payload)
-
-          for name,data in payload.items():
-            if name.endswith('.py'):
-              compile(data.decode('utf-8-sig'),name,'exec')
-
-          app=payload['app.py'].decode('utf-8-sig')
-          cloud=payload['cloud_sync.py'].decode('utf-8-sig')
-          docs=payload['documentos_clinicos.py'].decode('utf-8-sig')
-          assert 'VERSION_PATH = ROOT / "historia-version.json"' in app
-          assert 'HISTORIA_DATABASE_URL' in cloud
-          assert 'HISTORIA_NEON_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"' in cloud
-          assert 'HISTORIA_CLOUD_IDENTITY = "historia-clinica-dr-revelo"' in cloud
-          assert 'CLOUD_SCHEMA = "public"' in cloud
-          assert 'ON CONFLICT DO NOTHING' in cloud
-          assert 'conn.commit()' in app
-          assert 'cleanup_cancelled_queue_drafts' in app
-          assert 'merge_safe_duplicate_patients' in app
-          assert '_ensure_official_doctor_logo' in docs
-
-          if 'static/style.css' in payload:
-            css=payload['static/style.css'].decode('utf-8-sig')
-            assert css.count('/*')==css.count('*/')
-            assert css.count('{')==css.count('}')
-
-          def vt(v):
-            nums=[int(x) for x in re.findall(r'\d+',v)[:3]]
-            return tuple((nums+[0,0,0])[:3])
-          if vt(version)>=(1,3,66):
-            notes=manifest.get('notes') or {}
-            assert notes.get('runtime_consolidated') is True
-            assert notes.get('self_contained_update') is True
-            assert notes.get('external_historical_parts_required') is False
-            assert all(not item.get('sourcePaths') for item in src['files'])
-
-          print('ACTIVE_RELEASE_OK',version)
-          print('CLINICAL_GUARDS_OK')
-          print('NEON_ISOLATION_OK')
+          channel=json.loads(Path('historia-clinica/launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          source=json.loads(Path('historia-clinica/launcher-v1/app-channel-source.json').read_text(encoding='utf-8-sig'))
+          version=json.loads(Path('historia-clinica/app/historia-version.json').read_text(encoding='utf-8-sig'))['version']
+          assert channel['product']==source['product']=='historia-clinica-dr-revelo'
+          assert str(channel['appVersion'])==str(version)
+          assert channel['mandatory'] is True
+          assert all('/historia-clinica/app/' in item['url'] for item in channel['files'])
+          assert all('updates/' not in item['url'] for item in channel['files'])
+          print('CANONICAL_CHANNEL_DRY_RUN_OK',version,'files',len(channel['files']))
           PY

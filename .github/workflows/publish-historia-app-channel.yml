@@ -4,8 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "historia-clinica/launcher-v1/app-channel-source.json"
-      - ".github/workflows/publish-historia-app-channel.yml"
+      - "historia-clinica/app/historia-version.json"
   workflow_dispatch:
 
 permissions:
@@ -19,130 +18,55 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate channel from exact Git blobs
-        shell: bash
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Enforce canonical Historia source
+        run: |
+          python tools/test_historia_canonical_source.py
+          python tools/validate_historia_runtime.py historia-clinica/app
+
+      - name: Generate channel from exact canonical Git blobs
         env:
           RELEASE_SHA: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          import hashlib,json,os,re,subprocess
-          from pathlib import Path
-
-          root=Path('.')
-          source_path=root/'historia-clinica/launcher-v1/app-channel-source.json'
-          output_path=root/'historia-clinica/launcher-v1/app-channel.json'
-          src=json.loads(source_path.read_text(encoding='utf-8'))
-          sha=os.environ['RELEASE_SHA']; repo=os.environ['REPOSITORY']
-
-          protected_prefixes=('data/','backups/','update_backups/')
-          protected_suffixes=('.db','.sqlite','.sqlite3','.mdb','.accdb','.xls','.xlsx')
-          protected_exact={'.env','historiaclinicalauncher.exe','historialauncherupdater.exe','desinstalar_historia_clinica_dr_revelo.exe','abrir_historia_clinica.py','iniciar.bat'}
-
-          generated=[]; payloads={}
-          targets=[]
-          for item in src['files']:
-            target=item['path'].replace('\\','/').strip(); low=target.lower()
-            assert target and not target.startswith('/') and '..' not in target.split('/'),target
-            assert not low.startswith(protected_prefixes),target
-            assert low not in protected_exact,target
-            assert not low.endswith(protected_suffixes),target
-            assert target not in targets,'Ruta duplicada: '+target
-            targets.append(target)
-
-            paths=list(item.get('sourcePaths') or [item['sourcePath']])
-            chunks=[]; urls=[]
-            for source in paths:
-              blob=subprocess.check_output(['git','show',f'{sha}:{source}'])
-              chunks.append(blob)
-              urls.append(f'https://raw.githubusercontent.com/{repo}/{sha}/{source}')
-            payload=b''.join(chunks)
-            payloads[target]=payload
-            row={'path':target,'sha256':hashlib.sha256(payload).hexdigest()}
-            if len(urls)==1: row['url']=urls[0]
-            else: row['parts']=urls
-            generated.append(row)
-            print(target,len(payload),row['sha256'])
-
-          version=str(json.loads(payloads['historia-version.json'].decode('utf-8-sig'))['version']).strip()
-          assert version==str(src['appVersion']).strip(),(version,src['appVersion'])
-          manifest=json.loads(payloads['update_manifest.json'].decode('utf-8-sig'))
-          for key in ('version','app_version','runtime_version'):
-            assert str(manifest.get(key,'')).strip()==version,(key,manifest.get(key),version)
-          assert manifest.get('mandatory') is True
-          assert str(manifest.get('launcher_minimum','')).strip()==str(src['minimumLauncher'])
-          assert manifest.get('version_source')=='historia-version.json'
-
-          target_set=set(targets)
-          missing=set(manifest.get('required_dependencies') or [])-target_set
-          assert not missing,'Dependencias fuera del canal: '+', '.join(sorted(missing))
-
-          for name,payload in payloads.items():
-            if name.endswith('.py'):
-              compile(payload.decode('utf-8-sig'),name,'exec')
-              print('syntax OK',name)
-
-          def vt(v):
-            nums=[int(x) for x in re.findall(r'\d+',str(v))[:3]]
-            return tuple((nums+[0,0,0])[:3])
-          if vt(version)>=(1,3,66):
-            required={
-              'app.py','cloud_sync.py','cloud_presence_patch.py','lan_bridge.py',
-              'documentos_clinicos.py','requirements.txt','static/style.css',
-              'static/doctor_icon.b64','historia-version.json','update_manifest.json'
-            }
-            assert target_set==required,(target_set,required)
-            for item in src['files']:
-              assert not item.get('sourcePaths'),f"{item['path']} volvió a ensamblarse por fragmentos"
-            notes=manifest.get('notes') or {}
-            assert notes.get('runtime_consolidated') is True
-            assert notes.get('self_contained_update') is True
-            assert notes.get('external_historical_parts_required') is False
-
-          channel={
-            'schema':3,'product':src['product'],'status':src.get('status','stable'),
-            'appVersion':version,'mandatory':bool(src['mandatory']),
-            'minimumLauncher':str(src['minimumLauncher']),
-            'notes':src.get('notes','')+' Canal generado automáticamente desde blobs Git exactos; SHA-256 no se edita a mano.',
-            'generatedFromCommit':sha,'files':generated,
-          }
-          output_path.write_text(json.dumps(channel,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
-          print('Generated',output_path)
-          PY
+          python tools/build_historia_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$REPOSITORY"
 
       - name: Re-download generated channel and verify exact Raw bytes
-        shell: pwsh
+        env:
+          VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          $ErrorActionPreference = "Stop"
-          $channel = Get-Content "historia-clinica/launcher-v1/app-channel.json" -Raw | ConvertFrom-Json
-          Remove-Item "channel_verify" -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force "channel_verify" | Out-Null
-          foreach ($item in $channel.files) {
-            $dest = Join-Path "channel_verify" ($item.path -replace '/','_')
-            if ($item.parts -and $item.parts.Count -gt 0) {
-              $stream = [IO.File]::Open($dest,[IO.FileMode]::Create)
-              try {
-                foreach ($url in $item.parts) {
-                  $tmp=[IO.Path]::GetTempFileName()
-                  try {
-                    Invoke-WebRequest -Uri ($url + "?verify=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $tmp -Headers @{"Cache-Control"="no-cache"}
-                    $bytes=[IO.File]::ReadAllBytes($tmp); $stream.Write($bytes,0,$bytes.Length)
-                  } finally { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
-                }
-              } finally { $stream.Dispose() }
-            } else {
-              Invoke-WebRequest -Uri ($item.url + "?verify=" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile $dest -Headers @{"Cache-Control"="no-cache"}
-            }
-            $got=(Get-FileHash $dest -Algorithm SHA256).Hash.ToLowerInvariant()
-            if($got -ne $item.sha256){ throw "$($item.path): SHA real=$got canal=$($item.sha256)" }
-            Write-Host "RAW OK $($item.path) $got"
-          }
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+
+          channel = json.loads(pathlib.Path('historia-clinica/launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          out = pathlib.Path('channel_verify_historia')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+          nonce = os.environ.get('VERIFY_NONCE', 'verify')
+
+          for item in channel['files']:
+              rel = str(item['path']).replace('\\', '/')
+              dest = out / rel
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              url = item['url'] + ('&' if '?' in item['url'] else '?') + 'verify=' + nonce
+              req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = response.read()
+              got = hashlib.sha256(payload).hexdigest()
+              assert got == item['sha256'], (rel, got, item['sha256'])
+              dest.write_bytes(payload)
+              print('RAW OK', rel, got)
+          PY
+          python tools/validate_historia_runtime.py channel_verify_historia
 
       - name: Publish only after all validation passed
-        shell: bash
+        if: github.ref == 'refs/heads/main'
         run: |
-          set -euo pipefail
           if git diff --quiet -- historia-clinica/launcher-v1/app-channel.json; then
             echo "Channel already matches generated output."
             exit 0
