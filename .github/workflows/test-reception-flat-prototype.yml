@@ -1,5 +1,5 @@
 name: Test Reception Flat Prototype
-# rerun: dynamic historical lookups use the consolidated layer registry
+# rerun: sys.modules lookups now use the consolidated resolver, including variable names
 
 on:
   push:
