@@ -3,11 +3,11 @@ from __future__ import annotations
 """Turn the flat Reception candidate into a semantic runtime.
 
 The first flattening pass already extracts the embedded releases into physical
-feature modules.  This second pass removes the remaining executable release
+feature modules. This second pass removes the remaining executable release
 registry (`app_patch_*`, `_rf_layers` and `.previous` walks) and replaces it with
 ordinary imports between modules named by function.
 
-Only refactor_build/reception_flat_466 is changed.  Production is never touched.
+Only refactor_build/reception_flat_466 is changed. Production is never touched.
 """
 
 import ast
@@ -25,9 +25,9 @@ def _load_runtime_map() -> tuple[dict[str, str], dict]:
     mapping = {"app_base_4428": "core_runtime"}
     mapping.update({str(k): str(v) for k, v in (meta.get("feature_modules") or {}).items()})
 
-    # Three historical releases were already proven to be version-only aliases
-    # and therefore have no generated physical module. Resolve them to the real
-    # semantic implementation they alias.
+    # These releases were already proven to be version-only aliases by the
+    # first flattening pass. Point their historical names at the real semantic
+    # implementation so later dynamic lookups keep identical behavior.
     aliases = {str(k): str(v) for k, v in (meta.get("removed_release_only_layers") or {}).items()}
     for key in aliases:
         target = aliases[key]
@@ -42,7 +42,7 @@ def _load_runtime_map() -> tuple[dict[str, str], dict]:
 
 
 HIST_TO_MODULE, BUILD_META = _load_runtime_map()
-STABLE_MODULES = set(HIST_TO_MODULE.values())
+PRIMARY_PREVIOUS: dict[str, str] = {}
 
 
 def _layer_key(node: ast.AST) -> str | None:
@@ -57,6 +57,30 @@ def _layer_key(node: ast.AST) -> str | None:
     if isinstance(key, ast.Constant) and isinstance(key.value, str) and key.value in HIST_TO_MODULE:
         return key.value
     return None
+
+
+def _scan_primary_previous() -> dict[str, str]:
+    """Read each generated feature's real predecessor before rewriting it.
+
+    The first flattening pass already collapses release-only aliases. Therefore
+    following this semantic-module predecessor map reproduces the exact object
+    reached by old expressions such as `previous.previous` without keeping a
+    runtime linked list of releases.
+    """
+    out: dict[str, str] = {}
+    for path in sorted(OUT.glob("reception_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+        for node in tree.body:
+            if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+                continue
+            target = node.targets[0]
+            if not isinstance(target, ast.Name) or target.id != "previous":
+                continue
+            hist = _layer_key(node.value)
+            if hist:
+                out[path.stem] = hist
+                break
+    return out
 
 
 def _historical_getattr(node: ast.AST) -> tuple[str, str] | None:
@@ -86,6 +110,57 @@ def _semantic_alias(old: str, module: str) -> str:
     if old == "previous" or old.startswith("_rf_alias_"):
         return "_dep_" + re.sub(r"\W+", "_", module.removeprefix("reception_"))
     return old
+
+
+def _attribute_chain(node: ast.AST) -> tuple[ast.AST, list[str]]:
+    attrs: list[str] = []
+    current = node
+    while isinstance(current, ast.Attribute):
+        attrs.append(current.attr)
+        current = current.value
+    attrs.reverse()
+    return current, attrs
+
+
+class ReplacePreviousAttributeChains(ast.NodeTransformer):
+    """Resolve `alias.previous[.previous...]` to direct semantic imports.
+
+    Old patches sometimes reached back multiple releases to replace a renderer
+    or helper. Removing the linked list must preserve that mutation, so the
+    target module is computed at build time instead of navigated at runtime.
+    """
+
+    def __init__(self, alias_targets: dict[str, str], imports: dict[str, str]):
+        self.alias_targets = alias_targets
+        self.imports = imports
+
+    def visit_Attribute(self, node: ast.Attribute):
+        root, attrs = _attribute_chain(node)
+        if not isinstance(root, ast.Name) or root.id not in self.alias_targets:
+            return self.generic_visit(node)
+        if not attrs or attrs[0] != "previous":
+            return self.generic_visit(node)
+
+        current_hist = self.alias_targets[root.id]
+        current_module = HIST_TO_MODULE[current_hist]
+        index = 0
+        while index < len(attrs) and attrs[index] == "previous":
+            previous_hist = PRIMARY_PREVIOUS.get(current_module)
+            if not previous_hist:
+                raise RuntimeError(
+                    f"No se puede resolver {root.id}{'.previous' * (index + 1)}: "
+                    f"{current_module} no declara predecesor"
+                )
+            current_hist = previous_hist
+            current_module = HIST_TO_MODULE[current_hist]
+            index += 1
+
+        alias = "_dep_chain_" + re.sub(r"\W+", "_", current_module.removeprefix("reception_"))
+        self.imports[alias] = current_module
+        replacement: ast.expr = ast.Name(id=alias, ctx=ast.Load())
+        for attr in attrs[index:]:
+            replacement = ast.Attribute(value=replacement, attr=attr, ctx=ast.Load())
+        return ast.copy_location(replacement, node)
 
 
 class RenameNames(ast.NodeTransformer):
@@ -149,6 +224,7 @@ def _rewrite_python(path: Path) -> dict:
     source = path.read_text(encoding="utf-8-sig")
     tree = ast.parse(source, filename=str(path))
 
+    alias_targets: dict[str, str] = {}
     alias_renames: dict[str, str] = {}
     direct_imports: dict[str, str] = {}
     body: list[ast.stmt] = []
@@ -176,6 +252,7 @@ def _rewrite_python(path: Path) -> dict:
             hist = _layer_key(node.value)
             if hist:
                 module = HIST_TO_MODULE[hist]
+                alias_targets[target] = hist
                 alias = _semantic_alias(target, module)
                 alias_renames[target] = alias
                 direct_imports[alias] = module
@@ -200,6 +277,11 @@ def _rewrite_python(path: Path) -> dict:
         body.append(node)
 
     tree.body = body
+
+    # Resolve deep predecessor mutations while their original alias names are
+    # still available, then rename ordinary aliases to semantic names.
+    tree = ReplacePreviousAttributeChains(alias_targets, direct_imports).visit(tree)
+    ast.fix_missing_locations(tree)
     if alias_renames:
         tree = RenameNames(alias_renames).visit(tree)
         ast.fix_missing_locations(tree)
@@ -229,6 +311,7 @@ def _rewrite_python(path: Path) -> dict:
         "file": path.name,
         "semantic_imports": sorted(set(direct_imports.values())),
         "renamed_aliases": alias_renames,
+        "legacy_alias_targets": alias_targets,
     }
 
 
@@ -313,6 +396,8 @@ def main() -> None:
     if not OUT.is_dir() or not META.is_file():
         raise SystemExit("Primero ejecute tools/build_reception_flat_prototype.py")
 
+    PRIMARY_PREVIOUS.update(_scan_primary_previous())
+
     reports = []
     for path in [OUT / "app.py", *sorted(OUT.glob("reception_*.py"))]:
         reports.append(_rewrite_python(path))
@@ -329,6 +414,7 @@ def main() -> None:
             "historical_runtime_layer_count": 0,
             "previous_release_chain": False,
             "semantic_startup_modules": modules,
+            "semantic_previous_targets_materialized": PRIMARY_PREVIOUS,
             "semantic_rewrite_files": reports,
         }
     )
@@ -338,6 +424,7 @@ def main() -> None:
     print("feature modules", len(modules))
     print("legacy executable layers", 0)
     print("previous release chain", False)
+    print("materialized predecessor targets", len(PRIMARY_PREVIOUS))
 
 
 if __name__ == "__main__":
