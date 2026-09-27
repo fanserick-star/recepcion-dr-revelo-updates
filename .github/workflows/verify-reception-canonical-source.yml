@@ -83,7 +83,39 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
-      - name: Prove 4.6.7 canonical tree matches published source snapshot
+      - name: Dry-run canonical channel build
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          test "$(git rev-parse HEAD:recepcion/app)" = "$(git rev-parse HEAD:updates/v4_6_7_consolidated_runtime)"
-          echo "Canonical 4.6.7 tree is byte-identical to the verified historical snapshot."
+          python tools/build_reception_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$REPOSITORY" \
+            --output /tmp/canonical-channel.json
+          python - <<'PY'
+          import json, pathlib, subprocess
+
+          generated = json.loads(pathlib.Path('/tmp/canonical-channel.json').read_text(encoding='utf-8'))
+          version = str(generated.get('appVersion') or '').strip()
+          assert version
+
+          if version == '4.6.7':
+              current = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+              assert str(current.get('appVersion') or '').strip() == version
+              assert current.get('minimumLauncher') == generated.get('minimumLauncher')
+              got = {x['path']: x['sha256'] for x in generated.get('files', [])}
+              old = {x['path']: x['sha256'] for x in current.get('files', [])}
+              assert got == old, 'La fuente canónica 4.6.7 no coincide byte por byte con el canal estable'
+              canonical_tree = subprocess.check_output(
+                  ['git','rev-parse','HEAD:recepcion/app'], text=True
+              ).strip()
+              migration_tree = subprocess.check_output(
+                  ['git','rev-parse','HEAD:updates/v4_6_7_consolidated_runtime'], text=True
+              ).strip()
+              assert canonical_tree == migration_tree, (
+                  canonical_tree, migration_tree
+              )
+              print('Migration 4.6.7 byte identity OK')
+          else:
+              print('Canonical dry-run OK for future version', version)
+          PY
