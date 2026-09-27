@@ -1,0 +1,39 @@
+name: Test Reception Flat Prototype
+
+on:
+  push:
+    branches:
+      - refactor/reception-definitive-runtime
+    paths:
+      - tools/build_reception_flat_prototype.py
+      - tools/test_reception_flat_prototype.py
+      - .github/workflows/test-reception-flat-prototype.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  flat-equivalence:
+    runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install runtime dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check --quiet fastapi uvicorn sqlalchemy python-dotenv pg8000 python-multipart requests openpyxl
+
+      - name: Build flat prototype
+        shell: pwsh
+        run: python tools/build_reception_flat_prototype.py
+
+      - name: Compare exact runtime contracts and functional flow
+        shell: pwsh
+        run: python tools/test_reception_flat_prototype.py
