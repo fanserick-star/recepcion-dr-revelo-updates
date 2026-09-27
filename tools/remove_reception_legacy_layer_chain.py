@@ -315,6 +315,26 @@ def _rewrite_python(path: Path) -> dict:
     }
 
 
+def _current_app_version() -> str:
+    """Read the definitive version from the rewritten top-level app.
+
+    Historically this value was propagated by walking every `.previous` link.
+    The semantic runtime has no linked list, so startup applies the same final
+    value directly to the modules that own endpoint globals.
+    """
+    path = OUT / "app.py"
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if not isinstance(target, ast.Name) or target.id != "APP_VERSION":
+            continue
+        if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            return node.value.value
+    raise RuntimeError("No se encontró APP_VERSION final en app.py")
+
+
 def _rewrite_features_runtime() -> list[str]:
     path = OUT / "features_runtime.py"
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
@@ -326,15 +346,23 @@ def _rewrite_features_runtime() -> list[str]:
             if item.name.startswith("reception_") and item.name not in modules:
                 modules.append(item.name)
 
+    current_version = _current_app_version()
     text = [
         "from __future__ import annotations",
         "",
         "# Deterministic current runtime. No historical release registry.",
+        "import core_runtime",
         *[f"import {name}" for name in modules],
         "",
         "FEATURE_MODULES = (",
         *[f"    {name}," for name in modules],
         ")",
+        "",
+        f"CURRENT_APP_VERSION = {current_version!r}",
+        "core_runtime.APP_VERSION = CURRENT_APP_VERSION",
+        "for _feature_module in FEATURE_MODULES:",
+        "    _feature_module.APP_VERSION = CURRENT_APP_VERSION",
+        "del _feature_module",
         "",
     ]
     path.write_text("\n".join(text), encoding="utf-8", newline="\n")
@@ -414,6 +442,7 @@ def main() -> None:
             "historical_runtime_layer_count": 0,
             "previous_release_chain": False,
             "semantic_startup_modules": modules,
+            "semantic_current_version": _current_app_version(),
             "semantic_previous_targets_materialized": PRIMARY_PREVIOUS,
             "semantic_rewrite_files": reports,
         }
@@ -424,6 +453,7 @@ def main() -> None:
     print("feature modules", len(modules))
     print("legacy executable layers", 0)
     print("previous release chain", False)
+    print("current version propagated directly", _current_app_version())
     print("materialized predecessor targets", len(PRIMARY_PREVIOUS))
 
 
