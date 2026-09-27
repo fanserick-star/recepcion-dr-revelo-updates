@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "historia-clinica/launcher-v1/**"
+      - "historia-clinica/app/historia-version.json"
+      - "historia-clinica/app/update_manifest.json"
       - ".github/workflows/validate-historia-launcher-v1.yml"
   workflow_dispatch:
 
@@ -17,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate launcher and channels dynamically
+      - name: Validate launcher and canonical app source dynamically
         shell: bash
         run: |
           set -euo pipefail
@@ -26,9 +28,12 @@ jobs:
           import json,re
           root=Path('.')
           base=root/'historia-clinica/launcher-v1'
+          app_root=root/'historia-clinica/app'
           source=(base/'HistoriaLauncher/Program.cs').read_text(encoding='utf-8')
           launcher_channel=json.loads((base/'launcher-channel.json').read_text(encoding='utf-8'))
           app_source=json.loads((base/'app-channel-source.json').read_text(encoding='utf-8'))
+          manifest=json.loads((app_root/'update_manifest.json').read_text(encoding='utf-8-sig'))
+          version=json.loads((app_root/'historia-version.json').read_text(encoding='utf-8-sig'))['version']
 
           m=re.search(r'LauncherVersion\s*=\s*"([^"]+)"',source)
           assert m,'No se encontró LauncherVersion'
@@ -57,9 +62,15 @@ jobs:
 
           assert app_source['product']=='historia-clinica-dr-revelo'
           assert app_source['mandatory'] is True
-          assert str(app_source['minimumLauncher']) <= launcher_version
+          assert app_source['sourceRoot']=='historia-clinica/app'
+          assert 'appVersion' not in app_source
+          assert 'files' not in app_source
+          assert str(manifest['launcher_minimum']) <= launcher_version
+          assert str(manifest['version'])==str(version)
+          assert str(manifest['app_version'])==str(version)
+          assert str(manifest['runtime_version'])==str(version)
 
-          targets=[x['path'].replace('\\','/') for x in app_source['files']]
+          targets=[str(x).replace('\\','/') for x in manifest['copy']]
           assert len(targets)==len(set(targets))
           protected_prefixes=('data/','backups/','update_backups/')
           protected_exact={'.env','historiaclinicalauncher.exe','historialauncherupdater.exe','desinstalar_historia_clinica_dr_revelo.exe'}
@@ -70,12 +81,14 @@ jobs:
             assert not low.startswith(protected_prefixes),p
             assert low not in protected_exact,p
             assert not low.endswith(protected_suffixes),p
+            assert (app_root/p).is_file(),p
 
           iss=(base/'installer/LauncherV1.iss').read_text(encoding='utf-8')
           im=re.search(r'#define\s+MyAppVersion\s+"([^"]+)"',iss)
           assert im and im.group(1)==launcher_version,(im.group(1) if im else None,launcher_version)
 
           print('LAUNCHER_OK',launcher_version)
-          print('APP_SOURCE',app_source['appVersion'])
+          print('APP_VERSION',version)
+          print('CANONICAL_SOURCE_OK',app_source['sourceRoot'])
           print('PROTECTED_PAYLOAD_OK',len(targets),'files')
           PY
