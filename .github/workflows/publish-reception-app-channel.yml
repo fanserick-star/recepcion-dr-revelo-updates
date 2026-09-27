@@ -3,7 +3,7 @@ name: Publish Validated Reception App Channel
 
 on:
   push:
-    branches: [main]
+    branches: [main, refactor/reception-definitive-runtime]
     paths:
       - "launcher-v1/app-channel-source.json"
       - ".github/workflows/publish-reception-app-channel.yml"
@@ -191,6 +191,7 @@ jobs:
             --baseline-app updates/v4_6_0_consolidated_runtime/app.py
 
       - name: Publish only after all validation passed
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           if git diff --quiet -- launcher-v1/app-channel.json; then
