@@ -11,6 +11,7 @@ on:
       - tools/test_reception_flat_prototype.py
       - tools/test_reception_flat_packaged_staging.py
       - tools/test_reception_flat_update_cycle.py
+      - tools/validate_reception_runtime_layout.py
       - tools/diagnose_reception_flat_overlay.py
       - .github/workflows/test-reception-flat-prototype.yml
   workflow_dispatch:
@@ -35,6 +36,13 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check --quiet fastapi uvicorn sqlalchemy python-dotenv pg8000 python-multipart requests openpyxl
 
+      - name: Validate current production runtime layout
+        shell: pwsh
+        run: >-
+          python tools/validate_reception_runtime_layout.py
+          updates/v4_6_6_fast_attention_save
+          --baseline-app updates/v4_6_0_consolidated_runtime/app.py
+
       - name: Build flat prototype
         shell: pwsh
         run: python tools/build_reception_flat_prototype.py
@@ -42,6 +50,10 @@ jobs:
       - name: Finalize candidate packaging contract
         shell: pwsh
         run: python tools/finalize_reception_flat_candidate.py
+
+      - name: Validate flat candidate runtime layout
+        shell: pwsh
+        run: python tools/validate_reception_runtime_layout.py refactor_build/reception_flat_466
 
       - name: Diagnose final overlay equivalence
         shell: pwsh
@@ -71,7 +83,7 @@ jobs:
             workflow_run_id = "${{ github.run_id }}"
             workflow_run_number = "${{ github.run_number }}"
             verified_utc = (Get-Date).ToUniversalTime().ToString("o")
-            contract = "Recepcion 4.6.6 flat runtime equivalence + OpenAPI + packaged staging + update/rollback"
+            contract = "Recepcion 4.6.6 flat runtime equivalence + layout + OpenAPI + packaged staging + update/rollback"
           } | ConvertTo-Json
           Set-Content -Path "$candidate/VERIFICATION.json" -Value $verification -Encoding utf8
 
