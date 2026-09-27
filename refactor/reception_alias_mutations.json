@@ -1,0 +1,319 @@
+[
+  {
+    "module": "app_prev_4458",
+    "mutations": [
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "APP_VERSION",
+        "statement": "core.APP_VERSION = APP_VERSION"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "_azur_payload_for_group",
+        "statement": "core._azur_payload_for_group = _azur_payload_for_group_v4431"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V459_SETTINGS_JS",
+        "statement": "core.V459_SETTINGS_JS = _v459_base"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + PAYMENT_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = _overlay_base + \"\\n\" + PAYMENT_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "_wa_timeline_defs",
+        "statement": "core._wa_timeline_defs = _wa_timeline_defs_v4443"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4443_UI_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4443_UI_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4444_WEEK_GUARD_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4444_WEEK_GUARD_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4445_STAGED_IDENTITY_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4445_STAGED_IDENTITY_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4446_PHONE_GUARD_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4446_PHONE_GUARD_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "_wa_timeline_defs",
+        "statement": "core._wa_timeline_defs = _v4449_timeline_defs"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4449_AGENDA_FLOW_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4449_AGENDA_FLOW_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "mirror_patient_to_local",
+        "statement": "core.mirror_patient_to_local = _v4450_mirror_patient_to_local"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "mirror_delete_patient_local",
+        "statement": "core.mirror_delete_patient_local = _v4450_force_delete_patient_local"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4450_PATIENT_CACHE_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "sync_one_operation",
+        "statement": "core.sync_one_operation = _v4451_sync_one_operation"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4451_PAYMENT_ATTENTION_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4451_PAYMENT_ATTENTION_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4452_QUICK_APPOINTMENT_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_CSS",
+        "statement": "core.V460_OVERLAY_CSS = (core.V460_OVERLAY_CSS or \"\") + \"\\n\" + V4452_QUICK_APPOINTMENT_CSS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4454_SLOT_EVENT_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "normalize_patient_payload",
+        "statement": "core.normalize_patient_payload = _v4455_normalize_patient_payload"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4455_READABLE_ERRORS_JS"
+      },
+      {
+        "alias": "core",
+        "target_module": "app_base_4428",
+        "attribute": "V460_OVERLAY_JS",
+        "statement": "core.V460_OVERLAY_JS = (core.V460_OVERLAY_JS or \"\") + \"\\n\" + V4456_PATIENT_ERROR_JS"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4459",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_prev_4458",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      },
+      {
+        "alias": "previous",
+        "target_module": "app_prev_4458",
+        "attribute": "FEATURE_BOOT_ERROR",
+        "statement": "previous.FEATURE_BOOT_ERROR = (str(getattr(previous, \"FEATURE_BOOT_ERROR\", \"\") or \"\") + \" | v4.4.59: \" + PATCH_BOOT_ERROR).strip(\" |\")[:1200]"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4461",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4459",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4462",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4461",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4463",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4462",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4464",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4463",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4465",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4464",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4466",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4465",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4467",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4466",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4468",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4467",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4469",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4468",
+        "attribute": "APP_VERSION",
+        "statement": "previous.APP_VERSION = APP_VERSION"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4490",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4489",
+        "attribute": "_print_billing_data_form_windows",
+        "statement": "previous._print_billing_data_form_windows = _print_billing_data_form_windows_v4490"
+      }
+    ]
+  },
+  {
+    "module": "app_patch_4491",
+    "mutations": [
+      {
+        "alias": "previous",
+        "target_module": "app_patch_4490",
+        "attribute": "_print_billing_data_form_windows_v4490",
+        "statement": "previous._print_billing_data_form_windows_v4490 = _print_billing_data_form_windows_v4491"
+      }
+    ]
+  }
+]
