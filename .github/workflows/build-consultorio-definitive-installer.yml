@@ -82,7 +82,7 @@ jobs:
             @{
               Url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
               File = "$build/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
-              Sha = "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9"
+              Sha = "9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0"
             },
             @{
               Url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
@@ -133,7 +133,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $base = "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe"
           if (-not (Test-Path $base)) { throw "No se generó el EXE base." }
-          $tail = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($base)[[Math]::Max(0, (Get-Item $base).Length - 1000)..((Get-Item $base).Length - 1)])
+          $allBytes = [IO.File]::ReadAllBytes($base)
+          $tailStart = [Math]::Max(0, $allBytes.Length - 1000)
+          $tailLength = $allBytes.Length - $tailStart
+          $tail = [Text.Encoding]::ASCII.GetString($allBytes, $tailStart, $tailLength)
           if ($tail -match 'DRREVELO_PRIVATE_CONFIG_V1') { throw "El EXE base contiene configuración privada inesperada." }
           $hash = (Get-FileHash $base -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe" | Set-Content "master-installer/definitive/output/SHA256SUMS.txt" -Encoding ascii
