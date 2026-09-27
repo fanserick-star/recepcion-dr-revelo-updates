@@ -7,6 +7,7 @@ on:
     paths:
       - tools/analyze_reception_definitive_refactor.py
       - tools/analyze_reception_patch_patterns.py
+      - tools/analyze_reception_alias_mutations.py
       - .github/workflows/analyze-reception-definitive-refactor.yml
   workflow_dispatch:
 
@@ -37,6 +38,7 @@ jobs:
         run: |
           python tools/analyze_reception_definitive_refactor.py
           python tools/analyze_reception_patch_patterns.py
+          python tools/analyze_reception_alias_mutations.py
 
       - name: Commit inventory only
         shell: bash
@@ -44,7 +46,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add refactor/reception_definitive_inventory.json refactor/reception_definitive_inventory.md refactor/reception_patch_patterns.json
+          git add refactor/reception_definitive_inventory.json refactor/reception_definitive_inventory.md refactor/reception_patch_patterns.json refactor/reception_alias_mutations.json
           if git diff --cached --quiet; then
             echo "Inventory already current"
             exit 0
