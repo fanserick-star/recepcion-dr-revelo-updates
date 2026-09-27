@@ -150,7 +150,10 @@ with candidate.core.LocalSessionLocal() as db:
 
 User=SimpleNamespace(username='refactor-test')
 Service=candidate.core.VisitBatchServiceIn
-Batch=candidate.bridge_v4508.payment_core.V4504VisitBatchPaymentIn
+# `bridge_v4508` was only the legacy outer alias. Resolve the same historical
+# payment schema through the consolidated static layer registry instead of
+# requiring that obsolete alias to remain public in the flat runtime.
+Batch=candidate._rf_legacy._rf_layers['app_patch_4508'].payment_core.V4504VisitBatchPaymentIn
 
 def local_db():
     g=candidate._v466_local_attention_db(); db=next(g); return g,db
