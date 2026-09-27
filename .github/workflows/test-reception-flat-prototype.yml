@@ -7,6 +7,7 @@ on:
     paths:
       - tools/build_reception_flat_prototype.py
       - tools/test_reception_flat_prototype.py
+      - tools/diagnose_reception_flat_overlay.py
       - .github/workflows/test-reception-flat-prototype.yml
   workflow_dispatch:
 
@@ -33,6 +34,10 @@ jobs:
       - name: Build flat prototype
         shell: pwsh
         run: python tools/build_reception_flat_prototype.py
+
+      - name: Diagnose final overlay equivalence
+        shell: pwsh
+        run: python tools/diagnose_reception_flat_overlay.py
 
       - name: Compare exact runtime contracts and functional flow
         shell: pwsh
