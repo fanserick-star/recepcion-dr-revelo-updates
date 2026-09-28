@@ -1,0 +1,146 @@
+name: Recepcion 4.6.8 Identity Audit
+
+on:
+  push:
+    branches: [recepcion-4.6.8-identidad-historia]
+    paths:
+      - ".github/workflows/recepcion-468-identity-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: recepcion-4.6.8-identidad-historia
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply final safety guards
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('recepcion/app/reception_history_identity_authority.py')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''    cur.execute(
+        """SELECT
+             to_regclass('public.patient_links'),
+             to_regclass('public.waiting_queue')"""
+    )
+    row = cur.fetchone() or (None, None)
+    conn.commit()
+    if row[0] and row[1]:
+        return conn
+'''
+          new = '''    cur.execute(
+        """SELECT
+             to_regclass('public.patient_links'),
+             to_regclass('public.waiting_queue'),
+             (SELECT COUNT(*) FROM information_schema.columns
+               WHERE table_schema='public' AND table_name='patient_links'
+                 AND column_name='cloud_updated_at'),
+             (SELECT COUNT(*) FROM information_schema.columns
+               WHERE table_schema='public' AND table_name='waiting_queue'
+                 AND column_name='cloud_updated_at')"""
+    )
+    row = cur.fetchone() or (None, None, 0, 0)
+    conn.commit()
+    if row[0] and row[1] and int(row[2] or 0) > 0 and int(row[3] or 0) > 0:
+        return conn
+'''
+          if old not in s:
+              raise SystemExit('bridge guard block not found')
+          s = s.replace(old, new, 1)
+
+          old = '"UPPER(COALESCE(p.name_search,p.name,\'\')) LIKE %s"'
+          new = '"TRANSLATE(UPPER(COALESCE(p.name_search,p.name,\'\')),\'ÁÉÍÓÚÜÑ\',\'AEIOUUN\') LIKE %s"'
+          if old not in s:
+              raise SystemExit('name search block not found')
+          s = s.replace(old, new, 1)
+
+          old = "      const rows=Array.isArray(d?.results)?d.results:[];\n      if(!rows.length){results.innerHTML='<div class=\"v468-empty\">No encontré una ficha con esa búsqueda. Si realmente es un paciente nuevo, cambie el tipo de atención a NUEVO.</div>';return}"
+          new = "      if(d&&d.ok===false){results.innerHTML='<div class=\"v468-empty\">No pude consultar Historia Clínica en este momento. Puede cerrar esta búsqueda y continuar; quedará disponible el mecanismo de emergencia del doctor.</div>';return}\n      const rows=Array.isArray(d?.results)?d.results:[];\n      if(!rows.length){results.innerHTML='<div class=\"v468-empty\">No encontré una ficha con esa búsqueda. Si realmente es un paciente nuevo, cambie el tipo de atención a NUEVO.</div>';return}"
+          if old not in s:
+              raise SystemExit('search UI block not found')
+          s = s.replace(old, new, 1)
+
+          old = "          if(isSub&&!pre?.linked){"
+          new = "          if(isSub&&pre&&pre.ok!==false&&!pre.linked){"
+          if old not in s:
+              raise SystemExit('offline save guard not found')
+          s = s.replace(old, new, 1)
+
+          old = '        "doctor_manual_link_emergency_fallback": True,\n        "database_schema_changes": False,'
+          new = '        "doctor_manual_link_emergency_fallback": True,\n        "offline_historia_fallback_preserved": True,\n        "name_search_accent_tolerant": True,\n        "public_bridge_column_guard": True,\n        "database_schema_changes": False,'
+          if old not in s:
+              raise SystemExit('health block not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Compile Python
+        run: |
+          python -m py_compile recepcion/app/reception_history_identity_authority.py recepcion/app/features_runtime.py
+
+      - name: Validate JavaScript and contracts
+        run: |
+          python - <<'PY'
+          import ast, json
+          from pathlib import Path
+
+          src = Path('recepcion/app/reception_history_identity_authority.py').read_text(encoding='utf-8')
+          tree = ast.parse(src)
+          js = None
+          for node in tree.body:
+              if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'V468_JS' for t in node.targets):
+                  js = ast.literal_eval(node.value)
+                  break
+          assert js, 'V468_JS missing'
+          Path('/tmp/v468.js').write_text(js, encoding='utf-8')
+
+          required = [
+              'public.patient_links', 'public.waiting_queue', 'public.patients', 'public.encounters',
+              '/api/historia-identity/search', '/api/historia-identity/link',
+              'COUNT(DISTINCT CASE', 'history_date_count', 'reception_manual_verified',
+              "if(isSub&&pre&&pre.ok!==false&&!pre.linked)",
+              "TRANSLATE(UPPER(COALESCE(p.name_search,p.name,'')),'ÁÉÍÓÚÜÑ','AEIOUUN') LIKE %s",
+              'history_clinical_notes_exposed_to_reception": False',
+              'offline_historia_fallback_preserved": True',
+          ]
+          for marker in required:
+              assert marker in src, marker
+          assert 'SELECT p.id,p.name,p.national_id,p.birth_date,p.phone,p.email,p.address' in src
+
+          version = json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8'))
+          manifest = json.loads(Path('recepcion/app/update_manifest.json').read_text(encoding='utf-8'))
+          features = Path('recepcion/app/features_runtime.py').read_text(encoding='utf-8')
+          assert version['version'] == '4.6.8'
+          assert manifest['version'] == manifest['app_version'] == manifest['runtime_version'] == '4.6.8'
+          assert 'reception_history_identity_authority.py' in manifest['copy']
+          assert 'import reception_history_identity_authority' in features
+          assert manifest['notes']['external_patch_chain_required'] is False
+          assert manifest['notes']['patient_data_destructive_changes'] is False
+          print('RECEPCION_468_IDENTITY_CONTRACT_OK')
+          PY
+          node --check /tmp/v468.js
+
+      - name: Commit hardened source
+        run: |
+          if git diff --quiet -- recepcion/app/reception_history_identity_authority.py; then
+            echo "No source changes required."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recepcion/app/reception_history_identity_authority.py
+          git commit -m "Recepción 4.6.8: blindar búsqueda y fallback de identidad"
+          git push origin HEAD:recepcion-4.6.8-identidad-historia
