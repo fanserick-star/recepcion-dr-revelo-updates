@@ -31,6 +31,29 @@ jobs:
             exit 1
           }
 
+      - name: Clean-install smoke test (Reception + Historia)
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "master-installer/bootstrap.ps1" -Reception -Historia
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $required = @(
+            'C:\Recepcion Dr Revelo\app.py',
+            'C:\Recepcion Dr Revelo\.venv\Scripts\python.exe',
+            'C:\Recepcion Dr Revelo\RecepcionLauncher.exe',
+            'C:\Historia Clinica Dr Revelo\app.py',
+            'C:\Historia Clinica Dr Revelo\.venv\Scripts\python.exe',
+            'C:\Historia Clinica Dr Revelo\HistoriaLauncher.exe'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Falta archivo esperado tras instalación limpia: $path" }
+          }
+
+          & 'C:\Recepcion Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi, uvicorn, sqlalchemy, dotenv, pg8000, multipart; print('reception-deps-ok')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & 'C:\Historia Clinica Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi, uvicorn, pg8000, webview; print('historia-deps-ok')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Prepare build directory
         shell: pwsh
         run: |
