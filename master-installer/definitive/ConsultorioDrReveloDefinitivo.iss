@@ -1,5 +1,5 @@
 #define MyAppName "Consultorio Dr. Armando Revelo - Instalador"
-#define MyAppVersion "3.0.1"
+#define MyAppVersion "3.0.2"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -81,9 +81,9 @@ begin
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     ScriptPath := ExpandConstant('{tmp}\DrReveloBootstrap\bootstrap.ps1');
 
-    ; Windows limpio puede tener deshabilitada la autocarga de módulos. Importamos
-    ; explícitamente Microsoft.PowerShell.Utility antes de ejecutar el bootstrap,
-    ; para que Get-FileHash/Get-AuthenticodeSignature estén siempre disponibles.
+    // Windows limpio puede tener deshabilitada la autocarga de módulos. Importamos
+    // explícitamente Microsoft.PowerShell.Utility antes de ejecutar el bootstrap,
+    // para que Get-FileHash/Get-AuthenticodeSignature estén siempre disponibles.
     CommandText := "Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; & '" + ScriptPath + "'" +
       " -SourceInstaller '" + ExpandConstant('{srcexe}') + "'" +
       " -StageRoot '" + ExpandConstant('{tmp}\DrReveloBootstrap') + "'";
