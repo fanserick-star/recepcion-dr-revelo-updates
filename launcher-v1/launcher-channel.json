@@ -3,9 +3,9 @@
   "product": "recepcion-launcher-dr-revelo",
   "latestVersion": "1.0.12",
   "mandatory": true,
-  "notes": "Launcher v1.0.12: nuevo icono turquesa exclusivo de Recepción (R + check) para distinguirlo de Historia Clínica. Mantiene self-update autocontenido, actualizaciones obligatorias, SHA-256 y todos los blindajes.",
+  "notes": "Launcher v1.0.12: nuevo icono turquesa exclusivo de Recepción (R + check) para distinguirlo de Historia Clínica. Mantiene self-update autocontenido, actualizaciones obligatorias, SHA-256 y todos los blindajes. Hashes sincronizados con los assets vigentes del release.",
   "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe",
-  "installerSha256": "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9",
+  "installerSha256": "9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0",
   "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/LauncherUpdater.exe",
-  "updaterSha256": "829e346eb64b1f0ade6cea3d956f3542b23ab50cb959f4aa87ef0869c8e1a29c"
+  "updaterSha256": "5f3ea59e38ebea4f69ba09d9772921a5c0e1bfc489b002e1578d3aeb21625ac1"
 }
