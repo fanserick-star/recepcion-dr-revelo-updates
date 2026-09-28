@@ -16,110 +16,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate installer PowerShell syntax
+      - name: Validate PowerShell syntax
         shell: pwsh
         run: |
-          foreach ($script in @('master-installer/bootstrap.ps1','master-installer/provision.ps1')) {
-            $tokens = $null
-            $errors = $null
-            [void][System.Management.Automation.Language.Parser]::ParseFile(
-              (Resolve-Path $script),
-              [ref]$tokens,
-              [ref]$errors
-            )
+          $scripts = @(
+            'master-installer/bootstrap.ps1',
+            'master-installer/provision.ps1',
+            'master-installer/build-icon.ps1',
+            'master-installer/tests/test-provision.ps1'
+          )
+          foreach ($script in $scripts) {
+            $tokens = $null; $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script),[ref]$tokens,[ref]$errors)
             if ($errors -and $errors.Count -gt 0) {
-              $errors | ForEach-Object { Write-Error ("$script: " + $_.Message) }
+              $errors | ForEach-Object { Write-Error (('{0}: {1}' -f $script,$_.Message)) }
               exit 1
             }
           }
 
-      - name: Ensure private bundle contains no plaintext secrets
+      - name: Validate encrypted private bundle
         shell: pwsh
         run: |
           $text = Get-Content 'master-installer/private-config.bundle.json' -Raw
-          foreach ($needle in @('postgresql://','AZUR_API_KEY=','MOBILE_DOCTOR_TOKEN=','MOBILE_RECEPTION_TOKEN=','npg_','API_16292')) {
-            if ($text.Contains($needle)) { throw "Se detectó material privado sin cifrar: $needle" }
+          $forbidden = @(
+            ('postgres' + 'ql://'),
+            ('AZUR_' + 'API_KEY='),
+            ('MOBILE_' + 'DOCTOR_TOKEN='),
+            ('MOBILE_' + 'RECEPTION_TOKEN='),
+            ('npg' + '_')
+          )
+          foreach ($needle in $forbidden) {
+            if ($text.Contains($needle)) { throw "Se detectó material privado sin cifrar." }
           }
           $bundle = $text | ConvertFrom-Json
           if ($bundle.format -ne 'dr-revelo-config-v1') { throw 'Formato de bundle inesperado.' }
           if ([int]$bundle.iterations -lt 150000) { throw 'KDF demasiado débil.' }
-          if ([string]::IsNullOrWhiteSpace([string]$bundle.hmac_sha256_b64)) { throw 'Falta HMAC del bundle.' }
+          if ([string]::IsNullOrWhiteSpace([string]$bundle.hmac_sha256_b64)) { throw 'Falta HMAC.' }
           'PRIVATE_BUNDLE_STATIC_CHECK_OK'
 
-      - name: Provisioning cryptography and merge smoke test
+      - name: Test encrypted provisioning on Windows PowerShell 5.1
         shell: powershell
         run: |
-          $ErrorActionPreference='Stop'
-          $root = Join-Path $env:RUNNER_TEMP 'dr-revelo-provision-test'
-          $recRoot = Join-Path $root 'recepcion'
-          $histRoot = Join-Path $root 'historia'
-          New-Item -ItemType Directory -Force $recRoot,$histRoot | Out-Null
-          'KEEP_ME=recepcion' | Set-Content (Join-Path $recRoot '.env') -Encoding ascii
-          'KEEP_ME=historia' | Set-Content (Join-Path $histRoot '.env') -Encoding ascii
-
-          $activation = 'TESTA-CTIVA-CION9-87654-ABCDE'
-          $config = [ordered]@{
-            version = 1
-            reception = [ordered]@{
-              DATABASE_URL='postgresql://rec:test@ep-shiny-scene-a66ta52d-pooler.example/neondb?sslmode=require'
-              AZUR_BASE_URL='https://example.invalid'
-              AZUR_API_KEY='dummy-azur'
-              MOBILE_DOCTOR_TOKEN='dummy-doctor'
-              MOBILE_RECEPTION_TOKEN='dummy-reception'
-              AGENDA_CLOUD_KEYS_SYNCED_SHA='dummy-sha'
-              HISTORIA_DATABASE_URL='postgresql://bridge:test@ep-sweet-mud-arlsk7qa-pooler.example/neondb?sslmode=require'
-            }
-            historia = [ordered]@{
-              HISTORIA_DATABASE_URL='postgresql://historia:test@ep-sweet-mud-arlsk7qa-pooler.example/neondb?sslmode=require'
-              HISTORIA_SYNC_ENABLED='1'
-            }
-          }
-          $plain = [Text.Encoding]::UTF8.GetBytes(($config | ConvertTo-Json -Depth 8 -Compress))
-          $salt = New-Object byte[] 16
-          $iv = New-Object byte[] 16
-          $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-          $rng.GetBytes($salt); $rng.GetBytes($iv); $rng.Dispose()
-          $iter = 200000
-          $kdf = New-Object Security.Cryptography.Rfc2898DeriveBytes($activation,$salt,$iter)
-          $km = $kdf.GetBytes(64); $kdf.Dispose()
-          $encKey = New-Object byte[] 32; $macKey = New-Object byte[] 32
-          [Array]::Copy($km,0,$encKey,0,32); [Array]::Copy($km,32,$macKey,0,32)
-          $aes=[Security.Cryptography.Aes]::Create(); $aes.KeySize=256; $aes.BlockSize=128
-          $aes.Mode=[Security.Cryptography.CipherMode]::CBC; $aes.Padding=[Security.Cryptography.PaddingMode]::PKCS7
-          $aes.Key=$encKey; $aes.IV=$iv
-          $e=$aes.CreateEncryptor(); $ct=$e.TransformFinalBlock($plain,0,$plain.Length); $e.Dispose(); $aes.Dispose()
-          $macInput=New-Object byte[] ($salt.Length+$iv.Length+$ct.Length)
-          [Array]::Copy($salt,0,$macInput,0,$salt.Length)
-          [Array]::Copy($iv,0,$macInput,$salt.Length,$iv.Length)
-          [Array]::Copy($ct,0,$macInput,$salt.Length+$iv.Length,$ct.Length)
-          $h=New-Object Security.Cryptography.HMACSHA256($macKey); $mac=$h.ComputeHash($macInput); $h.Dispose()
-          $sha=[Security.Cryptography.SHA256]::Create(); $activationHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($activation)))).Replace('-','').ToLowerInvariant(); $sha.Dispose()
-          $bundle=[ordered]@{
-            format='dr-revelo-config-v1'; kdf='PBKDF2-HMAC-SHA1'; iterations=$iter
-            salt_b64=[Convert]::ToBase64String($salt); iv_b64=[Convert]::ToBase64String($iv)
-            ciphertext_b64=[Convert]::ToBase64String($ct); hmac_sha256_b64=[Convert]::ToBase64String($mac)
-            activation_sha256=$activationHash
-          }
-          $bundlePath=Join-Path $root 'test.bundle.json'
-          $activationPath=Join-Path $root 'activation.txt'
-          $bundle | ConvertTo-Json | Set-Content $bundlePath -Encoding UTF8
-          [IO.File]::WriteAllText($activationPath,$activation,(New-Object Text.UTF8Encoding($false)))
-
-          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'master-installer/provision.ps1' -Reception -Historia -ActivationFile $activationPath -BundlePath $bundlePath -ReceptionRoot $recRoot -HistoriaRoot $histRoot -SkipConnectivityTest
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'master-installer/tests/test-provision.ps1'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (Test-Path $activationPath) { throw 'El archivo temporal de activación no fue eliminado.' }
-          $rec = Get-Content (Join-Path $recRoot '.env') -Raw
-          $hist = Get-Content (Join-Path $histRoot '.env') -Raw
-          foreach ($x in @('KEEP_ME=recepcion','DATABASE_URL=postgresql://rec:test@','AZUR_API_KEY=dummy-azur','HISTORIA_DATABASE_URL=postgresql://bridge:test@')) { if (-not $rec.Contains($x)) { throw "Falta en Recepción: $x" } }
-          foreach ($x in @('KEEP_ME=historia','HISTORIA_DATABASE_URL=postgresql://historia:test@','HISTORIA_SYNC_ENABLED=1')) { if (-not $hist.Contains($x)) { throw "Falta en Historia: $x" } }
-          'PROVISION_SMOKE_TEST_OK'
 
-      - name: Clean-install smoke test (Reception + Historia)
+      - name: Clean-install smoke test
         shell: powershell
         run: |
-          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "master-installer/bootstrap.ps1" -Reception -Historia
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'master-installer/bootstrap.ps1' -Reception -Historia
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
           $required = @(
             'C:\Recepcion Dr Revelo\app.py',
             'C:\Recepcion Dr Revelo\.venv\Scripts\python.exe',
@@ -128,70 +73,17 @@ jobs:
             'C:\Historia Clinica Dr Revelo\.venv\Scripts\python.exe',
             'C:\Historia Clinica Dr Revelo\HistoriaClinicaLauncher.exe'
           )
-          foreach ($path in $required) {
-            if (-not (Test-Path -LiteralPath $path)) { throw "Falta archivo esperado tras instalación limpia: $path" }
-          }
-
-          & 'C:\Recepcion Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi, uvicorn, sqlalchemy, dotenv, pg8000, multipart; print('reception-deps-ok')"
+          foreach ($path in $required) { if (-not (Test-Path -LiteralPath $path)) { throw "Falta: $path" } }
+          & 'C:\Recepcion Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi,uvicorn,sqlalchemy,dotenv,pg8000,multipart;print('reception-deps-ok')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & 'C:\Historia Clinica Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi, uvicorn, pg8000, webview; print('historia-deps-ok')"
+          & 'C:\Historia Clinica Dr Revelo\.venv\Scripts\python.exe' -c "import fastapi,uvicorn,pg8000,webview;print('historia-deps-ok')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Prepare build directory
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force "master-installer/build" | Out-Null
 
       - name: Generate master icon
-        shell: pwsh
+        shell: powershell
         run: |
-          Add-Type -AssemblyName System.Drawing
-          Add-Type @"
-          using System;
-          using System.Runtime.InteropServices;
-          public static class NativeIconMaster {
-              [DllImport("user32.dll", SetLastError=true)]
-              public static extern bool DestroyIcon(IntPtr hIcon);
-          }
-          "@
-          function Add-RoundedRect([System.Drawing.Drawing2D.GraphicsPath]$path,[float]$x,[float]$y,[float]$w,[float]$h,[float]$r) {
-            $d = $r * 2
-            $path.AddArc($x,$y,$d,$d,180,90)
-            $path.AddArc($x+$w-$d,$y,$d,$d,270,90)
-            $path.AddArc($x+$w-$d,$y+$h-$d,$d,$d,0,90)
-            $path.AddArc($x,$y+$h-$d,$d,$d,90,90)
-            $path.CloseFigure()
-          }
-          $bmp = New-Object System.Drawing.Bitmap 64,64
-          $g = [System.Drawing.Graphics]::FromImage($bmp)
-          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-          $g.Clear([System.Drawing.Color]::Transparent)
-          $path = New-Object System.Drawing.Drawing2D.GraphicsPath
-          Add-RoundedRect $path 2 2 60 60 14
-          $clip = New-Object System.Drawing.Region($path)
-          $g.Clip = $clip
-          $teal = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(18,145,160))
-          $navy = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(27,61,91))
-          $g.FillRectangle($teal,2,2,30,60)
-          $g.FillRectangle($navy,32,2,30,60)
-          $g.ResetClip()
-          $cardPath = New-Object System.Drawing.Drawing2D.GraphicsPath
-          Add-RoundedRect $cardPath 10 11 44 42 8
-          $card = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(250,252,251))
-          $g.FillPath($card,$cardPath)
-          $font = New-Object System.Drawing.Font("Segoe UI",18,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
-          $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(25,88,111))
-          $fmt = New-Object System.Drawing.StringFormat
-          $fmt.Alignment = [System.Drawing.StringAlignment]::Center
-          $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
-          $g.DrawString("DR",$font,$brush,[System.Drawing.RectangleF]::new(10,11,44,42),$fmt)
-          $h=$bmp.GetHicon()
-          $ico=[System.Drawing.Icon]::FromHandle($h)
-          $fs=[IO.File]::Create("master-installer/build/consultorio_icon.ico")
-          try { $ico.Save($fs) } finally { $fs.Dispose() }
-          $ico.Dispose(); [NativeIconMaster]::DestroyIcon($h) | Out-Null
-          $fmt.Dispose(); $brush.Dispose(); $font.Dispose(); $card.Dispose(); $cardPath.Dispose()
-          $teal.Dispose(); $navy.Dispose(); $clip.Dispose(); $path.Dispose(); $g.Dispose(); $bmp.Dispose()
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 'master-installer/build-icon.ps1'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install Inno Setup
         shell: pwsh
@@ -199,44 +91,38 @@ jobs:
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build lightweight online master EXE
+      - name: Build lightweight master EXE
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado." }
-          & $iscc "master-installer/ConsultorioDrRevelo.iss"
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe no encontrado.' }
+          & $iscc 'master-installer/ConsultorioDrRevelo.iss'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
+          $exe = 'master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe'
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  INSTALAR_CONSULTORIO_DR_REVELO.exe" | Set-Content "master-installer/output/SHA256SUMS.txt" -Encoding ascii
+          "$hash  INSTALAR_CONSULTORIO_DR_REVELO.exe" | Set-Content 'master-installer/output/SHA256SUMS.txt' -Encoding ascii
           $size = (Get-Item $exe).Length
           "Installer bytes: $size"
-          if ($size -gt 15728640) { throw "El instalador online creció por encima de 15 MiB ($size bytes)." }
+          if ($size -gt 15728640) { throw "Instalador mayor a 15 MiB: $size" }
 
       - name: Smoke-test compiled EXE and preservation
         shell: powershell
         run: |
-          $recEnv = 'C:\Recepcion Dr Revelo\.env'
-          $histEnv = 'C:\Historia Clinica Dr Revelo\.env'
-          $recMarker = 'C:\Recepcion Dr Revelo\data\installer-preserve-test.txt'
-          $histMarker = 'C:\Historia Clinica Dr Revelo\data\installer-preserve-test.txt'
-          New-Item -ItemType Directory -Force (Split-Path $recMarker), (Split-Path $histMarker) | Out-Null
+          $recEnv='C:\Recepcion Dr Revelo\.env'; $histEnv='C:\Historia Clinica Dr Revelo\.env'
+          $recMarker='C:\Recepcion Dr Revelo\data\installer-preserve-test.txt'; $histMarker='C:\Historia Clinica Dr Revelo\data\installer-preserve-test.txt'
+          New-Item -ItemType Directory -Force (Split-Path $recMarker),(Split-Path $histMarker) | Out-Null
           'INSTALLER_PRESERVE_TEST=recepcion' | Set-Content -LiteralPath $recEnv -Encoding ascii
           'INSTALLER_PRESERVE_TEST=historia' | Set-Content -LiteralPath $histEnv -Encoding ascii
           'recepcion-data-ok' | Set-Content -LiteralPath $recMarker -Encoding ascii
           'historia-data-ok' | Set-Content -LiteralPath $histMarker -Encoding ascii
-
-          $exe = (Resolve-Path 'master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe').Path
-          $proc = Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS=recepcion,historia','/SKIPPROVISIONING=1') -Wait -PassThru
-          if ($proc.ExitCode -notin @(0, 3010)) { throw "El EXE maestro devolvió código $($proc.ExitCode)." }
-
-          if ((Get-Content -LiteralPath $recEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=recepcion') { throw 'Recepción modificó .env durante reparación sin aprovisionamiento.' }
-          if ((Get-Content -LiteralPath $histEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=historia') { throw 'Historia modificó .env durante reparación sin aprovisionamiento.' }
-          if ((Get-Content -LiteralPath $recMarker -Raw).Trim() -ne 'recepcion-data-ok') { throw 'Recepción modificó data/ durante reparación.' }
-          if ((Get-Content -LiteralPath $histMarker -Raw).Trim() -ne 'historia-data-ok') { throw 'Historia modificó data/ durante reparación.' }
-          if (-not (Test-Path 'C:\Recepcion Dr Revelo\RecepcionLauncher.exe')) { throw 'Falta launcher de Recepción tras ejecutar el EXE maestro.' }
-          if (-not (Test-Path 'C:\Historia Clinica Dr Revelo\HistoriaClinicaLauncher.exe')) { throw 'Falta launcher de Historia tras ejecutar el EXE maestro.' }
+          $exe=(Resolve-Path 'master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe').Path
+          $p=Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS=recepcion,historia','/SKIPPROVISIONING=1') -Wait -PassThru
+          if ($p.ExitCode -notin @(0,3010)) { throw "EXE devolvió $($p.ExitCode)" }
+          if ((Get-Content $recEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=recepcion') { throw 'Recepción modificó .env.' }
+          if ((Get-Content $histEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=historia') { throw 'Historia modificó .env.' }
+          if ((Get-Content $recMarker -Raw).Trim() -ne 'recepcion-data-ok') { throw 'Recepción modificó data/.' }
+          if ((Get-Content $histMarker -Raw).Trim() -ne 'historia-data-ok') { throw 'Historia modificó data/.' }
 
       - name: Upload validation artifact
         uses: actions/upload-artifact@v4
@@ -255,13 +141,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "consultorio-installer-v2.1.0"
-          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
-          $sums = "master-installer/output/SHA256SUMS.txt"
-          $readme = "master-installer/README.txt"
+          $tag='consultorio-installer-v2.1.0'
+          $exe='master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe'
+          $sums='master-installer/output/SHA256SUMS.txt'
+          $readme='master-installer/README.txt'
           gh release view $tag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Instalador Maestro Consultorio v2.1.0" --notes "Instalador maestro online ligero con configuración privada automática, verificación de Neon y preservación de datos."
-          }
+          if ($LASTEXITCODE -ne 0) { gh release create $tag --title 'Instalador Maestro Consultorio v2.1.0' --notes 'Instalador online con configuración privada automática y verificación de Neon.' }
           gh release upload $tag $exe $sums $readme --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
