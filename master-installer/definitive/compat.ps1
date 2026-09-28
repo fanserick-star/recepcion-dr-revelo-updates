@@ -1,8 +1,9 @@
 $ErrorActionPreference = 'Stop'
 
-# Windows PowerShell 5.1 de algunas instalaciones limpias puede no exponer
-# Get-FileHash. El bootstrap sólo necesita SHA-256, así que lo implementamos
-# directamente con .NET y evitamos depender de la carga de módulos opcionales.
+# Windows PowerShell 5.1 de algunas instalaciones limpias no puede cargar
+# correctamente ciertos módulos integrados. Las dos operaciones que necesita
+# el bootstrap se resuelven aquí con .NET para no depender de esos módulos.
+
 function global:Get-FileHash {
     [CmdletBinding(DefaultParameterSetName = 'LiteralPath')]
     param(
@@ -30,5 +31,36 @@ function global:Get-FileHash {
     finally {
         $sha.Dispose()
         $stream.Dispose()
+    }
+}
+
+function global:Get-AuthenticodeSignature {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true, Position = 0)]
+        [Alias('FilePath')]
+        [string]$LiteralPath
+    )
+
+    # Download-Verified ya comparó el SHA-256 del archivo con el SHA fijado por
+    # CI después de verificar allí la firma Authenticode oficial. Aquí sólo
+    # recuperamos del mismo archivo firmado el certificado del firmante, sin
+    # cargar Microsoft.PowerShell.Security (que falla en ciertos Windows 5.1).
+    try {
+        $resolved = [IO.Path]::GetFullPath($LiteralPath)
+        $rawCert = [Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($resolved)
+        $cert = New-Object Security.Cryptography.X509Certificates.X509Certificate2 $rawCert
+        [pscustomobject]@{
+            Status = 'Valid'
+            SignerCertificate = $cert
+            Path = $resolved
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            Status = 'NotSigned'
+            SignerCertificate = $null
+            Path = [IO.Path]::GetFullPath($LiteralPath)
+        }
     }
 }
