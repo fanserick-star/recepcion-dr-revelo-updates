@@ -37,12 +37,6 @@ def apply() -> None:
         '''    eligible_queue = [\n        r for r in queue\n        if r["status"] == "in_consultation"\n        or bool(r["clinical_patient_id"])\n        or _queue_display_type(r) == "Nuevo"\n    ]\n    next_row = next((r for r in eligible_queue if r["status"] == "waiting"), None)\n    if next_row is None:\n        next_row = next((r for r in eligible_queue), None)\n''',
         "siguiente paciente",
     )
-    s = replace_once(
-        s,
-        'APP_VERSION = "1.3.74"',
-        'APP_VERSION = "1.3.75"',
-        "versión app",
-    )
     APP.write_text(s, encoding="utf-8")
 
     version = json.loads(VERSION.read_text(encoding="utf-8-sig"))
@@ -75,7 +69,8 @@ def verify() -> None:
     s = APP.read_text(encoding="utf-8")
     version = json.loads(VERSION.read_text(encoding="utf-8-sig"))
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8-sig"))
-    assert 'APP_VERSION = "1.3.75"' in s
+    assert 'VERSION_PATH = ROOT / "historia-version.json"' in s
+    assert 'APP_VERSION = str(json.loads(VERSION_PATH.read_text' in s
     assert 'action_label = "Esperando Recepción"' in s
     assert 'can_open = bool(r["clinical_patient_id"]) or is_new or r["status"] == "in_consultation"' in s
     assert 'eligible_queue = [' in s
