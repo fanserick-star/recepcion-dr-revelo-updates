@@ -40,7 +40,8 @@ assert docs_text.count("size:A4 portrait") >= 3
 # El ciclo de nube debe subir cambios locales antes del pull.
 cloud_text = (ROOT / "cloud_sync.py").read_text(encoding="utf-8-sig")
 cycle = cloud_text.split("    def _cycle(self):", 1)[1].split("    def _register_device", 1)[0]
-assert cycle.index("pushed = self._push(pg)") < cycle.index("pulled = self._pull(pg, remote_now)")
+assert cycle.index("pushed = self._push(pg)") < cycle.index("remote_now = _remote_now(cur)") < cycle.index("pulled = self._pull(pg, remote_now)")
+assert "effective_pull_due = pull_due or pushed > 0" in cycle
 assert "pull_skipped_local_dirty" in cloud_text
 assert "remote_changed_before_local_push" in cloud_text
 

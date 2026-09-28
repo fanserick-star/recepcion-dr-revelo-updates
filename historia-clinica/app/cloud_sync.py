@@ -755,18 +755,19 @@ class CloudSyncService:
                 ),
             )
 
+            # v1.3.74: nunca permitimos que un pull pise primero un cambio
+            # local pendiente. Primero se sube lo local. Después tomamos un
+            # cursor remoto NUEVO, posterior a ese push, para que la siguiente
+            # vuelta no confunda nuestro propio push con un cambio de otra PC.
+            pushed = self._push(pg)
             cur = pg.cursor()
             remote_now = _remote_now(cur)
             pg.commit()
-
-            # v1.3.74: nunca permitimos que un pull pise primero un cambio
-            # local pendiente. Se sube lo local y después se incorporan cambios
-            # remotos. Los choques simultáneos se preservan en sync_conflicts.
-            pushed = self._push(pg)
-            pulled = self._pull(pg, remote_now) if pull_due else 0
+            effective_pull_due = pull_due or pushed > 0
+            pulled = self._pull(pg, remote_now) if effective_pull_due else 0
             self._register_device(pg)
             pg.commit()
-            if pull_due:
+            if effective_pull_due:
                 self._last_pull_monotonic = time.monotonic()
 
             sconn = sqlite3.connect(self.db_path, timeout=20)

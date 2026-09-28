@@ -135,6 +135,8 @@
     "manual_clinical_datetime_preserved": true,
     "recovery_public_schema_canonical": true,
     "documents_a4_unified": true,
-    "functional_smoke_1374": true
+    "functional_smoke_1374": true,
+    "sync_cursor_captured_after_push": true,
+    "sync_own_push_false_conflict_guard": true
   }
 }
