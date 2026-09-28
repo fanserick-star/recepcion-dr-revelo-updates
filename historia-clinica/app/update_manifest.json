@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.73",
-  "app_version": "1.3.73",
-  "runtime_version": "1.3.73",
+  "version": "1.3.74",
+  "app_version": "1.3.74",
+  "runtime_version": "1.3.74",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -50,8 +50,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Remaster profesional de Pacientes en espera: edad, última atención, procedimientos diferenciados con nombre real y protección de nuevos ya atendidos.",
-    "previous_version": "1.3.72",
+    "purpose": "Cierre funcional: conflictos multi-PC protegidos, fecha clínica al cruzar medianoche, recuperación canónica y documentos A4.",
+    "previous_version": "1.3.73",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -125,7 +125,16 @@
     "procedure_specific_name_supported": true,
     "signed_queue_reconciliation": true,
     "new_patient_duplicate_guard_by_signed_queue": true,
-    "cloud_logic_unchanged_from_1_3_72": true,
-    "lan_logic_unchanged_from_1_3_72": true
+    "cloud_logic_unchanged_from_1_3_72": false,
+    "lan_logic_unchanged_from_1_3_72": true,
+    "sync_conflict_guard": true,
+    "sync_push_before_pull": true,
+    "sync_conflict_snapshot_local": true,
+    "sync_conflict_policy": "local_wins_after_remote_snapshot",
+    "clinical_midnight_rollover_guard": true,
+    "manual_clinical_datetime_preserved": true,
+    "recovery_public_schema_canonical": true,
+    "documents_a4_unified": true,
+    "functional_smoke_1374": true
   }
 }

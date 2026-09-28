@@ -923,7 +923,7 @@ body{{background:#dfe5ea;padding:14px}}
 .toolbar button{{border:0;border-radius:9px;background:#173b66;color:#fff;padding:10px 15px;font-weight:800;cursor:pointer}}
 .toolbar span{{font-size:12px;color:#475569}}
 .sheet{{
-  width:210mm;height:279mm;margin:0 auto;background:white;display:grid;
+  width:210mm;height:297mm;margin:0 auto;background:white;display:grid;
   grid-template-columns:105mm 105mm;overflow:hidden;box-shadow:0 8px 28px #0f172a2c;
 }}
 .rx-copy{{
@@ -980,11 +980,11 @@ footer{{
   position:absolute;left:0;right:0;bottom:-5mm;width:100%;height:2.7mm;
   display:block;overflow:visible;
 }}
-@page{{size:Letter portrait;margin:0}}
+@page{{size:A4 portrait;margin:0}}
 @media print{{
-  html,body{{width:216mm;height:279mm;background:#fff;padding:0}}
+  html,body{{width:210mm;height:297mm;background:#fff;padding:0}}
   .toolbar{{display:none!important}}
-  .sheet{{width:210mm;height:279mm;margin:0 auto;box-shadow:none}}
+  .sheet{{width:210mm;height:297mm;margin:0 auto;box-shadow:none}}
   .rx-copy:first-child{{border-right:none}}
 }}
 </style>
@@ -992,7 +992,7 @@ footer{{
 <body>
 <div class='toolbar'>
   <button onclick='window.print()'>Imprimir / Guardar PDF</button>
-  <span>Carta vertical · 2 recetas iguales · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
+  <span>A4 vertical · 2 recetas iguales · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
 </div>
 <main class='sheet'>{one}{one}</main>
 {"<script>(()=>{let fired=false;const go=()=>{if(fired)return;fired=true;try{window.focus()}catch(_e){};setTimeout(()=>{try{window.print()}catch(_e){}},450)};if(document.readyState==='complete')go();else window.addEventListener('load',go,{once:true});window.addEventListener('pageshow',go,{once:true});})();</script>" if print_now else ""}
@@ -1373,11 +1373,11 @@ footer{{
   position:absolute;left:0;right:0;bottom:-4.5mm;width:100%;height:3mm;
   display:block;overflow:visible;
 }}
-@page{{size:Letter portrait;margin:0}}
+@page{{size:A4 portrait;margin:0}}
 @media print{{
-  html,body{{width:216mm;height:279mm;background:#fff;padding:0}}
+  html,body{{width:210mm;height:297mm;background:#fff;padding:0}}
   .toolbar{{display:none!important}}
-  .sheet{{width:216mm;min-height:279mm;height:279mm;margin:0;box-shadow:none}}
+  .sheet{{width:210mm;min-height:297mm;height:297mm;margin:0;box-shadow:none}}
 }}
 </style>
 </head>

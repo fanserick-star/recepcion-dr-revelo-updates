@@ -3524,11 +3524,13 @@ async def complete_empty_attention(request: Request):
                     "La consulta contiene información clínica y debe finalizarse normalmente.",
                 )
             if _v1370_encounter_has_documents(conn, row["id"]):
+                effective_date, effective_time = _v1374_effective_sign_values(row, stamp)
                 conn.execute(
                     """UPDATE encounters
-                       SET note_status='signed',signed_at=?,signed_by=?,deleted_at=NULL,updated_at=?
+                       SET note_status='signed',signed_at=?,signed_by=?,deleted_at=NULL,
+                           encounter_date=?,encounter_time=?,updated_at=?
                        WHERE id=? AND note_status='draft'""",
-                    (stamp, DOCTOR_NAME, stamp, row["id"]),
+                    (stamp, DOCTOR_NAME, effective_date, effective_time, stamp, row["id"]),
                 )
                 signed_document_only.append(str(row["id"]))
             else:
@@ -3556,6 +3558,30 @@ async def complete_empty_attention(request: Request):
     return JSONResponse({"ok": True, "empty": not bool(signed_document_only), "discarded": len(discarded), "signed_document_only": len(signed_document_only)})
 
 
+def _v1374_effective_sign_values(row, stamp: str) -> tuple[str, str]:
+    """Ajusta fecha/hora sólo cuando cruzó medianoche y siguen automáticas.
+
+    Si el doctor cambió la fecha o la hora manualmente, se respeta. En una
+    consulta normal del mismo día no se altera la hora de inicio.
+    """
+    encounter_date = str(row["encounter_date"] or "").strip()
+    encounter_time = str(row["encounter_time"] or "").strip()
+    created_at = str(row["created_at"] or "").strip()
+    created_date = created_at[:10] if len(created_at) >= 10 else ""
+    created_time = created_at[11:16] if len(created_at) >= 16 else ""
+    sign_date = str(stamp or "")[:10]
+    sign_time = str(stamp or "")[11:16]
+
+    if created_date and sign_date and created_date != sign_date:
+        date_is_auto = (not encounter_date) or encounter_date == created_date
+        time_is_auto = (not encounter_time) or encounter_time[:5] == created_time
+        if date_is_auto:
+            encounter_date = sign_date
+            if time_is_auto and sign_time:
+                encounter_time = sign_time
+    return encounter_date, encounter_time
+
+
 @app.post("/api/encounters/{encounter_id}/sign")
 def sign_encounter(encounter_id: str):
     try:
@@ -3576,9 +3602,16 @@ def sign_encounter(encounter_id: str):
                 raise HTTPException(400, "La consulta está vacía.")
 
             # Primero cerramos y confirmamos el registro clínico.
+            # Si la consulta quedó abierta al cruzar medianoche, actualizamos
+            # únicamente los valores automáticos; una fecha/hora editada por el
+            # doctor se conserva exactamente.
+            effective_date, effective_time = _v1374_effective_sign_values(h, stamp)
             conn.execute(
-                "UPDATE encounters SET note_status='signed',signed_at=?,signed_by=?,updated_at=? WHERE id=?",
-                (stamp, DOCTOR_NAME, stamp, encounter_id),
+                """UPDATE encounters
+                   SET note_status='signed',signed_at=?,signed_by=?,
+                       encounter_date=?,encounter_time=?,updated_at=?
+                   WHERE id=?""",
+                (stamp, DOCTOR_NAME, effective_date, effective_time, stamp, encounter_id),
             )
             conn.commit()
 
@@ -4454,7 +4487,7 @@ def _v139_remote_row(table: str, key_col: str, key_value: str) -> dict | None:
     try:
         cur = pg.cursor()
         cur.execute(
-            f'SELECT * FROM historia.{table} WHERE CAST({key_col} AS TEXT)=%s LIMIT 1',
+            f'SELECT * FROM public.{table} WHERE CAST({key_col} AS TEXT)=%s LIMIT 1',
             (str(key_value),),
         )
         row = cur.fetchone()
