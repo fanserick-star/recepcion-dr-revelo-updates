@@ -102,9 +102,14 @@ jobs:
           ]:
               tree=ast.parse((root/filename).read_text(encoding='utf-8'))
               value=None
-              for node in tree.body:
+              for node in ast.walk(tree):
                   if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id==var for t in node.targets):
-                      value=ast.literal_eval(node.value);break
+                      try:
+                          value=ast.literal_eval(node.value)
+                      except Exception:
+                          value=None
+                      if value:
+                          break
               assert value, f'{var} missing'
               Path(out).write_text(value,encoding='utf-8')
           PY
