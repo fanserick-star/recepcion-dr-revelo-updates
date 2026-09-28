@@ -45,6 +45,18 @@ function Invoke-Checked {
     }
 }
 
+function Invoke-InstallerChecked {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter()][string[]]$Arguments = @()
+    )
+    Write-Step ("Instalando: " + [IO.Path]::GetFileName($FilePath))
+    $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -Wait -PassThru
+    if ($process.ExitCode -ne 0) {
+        throw "El instalador $FilePath termino con codigo $($process.ExitCode)."
+    }
+}
+
 function Get-Sha256Hex([byte[]]$Bytes) {
     $sha = [Security.Cryptography.SHA256]::Create()
     try {
@@ -190,7 +202,7 @@ function Ensure-Python {
 
     $installer = Join-Path $StageRoot 'python-3.11.9-amd64.exe'
     if (-not (Test-Path -LiteralPath $installer)) { throw 'No se encontro Python 3.11 incluido en el instalador.' }
-    Invoke-Checked $installer @(
+    Invoke-InstallerChecked $installer @(
         '/quiet',
         'InstallAllUsers=1',
         "TargetDir=$PythonRoot",
@@ -284,7 +296,7 @@ function Install-OneApp {
         Ensure-PrivateEnv $Target $ConfigBytes
         $venvPython = Ensure-Venv $Target $Requirements
         & $RuntimeTest $Target $venvPython
-        Invoke-Checked $LauncherInstaller @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
+        Invoke-InstallerChecked $LauncherInstaller @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
         Write-Step "$Name quedo instalado y validado."
         return [pscustomobject]@{ Name = $Name; Target = $Target; Backup = $backup }
     }
