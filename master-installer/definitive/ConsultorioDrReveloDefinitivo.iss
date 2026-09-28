@@ -1,5 +1,5 @@
-#define MyAppName "Consultorio Dr. Armando Revelo - Instalador definitivo"
-#define MyAppVersion "2.0.0"
+#define MyAppName "Consultorio Dr. Armando Revelo - Instalador"
+#define MyAppVersion "3.0.0"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -7,13 +7,13 @@ AppId={{53F8683A-C4E8-40A5-B5F8-C1CA8310F6E7}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={tmp}\ConsultorioDrReveloDefinitivo
+DefaultDirName={tmp}\ConsultorioDrReveloBootstrap
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_CONSULTORIO_DR_REVELO_BASE
+OutputBaseFilename=INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\consultorio_icon.ico
@@ -32,15 +32,9 @@ Name: "recepcion"; Description: "Recepción"; Types: custom
 Name: "historia"; Description: "Historia Clínica"; Types: custom
 
 [Files]
-Source: "bootstrap.ps1"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall
-Source: "requirements-recepcion.txt"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall
-Source: "build\requirements-historia.txt"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall
-Source: "build\python-3.11.9-amd64.exe"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall
-Source: "build\wheelhouse\*"; DestDir: "{tmp}\DrReveloDefinitive\wheelhouse"; Flags: recursesubdirs createallsubdirs deleteafterinstall
-Source: "build\payload\recepcion\*"; DestDir: "{tmp}\DrReveloDefinitive\payload\recepcion"; Flags: recursesubdirs createallsubdirs deleteafterinstall; Components: recepcion
-Source: "build\payload\historia\*"; DestDir: "{tmp}\DrReveloDefinitive\payload\historia"; Flags: recursesubdirs createallsubdirs deleteafterinstall; Components: historia
-Source: "build\INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall; Components: recepcion
-Source: "build\INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"; DestDir: "{tmp}\DrReveloDefinitive"; Flags: deleteafterinstall; Components: historia
+; El EXE deliberadamente NO incluye Python, wheelhouse, aplicaciones ni launchers.
+; Todo lo pesado se descarga, valida y prepara sólo cuando hace falta.
+Source: "build\bootstrap.generated.ps1"; DestDir: "{tmp}\DrReveloBootstrap"; DestName: "bootstrap.ps1"; Flags: deleteafterinstall
 
 [Code]
 var
@@ -56,7 +50,7 @@ begin
   if CurPageID = wpSelectComponents then
   begin
     WizardForm.SelectComponentsLabel.Caption :=
-      'Elige qué quieres dejar listo en esta PC. Puedes instalar Recepción, Historia Clínica o ambas. Los datos existentes se respaldan y conservan.';
+      'Elige qué quieres instalar: Recepción, Historia Clínica o ambas. El instalador descargará sólo lo necesario y conservará los datos existentes.';
   end;
 end;
 
@@ -84,17 +78,17 @@ begin
   if CurStep = ssPostInstall then
   begin
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-    ScriptPath := ExpandConstant('{tmp}\DrReveloDefinitive\bootstrap.ps1');
+    ScriptPath := ExpandConstant('{tmp}\DrReveloBootstrap\bootstrap.ps1');
     Args := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"' +
       ' -SourceInstaller "' + ExpandConstant('{srcexe}') + '"' +
-      ' -StageRoot "' + ExpandConstant('{tmp}\DrReveloDefinitive') + '"';
+      ' -StageRoot "' + ExpandConstant('{tmp}\DrReveloBootstrap') + '"';
 
     if WizardIsComponentSelected('recepcion') then
       Args := Args + ' -Reception';
     if WizardIsComponentSelected('historia') then
       Args := Args + ' -Historia';
 
-    WizardForm.StatusLabel.Caption := 'Preparando el consultorio. Esto puede tardar unos minutos...';
+    WizardForm.StatusLabel.Caption := 'Descargando y preparando únicamente lo necesario...';
     if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
       InstallerExitCode := 51;
