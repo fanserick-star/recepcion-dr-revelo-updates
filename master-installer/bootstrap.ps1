@@ -260,7 +260,15 @@ function Reset-HistoriaBootstrap([string]$Root) {
     $db = Join-Path $Root 'data\historia_clinica.db'
     if (-not (Test-Path -LiteralPath $db)) { return }
     $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
-    $code = "import sqlite3,sys; p=sys.argv[1]; c=sqlite3.connect(p,timeout=10); c.execute(\"INSERT OR REPLACE INTO sync_state(key,value) VALUES('last_pull','1970-01-01T00:00:00+00:00')\"); c.execute(\"INSERT OR REPLACE INTO sync_state(key,value) VALUES('cloud_bootstrap_complete','0')\"); c.commit(); c.close()"
+    $code = @'
+import sqlite3,sys
+p=sys.argv[1]
+c=sqlite3.connect(p,timeout=10)
+c.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('last_pull','1970-01-01T00:00:00+00:00')")
+c.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('cloud_bootstrap_complete','0')")
+c.commit()
+c.close()
+'@
     try { & $venvPython -c $code $db | Out-Null } catch { Write-Step 'Historia conservará sus datos locales; el bootstrap se reintentará al abrir.' }
 }
 
