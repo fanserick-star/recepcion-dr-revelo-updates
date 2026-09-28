@@ -1,0 +1,113 @@
+name: Recepcion 4.6.8 Fast Save Audit
+
+on:
+  push:
+    branches:
+      - recepcion-4.6.8-fast-save-audit
+    paths:
+      - .github/workflows/recepcion-468-fast-save-audit.yml
+      - tools/apply_recepcion_468_fast_save.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: recepcion-4.6.8-fast-save-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply fast-save hardening
+        run: python tools/apply_recepcion_468_fast_save.py
+      - name: Compile Python
+        run: |
+          python -m py_compile \
+            recepcion/app/core_runtime.py \
+            recepcion/app/reception_history_identity_authority.py \
+            recepcion/app/reception_attention_identity.py \
+            recepcion/app/reception_history_attention_type.py
+      - name: Validate contracts and JavaScript
+        run: |
+          python - <<'PY'
+          import ast, json
+          from pathlib import Path
+
+          root=Path('recepcion/app')
+          core=(root/'core_runtime.py').read_text(encoding='utf-8')
+          ident=(root/'reception_history_identity_authority.py').read_text(encoding='utf-8')
+          flow=(root/'reception_attention_identity.py').read_text(encoding='utf-8')
+          handoff=(root/'reception_history_attention_type.py').read_text(encoding='utf-8')
+          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
+
+          assert 'LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}' in core
+          assert 'local_write = _prefer_local_write(request)' in core
+          assert 'db.info["local_first_write"] = bool(local_write)' in core
+          # El mecanismo offline existente debe sincronizar la atención y su facturación.
+          marker='elif q.operation == "visit.create":'
+          assert marker in core
+          sync_block=core.split(marker,1)[1].split('\n    elif q.operation ==',1)[0]
+          assert 'BillingRecord' in sync_block, 'visit.create no replica BillingRecord; no es seguro forzar local-first'
+
+          assert 'function startIdentityPrepare(pid)' in ident
+          assert 'startIdentityPrepare(pid);' in ident
+          assert "pre=await rawApi('/api/historia-identity/prepare/" not in ident
+          assert 'identityPending' in ident and 'identityCache' in ident
+          assert 'if(isSub&&cached&&cached.ok!==false&&!cached.linked)' in ident
+
+          assert 'Guardando atención e imprimiendo recibo…' not in flow
+          assert 'Guardando atención…' in flow
+          assert 'printResult=await apiBefore' not in flow
+          assert 'const printPromise=apiBefore' in flow
+          assert '✓ Procedimiento guardado.' in flow
+
+          assert 'consultation_item = next(' in handoff
+          assert 'if consultation_item:' in handoff
+          assert 'Los procedimientos nunca consumen turno ni se envían a Pacientes en espera.' in handoff
+
+          notes=manifest['notes']
+          assert notes['attention_write_mode']=='sqlite-first-cloud-write-behind'
+          assert notes['history_identity_prepare_non_blocking'] is True
+          assert notes['consultation_print_non_blocking'] is True
+          assert notes['procedure_auto_print'] is False
+          assert notes['procedure_historia_handoff'] is False
+
+          for filename,var,out in [
+              ('reception_history_identity_authority.py','V468_JS','/tmp/v468.js'),
+              ('reception_attention_identity.py','V4470_JS','/tmp/v4470.js'),
+          ]:
+              tree=ast.parse((root/filename).read_text(encoding='utf-8'))
+              value=None
+              for node in tree.body:
+                  if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id==var for t in node.targets):
+                      value=ast.literal_eval(node.value);break
+              assert value, f'{var} missing'
+              Path(out).write_text(value,encoding='utf-8')
+          print('RECEPCION_468_FAST_SAVE_CONTRACT_OK')
+          PY
+          node --check /tmp/v468.js
+          node --check /tmp/v4470.js
+      - name: Commit validated candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            recepcion/app/core_runtime.py \
+            recepcion/app/reception_history_identity_authority.py \
+            recepcion/app/reception_attention_identity.py \
+            recepcion/app/reception_history_attention_type.py \
+            recepcion/app/update_manifest.json
+          if git diff --cached --quiet; then
+            echo "No application changes required."
+            exit 0
+          fi
+          git commit -m "Recepción 4.6.8: guardado local inmediato y procedimientos sin impresión"
+          git push origin HEAD:recepcion-4.6.8-fast-save-audit
