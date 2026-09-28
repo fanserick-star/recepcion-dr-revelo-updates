@@ -129,7 +129,7 @@ function Install-AppFromChannel([string]$ProductName, [string]$Root, [string]$Ch
         $relative = [string]$entry.path
         $url = [string]$entry.url
         $sha = [string]$entry.sha256
-        if (-not $url -or -not $sha) { throw "Entrada incompleta en el canal de $ProductName: $relative" }
+        if (-not $url -or -not $sha) { throw "Entrada incompleta en el canal de ${ProductName}: $relative" }
         $destination = Assert-SafeRelativePath $relative $Root
         Get-VerifiedFile $url $destination $sha
     }
@@ -152,7 +152,8 @@ function Ensure-Venv([string]$ProductName, [string]$Root, [string[]]$Packages) {
 
     Write-Step "Verificando dependencias de $ProductName..."
     $requirements = Join-Path $env:TEMP (("dr-revelo-{0}-requirements.txt" -f ($ProductName -replace '[^A-Za-z0-9]+','-')).ToLowerInvariant())
-    [IO.File]::WriteAllLines($requirements, $Packages, (New-Object Text.UTF8Encoding($false)))
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllLines($requirements, $Packages, $utf8NoBom)
     & $venvPython -m pip install --disable-pip-version-check --no-input -r $requirements
     $exit = $LASTEXITCODE
     Remove-Item -LiteralPath $requirements -Force -ErrorAction SilentlyContinue
