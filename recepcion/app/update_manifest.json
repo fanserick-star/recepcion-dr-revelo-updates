@@ -175,7 +175,13 @@
     "embedded_runtime_sources": false,
     "runtime_import_hook": false,
     "single_version_source": "recepcion-version.json",
-    "release_channel_modified": false
+    "release_channel_modified": false,
+    "attention_save_never_waits_for_reception_neon": true,
+    "history_identity_prepare_non_blocking": true,
+    "consultation_print_non_blocking": true,
+    "procedure_print_message_removed": true,
+    "procedure_historia_handoff": false,
+    "procedure_turn_consumption": false
   },
   "channel": "launcher-v1-stable"
 }

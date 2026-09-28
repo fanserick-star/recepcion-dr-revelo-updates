@@ -682,6 +682,8 @@ V468_JS = r"""
   let stableApi=null;
   let lastPanelPatient=0;
   let panelTimer=0;
+  const identityCache=new Map();
+  const identityPending=new Map();
 
   function apiBase(){
     if(stableApi)return stableApi;
@@ -771,7 +773,7 @@ V468_JS = r"""
           try{
             const out=await apiBase()('/api/historia-identity/link',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reception_patient_id:Number(pid),clinical_patient_id:String(r.id)})});
             if(!out?.ok)throw new Error(out?.error||'No se pudo vincular');
-            warnings(out);closeSearch();lastPanelPatient=0;await refreshPanel(pid,true);
+            identityCache.set(Number(pid),{at:Date.now(),data:out});warnings(out);closeSearch();lastPanelPatient=0;await refreshPanel(pid,true);
             if(typeof window.rpAlert==='function')window.rpAlert('Ficha vinculada correctamente. Ya puede guardar la atención.','Historia Clínica');
           }catch(e){btn.disabled=false;btn.textContent='Vincular esta ficha';alert(e.message||e)}
         };
@@ -783,6 +785,24 @@ V468_JS = r"""
     setTimeout(()=>{input.focus();if(input.value)run()},30);
   }
 
+  function startIdentityPrepare(pid){
+    pid=Number(pid||patientIdFromModal()||0);if(!pid)return Promise.resolve(null);
+    const cached=identityCache.get(pid);
+    if(cached&&Date.now()-Number(cached.at||0)<60000)return Promise.resolve(cached.data||null);
+    if(identityPending.has(pid))return identityPending.get(pid);
+    const call=apiBase();if(typeof call!=='function')return Promise.resolve(null);
+    const task=Promise.resolve(call('/api/historia-identity/prepare/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}))
+      .then(d=>{
+        identityCache.set(pid,{at:Date.now(),data:d||null});
+        if(d&&d.ok!==false){panel(d,pid);warnings(d)}
+        return d||null;
+      })
+      .catch(()=>{identityCache.set(pid,{at:Date.now(),data:{ok:false,linked:false}});return null})
+      .finally(()=>identityPending.delete(pid));
+    identityPending.set(pid,task);
+    return task;
+  }
+
   function installSaveGate(){
     const base=window.saveAttention;
     if(typeof base!=='function'||base.__v468HistoryGate)return false;
@@ -790,24 +810,26 @@ V468_JS = r"""
       const pid=Number(patientId||patientIdFromModal()||0);
       const apiBefore=window.api;
       const globalBefore=(()=>{try{return api}catch(_e){return null}})();
-      const rawApi=apiBase()||apiBefore;
       let blocked=false;
       const gate=async function(url,opt={}){
         const u=String(url||'');
-        if((u==='/api/visits/batch-payment'||u==='/api/visits/batch')&&pid&&rawApi){
+        if((u==='/api/visits/batch-payment'||u==='/api/visits/batch')&&pid){
           let body={};try{body=JSON.parse(String(opt?.body||'{}'))}catch(_e){}
-          let pre=null;try{pre=await rawApi('/api/historia-identity/prepare/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}catch(_e){}
-          if(pre){panel(pre,pid);warnings(pre)}
           const isSub=norm(body?.tipo)==='S'||norm(body?.tipo)==='SUBSECUENTE';
-          if(isSub&&pre&&pre.ok!==false&&!pre.linked){
+          const cached=identityCache.get(pid)?.data||null;
+          if(isSub&&cached&&cached.ok!==false&&!cached.linked){
             blocked=true;
-            showSearch(pid,pre?.reception_name||'');
+            showSearch(pid,cached?.reception_name||'');
             const err=new Error('__HISTORIA_LINK_REQUIRED__');err.__historiaLinkRequired=true;throw err;
           }
+          // Nunca esperamos a Historia dentro del clic Guardar. Si todavía no
+          // terminó el prefetch, la vinculación continúa en segundo plano y puede
+          // reparar waiting_queue después de guardar.
+          startIdentityPrepare(pid);
         }
         return apiBefore.apply(this,arguments);
       };
-      gate.__v468Base=rawApi;
+      gate.__v468Base=apiBase()||apiBefore;
       try{
         window.api=gate;try{api=gate}catch(_e){}
         return await base.apply(this,arguments);
@@ -828,7 +850,7 @@ V468_JS = r"""
       const before=Number(arguments[0]||patientIdFromModal()||0);
       const out=await base.apply(this,arguments);
       const pid=Number(before||patientIdFromModal()||0);
-      if(pid){setTimeout(async()=>{try{const d=await apiBase()('/api/historia-identity/sync/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});warnings(d);lastPanelPatient=0;refreshPanel(pid,true)}catch(_e){}},80)}
+      if(pid){setTimeout(async()=>{try{const d=await apiBase()('/api/historia-identity/sync/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});identityCache.set(Number(pid),{at:Date.now(),data:d});warnings(d);lastPanelPatient=0;refreshPanel(pid,true)}catch(_e){}},80)}
       return out;
     };
     wrapped.__v468HistorySync=true;window[name]=wrapped;
@@ -837,7 +859,7 @@ V468_JS = r"""
   function boot(){
     installSaveGate();
     ['savePatient','savePatientAndReturnToAttention'].forEach(installPatientSync);
-    clearTimeout(panelTimer);panelTimer=setTimeout(()=>refreshPanel(0,false),80);
+    clearTimeout(panelTimer);panelTimer=setTimeout(()=>{const pid=Number(patientIdFromModal()||0);if(pid)startIdentityPrepare(pid)},80);
   }
   new MutationObserver(boot).observe(document.documentElement,{subtree:true,childList:true});
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
