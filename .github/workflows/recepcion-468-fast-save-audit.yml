@@ -1,3 +1,4 @@
+# Auditoría temporal del candidato rápido; se elimina al cerrar la rama.
 name: Recepcion 4.6.8 Fast Save Audit
 
 on:
@@ -51,7 +52,6 @@ jobs:
           assert 'LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}' in core
           assert 'local_write = _prefer_local_write(request)' in core
           assert 'db.info["local_first_write"] = bool(local_write)' in core
-          # El mecanismo offline existente debe sincronizar la atención y su facturación.
           marker='elif q.operation == "visit.create":'
           assert marker in core
           sync_block=core.split(marker,1)[1].split('\n    elif q.operation ==',1)[0]
