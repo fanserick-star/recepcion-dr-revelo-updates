@@ -189,6 +189,12 @@ def ensure_local_sync_schema(db_path: Path) -> None:
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("CREATE TABLE IF NOT EXISTS sync_dirty(table_name TEXT NOT NULL,row_key TEXT NOT NULL,changed_at TEXT NOT NULL,PRIMARY KEY(table_name,row_key))")
         conn.execute("CREATE TABLE IF NOT EXISTS sync_state(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        conn.execute("""CREATE TABLE IF NOT EXISTS sync_conflicts(
+            id TEXT PRIMARY KEY, table_name TEXT NOT NULL, row_key TEXT NOT NULL,
+            detected_at TEXT NOT NULL, reason TEXT NOT NULL,
+            local_json TEXT, remote_json TEXT, resolved_at TEXT
+        )""")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_sync_conflicts_open ON sync_conflicts(resolved_at,detected_at)")
         conn.execute("INSERT OR IGNORE INTO meta(key,value) VALUES('sync_applying_remote','0')")
         for table, key in ALL_SYNC_TABLES.items():
             qtable = table.replace('"','')
@@ -358,6 +364,31 @@ class CloudSyncService:
 
     def _set_state(self, conn: sqlite3.Connection, key: str, value: str):
         conn.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)", (key, str(value)))
+
+    def _record_conflict(self, conn: sqlite3.Connection, table: str, row_key: str, local_row, remote_row, reason: str) -> None:
+        """Conserva ambas versiones antes de cualquier resolución local-wins."""
+        try:
+            local_data = dict(local_row) if local_row is not None else None
+        except Exception:
+            local_data = local_row
+        try:
+            remote_data = dict(remote_row) if remote_row is not None else None
+        except Exception:
+            remote_data = remote_row
+        stamp = _now_iso()
+        raw = f"{table}|{row_key}|{stamp}|{reason}"
+        conflict_id = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        conn.execute(
+            """INSERT OR IGNORE INTO sync_conflicts(
+                 id,table_name,row_key,detected_at,reason,local_json,remote_json,resolved_at
+               ) VALUES(?,?,?,?,?,?,?,NULL)""",
+            (
+                conflict_id, table, str(row_key), stamp, reason,
+                json.dumps(local_data, ensure_ascii=False, default=str) if local_data is not None else None,
+                json.dumps(remote_data, ensure_ascii=False, default=str) if remote_data is not None else None,
+            ),
+        )
+        conn.commit()
 
     def _run(self):
         try:
@@ -724,15 +755,19 @@ class CloudSyncService:
                 ),
             )
 
+            # v1.3.74: nunca permitimos que un pull pise primero un cambio
+            # local pendiente. Primero se sube lo local. Después tomamos un
+            # cursor remoto NUEVO, posterior a ese push, para que la siguiente
+            # vuelta no confunda nuestro propio push con un cambio de otra PC.
+            pushed = self._push(pg)
             cur = pg.cursor()
             remote_now = _remote_now(cur)
             pg.commit()
-
-            pulled = self._pull(pg, remote_now) if pull_due else 0
-            pushed = self._push(pg)
+            effective_pull_due = pull_due or pushed > 0
+            pulled = self._pull(pg, remote_now) if effective_pull_due else 0
             self._register_device(pg)
             pg.commit()
-            if pull_due:
+            if effective_pull_due:
                 self._last_pull_monotonic = time.monotonic()
 
             sconn = sqlite3.connect(self.db_path, timeout=20)
@@ -743,6 +778,9 @@ class CloudSyncService:
                 )
                 local_encounters_after = int(
                     sconn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0]
+                )
+                sync_conflicts_open = int(
+                    sconn.execute("SELECT COUNT(*) FROM sync_conflicts WHERE resolved_at IS NULL").fetchone()[0]
                 )
             finally:
                 sconn.close()
@@ -783,6 +821,7 @@ class CloudSyncService:
                 local_patients_after_pull=local_patients_after,
                 local_encounters_after_pull=local_encounters_after,
                 bootstrap_recovery_incomplete=recovery_incomplete,
+                sync_conflicts_open=sync_conflicts_open,
                 last_error="",
             )
 
@@ -906,6 +945,29 @@ class CloudSyncService:
                 pk = ALL_SYNC_TABLES[table]
                 row = sconn.execute(f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=?", (key,)).fetchone()
                 cur = pg.cursor()
+
+                # Si otra PC cambió la misma fila después de nuestro último pull,
+                # guardamos la versión remota antes de aplicar el cambio local.
+                # Esto evita pérdida silenciosa aun cuando la política final sea
+                # local-wins para no borrar lo que el doctor acaba de escribir.
+                if (
+                    row is not None
+                    and table in BIDIRECTIONAL_TABLES
+                    and self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
+                ):
+                    last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
+                    check = pg.cursor()
+                    check.execute(
+                        f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=%s "
+                        "AND cloud_updated_at>%s::timestamptz LIMIT 1",
+                        (str(key), last_pull),
+                    )
+                    remote_rows = _dict_rows(check)
+                    if remote_rows:
+                        self._record_conflict(
+                            sconn, table, str(key), row, remote_rows[0],
+                            "remote_changed_before_local_push",
+                        )
                 if row is None:
                     if table in BIDIRECTIONAL_TABLES:
                         cur.execute(f"UPDATE {table} SET deleted_at=%s,cloud_updated_at=now() WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
@@ -1045,6 +1107,21 @@ class CloudSyncService:
                                 else str(stamp)
                             )
                             cursor_key = str(key)
+
+                        local_dirty = sconn.execute(
+                            "SELECT 1 FROM sync_dirty WHERE table_name=? AND row_key=? LIMIT 1",
+                            (table, str(key)),
+                        ).fetchone()
+                        if local_dirty:
+                            local_row = sconn.execute(
+                                f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=? LIMIT 1",
+                                (str(key),),
+                            ).fetchone()
+                            self._record_conflict(
+                                sconn, table, str(key), local_row, remote,
+                                "pull_skipped_local_dirty",
+                            )
+                            continue
 
                         if remote.get("deleted_at"):
                             if table in {
