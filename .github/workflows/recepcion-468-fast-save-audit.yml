@@ -1,4 +1,3 @@
-# Auditoría temporal del candidato rápido; se elimina al cerrar la rama.
 name: Recepcion 4.6.8 Fast Save Audit
 
 on:
@@ -36,50 +35,67 @@ jobs:
             recepcion/app/reception_history_identity_authority.py \
             recepcion/app/reception_attention_identity.py \
             recepcion/app/reception_history_attention_type.py
-      - name: Validate contracts and JavaScript
+      - name: Verify local-first and billing replication
         run: |
           python - <<'PY'
-          import ast, json
           from pathlib import Path
-
-          root=Path('recepcion/app')
-          core=(root/'core_runtime.py').read_text(encoding='utf-8')
-          ident=(root/'reception_history_identity_authority.py').read_text(encoding='utf-8')
-          flow=(root/'reception_attention_identity.py').read_text(encoding='utf-8')
-          handoff=(root/'reception_history_attention_type.py').read_text(encoding='utf-8')
-          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
-
+          core=Path('recepcion/app/core_runtime.py').read_text(encoding='utf-8')
           assert 'LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}' in core
           assert 'local_write = _prefer_local_write(request)' in core
           assert 'db.info["local_first_write"] = bool(local_write)' in core
           marker='elif q.operation == "visit.create":'
           assert marker in core
           sync_block=core.split(marker,1)[1].split('\n    elif q.operation ==',1)[0]
-          assert 'BillingRecord' in sync_block, 'visit.create no replica BillingRecord; no es seguro forzar local-first'
-
-          assert 'function startIdentityPrepare(pid)' in ident
-          assert 'startIdentityPrepare(pid);' in ident
-          assert "pre=await rawApi('/api/historia-identity/prepare/" not in ident
-          assert 'identityPending' in ident and 'identityCache' in ident
-          assert 'if(isSub&&cached&&cached.ok!==false&&!cached.linked)' in ident
-
+          assert 'BillingRecord' in sync_block, 'visit.create no replica BillingRecord'
+          print('LOCAL_FIRST_BILLING_OK')
+          PY
+      - name: Verify non-blocking Historia identity
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('recepcion/app/reception_history_identity_authority.py').read_text(encoding='utf-8')
+          assert 'function startIdentityPrepare(pid)' in s
+          assert 'startIdentityPrepare(pid);' in s
+          assert "pre=await rawApi('/api/historia-identity/prepare/" not in s
+          assert 'identityPending' in s and 'identityCache' in s
+          assert 'if(isSub&&cached&&cached.ok!==false&&!cached.linked)' in s
+          print('HISTORIA_IDENTITY_NONBLOCKING_OK')
+          PY
+      - name: Verify procedure and print fast path
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          flow=Path('recepcion/app/reception_attention_identity.py').read_text(encoding='utf-8')
+          handoff=Path('recepcion/app/reception_history_attention_type.py').read_text(encoding='utf-8')
           assert 'Guardando atención e imprimiendo recibo…' not in flow
           assert 'Guardando atención…' in flow
           assert 'printResult=await apiBefore' not in flow
           assert 'const printPromise=apiBefore' in flow
           assert '✓ Procedimiento guardado.' in flow
-
           assert 'consultation_item = next(' in handoff
           assert 'if consultation_item:' in handoff
           assert 'Los procedimientos nunca consumen turno ni se envían a Pacientes en espera.' in handoff
-
-          notes=manifest['notes']
+          print('PROCEDURE_FAST_PATH_OK')
+          PY
+      - name: Verify manifest
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          notes=json.loads(Path('recepcion/app/update_manifest.json').read_text(encoding='utf-8'))['notes']
           assert notes['attention_write_mode']=='sqlite-first-cloud-write-behind'
           assert notes['history_identity_prepare_non_blocking'] is True
           assert notes['consultation_print_non_blocking'] is True
           assert notes['procedure_auto_print'] is False
           assert notes['procedure_historia_handoff'] is False
-
+          print('MANIFEST_FAST_PATH_OK')
+          PY
+      - name: Extract JavaScript
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          root=Path('recepcion/app')
           for filename,var,out in [
               ('reception_history_identity_authority.py','V468_JS','/tmp/v468.js'),
               ('reception_attention_identity.py','V4470_JS','/tmp/v4470.js'),
@@ -91,10 +107,11 @@ jobs:
                       value=ast.literal_eval(node.value);break
               assert value, f'{var} missing'
               Path(out).write_text(value,encoding='utf-8')
-          print('RECEPCION_468_FAST_SAVE_CONTRACT_OK')
           PY
-          node --check /tmp/v468.js
-          node --check /tmp/v4470.js
+      - name: Validate JavaScript V468
+        run: node --check /tmp/v468.js
+      - name: Validate JavaScript V4470
+        run: node --check /tmp/v4470.js
       - name: Commit validated candidate
         run: |
           git config user.name "github-actions[bot]"
