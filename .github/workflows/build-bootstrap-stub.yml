@@ -6,6 +6,7 @@ on:
     branches:
       - bootstrap-clean-installer-v1
     paths:
+      - 'master-installer/bootstrap.ps1'
       - 'master-installer/native/**'
       - '.github/workflows/build-bootstrap-stub.yml'
 
@@ -18,6 +19,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Parse PowerShell bootstrap
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'master-installer/bootstrap.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'PowerShell syntax OK'
 
       - name: Install MinGW
         run: |
