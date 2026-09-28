@@ -16,30 +16,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Validate bootstrap PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "master-installer/bootstrap.ps1"),
+            [ref]$null,
+            [ref]$errors
+          )
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }
+
       - name: Prepare build directory
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "master-installer/build" | Out-Null
-
-      - name: Download verified Reception launcher installer
-        shell: pwsh
-        run: |
-          $url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
-          $dst = "master-installer/build/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dst
-          $got = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expected = "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9"
-          if ($got -ne $expected) { throw "SHA-256 de Recepción no coincide: $got" }
-
-      - name: Download verified Historia launcher installer
-        shell: pwsh
-        run: |
-          $url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.7/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
-          $dst = "master-installer/build/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"
-          Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dst
-          $got = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expected = "839b56e40f39038f569c696a6d1527e713bd39335cf98d2bcef71711ef663cc0"
-          if ($got -ne $expected) { throw "SHA-256 de Historia no coincide: $got" }
 
       - name: Generate master icon
         shell: pwsh
@@ -98,7 +92,7 @@ jobs:
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build master EXE
+      - name: Build lightweight online master EXE
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
@@ -109,30 +103,34 @@ jobs:
           $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  INSTALAR_CONSULTORIO_DR_REVELO.exe" | Set-Content "master-installer/output/SHA256SUMS.txt" -Encoding ascii
+          $size = (Get-Item $exe).Length
+          "Installer bytes: $size"
+          if ($size -gt 15728640) { throw "El instalador online creció por encima de 15 MiB ($size bytes)." }
 
-      - name: Publish master installer release
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "consultorio-installer-v1.0.0"
-          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
-          $sums = "master-installer/output/SHA256SUMS.txt"
-          $readme = "master-installer/README.txt"
-          gh release view $tag *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Instalador Maestro Consultorio v1.0.0" --notes "Instalador maestro para preparar Recepción y/o Historia Clínica en PCs con instalación base existente. Incluye los nuevos iconos diferenciados y launchers blindados."
-          }
-          gh release upload $tag $exe $sums $readme --clobber
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Upload artifact
+      - name: Upload validation artifact
         uses: actions/upload-artifact@v4
         with:
-          name: instalador-maestro-consultorio
+          name: instalador-maestro-consultorio-online-${{ github.sha }}
           path: |
             master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe
             master-installer/output/SHA256SUMS.txt
             master-installer/README.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish production release only from main
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "consultorio-installer-v2.0.0"
+          $exe = "master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe"
+          $sums = "master-installer/output/SHA256SUMS.txt"
+          $readme = "master-installer/README.txt"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Instalador Maestro Consultorio v2.0.0" --notes "Instalador maestro online ligero para instalación limpia o reparación de Recepción y/o Historia Clínica."
+          }
+          gh release upload $tag $exe $sums $readme --clobber
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
