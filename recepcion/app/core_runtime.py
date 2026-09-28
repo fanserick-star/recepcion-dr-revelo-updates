@@ -3007,10 +3007,14 @@ def _prefer_local_read(request: Request) -> bool:
 # v4.6.8: guardar una atención nunca espera a Neon. Se confirma primero en
 # SQLite y la cola offline ya existente la replica después a la nube.
 LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}
+LOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)
 
 
 def _prefer_local_write(request: Request) -> bool:
-    return request.method.upper() == "POST" and request.url.path in LOCAL_FIRST_WRITE_PATHS
+    if request.method.upper() != "POST":
+        return False
+    path = request.url.path
+    return path in LOCAL_FIRST_WRITE_PATHS or any(path.startswith(prefix) for prefix in LOCAL_FIRST_POST_PREFIXES)
 
 
 def get_db(request: Request):

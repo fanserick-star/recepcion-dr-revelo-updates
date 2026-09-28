@@ -181,7 +181,8 @@
     "consultation_print_non_blocking": true,
     "procedure_print_message_removed": true,
     "procedure_historia_handoff": false,
-    "procedure_turn_consumption": false
+    "procedure_turn_consumption": false,
+    "consultation_print_uses_local_visit_id": true
   },
   "channel": "launcher-v1-stable"
 }
