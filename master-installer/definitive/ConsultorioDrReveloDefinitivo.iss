@@ -1,5 +1,5 @@
 #define MyAppName "Consultorio Dr. Armando Revelo - Instalador"
-#define MyAppVersion "3.0.3"
+#define MyAppVersion "3.0.4"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -35,6 +35,7 @@ Name: "historia"; Description: "Historia Clínica"; Types: custom
 ; El EXE deliberadamente NO incluye Python, wheelhouse, aplicaciones ni launchers.
 ; Todo lo pesado se descarga, valida y prepara sólo cuando hace falta.
 Source: "build\bootstrap.generated.ps1"; DestDir: "{tmp}\DrReveloBootstrap"; DestName: "bootstrap.ps1"; Flags: deleteafterinstall
+Source: "compat.ps1"; DestDir: "{tmp}\DrReveloBootstrap"; DestName: "compat.ps1"; Flags: deleteafterinstall
 
 [Code]
 var
@@ -72,6 +73,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   PowerShellPath: String;
   ScriptPath: String;
+  CompatPath: String;
   CommandText: String;
   Args: String;
   ResultCode: Integer;
@@ -80,11 +82,11 @@ begin
   begin
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     ScriptPath := ExpandConstant('{tmp}\DrReveloBootstrap\bootstrap.ps1');
+    CompatPath := ExpandConstant('{tmp}\DrReveloBootstrap\compat.ps1');
 
-    // Windows limpio puede tener deshabilitada la autocarga de módulos.
-    // Usamos comillas Pascal válidas y cargamos Utility explícitamente.
-    CommandText := 'Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; & ''' +
-      ScriptPath + ''' -SourceInstaller ''' + ExpandConstant('{srcexe}') +
+    // compat.ps1 define SHA-256 con .NET y carga el módulo de firma Authenticode.
+    CommandText := '. ''' + CompatPath + '''; & ''' + ScriptPath +
+      ''' -SourceInstaller ''' + ExpandConstant('{srcexe}') +
       ''' -StageRoot ''' + ExpandConstant('{tmp}\DrReveloBootstrap') + '''';
 
     if WizardIsComponentSelected('recepcion') then
