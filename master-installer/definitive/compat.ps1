@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 
 # Windows PowerShell 5.1 de algunas instalaciones limpias puede no exponer
-# Get-FileHash aunque Microsoft.PowerShell.Utility cargue correctamente.
-# El bootstrap sólo necesita SHA-256, así que lo implementamos con .NET.
+# Get-FileHash. El bootstrap sólo necesita SHA-256, así que lo implementamos
+# directamente con .NET y evitamos depender de la carga de módulos opcionales.
 function global:Get-FileHash {
     [CmdletBinding(DefaultParameterSetName = 'LiteralPath')]
     param(
@@ -32,6 +32,3 @@ function global:Get-FileHash {
         $stream.Dispose()
     }
 }
-
-# Get-AuthenticodeSignature pertenece a Microsoft.PowerShell.Security.
-Import-Module Microsoft.PowerShell.Security -ErrorAction Stop
