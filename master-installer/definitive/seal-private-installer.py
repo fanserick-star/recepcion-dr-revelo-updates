@@ -7,11 +7,13 @@ from pathlib import Path
 
 BEGIN = b"\nDRREVELO_PRIVATE_CONFIG_V1\n"
 END = b"DRREVELO_PRIVATE_CONFIG_END\n"
+
+# Sólo las dos conexiones de base son información privada imprescindible.
+# Los tokens móviles se generan criptográficamente en bootstrap.ps1 cuando no
+# vienen en el paquete, por lo que jamás deben pedirse al usuario al instalar.
 REQUIRED = (
     "DATABASE_URL",
     "HISTORIA_DATABASE_URL",
-    "MOBILE_DOCTOR_TOKEN",
-    "MOBILE_RECEPTION_TOKEN",
 )
 
 
@@ -52,7 +54,7 @@ def seal(base: Path, config: Path, output: Path) -> str:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sella en privado el instalador definitivo del consultorio.")
+    parser = argparse.ArgumentParser(description="Sella en privado el instalador liviano del consultorio.")
     parser.add_argument("--base", required=True, type=Path)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
