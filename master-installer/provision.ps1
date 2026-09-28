@@ -182,7 +182,7 @@ function Test-PgConnection(
     [string]$Label
 ) {
     if ($SkipConnectivityTest) {
-        Write-Log "$Label: prueba de red omitida por modo de validación."
+        Write-Log "${Label}: prueba de red omitida por modo de validación."
         return
     }
     if (-not (Test-Path -LiteralPath $Python)) { throw "No existe Python para validar $Label." }
@@ -224,7 +224,7 @@ finally:
         if ($LASTEXITCODE -ne 0 -or (($output | Out-String).Trim() -ne 'OK')) {
             throw "No se pudo validar $Label."
         }
-        Write-Log "$Label: conexión verificada."
+        Write-Log "${Label}: conexión verificada."
     }
     finally {
         if ($null -eq $old) { Remove-Item Env:\DR_REVELO_TEST_DATABASE_URL -ErrorAction SilentlyContinue }
