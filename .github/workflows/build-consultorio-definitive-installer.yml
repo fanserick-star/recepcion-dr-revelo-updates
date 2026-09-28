@@ -176,7 +176,15 @@ jobs:
         run: |
           $exe = (Resolve-Path "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST.exe").Path
           $p = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="recepcion,historia"' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "Instalación limpia falló con código $($p.ExitCode)." }
+          if ($p.ExitCode -ne 0) {
+            $log = Get-ChildItem 'C:\ProgramData\ConsultorioDrRevelo\InstallerLogs' -Filter 'install-*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($log) {
+              Write-Host '===== BOOTSTRAP LOG ====='
+              Get-Content -LiteralPath $log.FullName | ForEach-Object { Write-Host $_ }
+              Write-Host '===== END BOOTSTRAP LOG ====='
+            }
+            throw "Instalación limpia falló con código $($p.ExitCode)."
+          }
           $required = @(
             'C:\Recepcion Dr Revelo\app.py',
             'C:\Recepcion Dr Revelo\.venv\Scripts\pythonw.exe',
