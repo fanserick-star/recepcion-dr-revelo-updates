@@ -1,0 +1,14 @@
+name: Historia 1.3.75 Reception Identity
+
+on:
+  push:
+    branches: [historia-1.3.75-recepcion-identidad]
+    paths:
+      - ".github/workflows/historia-1375-recepcion-identity.yml"
+  workflow_dispatch:
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ready
