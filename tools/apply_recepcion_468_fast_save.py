@@ -20,13 +20,18 @@ def patch_core() -> None:
     path = APP / "core_runtime.py"
     s = path.read_text(encoding="utf-8")
     read_block = '''def _prefer_local_read(request: Request) -> bool:\n    if request.method.upper() != "GET":\n        return False\n    if str(request.query_params.get("fresh") or "").strip() == "1":\n        return False\n    path = request.url.path\n    return any(path == prefix or path.startswith(prefix + "/") for prefix in LOCAL_FIRST_GET_PREFIXES)\n'''
-    write_block = read_block + '''\n\n# v4.6.8: guardar una atención nunca espera a Neon. Se confirma primero en\n# SQLite y la cola offline ya existente la replica después a la nube.\nLOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}\n\n\ndef _prefer_local_write(request: Request) -> bool:\n    return request.method.upper() == "POST" and request.url.path in LOCAL_FIRST_WRITE_PATHS\n'''
+    write_block = read_block + '''\n\n# v4.6.8: guardar una atención nunca espera a Neon. Se confirma primero en\n# SQLite y la cola offline ya existente la replica después a la nube. La\n# impresión de la atención recién creada también lee SQLite para conservar el\n# mismo ID local aunque la réplica a Neon esté ocurriendo en paralelo.\nLOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}\nLOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)\n\n\ndef _prefer_local_write(request: Request) -> bool:\n    if request.method.upper() != "POST":\n        return False\n    path = request.url.path\n    return path in LOCAL_FIRST_WRITE_PATHS or any(path.startswith(prefix) for prefix in LOCAL_FIRST_POST_PREFIXES)\n'''
     if "LOCAL_FIRST_WRITE_PATHS" not in s:
         s = replace_once(s, read_block, write_block, "preferencia local de escritura")
+    elif "LOCAL_FIRST_POST_PREFIXES" not in s:
+        old = '''LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}\n\n\ndef _prefer_local_write(request: Request) -> bool:\n    return request.method.upper() == "POST" and request.url.path in LOCAL_FIRST_WRITE_PATHS\n'''
+        new = '''LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}\nLOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)\n\n\ndef _prefer_local_write(request: Request) -> bool:\n    if request.method.upper() != "POST":\n        return False\n    path = request.url.path\n    return path in LOCAL_FIRST_WRITE_PATHS or any(path.startswith(prefix) for prefix in LOCAL_FIRST_POST_PREFIXES)\n'''
+        s = replace_once(s, old, new, "impresión local por ID local")
 
     old = '''    pending = queue_count()\n    if pending > 0 or _prefer_local_read(request):\n        use_cloud = False\n    else:\n        online = check_cloud()\n        use_cloud = bool(online and CloudSessionLocal)\n    factory = CloudSessionLocal if use_cloud else LocalSessionLocal\n    db = factory()\n    db.info["offline"] = not use_cloud\n    db.info["local_first"] = bool(not use_cloud and pending == 0 and _prefer_local_read(request))\n'''
     new = '''    pending = queue_count()\n    local_write = _prefer_local_write(request)\n    local_read = _prefer_local_read(request)\n    if pending > 0 or local_read or local_write:\n        use_cloud = False\n    else:\n        online = check_cloud()\n        use_cloud = bool(online and CloudSessionLocal)\n    factory = CloudSessionLocal if use_cloud else LocalSessionLocal\n    db = factory()\n    db.info["offline"] = not use_cloud\n    db.info["local_first"] = bool(not use_cloud and pending == 0 and local_read)\n    db.info["local_first_write"] = bool(local_write)\n'''
-    s = replace_once(s, old, new, "get_db local-first attention")
+    if old in s:
+        s = replace_once(s, old, new, "get_db local-first attention")
     path.write_text(s, encoding="utf-8")
 
 
@@ -112,36 +117,36 @@ def patch_identity() -> None:
 
     old = "            warnings(out);closeSearch();lastPanelPatient=0;await refreshPanel(pid,true);\n"
     new = "            identityCache.set(Number(pid),{at:Date.now(),data:out});warnings(out);closeSearch();lastPanelPatient=0;await refreshPanel(pid,true);\n"
-    s = replace_once(s, old, new, "cache tras vínculo manual")
+    if old in s:
+        s = replace_once(s, old, new, "cache tras vínculo manual")
 
     old = "      if(pid){setTimeout(async()=>{try{const d=await apiBase()('/api/historia-identity/sync/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});warnings(d);lastPanelPatient=0;refreshPanel(pid,true)}catch(_e){}},80)}\n"
     new = "      if(pid){setTimeout(async()=>{try{const d=await apiBase()('/api/historia-identity/sync/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});identityCache.set(Number(pid),{at:Date.now(),data:d});warnings(d);lastPanelPatient=0;refreshPanel(pid,true)}catch(_e){}},80)}\n"
-    s = replace_once(s, old, new, "cache tras sincronizar datos")
+    if old in s:
+        s = replace_once(s, old, new, "cache tras sincronizar datos")
 
     old = '''  function boot(){\n    installSaveGate();\n    ['savePatient','savePatientAndReturnToAttention'].forEach(installPatientSync);\n    clearTimeout(panelTimer);panelTimer=setTimeout(()=>refreshPanel(0,false),80);\n  }\n'''
     new = '''  function boot(){\n    installSaveGate();\n    ['savePatient','savePatientAndReturnToAttention'].forEach(installPatientSync);\n    clearTimeout(panelTimer);panelTimer=setTimeout(()=>{const pid=Number(patientIdFromModal()||0);if(pid)startIdentityPrepare(pid)},80);\n  }\n'''
-    s = replace_once(s, old, new, "boot prefetch no bloqueante")
+    if old in s:
+        s = replace_once(s, old, new, "boot prefetch no bloqueante")
     path.write_text(s, encoding="utf-8")
 
 
 def patch_print_flow() -> None:
     path = APP / "reception_attention_identity.py"
     s = path.read_text(encoding="utf-8")
-    s = replace_once(
-        s,
-        "const overlay=busyOverlay(\\'Guardando atención e imprimiendo recibo…\\');",
-        "const overlay=busyOverlay(\\'Guardando atención…\\');",
-        "mensaje guardando",
-    )
+    old = "const overlay=busyOverlay(\\'Guardando atención e imprimiendo recibo…\\');"
+    new = "const overlay=busyOverlay(\\'Guardando atención…\\');"
+    if old in s:
+        s = replace_once(s, old, new, "mensaje guardando")
     old = "try{printResult=await apiBefore(\\'/api/v4470/print-visit/\\'+Number(consult.id),{method:\\'POST\\',headers:{\\'Content-Type\\':\\'application/json\\'},body:\\'{}\\'})}catch(e){printResult={printed:false}}"
     new = "try{const printPromise=apiBefore(\\'/api/v4470/print-visit/\\'+Number(consult.id),{method:\\'POST\\',headers:{\\'Content-Type\\':\\'application/json\\'},body:\\'{}\\'});printResult={printed:true,queued:true};Promise.resolve(printPromise).then(r=>{if(r&&r.printed===false)toast(\\'⚠ Atención guardada. No se pudo imprimir el recibo; puedes reimprimirlo desde Inicio.\\',true)}).catch(()=>toast(\\'⚠ Atención guardada. No se pudo imprimir el recibo; puedes reimprimirlo desde Inicio.\\',true))}catch(e){printResult={printed:false}}"
-    s = replace_once(s, old, new, "impresión no bloqueante")
-    s = replace_once(
-        s,
-        "else toast(\\'✓ Atención guardada.\\');",
-        "else toast(\\'✓ Procedimiento guardado.\\');",
-        "mensaje procedimiento",
-    )
+    if old in s:
+        s = replace_once(s, old, new, "impresión no bloqueante")
+    old = "else toast(\\'✓ Atención guardada.\\');"
+    new = "else toast(\\'✓ Procedimiento guardado.\\');"
+    if old in s:
+        s = replace_once(s, old, new, "mensaje procedimiento")
     path.write_text(s, encoding="utf-8")
 
 
@@ -150,7 +155,8 @@ def patch_history_handoff() -> None:
     s = path.read_text(encoding="utf-8")
     old = '''            items = list((result or {}).get('items') or []) if isinstance(result, dict) else []\n            visit_ids = [x.get('id') for x in items if isinstance(x, dict) and x.get('id') is not None]\n            type_code = ''\n            if items and isinstance(items[0], dict):\n                type_code = str(items[0].get('tipo') or '').strip().upper()\n            if not type_code:\n                type_code = str(getattr(data, 'tipo', '') or '').strip().upper()\n            attention_type = _TYPE_LABELS.get(type_code)\n            if not attention_type:\n                attention_type = 'Subsecuente' if type_code == 'S' else 'Nuevo' if type_code == 'N' else 'Consulta'\n            historia_bridge.queue_attention(reception_patient_id=int(patient.id), display_name=str(getattr(patient, 'nombre', '') or 'Paciente'), identification=str(getattr(patient, 'cedula', '') or ''), attention_type=attention_type, visit_ids=visit_ids)\n'''
     new = '''            items = list((result or {}).get('items') or []) if isinstance(result, dict) else []\n            consultation_item = next((x for x in items if isinstance(x, dict) and not str(x.get('procedimiento') or '').strip()), None)\n            # Los procedimientos nunca consumen turno ni se envían a Pacientes en espera.\n            if consultation_item:\n                visit_ids = [consultation_item.get('id')] if consultation_item.get('id') is not None else []\n                type_code = str(consultation_item.get('tipo') or getattr(data, 'tipo', '') or '').strip().upper()\n                attention_type = _TYPE_LABELS.get(type_code)\n                if not attention_type:\n                    attention_type = 'Subsecuente' if type_code == 'S' else 'Nuevo' if type_code == 'N' else 'Consulta'\n                historia_bridge.queue_attention(reception_patient_id=int(patient.id), display_name=str(getattr(patient, 'nombre', '') or 'Paciente'), identification=str(getattr(patient, 'cedula', '') or ''), attention_type=attention_type, visit_ids=visit_ids)\n'''
-    s = replace_once(s, old, new, "handoff solo consultas")
+    if old in s:
+        s = replace_once(s, old, new, "handoff solo consultas")
     path.write_text(s, encoding="utf-8")
 
 
@@ -163,6 +169,7 @@ def patch_manifest() -> None:
         "attention_save_never_waits_for_reception_neon": True,
         "history_identity_prepare_non_blocking": True,
         "consultation_print_non_blocking": True,
+        "consultation_print_uses_local_visit_id": True,
         "procedure_auto_print": False,
         "procedure_print_message_removed": True,
         "procedure_historia_handoff": False,
