@@ -3004,6 +3004,19 @@ def _prefer_local_read(request: Request) -> bool:
     return any(path == prefix or path.startswith(prefix + "/") for prefix in LOCAL_FIRST_GET_PREFIXES)
 
 
+# v4.6.8: guardar una atención nunca espera a Neon. Se confirma primero en
+# SQLite y la cola offline ya existente la replica después a la nube.
+LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}
+LOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)
+
+
+def _prefer_local_write(request: Request) -> bool:
+    if request.method.upper() != "POST":
+        return False
+    path = request.url.path
+    return path in LOCAL_FIRST_WRITE_PATHS or any(path.startswith(prefix) for prefix in LOCAL_FIRST_POST_PREFIXES)
+
+
 def get_db(request: Request):
     # Las pantallas más consultadas leen desde la copia SQLite local. Las
     # escrituras siguen yendo a Neon cuando está disponible y se reflejan
@@ -3011,7 +3024,9 @@ def get_db(request: Request):
     # recibe muchas menos lecturas innecesarias.
     _mark_client_active()
     pending = queue_count()
-    if pending > 0 or _prefer_local_read(request):
+    local_write = _prefer_local_write(request)
+    local_read = _prefer_local_read(request)
+    if pending > 0 or local_read or local_write:
         use_cloud = False
     else:
         online = check_cloud()
@@ -3019,7 +3034,8 @@ def get_db(request: Request):
     factory = CloudSessionLocal if use_cloud else LocalSessionLocal
     db = factory()
     db.info["offline"] = not use_cloud
-    db.info["local_first"] = bool(not use_cloud and pending == 0 and _prefer_local_read(request))
+    db.info["local_first"] = bool(not use_cloud and pending == 0 and local_read)
+    db.info["local_first_write"] = bool(local_write)
     try:
         yield db
     finally:
