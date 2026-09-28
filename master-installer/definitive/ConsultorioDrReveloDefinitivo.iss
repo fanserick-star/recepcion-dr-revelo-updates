@@ -1,5 +1,5 @@
 #define MyAppName "Consultorio Dr. Armando Revelo - Instalador"
-#define MyAppVersion "3.0.2"
+#define MyAppVersion "3.0.3"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -81,18 +81,16 @@ begin
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     ScriptPath := ExpandConstant('{tmp}\DrReveloBootstrap\bootstrap.ps1');
 
-    // Windows limpio puede tener deshabilitada la autocarga de módulos. Importamos
-    // explícitamente Microsoft.PowerShell.Utility antes de ejecutar el bootstrap,
-    // para que Get-FileHash/Get-AuthenticodeSignature estén siempre disponibles.
-    CommandText := "Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; & '" + ScriptPath + "'" +
-      " -SourceInstaller '" + ExpandConstant('{srcexe}') + "'" +
-      " -StageRoot '" + ExpandConstant('{tmp}\DrReveloBootstrap') + "'";
+    // Windows limpio puede tener deshabilitada la autocarga de módulos.
+    // Usamos comillas Pascal válidas y cargamos Utility explícitamente.
+    CommandText := 'Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; & ''' +
+      ScriptPath + ''' -SourceInstaller ''' + ExpandConstant('{srcexe}') +
+      ''' -StageRoot ''' + ExpandConstant('{tmp}\DrReveloBootstrap') + '''';
 
     if WizardIsComponentSelected('recepcion') then
       CommandText := CommandText + ' -Reception';
     if WizardIsComponentSelected('historia') then
       CommandText := CommandText + ' -Historia';
-    CommandText := CommandText + '; exit $LASTEXITCODE';
 
     Args := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' + CommandText + '"';
 
