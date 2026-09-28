@@ -204,7 +204,7 @@ function Ensure-Python {
     if (-not (Test-Path -LiteralPath $installer)) { throw 'No se encontro Python 3.11 incluido en el instalador.' }
     Invoke-InstallerChecked $installer @(
         '/quiet',
-        'InstallAllUsers=1',
+        'InstallAllUsers=0',
         "TargetDir=$PythonRoot",
         'PrependPath=0',
         'Include_launcher=0',
