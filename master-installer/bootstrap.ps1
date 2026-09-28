@@ -40,7 +40,7 @@ function Get-VerifiedFile([string]$Url, [string]$Destination, [string]$ExpectedS
     Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $temp -Headers @{
         'User-Agent' = 'ConsultorioDrRevelo-Bootstrap/2.0'
         'Cache-Control' = 'no-cache'
-    } -TimeoutSec 90
+    } -TimeoutSec 180
 
     if ($ExpectedSha256) {
         $actual = (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -198,14 +198,11 @@ function Ensure-Venv([string]$ProductName, [string]$Root, [string[]]$Packages) {
     if ($exit -ne 0) { throw "No se pudieron instalar las dependencias de $ProductName." }
 }
 
-function Install-LatestLauncher([string]$ProductName, [string]$ChannelUrl) {
-    Write-Step "Instalando launcher verificado de $ProductName..."
-    $channel = Get-Json $ChannelUrl
-    $url = [string]$channel.installerUrl
-    $sha = [string]$channel.installerSha256
-    if (-not $url -or -not $sha) { throw "El canal del launcher de $ProductName no es válido." }
+function Install-VerifiedLauncher([string]$ProductName, [string]$Url, [string]$Sha256) {
+    Write-Step "Instalando launcher base verificado de $ProductName..."
+    if (-not $Url -or -not $Sha256) { throw "Falta la referencia verificada del launcher de $ProductName." }
     $installer = Join-Path $env:TEMP (("dr-revelo-{0}-launcher.exe" -f ($ProductName -replace '[^A-Za-z0-9]+','-')).ToLowerInvariant())
-    Get-VerifiedFile $url $installer $sha
+    Get-VerifiedFile $Url $installer $Sha256
     $proc = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-') -Wait -PassThru
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
     if ($proc.ExitCode -notin @(0, 3010)) { throw "El launcher de $ProductName devolvió código $($proc.ExitCode)." }
@@ -226,6 +223,11 @@ $HistoriaPackages = @(
     'pywebview==6.2.1'
 )
 
+$ReceptionLauncherUrl = 'https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe'
+$ReceptionLauncherSha256 = '9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0'
+$HistoriaLauncherUrl = 'https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe'
+$HistoriaLauncherSha256 = '7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0a04c13a2cc6'
+
 try {
     Ensure-PrivatePython
 
@@ -233,7 +235,7 @@ try {
         $root = 'C:\Recepcion Dr Revelo'
         $version = Install-AppFromChannel 'Recepción' $root 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json'
         Ensure-Venv 'Recepción' $root $ReceptionPackages
-        Install-LatestLauncher 'Recepción' 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json'
+        Install-VerifiedLauncher 'Recepción' $ReceptionLauncherUrl $ReceptionLauncherSha256
         Write-Step "Recepción $version preparada correctamente."
     }
 
@@ -241,7 +243,7 @@ try {
         $root = 'C:\Historia Clinica Dr Revelo'
         $version = Install-AppFromChannel 'Historia Clínica' $root 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json'
         Ensure-Venv 'Historia Clínica' $root $HistoriaPackages
-        Install-LatestLauncher 'Historia Clínica' 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json'
+        Install-VerifiedLauncher 'Historia Clínica' $HistoriaLauncherUrl $HistoriaLauncherSha256
         Write-Step "Historia Clínica $version preparada correctamente."
     }
 
