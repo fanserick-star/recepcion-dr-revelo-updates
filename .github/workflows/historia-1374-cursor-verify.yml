@@ -1,0 +1,51 @@
+name: Historia 1.3.74 Cursor Verify
+
+on:
+  push:
+    branches: [historia-1.3.74-final-audit]
+    paths:
+      - "historia-clinica/tools/fix_1374_sync_cursor.py"
+      - ".github/workflows/historia-1374-cursor-verify.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: historia-1.3.74-final-audit
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply cursor hardening
+        shell: pwsh
+        run: python historia-clinica/tools/fix_1374_sync_cursor.py
+      - name: Compile runtime
+        shell: pwsh
+        run: |
+          python -m py_compile historia-clinica/app/app.py
+          python -m py_compile historia-clinica/app/cloud_sync.py
+          python -m py_compile historia-clinica/app/documentos_clinicos.py
+      - name: Install smoke dependencies
+        shell: pwsh
+        run: python -m pip install --disable-pip-version-check fastapi==0.128.2 uvicorn==0.48.0 pg8000==1.31.2
+      - name: Run 1.3.74 smoke
+        shell: pwsh
+        run: python historia-clinica/tests/smoke_runtime_1374.py
+      - name: Commit hardened runtime
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historia-clinica/app/cloud_sync.py historia-clinica/app/update_manifest.json historia-clinica/tests/smoke_runtime_1374.py
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "Historia 1.3.74: endurecer cursor de sincronizacion multi-PC"
+            git push origin HEAD:historia-1.3.74-final-audit
+          } else {
+            Write-Host "Sin cambios pendientes"
+          }
