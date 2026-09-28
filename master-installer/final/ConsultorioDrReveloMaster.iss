@@ -2,7 +2,7 @@
 #define MyAppVersion "3.0.0"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
-; Consolidated installer build trigger: validated child runtimes and clean-install pipeline.
+; Consolidated installer build trigger: validated child runtimes and clean-install pipeline. Rebuild authorized 2026-09-27.
 
 [Setup]
 AppId={{93BC75C3-A37F-4E24-B4FC-F5B1F45C63B0}
