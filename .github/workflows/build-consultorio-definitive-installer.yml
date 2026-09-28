@@ -1,15 +1,18 @@
-name: Build Definitive Consultorio Installer
+name: Build Lightweight Consultorio Bootstrapper
 
 on:
   push:
-    branches: [build/definitive-private-installer]
+    branches: [build/lightweight-private-installer-v3]
     paths:
       - "master-installer/definitive/**"
       - ".github/workflows/build-consultorio-definitive-installer.yml"
+      - "recepcion/app/**"
+      - "historia-clinica/app/**"
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   build-and-test:
@@ -22,80 +25,61 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Parse bootstrap PowerShell
+      - name: Reject legacy patch chains and embedded private state
         shell: pwsh
         run: |
-          $text = Get-Content "master-installer/definitive/bootstrap.ps1" -Raw
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseInput($text, [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) {
-            $errors | ForEach-Object { Write-Error $_.Message }
-            throw "bootstrap.ps1 contiene errores de sintaxis."
+          $roots = @('recepcion/app','historia-clinica/app')
+          foreach ($root in $roots) {
+            if (-not (Test-Path "$root/app.py")) { throw "$root no contiene app.py" }
+            if ((Get-ChildItem $root -Recurse -File -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue).Count -gt 0) {
+              throw "$root contiene app_patch_*; no se construirá el instalador."
+            }
+            if (Test-Path "$root/.env") { throw "$root contiene .env; no puede publicarse." }
+            if (Test-Path "$root/data") { throw "$root contiene data/; no puede incluirse en el payload canónico." }
           }
-          Write-Host "BOOTSTRAP_PARSE_OK"
+          Write-Host 'CANONICAL_RUNTIME_OK'
 
-      - name: Stage canonical runtimes
+      - name: Prepare pinned online bootstrap
         shell: pwsh
         run: |
-          $build = "master-installer/definitive/build"
-          New-Item -ItemType Directory -Force "$build/payload/recepcion", "$build/payload/historia", "$build/wheelhouse" | Out-Null
-          Copy-Item "recepcion/app/*" "$build/payload/recepcion" -Recurse -Force
-          Copy-Item "historia-clinica/app/*" "$build/payload/historia" -Recurse -Force
-          Copy-Item "historia-clinica/app/requirements.txt" "$build/requirements-historia.txt" -Force
+          $build = 'master-installer/definitive/build'
+          Remove-Item $build -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force $build | Out-Null
 
-          if (Test-Path "$build/payload/recepcion/data") { throw "El payload de Recepción no puede contener data/." }
-          if (Test-Path "$build/payload/historia/data") { throw "El payload de Historia no puede contener data/." }
-          if (Test-Path "$build/payload/recepcion/.env") { throw "El payload de Recepción no puede contener .env." }
-          if (Test-Path "$build/payload/historia/.env") { throw "El payload de Historia no puede contener .env." }
+          $sourceUrl = "https://codeload.github.com/$env:GITHUB_REPOSITORY/zip/$env:GITHUB_SHA"
+          $sourceZip = Join-Path $build 'source-pin.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri $sourceUrl -OutFile $sourceZip
+          $sourceSha = (Get-FileHash $sourceZip -Algorithm SHA256).Hash.ToLowerInvariant()
 
-      - name: Download and verify Python 3.11 runtime installer
-        shell: pwsh
-        run: |
-          $dst = "master-installer/definitive/build/python-3.11.9-amd64.exe"
-          Invoke-WebRequest -UseBasicParsing -Uri "https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe" -OutFile $dst
-          $sig = Get-AuthenticodeSignature $dst
+          $pythonCheck = Join-Path $build 'python-3.11.9-check.exe'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://www.python.org/ftp/python/3.11.9/python-3.11.9-amd64.exe' -OutFile $pythonCheck
+          $sig = Get-AuthenticodeSignature $pythonCheck
           if ($sig.Status -ne 'Valid') { throw "Firma Authenticode de Python inválida: $($sig.Status)" }
           if ($sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
-            throw "El instalador de Python no está firmado por Python Software Foundation."
+            throw 'El instalador de Python no está firmado por Python Software Foundation.'
           }
-          Write-Host "PYTHON_INSTALLER_SIGNATURE_OK"
+          $pythonSha = (Get-FileHash $pythonCheck -Algorithm SHA256).Hash.ToLowerInvariant()
 
-      - name: Build offline wheelhouse
-        shell: pwsh
-        run: |
-          python -m pip install --disable-pip-version-check --upgrade pip wheel
-          python -m pip wheel --disable-pip-version-check `
-            --wheel-dir "master-installer/definitive/build/wheelhouse" `
-            -r "master-installer/definitive/requirements-recepcion.txt" `
-            -r "historia-clinica/app/requirements.txt"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $count = (Get-ChildItem "master-installer/definitive/build/wheelhouse" -File).Count
-          if ($count -lt 6) { throw "Wheelhouse inesperadamente pequeño: $count" }
-          Write-Host "WHEELHOUSE_OK files=$count"
+          $template = Get-Content 'master-installer/definitive/bootstrap.ps1' -Raw
+          $generated = $template.Replace('__SOURCE_ARCHIVE_URL__', $sourceUrl).Replace('__SOURCE_ARCHIVE_SHA256__', $sourceSha).Replace('__PYTHON_SHA256__', $pythonSha)
+          if ($generated -match '__SOURCE_ARCHIVE_|__PYTHON_SHA256__') { throw 'Quedaron placeholders sin resolver.' }
+          Set-Content -LiteralPath "$build/bootstrap.generated.ps1" -Value $generated -Encoding UTF8
 
-      - name: Download verified launchers
-        shell: pwsh
-        run: |
-          $build = "master-installer/definitive/build"
-          $items = @(
-            @{
-              Url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
-              File = "$build/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
-              Sha = "9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0"
-            },
-            @{
-              Url = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
-              File = "$build/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe"
-              Sha = "7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0a04c13a2cc6"
-            }
-          )
-          foreach ($item in $items) {
-            Invoke-WebRequest -UseBasicParsing -Uri $item.Url -OutFile $item.File
-            $got = (Get-FileHash $item.File -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($got -ne $item.Sha) { throw "SHA-256 no coincide para $($item.File): $got" }
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($generated, [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw 'bootstrap.generated.ps1 contiene errores de sintaxis.'
           }
-          Write-Host "LAUNCHERS_SHA256_OK"
+
+          @(
+            "commit=$env:GITHUB_SHA",
+            "source_url=$sourceUrl",
+            "source_sha256=$sourceSha",
+            "python_sha256=$pythonSha"
+          ) | Set-Content "$build/BUILD_INFO.txt" -Encoding ascii
+          Write-Host "BOOTSTRAP_PINNED_OK source=$sourceSha python=$pythonSha"
 
       - name: Generate consultorio icon
         shell: pwsh
@@ -105,15 +89,15 @@ jobs:
           $g = [System.Drawing.Graphics]::FromImage($bmp)
           $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
           $g.Clear([System.Drawing.Color]::FromArgb(27,61,91))
-          $font = New-Object System.Drawing.Font("Segoe UI",22,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+          $font = New-Object System.Drawing.Font('Segoe UI',22,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
           $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::White)
           $fmt = New-Object System.Drawing.StringFormat
           $fmt.Alignment = [System.Drawing.StringAlignment]::Center
           $fmt.LineAlignment = [System.Drawing.StringAlignment]::Center
-          $g.DrawString("DR",$font,$brush,[System.Drawing.RectangleF]::new(0,0,64,64),$fmt)
+          $g.DrawString('DR',$font,$brush,[System.Drawing.RectangleF]::new(0,0,64,64),$fmt)
           $h = $bmp.GetHicon()
           $ico = [System.Drawing.Icon]::FromHandle($h)
-          $fs = [IO.File]::Create("master-installer/definitive/build/consultorio_icon.ico")
+          $fs = [IO.File]::Create('master-installer/definitive/build/consultorio_icon.ico')
           try { $ico.Save($fs) } finally { $fs.Dispose() }
           $ico.Dispose(); $fmt.Dispose(); $brush.Dispose(); $font.Dispose(); $g.Dispose(); $bmp.Dispose()
 
@@ -123,36 +107,41 @@ jobs:
           choco install innosetup -y --no-progress
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build generic definitive EXE
+      - name: Build lightweight generic EXE
         shell: pwsh
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
-          if (-not (Test-Path $iscc)) { throw "ISCC.exe no encontrado." }
-          & $iscc "master-installer/definitive/ConsultorioDrReveloDefinitivo.iss"
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe no encontrado.' }
+          & $iscc 'master-installer/definitive/ConsultorioDrReveloDefinitivo.iss'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $base = "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe"
-          if (-not (Test-Path $base)) { throw "No se generó el EXE base." }
-          $allBytes = [IO.File]::ReadAllBytes($base)
-          $tailStart = [Math]::Max(0, $allBytes.Length - 1000)
-          $tailLength = $allBytes.Length - $tailStart
-          $tail = [Text.Encoding]::ASCII.GetString($allBytes, $tailStart, $tailLength)
-          if ($tail -match 'DRREVELO_PRIVATE_CONFIG_V1') { throw "El EXE base contiene configuración privada inesperada." }
-          $hash = (Get-FileHash $base -Algorithm SHA256).Hash.ToLowerInvariant()
-          "$hash  INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe" | Set-Content "master-installer/definitive/output/SHA256SUMS.txt" -Encoding ascii
-          Write-Host "GENERIC_INSTALLER_OK sha256=$hash"
 
-      - name: Confirm generic EXE refuses unsealed installation
+          $base = 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO.exe'
+          if (-not (Test-Path $base)) { throw 'No se generó el EXE base liviano.' }
+          $size = (Get-Item $base).Length
+          if ($size -gt 12MB) { throw "El bootstrap volvió a crecer demasiado: $size bytes." }
+
+          $bytes = [IO.File]::ReadAllBytes($base)
+          $tailStart = [Math]::Max(0, $bytes.Length - 1000)
+          $tail = [Text.Encoding]::ASCII.GetString($bytes, $tailStart, $bytes.Length - $tailStart)
+          if ($tail -match 'DRREVELO_PRIVATE_CONFIG_V1') { throw 'El EXE base contiene configuración privada inesperada.' }
+
+          $hash = (Get-FileHash $base -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO.exe" | Set-Content 'master-installer/definitive/output/SHA256SUMS.txt' -Encoding ascii
+          Copy-Item 'master-installer/definitive/build/BUILD_INFO.txt' 'master-installer/definitive/output/BUILD_INFO.txt' -Force
+          Write-Host "LIGHTWEIGHT_BASE_OK bytes=$size sha256=$hash"
+
+      - name: Confirm unsealed EXE refuses installation before downloads
         shell: pwsh
         run: |
-          Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo' -Recurse -Force -ErrorAction SilentlyContinue
-          $base = (Resolve-Path "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe").Path
+          Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo','C:\ProgramData\ConsultorioDrRevelo' -Recurse -Force -ErrorAction SilentlyContinue
+          $base = (Resolve-Path 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO.exe').Path
           $p = Start-Process -FilePath $base -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="recepcion,historia"' -Wait -PassThru
-          if ($p.ExitCode -eq 0) { throw "El EXE sin sellar no debió completar la instalación." }
+          if ($p.ExitCode -eq 0) { throw 'El EXE sin sellar no debió completar la instalación.' }
           if ((Test-Path 'C:\Recepcion Dr Revelo\app.py') -or (Test-Path 'C:\Historia Clinica Dr Revelo\app.py')) {
-            throw "El EXE sin sellar modificó una instalación."
+            throw 'El EXE sin sellar modificó una instalación.'
           }
-          Write-Host "UNSEALED_INSTALL_BLOCKED_OK code=$($p.ExitCode)"
+          Write-Host "UNSEALED_BLOCKED_OK code=$($p.ExitCode)"
 
       - name: Seal test copy with dummy private config
         shell: pwsh
@@ -161,20 +150,22 @@ jobs:
           @'
           DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
           HISTORIA_DATABASE_URL=postgresql://dummy:dummy@127.0.0.1:5432/dummy
-          MOBILE_DOCTOR_TOKEN=dummy-doctor-token
-          MOBILE_RECEPTION_TOKEN=dummy-reception-token
           AZUR_API_KEY=dummy-azur-key
           '@ | Set-Content $dummy -Encoding utf8
-          python "master-installer/definitive/seal-private-installer.py" `
-            --base "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe" `
+          python 'master-installer/definitive/seal-private-installer.py' `
+            --base 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO.exe' `
             --config $dummy `
-            --output "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST.exe"
+            --output 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST_LIVIANO.exe'
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Test clean install of both programs
+          $sealed = 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST_LIVIANO.exe'
+          if ((Get-Item $sealed).Length -gt 12MB) { throw 'El EXE sellado de prueba excede 12 MB.' }
+
+      - name: Test truly clean install of both programs
         shell: pwsh
         run: |
-          $exe = (Resolve-Path "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST.exe").Path
+          Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo','C:\ProgramData\ConsultorioDrRevelo' -Recurse -Force -ErrorAction SilentlyContinue
+          $exe = (Resolve-Path 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST_LIVIANO.exe').Path
           $p = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="recepcion,historia"' -Wait -PassThru
           if ($p.ExitCode -ne 0) {
             $log = Get-ChildItem 'C:\ProgramData\ConsultorioDrRevelo\InstallerLogs' -Filter 'install-*.log' -File -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -185,7 +176,9 @@ jobs:
             }
             throw "Instalación limpia falló con código $($p.ExitCode)."
           }
+
           $required = @(
+            'C:\ProgramData\ConsultorioDrRevelo\Python311\python.exe',
             'C:\Recepcion Dr Revelo\app.py',
             'C:\Recepcion Dr Revelo\.venv\Scripts\pythonw.exe',
             'C:\Recepcion Dr Revelo\RecepcionLauncher.exe',
@@ -196,11 +189,19 @@ jobs:
             'C:\Historia Clinica Dr Revelo\.env'
           )
           foreach ($path in $required) { if (-not (Test-Path $path)) { throw "Falta $path" } }
-          if ((Get-ChildItem 'C:\Recepcion Dr Revelo' -Recurse -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue).Count -gt 0) { throw 'Recepción reintrodujo app_patch.' }
-          if ((Get-ChildItem 'C:\Historia Clinica Dr Revelo' -Recurse -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue).Count -gt 0) { throw 'Historia reintrodujo app_patch.' }
-          Write-Host "CLEAN_INSTALL_BOTH_OK"
 
-      - name: Test repair preserves data and private config
+          foreach ($root in @('C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo')) {
+            if ((Get-ChildItem $root -Recurse -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue).Count -gt 0) {
+              throw "$root reintrodujo app_patch_*"
+            }
+            $envText = Get-Content "$root\.env" -Raw
+            foreach ($key in @('DATABASE_URL','HISTORIA_DATABASE_URL','MOBILE_DOCTOR_TOKEN','MOBILE_RECEPTION_TOKEN')) {
+              if ($envText -notmatch "(?m)^$key=.+$") { throw "$root no quedó autónomo: falta $key" }
+            }
+          }
+          Write-Host 'CLEAN_ONLINE_INSTALL_BOTH_OK'
+
+      - name: Test repair preserves data and existing private config
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force 'C:\Recepcion Dr Revelo\data','C:\Historia Clinica Dr Revelo\data' | Out-Null
@@ -211,7 +212,7 @@ jobs:
           $rHash = (Get-FileHash 'C:\Recepcion Dr Revelo\.env' -Algorithm SHA256).Hash
           $hHash = (Get-FileHash 'C:\Historia Clinica Dr Revelo\.env' -Algorithm SHA256).Hash
 
-          $exe = (Resolve-Path "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST.exe").Path
+          $exe = (Resolve-Path 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST_LIVIANO.exe').Path
           $p = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="recepcion,historia"' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Reparación falló con código $($p.ExitCode)." }
 
@@ -219,33 +220,54 @@ jobs:
           if ((Get-Content 'C:\Historia Clinica Dr Revelo\data\installer-preserve.txt' -Raw).Trim() -ne 'KEEP_HISTORIA_DATA') { throw 'No se conservó data de Historia.' }
           if ((Get-FileHash 'C:\Recepcion Dr Revelo\.env' -Algorithm SHA256).Hash -ne $rHash) { throw 'Se reemplazó .env de Recepción.' }
           if ((Get-FileHash 'C:\Historia Clinica Dr Revelo\.env' -Algorithm SHA256).Hash -ne $hHash) { throw 'Se reemplazó .env de Historia.' }
-          Write-Host "REPAIR_PRESERVES_STATE_OK"
+          Write-Host 'REPAIR_PRESERVES_STATE_OK'
 
-      - name: Test component selection independently
+      - name: Test each component independently
         shell: pwsh
         run: |
-          $exe = (Resolve-Path "master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST.exe").Path
+          $exe = (Resolve-Path 'master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_TEST_LIVIANO.exe').Path
           Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo' -Recurse -Force -ErrorAction SilentlyContinue
 
           $p = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="recepcion"' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Solo Recepción falló: $($p.ExitCode)" }
-          if (-not (Test-Path 'C:\Recepcion Dr Revelo\app.py')) { throw 'Recepción no se instaló.' }
-          if (Test-Path 'C:\Historia Clinica Dr Revelo\app.py') { throw 'Historia se instaló sin ser seleccionada.' }
+          if (-not (Test-Path 'C:\Recepcion Dr Revelo\app.py')) { throw 'Solo Recepción no instaló Recepción.' }
+          if (Test-Path 'C:\Historia Clinica Dr Revelo\app.py') { throw 'Solo Recepción instaló Historia inesperadamente.' }
 
-          Remove-Item 'C:\Recepcion Dr Revelo' -Recurse -Force
+          Remove-Item 'C:\Recepcion Dr Revelo','C:\Historia Clinica Dr Revelo' -Recurse -Force -ErrorAction SilentlyContinue
           $p = Start-Process -FilePath $exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS="historia"' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Solo Historia falló: $($p.ExitCode)" }
-          if (-not (Test-Path 'C:\Historia Clinica Dr Revelo\app.py')) { throw 'Historia no se instaló.' }
-          if (Test-Path 'C:\Recepcion Dr Revelo\app.py') { throw 'Recepción se instaló sin ser seleccionada.' }
-          Write-Host "COMPONENT_SELECTION_OK"
+          if (-not (Test-Path 'C:\Historia Clinica Dr Revelo\app.py')) { throw 'Solo Historia no instaló Historia.' }
+          if (Test-Path 'C:\Recepcion Dr Revelo\app.py') { throw 'Solo Historia instaló Recepción inesperadamente.' }
+          Write-Host 'COMPONENT_SELECTION_OK'
 
-      - name: Upload public-safe base artifact
+      - name: Delete obsolete heavy installer artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $listUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/artifacts?name=instalador-definitivo-base-sin-secretos&per_page=100"
+          $response = Invoke-RestMethod -Headers $headers -Uri $listUri -Method Get
+          $deleted = 0
+          foreach ($artifact in @($response.artifacts)) {
+            $deleteUri = "https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/artifacts/$($artifact.id)"
+            Invoke-RestMethod -Headers $headers -Uri $deleteUri -Method Delete
+            $deleted++
+            Write-Host "Deleted legacy heavy artifact id=$($artifact.id) size=$($artifact.size_in_bytes)"
+          }
+          Write-Host "LEGACY_HEAVY_ARTIFACTS_REMOVED count=$deleted"
+
+      - name: Upload lightweight public-safe base artifact
         uses: actions/upload-artifact@v4
         with:
-          name: instalador-definitivo-base-sin-secretos
-          path: |
-            master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE.exe
-            master-installer/definitive/output/SHA256SUMS.txt
-            master-installer/definitive/seal-private-installer.py
-          if-no-files-found: error
+          name: instalador-bootstrap-liviano-base-sin-secretos
           retention-days: 7
+          if-no-files-found: error
+          path: |
+            master-installer/definitive/output/INSTALAR_CONSULTORIO_DR_REVELO_BASE_LIVIANO.exe
+            master-installer/definitive/output/SHA256SUMS.txt
+            master-installer/definitive/output/BUILD_INFO.txt
