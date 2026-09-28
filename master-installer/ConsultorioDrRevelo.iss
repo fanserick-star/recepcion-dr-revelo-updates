@@ -1,5 +1,5 @@
 #define MyAppName "Consultorio Dr. Armando Revelo"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "2.0.0"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -32,40 +32,27 @@ Name: "recepcion"; Description: "Recepción"; Types: custom
 Name: "historia"; Description: "Historia Clínica"; Types: custom
 
 [Files]
-Source: "build\INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"; DestDir: "{tmp}\DrReveloMaster"; Flags: deleteafterinstall; Components: recepcion
-Source: "build\INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"; DestDir: "{tmp}\DrReveloMaster"; Flags: deleteafterinstall; Components: historia
-
-[Run]
-Filename: "{tmp}\DrReveloMaster\INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"; StatusMsg: "Actualizando Recepción y su launcher..."; Flags: waituntilterminated; Components: recepcion
-Filename: "{tmp}\DrReveloMaster\INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_7.exe"; Parameters: "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-"; StatusMsg: "Actualizando Historia Clínica y su launcher..."; Flags: waituntilterminated; Components: historia
+Source: "bootstrap.ps1"; DestDir: "{tmp}\DrReveloMaster"; Flags: deleteafterinstall
 
 [Code]
+function BootstrapArguments(): String;
+begin
+  Result := '';
+  if WizardIsComponentSelected('recepcion') then
+    Result := Result + ' -Reception';
+  if WizardIsComponentSelected('historia') then
+    Result := Result + ' -Historia';
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
-var
-  Missing: String;
 begin
   Result := True;
   if CurPageID = wpSelectComponents then
   begin
-    Missing := '';
-    if WizardIsComponentSelected('recepcion') and
-       not FileExists('C:\Recepcion Dr Revelo\app.py') then
-      Missing := Missing + '- Recepción no está instalada en C:\Recepcion Dr Revelo' + #13#10;
-
-    if WizardIsComponentSelected('historia') and
-       not FileExists('C:\Historia Clinica Dr Revelo\app.py') then
-      Missing := Missing + '- Historia Clínica no está instalada en C:\Historia Clinica Dr Revelo' + #13#10;
-
-    if Missing <> '' then
+    if (not WizardIsComponentSelected('recepcion')) and
+       (not WizardIsComponentSelected('historia')) then
     begin
-      MsgBox(
-        'Este instalador maestro finaliza/actualiza instalaciones existentes sin tocar bases ni configuraciones privadas.' +
-        #13#10 + #13#10 +
-        'Falta una instalación base para:' + #13#10 + Missing +
-        #13#10 +
-        'No continuaré para evitar crear una instalación incompleta.',
-        mbError, MB_OK
-      );
+      MsgBox('Selecciona Recepción, Historia Clínica o ambos.', mbInformation, MB_OK);
       Result := False;
     end;
   end;
@@ -76,6 +63,33 @@ begin
   if CurPageID = wpSelectComponents then
   begin
     WizardForm.SelectComponentsLabel.Caption :=
-      'Elige qué programa quieres preparar en esta PC. Puedes instalar uno o ambos.';
+      'Elige qué programa quieres instalar o reparar. El instalador descargará la versión oficial vigente y conservará datos y configuración privada existentes.';
+  end;
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  PowerShell: String;
+  ScriptPath: String;
+  Params: String;
+  ResultCode: Integer;
+  Ok: Boolean;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    PowerShell := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
+    ScriptPath := ExpandConstant('{tmp}\DrReveloMaster\bootstrap.ps1');
+    Params := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"' + BootstrapArguments();
+
+    WizardForm.StatusLabel.Caption := 'Preparando el sistema completo. Se verificarán descargas y dependencias...';
+    Ok := Exec(PowerShell, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    if (not Ok) or (ResultCode <> 0) then
+    begin
+      RaiseException(
+        'No se pudo completar la instalación limpia.' + #13#10 +
+        'No se reemplazaron las bases de datos ni la configuración privada existente.' + #13#10 +
+        'Revise el registro en C:\ProgramData\DrReveloRuntime\logs.'
+      );
+    end;
   end;
 end;
