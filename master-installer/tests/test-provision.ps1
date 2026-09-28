@@ -51,7 +51,8 @@ $macInput = New-Object byte[] ($salt.Length + $iv.Length + $ct.Length)
 [Array]::Copy($salt, 0, $macInput, 0, $salt.Length)
 [Array]::Copy($iv, 0, $macInput, $salt.Length, $iv.Length)
 [Array]::Copy($ct, 0, $macInput, $salt.Length + $iv.Length, $ct.Length)
-$h = New-Object Security.Cryptography.HMACSHA256($macKey)
+$h = New-Object Security.Cryptography.HMACSHA256
+$h.Key = $macKey
 $mac = $h.ComputeHash($macInput); $h.Dispose()
 $sha = [Security.Cryptography.SHA256]::Create()
 $activationHash = ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($activation)))).Replace('-', '').ToLowerInvariant()
