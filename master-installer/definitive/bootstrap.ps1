@@ -56,12 +56,36 @@ function Invoke-Checked {
         [Parameter(Mandatory = $true)][string]$FilePath,
         [Parameter()][string[]]$Arguments = @()
     )
+
     Write-Step ("Ejecutando: " + [IO.Path]::GetFileName($FilePath))
-    $output = & $FilePath @Arguments 2>&1
-    $exitVar = Get-Variable -Name LASTEXITCODE -ErrorAction SilentlyContinue
-    if ($null -eq $exitVar -or $null -eq $exitVar.Value) { $code = 0 } else { $code = [int]$exitVar.Value }
+
+    # Windows PowerShell 5.1 convierte stderr de procesos nativos en ErrorRecord.
+    # pip escribe advertencias normales en stderr; con ErrorActionPreference=Stop
+    # esas advertencias terminaban la instalación antes de leer LASTEXITCODE.
+    # Conservamos la invocación nativa (que maneja bien rutas con espacios) y
+    # decidimos éxito/fallo únicamente por el código de salida real del proceso.
+    $previousErrorActionPreference = $ErrorActionPreference
+    $output = @()
+    $code = 0
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & $FilePath @Arguments 2>&1
+        $exitVar = Get-Variable -Name LASTEXITCODE -ErrorAction SilentlyContinue
+        if ($null -eq $exitVar -or $null -eq $exitVar.Value) {
+            $code = 0
+        }
+        else {
+            $code = [int]$exitVar.Value
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
     foreach ($line in $output) { Write-Host $line }
-    if ($code -ne 0) { throw "El proceso $FilePath termino con codigo $code." }
+    if ($code -ne 0) {
+        throw "El proceso $FilePath termino con codigo $code."
+    }
 }
 
 function Invoke-InstallerChecked {
@@ -71,7 +95,9 @@ function Invoke-InstallerChecked {
     )
     Write-Step ("Instalando: " + [IO.Path]::GetFileName($FilePath))
     $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -Wait -PassThru
-    if ($process.ExitCode -ne 0) { throw "El instalador $FilePath termino con codigo $($process.ExitCode)." }
+    if ($process.ExitCode -ne 0) {
+        throw "El instalador $FilePath termino con codigo $($process.ExitCode)."
+    }
 }
 
 function Download-Verified {
@@ -81,6 +107,7 @@ function Download-Verified {
         [Parameter(Mandatory = $true)][string]$ExpectedSha256,
         [int]$Attempts = 3
     )
+
     if (-not $ExpectedSha256 -or $ExpectedSha256 -match '^__') {
         throw "El build no fijo el SHA-256 requerido para $Uri."
     }
@@ -90,7 +117,9 @@ function Download-Verified {
 
     for ($try = 1; $try -le $Attempts; $try++) {
         try {
-            if (Test-Path -LiteralPath $Destination) { Remove-Item -LiteralPath $Destination -Force }
+            if (Test-Path -LiteralPath $Destination) {
+                Remove-Item -LiteralPath $Destination -Force
+            }
             Write-Step "Descargando componente ($try/$Attempts)..."
             Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $Destination -TimeoutSec 120
             $got = Get-Sha256File $Destination
@@ -146,17 +175,22 @@ function Get-PrivateConfig {
         }
     }
 
-    # Los enlaces móviles no deben convertirse en un requisito manual del instalador.
-    # Si no vienen en el paquete privado se generan aquí y quedan persistidos en .env.
     foreach ($tokenName in @('MOBILE_DOCTOR_TOKEN', 'MOBILE_RECEPTION_TOKEN')) {
         if ($text -notmatch "(?m)^$([regex]::Escape($tokenName))=.+$") {
             $random = New-Object byte[] 32
-            [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($random)
+            $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+            try {
+                $rng.GetBytes($random)
+            }
+            finally {
+                $rng.Dispose()
+            }
             $token = [Convert]::ToBase64String($random).TrimEnd('=').Replace('+', '-').Replace('/', '_')
             if (-not $text.EndsWith("`n")) { $text += "`r`n" }
             $text += "$tokenName=$token`r`n"
         }
     }
+
     return [Text.Encoding]::UTF8.GetBytes($text)
 }
 
@@ -176,17 +210,22 @@ function Stop-AppProcesses([string]$Root) {
 
 function Move-ToBackup {
     param([string]$Root, [string]$Name)
+
     if (-not (Test-Path -LiteralPath $Root)) { return $null }
+
     $session = Join-Path $BackupRoot $Timestamp
     New-Item -ItemType Directory -Force $session | Out-Null
     $dest = Join-Path $session $Name
-    if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
+    if (Test-Path -LiteralPath $dest) {
+        Remove-Item -LiteralPath $dest -Recurse -Force
+    }
     Move-Item -LiteralPath $Root -Destination $dest
     return $dest
 }
 
 function Restore-Backup {
     param([string]$Root, [AllowNull()][string]$Backup)
+
     if (Test-Path -LiteralPath $Root) {
         Remove-Item -LiteralPath $Root -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -197,9 +236,13 @@ function Restore-Backup {
 
 function Copy-ProtectedState {
     param([AllowNull()][string]$Backup, [string]$Target)
+
     if (-not $Backup -or -not (Test-Path -LiteralPath $Backup)) { return }
 
-    $dirs = @('data', 'backups', 'update_backups', 'logs', 'documentos', 'documents', 'exports', 'exportaciones', 'reportes', 'uploads')
+    $dirs = @(
+        'data', 'backups', 'update_backups', 'logs', 'documentos', 'documents',
+        'exports', 'exportaciones', 'reportes', 'uploads'
+    )
     foreach ($dir in $dirs) {
         $source = Join-Path $Backup $dir
         if (Test-Path -LiteralPath $source) {
@@ -222,6 +265,7 @@ function Copy-ProtectedState {
 
 function Ensure-PrivateEnv {
     param([string]$Target, [byte[]]$ConfigBytes)
+
     $envPath = Join-Path $Target '.env'
     if (-not (Test-Path -LiteralPath $envPath)) {
         [IO.File]::WriteAllBytes($envPath, $ConfigBytes)
@@ -237,15 +281,25 @@ function Ensure-PrivateEnv {
 function Test-IsolatedPython {
     if (-not (Test-Path -LiteralPath $PythonExe)) { return $false }
     try {
-        $version = (& $PythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')").Trim()
-        return ($version -eq '3.11')
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            $version = (& $PythonExe -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null).Trim()
+            $code = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        return ($code -eq 0 -and $version -eq '3.11')
     }
-    catch { return $false }
+    catch {
+        return $false
+    }
 }
 
 function Ensure-Python {
     if (Test-IsolatedPython) {
-        Write-Step 'Python 3.11 aislado ya está listo; no se vuelve a descargar.'
+        Write-Step 'Python 3.11 aislado ya esta listo; no se vuelve a descargar.'
         return
     }
 
@@ -255,9 +309,10 @@ function Ensure-Python {
 
     $installer = Join-Path $StageRoot 'python-3.11.9-amd64.exe'
     Download-Verified -Uri $PythonUrl -Destination $installer -ExpectedSha256 $PythonSha256 | Out-Null
+
     $sig = Get-AuthenticodeSignature -LiteralPath $installer
-    if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
-        throw "Firma Authenticode de Python no válida: $($sig.Status)."
+    if ($sig.Status -ne 'Valid' -or -not $sig.SignerCertificate -or $sig.SignerCertificate.Subject -notmatch 'Python Software Foundation') {
+        throw "Firma Authenticode de Python no valida: $($sig.Status)."
     }
 
     Invoke-InstallerChecked $installer @(
@@ -272,14 +327,21 @@ function Ensure-Python {
         'Include_doc=0',
         'Include_dev=0'
     )
-    if (-not (Test-IsolatedPython)) { throw 'Python 3.11 no quedó instalado correctamente.' }
+
+    if (-not (Test-IsolatedPython)) {
+        throw 'Python 3.11 no quedo instalado correctamente.'
+    }
 }
 
 function Prepare-SourceArchive {
     $zip = Join-Path $StageRoot 'consultorio-source.zip'
     $extract = Join-Path $StageRoot 'source'
+
     Download-Verified -Uri $SourceArchiveUrl -Destination $zip -ExpectedSha256 $SourceArchiveSha256 | Out-Null
-    if (Test-Path -LiteralPath $extract) { Remove-Item -LiteralPath $extract -Recurse -Force }
+
+    if (Test-Path -LiteralPath $extract) {
+        Remove-Item -LiteralPath $extract -Recurse -Force
+    }
     New-Item -ItemType Directory -Force $extract | Out-Null
     Expand-Archive -LiteralPath $zip -DestinationPath $extract -Force
 
@@ -287,21 +349,36 @@ function Prepare-SourceArchive {
         (Test-Path -LiteralPath (Join-Path $_.FullName 'recepcion\app\app.py')) -and
         (Test-Path -LiteralPath (Join-Path $_.FullName 'historia-clinica\app\app.py'))
     } | Select-Object -First 1
-    if (-not $root) { throw 'El paquete descargado no contiene los dos programas canónicos.' }
+
+    if (-not $root) {
+        throw 'El paquete descargado no contiene los dos programas canonicos.'
+    }
+
     return $root.FullName
 }
 
 function Assert-CanonicalPayload {
     param([string]$Path, [string]$Name)
-    if (-not (Test-Path -LiteralPath (Join-Path $Path 'app.py'))) { throw "$Name no contiene app.py." }
-    if (Test-Path -LiteralPath (Join-Path $Path '.env')) { throw "$Name descargado contiene .env inesperado." }
-    if (Test-Path -LiteralPath (Join-Path $Path 'data')) { throw "$Name descargado contiene data inesperado." }
+
+    if (-not (Test-Path -LiteralPath (Join-Path $Path 'app.py'))) {
+        throw "$Name no contiene app.py."
+    }
+    if (Test-Path -LiteralPath (Join-Path $Path '.env')) {
+        throw "$Name descargado contiene .env inesperado."
+    }
+    if (Test-Path -LiteralPath (Join-Path $Path 'data')) {
+        throw "$Name descargado contiene data inesperado."
+    }
+
     $patches = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Filter 'app_patch_*.py' -ErrorAction SilentlyContinue)
-    if ($patches.Count -gt 0) { throw "$Name reintrodujo una cadena app_patch_*; instalación bloqueada." }
+    if ($patches.Count -gt 0) {
+        throw "$Name reintrodujo una cadena app_patch_*; instalacion bloqueada."
+    }
 }
 
 function Prepare-Launcher {
     param([string]$Uri, [string]$Sha256, [string]$FileName)
+
     $path = Join-Path $StageRoot $FileName
     Download-Verified -Uri $Uri -Destination $path -ExpectedSha256 $Sha256 | Out-Null
     return $path
@@ -309,37 +386,60 @@ function Prepare-Launcher {
 
 function Prepare-Wheelhouse {
     param([string[]]$RequirementFiles)
+
     $wheelhouse = Join-Path $StageRoot 'wheelhouse'
-    if (Test-Path -LiteralPath $wheelhouse) { Remove-Item -LiteralPath $wheelhouse -Recurse -Force }
+    if (Test-Path -LiteralPath $wheelhouse) {
+        Remove-Item -LiteralPath $wheelhouse -Recurse -Force
+    }
     New-Item -ItemType Directory -Force $wheelhouse | Out-Null
 
-    $args = @('-m', 'pip', 'download', '--disable-pip-version-check', '--only-binary=:all:', '--retries', '4', '--timeout', '30', '--dest', $wheelhouse)
+    $args = @(
+        '-m', 'pip', 'download',
+        '--disable-pip-version-check',
+        '--only-binary=:all:',
+        '--retries', '4',
+        '--timeout', '30',
+        '--dest', $wheelhouse
+    )
+
     foreach ($req in $RequirementFiles) {
-        if (-not (Test-Path -LiteralPath $req)) { throw "No se encontró requirements: $req" }
+        if (-not (Test-Path -LiteralPath $req)) {
+            throw "No se encontro requirements: $req"
+        }
         $args += @('-r', $req)
     }
+
     Invoke-Checked $PythonExe $args
+
     if (@(Get-ChildItem -LiteralPath $wheelhouse -File).Count -lt 4) {
-        throw 'La descarga de dependencias quedó incompleta.'
+        throw 'La descarga de dependencias quedo incompleta.'
     }
+
     return $wheelhouse
 }
 
 function Ensure-Venv {
     param([string]$Target, [string]$Requirements, [string]$Wheelhouse)
+
     $venv = Join-Path $Target '.venv'
     $venvPython = Join-Path $venv 'Scripts\python.exe'
     $venvPythonW = Join-Path $venv 'Scripts\pythonw.exe'
 
     if (-not (Test-Path -LiteralPath $venvPython) -or -not (Test-Path -LiteralPath $venvPythonW)) {
-        if (Test-Path -LiteralPath $venv) { Remove-Item -LiteralPath $venv -Recurse -Force }
+        if (Test-Path -LiteralPath $venv) {
+            Remove-Item -LiteralPath $venv -Recurse -Force
+        }
         Invoke-Checked $PythonExe @('-m', 'venv', $venv)
     }
 
     Invoke-Checked $venvPython @(
-        '-m', 'pip', 'install', '--disable-pip-version-check', '--no-index',
-        '--find-links', $Wheelhouse, '-r', $Requirements
+        '-m', 'pip', 'install',
+        '--disable-pip-version-check',
+        '--no-index',
+        '--find-links', $Wheelhouse,
+        '-r', $Requirements
     )
+
     return $venvPython
 }
 
@@ -352,7 +452,10 @@ function Test-ReceptionRuntime([string]$Target, [string]$VenvPython) {
         $env:PYTHONDONTWRITEBYTECODE = '1'
         Push-Location $Target
         $pushed = $true
-        Invoke-Checked $VenvPython @('-c', "import app; assert app.APP_VERSION; print('RECEPTION_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))")
+        Invoke-Checked $VenvPython @(
+            '-c',
+            "import app; assert app.APP_VERSION; print('RECEPTION_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))"
+        )
     }
     finally {
         if ($pushed) { Pop-Location }
@@ -372,7 +475,10 @@ function Test-HistoriaRuntime([string]$Target, [string]$VenvPython) {
         $env:PYTHONDONTWRITEBYTECODE = '1'
         Push-Location $Target
         $pushed = $true
-        Invoke-Checked $VenvPython @('-c', "import app; assert app.APP_VERSION; print('HISTORIA_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))")
+        Invoke-Checked $VenvPython @(
+            '-c',
+            "import app; assert app.APP_VERSION; print('HISTORIA_RUNTIME_OK', app.APP_VERSION, len(app.app.router.routes))"
+        )
     }
     finally {
         if ($pushed) { Pop-Location }
@@ -397,6 +503,7 @@ function Install-OneApp {
     Write-Step "Preparando $Name..."
     Stop-AppProcesses $Target
     $backup = Move-ToBackup $Target ($Name -replace '[^A-Za-z0-9_-]', '_')
+
     try {
         New-Item -ItemType Directory -Force $Target | Out-Null
         Copy-Item -Path (Join-Path $Payload '*') -Destination $Target -Recurse -Force
@@ -405,38 +512,48 @@ function Install-OneApp {
         $venvPython = Ensure-Venv $Target $Requirements $Wheelhouse
         & $RuntimeTest $Target $venvPython
         Invoke-InstallerChecked $LauncherInstaller @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')
-        Write-Step "$Name quedó instalado y validado."
-        return [pscustomobject]@{ Name = $Name; Target = $Target; Backup = $backup }
+        Write-Step "$Name quedo instalado y validado."
+        return [pscustomobject]@{
+            Name = $Name
+            Target = $Target
+            Backup = $backup
+        }
     }
     catch {
-        Write-Step "Falló $Name. Restaurando la instalación anterior..."
+        Write-Step "Fallo $Name. Restaurando la instalacion anterior..."
         Restore-Backup $Target $backup
         throw
     }
 }
 
 $completed = New-Object System.Collections.Generic.List[object]
+
 try {
-    if (-not $Reception -and -not $Historia) { throw 'No se seleccionó ningún programa.' }
+    if (-not $Reception -and -not $Historia) {
+        throw 'No se selecciono ningun programa.'
+    }
+
     if ($SourceArchiveUrl -match '^__' -or $SourceArchiveSha256 -match '^__' -or $PythonSha256 -match '^__') {
         throw 'Este EXE fue compilado sin fijar sus descargas verificadas.'
     }
 
-    # Validar configuración ANTES de descargar o tocar una instalación existente.
+    # La configuración privada se valida antes de descargar o tocar instalaciones existentes.
     $configBytes = Get-PrivateConfig $SourceInstaller
 
-    Write-Step 'Descargando versión canónica exacta...'
+    Write-Step 'Descargando version canonica exacta...'
     $sourceRoot = Prepare-SourceArchive
     $receptionPayload = Join-Path $sourceRoot 'recepcion\app'
     $historiaPayload = Join-Path $sourceRoot 'historia-clinica\app'
-    Assert-CanonicalPayload $receptionPayload 'Recepción'
-    Assert-CanonicalPayload $historiaPayload 'Historia Clínica'
+
+    Assert-CanonicalPayload $receptionPayload 'Recepcion'
+    Assert-CanonicalPayload $historiaPayload 'Historia Clinica'
 
     Ensure-Python
 
     $requirements = New-Object System.Collections.Generic.List[string]
     $receptionRequirements = Join-Path $sourceRoot 'master-installer\definitive\requirements-recepcion.txt'
     $historiaRequirements = Join-Path $historiaPayload 'requirements.txt'
+
     if ($Reception) { $requirements.Add($receptionRequirements) }
     if ($Historia) { $requirements.Add($historiaRequirements) }
 
@@ -445,11 +562,19 @@ try {
 
     $receptionLauncher = $null
     $historiaLauncher = $null
+
     if ($Reception) {
-        $receptionLauncher = Prepare-Launcher $ReceptionLauncherUrl $ReceptionLauncherSha256 'INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe'
+        $receptionLauncher = Prepare-Launcher `
+            $ReceptionLauncherUrl `
+            $ReceptionLauncherSha256 `
+            'INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe'
     }
+
     if ($Historia) {
-        $historiaLauncher = Prepare-Launcher $HistoriaLauncherUrl $HistoriaLauncherSha256 'INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe'
+        $historiaLauncher = Prepare-Launcher `
+            $HistoriaLauncherUrl `
+            $HistoriaLauncherSha256 `
+            'INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe'
     }
 
     if ($Reception) {
@@ -485,12 +610,13 @@ try {
 }
 catch {
     if ($completed.Count -gt 0) {
-        Write-Step 'La instalación conjunta falló. Restaurando programas ya modificados en esta operación...'
+        Write-Step 'La instalacion conjunta fallo. Restaurando programas ya modificados en esta operacion...'
         for ($i = $completed.Count - 1; $i -ge 0; $i--) {
             $item = $completed[$i]
             Restore-Backup $item.Target $item.Backup
         }
     }
+
     Write-Error $_
     exit 1
 }
