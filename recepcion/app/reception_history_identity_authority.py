@@ -102,11 +102,17 @@ def _bridge_public_connect():
     cur.execute(
         """SELECT
              to_regclass('public.patient_links'),
-             to_regclass('public.waiting_queue')"""
+             to_regclass('public.waiting_queue'),
+             (SELECT COUNT(*) FROM information_schema.columns
+               WHERE table_schema='public' AND table_name='patient_links'
+                 AND column_name='cloud_updated_at'),
+             (SELECT COUNT(*) FROM information_schema.columns
+               WHERE table_schema='public' AND table_name='waiting_queue'
+                 AND column_name='cloud_updated_at')"""
     )
-    row = cur.fetchone() or (None, None)
+    row = cur.fetchone() or (None, None, 0, 0)
     conn.commit()
-    if row[0] and row[1]:
+    if row[0] and row[1] and int(row[2] or 0) > 0 and int(row[3] or 0) > 0:
         return conn
     try:
         conn.close()
@@ -119,7 +125,7 @@ def _bridge_public_connect():
 
 # Desde 4.6.8 el camino normal del puente usa public.*; el fallback solo existe
 # para no romper una instalación antigua cuyo esquema canónico todavía no tenga
-# patient_links/waiting_queue.
+# patient_links/waiting_queue con las columnas de sincronización actuales.
 historia_bridge._connect = _bridge_public_connect
 
 
@@ -510,7 +516,7 @@ def historia_identity_search(
             token_parts = []
             for token in tokens:
                 token_parts.append(
-                    "UPPER(COALESCE(p.name_search,p.name,'')) LIKE %s"
+                    "TRANSLATE(UPPER(COALESCE(p.name_search,p.name,'')),'ÁÉÍÓÚÜÑ','AEIOUUN') LIKE %s"
                 )
                 params.append("%" + token + "%")
             where.append("(" + " AND ".join(token_parts) + ")")
@@ -751,6 +757,7 @@ V468_JS = r"""
       const q=txt(input.value);if(q.length<2){results.innerHTML='<div class="v468-empty">Escriba al menos 2 caracteres.</div>';return}
       results.innerHTML='<div class="v468-empty">Buscando…</div>';
       let d;try{d=await apiBase()('/api/historia-identity/search?q='+encodeURIComponent(q)+'&limit=30')}catch(e){d={ok:false,results:[]}}
+      if(d&&d.ok===false){results.innerHTML='<div class="v468-empty">No pude consultar Historia Clínica en este momento. Puede cerrar esta búsqueda y continuar; quedará disponible el mecanismo de emergencia del doctor.</div>';return}
       const rows=Array.isArray(d?.results)?d.results:[];
       if(!rows.length){results.innerHTML='<div class="v468-empty">No encontré una ficha con esa búsqueda. Si realmente es un paciente nuevo, cambie el tipo de atención a NUEVO.</div>';return}
       results.innerHTML='';
@@ -792,7 +799,7 @@ V468_JS = r"""
           let pre=null;try{pre=await rawApi('/api/historia-identity/prepare/'+pid,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}catch(_e){}
           if(pre){panel(pre,pid);warnings(pre)}
           const isSub=norm(body?.tipo)==='S'||norm(body?.tipo)==='SUBSECUENTE';
-          if(isSub&&!pre?.linked){
+          if(isSub&&pre&&pre.ok!==false&&!pre.linked){
             blocked=true;
             showSearch(pid,pre?.reception_name||'');
             const err=new Error('__HISTORIA_LINK_REQUIRED__');err.__historiaLinkRequired=true;throw err;
@@ -857,6 +864,9 @@ def v468_health(user=core.Depends(core.current_user)):
         "history_cloud_schema": "public",
         "doctor_manual_link_normal_flow": False,
         "doctor_manual_link_emergency_fallback": True,
+        "offline_historia_fallback_preserved": True,
+        "name_search_accent_tolerant": True,
+        "public_bridge_column_guard": True,
         "database_schema_changes": False,
     }
 
