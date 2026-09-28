@@ -79,7 +79,8 @@ function Unprotect-Bundle([string]$Code, [string]$Path) {
     [Array]::Copy($keyMaterial, 32, $macKey, 0, 32)
 
     $macInput = Join-Bytes @($salt, $iv, $cipherText)
-    $hmac = New-Object System.Security.Cryptography.HMACSHA256($macKey)
+    $hmac = New-Object System.Security.Cryptography.HMACSHA256
+    $hmac.Key = $macKey
     try { $actualMac = $hmac.ComputeHash($macInput) } finally { $hmac.Dispose() }
     if (-not (Test-FixedTimeEqual $actualMac $expectedMac)) {
         throw 'El paquete privado no superó la verificación de integridad.'
