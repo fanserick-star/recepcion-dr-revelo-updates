@@ -59,10 +59,8 @@ begin
     if Missing <> '' then
     begin
       MsgBox(
-        'Este instalador maestro finaliza/actualiza instalaciones existentes sin tocar bases ni configuraciones privadas.' +
-        #13#10 + #13#10 +
-        'Falta una instalación base para:' + #13#10 + Missing +
-        #13#10 +
+        'Este instalador maestro finaliza/actualiza instalaciones existentes sin tocar bases ni configuraciones privadas.' + #13#10 + #13#10 +
+        'Falta una instalación base para:' + #13#10 + Missing + #13#10 +
         'No continuaré para evitar crear una instalación incompleta.',
         mbError, MB_OK
       );
