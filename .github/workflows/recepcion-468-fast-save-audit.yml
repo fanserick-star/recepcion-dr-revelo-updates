@@ -41,13 +41,15 @@ jobs:
           from pathlib import Path
           core=Path('recepcion/app/core_runtime.py').read_text(encoding='utf-8')
           assert 'LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}' in core
+          assert 'LOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)' in core
+          assert 'path in LOCAL_FIRST_WRITE_PATHS or any(path.startswith(prefix) for prefix in LOCAL_FIRST_POST_PREFIXES)' in core
           assert 'local_write = _prefer_local_write(request)' in core
           assert 'db.info["local_first_write"] = bool(local_write)' in core
           marker='elif q.operation == "visit.create":'
           assert marker in core
           sync_block=core.split(marker,1)[1].split('\n    elif q.operation ==',1)[0]
           assert 'BillingRecord' in sync_block, 'visit.create no replica BillingRecord'
-          print('LOCAL_FIRST_BILLING_OK')
+          print('LOCAL_FIRST_BILLING_AND_PRINT_ID_OK')
           PY
       - name: Verify non-blocking Historia identity
         run: |
@@ -86,6 +88,7 @@ jobs:
           assert notes['attention_write_mode']=='sqlite-first-cloud-write-behind'
           assert notes['history_identity_prepare_non_blocking'] is True
           assert notes['consultation_print_non_blocking'] is True
+          assert notes['consultation_print_uses_local_visit_id'] is True
           assert notes['procedure_auto_print'] is False
           assert notes['procedure_historia_handoff'] is False
           print('MANIFEST_FAST_PATH_OK')
