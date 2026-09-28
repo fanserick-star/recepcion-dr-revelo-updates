@@ -13,8 +13,8 @@ if (-not $Reception -and -not $Historia) {
 }
 
 $RuntimeRoot = Join-Path $env:ProgramData 'DrReveloRuntime'
-$PythonRoot = Join-Path $RuntimeRoot 'Python312'
-$PythonExe = Join-Path $PythonRoot 'python.exe'
+$PreferredPythonRoot = Join-Path $RuntimeRoot 'Python312'
+$script:PythonExe = Join-Path $PreferredPythonRoot 'python.exe'
 $LogRoot = Join-Path $RuntimeRoot 'logs'
 New-Item -ItemType Directory -Force $RuntimeRoot, $LogRoot | Out-Null
 $LogPath = Join-Path $LogRoot ("bootstrap-{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
@@ -53,18 +53,52 @@ function Get-VerifiedFile([string]$Url, [string]$Destination, [string]$ExpectedS
     Move-Item -LiteralPath $temp -Destination $Destination -Force
 }
 
-function Ensure-PrivatePython {
-    if (Test-Path -LiteralPath $PythonExe) {
-        try {
-            & $PythonExe -c "import sys; assert sys.version_info[:2] == (3, 12)"
-            if ($LASTEXITCODE -eq 0) {
-                Write-Step 'Runtime Python privado ya está listo.'
-                return
-            }
-        } catch { }
+function Test-Python312([string]$Path) {
+    if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $false }
+    try {
+        & $Path -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 9)" 2>$null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Find-Python312 {
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $candidates.Add((Join-Path $PreferredPythonRoot 'python.exe'))
+    if ($env:ProgramFiles) { $candidates.Add((Join-Path $env:ProgramFiles 'Python312\python.exe')) }
+    if (${env:ProgramFiles(x86)}) { $candidates.Add((Join-Path ${env:ProgramFiles(x86)} 'Python312\python.exe')) }
+    if ($env:LocalAppData) { $candidates.Add((Join-Path $env:LocalAppData 'Programs\Python\Python312\python.exe')) }
+
+    try {
+        $cmd = Get-Command python.exe -ErrorAction Stop
+        if ($cmd.Source) { $candidates.Add([string]$cmd.Source) }
+    } catch { }
+
+    foreach ($candidate in $candidates) {
+        if (Test-Python312 $candidate) { return $candidate }
     }
 
-    Write-Step 'Preparando runtime privado de Python 3.12...'
+    try {
+        $py = Get-Command py.exe -ErrorAction Stop
+        $resolved = (& $py.Source -3.12 -c "import sys; print(sys.executable)" 2>$null | Select-Object -First 1)
+        if ($resolved) {
+            $resolved = ([string]$resolved).Trim()
+            if (Test-Python312 $resolved) { return $resolved }
+        }
+    } catch { }
+    return $null
+}
+
+function Ensure-PrivatePython {
+    $found = Find-Python312
+    if ($found) {
+        $script:PythonExe = $found
+        Write-Step "Python 3.12 listo: $found"
+        return
+    }
+
+    Write-Step 'Preparando Python 3.12 verificado...'
     $installer = Join-Path $env:TEMP 'python-3.12.10-amd64.exe'
     $pythonUrl = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe'
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
@@ -76,13 +110,11 @@ function Ensure-PrivatePython {
         throw 'La firma digital del instalador oficial de Python no es válida.'
     }
 
-    New-Item -ItemType Directory -Force $PythonRoot | Out-Null
     $args = @(
         '/quiet',
         'InstallAllUsers=1',
-        "TargetDir=$PythonRoot",
         'PrependPath=0',
-        'Include_launcher=0',
+        'Include_launcher=1',
         'Include_test=0',
         'Include_doc=0',
         'Include_tcltk=0',
@@ -92,11 +124,17 @@ function Ensure-PrivatePython {
     )
     $proc = Start-Process -FilePath $installer -ArgumentList $args -Wait -PassThru
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
-    if ($proc.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $PythonExe)) {
-        throw "No se pudo instalar el runtime privado de Python. Código: $($proc.ExitCode)."
+    if ($proc.ExitCode -ne 0) {
+        throw "No se pudo instalar Python 3.12. Código: $($proc.ExitCode)."
     }
-    & $PythonExe -c "import sys; assert sys.version_info[:2] == (3, 12)"
-    if ($LASTEXITCODE -ne 0) { throw 'El runtime Python instalado no superó la validación.' }
+
+    $found = Find-Python312
+    if (-not $found) {
+        throw 'Python 3.12 terminó de instalarse, pero Windows no devolvió una ruta utilizable.'
+    }
+    $script:PythonExe = $found
+    [IO.File]::WriteAllText((Join-Path $RuntimeRoot 'python-path.txt'), $found)
+    Write-Step "Python 3.12 preparado: $found"
 }
 
 function Assert-SafeRelativePath([string]$RelativePath, [string]$Root) {
@@ -144,7 +182,7 @@ function Ensure-Venv([string]$ProductName, [string]$Root, [string[]]$Packages) {
     $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
     if (-not (Test-Path -LiteralPath $venvPython)) {
         Write-Step "Creando entorno privado de $ProductName..."
-        & $PythonExe -m venv (Join-Path $Root '.venv')
+        & $script:PythonExe -m venv (Join-Path $Root '.venv')
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $venvPython)) {
             throw "No se pudo crear el entorno privado de $ProductName."
         }
