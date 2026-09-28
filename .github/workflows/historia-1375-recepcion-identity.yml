@@ -2,141 +2,39 @@ name: Historia 1.3.75 Reception Identity
 
 on:
   push:
-    branches: [historia-1.3.75-recepcion-identidad]
+    branches:
+      - historia-1.3.75-recepcion-identidad
     paths:
-      - ".github/workflows/historia-1375-recepcion-identity.yml"
+      - .github/workflows/historia-1375-recepcion-identity.yml
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build-and-audit:
+  audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: historia-1.3.75-recepcion-identidad
           fetch-depth: 0
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      - name: Apply doctor-flow handoff to Reception
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import json
-
-          app = Path('historia-clinica/app/app.py')
-          s = app.read_text(encoding='utf-8')
-
-          old = '''            elif is_new:
-                action_label = "Revisar ficha"
-            else:
-                action_label = "Vincular ficha"
-'''
-          new = '''            elif is_new:
-                action_label = "Revisar ficha"
-            else:
-                action_label = "Esperando Recepción"
-'''
-          if old not in s:
-              raise SystemExit('queue action block not found')
-          s = s.replace(old, new, 1)
-
-          old = '''            href = f"/cola/{e(r['id'])}/atender"
-'''
-          new = '''            can_open = bool(r["clinical_patient_id"]) or is_new or r["status"] == "in_consultation"
-            href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
-'''
-          if old not in s:
-              raise SystemExit('queue href block not found')
-          s = s.replace(old, new, 1)
-
-          old = '''    next_row = next((r for r in queue if r["status"] == "waiting"), None)
-    if next_row is None:
-        next_row = next((r for r in queue), None)
-'''
-          new = '''    eligible_queue = [
-        r for r in queue
-        if r["status"] == "in_consultation"
-        or bool(r["clinical_patient_id"])
-        or _queue_display_type(r) == "Nuevo"
-    ]
-    next_row = next((r for r in eligible_queue if r["status"] == "waiting"), None)
-    if next_row is None:
-        next_row = next((r for r in eligible_queue), None)
-'''
-          if old not in s:
-              raise SystemExit('next queue block not found')
-          s = s.replace(old, new, 1)
-
-          old = 'APP_VERSION = "1.3.74"'
-          if old not in s:
-              raise SystemExit('APP_VERSION 1.3.74 not found')
-          s = s.replace(old, 'APP_VERSION = "1.3.75"', 1)
-          app.write_text(s, encoding='utf-8')
-
-          vp = Path('historia-clinica/app/historia-version.json')
-          version = json.loads(vp.read_text(encoding='utf-8-sig'))
-          version['version'] = '1.3.75'
-          vp.write_text(json.dumps(version, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-
-          mp = Path('historia-clinica/app/update_manifest.json')
-          manifest = json.loads(mp.read_text(encoding='utf-8-sig'))
-          manifest['version'] = '1.3.75'
-          manifest['app_version'] = '1.3.75'
-          manifest['runtime_version'] = '1.3.75'
-          notes = manifest.setdefault('notes', {})
-          notes['purpose'] = 'Recepción pasa a resolver la identidad antes de enviar subsecuentes; Historia deja la vinculación manual fuera del flujo normal del doctor.'
-          notes['previous_version'] = '1.3.74'
-          notes['reception_identity_authority'] = True
-          notes['doctor_manual_link_normal_flow'] = False
-          notes['doctor_manual_link_emergency_fallback'] = True
-          notes['unlinked_subsequent_doctor_action_disabled'] = True
-          notes['next_patient_skips_unlinked_subsequent'] = True
-          notes['clinical_data_changes'] = False
-          notes['cloud_logic_changes'] = False
-          notes['printing_changes'] = False
-          notes['database_schema_changes'] = False
-          notes['patient_data_destructive_changes'] = False
-          mp.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-          PY
-
-      - name: Compile and validate
-        run: |
-          python -m py_compile historia-clinica/app/app.py
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          s = Path('historia-clinica/app/app.py').read_text(encoding='utf-8')
-          version = json.loads(Path('historia-clinica/app/historia-version.json').read_text(encoding='utf-8'))
-          manifest = json.loads(Path('historia-clinica/app/update_manifest.json').read_text(encoding='utf-8'))
-          assert 'APP_VERSION = "1.3.75"' in s
-          assert 'action_label = "Esperando Recepción"' in s
-          assert 'can_open = bool(r["clinical_patient_id"]) or is_new or r["status"] == "in_consultation"' in s
-          assert 'eligible_queue = [' in s
-          assert 'or _queue_display_type(r) == "Nuevo"' in s
-          assert version['version'] == '1.3.75'
-          assert manifest['version'] == manifest['app_version'] == manifest['runtime_version'] == '1.3.75'
-          assert manifest['notes']['reception_identity_authority'] is True
-          assert manifest['notes']['doctor_manual_link_normal_flow'] is False
-          assert manifest['notes']['doctor_manual_link_emergency_fallback'] is True
-          assert manifest['notes']['patient_data_destructive_changes'] is False
-          # La ruta de reparación permanece disponible, pero la cola normal ya no la ofrece.
-          assert '@app.get("/cola/{queue_id}/vincular/{patient_id}")' in s
-          print('HISTORIA_1375_RECEPTION_IDENTITY_OK')
-          PY
-
-      - name: Commit validated Historia 1.3.75 candidate
+      - name: Apply candidate
+        run: python tools/apply_historia_1375_reception_identity.py
+      - name: Compile candidate
+        run: python -m py_compile historia-clinica/app/app.py tools/apply_historia_1375_reception_identity.py
+      - name: Verify candidate
+        run: python tools/apply_historia_1375_reception_identity.py
+      - name: Commit candidate
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add historia-clinica/app/app.py historia-clinica/app/historia-version.json historia-clinica/app/update_manifest.json
           if git diff --cached --quiet; then
-            echo "No application changes required."
+            echo "No changes required."
             exit 0
           fi
           git commit -m "Historia 1.3.75: identidad resuelta desde Recepción"
