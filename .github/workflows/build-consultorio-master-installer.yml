@@ -131,6 +131,30 @@ jobs:
           "Installer bytes: $size"
           if ($size -gt 15728640) { throw "El instalador online creció por encima de 15 MiB ($size bytes)." }
 
+      - name: Smoke-test compiled EXE and preservation
+        shell: powershell
+        run: |
+          $recEnv = 'C:\Recepcion Dr Revelo\.env'
+          $histEnv = 'C:\Historia Clinica Dr Revelo\.env'
+          $recMarker = 'C:\Recepcion Dr Revelo\data\installer-preserve-test.txt'
+          $histMarker = 'C:\Historia Clinica Dr Revelo\data\installer-preserve-test.txt'
+          New-Item -ItemType Directory -Force (Split-Path $recMarker), (Split-Path $histMarker) | Out-Null
+          'INSTALLER_PRESERVE_TEST=recepcion' | Set-Content -LiteralPath $recEnv -Encoding ascii
+          'INSTALLER_PRESERVE_TEST=historia' | Set-Content -LiteralPath $histEnv -Encoding ascii
+          'recepcion-data-ok' | Set-Content -LiteralPath $recMarker -Encoding ascii
+          'historia-data-ok' | Set-Content -LiteralPath $histMarker -Encoding ascii
+
+          $exe = (Resolve-Path 'master-installer/output/INSTALAR_CONSULTORIO_DR_REVELO.exe').Path
+          $proc = Start-Process -FilePath $exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/COMPONENTS=recepcion,historia') -Wait -PassThru
+          if ($proc.ExitCode -notin @(0, 3010)) { throw "El EXE maestro devolvió código $($proc.ExitCode)." }
+
+          if ((Get-Content -LiteralPath $recEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=recepcion') { throw 'Recepción modificó .env durante reparación.' }
+          if ((Get-Content -LiteralPath $histEnv -Raw).Trim() -ne 'INSTALLER_PRESERVE_TEST=historia') { throw 'Historia modificó .env durante reparación.' }
+          if ((Get-Content -LiteralPath $recMarker -Raw).Trim() -ne 'recepcion-data-ok') { throw 'Recepción modificó data/ durante reparación.' }
+          if ((Get-Content -LiteralPath $histMarker -Raw).Trim() -ne 'historia-data-ok') { throw 'Historia modificó data/ durante reparación.' }
+          if (-not (Test-Path 'C:\Recepcion Dr Revelo\RecepcionLauncher.exe')) { throw 'Falta launcher de Recepción tras ejecutar el EXE maestro.' }
+          if (-not (Test-Path 'C:\Historia Clinica Dr Revelo\HistoriaClinicaLauncher.exe')) { throw 'Falta launcher de Historia tras ejecutar el EXE maestro.' }
+
       - name: Upload validation artifact
         uses: actions/upload-artifact@v4
         with:
