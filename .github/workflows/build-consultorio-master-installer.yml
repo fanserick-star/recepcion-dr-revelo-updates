@@ -28,7 +28,7 @@ jobs:
           $dst = "master-installer/build/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe"
           Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $dst
           $got = (Get-FileHash $dst -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expected = "a07c2df36607d2733ccefd8fbfd508ff9476219e073b478f80c43baf693f4eb9"
+          $expected = "9bd537cc74fe94167698edb1ede18b111cbe68d2d1af2b0cc12bf4b20e4bbef0"
           if ($got -ne $expected) { throw "SHA-256 de Recepción no coincide: $got" }
 
       - name: Download verified Historia launcher installer
