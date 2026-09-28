@@ -15,6 +15,8 @@ $LogRoot = Join-Path $SharedRoot 'InstallerLogs'
 $Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 New-Item -ItemType Directory -Force $SharedRoot, $BackupRoot, $LogRoot | Out-Null
 $LogFile = Join-Path $LogRoot ("install-$App-$Timestamp.log")
+$FailureFile = Join-Path $LogRoot ("install-$App-last-failure.txt")
+$CurrentStep = 'initialization'
 Start-Transcript -Path $LogFile -Force | Out-Null
 
 if ($App -eq 'Reception') {
@@ -142,27 +144,57 @@ function Test-LocalRuntime([string]$Dest, [string]$VenvPython) {
     Invoke-Checked $VenvPython @('-c','import fastapi, sqlalchemy, dotenv; print("LOCAL_RUNTIME_OK")')
 }
 
+function Get-StepExitCode([string]$Step) {
+    switch ($Step) {
+        'stop-processes' { return 11 }
+        'backup' { return 12 }
+        'copy-payload' { return 13 }
+        'restore-protected-state' { return 14 }
+        'private-config' { return 15 }
+        'validate-payload' { return 16 }
+        'python-runtime' { return 17 }
+        'venv' { return 18 }
+        'runtime-test' { return 19 }
+        'launcher' { return 20 }
+        default { return 29 }
+    }
+}
+
 $backup = $null
 try {
     Write-Step "Instalando version $ExpectedVersion..."
+    $CurrentStep = 'stop-processes'
     Stop-AppProcesses $Target
+    $CurrentStep = 'backup'
     $backup = Move-ToBackup $Target
+    $CurrentStep = 'copy-payload'
     New-Item -ItemType Directory -Force $Target | Out-Null
     Copy-Item -Path (Join-Path $Payload '*') -Destination $Target -Recurse -Force
+    $CurrentStep = 'restore-protected-state'
     Copy-ProtectedState $backup $Target
+    $CurrentStep = 'private-config'
     Import-PrivateEnvIfNeeded $Target
+    $CurrentStep = 'validate-payload'
     Validate-PayloadVersion $Target
+    $CurrentStep = 'python-runtime'
     Ensure-Python
+    $CurrentStep = 'venv'
     $venvPython = Ensure-Venv $Target
+    $CurrentStep = 'runtime-test'
     Test-LocalRuntime $Target $venvPython
+    $CurrentStep = 'launcher'
     Invoke-Checked $LauncherInstaller @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-')
+    Remove-Item -LiteralPath $FailureFile -Force -ErrorAction SilentlyContinue
     Write-Step "INSTALL_OK $App $ExpectedVersion"
     exit 0
 } catch {
-    Write-Error $_
+    $exitCode = Get-StepExitCode $CurrentStep
+    $detail = "App=$App`r`nStep=$CurrentStep`r`nExitCode=$exitCode`r`nError=$($_.Exception.Message)`r`nLog=$LogFile"
+    try { Set-Content -LiteralPath $FailureFile -Value $detail -Encoding utf8 -Force } catch {}
+    Write-Error "INSTALL_FAIL app=$App step=$CurrentStep code=$exitCode :: $($_.Exception.Message)"
     Write-Step 'Fallo la instalacion; restaurando la version anterior.'
     Restore-Backup $Target $backup
-    exit 1
+    exit $exitCode
 } finally {
     try { Stop-Transcript | Out-Null } catch {}
 }
