@@ -1,5 +1,5 @@
 #define MyAppName "Consultorio Dr. Armando Revelo - Instalador"
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.0.1"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -72,6 +72,7 @@ procedure CurStepChanged(CurStep: TSetupStep);
 var
   PowerShellPath: String;
   ScriptPath: String;
+  CommandText: String;
   Args: String;
   ResultCode: Integer;
 begin
@@ -79,14 +80,21 @@ begin
   begin
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     ScriptPath := ExpandConstant('{tmp}\DrReveloBootstrap\bootstrap.ps1');
-    Args := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"' +
-      ' -SourceInstaller "' + ExpandConstant('{srcexe}') + '"' +
-      ' -StageRoot "' + ExpandConstant('{tmp}\DrReveloBootstrap') + '"';
+
+    ; Windows limpio puede tener deshabilitada la autocarga de módulos. Importamos
+    ; explícitamente Microsoft.PowerShell.Utility antes de ejecutar el bootstrap,
+    ; para que Get-FileHash/Get-AuthenticodeSignature estén siempre disponibles.
+    CommandText := "Import-Module Microsoft.PowerShell.Utility -ErrorAction Stop; & '" + ScriptPath + "'" +
+      " -SourceInstaller '" + ExpandConstant('{srcexe}') + "'" +
+      " -StageRoot '" + ExpandConstant('{tmp}\DrReveloBootstrap') + "'";
 
     if WizardIsComponentSelected('recepcion') then
-      Args := Args + ' -Reception';
+      CommandText := CommandText + ' -Reception';
     if WizardIsComponentSelected('historia') then
-      Args := Args + ' -Historia';
+      CommandText := CommandText + ' -Historia';
+    CommandText := CommandText + '; exit $LASTEXITCODE';
+
+    Args := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "' + CommandText + '"';
 
     WizardForm.StatusLabel.Caption := 'Descargando y preparando únicamente lo necesario...';
     if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
