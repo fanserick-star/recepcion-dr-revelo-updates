@@ -2549,3 +2549,46 @@ body:has(.legacy-remaster) footer{max-width:1480px;color:#817d75}
 .cp-remaster-app .queue-dismiss-btn{opacity:.42;transition:.15s ease}
 .cp-remaster-app .queue-row:hover .queue-dismiss-btn{opacity:1}
 @media(max-width:760px){.cp-remaster-app .queue-procedure-chip{max-width:210px}.cp-remaster-app .queue-patient-meta{font-size:10.5px!important}}
+
+/* v1.3.79 · historial amplio y referencia plana durante consulta */
+@media (min-width: 1000px){
+  body.cp-remaster-app main:has(.cp-history-window),
+  body.legacy-remaster main:has(.cp-history-window){
+    max-width:1560px!important;
+    padding-left:22px!important;
+    padding-right:22px!important;
+  }
+}
+.cp-history-window .cp-history-content{padding:12px 14px!important}
+.cp-history-window .cp-flat-history-entry{
+  margin-bottom:12px!important;border:1px solid #c7c0b6!important;border-radius:4px!important;background:#fff!important
+}
+.cp-history-window .cp-flat-history-entry .legacy-segment-date{padding:9px 12px!important;background:#eef1f4!important}
+.cp-history-window .cp-flat-history-entry .legacy-segment-date>strong{font-size:16px!important;color:#123f72!important}
+.cp-history-window .cp-flat-history-entry .legacy-segment-date time{font-size:13px!important}
+.cp-history-window .cp-flat-history-entry>small{display:block!important;padding:7px 12px 0!important;font-size:12.5px!important;font-weight:700!important;color:#575d63!important}
+.cp-history-window .cp-flat-history-entry .legacy-segment-body,
+.cp-history-window .cp-flat-history-entry .cp-note-body,
+.cp-history-window .cp-flat-history-entry .previous-record-text{
+  padding:10px 12px 13px!important;font-size:16px!important;line-height:1.58!important;font-weight:700!important;color:#111923!important
+}
+.cp-remaster-app .previous-panel{min-width:0!important}
+.cp-remaster-app .previous-scroll.clean-reference{padding:8px!important;background:#f7f3ed!important}
+.cp-remaster-app .previous-record-list{display:flex!important;flex-direction:column!important;gap:10px!important}
+.cp-remaster-app .previous-record-flat{display:block!important;border:1px solid #c7c0b6!important;border-radius:4px!important;background:#fff!important;overflow:hidden!important}
+.cp-remaster-app .previous-record-flat-head{
+  display:grid!important;grid-template-columns:118px minmax(0,1fr)!important;gap:10px!important;align-items:center!important;padding:8px 10px!important;background:#eef1f4!important;border-bottom:1px solid #ccd1d6!important
+}
+.cp-remaster-app .previous-record-flat .previous-record-date b{font-size:15px!important;color:#123f72!important}
+.cp-remaster-app .previous-record-flat .previous-record-date time{font-size:12px!important}
+.cp-remaster-app .previous-record-flat .previous-record-summary strong{font-size:14px!important;line-height:1.35!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+.cp-remaster-app .previous-record-flat .previous-record-summary small{font-size:11.5px!important}
+.cp-remaster-app .previous-record-flat .previous-record-body{display:block!important;padding:10px 11px 12px!important;font-size:15px!important;line-height:1.56!important;font-weight:700!important;color:#111923!important;background:#fff!important}
+.cp-remaster-app .previous-record-flat .previous-record-text,
+.cp-remaster-app .previous-record-flat .legacy-segment-body,
+.cp-remaster-app .previous-record-flat .cp-note-body{font-size:15px!important;line-height:1.56!important;font-weight:700!important}
+@media (min-width:1200px){
+  .cp-remaster-app .comparison-layout{grid-template-columns:minmax(0,1.18fr) minmax(500px,.82fr)!important;gap:12px!important}
+}
+@media (max-width:900px){.cp-remaster-app .previous-record-flat-head{grid-template-columns:1fr!important}}
+

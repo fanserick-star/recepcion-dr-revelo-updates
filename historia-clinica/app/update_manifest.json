@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.78",
-  "app_version": "1.3.78",
-  "runtime_version": "1.3.78",
+  "version": "1.3.79",
+  "app_version": "1.3.79",
+  "runtime_version": "1.3.79",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -52,9 +52,9 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historial plano por fecha; edición de la misma historia con revisión previa y eliminación lógica auditable.",
-    "previous_version": "1.3.77",
-    "functional_changes": true,
+    "purpose": "Amplía la lectura del historial clínico y usa una lista plana por fecha también durante la consulta.",
+    "previous_version": "1.3.78",
+    "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -99,7 +99,7 @@
     "empty_finalize_creates_no_signed_history": true,
     "nonempty_draft_recovery_preserved": true,
     "emergency_local_draft_backup_preserved": true,
-    "ui_only_release": false,
+    "ui_only_release": true,
     "settings_ui_remaster": true,
     "home_system_status_ui_remaster": true,
     "clinical_logic_unchanged_from_1_3_68": true,
@@ -143,7 +143,7 @@
     "doctor_manual_link_emergency_fallback": true,
     "unlinked_subsequent_doctor_action_disabled": true,
     "next_patient_skips_unlinked_subsequent": true,
-    "clinical_data_changes": true,
+    "clinical_data_changes": false,
     "cloud_logic_changes": false,
     "printing_changes": false,
     "encounter_soft_delete_push_to_neon": true,
@@ -171,6 +171,12 @@
     "history_soft_delete_audited": true,
     "history_soft_delete_recoverable": true,
     "legacy_edit_locked": true,
-    "legacy_delete_hides_complete_source_record": true
+    "legacy_delete_hides_complete_source_record": true,
+    "patient_history_wide_reading": true,
+    "patient_history_large_clinical_text": true,
+    "consult_previous_history_flat_list": true,
+    "consult_previous_history_dropdown_removed": true,
+    "consult_previous_history_full_text_visible": true,
+    "history_order_newest_first_preserved": true
   }
 }
