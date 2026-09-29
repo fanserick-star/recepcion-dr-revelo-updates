@@ -94,7 +94,7 @@ jobs:
           )
           mod=ast.Module(body=[e_node,dialog_node,base_node],type_ignores=[])
           ast.fix_missing_locations(mod)
-          ns={'APP_VERSION':'1.3.87','html':html_module}
+          ns={'APP_VERSION':'1.3.87','DOCTOR_NAME':'Dr. Armando Revelo','html':html_module}
           exec(compile(mod,str(path),'exec'),ns)
           rendered=ns['base']('Prueba','<main>OK</main>')
           assert '<main>OK</main>' in rendered
