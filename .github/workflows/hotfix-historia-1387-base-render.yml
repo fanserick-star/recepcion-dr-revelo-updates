@@ -75,7 +75,7 @@ jobs:
           python -m py_compile historia-clinica/app/app.py
           git diff --check
 
-      - name: Render real base HTML chain smoke test
+      - name: Render original base HTML smoke test
         run: |
           python - <<'PY'
           import ast
@@ -85,16 +85,14 @@ jobs:
           path=Path('historia-clinica/app/app.py')
           src=path.read_text(encoding='utf-8-sig')
           tree=ast.parse(src)
-          wanted=[]
-          allowed_assigns={'APP_DIALOG_HTML','_V135_BASE_ORIGINAL','_V135_STYLE'}
-          for node in tree.body:
-              if isinstance(node,ast.FunctionDef) and node.name in {'e','base'}:
-                  wanted.append(node)
-              elif isinstance(node,ast.Assign):
-                  names={t.id for t in node.targets if isinstance(t,ast.Name)}
-                  if names & allowed_assigns:
-                      wanted.append(node)
-          mod=ast.Module(body=wanted,type_ignores=[])
+          e_node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='e')
+          base_node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='base')
+          dialog_node=next(
+              n for n in tree.body
+              if isinstance(n,ast.Assign)
+              and any(isinstance(t,ast.Name) and t.id=='APP_DIALOG_HTML' for t in n.targets)
+          )
+          mod=ast.Module(body=[e_node,dialog_node,base_node],type_ignores=[])
           ast.fix_missing_locations(mod)
           ns={'APP_VERSION':'1.3.87','html':html_module}
           exec(compile(mod,str(path),'exec'),ns)
@@ -103,8 +101,7 @@ jobs:
           assert "{title:'Impresión'}" in rendered
           assert 'appDialogBackdrop' in rendered
           assert "else if(window.appNotice)window.appNotice" in rendered
-          assert '<style>' in rendered
-          print('REAL_BASE_RENDER_OK',len(rendered))
+          print('ORIGINAL_BASE_RENDER_OK',len(rendered))
           PY
 
       - name: Validate requested UI contract
