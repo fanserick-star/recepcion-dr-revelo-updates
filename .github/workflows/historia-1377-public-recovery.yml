@@ -1,0 +1,92 @@
+name: Historia 1.3.77 Public Recovery
+
+on:
+  push:
+    branches:
+      - historia-1.3.77-public-recovery
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-audit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply canonical public recovery fix
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('historia-clinica/app')
+          app = root/'app.py'
+          text = app.read_text(encoding='utf-8-sig')
+          old = "FROM historia.encounters e\n            JOIN historia.patients p ON p.id=e.patient_id"
+          new = "FROM public.encounters e\n            JOIN public.patients p ON p.id=e.patient_id"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'Expected exactly one legacy recovery query, found {count}')
+          app.write_text(text.replace(old,new,1),encoding='utf-8')
+
+          version_path = root/'historia-version.json'
+          version = json.loads(version_path.read_text(encoding='utf-8-sig'))
+          version['version'] = '1.3.77'
+          version_path.write_text(json.dumps(version,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          manifest_path = root/'update_manifest.json'
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+          manifest['version'] = '1.3.77'
+          manifest['app_version'] = '1.3.77'
+          manifest['runtime_version'] = '1.3.77'
+          notes = manifest.setdefault('notes',{})
+          notes['purpose'] = 'Unifica también la recuperación remota de borradores en el esquema canónico public.*; elimina el último SELECT operativo contra historia.* sin modificar historias clínicas.'
+          notes['previous_version'] = '1.3.76'
+          notes['database_schema_changes'] = False
+          notes['patient_data_destructive_changes'] = False
+          notes['clinical_data_changes'] = False
+          notes['cloud_logic_changes'] = True
+          notes['recovery_public_schema_canonical'] = True
+          notes['legacy_historia_schema_operational'] = False
+          notes['public_schema_only_operational_queries'] = True
+          notes['reception_identity_authority'] = True
+          notes['doctor_manual_link_normal_flow'] = False
+          notes['doctor_manual_link_emergency_fallback'] = True
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+      - name: Compile and verify contracts
+        run: |
+          python -m py_compile historia-clinica/app/app.py historia-clinica/app/cloud_sync.py historia-clinica/app/lan_bridge.py
+          python - <<'PY'
+          import json, pathlib, re
+          root=pathlib.Path('historia-clinica/app')
+          version=json.loads((root/'historia-version.json').read_text(encoding='utf-8'))['version']
+          manifest=json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
+          assert version == '1.3.77'
+          assert manifest['version']==manifest['app_version']==manifest['runtime_version']==version
+          app=(root/'app.py').read_text(encoding='utf-8')
+          assert 'FROM public.encounters e' in app
+          assert 'JOIN public.patients p ON p.id=e.patient_id' in app
+          forbidden=[]
+          pattern=re.compile(r'\b(?:FROM|JOIN|UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+historia\.(patients|encounters|patient_links|waiting_queue)\b',re.I)
+          for path in root.glob('*.py'):
+              for m in pattern.finditer(path.read_text(encoding='utf-8-sig')):
+                  forbidden.append(f'{path.name}:{m.group(0)}')
+          assert not forbidden, forbidden
+          notes=manifest['notes']
+          assert notes['recovery_public_schema_canonical'] is True
+          assert notes['legacy_historia_schema_operational'] is False
+          assert notes['patient_data_destructive_changes'] is False
+          print('Historia 1.3.77 contracts OK')
+          PY
+      - name: Commit candidate
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historia-clinica/app/app.py historia-clinica/app/historia-version.json historia-clinica/app/update_manifest.json
+          git commit -m "Historia 1.3.77 use public schema for draft recovery"
+          git push origin HEAD:historia-1.3.77-public-recovery
