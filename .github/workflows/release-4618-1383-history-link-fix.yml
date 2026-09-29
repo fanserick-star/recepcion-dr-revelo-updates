@@ -1,0 +1,59 @@
+name: Release 4.6.18 and 1.3.83 History Link Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-4618-1383-history-link-fix.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-4618-1383-history-link-fix
+  cancel-in-progress: false
+
+jobs:
+  patch-validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply focused fixes
+        run: |
+          python tools/patch_4618_1383_history_link_lan.py
+          python tools/finalize_4618_manual_scope.py
+
+      - name: Validate Reception and Historia runtimes
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          python tools/test_historia_canonical_source.py
+          python tools/validate_historia_runtime.py historia-clinica/app
+          python -m py_compile recepcion/app/historia_lan_transport.py recepcion/app/reception_history_identity_consolidated.py historia-clinica/app/lan_bridge.py
+          git diff --check
+
+      - name: Validate UI scope and LAN identity behavior
+        run: |
+          python tools/test_4618_1383_lan_identity.py
+          grep -Fq "!!attentionContext?.manualSubsequent" recepcion/app/reception_history_identity_consolidated.py
+          if grep -Fq "#modal .modal-content" recepcion/app/reception_history_identity_consolidated.py; then echo "generic modal root still present"; exit 1; fi
+          grep -Fq "historia_lan.identity_prepare(payload)" recepcion/app/reception_history_identity_consolidated.py
+          grep -Fq "Historia Clínica no está disponible en la red local" recepcion/app/reception_history_identity_consolidated.py
+          grep -Fq '"version": "4.6.18"' recepcion/app/recepcion-version.json
+          grep -Fq '"version": "1.3.83"' historia-clinica/app/historia-version.json
+
+      - name: Commit canonical release sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recepcion/app/reception_history_identity_consolidated.py recepcion/app/historia_lan_transport.py recepcion/app/recepcion-version.json recepcion/app/update_manifest.json historia-clinica/app/lan_bridge.py historia-clinica/app/historia-version.json historia-clinica/app/update_manifest.json
+          git rm tools/patch_4618_1383_history_link_lan.py tools/finalize_4618_manual_scope.py tools/test_4618_1383_lan_identity.py .github/workflows/release-4618-1383-history-link-fix.yml
+          git commit -m "Fix old-patient Historia linking via LAN"
+          git push origin HEAD:main
