@@ -309,6 +309,64 @@ def send_lan(payload: dict) -> bool:
         return False
 
 
+
+def _identity_request(path: str, payload: dict, *, timeout: float = 2.4) -> dict | None:
+    state = _snapshot()
+    host = str(state.get("lan_host") or "")
+    token = str(state.get("token") or "")
+    if not host or not token or not state.get("lan_online"):
+        state = probe_once()
+        host = str(state.get("lan_host") or "")
+        token = str(state.get("token") or "")
+    if not host or not token:
+        return None
+
+    for attempt in range(2):
+        try:
+            result = _http_json(
+                host, path, method="POST", payload=payload,
+                token=token, timeout=timeout,
+            )
+            if result.get("ok") is False:
+                raise RuntimeError(str(result.get("error") or "Historia rechazó la consulta"))
+            _set_state(
+                lan_online=True,
+                lan_last_seen=_now(),
+                lan_last_error="",
+            )
+            return result
+        except urllib.error.HTTPError as exc:
+            if exc.code == 403 and attempt == 0:
+                _set_state(token="", token_host="")
+                fresh = probe_once()
+                host = str(fresh.get("lan_host") or "")
+                token = str(fresh.get("token") or "")
+                if host and token:
+                    continue
+            _set_state(lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
+            return None
+        except Exception as exc:
+            _set_state(lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
+            return None
+    return None
+
+
+def identity_status(payload: dict) -> dict | None:
+    return _identity_request("/identity/status", payload)
+
+
+def identity_prepare(payload: dict) -> dict | None:
+    return _identity_request("/identity/prepare", payload)
+
+
+def identity_search(payload: dict) -> dict | None:
+    return _identity_request("/identity/search", payload, timeout=3.5)
+
+
+def identity_link(payload: dict) -> dict | None:
+    return _identity_request("/identity/link", payload, timeout=3.5)
+
+
 def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") -> bool:
     state = _snapshot()
     host = str(state.get("lan_host") or "")

@@ -9,6 +9,7 @@ from pathlib import Path
 
 import core_runtime as core
 import historia_bridge
+import historia_lan_transport as historia_lan
 
 app = core.app
 _VERSION_DOC = json.loads(
@@ -849,6 +850,158 @@ def historia_identity_link(
         conn.close()
 
 
+
+# v4.6.18 — fallback de identidad por LAN sin credenciales clínicas en Recepción.
+def _v4618_lan_payload(db, reception_patient_id: int, *, q: str = "", clinical_patient_id: str = "") -> dict:
+    patient = _reception_patient(db, reception_patient_id)
+    demo = _demographics(patient)
+    return {
+        "reception_patient_id": str(patient.id),
+        "name": demo.get("name") or "",
+        "identification": demo.get("national_id") or "",
+        "birth_date": demo.get("birth_date") or "",
+        "phone": demo.get("phone") or "",
+        "email": demo.get("email") or "",
+        "address": demo.get("address") or "",
+        "q": _clean(q, 180),
+        "clinical_patient_id": _clean(clinical_patient_id, 120),
+        "limit": 30,
+    }
+
+
+def _v4618_unavailable(message: str = "") -> dict:
+    detail = _clean(message, 180)
+    friendly = (
+        "Historia Clínica no está disponible en la red local. "
+        "Abra Historia Clínica en la PC del doctor y pulse Reintentar."
+    )
+    return {
+        "ok": False,
+        "reachable": False,
+        "linked": False,
+        "history_date_count": 0,
+        "last_history_date": "",
+        "error": friendly,
+        "technical_error": detail,
+    }
+
+
+_v4618_status_cloud = historia_identity_status
+_v4618_prepare_cloud = historia_identity_prepare
+_v4618_search_cloud = historia_identity_search
+_v4618_link_cloud = historia_identity_link
+
+for _route in list(app.router.routes):
+    _path = getattr(_route, "path", None)
+    _methods = set(getattr(_route, "methods", set()) or set())
+    if _path == "/api/historia-identity/status/{reception_patient_id}" and "GET" in _methods:
+        app.router.routes.remove(_route)
+    elif _path == "/api/historia-identity/prepare/{reception_patient_id}" and "POST" in _methods:
+        app.router.routes.remove(_route)
+    elif _path == "/api/historia-identity/sync/{reception_patient_id}" and "POST" in _methods:
+        app.router.routes.remove(_route)
+    elif _path == "/api/historia-identity/search" and "GET" in _methods:
+        app.router.routes.remove(_route)
+    elif _path == "/api/historia-identity/link" and "POST" in _methods:
+        app.router.routes.remove(_route)
+
+
+@app.get("/api/historia-identity/status/{reception_patient_id}")
+def v4618_historia_identity_status(
+    reception_patient_id: int,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    cloud = _v4618_status_cloud(reception_patient_id, db, user)
+    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
+        return cloud
+    payload = _v4618_lan_payload(db, reception_patient_id)
+    lan = historia_lan.identity_status(payload)
+    return lan or _v4618_unavailable(cloud.get("error") or "")
+
+
+@app.post("/api/historia-identity/prepare/{reception_patient_id}")
+def v4618_historia_identity_prepare(
+    reception_patient_id: int,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    cloud = _v4618_prepare_cloud(reception_patient_id, db, user)
+    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
+        return cloud
+    payload = _v4618_lan_payload(db, reception_patient_id)
+    lan = historia_lan.identity_prepare(payload)
+    return lan or _v4618_unavailable(cloud.get("error") or "")
+
+
+@app.post("/api/historia-identity/sync/{reception_patient_id}")
+def v4618_historia_identity_sync(
+    reception_patient_id: int,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    return v4618_historia_identity_prepare(reception_patient_id, db, user)
+
+
+@app.get("/api/historia-identity/search")
+def v4618_historia_identity_search(
+    q: str = "",
+    reception_patient_id: int = 0,
+    limit: int = 30,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    cloud = _v4618_search_cloud(q, reception_patient_id, limit, db, user)
+    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
+        return cloud
+    if not reception_patient_id:
+        return cloud
+    payload = _v4618_lan_payload(db, reception_patient_id, q=q)
+    payload["limit"] = max(1, min(int(limit or 30), 40))
+    lan = historia_lan.identity_search(payload)
+    return lan or {
+        "ok": False,
+        "reachable": False,
+        "results": [],
+        "error": _v4618_unavailable(cloud.get("error") or "")["error"],
+    }
+
+
+@app.post("/api/historia-identity/link")
+def v4618_historia_identity_link(
+    data: _HistoryLinkIn,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    cloud_error = ""
+    try:
+        return _v4618_link_cloud(data, db, user)
+    except Exception as exc:
+        cloud_error = f"{type(exc).__name__}: {str(exc)[:160]}"
+    payload = _v4618_lan_payload(
+        db, data.reception_patient_id,
+        clinical_patient_id=data.clinical_patient_id,
+    )
+    lan = historia_lan.identity_link(payload)
+    if lan:
+        try:
+            core.audit(
+                db, user, "historia_identity_manual_link_lan",
+                json.dumps(
+                    {
+                        "reception_patient_id": int(data.reception_patient_id),
+                        "clinical_patient_id": str(data.clinical_patient_id),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+            db.commit()
+        except Exception:
+            pass
+        return lan
+    raise core.HTTPException(503, _v4618_unavailable(cloud_error)["error"])
+
+
 V4613_CSS = r"""
 .v4613-history-card{
   margin:12px 0;padding:12px 14px;border:1px solid #cfe0ee;border-radius:13px;
@@ -895,7 +1048,7 @@ V4613_JS = r"""
 
   function modalRoots(){
     const roots=[];
-    for(const el of document.querySelectorAll('#modal .patient-profile-modal,.modal .patient-profile-modal,.patient-profile-modal,#modal .attention-form-modal,.modal .attention-form-modal,#modal .attention-form,#modal .modal-content,.modal .attention-form')){
+    for(const el of document.querySelectorAll('#modal .patient-profile-modal,.modal .patient-profile-modal,.patient-profile-modal,#modal .attention-form-modal,.modal .attention-form-modal,.attention-form-modal')){
       if(el && !roots.includes(el))roots.push(el);
     }
     return roots;
@@ -1001,7 +1154,7 @@ V4613_JS = r"""
   async function renderHost(host,force=false){
     const pid=pidFrom(host);if(!pid)return;
     const attentionModal=host.matches('.attention-form-modal');
-    const attentionIsSubsequent=attentionModal&&norm(host.querySelector('#attentionStatus')?.textContent||'').includes('SUBSECUENTE');
+    const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})();
     if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}
     let card=host.querySelector(':scope > .v4613-history-card');
     if(!card){card=document.createElement('div');card.className='v4613-history-card';place(host,card)}
@@ -1051,7 +1204,7 @@ V4613_JS = r"""
       const u=String(url||'');
       if(u==='/api/visits/batch-payment'||u==='/api/visits/batch'){
         let body={};try{body=JSON.parse(String(opt?.body||'{}'))}catch(_e){}
-        if(isSubsequent(body)){
+        if(isSubsequent(body)&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})()){
           const pid=Number(body?.patient_id||pidFrom(modalRoots()[0])||0);
           if(pid){
             let pre=null;
