@@ -1059,15 +1059,17 @@ V4613_JS = r"""
     if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}
     let card=host.querySelector(':scope > .v4613-history-card');
     if(!card){card=document.createElement('div');card.className='v4613-history-card';place(host,card)}
-    if(!force&&Number(card.dataset.pid||0)===pid&&Date.now()-Number(card.dataset.at||0)<4500)return;
-    card.dataset.pid=String(pid);card.dataset.at=String(Date.now());
+    if(Number(card.dataset.pid||0)===pid&&card.dataset.busy==='1')return;
+    if(!force&&Number(card.dataset.pid||0)===pid&&card.dataset.settled==='1')return;
+    card.dataset.pid=String(pid);card.dataset.at=String(Date.now());card.dataset.busy='1';card.dataset.settled='0';
     card.className='v4613-history-card';
     card.innerHTML='<div class="v4613-history-copy"><b>Historia clínica</b><small>Consultando vínculo…</small></div>';
 
     try{
-      const d=attentionIsSubsequent?await prepare(pid,true):await status(pid,force);
+      const d=await status(pid,force);
       if(!card.isConnected||Number(card.dataset.pid)!==pid)return;
       if(d?.ok===false)throw Error(d.error||'Historia no disponible');
+      card.dataset.busy='0';card.dataset.settled='1';
       const linked=!!d?.linked,count=Number(d?.history_date_count||0),last=fmt(d?.last_history_date||'');
       if(linked){
         const linkedTitle=attentionModal?'✓ Vinculado con Historia Clínica':'Historia clínica vinculada';
@@ -1081,6 +1083,7 @@ V4613_JS = r"""
         card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
       }
     }catch(err){
+      card.dataset.busy='0';card.dataset.settled='1';
       card.classList.add('error');
       card.innerHTML=`<div class="v4613-history-copy"><b>Historia clínica no disponible</b><small>${esc(err.message||'No se pudo consultar el vínculo.')}</small></div><div class="v4613-history-actions"><button type="button" class="v4613-btn secondary">Reintentar</button></div>`;
       card.querySelector('button').onclick=()=>{clearPatientCache(pid);renderHost(host,true)};
@@ -1105,7 +1108,7 @@ V4613_JS = r"""
       const u=String(url||'');
       if(u==='/api/visits/batch-payment'||u==='/api/visits/batch'){
         let body={};try{body=JSON.parse(String(opt?.body||'{}'))}catch(_e){}
-        if(isSubsequent(body)&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})()){
+        if(isSubsequent(body)){
           const pid=Number(body?.patient_id||pidFrom(modalRoots()[0])||0);
           if(pid){
             let pre=null;

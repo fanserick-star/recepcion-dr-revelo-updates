@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.21",
-  "app_version": "4.6.21",
-  "runtime_version": "4.6.21",
+  "version": "4.6.22",
+  "app_version": "4.6.22",
+  "runtime_version": "4.6.22",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Todo vínculo nuevo con Historia Clínica requiere confirmación explícita desde Recepción; Neon solo consulta y propone candidatos. LAN sigue reservado para Pacientes en espera.",
-    "previous_version": "4.6.20",
+    "purpose": "Estabiliza el panel de vínculo de Historia: elimina consultas repetitivas/flicker y exige preflight de vínculo para todo subsecuente.",
+    "previous_version": "4.6.21",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -246,12 +246,12 @@
     "history_link_status_visible_in_new_attention": true,
     "history_link_status_only_for_subsequent": true,
     "history_link_status_position_below_attention_type": true,
-    "history_exact_id_preflight_on_subsequent_open": true,
+    "history_exact_id_preflight_on_subsequent_open": false,
     "history_manual_link_from_reception": true,
     "history_unlinked_button_in_new_attention": true,
     "history_linked_confirmation_in_new_attention": true,
     "waiting_queue_logic_changes": true,
-    "history_link_panel_manual_legacy_only": true,
+    "history_link_panel_manual_legacy_only": false,
     "history_identity_lan_fallback": false,
     "history_database_url_required_on_reception": true,
     "history_raw_runtime_error_hidden": true,
@@ -265,7 +265,11 @@
     "waiting_queue_local_retry": true,
     "waiting_queue_carries_clinical_patient_id": true,
     "history_auto_link_exact_identification": false,
-    "history_manual_link_required": true
+    "history_manual_link_required": true,
+    "history_link_panel_passive_refresh_loop_fixed": true,
+    "history_link_panel_inflight_deduplicated": true,
+    "history_link_panel_status_only_on_open": true,
+    "history_save_link_gate_all_subsequents": true
   },
   "channel": "launcher-v1-stable"
 }
