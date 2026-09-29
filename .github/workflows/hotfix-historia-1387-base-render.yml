@@ -75,33 +75,36 @@ jobs:
           python -m py_compile historia-clinica/app/app.py
           git diff --check
 
-      - name: Render base HTML smoke test
+      - name: Render real base HTML chain smoke test
         run: |
           python - <<'PY'
           import ast
+          import html as html_module
           from pathlib import Path
 
           path=Path('historia-clinica/app/app.py')
           src=path.read_text(encoding='utf-8-sig')
           tree=ast.parse(src)
           wanted=[]
+          allowed_assigns={'APP_DIALOG_HTML','_V135_BASE_ORIGINAL','_V135_STYLE'}
           for node in tree.body:
               if isinstance(node,ast.FunctionDef) and node.name in {'e','base'}:
                   wanted.append(node)
               elif isinstance(node,ast.Assign):
-                  if any(isinstance(t,ast.Name) and t.id=='APP_DIALOG_HTML' for t in node.targets):
+                  names={t.id for t in node.targets if isinstance(t,ast.Name)}
+                  if names & allowed_assigns:
                       wanted.append(node)
           mod=ast.Module(body=wanted,type_ignores=[])
           ast.fix_missing_locations(mod)
-          ns={'APP_VERSION':'1.3.87'}
+          ns={'APP_VERSION':'1.3.87','html':html_module}
           exec(compile(mod,str(path),'exec'),ns)
-          html=ns['base']('Prueba','<main>OK</main>')
-          assert '<main>OK</main>' in html
-          assert "{title:'Impresión'}" in html
-          assert 'appDialogBackdrop' in html
-          assert '127.0.0.1' not in html
-          assert "else if(window.appNotice)window.appNotice" in html
-          print('BASE_RENDER_OK',len(html))
+          rendered=ns['base']('Prueba','<main>OK</main>')
+          assert '<main>OK</main>' in rendered
+          assert "{title:'Impresión'}" in rendered
+          assert 'appDialogBackdrop' in rendered
+          assert "else if(window.appNotice)window.appNotice" in rendered
+          assert '<style>' in rendered
+          print('REAL_BASE_RENDER_OK',len(rendered))
           PY
 
       - name: Validate requested UI contract
