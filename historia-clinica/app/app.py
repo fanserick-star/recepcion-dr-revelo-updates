@@ -3172,17 +3172,14 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
             time_label = (h["encounter_time"] or "")[:5]
             title = clean_title(h["clinical_note"], "Registro clínico")
             origin = "Histórico importado" if is_legacy else "Consulta registrada"
-            open_attr = " open" if index == 0 else ""
-
             previous_cards.append(f"""
-            <details class='previous-record'{open_attr}>
-              <summary>
+            <section class='previous-record previous-record-flat'>
+              <div class='previous-record-flat-head'>
                 <span class='previous-record-date'><b>{e(date_label)}</b>{f"<time>{e(time_label)}</time>" if time_label else ""}</span>
                 <span class='previous-record-summary'><strong>{e(title)}</strong><small>{origin}</small></span>
-                <span class='previous-record-chevron'>⌄</span>
-              </summary>
+              </div>
               <div class='previous-record-body'>{record_body}</div>
-            </details>
+            </section>
             """)
 
         previous_panel = f"""
