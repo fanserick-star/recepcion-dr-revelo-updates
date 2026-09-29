@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.14",
-  "app_version": "4.6.14",
-  "runtime_version": "4.6.14",
+  "version": "4.6.15",
+  "app_version": "4.6.15",
+  "runtime_version": "4.6.15",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -72,7 +72,8 @@
     "reception_update_restart.py",
     "reception_version_display.py",
     "reception_version_sidebar.py",
-    "reception_history_identity_consolidated.py"
+    "reception_history_identity_consolidated.py",
+    "reception_history_requeue_guard.py"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -143,11 +144,12 @@
     "reception_update_restart.py",
     "reception_version_display.py",
     "reception_version_sidebar.py",
-    "reception_history_identity_consolidated.py"
+    "reception_history_identity_consolidated.py",
+    "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Corrige juntos el panel tardío de Historia y la pérdida de pacientes en espera: render inmediato y outbox que no se bloquea por eventos fallidos.",
-    "previous_version": "4.6.13",
+    "purpose": "Permite reenviar correctamente una consulta cuyo evento de Historia ya había sido enviado/cancelado, sin afectar los pacientes nuevos que ya funcionan.",
+    "previous_version": "4.6.14",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -230,7 +232,10 @@
     "history_outbox_batch_on_new_attention": 100,
     "history_pending_retry_seconds": 10,
     "procedure_lan_handoff": false,
-    "consultation_handoff_preserved": true
+    "consultation_handoff_preserved": true,
+    "history_same_event_requeue_resets_local_delivery": true,
+    "history_same_event_requeue_reactivates_waiting": true,
+    "history_stale_cancel_cannot_override_newer_requeue": true
   },
   "channel": "launcher-v1-stable"
 }
