@@ -1,0 +1,89 @@
+name: Finalize Reception 4.6.22 Channel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/finalize-reception-4622-channel.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-reception-4622-channel
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate canonical Reception 4.6.22
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          assert json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version'] == '4.6.22'
+          src = Path('recepcion/app/reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
+          assert "card.dataset.busy==='1'" in src
+          assert "card.dataset.settled==='1'" in src
+          assert "const d=await status(pid,force);" in src
+          assert "if(isSubsequent(body)){" in src
+          assert src.count('await prepare(pid,true)') == 1
+          print('FIX_4622_OK')
+          PY
+
+      - name: Build exact stable channel from validated source commit
+        run: |
+          RELEASE_SHA=303e2167390555ad04e228176c32946fb2d05ac1
+          python tools/build_reception_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Verify generated payload bytes
+        env:
+          VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          assert channel['appVersion'] == '4.6.22', channel.get('appVersion')
+          assert channel['mandatory'] is True
+          assert channel['generatedFromCommit'] == '303e2167390555ad04e228176c32946fb2d05ac1'
+          out = pathlib.Path('channel_verify_4622')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+          nonce = os.environ.get('VERIFY_NONCE','verify')
+          for item in channel['files']:
+              rel = str(item['path']).replace('\\','/')
+              url = item['url'] + ('&' if '?' in item['url'] else '?') + 'verify=' + nonce
+              req = urllib.request.Request(url, headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = response.read()
+              got = hashlib.sha256(payload).hexdigest()
+              assert got == item['sha256'], (rel, got, item['sha256'])
+              dest = out / rel
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              dest.write_bytes(payload)
+          print('CHANNEL_4622_BYTES_OK')
+          PY
+          python tools/validate_reception_runtime_layout.py channel_verify_4622
+
+      - name: Publish channel safely
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add launcher-v1/app-channel.json
+          git rm .github/workflows/finalize-reception-4622-channel.yml
+          git commit -m "Publish validated Reception 4.6.22 channel"
+          git pull --rebase origin main
+          git push origin HEAD:main
