@@ -1205,7 +1205,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
       throw new Error('La impresión directa requiere Launcher Historia 1.0.8. Cierre y vuelva a abrir Historia Clínica.');
     }}catch(err){{
       if(window.showAppToast)showAppToast(err&&err.message?err.message:'No se pudo imprimir.','error');
-      else if(window.appNotice)window.appNotice(err&&err.message?err.message:'No se pudo imprimir.',{title:'Impresión'});
+      else if(window.appNotice)window.appNotice(err&&err.message?err.message:'No se pudo imprimir.',{{title:'Impresión'}});
       return false;
     }}
   }};
