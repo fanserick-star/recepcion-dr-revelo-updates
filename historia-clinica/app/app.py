@@ -4448,8 +4448,8 @@ def _v139_remote_draft_candidates(raw_query: str) -> list[dict]:
               e.id,e.patient_id,e.encounter_date,e.encounter_time,
               e.updated_at,e.created_at,e.deleted_at,e.note_status,
               p.name,p.national_id
-            FROM historia.encounters e
-            JOIN historia.patients p ON p.id=e.patient_id
+            FROM public.encounters e
+            JOIN public.patients p ON p.id=e.patient_id
             WHERE e.note_status='draft'
               AND COALESCE(e.clinical_note,'') <> ''
               AND ({where_name})
