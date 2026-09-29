@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.11",
-  "app_version": "4.6.11",
-  "runtime_version": "4.6.11",
+  "version": "4.6.12",
+  "app_version": "4.6.12",
+  "runtime_version": "4.6.12",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -146,8 +146,8 @@
     "reception_history_identity_authority.py"
   ],
   "notes": {
-    "purpose": "Vinculación de Historia directamente desde la ficha del paciente y redibujado correcto del estado al cambiar de modal con el mismo paciente.",
-    "previous_version": "4.6.10",
+    "purpose": "Hotfix de interfaz: el botón Buscar y vincular ficha de Historia se carga siempre desde el overlay de la versión actual, evitando que WebView reutilice la tarjeta antigua SIN VÍNCULO sin acción.",
+    "previous_version": "4.6.11",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -203,7 +203,9 @@
     "legacy_print_text_preflight_removed": true,
     "history_link_button_patient_profile": true,
     "history_profile_same_patient_modal_rerender": true,
-    "history_link_without_creating_attention": true
+    "history_link_without_creating_attention": true,
+    "overlay_assets_versioned_by_app_version": true,
+    "webview_stale_overlay_cache_fixed": true
   },
   "channel": "launcher-v1-stable"
 }

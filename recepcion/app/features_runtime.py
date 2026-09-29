@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # Deterministic current runtime. No historical release registry.
 import json
+import os
 from pathlib import Path
 
 import core_runtime
@@ -229,6 +230,43 @@ def _read_current_app_version() -> str:
         raise RuntimeError("recepcion-version.json does not contain a valid version")
     return version
 
+
+def _install_versioned_overlay_home() -> None:
+    """Evita que WebView reutilice overlay.js/CSS de una versión anterior.
+
+    El runtime histórico inyectaba /v460/overlay.* con el query fijo v=4.3.72.
+    Como todo el UI acumulado se sirve desde esos dos endpoints, una caché vieja
+    podía ocultar cambios ya instalados (por ejemplo el botón de vincular Historia).
+    Conservamos exactamente los assets anteriores, pero el overlay usa la versión
+    canónica actual como cache-buster.
+    """
+    app = core_runtime.app
+    for route in list(app.router.routes):
+        if getattr(route, "path", None) == "/" and "GET" in set(getattr(route, "methods", set()) or set()):
+            app.router.routes.remove(route)
+
+    @app.get("/", response_class=core_runtime.HTMLResponse)
+    def _versioned_home():
+        with open(os.path.join(core_runtime.BASE_DIR, "static", "index.html"), encoding="utf-8") as handle:
+            html = handle.read()
+        version = _read_current_app_version()
+        addon = (
+            '<link rel="stylesheet" href="/v458/settings.css?v=4.3.58">'
+            '<script defer src="/v458/settings.js?v=4.3.58"></script>'
+            '<link rel="stylesheet" href="/v459/settings.css?v=4.3.59">'
+            '<script defer src="/v459/settings.js?v=4.3.59"></script>'
+            f'<link rel="stylesheet" href="/v460/overlay.css?v={version}">'
+            f'<script defer src="/v460/overlay.js?v={version}"></script>'
+        )
+        return html.replace("</head>", addon + "</head>", 1) if "</head>" in html else html + addon
+
+    try:
+        app.openapi_schema = None
+    except Exception:
+        pass
+
+
+_install_versioned_overlay_home()
 
 CURRENT_APP_VERSION = _read_current_app_version()
 core_runtime.APP_VERSION = CURRENT_APP_VERSION
