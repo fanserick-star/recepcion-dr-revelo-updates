@@ -1027,7 +1027,7 @@ def search_patients(conn, raw_query, limit=100):
     where = " OR ".join(clauses) or "0"
     rows = conn.execute(f"""
         SELECT p.*,
-          (SELECT COUNT(*) FROM encounters e WHERE e.patient_id=p.id AND e.note_status!='draft') AS n_hist
+          (SELECT COUNT(*) FROM encounters e WHERE e.patient_id=p.id AND e.note_status!='draft' AND COALESCE(e.deleted_at,'')='') AS n_hist
         FROM patients p
         WHERE COALESCE(p.merged_into_patient_id,'')=''
           AND ({where})
@@ -1799,7 +1799,7 @@ def home():
         patient_count = conn.execute(
             "SELECT COUNT(*) FROM patients WHERE COALESCE(merged_into_patient_id,'')=''"
         ).fetchone()[0]
-        encounter_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status!='draft'").fetchone()[0]
+        encounter_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status!='draft' AND COALESCE(deleted_at,'')=''").fetchone()[0]
         today_count = conn.execute("SELECT COUNT(*) FROM encounters WHERE note_status='signed' AND source='historia_clinica' AND encounter_date=?", (today,)).fetchone()[0]
         # v1.3.73: datos útiles para la sala de espera, sólo desde SQLite local.
         queue = conn.execute("""
@@ -2652,6 +2652,155 @@ def render_history_card(h, addenda, open_by_default=False):
 """
 
 
+
+
+def _flat_history_date_ordinal(value):
+    raw = str(value or '').strip()
+    for fmt in ('%d/%m/%Y', '%Y-%m-%d'):
+        try:
+            return datetime.strptime(raw, fmt).date().toordinal()
+        except Exception:
+            pass
+    return 0
+
+
+def _flat_history_time_minutes(value):
+    raw = str(value or '').strip()[:5]
+    try:
+        parsed = datetime.strptime(raw, '%H:%M')
+        return parsed.hour * 60 + parsed.minute
+    except Exception:
+        return 0
+
+
+def _build_flat_history_items(histories, addenda_by):
+    """Cronología visual única. Nunca reescribe el texto clínico original."""
+    items = []
+    seq = 0
+    for h in histories:
+        status = h['note_status'] or ('legacy' if h['is_legacy_locked'] else 'signed')
+        legacy_segments = (
+            segment_legacy_history(h['clinical_note'], h['encounter_date'])
+            if status == 'legacy'
+            else []
+        )
+
+        if legacy_segments:
+            print_action = (
+                f"<a class='text-btn' href='/encuentro/{e(h['id'])}/imprimir?print_now=1' "
+                "target='_blank'>Imprimir registro original</a>"
+            )
+            docs_once = _v1370_render_encounter_documents(h['id'])
+            for segment_index, segment in enumerate(legacy_segments):
+                label = str(segment.get('label') or '').strip() or 'Sin fecha'
+                content = str(segment.get('content') or '')
+                body_html = (
+                    e(content).replace('\n', '<br>')
+                    if content
+                    else '<em>Sin texto registrado</em>'
+                )
+                actions = print_action
+                if segment_index == 0:
+                    actions += (
+                        f"<button type='button' class='text-btn js-delete-history' "
+                        f"data-id='{e(h['id'])}' data-legacy='1'>"
+                        "Ocultar registro histórico completo</button>"
+                    )
+                items.append({
+                    'date_label': label,
+                    'time_label': (
+                        str(h['encounter_time'] or '')[:5]
+                        if segment.get('kind') == 'base'
+                        else ''
+                    ),
+                    'body_html': body_html,
+                    'origin': 'Registro histórico',
+                    'actions_html': actions,
+                    'documents_html': docs_once if segment_index == 0 else '',
+                    'addenda_html': '',
+                    'date_ordinal': _flat_history_date_ordinal(label),
+                    'time_minutes': (
+                        _flat_history_time_minutes(h['encounter_time'])
+                        if segment.get('kind') == 'base'
+                        else 0
+                    ),
+                    'sequence': seq,
+                })
+                seq += 1
+            continue
+
+        note = display_text(h['clinical_note']) or '<em>Sin texto</em>'
+        date_label = human_date(h['encounter_date']) or h['encounter_date'] or 'Sin fecha'
+        time_label = (h['encounter_time'] or '')[:5]
+        actions = (
+            f"<a class='text-btn' href='/encuentro/{e(h['id'])}/imprimir?print_now=1' "
+            "target='_blank'>Imprimir</a>"
+        )
+        if status == 'signed':
+            actions += (
+                f"<button type='button' class='text-btn js-edit-history' "
+                f"data-id='{e(h['id'])}'>Seguir editando historia</button>"
+                f"<button type='button' class='text-btn js-delete-history' "
+                f"data-id='{e(h['id'])}'>Eliminar historia</button>"
+            )
+        add_html = ''.join(
+            f"<div class='addendum'><div><strong>Continuación anterior</strong>"
+            f"<time>{e(human_dt(a['created_at']))}</time></div>"
+            f"<p>{display_text(a['text'])}</p></div>"
+            for a in addenda_by.get(h['id'], [])
+        )
+        items.append({
+            'date_label': date_label,
+            'time_label': time_label,
+            'body_html': note,
+            'origin': 'Consulta registrada' if status != 'legacy' else 'Registro histórico',
+            'actions_html': actions,
+            'documents_html': _v1370_render_encounter_documents(h['id']),
+            'addenda_html': add_html,
+            'date_ordinal': _flat_history_date_ordinal(date_label),
+            'time_minutes': _flat_history_time_minutes(time_label),
+            'sequence': seq,
+        })
+        seq += 1
+
+    return sorted(
+        items,
+        key=lambda item: (
+            item['date_ordinal'],
+            item['time_minutes'],
+            -item['sequence'],
+        ),
+        reverse=True,
+    )
+
+
+def _render_flat_history_timeline(items):
+    if not items:
+        return ''
+    rows = []
+    for item in items:
+        time_html = (
+            f"<time>{e(item['time_label'])}</time>"
+            if item['time_label']
+            else ''
+        )
+        rows.append(f"""
+        <section class='legacy-segment compact cp-flat-history-entry'>
+          <div class='legacy-segment-date'><strong>{e(item['date_label'])}</strong>{time_html}</div>
+          <small>{e(item['origin'])}</small>
+          <div class='legacy-segment-body'>{item['body_html']}</div>
+          <div class='history-actions'>{item['actions_html']}</div>
+          {item['documents_html']}
+          {item['addenda_html']}
+        </section>""")
+    return (
+        "<article class='history-card cp-history-card open cp-flat-history'>"
+        "<div class='history-content cp-history-content' style='display:block'>"
+        + ''.join(rows)
+        + "</div></article>"
+    )
+
+
 @app.get("/paciente/{patient_id}", response_class=HTMLResponse)
 def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
     term = histq.strip()
@@ -2662,14 +2811,14 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         if merged_to:
             return RedirectResponse(f"/paciente/{merged_to}", status_code=303)
         all_histories = conn.execute(
-            "SELECT * FROM encounters WHERE patient_id=? AND note_status!='draft' ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC",
+            "SELECT * FROM encounters WHERE patient_id=? AND note_status!='draft' AND COALESCE(deleted_at,'')='' ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC",
             (patient_id,),
         ).fetchall()
         if term:
             like = f"%{term}%"
             histories = conn.execute("""
                 SELECT * FROM encounters WHERE patient_id=? AND
-                note_status!='draft' AND (clinical_note LIKE ? OR legacy_history_t LIKE ?)
+                note_status!='draft' AND COALESCE(deleted_at,'')='' AND (clinical_note LIKE ? OR legacy_history_t LIKE ?)
                 ORDER BY encounter_date DESC, encounter_time DESC, legacy_history_id DESC
             """, (patient_id, like, like)).fetchall()
         else:
@@ -2702,8 +2851,10 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
     alert_text = rtf_to_text(p["legacy_alert"] or "").strip()
     alert_html = f"<section class='alert-card patient-alert'><strong>Alerta clínica</strong><span>{display_text(alert_text)}</span></section>" if alert_text else ""
 
-    timeline = "".join(render_history_card(h, addenda_by.get(h["id"], []), open_by_default=(i == 0)) for i, h in enumerate(histories))
-    last_date = human_date(last_signed["encounter_date"]) if last_signed else "Sin registros"
+    flat_history_items = _build_flat_history_items(histories, addenda_by)
+    timeline = _render_flat_history_timeline(flat_history_items)
+    last_date = flat_history_items[0]["date_label"] if flat_history_items else "Sin registros"
+    display_history_count = len(flat_history_items)
 
     consult_action = (
         f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva?encounter_id={e(active_edit["id"])}">Continuar consulta</a>'
@@ -2750,7 +2901,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   <div class="cp-history-window-head">
     <div class="cp-history-titlebar"><span>Historia Clínica:</span></div>
     <div class="cp-history-summary"><span>Último control</span><strong>{e(last_date)}</strong></div>
-    <div class="cp-history-summary"><span>Número de registros</span><strong>{total_histories}</strong></div>
+    <div class="cp-history-summary"><span>Número de registros</span><strong>{display_history_count}</strong></div>
   </div>
   <div class="cp-history-tools">
     <div><strong>Historial del paciente</strong><span>Los controles más recientes aparecen primero.</span></div>
@@ -2758,16 +2909,146 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   </div>
   <section class="timeline cp-timeline">{timeline if timeline else '<div class="empty"><strong>No hay registros que coincidan.</strong><span>Pruebe otra palabra o limpie la búsqueda.</span></div>'}</section>
 </section>
-<div id='addendum-modal' class='modal-backdrop' hidden><div class='modal'><h3>Seguir editando historia</h3><p>Escriba la continuación. Se guardará con su propia fecha y hora sin modificar lo que ya fue finalizado.</p><textarea id='addendum-text' rows='7' placeholder='Continúe escribiendo la historia clínica…'></textarea><div class='modal-actions'><button class='secondary' id='cancel-addendum'>Cancelar</button><button class='primary' id='save-addendum'>Guardar continuación</button></div></div></div>
+
 </div>
 """
     script = """<script>
-let addendumId=null; const modal=document.getElementById('addendum-modal');
-document.querySelectorAll('.js-addendum').forEach(b=>b.addEventListener('click',()=>{addendumId=b.dataset.id;modal.hidden=false;document.getElementById('addendum-text').focus()}));
-document.getElementById('cancel-addendum')?.addEventListener('click',()=>{modal.hidden=true;document.getElementById('addendum-text').value=''})
-document.getElementById('save-addendum')?.addEventListener('click',async()=>{const text=document.getElementById('addendum-text').value.trim();if(!text)return;const r=await fetch('/encuentro/'+addendumId+'/addendum',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});if(r.ok) location.reload(); else showAppToast('No se pudo guardar la continuación de la historia.','error')});
+document.querySelectorAll('.js-edit-history').forEach(btn=>btn.addEventListener('click',async()=>{
+  if(!confirm('¿Abrir esta historia para continuar editándola? Se conservará una revisión interna del texto anterior.'))return;
+  btn.disabled=true;
+  try{
+    const r=await fetch('/api/encounters/'+encodeURIComponent(btn.dataset.id)+'/reopen',{method:'POST',cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.detail||'No se pudo abrir la historia para edición.');
+    location.href=d.href;
+  }catch(err){showAppToast(err.message||String(err),'error');btn.disabled=false;}
+}));
+document.querySelectorAll('.js-delete-history').forEach(btn=>btn.addEventListener('click',async()=>{
+  const legacy=btn.dataset.legacy==='1';
+  const msg=legacy
+    ?'Este registro histórico importado contiene una o más fechas. Se ocultará el registro completo, sin borrarlo físicamente. ¿Continuar?'
+    :'La historia dejará de aparecer en el historial normal, pero conservará trazabilidad para recuperación. ¿Eliminarla?';
+  if(!confirm(msg))return;
+  btn.disabled=true;
+  try{
+    const r=await fetch('/api/encounters/'+encodeURIComponent(btn.dataset.id)+'/delete',{method:'POST',cache:'no-store'});
+    const d=await r.json();
+    if(!r.ok||!d.ok)throw new Error(d.detail||'No se pudo eliminar la historia.');
+    location.reload();
+  }catch(err){showAppToast(err.message||String(err),'error');btn.disabled=false;}
+}));
 </script>"""
     return base(p["name"], body, "pacientes", extra_script=script)
+
+
+
+
+@app.post("/api/encounters/{encounter_id}/reopen")
+def reopen_encounter_for_edit(encounter_id: str):
+    stamp = now_iso()
+    with db() as conn:
+        h = conn.execute(
+            "SELECT * FROM encounters WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1",
+            (encounter_id,),
+        ).fetchone()
+        if not h:
+            raise HTTPException(404, "No se encontró la historia.")
+        status = str(h['note_status'] or '').strip().lower()
+        if status == 'legacy' or int(h['is_legacy_locked'] or 0):
+            raise HTTPException(
+                409,
+                "Los registros históricos importados permanecen protegidos de edición.",
+            )
+        if status != 'signed':
+            raise HTTPException(
+                409,
+                "Esta historia no está finalizada o ya está en edición.",
+            )
+
+        revision_no = int(conn.execute(
+            "SELECT COALESCE(MAX(revision_no),0)+1 FROM encounter_revisions WHERE encounter_id=?",
+            (encounter_id,),
+        ).fetchone()[0] or 1)
+        conn.execute(
+            """INSERT INTO encounter_revisions(
+                   encounter_id,revision_no,saved_at,actor,
+                   clinical_note,diagnosis,treatment,reason
+               ) VALUES(?,?,?,?,?,?,?,?)""",
+            (
+                encounter_id,
+                revision_no,
+                stamp,
+                DOCTOR_NAME,
+                h['clinical_note'] or '',
+                h['diagnosis'] or '',
+                h['treatment'] or '',
+                'reapertura_para_edicion',
+            ),
+        )
+        conn.execute(
+            "UPDATE encounters SET note_status='draft',queue_id=NULL,updated_at=? WHERE id=?",
+            (stamp, encounter_id),
+        )
+        audit(
+            conn,
+            'reopen_signed_history',
+            'encounter',
+            encounter_id,
+            {'patient_id': h['patient_id'], 'revision_no': revision_no},
+        )
+        conn.commit()
+        patient_id = str(h['patient_id'] or '')
+
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return JSONResponse({
+        'ok': True,
+        'encounter_id': encounter_id,
+        'href': f'/paciente/{patient_id}/nueva?encounter_id={encounter_id}',
+    })
+
+
+@app.post("/api/encounters/{encounter_id}/delete")
+def soft_delete_history(encounter_id: str):
+    stamp = now_iso()
+    with db() as conn:
+        h = conn.execute(
+            "SELECT * FROM encounters WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1",
+            (encounter_id,),
+        ).fetchone()
+        if not h:
+            raise HTTPException(404, "No se encontró la historia.")
+        status = str(h['note_status'] or '').strip().lower()
+        if status not in {'signed', 'legacy'}:
+            raise HTTPException(
+                409,
+                "Sólo se pueden eliminar historias finalizadas o registros históricos.",
+            )
+        conn.execute(
+            "UPDATE encounters SET deleted_at=?,updated_at=? WHERE id=?",
+            (stamp, stamp, encounter_id),
+        )
+        audit(
+            conn,
+            'soft_delete_history',
+            'encounter',
+            encounter_id,
+            {
+                'patient_id': h['patient_id'],
+                'note_status': status,
+                'soft_delete': True,
+                'recoverable': True,
+            },
+        )
+        conn.commit()
+
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return JSONResponse({
+        'ok': True,
+        'encounter_id': encounter_id,
+        'soft_deleted': True,
+    })
 
 
 @app.get("/paciente/{patient_id}/nueva", response_class=HTMLResponse)
@@ -2793,7 +3074,7 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
             # pero no se presenta al doctor como un sistema de "borradores".
             working = conn.execute("SELECT * FROM encounters WHERE patient_id=? AND note_status='draft' ORDER BY updated_at DESC LIMIT 1", (patient_id,)).fetchone()
         previous_rows = conn.execute(
-            "SELECT * FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') ORDER BY encounter_date DESC, encounter_time DESC, updated_at DESC",
+            "SELECT * FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') AND COALESCE(deleted_at,'')='' ORDER BY encounter_date DESC, encounter_time DESC, updated_at DESC",
             (patient_id,),
         ).fetchall()
         previous = previous_rows[0] if previous_rows else None
@@ -3573,6 +3854,8 @@ def _v1374_effective_sign_values(row, stamp: str) -> tuple[str, str]:
     """
     encounter_date = str(row["encounter_date"] or "").strip()
     encounter_time = str(row["encounter_time"] or "").strip()
+    if str(row["signed_at"] or "").strip():
+        return encounter_date, encounter_time
     created_at = str(row["created_at"] or "").strip()
     created_date = created_at[:10] if len(created_at) >= 10 else ""
     created_time = created_at[11:16] if len(created_at) >= 16 else ""
