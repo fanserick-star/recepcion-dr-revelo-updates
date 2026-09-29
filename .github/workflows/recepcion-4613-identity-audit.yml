@@ -1,0 +1,69 @@
+name: Reception 4.6.13 Identity Audit
+
+on:
+  push:
+    branches:
+      - recepcion-4.6.13-identity-consolidation
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Python
+        run: |
+          python -m py_compile recepcion/app/features_runtime.py recepcion/app/reception_history_identity_consolidated.py
+      - name: Validate identity contracts
+        run: |
+          python - <<'PY'
+          import ast, json, pathlib, re
+          root = pathlib.Path('recepcion/app')
+          version = json.loads((root/'recepcion-version.json').read_text(encoding='utf-8'))['version']
+          assert version == '4.6.13', version
+          manifest = json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version'] == manifest['app_version'] == manifest['runtime_version'] == version
+          assert 'reception_history_identity_consolidated.py' in manifest['copy']
+          assert 'reception_history_identity_authority.py' not in manifest['copy']
+          features = (root/'features_runtime.py').read_text(encoding='utf-8')
+          assert 'import reception_history_identity_consolidated' in features
+          assert 'import reception_history_identity_authority' not in features
+          assert '_PROFILE_HISTORY_JS' not in features
+          src = (root/'reception_history_identity_consolidated.py').read_text(encoding='utf-8')
+          assert 'historia_bridge._connect = _connect_public' in src
+          assert '_original_bridge_connect' not in src
+          assert 'merged_into_patient_id' in src
+          assert 'patient_status' in src and 'reception_turn' in src
+          assert 'await prepare(pid,true)' in src
+          assert 'failed_identity_results_cached": False' in src
+          assert "'ÁÉÍÓÚÜÑZ','AEIOUUNS'" in src
+          search_section = src[src.index('def historia_identity_search'):src.index('@app.post("/api/historia-identity/link")')]
+          for forbidden in ('clinical_note','diagnosis','treatment'):
+              assert forbidden not in search_section, forbidden
+          tree = ast.parse(src)
+          js = None
+          for node in tree.body:
+              if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'V4613_JS' for t in node.targets):
+                  js = ast.literal_eval(node.value)
+                  break
+          assert js and '__v4613UnifiedHistoryIdentity' in js
+          pathlib.Path('/tmp/v4613.js').write_text(js, encoding='utf-8')
+          print('contracts ok')
+          PY
+          node --check /tmp/v4613.js
+      - name: Validate manifest files exist
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          root = pathlib.Path('recepcion/app')
+          m = json.loads((root/'update_manifest.json').read_text(encoding='utf-8'))
+          missing = [p for p in m['copy'] if not (root/p).exists()]
+          if missing:
+              raise SystemExit('Missing manifest files: ' + ', '.join(missing))
+          print('manifest copy files ok:', len(m['copy']))
+          PY
