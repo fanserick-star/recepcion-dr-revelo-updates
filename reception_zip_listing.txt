@@ -1,0 +1,51 @@
+===== updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip =====
+Archive:  updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  2026-08-26 18:47   package/
+    10733  2026-08-26 18:47   package/azur_client.py
+    14334  2026-08-26 18:47   package/azur_patch.py
+      580  2026-08-26 18:47   package/REPORTE_v4_3_17_RC3.txt
+        0  2026-08-26 18:47   package/__pycache__/
+    13808  2026-08-26 18:47   package/__pycache__/ABRIR_RECEPCION.cpython-312.pyc
+    20876  2026-08-26 18:47   package/__pycache__/azur_patch.cpython-312.pyc
+    15615  2026-08-26 18:47   package/__pycache__/azur_client.cpython-312.pyc
+      579  2026-08-26 18:47   package/__pycache__/APP_ENTRY.cpython-312.pyc
+     9389  2026-08-26 18:47   package/ABRIR_RECEPCION.py
+      460  2026-08-26 18:47   package/APP_ENTRY.py
+      261  2026-08-26 18:47   package/update_manifest.json
+---------                     -------
+    86635                     12 files
+
+===== updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip =====
+Archive:  updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  2026-08-26 18:27   package/
+    10733  2026-08-26 18:27   package/azur_client.py
+     8590  2026-08-26 18:27   package/ABRIR_RECEPCION.py
+      596  2026-08-26 18:27   package/REPORTE_v4_3_17_RC2_AZUR.txt
+      282  2026-08-26 18:27   package/update_manifest.json
+---------                     -------
+    20201                     5 files
+
+===== updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip =====
+Archive:  updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip
+  Length      Date    Time    Name
+---------  ---------- -----   ----
+        0  2026-08-26 19:37   package/
+     5031  2026-08-26 19:37   package/azur_windows_patch.py
+        0  2026-08-26 19:37   package/__pycache__/
+     7077  2026-08-26 19:37   package/__pycache__/azur_windows_patch.cpython-312.pyc
+    13795  2026-08-26 19:37   package/__pycache__/ABRIR_RECEPCION.cpython-312.pyc
+      586  2026-08-26 19:37   package/__pycache__/APP_ENTRY.cpython-312.pyc
+     8950  2026-08-26 19:37   package/ABRIR_RECEPCION.py
+      313  2026-08-26 19:37   package/APP_ENTRY.py
+      282  2026-08-26 19:37   package/update_manifest.json
+      391  2026-08-26 19:37   package/REPORTE_v4_3_17_RC6.txt
+---------                     -------
+    36425                     10 files
+
+===== releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip =====
+Archive:  releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip
+
