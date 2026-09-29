@@ -57,45 +57,31 @@ jobs:
               "for(const el of document.querySelectorAll('#modal .patient-profile-modal,.modal .patient-profile-modal,.patient-profile-modal,#modal .attention-form-modal,.modal .attention-form-modal,#modal .attention-form,#modal .modal-content,.modal .attention-form')){",
               'attention modal selector',
           )
-
           replace_once(
               "  function place(host,card){\n    const continueWrap=host.querySelector('.v4417-continue-wrap');",
               "  function place(host,card){\n    const attentionStatus=host.querySelector('#attentionStatus');\n    if(host.matches('.attention-form-modal')&&attentionStatus){attentionStatus.insertAdjacentElement('afterend',card);return}\n    const continueWrap=host.querySelector('.v4417-continue-wrap');",
               'attention status placement',
           )
-
           replace_once(
               "  async function renderHost(host,force=false){\n    const pid=pidFrom(host);if(!pid)return;\n    let card=host.querySelector(':scope > .v4613-history-card');",
               "  async function renderHost(host,force=false){\n    const pid=pidFrom(host);if(!pid)return;\n    const attentionModal=host.matches('.attention-form-modal');\n    const attentionIsSubsequent=attentionModal&&norm(host.querySelector('#attentionStatus')?.textContent||'').includes('SUBSECUENTE');\n    if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}\n    let card=host.querySelector(':scope > .v4613-history-card');",
               'subsequent-only attention status',
           )
-
           replace_once(
               "      const d=await status(pid,force);",
               "      const d=attentionIsSubsequent?await prepare(pid,true):await status(pid,force);",
               'subsequent identity preflight',
           )
-
-          old_linked = """      if(linked){
-        card.innerHTML=`<div class=\"v4613-history-copy\"><b>Historia clínica vinculada</b><small>${count===1?'1 fecha con historia clínica':count+' fechas con historias clínicas'}${last?' · Última: '+esc(last):''}</small></div><div class=\"v4613-history-actions\"><span class=\"v4613-history-count\">${count}</span><button type=\"button\" class=\"v4613-btn secondary\">Revisar vínculo</button></div>`;
-        card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
-      }else{
-        card.classList.add('warn');
-        card.innerHTML='<div class=\"v4613-history-copy\"><b>Historia clínica · SIN VÍNCULO</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class=\"v4613-history-actions\"><button type=\"button\" class=\"v4613-btn\">🔗 Buscar y vincular ficha</button></div>';
-        card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
-      }"""
-          new_linked = """      if(linked){
-        const linkedTitle=attentionModal?'✓ Vinculado con Historia Clínica':'Historia clínica vinculada';
-        card.innerHTML=`<div class=\"v4613-history-copy\"><b>${linkedTitle}</b><small>${count===1?'1 fecha con historia clínica':count+' fechas con historias clínicas'}${last?' · Última: '+esc(last):''}</small></div><div class=\"v4613-history-actions\"><span class=\"v4613-history-count\">${count}</span><button type=\"button\" class=\"v4613-btn secondary\">Revisar vínculo</button></div>`;
-        card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
-      }else{
-        card.classList.add('warn');
-        const unlinkedTitle=attentionModal?'⚠ Sin vincular con Historia Clínica':'Historia clínica · SIN VÍNCULO';
-        const linkButton=attentionModal?'Vincular con Historia Clínica':'🔗 Buscar y vincular ficha';
-        card.innerHTML=`<div class=\"v4613-history-copy\"><b>${unlinkedTitle}</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class=\"v4613-history-actions\"><button type=\"button\" class=\"v4613-btn\">${linkButton}</button></div>`;
-        card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
-      }"""
-          replace_once(old_linked, new_linked, 'linked/unlinked wording')
+          replace_once(
+              "      if(linked){\n        card.innerHTML=`<div class=\"v4613-history-copy\"><b>Historia clínica vinculada</b>",
+              "      if(linked){\n        const linkedTitle=attentionModal?'✓ Vinculado con Historia Clínica':'Historia clínica vinculada';\n        card.innerHTML=`<div class=\"v4613-history-copy\"><b>${linkedTitle}</b>",
+              'linked wording',
+          )
+          replace_once(
+              "      }else{\n        card.classList.add('warn');\n        card.innerHTML='<div class=\"v4613-history-copy\"><b>Historia clínica · SIN VÍNCULO</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class=\"v4613-history-actions\"><button type=\"button\" class=\"v4613-btn\">🔗 Buscar y vincular ficha</button></div>';",
+              "      }else{\n        card.classList.add('warn');\n        const unlinkedTitle=attentionModal?'⚠ Sin vincular con Historia Clínica':'Historia clínica · SIN VÍNCULO';\n        const linkButton=attentionModal?'Vincular con Historia Clínica':'🔗 Buscar y vincular ficha';\n        card.innerHTML=`<div class=\"v4613-history-copy\"><b>${unlinkedTitle}</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class=\"v4613-history-actions\"><button type=\"button\" class=\"v4613-btn\">${linkButton}</button></div>`;",
+              'unlinked wording',
+          )
 
           source_path.write_text(text, encoding='utf-8', newline='\n')
 
@@ -132,6 +118,7 @@ jobs:
           git diff --check
           python - <<'PY'
           import ast
+          import subprocess
           from pathlib import Path
 
           source = Path('recepcion/app/reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
@@ -147,14 +134,13 @@ jobs:
           tree = ast.parse(source)
           js = None
           for node in tree.body:
-              if isinstance(node, ast.Assign):
-                  if any(isinstance(t, ast.Name) and t.id == 'V4613_JS' for t in node.targets):
-                      js = ast.literal_eval(node.value)
-                      break
+              if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'V4613_JS' for t in node.targets):
+                  js = ast.literal_eval(node.value)
+                  break
           assert js, 'V4613_JS not found'
           Path('/tmp/reception_identity_ui.js').write_text(js, encoding='utf-8')
 
-          changed = set(Path(x) for x in __import__('subprocess').check_output(['git','diff','--name-only'], text=True).splitlines())
+          changed = set(Path(x) for x in subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
           expected = {
               Path('recepcion/app/reception_history_identity_consolidated.py'),
               Path('recepcion/app/recepcion-version.json'),
@@ -177,16 +163,19 @@ jobs:
 
       - name: Generate stable channel from exact release commit
         run: |
-          python tools/build_reception_app_channel.py \
-            --commit "$RELEASE_SHA" \
-            --repository "$GITHUB_REPOSITORY"
+          python tools/build_reception_app_channel.py --commit "$RELEASE_SHA" --repository "$GITHUB_REPOSITORY"
 
       - name: Verify exact published payload bytes
         env:
           VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python - <<'PY'
-          import hashlib, json, os, pathlib, shutil, urllib.request
+          import hashlib
+          import json
+          import os
+          import pathlib
+          import shutil
+          import urllib.request
 
           channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
           assert channel['appVersion'] == '4.6.17', channel.get('appVersion')
