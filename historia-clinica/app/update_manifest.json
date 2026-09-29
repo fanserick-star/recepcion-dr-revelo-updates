@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.80",
-  "app_version": "1.3.80",
-  "runtime_version": "1.3.80",
+  "version": "1.3.81",
+  "app_version": "1.3.81",
+  "runtime_version": "1.3.81",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -52,8 +52,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Sala de espera del doctor en tarjetas clínicas, con el siguiente paciente destacado y estados visuales claros.",
-    "previous_version": "1.3.79",
+    "purpose": "Resultados del buscador de pacientes más grandes y legibles para el doctor.",
+    "previous_version": "1.3.80",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -184,6 +184,11 @@
     "waiting_room_responsive_single_column": true,
     "waiting_room_turn_prominent": true,
     "waiting_room_status_tags_preserved": true,
-    "waiting_room_queue_logic_unchanged": true
+    "waiting_room_queue_logic_unchanged": true,
+    "patient_search_results_large": true,
+    "patient_search_name_font_px": 17,
+    "patient_search_secondary_font_px": 13,
+    "patient_search_row_min_height_px": 78,
+    "patient_search_scope_only": true
   }
 }

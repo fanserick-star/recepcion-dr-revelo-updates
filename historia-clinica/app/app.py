@@ -2494,7 +2494,7 @@ def patients(q: str = Query(default="", max_length=120)):
     with db() as conn:
         rows = search_patients(conn, term, limit=100) if term else []
     cards = "".join(
-        f"""<a class="patient-row" href="/paciente/{e(r['id'])}"><div class="avatar">{e((r['name'] or '?')[:1])}</div><div class="patient-main"><b>{e(r['name'])}</b><span>{e(clean_legacy_id(r['national_id']) or 'Sin identificación')} · {e(r['phone'] or 'Sin teléfono')}</span></div><div class="patient-meta"><strong>{r['n_hist']}</strong><span>registro{'s' if r['n_hist']!=1 else ''}</span></div><div class="chev">›</div></a>"""
+        f"""<a class="patient-row patient-search-result" href="/paciente/{e(r['id'])}"><div class="avatar">{e((r['name'] or '?')[:1])}</div><div class="patient-main"><b>{e(r['name'])}</b><span>{e(clean_legacy_id(r['national_id']) or 'Sin identificación')} · {e(r['phone'] or 'Sin teléfono')}</span></div><div class="patient-meta"><strong>{r['n_hist']}</strong><span>registro{'s' if r['n_hist']!=1 else ''}</span></div><div class="chev">›</div></a>"""
         for r in rows
     )
     if term and not rows:
