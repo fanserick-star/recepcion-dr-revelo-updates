@@ -4,6 +4,7 @@ import json
 import os
 import re
 import socket
+import sqlite3
 import subprocess
 import threading
 import time
@@ -16,6 +17,7 @@ import historia_bridge as _cloud
 
 ROOT = Path(__file__).resolve().parent
 CACHE_PATH = ROOT / "data" / "historia_lan_cache.json"
+LAN_OUTBOX_DB = ROOT / "data" / "historia_lan_outbox.db"
 LAN_HTTP_PORT = 8765
 LAN_DISCOVERY_PORT = 8766
 DISCOVERY_MAGIC = b"HISTORIA_REVELO_DISCOVER_V1"
@@ -310,62 +312,174 @@ def send_lan(payload: dict) -> bool:
 
 
 
-def _identity_request(path: str, payload: dict, *, timeout: float = 2.4) -> dict | None:
-    state = _snapshot()
-    host = str(state.get("lan_host") or "")
-    token = str(state.get("token") or "")
-    if not host or not token or not state.get("lan_online"):
-        state = probe_once()
-        host = str(state.get("lan_host") or "")
-        token = str(state.get("token") or "")
-    if not host or not token:
-        return None
 
-    for attempt in range(2):
+
+
+
+
+
+
+
+
+
+
+def _ensure_lan_outbox() -> None:
+    LAN_OUTBOX_DB.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS events(
+              event_id TEXT PRIMARY KEY,
+              payload_json TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              sent_at TEXT,
+              cancelled INTEGER NOT NULL DEFAULT 0,
+              last_error TEXT
+            )
+            """
+        )
+        conn.commit()
+
+
+def _lan_outbox_put(payload: dict) -> None:
+    _ensure_lan_outbox()
+    event_id = _clean(payload.get("event_id"), 180)
+    if not event_id:
+        raise ValueError("Falta event_id para la cola LAN")
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        conn.execute(
+            """
+            INSERT INTO events(event_id,payload_json,created_at,sent_at,cancelled,last_error)
+            VALUES(?,?,?,NULL,0,NULL)
+            ON CONFLICT(event_id) DO UPDATE SET
+              payload_json=excluded.payload_json,
+              sent_at=NULL,
+              cancelled=0,
+              last_error=NULL
+            """,
+            (event_id, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), _now()),
+        )
+        conn.commit()
+
+
+def _lan_outbox_mark(event_id: str, *, sent: bool = False, error: str = "") -> None:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        if sent:
+            conn.execute(
+                "UPDATE events SET sent_at=?,last_error=NULL WHERE event_id=?",
+                (_now(), str(event_id)),
+            )
+        else:
+            conn.execute(
+                "UPDATE events SET last_error=? WHERE event_id=?",
+                (_clean(error, 240), str(event_id)),
+            )
+        conn.commit()
+
+
+def _lan_outbox_counts() -> tuple[int, int]:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        pending = int(conn.execute(
+            "SELECT COUNT(*) FROM events WHERE sent_at IS NULL AND cancelled=0"
+        ).fetchone()[0] or 0)
+        sent = int(conn.execute(
+            "SELECT COUNT(*) FROM events WHERE sent_at IS NOT NULL"
+        ).fetchone()[0] or 0)
+    return pending, sent
+
+
+def _cloud_link_id(reception_patient_id: object) -> str:
+    """Reads only the verified patient link from Historia Neon."""
+    try:
+        import reception_history_identity_consolidated as identity
+        conn = identity._connect_public()
         try:
-            result = _http_json(
-                host, path, method="POST", payload=payload,
-                token=token, timeout=timeout,
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT clinical_patient_id
+                FROM public.patient_links
+                WHERE reception_patient_id=%s AND deleted_at IS NULL
+                LIMIT 1
+                """,
+                (str(reception_patient_id),),
             )
-            if result.get("ok") is False:
-                raise RuntimeError(str(result.get("error") or "Historia rechazó la consulta"))
-            _set_state(
-                lan_online=True,
-                lan_last_seen=_now(),
-                lan_last_error="",
-            )
-            return result
-        except urllib.error.HTTPError as exc:
-            if exc.code == 403 and attempt == 0:
-                _set_state(token="", token_host="")
-                fresh = probe_once()
-                host = str(fresh.get("lan_host") or "")
-                token = str(fresh.get("token") or "")
-                if host and token:
-                    continue
-            _set_state(lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
-            return None
+            row = cur.fetchone()
+            return _clean(row[0], 120) if row and row[0] else ""
+        finally:
+            conn.close()
+    except Exception:
+        return ""
+
+
+def _flush_lan_outbox(max_items: int = 30) -> None:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute(
+            """
+            SELECT event_id,payload_json
+            FROM events
+            WHERE sent_at IS NULL AND cancelled=0
+            ORDER BY created_at
+            LIMIT ?
+            """,
+            (max(1, int(max_items)),),
+        ).fetchall()
+    for event_id, payload_json in rows:
+        try:
+            payload = json.loads(payload_json)
+            if send_lan(payload):
+                _lan_outbox_mark(str(event_id), sent=True)
+            else:
+                _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
+                break
         except Exception as exc:
-            _set_state(lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
-            return None
-    return None
+            _lan_outbox_mark(str(event_id), error=f"{type(exc).__name__}: {str(exc)[:180]}")
+            break
 
 
-def identity_status(payload: dict) -> dict | None:
-    return _identity_request("/identity/status", payload)
+def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "") -> list[str]:
+    _ensure_lan_outbox()
+    wanted_visit = str(visit_id or "").strip()
+    wanted_patient = str(reception_patient_id or "").strip()
+    found = []
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute("SELECT event_id,payload_json FROM events ORDER BY created_at DESC").fetchall()
+    for event_id, payload_json in rows:
+        try:
+            payload = json.loads(payload_json)
+        except Exception:
+            continue
+        visits = {str(x) for x in (payload.get("visit_ids") or []) if x is not None}
+        same_visit = bool(wanted_visit and wanted_visit in visits)
+        same_patient = bool(wanted_patient and str(payload.get("reception_patient_id") or "") == wanted_patient)
+        if same_visit or (not wanted_visit and same_patient):
+            found.append(str(event_id))
+    return list(dict.fromkeys(found))
 
 
-def identity_prepare(payload: dict) -> dict | None:
-    return _identity_request("/identity/prepare", payload)
-
-
-def identity_search(payload: dict) -> dict | None:
-    return _identity_request("/identity/search", payload, timeout=3.5)
-
-
-def identity_link(payload: dict) -> dict | None:
-    return _identity_request("/identity/link", payload, timeout=3.5)
-
+def _lan_set_cancelled(event_id: str, cancelled: bool) -> tuple[bool, dict | None]:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        row = conn.execute(
+            "SELECT sent_at,payload_json FROM events WHERE event_id=? LIMIT 1",
+            (str(event_id),),
+        ).fetchone()
+        if not row:
+            return False, None
+        conn.execute(
+            "UPDATE events SET cancelled=? WHERE event_id=?",
+            (1 if cancelled else 0, str(event_id)),
+        )
+        conn.commit()
+    try:
+        payload = json.loads(row[1])
+    except Exception:
+        payload = None
+    return bool(row[0]), payload
 
 def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") -> bool:
     state = _snapshot()
@@ -421,20 +535,31 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
 
 
 def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: object = "") -> list[str]:
-    original = _ORIGINAL_CANCEL if action == "cancel" else _ORIGINAL_RESTORE
-    if original is None:
-        return []
-    targets = list(original(
-        visit_id=visit_id,
-        reception_patient_id=reception_patient_id,
-    ) or [])
+    targets = _lan_event_targets(visit_id=visit_id, reception_patient_id=reception_patient_id)
     for target in targets:
-        threading.Thread(
-            target=_send_control_lan,
-            args=(action, str(target), visit_id),
-            daemon=True,
-            name=f"historia-lan-{action}",
-        ).start()
+        was_sent, payload = _lan_set_cancelled(target, action == "cancel")
+        if action == "cancel":
+            if was_sent:
+                threading.Thread(
+                    target=_send_control_lan,
+                    args=("cancel", target, visit_id),
+                    daemon=True,
+                    name="historia-lan-cancel",
+                ).start()
+        else:
+            if was_sent:
+                threading.Thread(
+                    target=_send_control_lan,
+                    args=("restore", target, visit_id),
+                    daemon=True,
+                    name="historia-lan-restore",
+                ).start()
+            elif payload:
+                threading.Thread(
+                    target=_flush_lan_outbox,
+                    daemon=True,
+                    name="historia-lan-restore-pending",
+                ).start()
     return targets
 
 
@@ -455,35 +580,35 @@ def hybrid_restore_attention(*, visit_id: object, reception_patient_id: object =
 
 
 def hybrid_bridge_status() -> dict:
-    try:
-        cloud = _ORIGINAL_STATUS()
-    except Exception as exc:
-        cloud = {
-            "configured": False,
-            "pending": 0,
-            "sent": 0,
-            "cloud_reachable": False,
-            "doctor_online": False,
-            "last_error": f"{type(exc).__name__}: {str(exc)[:180]}",
-        }
     lan = _snapshot()
+    try:
+        pending, sent = _lan_outbox_counts()
+    except Exception:
+        pending, sent = 0, 0
     return {
-        **cloud,
+        "configured": True,
+        "pending": pending,
+        "sent": sent,
+        "cloud_reachable": False,
+        "doctor_online": bool(lan.get("lan_online")),
+        "last_error": lan.get("lan_last_error") or "",
         "lan_online": bool(lan.get("lan_online")),
         "lan_host": lan.get("lan_host") or "",
         "lan_version": lan.get("lan_version") or "",
         "lan_last_seen": lan.get("lan_last_seen") or "",
         "lan_last_handoff_at": lan.get("lan_last_handoff_at") or "",
-        "lan_last_error": lan.get("lan_last_error") or "",
         "lan_latency_ms": lan.get("lan_latency_ms"),
-        "transport": "lan" if lan.get("lan_online") else ("cloud" if cloud.get("cloud_reachable") else "local"),
+        "transport": "lan" if lan.get("lan_online") else "local",
+        "waiting_queue_transport": "lan_only",
     }
 
 
 def _monitor_loop():
     while True:
         try:
-            probe_once()
+            state = probe_once()
+            if state.get("lan_online"):
+                _flush_lan_outbox()
         except Exception:
             pass
         time.sleep(20)
@@ -538,29 +663,29 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
                            visit_ids: list[object] | None = None,
                            birth_date: object = "", phone: object = "",
                            email: object = "", address: object = "") -> str:
-    event_id = _ORIGINAL_QUEUE(
-        reception_patient_id=reception_patient_id,
-        display_name=display_name,
-        identification=identification,
-        attention_type=attention_type,
-        patient_status=patient_status,
-        reception_turn=reception_turn,
-        visit_ids=visit_ids,
-        birth_date=birth_date,
-        phone=phone,
-        email=email,
-        address=address,
-    )
-    if not event_id:
+    label = _clean(attention_type, 180).upper()
+    if label.startswith("PROCEDIMIENTO"):
         return ""
-    data = _payload(
-        event_id, reception_patient_id, display_name, identification,
-        attention_type, visit_ids, birth_date, phone, email, address, patient_status, reception_turn,
-    )
-    threading.Thread(
-        target=send_lan,
-        args=(data,),
-        daemon=True,
-        name="historia-lan-handoff",
-    ).start()
+    event_id = _cloud._event_id(reception_patient_id, visit_ids)
+    payload = {
+        "event_id": event_id,
+        "reception_patient_id": str(reception_patient_id),
+        "clinical_patient_id": _cloud_link_id(reception_patient_id),
+        "display_name": _clean(display_name, 260) or "Paciente",
+        "identification": _clean(identification, 120),
+        "attention_type": _clean(attention_type, 180) or "Consulta",
+        "patient_status": _clean(patient_status, 40),
+        "reception_turn": reception_turn,
+        "visit_ids": [str(x) for x in (visit_ids or []) if x is not None],
+        "birth_date": _clean(birth_date, 40),
+        "phone": _clean(phone, 120),
+        "email": _clean(email, 180),
+        "address": _clean(address, 360),
+        "queued_at": _now(),
+    }
+    _lan_outbox_put(payload)
+    if send_lan(payload):
+        _lan_outbox_mark(event_id, sent=True)
+    else:
+        _lan_outbox_mark(event_id, error=_snapshot().get("lan_last_error") or "Pendiente de entrega LAN")
     return event_id

@@ -9,7 +9,6 @@ from pathlib import Path
 
 import core_runtime as core
 import historia_bridge
-import historia_lan_transport as historia_lan
 
 app = core.app
 _VERSION_DOC = json.loads(
@@ -110,7 +109,7 @@ def _connect_public():
             SELECT table_name,column_name
             FROM information_schema.columns
             WHERE table_schema='public'
-              AND table_name IN ('patients','encounters','patient_links','waiting_queue')
+              AND table_name IN ('patients','encounters','patient_links')
             """
         )
         found = {}
@@ -124,10 +123,6 @@ def _connect_public():
                            "deleted_at", "cloud_updated_at"},
             "patient_links": {"reception_patient_id", "clinical_patient_id",
                               "matched_by", "verified", "deleted_at",
-                              "cloud_updated_at"},
-            "waiting_queue": {"id", "reception_event_id", "reception_patient_id",
-                              "clinical_patient_id", "status", "patient_status",
-                              "reception_turn", "deleted_at",
                               "cloud_updated_at"},
         }
         missing = {
@@ -334,21 +329,6 @@ def _upsert_link(cur, reception_patient_id, clinical_patient_id, matched_by):
             stamp,
             stamp,
         ),
-    )
-    # Sólo repara el flujo operativo. No reescribe consultas ya completadas.
-    cur.execute(
-        """
-        UPDATE public.waiting_queue
-        SET clinical_patient_id=%s,updated_at=%s,cloud_updated_at=now()
-        WHERE reception_patient_id=%s
-          AND deleted_at IS NULL
-          AND (
-            status IN ('waiting','in_consultation')
-            OR clinical_patient_id IS NULL
-            OR clinical_patient_id=''
-          )
-        """,
-        (str(clinical_patient_id), stamp, str(reception_patient_id)),
     )
 
 
@@ -852,38 +832,8 @@ def historia_identity_link(
 
 
 # v4.6.18 — fallback de identidad por LAN sin credenciales clínicas en Recepción.
-def _v4618_lan_payload(db, reception_patient_id: int, *, q: str = "", clinical_patient_id: str = "") -> dict:
-    patient = _reception_patient(db, reception_patient_id)
-    demo = _demographics(patient)
-    return {
-        "reception_patient_id": str(patient.id),
-        "name": demo.get("name") or "",
-        "identification": demo.get("national_id") or "",
-        "birth_date": demo.get("birth_date") or "",
-        "phone": demo.get("phone") or "",
-        "email": demo.get("email") or "",
-        "address": demo.get("address") or "",
-        "q": _clean(q, 180),
-        "clinical_patient_id": _clean(clinical_patient_id, 120),
-        "limit": 30,
-    }
 
 
-def _v4618_unavailable(message: str = "") -> dict:
-    detail = _clean(message, 180)
-    friendly = (
-        "Historia Clínica no está disponible en la red local. "
-        "Abra Historia Clínica en la PC del doctor y pulse Reintentar."
-    )
-    return {
-        "ok": False,
-        "reachable": False,
-        "linked": False,
-        "history_date_count": 0,
-        "last_history_date": "",
-        "error": friendly,
-        "technical_error": detail,
-    }
 
 
 _v4618_status_cloud = historia_identity_status
@@ -912,12 +862,7 @@ def v4618_historia_identity_status(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    cloud = _v4618_status_cloud(reception_patient_id, db, user)
-    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
-        return cloud
-    payload = _v4618_lan_payload(db, reception_patient_id)
-    lan = historia_lan.identity_status(payload)
-    return lan or _v4618_unavailable(cloud.get("error") or "")
+    return _v4618_status_cloud(reception_patient_id, db, user)
 
 
 @app.post("/api/historia-identity/prepare/{reception_patient_id}")
@@ -926,12 +871,7 @@ def v4618_historia_identity_prepare(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    cloud = _v4618_prepare_cloud(reception_patient_id, db, user)
-    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
-        return cloud
-    payload = _v4618_lan_payload(db, reception_patient_id)
-    lan = historia_lan.identity_prepare(payload)
-    return lan or _v4618_unavailable(cloud.get("error") or "")
+    return _v4618_prepare_cloud(reception_patient_id, db, user)
 
 
 @app.post("/api/historia-identity/sync/{reception_patient_id}")
@@ -940,7 +880,7 @@ def v4618_historia_identity_sync(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    return v4618_historia_identity_prepare(reception_patient_id, db, user)
+    return _v4618_prepare_cloud(reception_patient_id, db, user)
 
 
 @app.get("/api/historia-identity/search")
@@ -951,20 +891,7 @@ def v4618_historia_identity_search(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    cloud = _v4618_search_cloud(q, reception_patient_id, limit, db, user)
-    if cloud.get("ok") is not False and cloud.get("reachable") is not False:
-        return cloud
-    if not reception_patient_id:
-        return cloud
-    payload = _v4618_lan_payload(db, reception_patient_id, q=q)
-    payload["limit"] = max(1, min(int(limit or 30), 40))
-    lan = historia_lan.identity_search(payload)
-    return lan or {
-        "ok": False,
-        "reachable": False,
-        "results": [],
-        "error": _v4618_unavailable(cloud.get("error") or "")["error"],
-    }
+    return _v4618_search_cloud(q, reception_patient_id, limit, db, user)
 
 
 @app.post("/api/historia-identity/link")
@@ -973,33 +900,7 @@ def v4618_historia_identity_link(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    cloud_error = ""
-    try:
-        return _v4618_link_cloud(data, db, user)
-    except Exception as exc:
-        cloud_error = f"{type(exc).__name__}: {str(exc)[:160]}"
-    payload = _v4618_lan_payload(
-        db, data.reception_patient_id,
-        clinical_patient_id=data.clinical_patient_id,
-    )
-    lan = historia_lan.identity_link(payload)
-    if lan:
-        try:
-            core.audit(
-                db, user, "historia_identity_manual_link_lan",
-                json.dumps(
-                    {
-                        "reception_patient_id": int(data.reception_patient_id),
-                        "clinical_patient_id": str(data.clinical_patient_id),
-                    },
-                    ensure_ascii=False,
-                ),
-            )
-            db.commit()
-        except Exception:
-            pass
-        return lan
-    raise core.HTTPException(503, _v4618_unavailable(cloud_error)["error"])
+    return _v4618_link_cloud(data, db, user)
 
 
 V4613_CSS = r"""

@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.19",
-  "app_version": "4.6.19",
-  "runtime_version": "4.6.19",
+  "version": "4.6.20",
+  "app_version": "4.6.20",
+  "runtime_version": "4.6.20",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Vinculación con Historia desde Recepción para todo paciente subsecuente real: normal detectado o antiguo marcado manualmente; pacientes nuevos no muestran el panel.",
-    "previous_version": "4.6.18",
+    "purpose": "Neon es la autoridad única para buscar y vincular Historia desde Recepción; LAN queda reservado para Pacientes en espera con reintento local.",
+    "previous_version": "4.6.19",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -250,15 +250,20 @@
     "history_manual_link_from_reception": true,
     "history_unlinked_button_in_new_attention": true,
     "history_linked_confirmation_in_new_attention": true,
-    "waiting_queue_logic_changes": false,
+    "waiting_queue_logic_changes": true,
     "history_link_panel_manual_legacy_only": true,
-    "history_identity_lan_fallback": true,
-    "history_database_url_required_on_reception": false,
+    "history_identity_lan_fallback": false,
+    "history_database_url_required_on_reception": true,
     "history_raw_runtime_error_hidden": true,
     "normal_subsequent_history_link_visible": true,
     "manual_legacy_subsequent_history_link_visible": true,
     "new_patient_history_link_hidden": true,
-    "history_identity_transport_lan_fallback": true
+    "history_identity_transport_lan_fallback": true,
+    "history_identity_transport": "neon_only",
+    "waiting_queue_transport": "lan_only",
+    "waiting_queue_cloud_write": false,
+    "waiting_queue_local_retry": true,
+    "waiting_queue_carries_clinical_patient_id": true
   },
   "channel": "launcher-v1-stable"
 }
