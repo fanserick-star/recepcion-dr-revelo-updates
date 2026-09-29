@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.22",
-  "app_version": "4.6.22",
-  "runtime_version": "4.6.22",
+  "version": "4.6.23",
+  "app_version": "4.6.23",
+  "runtime_version": "4.6.23",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Estabiliza el panel de vínculo de Historia: elimina consultas repetitivas/flicker y exige preflight de vínculo para todo subsecuente.",
-    "previous_version": "4.6.21",
+    "purpose": "Envía procedimientos a Historia Clínica por LAN sin consumir turno y recupera procedimientos recientes que 4.6.22 omitió.",
+    "previous_version": "4.6.22",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -200,7 +200,7 @@
     "billing_logic_changes": false,
     "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
-    "procedure_logic_changes": false,
+    "procedure_logic_changes": true,
     "printing_changes": false,
     "production_status": "stable",
     "rollback_safe": true,
@@ -221,7 +221,7 @@
     "attention_save_never_waits_for_reception_neon": false,
     "consultation_print_non_blocking": true,
     "procedure_print_message_removed": true,
-    "procedure_historia_handoff": false,
+    "procedure_historia_handoff": true,
     "procedure_turn_consumption": false,
     "consultation_print_uses_local_visit_id": true,
     "legacy_print_text_preflight_removed": true,
@@ -238,7 +238,7 @@
     "history_outbox_new_events_priority": true,
     "history_outbox_batch_on_new_attention": 100,
     "history_pending_retry_seconds": 10,
-    "procedure_lan_handoff": false,
+    "procedure_lan_handoff": true,
     "consultation_handoff_preserved": true,
     "history_same_event_requeue_resets_local_delivery": true,
     "history_same_event_requeue_reactivates_waiting": true,
@@ -269,7 +269,9 @@
     "history_link_panel_passive_refresh_loop_fixed": true,
     "history_link_panel_inflight_deduplicated": true,
     "history_link_panel_status_only_on_open": true,
-    "history_save_link_gate_all_subsequents": true
+    "history_save_link_gate_all_subsequents": true,
+    "procedure_specific_name_handoff": true,
+    "recent_procedure_handoff_recovery_hours": 3
   },
   "channel": "launcher-v1-stable"
 }

@@ -664,8 +664,7 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
                            birth_date: object = "", phone: object = "",
                            email: object = "", address: object = "") -> str:
     label = _clean(attention_type, 180).upper()
-    if label.startswith("PROCEDIMIENTO"):
-        return ""
+    is_procedure = label == "PROCEDIMIENTO" or label.startswith("PROCEDIMIENTO ")
     event_id = _cloud._event_id(reception_patient_id, visit_ids)
     payload = {
         "event_id": event_id,
@@ -675,7 +674,7 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
         "identification": _clean(identification, 120),
         "attention_type": _clean(attention_type, 180) or "Consulta",
         "patient_status": _clean(patient_status, 40),
-        "reception_turn": reception_turn,
+        "reception_turn": None if is_procedure else reception_turn,
         "visit_ids": [str(x) for x in (visit_ids or []) if x is not None],
         "birth_date": _clean(birth_date, 40),
         "phone": _clean(phone, 120),

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.84",
-  "app_version": "1.3.84",
-  "runtime_version": "1.3.84",
+  "version": "1.3.85",
+  "app_version": "1.3.85",
+  "runtime_version": "1.3.85",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -52,9 +52,9 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "LAN queda reservado para Pacientes en espera; la identidad y vinculación se resuelven directamente en Neon desde Recepción.",
-    "previous_version": "1.3.83",
-    "functional_changes": false,
+    "purpose": "Permite procedimientos en Pacientes en espera sin turno y conserva múltiples procedimientos distintos del mismo paciente.",
+    "previous_version": "1.3.84",
+    "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -99,7 +99,7 @@
     "empty_finalize_creates_no_signed_history": true,
     "nonempty_draft_recovery_preserved": true,
     "emergency_local_draft_backup_preserved": true,
-    "ui_only_release": true,
+    "ui_only_release": false,
     "settings_ui_remaster": true,
     "home_system_status_ui_remaster": true,
     "clinical_logic_unchanged_from_1_3_68": true,
@@ -184,7 +184,7 @@
     "waiting_room_responsive_single_column": true,
     "waiting_room_turn_prominent": true,
     "waiting_room_status_tags_preserved": true,
-    "waiting_room_queue_logic_unchanged": true,
+    "waiting_room_queue_logic_unchanged": false,
     "patient_search_results_large": true,
     "patient_search_name_font_px": 17,
     "patient_search_secondary_font_px": 13,
@@ -195,7 +195,7 @@
     "home_live_search_name_font_px": 14,
     "home_live_search_secondary_font_px": 11.5,
     "home_live_search_row_min_height_px": 54,
-    "waiting_queue_unchanged": true,
+    "waiting_queue_unchanged": false,
     "lan_identity_status": false,
     "lan_identity_exact_id_autolink": false,
     "lan_identity_manual_search": false,
@@ -204,6 +204,10 @@
     "clinical_database_credentials_exposed_to_reception": false,
     "clinical_data_destructive_changes": false,
     "waiting_queue_transport": "lan_only",
-    "waiting_queue_accepts_verified_clinical_patient_id": true
+    "waiting_queue_accepts_verified_clinical_patient_id": true,
+    "procedure_multiple_active_same_patient": true,
+    "procedure_turn_consumption": false,
+    "procedure_lan_handoff": true,
+    "waiting_queue_accepts_procedures": true
   }
 }

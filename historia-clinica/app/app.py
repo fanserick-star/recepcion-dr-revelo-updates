@@ -174,18 +174,14 @@ def ensure_schema():
 
 
 def cleanup_active_queue_duplicates():
-    """
-    Evita dos turnos activos del mismo paciente a la vez.
-    Conserva primero una consulta ya iniciada; si ambos están en espera,
-    conserva el más reciente. Nunca elimina la ficha ni sus historias.
-    """
+    """Deduplica consultas, pero permite procedimientos distintos del mismo paciente."""
     stamp = now_iso()
     removed = []
     with db() as conn:
         rows = conn.execute(
             """
-            SELECT id,reception_patient_id,clinical_patient_id,status,
-                   queued_at,updated_at,display_name
+            SELECT id,reception_event_id,reception_patient_id,clinical_patient_id,status,
+                   attention_type,queued_at,updated_at,display_name
             FROM waiting_queue
             WHERE status IN ('waiting','in_consultation')
             ORDER BY
@@ -194,19 +190,27 @@ def cleanup_active_queue_duplicates():
               COALESCE(queued_at,'') DESC
             """
         ).fetchall()
-
         seen_reception = set()
         seen_clinical = set()
-
         for row in rows:
+            raw = str(row["attention_type"] or "").strip().upper()
+            is_procedure = (
+                raw in {"P", "X", "PROCEDIMIENTO"}
+                or raw.startswith("PROCEDIMIENTO ")
+                or (
+                    raw
+                    and raw not in {"CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}
+                    and not raw.startswith("CONSULTA")
+                )
+            )
+            if is_procedure:
+                continue
             reception_id = str(row["reception_patient_id"] or "").strip()
             clinical_id = str(row["clinical_patient_id"] or "").strip()
-
             duplicate = (
                 (reception_id and reception_id in seen_reception)
                 or (clinical_id and clinical_id in seen_clinical)
             )
-
             if duplicate:
                 conn.execute(
                     """UPDATE waiting_queue
@@ -216,22 +220,19 @@ def cleanup_active_queue_duplicates():
                 )
                 removed.append(str(row["id"]))
                 continue
-
             if reception_id:
                 seen_reception.add(reception_id)
             if clinical_id:
                 seen_clinical.add(clinical_id)
-
         if removed:
             audit(
                 conn,
                 "cleanup",
                 "waiting_queue",
-                "duplicate-active",
+                "duplicate-active-consultation",
                 {"cancelled_queue_ids": removed, "count": len(removed)},
             )
             conn.commit()
-
     return removed
 
 
