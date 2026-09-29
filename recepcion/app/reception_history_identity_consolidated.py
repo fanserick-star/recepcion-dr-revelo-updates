@@ -883,6 +883,7 @@ V4613_JS = r"""
   const esc=v=>text(v).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]));
   const fmt=v=>{const s=text(v),m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);return m?`${m[3]}/${m[2]}/${m[1]}`:s};
   const statusCache=new Map();
+  let activePid=0;
 
   async function call(url,opt={}){
     if(typeof window.api==='function')return window.api(url,opt);
@@ -914,7 +915,7 @@ V4613_JS = r"""
       const m=/(?:attentionFor|editPatient|openPatient|saveAttention|savePatient|savePatientAndReturnToAttention|editPatientFromAttention)\s*\(\s*(\d+)/.exec(raw);
       if(m)return Number(m[1]||0);
     }
-    return 0;
+    return activePid||0;
   }
   function labelFrom(host){
     return text(
@@ -938,7 +939,7 @@ V4613_JS = r"""
   async function status(pid,force=false){
     pid=Number(pid||0);if(!pid)return null;
     const cached=statusCache.get(pid);
-    if(!force&&cached&&Date.now()-cached.at<5000)return cached.data;
+    if(!force&&cached&&Date.now()-cached.at<20000)return cached.data;
     const d=await call('/api/historia-identity/status/'+pid);
     if(d?.ok!==false)statusCache.set(pid,{at:Date.now(),data:d});
     return d;
@@ -1024,8 +1025,8 @@ V4613_JS = r"""
     }
   }
 
-  async function renderAll(force=false){
-    for(const host of modalRoots())await renderHost(host,force);
+  function renderAll(force=false){
+    for(const host of modalRoots())void renderHost(host,force);
   }
 
   function isSubsequent(body){
@@ -1076,14 +1077,33 @@ V4613_JS = r"""
     wrapped.__v4613HistorySync=true;window[name]=wrapped;
   }
 
+  function trackPatientOpener(name){
+    const base=window[name];
+    if(typeof base!=='function'||base.__v4614HistoryTracked)return;
+    const wrapped=function(){
+      const pid=Number(arguments[0]||0);
+      if(pid)activePid=pid;
+      const out=base.apply(this,arguments);
+      Promise.resolve(out).finally(()=>{
+        setTimeout(()=>renderAll(false),0);
+        setTimeout(()=>renderAll(false),20);
+      });
+      return out;
+    };
+    wrapped.__v4614HistoryTracked=true;
+    wrapped.__v4614Base=base;
+    window[name]=wrapped;
+  }
+
   let timer=0;
   function boot(){
     installSaveGate();
     ['savePatient','savePatientAndReturnToAttention'].forEach(installPatientSync);
-    clearTimeout(timer);timer=setTimeout(()=>renderAll(false),60);
+    ['openPatient','attentionFor'].forEach(trackPatientOpener);
+    clearTimeout(timer);timer=setTimeout(()=>renderAll(false),0);
   }
   new MutationObserver(boot).observe(document.documentElement,{childList:true,subtree:true});
-  document.addEventListener('click',()=>setTimeout(boot,50),true);
+  document.addEventListener('click',()=>{setTimeout(boot,0);setTimeout(boot,20)},true);
   window.addEventListener('focus',()=>renderAll(true));
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
   setTimeout(boot,250);setTimeout(boot,900);
@@ -1111,4 +1131,8 @@ def v4613_health(user=core.Depends(core.current_user)):
         "demographics_blank_never_overwrites": True,
         "clinical_notes_exposed_to_reception": False,
         "waiting_queue_contract": ["patient_status", "reception_turn"],
+        "history_panel_placeholder_immediate": True,
+        "identity_render_parallel": True,
+        "patient_open_id_tracked": True,
+        "identity_status_cache_seconds": 20,
     }

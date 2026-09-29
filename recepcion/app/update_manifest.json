@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.13",
-  "app_version": "4.6.13",
-  "runtime_version": "4.6.13",
+  "version": "4.6.14",
+  "app_version": "4.6.14",
+  "runtime_version": "4.6.14",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -146,16 +146,16 @@
     "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Consolidación del vínculo de Historia Clínica: un solo componente visual y un solo backend de identidad en Recepción, public.* como esquema operativo único, preflight real para subsecuentes, búsqueda tolerante a errores de nombre y contrato LAN/Neon alineado.",
-    "previous_version": "4.6.12",
+    "purpose": "Corrige juntos el panel tardío de Historia y la pérdida de pacientes en espera: render inmediato y outbox que no se bloquea por eventos fallidos.",
+    "previous_version": "4.6.13",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
-    "database_schema_changes": true,
+    "database_schema_changes": false,
     "patient_data_changes": true,
     "patient_data_destructive_changes": false,
     "reception_neon_schema_changes": false,
-    "historia_neon_schema_changes": true,
+    "historia_neon_schema_changes": false,
     "historia_neon_schema_changes_additive_only": true,
     "strict_historia_database_url": true,
     "reject_same_reception_historia_database": true,
@@ -220,7 +220,17 @@
     "history_profile_same_patient_modal_rerender": true,
     "history_link_without_creating_attention": true,
     "overlay_assets_versioned_by_app_version": true,
-    "webview_stale_overlay_cache_fixed": true
+    "webview_stale_overlay_cache_fixed": true,
+    "history_panel_placeholder_immediate": true,
+    "identity_render_parallel": true,
+    "patient_open_id_tracked": true,
+    "identity_status_cache_seconds": 20,
+    "history_outbox_poison_event_isolated": true,
+    "history_outbox_new_events_priority": true,
+    "history_outbox_batch_on_new_attention": 100,
+    "history_pending_retry_seconds": 10,
+    "procedure_lan_handoff": false,
+    "consultation_handoff_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

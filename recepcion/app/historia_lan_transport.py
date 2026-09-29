@@ -493,6 +493,8 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
         email=email,
         address=address,
     )
+    if not event_id:
+        return ""
     data = _payload(
         event_id, reception_patient_id, display_name, identification,
         attention_type, visit_ids, birth_date, phone, email, address, patient_status, reception_turn,

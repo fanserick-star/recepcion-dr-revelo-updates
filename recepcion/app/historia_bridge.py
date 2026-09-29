@@ -20,7 +20,7 @@ _FLUSHING = False
 _LAST_ERROR = ""
 _LAST_SENT_AT = ""
 _LAST_STATUS_RETRY_MONOTONIC = 0.0
-_STATUS_RETRY_SECONDS = 60.0
+_STATUS_RETRY_SECONDS = 10.0
 _REMOTE_SCHEMA_LOCK = threading.Lock()
 _REMOTE_SCHEMA_READY_KEY: tuple[str, int, str, str] | None = None
 _PRESENCE_CACHE_LOCK = threading.Lock()
@@ -392,7 +392,7 @@ def _flush_worker(max_items: int = 30) -> None:
             with sqlite3.connect(OUTBOX_DB, timeout=5) as local:
                 local.row_factory = sqlite3.Row
                 rows = local.execute(
-                    "SELECT event_id,payload_json FROM events WHERE sent_at IS NULL ORDER BY created_at LIMIT ?",
+                    "SELECT event_id,payload_json FROM events WHERE sent_at IS NULL ORDER BY attempts ASC, created_at LIMIT ?",
                     (max(1, int(max_items)),),
                 ).fetchall()
                 for row in rows:
@@ -417,7 +417,8 @@ def _flush_worker(max_items: int = 30) -> None:
                         )
                         local.commit()
                         _LAST_ERROR = safe
-                        break
+                        # Keep it pending for retry, but never block later events.
+                        continue
         finally:
             try: conn.close()
             except Exception: pass
@@ -441,6 +442,10 @@ def queue_attention(*, reception_patient_id: object, display_name: object,
                     visit_ids: list[object] | None = None,
                     birth_date: object = "", phone: object = "",
                     email: object = "", address: object = "") -> str:
+    # Waiting room is consultation-only. Block procedures at the central transport.
+    label = _clean(attention_type, 180).upper()
+    if label.startswith("PROCEDIMIENTO"):
+        return ""
     _ensure_outbox()
     event_id = _event_id(reception_patient_id, visit_ids)
     payload = {
@@ -468,7 +473,7 @@ def queue_attention(*, reception_patient_id: object, display_name: object,
             (event_id, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), _now()),
         )
         conn.commit()
-    flush_pending(background=True)
+    flush_pending(max_items=100, background=True)
     return event_id
 
 
