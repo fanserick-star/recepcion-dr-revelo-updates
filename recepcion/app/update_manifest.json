@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.9",
-  "app_version": "4.6.9",
-  "runtime_version": "4.6.9",
+  "version": "4.6.10",
+  "app_version": "4.6.10",
+  "runtime_version": "4.6.10",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -146,8 +146,8 @@
     "reception_history_identity_authority.py"
   ],
   "notes": {
-    "purpose": "Une el frontend completo para instalaciones limpias con la autoridad de identidad clínica desde Recepción, guardado inmediato y procedimientos sin flujo de impresión.",
-    "previous_version": "4.6.8",
+    "purpose": "Hotfix de preflight: acepta el texto de guardado ya normalizado, conserva impresión solo para consultas y mantiene procedimientos sin impresión.",
+    "previous_version": "4.6.9",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -199,7 +199,8 @@
     "procedure_print_message_removed": true,
     "procedure_historia_handoff": false,
     "procedure_turn_consumption": false,
-    "consultation_print_uses_local_visit_id": true
+    "consultation_print_uses_local_visit_id": true,
+    "legacy_print_text_preflight_removed": true
   },
   "channel": "launcher-v1-stable"
 }

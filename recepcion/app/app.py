@@ -401,9 +401,10 @@ def v466_print_visit_local_first(visit_id: int, data: _V4544PrintVisitIn, db=cor
 _V466_OLD_BUSY = 'Guardando atención e imprimiendo recibo…'
 _V466_NEW_BUSY = 'Guardando atención…'
 _V466_BUSY_REPLACEMENTS = (getattr(core, 'V460_OVERLAY_JS', '') or '').count(_V466_OLD_BUSY)
-if _V466_BUSY_REPLACEMENTS < 1:
-    raise RuntimeError('v4.6.6 no encontró el texto legacy de impresión')
-core.V460_OVERLAY_JS = (getattr(core, 'V460_OVERLAY_JS', '') or '').replace(_V466_OLD_BUSY, _V466_NEW_BUSY)
+# Compatibilidad: runtimes nuevos pueden llegar ya normalizados por una capa semántica anterior.
+# Si aún existe el texto legacy lo corregimos; si ya no existe, no es un error.
+if _V466_BUSY_REPLACEMENTS:
+    core.V460_OVERLAY_JS = (getattr(core, 'V460_OVERLAY_JS', '') or '').replace(_V466_OLD_BUSY, _V466_NEW_BUSY)
 
 @app.get('/api/v466/health')
 def v466_health(user=core.Depends(core.current_user)):
