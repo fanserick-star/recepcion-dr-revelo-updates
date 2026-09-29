@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.20",
-  "app_version": "4.6.20",
-  "runtime_version": "4.6.20",
+  "version": "4.6.21",
+  "app_version": "4.6.21",
+  "runtime_version": "4.6.21",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Neon es la autoridad única para buscar y vincular Historia desde Recepción; LAN queda reservado para Pacientes en espera con reintento local.",
-    "previous_version": "4.6.19",
+    "purpose": "Todo vínculo nuevo con Historia Clínica requiere confirmación explícita desde Recepción; Neon solo consulta y propone candidatos. LAN sigue reservado para Pacientes en espera.",
+    "previous_version": "4.6.20",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -263,7 +263,9 @@
     "waiting_queue_transport": "lan_only",
     "waiting_queue_cloud_write": false,
     "waiting_queue_local_retry": true,
-    "waiting_queue_carries_clinical_patient_id": true
+    "waiting_queue_carries_clinical_patient_id": true,
+    "history_auto_link_exact_identification": false,
+    "history_manual_link_required": true
   },
   "channel": "launcher-v1-stable"
 }

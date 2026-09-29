@@ -413,7 +413,7 @@ def _sync_demographics(cur, clinical_patient_id, demo):
     return changes, warnings
 
 
-def _prepare_identity(db, reception_patient_id, *, auto_link=True, sync=True):
+def _prepare_identity(db, reception_patient_id, *, auto_link=False, sync=True):
     patient = _reception_patient(db, reception_patient_id)
     demo = _demographics(patient)
     conn = _connect_public()
@@ -650,7 +650,7 @@ def historia_identity_prepare(
 ):
     try:
         result = _prepare_identity(
-            db, reception_patient_id, auto_link=True, sync=True
+            db, reception_patient_id, auto_link=False, sync=True
         )
         if (
             result.get("auto_linked")
