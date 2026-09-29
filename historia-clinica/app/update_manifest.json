@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.76",
-  "app_version": "1.3.76",
-  "runtime_version": "1.3.76",
+  "version": "1.3.77",
+  "app_version": "1.3.77",
+  "runtime_version": "1.3.77",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -21,10 +21,22 @@
     "static/doctor_icon.b64"
   ],
   "required_python_packages": [
-    {"import": "fastapi", "pip": "fastapi==0.128.2"},
-    {"import": "uvicorn", "pip": "uvicorn==0.48.0"},
-    {"import": "pg8000", "pip": "pg8000==1.31.2"},
-    {"import": "webview", "pip": "pywebview==6.2.1"}
+    {
+      "import": "fastapi",
+      "pip": "fastapi==0.128.2"
+    },
+    {
+      "import": "uvicorn",
+      "pip": "uvicorn==0.48.0"
+    },
+    {
+      "import": "pg8000",
+      "pip": "pg8000==1.31.2"
+    },
+    {
+      "import": "webview",
+      "pip": "pywebview==6.2.1"
+    }
   ],
   "copy": [
     "app.py",
@@ -40,8 +52,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Evita que una consulta borrador descartada vuelva a aparecer como CONSULTA PENDIENTE al sincronizar con Neon; los tombstones de encounters se propagan y aplican entre PCs.",
-    "previous_version": "1.3.75",
+    "purpose": "Unifica también la recuperación remota de borradores en el esquema canónico public.*; elimina el último SELECT operativo contra historia.* sin modificar historias clínicas.",
+    "previous_version": "1.3.76",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -74,7 +86,11 @@
     "revision_conflict_fix_preserved": true,
     "encounter_revision_conflict_policy": "ON CONFLICT DO NOTHING",
     "optional_cloud_backfill": true,
-    "optional_cloud_backfill_tables": ["prescriptions", "certificates", "clinic_settings"],
+    "optional_cloud_backfill_tables": [
+      "prescriptions",
+      "certificates",
+      "clinic_settings"
+    ],
     "optional_cloud_backfill_only_missing_remote_keys": true,
     "optional_cloud_backfill_idempotent": true,
     "empty_save_creates_no_history": true,
@@ -133,6 +149,8 @@
     "encounter_soft_delete_push_to_neon": true,
     "encounter_remote_tombstone_pull": true,
     "discarded_draft_neon_resurrection_fixed": true,
-    "signed_encounters_never_auto_deleted": true
+    "signed_encounters_never_auto_deleted": true,
+    "legacy_historia_schema_operational": false,
+    "public_schema_only_operational_queries": true
   }
 }
