@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.74",
-  "app_version": "1.3.74",
-  "runtime_version": "1.3.74",
+  "version": "1.3.75",
+  "app_version": "1.3.75",
+  "runtime_version": "1.3.75",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -50,8 +50,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Cierre funcional: conflictos multi-PC protegidos, fecha clínica al cruzar medianoche, recuperación canónica y documentos A4.",
-    "previous_version": "1.3.73",
+    "purpose": "Recepción pasa a resolver la identidad antes de enviar subsecuentes; Historia deja la vinculación manual fuera del flujo normal del doctor.",
+    "previous_version": "1.3.74",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -137,6 +137,14 @@
     "documents_a4_unified": true,
     "functional_smoke_1374": true,
     "sync_cursor_captured_after_push": true,
-    "sync_own_push_false_conflict_guard": true
+    "sync_own_push_false_conflict_guard": true,
+    "reception_identity_authority": true,
+    "doctor_manual_link_normal_flow": false,
+    "doctor_manual_link_emergency_fallback": true,
+    "unlinked_subsequent_doctor_action_disabled": true,
+    "next_patient_skips_unlinked_subsequent": true,
+    "clinical_data_changes": false,
+    "cloud_logic_changes": false,
+    "printing_changes": false
   }
 }

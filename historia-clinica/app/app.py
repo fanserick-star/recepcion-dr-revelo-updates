@@ -1884,7 +1884,7 @@ def home():
             elif is_new:
                 action_label = "Revisar ficha"
             else:
-                action_label = "Vincular ficha"
+                action_label = "Esperando Recepción"
             attention_key = normalize_search(attention_label).lower().replace(" ", "-") or "consulta"
             procedure_name = _v1373_procedure_label(r) if is_procedure else ""
             service_tag = (
@@ -1895,7 +1895,8 @@ def home():
             last_label = _v1373_last_attention_label(r["last_encounter_date"] if "last_encounter_date" in r.keys() else "")
             patient_meta = " · ".join(x for x in ((f"{age} años" if age else ""), last_label) if x)
             queued = e((r["queued_at"] or "")[-8:-3])
-            href = f"/cola/{e(r['id'])}/atender"
+            can_open = bool(r["clinical_patient_id"]) or is_new or r["status"] == "in_consultation"
+            href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
             parts.append(
                 f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'}'>"
                 f"<a class='queue-row-main' href='{href}' title='{e(action_label)}'>"
@@ -1915,9 +1916,15 @@ def home():
     else:
         qhtml = "<div class='empty queue-empty'><div class='empty-icon'>✓</div><strong>No hay pacientes en espera</strong><span>Cuando Recepción envíe un paciente al pulsar Atender, aparecerá aquí automáticamente.</span></div>"
 
-    next_row = next((r for r in queue if r["status"] == "waiting"), None)
+    eligible_queue = [
+        r for r in queue
+        if r["status"] == "in_consultation"
+        or bool(r["clinical_patient_id"])
+        or _queue_display_type(r) == "Nuevo"
+    ]
+    next_row = next((r for r in eligible_queue if r["status"] == "waiting"), None)
     if next_row is None:
-        next_row = next((r for r in queue), None)
+        next_row = next((r for r in eligible_queue), None)
     next_button = (
         f"<a class='home-action primary' href='/cola/{e(next_row['id'])}/atender'>Abrir siguiente</a>"
         if next_row else "<span class='home-action disabled'>Abrir siguiente</span>"
