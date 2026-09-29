@@ -1078,6 +1078,84 @@ def sex_label(value):
     return value or ""
 
 
+APP_DIALOG_HTML = r"""
+<div id="appDialogBackdrop" class="app-dialog-backdrop" hidden aria-hidden="true">
+  <section class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" aria-describedby="appDialogMessage">
+    <div class="app-dialog-icon" aria-hidden="true">i</div>
+    <div class="app-dialog-copy">
+      <h3 id="appDialogTitle">Confirmar acción</h3>
+      <p id="appDialogMessage"></p>
+    </div>
+    <div class="app-dialog-actions">
+      <button type="button" class="secondary" id="appDialogCancel">Cancelar</button>
+      <button type="button" class="primary" id="appDialogConfirm">Continuar</button>
+    </div>
+  </section>
+</div>
+<script>
+(()=>{
+  if(window.__historiaProfessionalDialog)return;
+  window.__historiaProfessionalDialog=true;
+  const backdrop=document.getElementById('appDialogBackdrop');
+  const title=document.getElementById('appDialogTitle');
+  const message=document.getElementById('appDialogMessage');
+  const cancel=document.getElementById('appDialogCancel');
+  const confirmBtn=document.getElementById('appDialogConfirm');
+  let finish=null;
+
+  function close(value){
+    if(!finish)return;
+    const done=finish;
+    finish=null;
+    backdrop.hidden=true;
+    backdrop.setAttribute('aria-hidden','true');
+    document.body.classList.remove('app-dialog-open');
+    confirmBtn.classList.remove('danger');
+    done(Boolean(value));
+  }
+
+  window.appConfirm=(text,options={})=>new Promise(resolve=>{
+    if(finish)close(false);
+    finish=resolve;
+    title.textContent=String(options.title||'Confirmar acción');
+    message.textContent=String(text||'');
+    confirmBtn.textContent=String(options.confirmText||'Continuar');
+    cancel.textContent=String(options.cancelText||'Cancelar');
+    cancel.hidden=options.cancelText===null;
+    confirmBtn.classList.toggle('danger',Boolean(options.danger));
+    backdrop.hidden=false;
+    backdrop.setAttribute('aria-hidden','false');
+    document.body.classList.add('app-dialog-open');
+    setTimeout(()=>confirmBtn.focus(),0);
+  });
+  window.appNotice=(text,options={})=>window.appConfirm(text,{
+    ...options,
+    confirmText:options.confirmText||'Aceptar',
+    cancelText:null
+  });
+
+  cancel.addEventListener('click',()=>close(false));
+  confirmBtn.addEventListener('click',()=>close(true));
+  backdrop.addEventListener('click',ev=>{if(ev.target===backdrop && !cancel.hidden)close(false)});
+  document.addEventListener('keydown',ev=>{
+    if(backdrop.hidden)return;
+    if(ev.key==='Escape' && !cancel.hidden){ev.preventDefault();close(false)}
+  });
+
+  document.addEventListener('submit',async ev=>{
+    const form=ev.target.closest?.('.js-queue-dismiss');
+    if(!form || form.dataset.confirmed==='1')return;
+    ev.preventDefault();
+    const ok=await window.appConfirm(
+      'Se quitará esta atención de Pacientes en espera. La ficha y la historia clínica se conservarán.',
+      {title:'Quitar de espera',confirmText:'Quitar',danger:true}
+    );
+    if(ok){form.dataset.confirmed='1';form.submit()}
+  });
+})();
+</script>
+"""
+
 def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1127,7 +1205,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
       throw new Error('La impresión directa requiere Launcher Historia 1.0.8. Cierre y vuelva a abrir Historia Clínica.');
     }}catch(err){{
       if(window.showAppToast)showAppToast(err&&err.message?err.message:'No se pudo imprimir.','error');
-      else alert(err&&err.message?err.message:'No se pudo imprimir.');
+      else if(window.appNotice)window.appNotice(err&&err.message?err.message:'No se pudo imprimir.',{title:'Impresión'});
       return false;
     }}
   }};
@@ -1167,7 +1245,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
   }});
 }})();
 </script>
-{extra_script}</body></html>"""
+{APP_DIALOG_HTML}{extra_script}</body></html>"""
 
 
 def _queue_strong_candidates(conn, row):
@@ -1873,7 +1951,7 @@ def home():
             turn_badge = (
                 f"<div class='queue-turn-number'><span>TURNO</span><b>#{real_turn}</b></div>"
                 if not is_procedure and real_turn is not None
-                else "<div class='queue-turn-number queue-turn-procedure'><span>ATENCIÓN</span><b>PROC.</b></div>"
+                else ""
             )
             status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"
             attention_label = _queue_display_type(r)
@@ -1902,14 +1980,12 @@ def home():
                 f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'}'>"
                 f"<a class='queue-row-main' href='{href}' title='{e(action_label)}'>"
                 f"{turn_badge}"
-                f"<div class='queue-avatar'>{e((r['display_name'] or '?')[:1])}</div>"
                 f"<span class='queue-patient-copy'><b>{e(r['display_name'])}</b>"
                 f"<small class='queue-patient-meta'>{e(patient_meta)}</small>"
                 f"<span class='queue-tags'><span class='queue-type queue-type-{e(attention_key)}'>{'★ PACIENTE NUEVO' if is_new else e(attention_label)}</span>"
                 f"{service_tag}<span class='queue-status'>{e(status_text)}</span></span></span>"
                 f"<time>{queued}</time><span class='queue-row-action'>{e(action_label)} ›</span></a>"
-                f"<form class='queue-dismiss-form' method='post' action='/cola/{e(r['id'])}/descartar' "
-                f"onsubmit=\"return confirm('¿Quitar este turno de Pacientes en espera? No se eliminará la ficha ni la historia clínica.')\">"
+                f"<form class='queue-dismiss-form js-queue-dismiss' method='post' action='/cola/{e(r['id'])}/descartar'>"
                 f"<button type='submit' class='queue-dismiss-btn' title='Quitar de espera'>×</button></form>"
                 f"</div>"
             )
@@ -2915,7 +2991,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
 """
     script = """<script>
 document.querySelectorAll('.js-edit-history').forEach(btn=>btn.addEventListener('click',async()=>{
-  if(!confirm('¿Abrir esta historia para continuar editándola? Se conservará una revisión interna del texto anterior.'))return;
+  if(!await window.appConfirm('Se abrirá esta historia para continuar editándola. Antes de modificarla se conservará una revisión interna del texto anterior.',{title:'Continuar edición',confirmText:'Continuar edición'}))return;
   btn.disabled=true;
   try{
     const r=await fetch('/api/encounters/'+encodeURIComponent(btn.dataset.id)+'/reopen',{method:'POST',cache:'no-store'});
@@ -2929,7 +3005,7 @@ document.querySelectorAll('.js-delete-history').forEach(btn=>btn.addEventListene
   const msg=legacy
     ?'Este registro histórico importado contiene una o más fechas. Se ocultará el registro completo, sin borrarlo físicamente. ¿Continuar?'
     :'La historia dejará de aparecer en el historial normal, pero conservará trazabilidad para recuperación. ¿Eliminarla?';
-  if(!confirm(msg))return;
+  if(!await window.appConfirm(msg,{title:'Eliminar historia',confirmText:'Eliminar',danger:true}))return;
   btn.disabled=true;
   try{
     const r=await fetch('/api/encounters/'+encodeURIComponent(btn.dataset.id)+'/delete',{method:'POST',cache:'no-store'});

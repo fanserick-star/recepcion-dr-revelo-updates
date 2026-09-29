@@ -2862,3 +2862,54 @@ body:has(.legacy-remaster) footer{max-width:1480px;color:#817d75}
 .cp-remaster-app .home-search .live-count{
   font-size:10.5px!important;
 }
+
+
+/* v1.3.86 · diálogos profesionales + cola sin avatar/PROC */
+body.app-dialog-open{overflow:hidden}
+.app-dialog-backdrop[hidden]{display:none!important}
+.app-dialog-backdrop{
+  position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(17,31,48,.36);backdrop-filter:blur(4px)
+}
+.app-dialog{
+  width:min(520px,calc(100vw - 36px));display:grid;grid-template-columns:44px minmax(0,1fr);
+  gap:0 15px;background:#fff;border:1px solid #d9e1e9;border-radius:15px;
+  box-shadow:0 24px 70px rgba(19,37,58,.24);padding:22px 22px 18px
+}
+.app-dialog-icon{
+  width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  background:#e9f2f8;color:#0f4c78;font-size:20px;font-weight:900;font-family:Georgia,serif
+}
+.app-dialog-copy{min-width:0;padding-top:1px}
+.app-dialog-copy h3{margin:0;color:#17212f;font-size:18px;line-height:1.2;letter-spacing:-.015em}
+.app-dialog-copy p{margin:8px 0 0;color:#5c6878;font-size:13.5px;line-height:1.55;white-space:pre-line}
+.app-dialog-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:9px;margin-top:20px;padding-top:15px;border-top:1px solid #edf0f3}
+.app-dialog-actions .primary,.app-dialog-actions .secondary{height:40px;min-width:104px;padding:0 17px}
+.app-dialog-actions .primary.danger{background:#a93842}
+.app-dialog-actions .primary.danger:hover{background:#8e2f38}
+
+/* Consultas conservan TURNO #n; procedimientos no muestran cajón artificial. */
+.home-queue-v107 .queue-avatar{display:none!important}
+.home-queue-v107 .queue-row-main{
+  grid-template-columns:76px minmax(0,1fr) auto!important;
+  grid-template-areas:'turn patient time' 'turn patient action'!important;
+  column-gap:16px!important
+}
+.home-queue-v107 .queue-row-procedure .queue-row-main{
+  grid-template-columns:minmax(0,1fr) auto!important;
+  grid-template-areas:'patient time' 'patient action'!important;
+  padding-left:22px!important
+}
+.home-queue-v107 .queue-row-procedure .queue-patient-copy{padding-left:2px}
+.home-queue-v107 .queue-row-procedure .queue-procedure-chip{margin-top:2px}
+@media(max-width:720px){
+  .home-queue-v107 .queue-row-main{
+    grid-template-columns:64px minmax(0,1fr)!important;
+    grid-template-areas:'turn patient' 'time action'!important
+  }
+  .home-queue-v107 .queue-row-procedure .queue-row-main{
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-areas:'patient' 'time' 'action'!important;
+    padding-left:14px!important
+  }
+}
