@@ -1,0 +1,116 @@
+name: Release Historia 1.3.86 Professional UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-historia-1386-professional-ui.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-historia-1386-professional-ui
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Apply focused UI patch
+        run: python tools/patch_historia_1386_ui.py
+
+      - name: Validate canonical Historia runtime
+        run: |
+          python tools/test_historia_canonical_source.py
+          python tools/validate_historia_runtime.py historia-clinica/app
+          python -m py_compile historia-clinica/app/app.py
+          git diff --check
+
+      - name: Validate exact requested behavior
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          app=Path('historia-clinica/app/app.py').read_text(encoding='utf-8-sig')
+          css=Path('historia-clinica/app/static/style.css').read_text(encoding='utf-8-sig')
+          ver=json.loads(Path('historia-clinica/app/historia-version.json').read_text(encoding='utf-8-sig'))['version']
+          man=json.loads(Path('historia-clinica/app/update_manifest.json').read_text(encoding='utf-8-sig'))
+          assert ver == '1.3.86'
+          assert man['version'] == '1.3.86'
+          assert 'APP_DIALOG_HTML =' in app
+          assert 'window.appConfirm=' in app
+          assert 'window.appNotice=' in app
+          assert 'if(!confirm(' not in app
+          assert 'return confirm(' not in app
+          assert 'else alert(' not in app
+          assert 'PROC.</b>' not in app
+          assert "class='queue-avatar'" not in app
+          assert '<span>TURNO</span>' in app
+          assert "else \"\"" in app
+          assert 'js-queue-dismiss' in app
+          assert 'v1.3.86 · diálogos profesionales + cola sin avatar/PROC' in css
+          assert man['notes']['consultation_turn_number_preserved'] is True
+          assert man['notes']['procedure_turn_consumption'] is False
+          assert man['notes']['waiting_room_queue_logic_unchanged'] is True
+          print('UI_CONTRACT_OK')
+          PY
+
+      - name: Commit canonical 1.3.86 source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add historia-clinica/app/app.py historia-clinica/app/static/style.css historia-clinica/app/historia-version.json historia-clinica/app/update_manifest.json
+          git rm tools/patch_historia_1386_ui.py
+          git rm .github/workflows/release-historia-1386-professional-ui.yml
+          git commit -m "Historia 1.3.86: professional dialogs and cleaner waiting cards"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build stable channel
+        run: |
+          python tools/build_historia_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Verify exact channel bytes
+        env:
+          VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+          channel=json.loads(pathlib.Path('historia-clinica/launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          assert channel['appVersion'] == '1.3.86'
+          assert channel['mandatory'] is True
+          out=pathlib.Path('channel_verify_historia_1386')
+          shutil.rmtree(out,ignore_errors=True)
+          out.mkdir(parents=True)
+          nonce=os.environ.get('VERIFY_NONCE','verify')
+          for item in channel['files']:
+              rel=str(item['path']).replace('\\','/')
+              url=item['url']+('&' if '?' in item['url'] else '?')+'verify='+nonce
+              req=urllib.request.Request(url,headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req,timeout=60) as response:
+                  payload=response.read()
+              assert hashlib.sha256(payload).hexdigest()==item['sha256'], rel
+              dest=out/rel
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              dest.write_bytes(payload)
+          PY
+          python tools/validate_historia_runtime.py channel_verify_historia_1386
+
+      - name: Publish stable channel
+        run: |
+          git add historia-clinica/launcher-v1/app-channel.json
+          git commit -m "Publish validated Historia 1.3.86 channel"
+          git pull --rebase origin main
+          git push origin HEAD:main
