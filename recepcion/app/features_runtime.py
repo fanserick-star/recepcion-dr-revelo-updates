@@ -54,6 +54,7 @@ import reception_payment_terminal_feedback
 import reception_history_patient_details
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
+import reception_history_name_lookup
 import reception_history_requeue_guard
 
 FEATURE_MODULES = (
@@ -105,6 +106,7 @@ FEATURE_MODULES = (
     reception_history_patient_details,
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
+    reception_history_name_lookup,
     reception_history_requeue_guard,
 )
 
