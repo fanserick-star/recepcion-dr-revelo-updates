@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.23",
-  "app_version": "4.6.23",
-  "runtime_version": "4.6.23",
+  "version": "4.6.24",
+  "app_version": "4.6.24",
+  "runtime_version": "4.6.24",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Envía procedimientos a Historia Clínica por LAN sin consumir turno y recupera procedimientos recientes que 4.6.22 omitió.",
-    "previous_version": "4.6.22",
+    "purpose": "Recupera la configuración Neon de Recepción cuando .env tiene BOM UTF-8, sin tocar datos ni credenciales.",
+    "previous_version": "4.6.23",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -271,7 +271,12 @@
     "history_link_panel_status_only_on_open": true,
     "history_save_link_gate_all_subsequents": true,
     "procedure_specific_name_handoff": true,
-    "recent_procedure_handoff_recovery_hours": 3
+    "recent_procedure_handoff_recovery_hours": 3,
+    "dotenv_utf8_bom_supported": true,
+    "database_url_recovery_from_bom": true,
+    "historia_database_url_separation_preserved": true,
+    "cloud_data_changes": false,
+    "lan_logic_changes": false
   },
   "channel": "launcher-v1-stable"
 }

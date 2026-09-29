@@ -80,7 +80,7 @@ BACKUP_DIR = os.path.join(DATA_DIR, "backups")
 UPDATE_BACKUP_DIR = os.path.join(BASE_DIR, "_update_backups")
 os.makedirs(BACKUP_DIR, exist_ok=True)
 os.makedirs(UPDATE_BACKUP_DIR, exist_ok=True)
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+load_dotenv(os.path.join(BASE_DIR, ".env"), encoding="utf-8-sig")
 
 # AZUR se configura únicamente en el .env local. La API key nunca se guarda en
 # Neon, SQLite, GitHub ni en el frontend.
