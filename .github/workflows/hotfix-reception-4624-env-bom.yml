@@ -1,0 +1,160 @@
+name: Hotfix Reception 4.6.24 ENV BOM Recovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/hotfix-reception-4624-env-bom.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hotfix-reception-4624-env-bom
+  cancel-in-progress: false
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Make Reception dotenv BOM tolerant and bump version
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          core_path = Path('recepcion/app/core_runtime.py')
+          core = core_path.read_text(encoding='utf-8-sig')
+          old = 'load_dotenv(os.path.join(BASE_DIR, ".env"))'
+          new = 'load_dotenv(os.path.join(BASE_DIR, ".env"), encoding="utf-8-sig")'
+          assert core.count(old) == 1, core.count(old)
+          core = core.replace(old, new, 1)
+          core_path.write_text(core, encoding='utf-8', newline='\n')
+
+          vp = Path('recepcion/app/recepcion-version.json')
+          v = json.loads(vp.read_text(encoding='utf-8-sig'))
+          assert v['version'] == '4.6.23', v
+          v['version'] = '4.6.24'
+          vp.write_text(json.dumps(v, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
+
+          mp = Path('recepcion/app/update_manifest.json')
+          m = json.loads(mp.read_text(encoding='utf-8-sig'))
+          for key in ('version', 'app_version', 'runtime_version'):
+              if key in m:
+                  m[key] = '4.6.24'
+          n = m.setdefault('notes', {})
+          n['purpose'] = 'Recupera la configuración Neon de Recepción cuando .env tiene BOM UTF-8, sin tocar datos ni credenciales.'
+          n['previous_version'] = '4.6.23'
+          n['dotenv_utf8_bom_supported'] = True
+          n['database_url_recovery_from_bom'] = True
+          n['historia_database_url_separation_preserved'] = True
+          n['database_schema_changes'] = False
+          n['patient_data_changes'] = False
+          n['patient_data_destructive_changes'] = False
+          n['cloud_data_changes'] = False
+          n['lan_logic_changes'] = False
+          mp.write_text(json.dumps(m, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
+          PY
+
+      - name: Validate canonical runtime
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          python -m py_compile recepcion/app/core_runtime.py
+          git diff --check
+
+      - name: Prove BOM env reads DATABASE_URL correctly
+        run: |
+          python -m pip install --disable-pip-version-check --quiet python-dotenv
+          python - <<'PY'
+          import os, tempfile
+          from pathlib import Path
+          from dotenv import load_dotenv
+
+          for key in ('DATABASE_URL','HISTORIA_DATABASE_URL'):
+              os.environ.pop(key, None)
+          with tempfile.TemporaryDirectory() as td:
+              env = Path(td) / '.env'
+              env.write_bytes(('\ufeffDATABASE_URL=postgresql://recepcion:test@recepcion.example/neondb\n'
+                               'HISTORIA_DATABASE_URL=postgresql://historia:test@historia.example/neondb\n').encode('utf-8'))
+              ok = load_dotenv(env, encoding='utf-8-sig', override=False)
+              assert ok
+              assert os.getenv('DATABASE_URL') == 'postgresql://recepcion:test@recepcion.example/neondb'
+              assert os.getenv('HISTORIA_DATABASE_URL') == 'postgresql://historia:test@historia.example/neondb'
+              assert os.getenv('DATABASE_URL') != os.getenv('HISTORIA_DATABASE_URL')
+          print('ENV_BOM_RECOVERY_OK')
+          PY
+
+      - name: Validate exact source contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          core = Path('recepcion/app/core_runtime.py').read_text(encoding='utf-8-sig')
+          assert 'load_dotenv(os.path.join(BASE_DIR, ".env"), encoding="utf-8-sig")' in core
+          assert 'CONFIGURED_DB_URL = (os.getenv("DATABASE_URL") or "").strip()' in core
+          bridge = Path('recepcion/app/historia_bridge.py').read_text(encoding='utf-8-sig')
+          assert 'ENV_KEY = "HISTORIA_DATABASE_URL"' in bridge
+          assert 'never fall back to Recepción DATABASE_URL' in bridge
+          version = json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
+          assert version == '4.6.24'
+          print('SOURCE_CONTRACT_OK')
+          PY
+
+      - name: Commit canonical hotfix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recepcion/app/core_runtime.py recepcion/app/recepcion-version.json recepcion/app/update_manifest.json
+          git rm .github/workflows/hotfix-reception-4624-env-bom.yml
+          git commit -m "Reception 4.6.24: recover BOM-prefixed env configuration"
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build stable channel
+        run: |
+          python tools/build_reception_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Verify exact channel bytes
+        env:
+          VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          assert channel['appVersion'] == '4.6.24'
+          assert channel['mandatory'] is True
+          out = pathlib.Path('channel_verify_reception_4624')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+          nonce = os.environ.get('VERIFY_NONCE', 'verify')
+          for item in channel['files']:
+              rel = str(item['path']).replace('\\','/')
+              url = item['url'] + ('&' if '?' in item['url'] else '?') + 'verify=' + nonce
+              req = urllib.request.Request(url, headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = response.read()
+              assert hashlib.sha256(payload).hexdigest() == item['sha256'], rel
+              dest = out / rel
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              dest.write_bytes(payload)
+          PY
+          python tools/validate_reception_runtime_layout.py channel_verify_reception_4624
+
+      - name: Publish stable channel
+        run: |
+          git add launcher-v1/app-channel.json
+          git commit -m "Publish validated Reception 4.6.24 channel"
+          git pull --rebase origin main
+          git push origin HEAD:main
