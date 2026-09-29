@@ -1,10 +1,28 @@
 ===== ./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip =====
+./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip: Zip archive data, at least v6.3 to extract, compression method=lzma
+13760 ./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip
 Archive:  ./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip
+error [./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip]:  missing 431031 bytes in zipfile
+  (attempting to process anyway)
+error [./releases/ACTUALIZACION_v4_3_39_DEBUT_FINAL.zip]:  start of central directory not found;
+  zipfile corrupt.
+  (please check that you have transferred or created the zipfile in the
+  appropriate BINARY mode and that you have compiled UnZip properly)
 
 ===== ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip =====
+./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip: Zip archive data, at least v2.0 to extract, compression method=deflate
+7509 ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip
 Archive:  ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip
+  End-of-central-directory signature not found.  Either this file is not
+  a zipfile, or it constitutes one disk of a multi-part archive.  In the
+  latter case the central directory and zipfile comment will be found on
+  the last disk(s) of this archive.
+unzip:  cannot find zipfile directory in one of ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip or
+        ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip.zip, and cannot find ./releases/ACTUALIZACION_v4_3_35_RECORDATORIO_CITA_APROBADO.zip.ZIP, period.
 
 ===== ./updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip =====
+./updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip: Zip archive data, at least v1.0 to extract, compression method=store
+39129 ./updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
 Archive:  ./updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
   Length      Date    Time    Name
 ---------  ---------- -----   ----
@@ -24,6 +42,8 @@ Archive:  ./updates/ACTUALIZACION_v4_3_17_RC3_AZUR_BACKEND.zip
     86635                     12 files
 
 ===== ./updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip =====
+./updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip: Zip archive data, at least v1.0 to extract, compression method=store
+7292 ./updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
 Archive:  ./updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
   Length      Date    Time    Name
 ---------  ---------- -----   ----
@@ -36,6 +56,8 @@ Archive:  ./updates/ACTUALIZACION_v4_3_17_RC2_AZUR_HOTFIX.zip
     20201                     5 files
 
 ===== ./updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip =====
+./updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip: Zip archive data, at least v1.0 to extract, compression method=store
+18796 ./updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip
 Archive:  ./updates/ACTUALIZACION_v4_3_17_RC6_AZUR_WINDOWS.zip
   Length      Date    Time    Name
 ---------  ---------- -----   ----
