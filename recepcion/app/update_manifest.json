@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.10",
-  "app_version": "4.6.10",
-  "runtime_version": "4.6.10",
+  "version": "4.6.11",
+  "app_version": "4.6.11",
+  "runtime_version": "4.6.11",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -146,8 +146,8 @@
     "reception_history_identity_authority.py"
   ],
   "notes": {
-    "purpose": "Hotfix de preflight: acepta el texto de guardado ya normalizado, conserva impresión solo para consultas y mantiene procedimientos sin impresión.",
-    "previous_version": "4.6.9",
+    "purpose": "Vinculación de Historia directamente desde la ficha del paciente y redibujado correcto del estado al cambiar de modal con el mismo paciente.",
+    "previous_version": "4.6.10",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -200,7 +200,10 @@
     "procedure_historia_handoff": false,
     "procedure_turn_consumption": false,
     "consultation_print_uses_local_visit_id": true,
-    "legacy_print_text_preflight_removed": true
+    "legacy_print_text_preflight_removed": true,
+    "history_link_button_patient_profile": true,
+    "history_profile_same_patient_modal_rerender": true,
+    "history_link_without_creating_attention": true
   },
   "channel": "launcher-v1-stable"
 }
