@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 
 import cloud_sync
+import cloud_tombstone_patch
 
 AFK_SECONDS = 300
 HEARTBEAT_SECONDS = 240
@@ -124,6 +125,7 @@ def _heartbeat_loop(service) -> None:
 def install() -> None:
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):
+        cloud_tombstone_patch.install()
         return
     cls._v131_afk_installed = True
 
@@ -166,3 +168,4 @@ def install() -> None:
 
     cls.mark_activity = mark_activity
     cls.start = start
+    cloud_tombstone_patch.install()

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.75",
-  "app_version": "1.3.75",
-  "runtime_version": "1.3.75",
+  "version": "1.3.76",
+  "app_version": "1.3.76",
+  "runtime_version": "1.3.76",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -13,6 +13,7 @@
     "app.py",
     "cloud_sync.py",
     "cloud_presence_patch.py",
+    "cloud_tombstone_patch.py",
     "lan_bridge.py",
     "documentos_clinicos.py",
     "requirements.txt",
@@ -20,27 +21,16 @@
     "static/doctor_icon.b64"
   ],
   "required_python_packages": [
-    {
-      "import": "fastapi",
-      "pip": "fastapi==0.128.2"
-    },
-    {
-      "import": "uvicorn",
-      "pip": "uvicorn==0.48.0"
-    },
-    {
-      "import": "pg8000",
-      "pip": "pg8000==1.31.2"
-    },
-    {
-      "import": "webview",
-      "pip": "pywebview==6.2.1"
-    }
+    {"import": "fastapi", "pip": "fastapi==0.128.2"},
+    {"import": "uvicorn", "pip": "uvicorn==0.48.0"},
+    {"import": "pg8000", "pip": "pg8000==1.31.2"},
+    {"import": "webview", "pip": "pywebview==6.2.1"}
   ],
   "copy": [
     "app.py",
     "cloud_sync.py",
     "cloud_presence_patch.py",
+    "cloud_tombstone_patch.py",
     "lan_bridge.py",
     "documentos_clinicos.py",
     "requirements.txt",
@@ -50,8 +40,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Recepción pasa a resolver la identidad antes de enviar subsecuentes; Historia deja la vinculación manual fuera del flujo normal del doctor.",
-    "previous_version": "1.3.74",
+    "purpose": "Evita que una consulta borrador descartada vuelva a aparecer como CONSULTA PENDIENTE al sincronizar con Neon; los tombstones de encounters se propagan y aplican entre PCs.",
+    "previous_version": "1.3.75",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -59,7 +49,7 @@
     "runtime_consolidated": true,
     "external_historical_parts_required": false,
     "self_contained_update": true,
-    "source_behavior_equivalent_to": "1.3.66+optional_cloud_backfill",
+    "source_behavior_equivalent_to": "1.3.75+tombstone_sync",
     "protected_data": true,
     "protected_env": true,
     "transactional_updater": true,
@@ -84,11 +74,7 @@
     "revision_conflict_fix_preserved": true,
     "encounter_revision_conflict_policy": "ON CONFLICT DO NOTHING",
     "optional_cloud_backfill": true,
-    "optional_cloud_backfill_tables": [
-      "prescriptions",
-      "certificates",
-      "clinic_settings"
-    ],
+    "optional_cloud_backfill_tables": ["prescriptions", "certificates", "clinic_settings"],
     "optional_cloud_backfill_only_missing_remote_keys": true,
     "optional_cloud_backfill_idempotent": true,
     "empty_save_creates_no_history": true,
@@ -100,10 +86,10 @@
     "ui_only_release": false,
     "settings_ui_remaster": true,
     "home_system_status_ui_remaster": true,
-    "clinical_logic_unchanged_from_1_3_68": false,
-    "cloud_logic_unchanged_from_1_3_68": true,
+    "clinical_logic_unchanged_from_1_3_68": true,
+    "cloud_logic_unchanged_from_1_3_68": false,
     "lan_logic_unchanged_from_1_3_68": true,
-    "printing_logic_unchanged_from_1_3_68": false,
+    "printing_logic_unchanged_from_1_3_68": true,
     "documents_linked_to_encounter": true,
     "document_only_encounter_supported": true,
     "prescription_save_does_not_print": true,
@@ -125,8 +111,6 @@
     "procedure_specific_name_supported": true,
     "signed_queue_reconciliation": true,
     "new_patient_duplicate_guard_by_signed_queue": true,
-    "cloud_logic_unchanged_from_1_3_72": false,
-    "lan_logic_unchanged_from_1_3_72": true,
     "sync_conflict_guard": true,
     "sync_push_before_pull": true,
     "sync_conflict_snapshot_local": true,
@@ -144,7 +128,11 @@
     "unlinked_subsequent_doctor_action_disabled": true,
     "next_patient_skips_unlinked_subsequent": true,
     "clinical_data_changes": false,
-    "cloud_logic_changes": false,
-    "printing_changes": false
+    "cloud_logic_changes": true,
+    "printing_changes": false,
+    "encounter_soft_delete_push_to_neon": true,
+    "encounter_remote_tombstone_pull": true,
+    "discarded_draft_neon_resurrection_fixed": true,
+    "signed_encounters_never_auto_deleted": true
   }
 }
