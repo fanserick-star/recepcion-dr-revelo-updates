@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.18",
-  "app_version": "4.6.18",
-  "runtime_version": "4.6.18",
+  "version": "4.6.19",
+  "app_version": "4.6.19",
+  "runtime_version": "4.6.19",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Corrige el panel de vínculo de Historia para que aparezca solo al marcar manualmente un subsecuente antiguo y usa LAN como fallback sin pedir HISTORIA_DATABASE_URL en Recepción.",
-    "previous_version": "4.6.17",
+    "purpose": "Vinculación con Historia desde Recepción para todo paciente subsecuente real: normal detectado o antiguo marcado manualmente; pacientes nuevos no muestran el panel.",
+    "previous_version": "4.6.18",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -254,7 +254,11 @@
     "history_link_panel_manual_legacy_only": true,
     "history_identity_lan_fallback": true,
     "history_database_url_required_on_reception": false,
-    "history_raw_runtime_error_hidden": true
+    "history_raw_runtime_error_hidden": true,
+    "normal_subsequent_history_link_visible": true,
+    "manual_legacy_subsequent_history_link_visible": true,
+    "new_patient_history_link_hidden": true,
+    "history_identity_transport_lan_fallback": true
   },
   "channel": "launcher-v1-stable"
 }

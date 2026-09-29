@@ -1154,7 +1154,7 @@ V4613_JS = r"""
   async function renderHost(host,force=false){
     const pid=pidFrom(host);if(!pid)return;
     const attentionModal=host.matches('.attention-form-modal');
-    const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})();
+    const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof currentDetectedStatus==='function'&&norm(currentDetectedStatus())==='S'}catch(_e){return false}})();
     if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}
     let card=host.querySelector(':scope > .v4613-history-card');
     if(!card){card=document.createElement('div');card.className='v4613-history-card';place(host,card)}
