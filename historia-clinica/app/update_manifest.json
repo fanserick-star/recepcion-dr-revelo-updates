@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.79",
-  "app_version": "1.3.79",
-  "runtime_version": "1.3.79",
+  "version": "1.3.80",
+  "app_version": "1.3.80",
+  "runtime_version": "1.3.80",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -52,8 +52,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Amplía la lectura del historial clínico y usa una lista plana por fecha también durante la consulta.",
-    "previous_version": "1.3.78",
+    "purpose": "Sala de espera del doctor en tarjetas clínicas, con el siguiente paciente destacado y estados visuales claros.",
+    "previous_version": "1.3.79",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -177,6 +177,13 @@
     "consult_previous_history_flat_list": true,
     "consult_previous_history_dropdown_removed": true,
     "consult_previous_history_full_text_visible": true,
-    "history_order_newest_first_preserved": true
+    "history_order_newest_first_preserved": true,
+    "waiting_room_card_layout": true,
+    "waiting_room_next_patient_featured": true,
+    "waiting_room_two_column_cards": true,
+    "waiting_room_responsive_single_column": true,
+    "waiting_room_turn_prominent": true,
+    "waiting_room_status_tags_preserved": true,
+    "waiting_room_queue_logic_unchanged": true
   }
 }
