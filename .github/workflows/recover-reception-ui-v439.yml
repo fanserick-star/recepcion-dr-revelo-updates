@@ -19,13 +19,16 @@ jobs:
         with:
           ref: recover-reception-ui-v439
           fetch-depth: 1
+          lfs: true
       - name: Inspect package
         run: |
           set -e
           : > reception_zip_listing.txt
           find . -type f -iname '*.zip' -print0 | while IFS= read -r -d '' z; do
             echo "===== $z =====" >> reception_zip_listing.txt
-            unzip -l "$z" >> reception_zip_listing.txt || true
+            file "$z" >> reception_zip_listing.txt || true
+            wc -c "$z" >> reception_zip_listing.txt || true
+            unzip -l "$z" >> reception_zip_listing.txt 2>&1 || true
             echo >> reception_zip_listing.txt
           done
       - name: Commit listing
@@ -33,5 +36,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add reception_zip_listing.txt
-          git commit -m "audit: listar paquete acumulativo 4.3.39" || exit 0
+          git commit -m "audit: inspeccionar acumulativo 4.3.39 con LFS" || exit 0
           git push origin HEAD:recover-reception-ui-v439
