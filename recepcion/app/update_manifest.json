@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.16",
-  "app_version": "4.6.16",
-  "runtime_version": "4.6.16",
+  "version": "4.6.17",
+  "app_version": "4.6.17",
+  "runtime_version": "4.6.17",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -150,8 +150,8 @@
     "reception_history_requeue_guard.py"
   ],
   "notes": {
-    "purpose": "Corrige la búsqueda manual de Historia desde Recepción para priorizar el nombre escrito, tolerar el orden de nombres y permitir vincular fichas sin cédula.",
-    "previous_version": "4.6.15",
+    "purpose": "Muestra y resuelve desde Nueva atención de Recepción el vínculo con Historia Clínica para pacientes subsecuentes antiguos.",
+    "previous_version": "4.6.16",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -242,7 +242,15 @@
     "consultation_handoff_preserved": true,
     "history_same_event_requeue_resets_local_delivery": true,
     "history_same_event_requeue_reactivates_waiting": true,
-    "history_stale_cancel_cannot_override_newer_requeue": true
+    "history_stale_cancel_cannot_override_newer_requeue": true,
+    "history_link_status_visible_in_new_attention": true,
+    "history_link_status_only_for_subsequent": true,
+    "history_link_status_position_below_attention_type": true,
+    "history_exact_id_preflight_on_subsequent_open": true,
+    "history_manual_link_from_reception": true,
+    "history_unlinked_button_in_new_attention": true,
+    "history_linked_confirmation_in_new_attention": true,
+    "waiting_queue_logic_changes": false
   },
   "channel": "launcher-v1-stable"
 }

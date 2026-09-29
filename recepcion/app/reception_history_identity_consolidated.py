@@ -895,7 +895,7 @@ V4613_JS = r"""
 
   function modalRoots(){
     const roots=[];
-    for(const el of document.querySelectorAll('#modal .patient-profile-modal,.modal .patient-profile-modal,.patient-profile-modal,#modal .attention-form,#modal .modal-content,.modal .attention-form')){
+    for(const el of document.querySelectorAll('#modal .patient-profile-modal,.modal .patient-profile-modal,.patient-profile-modal,#modal .attention-form-modal,.modal .attention-form-modal,#modal .attention-form,#modal .modal-content,.modal .attention-form')){
       if(el && !roots.includes(el))roots.push(el);
     }
     return roots;
@@ -925,6 +925,8 @@ V4613_JS = r"""
     );
   }
   function place(host,card){
+    const attentionStatus=host.querySelector('#attentionStatus');
+    if(host.matches('.attention-form-modal')&&attentionStatus){attentionStatus.insertAdjacentElement('afterend',card);return}
     const continueWrap=host.querySelector('.v4417-continue-wrap');
     if(continueWrap){continueWrap.insertAdjacentElement('beforebegin',card);return}
     const tabs=host.querySelector('.v4413-profile-tabs');
@@ -998,6 +1000,9 @@ V4613_JS = r"""
 
   async function renderHost(host,force=false){
     const pid=pidFrom(host);if(!pid)return;
+    const attentionModal=host.matches('.attention-form-modal');
+    const attentionIsSubsequent=attentionModal&&norm(host.querySelector('#attentionStatus')?.textContent||'').includes('SUBSECUENTE');
+    if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}
     let card=host.querySelector(':scope > .v4613-history-card');
     if(!card){card=document.createElement('div');card.className='v4613-history-card';place(host,card)}
     if(!force&&Number(card.dataset.pid||0)===pid&&Date.now()-Number(card.dataset.at||0)<4500)return;
@@ -1006,16 +1011,19 @@ V4613_JS = r"""
     card.innerHTML='<div class="v4613-history-copy"><b>Historia clínica</b><small>Consultando vínculo…</small></div>';
 
     try{
-      const d=await status(pid,force);
+      const d=attentionIsSubsequent?await prepare(pid,true):await status(pid,force);
       if(!card.isConnected||Number(card.dataset.pid)!==pid)return;
       if(d?.ok===false)throw Error(d.error||'Historia no disponible');
       const linked=!!d?.linked,count=Number(d?.history_date_count||0),last=fmt(d?.last_history_date||'');
       if(linked){
-        card.innerHTML=`<div class="v4613-history-copy"><b>Historia clínica vinculada</b><small>${count===1?'1 fecha con historia clínica':count+' fechas con historias clínicas'}${last?' · Última: '+esc(last):''}</small></div><div class="v4613-history-actions"><span class="v4613-history-count">${count}</span><button type="button" class="v4613-btn secondary">Revisar vínculo</button></div>`;
+        const linkedTitle=attentionModal?'✓ Vinculado con Historia Clínica':'Historia clínica vinculada';
+        card.innerHTML=`<div class="v4613-history-copy"><b>${linkedTitle}</b><small>${count===1?'1 fecha con historia clínica':count+' fechas con historias clínicas'}${last?' · Última: '+esc(last):''}</small></div><div class="v4613-history-actions"><span class="v4613-history-count">${count}</span><button type="button" class="v4613-btn secondary">Revisar vínculo</button></div>`;
         card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
       }else{
         card.classList.add('warn');
-        card.innerHTML='<div class="v4613-history-copy"><b>Historia clínica · SIN VÍNCULO</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class="v4613-history-actions"><button type="button" class="v4613-btn">🔗 Buscar y vincular ficha</button></div>';
+        const unlinkedTitle=attentionModal?'⚠ Sin vincular con Historia Clínica':'Historia clínica · SIN VÍNCULO';
+        const linkButton=attentionModal?'Vincular con Historia Clínica':'🔗 Buscar y vincular ficha';
+        card.innerHTML=`<div class="v4613-history-copy"><b>${unlinkedTitle}</b><small>Busque la ficha correcta antes de guardar una consulta subsecuente.</small></div><div class="v4613-history-actions"><button type="button" class="v4613-btn">${linkButton}</button></div>`;
         card.querySelector('button').onclick=()=>searchDialog(pid,labelFrom(host));
       }
     }catch(err){
