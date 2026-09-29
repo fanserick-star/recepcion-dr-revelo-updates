@@ -81,8 +81,10 @@ jobs:
           from pathlib import Path
 
           r = Path('recepcion/app/reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
-          assert "typeof currentDetectedStatus==='function'&&norm(currentDetectedStatus())==='S'" in r
-          assert "!!attentionContext?.manualSubsequent" not in r
+          new_condition = "const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof currentDetectedStatus==='function'&&norm(currentDetectedStatus())==='S'}catch(_e){return false}})();"
+          old_condition = "const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})();"
+          assert new_condition in r
+          assert old_condition not in r
           assert 'historia_lan.identity_prepare' in r
           assert 'historia_lan.identity_search' in r
           assert 'historia_lan.identity_link' in r
