@@ -2845,4 +2845,20 @@ body:has(.legacy-remaster) footer{max-width:1480px;color:#817d75}
   .patient-search-result .patient-main span{font-size:12px!important}
   .patient-search-result .patient-meta{min-width:62px!important}
 }
-
+/* v1.3.82 · buscador de Inicio más legible (solo búsqueda en vivo) */
+.cp-remaster-app .home-search .searchbox input{
+  font-size:17px!important;
+}
+.cp-remaster-app .home-search .live-search-results>a{
+  min-height:54px!important;
+  padding:12px 14px!important;
+}
+.cp-remaster-app .home-search .live-copy b{
+  font-size:14px!important;
+}
+.cp-remaster-app .home-search .live-copy small{
+  font-size:11.5px!important;
+}
+.cp-remaster-app .home-search .live-count{
+  font-size:10.5px!important;
+}

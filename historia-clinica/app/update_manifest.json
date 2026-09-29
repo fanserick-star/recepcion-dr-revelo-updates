@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.81",
-  "app_version": "1.3.81",
-  "runtime_version": "1.3.81",
+  "version": "1.3.82",
+  "app_version": "1.3.82",
+  "runtime_version": "1.3.82",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -52,8 +52,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Resultados del buscador de pacientes más grandes y legibles para el doctor.",
-    "previous_version": "1.3.80",
+    "purpose": "Buscador de Inicio más legible: texto escrito y lista desplegable de pacientes ligeramente más grandes, sin modificar Pacientes en espera.",
+    "previous_version": "1.3.81",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -189,6 +189,12 @@
     "patient_search_name_font_px": 17,
     "patient_search_secondary_font_px": 13,
     "patient_search_row_min_height_px": 78,
-    "patient_search_scope_only": true
+    "patient_search_scope_only": true,
+    "home_live_search_size_improved": true,
+    "home_search_input_font_px": 17,
+    "home_live_search_name_font_px": 14,
+    "home_live_search_secondary_font_px": 11.5,
+    "home_live_search_row_min_height_px": 54,
+    "waiting_queue_unchanged": true
   }
 }
