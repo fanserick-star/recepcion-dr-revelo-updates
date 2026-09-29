@@ -1,0 +1,80 @@
+name: Finalize Reception 4.6.20 Channel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/finalize-reception-4620-channel.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-reception-4620-channel
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate canonical Reception 4.6.20
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          assert json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version'] == '4.6.20'
+          PY
+
+      - name: Build exact stable channel
+        run: |
+          RELEASE_SHA=$(git rev-parse HEAD)
+          echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
+          python tools/build_reception_app_channel.py \
+            --commit "$RELEASE_SHA" \
+            --repository "$GITHUB_REPOSITORY"
+
+      - name: Verify generated payload bytes
+        env:
+          VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, shutil, urllib.request
+          channel = json.loads(pathlib.Path('launcher-v1/app-channel.json').read_text(encoding='utf-8-sig'))
+          assert channel['appVersion'] == '4.6.20'
+          assert channel['mandatory'] is True
+          out = pathlib.Path('channel_verify_4620')
+          shutil.rmtree(out, ignore_errors=True)
+          out.mkdir(parents=True)
+          nonce = os.environ.get('VERIFY_NONCE','verify')
+          for item in channel['files']:
+              rel = str(item['path']).replace('\\','/')
+              url = item['url'] + ('&' if '?' in item['url'] else '?') + 'verify=' + nonce
+              req = urllib.request.Request(url, headers={'Cache-Control':'no-cache'})
+              with urllib.request.urlopen(req, timeout=60) as response:
+                  payload = response.read()
+              assert hashlib.sha256(payload).hexdigest() == item['sha256'], rel
+              dest = out / rel
+              dest.parent.mkdir(parents=True, exist_ok=True)
+              dest.write_bytes(payload)
+          PY
+          python tools/validate_reception_runtime_layout.py channel_verify_4620
+
+      - name: Publish after rebasing latest main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add launcher-v1/app-channel.json
+          git rm .github/workflows/finalize-reception-4620-channel.yml
+          git commit -m "Publish validated Reception 4.6.20 channel"
+          git pull --rebase origin main
+          git push origin HEAD:main
