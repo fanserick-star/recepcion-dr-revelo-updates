@@ -1,0 +1,150 @@
+name: Release Reception 4.6.22 Link Panel Stability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/release-reception-4622-link-panel-stability.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-reception-4622-link-panel-stability
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Patch link panel and save gate
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('recepcion/app')
+          src = root / 'reception_history_identity_consolidated.py'
+          ver = root / 'recepcion-version.json'
+          man = root / 'update_manifest.json'
+
+          text = src.read_text(encoding='utf-8-sig')
+          vdoc = json.loads(ver.read_text(encoding='utf-8-sig'))
+          assert str(vdoc.get('version')) == '4.6.21', vdoc
+
+          old_guard = "if(!force&&Number(card.dataset.pid||0)===pid&&Date.now()-Number(card.dataset.at||0)<4500)return;"
+          new_guard = "if(Number(card.dataset.pid||0)===pid&&card.dataset.busy==='1')return;\n    if(!force&&Number(card.dataset.pid||0)===pid&&card.dataset.settled==='1')return;"
+          assert text.count(old_guard) == 1, text.count(old_guard)
+          text = text.replace(old_guard, new_guard, 1)
+
+          old_start = "card.dataset.pid=String(pid);card.dataset.at=String(Date.now());\n    card.className='v4613-history-card';"
+          new_start = "card.dataset.pid=String(pid);card.dataset.at=String(Date.now());card.dataset.busy='1';card.dataset.settled='0';\n    card.className='v4613-history-card';"
+          assert text.count(old_start) == 1, text.count(old_start)
+          text = text.replace(old_start, new_start, 1)
+
+          old_display = "const d=attentionIsSubsequent?await prepare(pid,true):await status(pid,force);"
+          new_display = "const d=await status(pid,force);"
+          assert text.count(old_display) == 1, text.count(old_display)
+          text = text.replace(old_display, new_display, 1)
+
+          old_success = "if(d?.ok===false)throw Error(d.error||'Historia no disponible');\n      const linked=!!d?.linked"
+          new_success = "if(d?.ok===false)throw Error(d.error||'Historia no disponible');\n      card.dataset.busy='0';card.dataset.settled='1';\n      const linked=!!d?.linked"
+          assert text.count(old_success) == 1, text.count(old_success)
+          text = text.replace(old_success, new_success, 1)
+
+          old_error = "}catch(err){\n      card.classList.add('error');"
+          new_error = "}catch(err){\n      card.dataset.busy='0';card.dataset.settled='1';\n      card.classList.add('error');"
+          assert text.count(old_error) == 1, text.count(old_error)
+          text = text.replace(old_error, new_error, 1)
+
+          old_gate = "if(isSubsequent(body)&&(()=>{try{return typeof attentionContext!=='undefined'&&!!attentionContext?.manualSubsequent}catch(_e){return false}})()){"
+          new_gate = "if(isSubsequent(body)){"
+          assert text.count(old_gate) == 1, text.count(old_gate)
+          text = text.replace(old_gate, new_gate, 1)
+
+          src.write_text(text, encoding='utf-8', newline='\n')
+
+          vdoc['version'] = '4.6.22'
+          ver.write_text(json.dumps(vdoc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
+
+          mdoc = json.loads(man.read_text(encoding='utf-8-sig'))
+          for key in ('version','app_version','runtime_version'):
+              if key in mdoc:
+                  mdoc[key] = '4.6.22'
+          notes = mdoc.setdefault('notes', {})
+          notes['purpose'] = 'Estabiliza el panel de vínculo de Historia: elimina consultas repetitivas/flicker y exige preflight de vínculo para todo subsecuente.'
+          notes['previous_version'] = '4.6.21'
+          notes['history_link_panel_passive_refresh_loop_fixed'] = True
+          notes['history_link_panel_inflight_deduplicated'] = True
+          notes['history_link_panel_status_only_on_open'] = True
+          notes['history_identity_prepare_awaited_for_subsequent'] = True
+          notes['history_save_link_gate_all_subsequents'] = True
+          notes['history_link_panel_manual_legacy_only'] = False
+          notes['history_exact_id_preflight_on_subsequent_open'] = False
+          notes['history_manual_link_required'] = True
+          notes['history_identity_transport'] = 'neon_only'
+          notes['waiting_queue_transport'] = 'lan_only'
+          notes['database_schema_changes'] = False
+          notes['patient_data_destructive_changes'] = False
+          man.write_text(json.dumps(mdoc, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
+          PY
+
+      - name: Validate canonical runtime
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          python -m py_compile recepcion/app/reception_history_identity_consolidated.py
+          git diff --check
+
+      - name: Validate exact regression fix
+        run: |
+          python - <<'PY'
+          import ast, json
+          from pathlib import Path
+
+          src = Path('recepcion/app/reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
+          assert "card.dataset.busy==='1'" in src
+          assert "card.dataset.settled==='1'" in src
+          assert "const d=await status(pid,force);" in src
+          assert "const d=attentionIsSubsequent?await prepare(pid,true):await status(pid,force);" not in src
+          assert "if(isSubsequent(body)){" in src
+          assert "isSubsequent(body)&&(()=>{try{return typeof attentionContext" not in src
+          assert src.count('await prepare(pid,true)') == 1, src.count('await prepare(pid,true)')
+          assert "typeof currentDetectedStatus==='function'&&norm(currentDetectedStatus())==='S'" in src
+
+          tree = ast.parse(src)
+          js = None
+          for node in tree.body:
+              if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'V4613_JS' for t in node.targets):
+                  js = ast.literal_eval(node.value)
+                  break
+          assert js
+          Path('/tmp/history_identity_4622.js').write_text(js, encoding='utf-8')
+
+          version = json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
+          manifest = json.loads(Path('recepcion/app/update_manifest.json').read_text(encoding='utf-8-sig'))
+          assert version == '4.6.22'
+          assert manifest['version'] == '4.6.22'
+          assert manifest['notes']['history_link_panel_passive_refresh_loop_fixed'] is True
+          assert manifest['notes']['history_save_link_gate_all_subsequents'] is True
+          print('REGRESSION_OK: stable link panel + all-subsequent save gate')
+          PY
+          node --check /tmp/history_identity_4622.js
+
+      - name: Commit canonical 4.6.22 source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recepcion/app/reception_history_identity_consolidated.py recepcion/app/recepcion-version.json recepcion/app/update_manifest.json
+          git rm .github/workflows/release-reception-4622-link-panel-stability.yml
+          git commit -m "Reception 4.6.22: stabilize history linking panel"
+          git pull --rebase origin main
+          git push origin HEAD:main
