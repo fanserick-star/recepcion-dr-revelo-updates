@@ -25,372 +25,29 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Patch procedure handoff and queue dedupe
-        run: |
-          python - <<'PY'
-          from __future__ import annotations
-          import ast
-          import json
-          from pathlib import Path
+      - name: Apply focused patch
+        run: python tools/patch_4623_1385_procedure_handoff.py
 
-          def replace_top_function(path: Path, name: str, replacement: str):
-              text = path.read_text(encoding='utf-8-sig')
-              tree = ast.parse(text)
-              node = next((n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == name), None)
-              assert node is not None, (path, name)
-              lines = text.splitlines(keepends=True)
-              lines[node.lineno - 1:node.end_lineno] = [replacement.rstrip() + '\n']
-              path.write_text(''.join(lines), encoding='utf-8', newline='\n')
-
-          # Reception: every saved item gets its own handoff. Procedures have no turn.
-          p = Path('recepcion/app/reception_history_attention_type.py')
-          p.write_text('''from __future__ import annotations
-import threading
-import time
-from datetime import datetime, timedelta
-import reception_history_transport as _dep_history_transport
-import reception_history_bridge as bridge_v4508
-import historia_bridge
-import historia_lan_transport
-core = _dep_history_transport.core
-app = _dep_history_transport.app
-APP_VERSION = '4.5.21'
-core.APP_VERSION = APP_VERSION
-for _route in list(app.router.routes):
-    if getattr(_route, 'path', None) == '/api/visits/batch-payment' and 'POST' in set(getattr(_route, 'methods', set()) or set()):
-        app.router.routes.remove(_route)
-_TYPE_LABELS = {'N': 'Nuevo', 'S': 'Subsecuente', 'P': 'Procedimiento', 'X': 'Procedimiento'}
-
-
-def _patient_status(type_code: object) -> str:
-    code = str(type_code or '').strip().upper()
-    return 'Nuevo' if code == 'N' else 'Subsecuente' if code == 'S' else ''
-
-
-def _procedure_attention_type(name: object) -> str:
-    label = ' '.join(str(name or '').strip().split())
-    return f'Procedimiento - {label}' if label else 'Procedimiento'
-
-
-def _handoff_item(patient, item: dict, fallback_type: object = '') -> None:
-    visit_id = item.get('id')
-    if visit_id is None:
-        return
-    procedure = str(item.get('procedimiento') or '').strip()
-    type_code = str(item.get('tipo') or fallback_type or '').strip().upper()
-    if procedure:
-        attention_type = _procedure_attention_type(procedure)
-        reception_turn = None
-    else:
-        attention_type = _TYPE_LABELS.get(type_code)
-        if not attention_type:
-            attention_type = 'Subsecuente' if type_code == 'S' else 'Nuevo' if type_code == 'N' else 'Consulta'
-        reception_turn = None
-    historia_bridge.queue_attention(
-        reception_patient_id=int(patient.id),
-        display_name=str(getattr(patient, 'nombre', '') or 'Paciente'),
-        identification=str(getattr(patient, 'cedula', '') or ''),
-        attention_type=attention_type,
-        patient_status=_patient_status(type_code),
-        reception_turn=reception_turn,
-        visit_ids=[visit_id],
-        birth_date=str(getattr(patient, 'fecha_nacimiento', '') or ''),
-        phone=str(getattr(patient, 'celular', '') or ''),
-        email=str(getattr(patient, 'correo', '') or ''),
-        address=str(getattr(patient, 'lugar', '') or ''),
-    )
-
-
-@app.post('/api/visits/batch-payment')
-def v4521_create_visit_batch_payment(data: bridge_v4508.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
-    result = bridge_v4508._old_batch(data, db, user)
-    try:
-        patient = db.get(core.Patient, int(data.patient_id))
-        if patient:
-            items = [x for x in list((result or {}).get('items') or []) if isinstance(x, dict)] if isinstance(result, dict) else []
-            for item in items:
-                _handoff_item(patient, item, getattr(data, 'tipo', ''))
-    except Exception as exc:
-        try:
-            core.audit(db, user, 'historia_bridge_pending', f'Puente Historia Clínica pendiente: {type(exc).__name__}')
-            db.commit()
-        except Exception:
-            pass
-    return result
-
-
-def _recover_recent_procedures() -> None:
-    """Recupera procedimientos recién creados antes de 4.6.23 sin recrearlos."""
-    time.sleep(4)
-    cutoff = datetime.utcnow() - timedelta(hours=3)
-    try:
-        with core.LocalSessionLocal() as ldb:
-            rows = list(ldb.scalars(
-                core.select(core.Visit)
-                .where(core.Visit.created_at >= cutoff)
-                .order_by(core.Visit.created_at.asc(), core.Visit.id.asc())
-            ))
-            work = []
-            for visit in rows:
-                procedure = str(getattr(visit, 'procedimiento', '') or '').strip()
-                if not procedure:
-                    continue
-                patient = ldb.get(core.Patient, int(visit.patient_id))
-                if not patient:
-                    continue
-                work.append({
-                    'visit_id': int(visit.id),
-                    'patient_id': int(patient.id),
-                    'display_name': str(getattr(patient, 'nombre', '') or 'Paciente'),
-                    'identification': str(getattr(patient, 'cedula', '') or ''),
-                    'attention_type': _procedure_attention_type(procedure),
-                    'patient_status': _patient_status(getattr(visit, 'tipo', '')),
-                    'birth_date': str(getattr(patient, 'fecha_nacimiento', '') or ''),
-                    'phone': str(getattr(patient, 'celular', '') or ''),
-                    'email': str(getattr(patient, 'correo', '') or ''),
-                    'address': str(getattr(patient, 'lugar', '') or ''),
-                })
-        for item in work:
-            try:
-                existing = historia_lan_transport._lan_event_targets(
-                    visit_id=item['visit_id'],
-                    reception_patient_id=item['patient_id'],
-                )
-                if existing:
-                    continue
-                historia_bridge.queue_attention(
-                    reception_patient_id=item['patient_id'],
-                    display_name=item['display_name'],
-                    identification=item['identification'],
-                    attention_type=item['attention_type'],
-                    patient_status=item['patient_status'],
-                    reception_turn=None,
-                    visit_ids=[item['visit_id']],
-                    birth_date=item['birth_date'],
-                    phone=item['phone'],
-                    email=item['email'],
-                    address=item['address'],
-                )
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-
-threading.Thread(target=_recover_recent_procedures, daemon=True, name='historia-procedure-recover-4623').start()
-
-
-@app.get('/api/v4521/health')
-def v4521_health(user=core.Depends(core.current_user)):
-    return {
-        'ok': True,
-        'version': APP_VERSION,
-        'historia_attention_type_from_visit': True,
-        'attention_type_map': {'N': 'Nuevo', 'S': 'Subsecuente', 'P': 'Procedimiento'},
-        'hybrid_historia': True,
-        'procedure_historia_handoff': True,
-        'procedure_turn_consumption': False,
-        'recent_procedure_recovery_hours': 3,
-        'database_schema_changes': False,
-    }
-PATCH_BOOT_OK = True
-''', encoding='utf-8', newline='\n')
-
-          # LAN waiting transport: procedures are valid handoffs, but never carry a turn.
-          lp = Path('recepcion/app/historia_lan_transport.py')
-          replace_top_function(lp, 'hybrid_queue_attention', '''def hybrid_queue_attention(*, reception_patient_id: object, display_name: object,
-                           identification: object = "", attention_type: object = "Consulta",
-                           patient_status: object = "", reception_turn: object = None,
-                           visit_ids: list[object] | None = None,
-                           birth_date: object = "", phone: object = "",
-                           email: object = "", address: object = "") -> str:
-    label = _clean(attention_type, 180).upper()
-    is_procedure = label == "PROCEDIMIENTO" or label.startswith("PROCEDIMIENTO ")
-    event_id = _cloud._event_id(reception_patient_id, visit_ids)
-    payload = {
-        "event_id": event_id,
-        "reception_patient_id": str(reception_patient_id),
-        "clinical_patient_id": _cloud_link_id(reception_patient_id),
-        "display_name": _clean(display_name, 260) or "Paciente",
-        "identification": _clean(identification, 120),
-        "attention_type": _clean(attention_type, 180) or "Consulta",
-        "patient_status": _clean(patient_status, 40),
-        "reception_turn": None if is_procedure else reception_turn,
-        "visit_ids": [str(x) for x in (visit_ids or []) if x is not None],
-        "birth_date": _clean(birth_date, 40),
-        "phone": _clean(phone, 120),
-        "email": _clean(email, 180),
-        "address": _clean(address, 360),
-        "queued_at": _now(),
-    }
-    _lan_outbox_put(payload)
-    if send_lan(payload):
-        _lan_outbox_mark(event_id, sent=True)
-    else:
-        _lan_outbox_mark(event_id, error=_snapshot().get("lan_last_error") or "Pendiente de entrega LAN")
-    return event_id
-''')
-
-          # Historia: distinct procedure events from the same patient may coexist.
-          hp = Path('historia-clinica/app/app.py')
-          replace_top_function(hp, 'cleanup_active_queue_duplicates', '''def cleanup_active_queue_duplicates():
-    """
-    Evita consultas activas duplicadas del mismo paciente.
-
-    Los procedimientos son atenciones independientes: pueden coexistir entre sí
-    y con una consulta del mismo paciente. Nunca consumen turno. La unicidad por
-    reception_event_id sigue evitando duplicar el mismo handoff exacto.
-    """
-    stamp = now_iso()
-    removed = []
-    with db() as conn:
-        rows = conn.execute(
-            """
-            SELECT id,reception_event_id,reception_patient_id,clinical_patient_id,status,
-                   attention_type,queued_at,updated_at,display_name
-            FROM waiting_queue
-            WHERE status IN ('waiting','in_consultation')
-            ORDER BY
-              CASE WHEN status='in_consultation' THEN 0 ELSE 1 END,
-              COALESCE(updated_at,queued_at,'') DESC,
-              COALESCE(queued_at,'') DESC
-            """
-        ).fetchall()
-
-        seen_reception = set()
-        seen_clinical = set()
-
-        for row in rows:
-            raw = str(row["attention_type"] or "").strip().upper()
-            is_procedure = (
-                raw in {"P", "X", "PROCEDIMIENTO"}
-                or raw.startswith("PROCEDIMIENTO ")
-                or (
-                    raw
-                    and raw not in {"CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}
-                    and not raw.startswith("CONSULTA")
-                )
-            )
-            if is_procedure:
-                continue
-
-            reception_id = str(row["reception_patient_id"] or "").strip()
-            clinical_id = str(row["clinical_patient_id"] or "").strip()
-
-            duplicate = (
-                (reception_id and reception_id in seen_reception)
-                or (clinical_id and clinical_id in seen_clinical)
-            )
-
-            if duplicate:
-                conn.execute(
-                    """UPDATE waiting_queue
-                       SET status='cancelled',updated_at=?
-                       WHERE id=? AND status IN ('waiting','in_consultation')""",
-                    (stamp, row["id"]),
-                )
-                removed.append(str(row["id"]))
-                continue
-
-            if reception_id:
-                seen_reception.add(reception_id)
-            if clinical_id:
-                seen_clinical.add(clinical_id)
-
-        if removed:
-            audit(
-                conn,
-                "cleanup",
-                "waiting_queue",
-                "duplicate-active-consultation",
-                {"cancelled_queue_ids": removed, "count": len(removed)},
-            )
-            conn.commit()
-
-    return removed
-''')
-
-          # Versions + manifests.
-          rv = Path('recepcion/app/recepcion-version.json')
-          rvd = json.loads(rv.read_text(encoding='utf-8-sig'))
-          assert rvd['version'] == '4.6.22', rvd
-          rvd['version'] = '4.6.23'
-          rv.write_text(json.dumps(rvd, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
-
-          rm = Path('recepcion/app/update_manifest.json')
-          rmd = json.loads(rm.read_text(encoding='utf-8-sig'))
-          for key in ('version','app_version','runtime_version'):
-              rmd[key] = '4.6.23'
-          rn = rmd.setdefault('notes', {})
-          rn['purpose'] = 'Envía procedimientos a Historia Clínica por LAN sin consumir turno y recupera procedimientos recientes que 4.6.22 omitió.'
-          rn['previous_version'] = '4.6.22'
-          rn['procedure_logic_changes'] = True
-          rn['procedure_historia_handoff'] = True
-          rn['procedure_lan_handoff'] = True
-          rn['procedure_turn_consumption'] = False
-          rn['procedure_specific_name_handoff'] = True
-          rn['recent_procedure_handoff_recovery_hours'] = 3
-          rn['waiting_queue_transport'] = 'lan_only'
-          rn['waiting_queue_cloud_write'] = False
-          rn['billing_logic_changes'] = False
-          rn['procedure_pricing_logic_changes'] = False
-          rn['database_schema_changes'] = False
-          rm.write_text(json.dumps(rmd, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
-
-          hv = Path('historia-clinica/app/historia-version.json')
-          hvd = json.loads(hv.read_text(encoding='utf-8-sig'))
-          assert hvd['version'] == '1.3.84', hvd
-          hvd['version'] = '1.3.85'
-          hv.write_text(json.dumps(hvd, ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8', newline='\n')
-
-          hm = Path('historia-clinica/app/update_manifest.json')
-          hmd = json.loads(hm.read_text(encoding='utf-8-sig'))
-          for key in ('version','app_version','runtime_version'):
-              hmd[key] = '1.3.85'
-          hn = hmd.setdefault('notes', {})
-          hn['purpose'] = 'Permite procedimientos en Pacientes en espera sin turno y conserva múltiples procedimientos distintos del mismo paciente.'
-          hn['previous_version'] = '1.3.84'
-          hn['functional_changes'] = True
-          hn['ui_only_release'] = False
-          hn['waiting_room_queue_logic_unchanged'] = False
-          hn['waiting_queue_unchanged'] = False
-          hn['procedure_visual_identity'] = True
-          hn['procedure_specific_name_supported'] = True
-          hn['procedure_multiple_active_same_patient'] = True
-          hn['procedure_turn_consumption'] = False
-          hn['procedure_lan_handoff'] = True
-          hn['waiting_queue_accepts_procedures'] = True
-          hn['database_schema_changes'] = False
-          hn['clinical_data_changes'] = False
-          hn['patient_data_destructive_changes'] = False
-          hm.write_text(json.dumps(hmd, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
-          PY
-
-      - name: Validate canonical runtimes and exact procedure contract
+      - name: Validate canonical runtimes
         run: |
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_historia_canonical_source.py
           python tools/validate_historia_runtime.py historia-clinica/app
-          python -m py_compile \
-            recepcion/app/reception_history_attention_type.py \
-            recepcion/app/historia_lan_transport.py \
-            historia-clinica/app/app.py
+          python -m py_compile recepcion/app/reception_history_attention_type.py recepcion/app/historia_lan_transport.py historia-clinica/app/app.py
           git diff --check
           python - <<'PY'
-          import ast, json
+          import json
           from pathlib import Path
-
           r = Path('recepcion/app/reception_history_attention_type.py').read_text(encoding='utf-8-sig')
           l = Path('recepcion/app/historia_lan_transport.py').read_text(encoding='utf-8-sig')
           h = Path('historia-clinica/app/app.py').read_text(encoding='utf-8-sig')
-          assert "for item in items:" in r
-          assert "Procedimiento -" in r
-          assert "recent_procedure_recovery_hours" in r
-          assert "_lan_event_targets" in r
+          assert 'for item in items:' in r
+          assert 'Procedimiento -' in r
+          assert '_lan_event_targets' in r
+          assert 'recent_procedure_recovery_hours' in r
           assert 'if label.startswith("PROCEDIMIENTO"):\n        return ""' not in l
           assert '"reception_turn": None if is_procedure else reception_turn' in l
-          assert 'procedure_multiple_active_same_patient' in Path('historia-clinica/app/update_manifest.json').read_text(encoding='utf-8-sig')
           assert 'if is_procedure:\n                continue' in h
           assert json.loads(Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version'] == '4.6.23'
           assert json.loads(Path('historia-clinica/app/historia-version.json').read_text(encoding='utf-8-sig'))['version'] == '1.3.85'
@@ -401,63 +58,52 @@ PATCH_BOOT_OK = True
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            recepcion/app/reception_history_attention_type.py \
-            recepcion/app/historia_lan_transport.py \
-            recepcion/app/recepcion-version.json \
-            recepcion/app/update_manifest.json \
-            historia-clinica/app/app.py \
-            historia-clinica/app/historia-version.json \
-            historia-clinica/app/update_manifest.json
+          git add recepcion/app/reception_history_attention_type.py recepcion/app/historia_lan_transport.py recepcion/app/recepcion-version.json recepcion/app/update_manifest.json historia-clinica/app/app.py historia-clinica/app/historia-version.json historia-clinica/app/update_manifest.json
+          git rm tools/patch_4623_1385_procedure_handoff.py
           git rm .github/workflows/release-4623-1385-procedure-handoff.yml
           git commit -m "Send procedures to Historia without consuming turns"
           git pull --rebase origin main
           git push origin HEAD:main
           echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
-      - name: Build exact Reception and Historia channels
+      - name: Build both stable channels
         run: |
-          python tools/build_reception_app_channel.py \
-            --commit "$RELEASE_SHA" \
-            --repository "$GITHUB_REPOSITORY"
-          python tools/build_historia_app_channel.py \
-            --commit "$RELEASE_SHA" \
-            --repository "$GITHUB_REPOSITORY"
+          python tools/build_reception_app_channel.py --commit "$RELEASE_SHA" --repository "$GITHUB_REPOSITORY"
+          python tools/build_historia_app_channel.py --commit "$RELEASE_SHA" --repository "$GITHUB_REPOSITORY"
 
-      - name: Verify both channel payloads byte-for-byte
+      - name: Verify exact channel bytes
         env:
           VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python - <<'PY'
           import hashlib, json, os, pathlib, shutil, urllib.request
-          pairs = [
-              ('launcher-v1/app-channel.json', '4.6.23', pathlib.Path('verify_reception'), 'reception'),
-              ('historia-clinica/launcher-v1/app-channel.json', '1.3.85', pathlib.Path('verify_historia'), 'historia'),
+          specs = [
+              ('launcher-v1/app-channel.json', '4.6.23', pathlib.Path('verify_reception')),
+              ('historia-clinica/launcher-v1/app-channel.json', '1.3.85', pathlib.Path('verify_historia')),
           ]
-          nonce = os.environ.get('VERIFY_NONCE','verify')
-          for channel_path, version, out, label in pairs:
+          nonce = os.environ.get('VERIFY_NONCE', 'verify')
+          for channel_path, expected_version, out in specs:
               channel = json.loads(pathlib.Path(channel_path).read_text(encoding='utf-8-sig'))
-              assert channel['appVersion'] == version, (label, channel['appVersion'])
+              assert channel['appVersion'] == expected_version
               assert channel['mandatory'] is True
               shutil.rmtree(out, ignore_errors=True)
               out.mkdir(parents=True)
               for item in channel['files']:
-                  rel = str(item['path']).replace('\\','/')
+                  rel = str(item['path']).replace('\\', '/')
                   url = item['url'] + ('&' if '?' in item['url'] else '?') + 'verify=' + nonce
-                  req = urllib.request.Request(url, headers={'Cache-Control':'no-cache'})
+                  req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
                   with urllib.request.urlopen(req, timeout=60) as response:
                       payload = response.read()
-                  got = hashlib.sha256(payload).hexdigest()
-                  assert got == item['sha256'], (label, rel, got, item['sha256'])
+                  assert hashlib.sha256(payload).hexdigest() == item['sha256'], rel
                   dest = out / rel
                   dest.parent.mkdir(parents=True, exist_ok=True)
                   dest.write_bytes(payload)
-              print('RAW_OK', label, version, len(channel['files']))
+              print('RAW_OK', expected_version, len(channel['files']))
           PY
           python tools/validate_reception_runtime_layout.py verify_reception
           python tools/validate_historia_runtime.py verify_historia
 
-      - name: Publish both stable channels safely
+      - name: Publish both channels
         run: |
           git add launcher-v1/app-channel.json historia-clinica/launcher-v1/app-channel.json
           git commit -m "Publish procedure handoff updates"
