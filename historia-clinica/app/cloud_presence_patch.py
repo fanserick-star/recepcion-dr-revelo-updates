@@ -1,17 +1,30 @@
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 
 import cloud_sync
 import cloud_tombstone_patch
+import material_pacientes
 
 AFK_SECONDS = 300
 HEARTBEAT_SECONDS = 240
-APP_VERSION = "1.3.2"
+
+
+def _canonical_app_version() -> str:
+    try:
+        path = Path(__file__).resolve().parent / "historia-version.json"
+        return str(json.loads(path.read_text(encoding="utf-8-sig"))["version"]).strip() or "0.0.0"
+    except Exception:
+        return "0.0.0"
+
+
+APP_VERSION = _canonical_app_version()
 
 
 def _current_app_version(service) -> str:
@@ -123,6 +136,10 @@ def _heartbeat_loop(service) -> None:
 
 
 def install() -> None:
+    # Se registra antes de que app.py construya FastAPI. El módulo de Material
+    # solo añade UI/rutas locales y no interviene en base clínica, Neon ni LAN.
+    material_pacientes.install_fastapi_hook()
+
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):
         cloud_tombstone_patch.install()
