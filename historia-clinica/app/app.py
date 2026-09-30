@@ -1683,22 +1683,11 @@ def _link_queue_patient(conn, row, patient_id: str, matched_by: str):
     conn.commit()
 
 
-def _queue_validated_link(conn, row) -> str:
-    """
-    Devuelve un vínculo existente sólo si sigue siendo confiable.
-
-    v1.3.20:
-    - la identificación exacta de Recepción tiene prioridad absoluta;
-    - si un vínculo automático apunta a una ficha sin identificación pero existe
-      otra ficha con la identificación exacta, corrige el vínculo;
-    - si no hay identificación y existen varias fichas con exactamente el mismo
-      nombre, un vínculo automático no se toma a ciegas: se obliga a elegir.
-    - un vínculo seleccionado manualmente por el doctor sí se respeta.
-    """
+def _queue_validated_link(conn, row):
+    """Trust the clinical id supplied by Reception, with conservative safety checks."""
     linked_id = str(row["clinical_patient_id"] or "").strip()
     if not linked_id:
         return ""
-
     linked = conn.execute(
         "SELECT id,name,name_search,national_id_search,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
         (linked_id,),
@@ -1708,57 +1697,17 @@ def _queue_validated_link(conn, row) -> str:
     merged_to = str(linked["merged_into_patient_id"] or "").strip()
     if merged_to:
         canonical = conn.execute(
-            "SELECT id,name,name_search,national_id_search,merged_into_patient_id "
-            "FROM patients WHERE id=? LIMIT 1",
+            "SELECT id,name,name_search,national_id_search,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
             (merged_to,),
         ).fetchone()
         if canonical:
             linked_id = str(canonical["id"])
             linked = canonical
             _link_queue_patient(conn, row, linked_id, "repair_merged_patient")
-
-    link_meta = conn.execute(
-        "SELECT matched_by,verified FROM patient_links WHERE reception_patient_id=? LIMIT 1",
-        (str(row["reception_patient_id"] or ""),),
-    ).fetchone()
-    matched_by = str(link_meta["matched_by"] or "") if link_meta else ""
-    if matched_by == "manual_doctor":
-        return linked_id
-
     identification = normalize_search(row["identification"] or "")
-    if identification:
-        exact = conn.execute(
-            "SELECT id FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 3",
-            (identification,),
-        ).fetchall()
-        if len(exact) == 1:
-            exact_id = str(exact[0]["id"])
-            if exact_id != linked_id:
-                _link_queue_patient(
-                    conn,
-                    row,
-                    exact_id,
-                    "repair_exact_identification",
-                )
-            return exact_id
-
-        linked_ident = normalize_search(linked["national_id_search"] or "")
-        if linked_ident == identification:
-            return linked_id
-
-        # La identificación del turno no confirma el vínculo actual.
+    linked_ident = normalize_search(linked["national_id_search"] or "")
+    if identification and linked_ident and linked_ident != identification:
         return ""
-
-    wanted = normalize_search(row["display_name"] or "")
-    if wanted:
-        same_name = conn.execute(
-            "SELECT id FROM patients WHERE name_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 4",
-            (wanted,),
-        ).fetchall()
-        if len(same_name) > 1:
-            # Hay duplicados reales del mismo nombre. No adivinamos cuál usar.
-            return ""
-
     return linked_id
 
 
@@ -1795,13 +1744,8 @@ def attend_from_queue(queue_id: str):
                 pass
 
         candidates, reason = _queue_strong_candidates(conn, row)
-        if len(candidates) == 1:
-            patient_id = str(candidates[0]["id"])
-            _link_queue_patient(conn, row, patient_id, "auto_" + (reason or "search"))
-            return RedirectResponse(
-                f"/paciente/{patient_id}/nueva?queue_id={queue_id}",
-                status_code=303,
-            )
+        # Sin vínculo de Recepción no adivinamos automáticamente la ficha.
+        # Los candidatos se muestran sólo como fallback manual de emergencia.
 
         title = e(row["display_name"] or "Paciente")
         if candidates:
@@ -4300,14 +4244,9 @@ def attend_from_queue_v132(queue_id: str):
             patient_id = _queue_validated_link(conn, row)
             if not patient_id:
                 candidates, reason = _queue_strong_candidates(conn, row)
-                if len(candidates) == 1:
-                    patient_id = str(candidates[0]["id"])
-                    _link_queue_patient(
-                        conn,
-                        row,
-                        patient_id,
-                        "auto_" + (reason or "search"),
-                    )
+                # Recepción es la autoridad del vínculo. Aunque exista un único
+                # candidato, Historia no lo selecciona silenciosamente.
+                pass
             if patient_id:
                 return RedirectResponse(
                     f"/paciente/{patient_id}?queue_id={queue_id}",

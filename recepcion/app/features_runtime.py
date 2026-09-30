@@ -48,14 +48,10 @@ import reception_launcher_status
 import reception_version_display
 import reception_version_sidebar
 import reception_history_transport
-import reception_history_attention_type
 import reception_history_cancellation
 import reception_payment_terminal_feedback
-import reception_history_patient_details
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
-import reception_history_name_lookup
-import reception_history_requeue_guard
 
 FEATURE_MODULES = (
     reception_payments_and_agenda,
@@ -100,14 +96,10 @@ FEATURE_MODULES = (
     reception_version_display,
     reception_version_sidebar,
     reception_history_transport,
-    reception_history_attention_type,
     reception_history_cancellation,
     reception_payment_terminal_feedback,
-    reception_history_patient_details,
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
-    reception_history_name_lookup,
-    reception_history_requeue_guard,
 )
 
 

@@ -1,19 +1,49 @@
 from __future__ import annotations
+
 import reception_version_sidebar as _dep_version_sidebar
 import historia_bridge
 import historia_lan_transport
+
 core = _dep_version_sidebar.core
 app = _dep_version_sidebar.app
-APP_VERSION = '4.5.20'
+APP_VERSION = "4.6.25"
 core.APP_VERSION = APP_VERSION
 historia_lan_transport.install(historia_bridge)
-V4520_CSS = '\n#historiaDoctorBadge.lan{\n  border-color:rgba(68,201,124,.58)!important;\n  color:#e3faeb!important;\n  background:rgba(27,116,68,.28)!important\n}\n#historiaDoctorBadge.lan:before{\n  background:#35d174!important;\n  box-shadow:0 0 0 3px rgba(53,209,116,.18)!important\n}\n'
-V4520_JS = "\n;(()=>{\n if(window.__v4520HybridHistoria)return;\n window.__v4520HybridHistoria=true;\n\n const q=(s,r=document)=>r.querySelector(s);\n const VERSION='4.5.20';\n\n function ensureBadge(){\n   const connection=q('#connectionBadge');\n   let b=q('#historiaDoctorBadge');\n   if(!b && connection){\n     b=document.createElement('span');\n     b.id='historiaDoctorBadge';\n     connection.insertAdjacentElement('afterend',b);\n   }\n   return b;\n }\n\n async function getStatus(){\n   const r=await fetch('/api/historia-bridge/status?t='+Date.now(),{\n     cache:'no-store',\n     headers:{'Cache-Control':'no-cache'}\n   });\n   if(!r.ok)throw new Error('HTTP '+r.status);\n   return await r.json();\n }\n\n function age(seconds){\n   seconds=Number(seconds);\n   if(!Number.isFinite(seconds))return '';\n   if(seconds<60)return 'ahora';\n   const m=Math.floor(seconds/60);\n   if(m<60)return 'hace '+m+' min';\n   return 'hace '+Math.floor(m/60)+' h';\n }\n\n async function refresh(){\n   const b=ensureBadge();\n   if(!b)return;\n   try{\n     const d=await getStatus();\n     b.className='';\n\n     if(d.lan_online){\n       b.classList.add('lan');\n       b.textContent='Historia: LAN conectada';\n       const ms=Number(d.lan_latency_ms);\n       const latency=Number.isFinite(ms)&&ms>=0?' · '+ms+' ms':'';\n       b.title='PC del doctor accesible por red local'\n         +(d.lan_host?' · '+d.lan_host:'')\n         +(d.lan_version?' · v'+d.lan_version:'')\n         +latency\n         +(d.configured?' · Neon de respaldo activo':' · falta enlazar respaldo Neon');\n       return;\n     }\n\n     const pending=Number(d.pending||0);\n     if(d.configured && d.cloud_reachable){\n       b.classList.add('cloud');\n       if(d.doctor_online){\n         b.textContent='Historia: nube conectada';\n         b.title='La LAN no respondió; Historia reportó presencia en Neon '+age(d.doctor_last_seen_age_seconds)+'.';\n       }else{\n         b.textContent=pending>0?'Historia: nube · '+pending+' por enviar':'Historia: nube lista';\n         b.title='La PC del doctor no responde por LAN. Los atendidos quedan guardados en Neon.';\n       }\n       return;\n     }\n\n     b.classList.add('error');\n     if(pending>0){\n       b.textContent='Historia: '+pending+' pendientes';\n       b.title='Sin LAN ni nube. Los atendidos siguen protegidos en la cola local.';\n     }else{\n       b.textContent='Historia: sin conexión';\n       b.title='No responde por LAN y el respaldo de Neon no está disponible.';\n     }\n   }catch(err){\n     b.className='error';\n     b.textContent='Historia: sin comprobar';\n     b.title=String(err?.message||err||'');\n   }\n }\n\n async function version(){\n   try{\n     const r=await fetch('/api/version?t='+Date.now(),{cache:'no-store'});\n     if(!r.ok)return;\n     const d=await r.json();\n     const holder=document.querySelector('#recepcionRealVersion');\n     if(holder)holder.textContent='Recepción v'+String(d.version||VERSION);\n   }catch(_e){}\n }\n\n function boot(){refresh();version()}\n if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();\n window.addEventListener('focus',boot);\n document.addEventListener('visibilitychange',()=>{if(!document.hidden)boot()});\n setInterval(refresh,7000);\n})();\n"
-core.V460_OVERLAY_CSS = (getattr(core, 'V460_OVERLAY_CSS', '') or '') + '\n' + V4520_CSS
-core.V460_OVERLAY_JS = (getattr(core, 'V460_OVERLAY_JS', '') or '') + '\n' + V4520_JS
 
-@app.get('/api/v4520/health')
-def v4520_health(user=core.Depends(core.current_user)):
+V4520_CSS = r"""
+#historiaDoctorBadge.lan{
+  border-color:rgba(68,201,124,.58)!important;color:#e3faeb!important;
+  background:rgba(27,116,68,.28)!important
+}
+#historiaDoctorBadge.lan:before{
+  background:#35d174!important;box-shadow:0 0 0 3px rgba(53,209,116,.18)!important
+}
+"""
+
+V4520_JS = r"""
+;(()=>{
+ if(window.__historyLanStatus)return;window.__historyLanStatus=true;
+ const q=(s,r=document)=>r.querySelector(s);
+ function ensureBadge(){const c=q('#connectionBadge');let b=q('#historiaDoctorBadge');if(!b&&c){b=document.createElement('span');b.id='historiaDoctorBadge';c.insertAdjacentElement('afterend',b)}return b}
+ async function getStatus(){const r=await fetch('/api/historia-bridge/status?t='+Date.now(),{cache:'no-store',headers:{'Cache-Control':'no-cache'}});if(!r.ok)throw Error('HTTP '+r.status);return r.json()}
+ async function refresh(){const b=ensureBadge();if(!b)return;try{const d=await getStatus();b.className='';const pending=Number(d.pending||0);if(d.lan_online){b.classList.add('lan');b.textContent='Historia: LAN conectada';const ms=Number(d.lan_latency_ms);b.title='PC del doctor accesible por red local'+(d.lan_host?' · '+d.lan_host:'')+(d.lan_version?' · v'+d.lan_version:'')+(Number.isFinite(ms)&&ms>=0?' · '+ms+' ms':'')+' · Pacientes en espera viajan por LAN';return}b.classList.add('error');if(pending>0){b.textContent='Historia: '+pending+' pendientes';b.title='La PC del doctor no responde todavía. Los turnos están protegidos en la cola local y se reintentarán por LAN.'}else{b.textContent='Historia: LAN sin conexión';b.title='La PC del doctor no responde en la red local. La vinculación de fichas por Neon es independiente.'}}catch(err){b.className='error';b.textContent='Historia: sin comprobar';b.title=String(err?.message||err||'')}}
+ function boot(){refresh()}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();window.addEventListener('focus',boot);document.addEventListener('visibilitychange',()=>{if(!document.hidden)boot()});setInterval(refresh,10000);
+})();
+"""
+core.V460_OVERLAY_CSS = (getattr(core, "V460_OVERLAY_CSS", "") or "") + "\n" + V4520_CSS
+core.V460_OVERLAY_JS = (getattr(core, "V460_OVERLAY_JS", "") or "") + "\n" + V4520_JS
+
+@app.get("/api/v4520/health")
+def history_transport_health(user=core.Depends(core.current_user)):
     state = historia_bridge.bridge_status()
-    return {'ok': True, 'version': APP_VERSION, 'hybrid_historia': True, 'lan_online': bool(state.get('lan_online')), 'cloud_configured': bool(state.get('configured')), 'local_outbox_pending': int(state.get('pending') or 0), 'database_schema_changes': False}
+    return {
+        "ok": True,
+        "version": APP_VERSION,
+        "lan_online": bool(state.get("lan_online")),
+        "local_outbox_pending": int(state.get("pending") or 0),
+        "waiting_queue_transport": "lan_only",
+        "cloud_queue_write": False,
+        "database_schema_changes": False,
+    }
+
 PATCH_BOOT_OK = True

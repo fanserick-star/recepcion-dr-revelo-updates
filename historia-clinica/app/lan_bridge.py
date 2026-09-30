@@ -87,6 +87,7 @@ class LanService:
         self._last_reception_ip = ip
 
     def _resolve_patient(self, conn: sqlite3.Connection, reception_patient_id: str, identification: str) -> str | None:
+        """Only consume a link already created by Reception/cloud sync."""
         try:
             row = conn.execute(
                 "SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=? LIMIT 1",
@@ -96,39 +97,7 @@ class LanService:
                 return str(row[0])
         except sqlite3.Error:
             pass
-
-        ident = _normalize_id(identification)
-        if not ident:
-            return None
-
-        rows = conn.execute(
-            "SELECT id FROM patients WHERE national_id_search=? LIMIT 2",
-            (ident,),
-        ).fetchall()
-        if len(rows) != 1:
-            return None
-
-        clinical_id = str(rows[0][0])
-        stamp = _now()
-        try:
-            conn.execute(
-                """
-                INSERT INTO patient_links(
-                  reception_patient_id,clinical_patient_id,matched_by,verified,
-                  verified_at,created_at,updated_at
-                ) VALUES(?,?,?,?,?,?,?)
-                ON CONFLICT(reception_patient_id) DO UPDATE SET
-                  clinical_patient_id=excluded.clinical_patient_id,
-                  matched_by=excluded.matched_by,
-                  verified=1,
-                  verified_at=excluded.verified_at,
-                  updated_at=excluded.updated_at
-                """,
-                (reception_patient_id, clinical_id, "lan_identification", 1, stamp, stamp, stamp),
-            )
-        except sqlite3.Error:
-            pass
-        return clinical_id
+        return None
 
     # v1.3.83 — identidad clínica segura por LAN para Recepción.
 

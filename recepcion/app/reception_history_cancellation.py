@@ -1,8 +1,8 @@
 from __future__ import annotations
-import reception_history_attention_type as _dep_history_attention_type
+import reception_history_transport as _dep_history_transport
 import historia_bridge
-core = _dep_history_attention_type.core
-app = _dep_history_attention_type.app
+core = _dep_history_transport.core
+app = _dep_history_transport.app
 APP_VERSION = '4.5.22'
 core.APP_VERSION = APP_VERSION
 
@@ -71,5 +71,5 @@ if _old_restore_trash is not None:
 
 @app.get('/api/v4522/health')
 def v4522_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'historia_delete_sync': True, 'historia_restore_sync': True, 'signed_history_protected': True, 'transport': 'lan-first-cloud-backup', 'database_schema_changes': False}
+    return {'ok': True, 'version': APP_VERSION, 'historia_delete_sync': True, 'historia_restore_sync': True, 'signed_history_protected': True, 'transport': 'lan-only', 'database_schema_changes': False}
 PATCH_BOOT_OK = True

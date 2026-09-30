@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.24",
-  "app_version": "4.6.24",
-  "runtime_version": "4.6.24",
+  "version": "4.6.25",
+  "app_version": "4.6.25",
+  "runtime_version": "4.6.25",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -38,10 +38,8 @@
     "reception_billing_non_billable.py",
     "reception_billing_optional_email.py",
     "reception_consultation_discount.py",
-    "reception_history_attention_type.py",
     "reception_history_bridge.py",
     "reception_history_cancellation.py",
-    "reception_history_patient_details.py",
     "reception_history_transport.py",
     "reception_interface_cleanup.py",
     "reception_interface_recovery.py",
@@ -72,9 +70,7 @@
     "reception_update_restart.py",
     "reception_version_display.py",
     "reception_version_sidebar.py",
-    "reception_history_identity_consolidated.py",
-    "reception_history_name_lookup.py",
-    "reception_history_requeue_guard.py"
+    "reception_history_identity_consolidated.py"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -111,10 +107,8 @@
     "reception_billing_non_billable.py",
     "reception_billing_optional_email.py",
     "reception_consultation_discount.py",
-    "reception_history_attention_type.py",
     "reception_history_bridge.py",
     "reception_history_cancellation.py",
-    "reception_history_patient_details.py",
     "reception_history_transport.py",
     "reception_interface_cleanup.py",
     "reception_interface_recovery.py",
@@ -145,13 +139,11 @@
     "reception_update_restart.py",
     "reception_version_display.py",
     "reception_version_sidebar.py",
-    "reception_history_identity_consolidated.py",
-    "reception_history_name_lookup.py",
-    "reception_history_requeue_guard.py"
+    "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Recupera la configuración Neon de Recepción cuando .env tiene BOM UTF-8, sin tocar datos ni credenciales.",
-    "previous_version": "4.6.23",
+    "purpose": "Consolida la vinculación Recepción-Historia: Neon sólo identidad/vínculos y LAN sólo Pacientes en espera; elimina capas obsoletas y reduce acciones redundantes.",
+    "previous_version": "4.6.24",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -276,7 +268,19 @@
     "database_url_recovery_from_bom": true,
     "historia_database_url_separation_preserved": true,
     "cloud_data_changes": false,
-    "lan_logic_changes": false
+    "lan_logic_changes": false,
+    "legacy_cloud_waiting_outbox_removed": true,
+    "history_handoff_single_wrapper": true,
+    "history_attention_type_wrapper_removed": true,
+    "history_patient_details_wrapper_removed": true,
+    "history_requeue_guard_removed": true,
+    "history_name_lookup_layer_removed": true,
+    "linked_attention_change_button_removed": true,
+    "profile_change_link_explicit": true,
+    "manual_link_double_confirmation": true,
+    "demographics_name_birth_conflict_guard": true,
+    "history_schema_validation_cached": true,
+    "procedure_recovery_temporary_layer_removed": true
   },
   "channel": "launcher-v1-stable"
 }
