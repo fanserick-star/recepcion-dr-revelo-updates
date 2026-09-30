@@ -1,0 +1,71 @@
+name: TEMP Consolidate WhatsApp Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tmp-consolidate-whatsapp-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Materializar Worker actual sin cadena en runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python build/whatsapp_v2623_autoagenda_recovery/build_worker_v2623.py
+          cp cloudflare/WHATSAPP_WORKER_v2_6_23_AUTOAGENDA_RECOVERY_STANDALONE.js cloudflare/whatsapp_worker.js
+          cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
+          node --check /tmp/whatsapp_worker.mjs
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('cloudflare/whatsapp_worker.js').read_text(encoding='utf-8')
+          required=[
+            'worker_version: "2.6.23"',
+            'scheduler_created_at_timezone: "utc_storage_v1"',
+            'scheduler_booking_grace: "12h_v1"',
+            'autoagenda_recovery: "one_time_reclaim_v1"',
+            'autoagenda_authorization_mode: "env_or_db_v2"',
+            'autoagenda_forward: "authorized_v1"',
+            'autoagenda_enrollment: "one_time_v1"',
+            'autoagenda_time_parser: "ampm_v2"',
+            'autoagenda_week_guard: "monday_sunday_v1"',
+            'diagnostics_export: "cf_token_aesgcm_v1"',
+            'AUTOAGENDA_RECOVERY_TOKEN_SHA256',
+            '__CF_ACCOUNT_ID__',
+          ]
+          for marker in required:
+              assert marker in s, marker
+          assert '7Futs0wTVk95' not in s
+          print('CANONICAL_WHATSAPP_WORKER_OK', len(s))
+          PY
+
+      - name: Guardar fuente canónica
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add cloudflare/whatsapp_worker.js
+          if git diff --cached --quiet; then
+            echo 'Fuente canónica ya estaba actualizada.'
+            exit 0
+          fi
+          git commit -m 'refactor: add canonical WhatsApp worker source'
+          git pull --rebase origin main
+          git push origin HEAD:main
