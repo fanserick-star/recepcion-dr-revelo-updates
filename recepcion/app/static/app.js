@@ -183,8 +183,7 @@ function openProtectionStatus(){
   setTimeout(()=>document.querySelector('#protectionPanel')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 }
 const EXTERNAL_APP_URLS={
-  confirmafy:'https://confirmafy.com/app/calendar',
-  facturero:'https://app.factureromovil.com/documentos/facturas'
+  confirmafy:'https://confirmafy.com/app/calendar'
 };
 async function openExternalApp(target){
   const key=String(target||'').toLowerCase(),fallback=EXTERNAL_APP_URLS[key];
@@ -2028,7 +2027,7 @@ function billingStatusBadge(state){
   return `<span class="billing-status ${String(state).toLowerCase()}">${label}</span>`;
 }
 function billingMissingFields(p={}){
-  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;
+  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out;
 }
 function billingServicesHtml(g){
   return g.items.map(x=>`<div class="billing-line"><span>${serviceBadge(x.visit)}</span><b>${money(x.visit.valor)}</b></div>`).join('');
@@ -2174,7 +2173,7 @@ async function copyBillingData(patientId,fecha){
     const currentIndex=eligible.findIndex(x=>Number(x.patient.id)===Number(patientId)&&x.fecha===fecha);
     const next=currentIndex>=0?eligible[currentIndex+1]:null;
     const nextButton=next?`<button class="billing-next-patient" onclick="copyBillingData(${next.patient.id},'${next.fecha}')">Siguiente paciente →</button>`:`<button class="billing-next-patient" disabled>Último paciente</button>`;
-    openModal(`<div class="billing-copy-sheet"><div class="billing-copy-head"><div><h2>Datos de facturación</h2><p class="muted">Estos son los datos que se usarán para la factura electrónica.</p><div class="billing-copy-recipient"><span>${r.alternate?'FACTURA CON OTROS DATOS':'DATOS DEL PACIENTE'}</span><b>${esc(recipientName)}</b><button onclick="openBillingRecipientEditor(${Number(patientId)},'${String(fecha).slice(0,10)}')">Editar</button></div></div><button class="external-billing-link" onclick="openExternalApp(\'facturero\')">Abrir Facturero Móvil ↗</button></div>
+    openModal(`<div class="billing-copy-sheet"><div class="billing-copy-head"><div><h2>Datos de facturación</h2><p class="muted">Estos son los datos que se usarán para la factura electrónica.</p><div class="billing-copy-recipient"><span>${r.alternate?'FACTURA CON OTROS DATOS':'DATOS DEL PACIENTE'}</span><b>${esc(recipientName)}</b><button onclick="openBillingRecipientEditor(${Number(patientId)},'${String(fecha).slice(0,10)}')">Editar</button></div></div></div>
       <div class="billing-copy-grid">
         ${billingFieldRow('Identificación',cedula)}
         ${billingFieldRow('Razón social o nombre',recipientName)}

@@ -1,10 +1,10 @@
 from __future__ import annotations
-import reception_billing_optional_email as _dep_billing_optional_email
+import reception_update_launcher as _dep_update_launcher
 import os as _os
 import re as _re
 from datetime import date as _date, datetime as _datetime
-core = _dep_billing_optional_email.core
-app = _dep_billing_optional_email.app
+core = _dep_update_launcher.core
+app = _dep_update_launcher.app
 APP_VERSION = '4.4.85'
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False

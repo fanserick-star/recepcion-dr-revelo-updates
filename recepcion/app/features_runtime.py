@@ -27,9 +27,7 @@ import reception_billing_discard
 import reception_billing_actions
 import reception_interface_cleanup
 import reception_billing_issued_filters
-import reception_billing_modal_cleanup
 import reception_update_launcher
-import reception_billing_optional_email
 import reception_payment_proof
 import reception_printing_menu
 import reception_payment_proof_margins
@@ -71,9 +69,7 @@ FEATURE_MODULES = (
     reception_billing_actions,
     reception_interface_cleanup,
     reception_billing_issued_filters,
-    reception_billing_modal_cleanup,
     reception_update_launcher,
-    reception_billing_optional_email,
     reception_payment_proof,
     reception_printing_menu,
     reception_payment_proof_margins,
