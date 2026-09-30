@@ -1,0 +1,113 @@
+name: Finalize billing cleanup candidate
+
+on:
+  push:
+    branches: [billing-cleanup-20260930]
+    paths:
+      - .github/workflows/finalize-billing-cleanup-candidate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          ref: billing-cleanup-20260930
+          fetch-depth: 0
+
+      - name: Finish source-level cleanup
+        run: |
+          python - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+          app=Path('recepcion/app')
+
+          core=app/'core_runtime.py'
+          s=core.read_text(encoding='utf-8')
+          needle='    "facturero": "https://app.factureromovil.com/documentos/facturas",\n'
+          if s.count(needle)!=1:
+              raise SystemExit(f'Facturero backend destination count={s.count(needle)}')
+          core.write_text(s.replace(needle,'',1),encoding='utf-8')
+
+          js_path=app/'static'/'app.js'
+          js=js_path.read_text(encoding='utf-8')
+          old="$('#billingSummary').innerHTML=`<button onclick=\"setBillingStatus('PENDIENTE')\"><b>${d.counts?.PENDIENTE||0}</b><span>Pendientes</span></button><button onclick=\"setBillingStatus('APROBADA')\"><b>${d.counts?.APROBADA||0}</b><span>Aprobadas</span></button><button onclick=\"setBillingStatus('EMITIDA')\"><b>${d.counts?.EMITIDA||0}</b><span>Emitidas</span></button>`;"
+          new="$('#billingSummary').innerHTML=`<button onclick=\"setBillingStatus('PENDIENTE')\"><b>${d.counts?.PENDIENTE||0}</b><span>Pendientes</span></button><button onclick=\"setBillingStatus('EMITIDA')\"><b>${d.counts?.EMITIDA||0}</b><span>Emitidas</span></button>`;"
+          if js.count(old)!=1:
+              raise SystemExit(f'Billing summary source count={js.count(old)}')
+          js_path.write_text(js.replace(old,new,1),encoding='utf-8')
+
+          cleanup=app/'reception_interface_cleanup.py'
+          c=cleanup.read_text(encoding='utf-8')
+          old_block='''FACTURERO_DESTINATION_REMOVED = False\n\ntry:\n    destinations = getattr(core, "EXTERNAL_DESTINATIONS", None)\n    if isinstance(destinations, dict):\n        FACTURERO_DESTINATION_REMOVED = destinations.pop("facturero", None) is not None\n\n    # Only compatibility CSS remains. Billing source itself no longer creates\n'''
+          new_block='''FACTURERO_DESTINATION_REMOVED = "facturero" not in getattr(core, "EXTERNAL_DESTINATIONS", {})\n\ntry:\n    # Only compatibility CSS remains. Billing source itself no longer creates\n'''
+          if c.count(old_block)!=1:
+              raise SystemExit(f'Interface cleanup Facturero shim count={c.count(old_block)}')
+          cleanup.write_text(c.replace(old_block,new_block,1),encoding='utf-8')
+
+          manifest_path=app/'update_manifest.json'
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+          notes=manifest['notes']
+          notes['billing_logic_changes']=True
+          notes['release_channel_modified']=False
+          notes['billing_approved_tab_removed_at_source']=True
+          notes['billing_facturero_backend_destination_removed']=True
+          notes['billing_facturero_runtime_pop_required']=False
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('SOURCE_LEVEL_CLEANUP_OK')
+          PY
+
+      - name: Syntax checks without runtime caches
+        run: |
+          python - <<'PY'
+          import ast
+          from pathlib import Path
+          for path in Path('recepcion/app').rglob('*.py'):
+              ast.parse(path.read_text(encoding='utf-8'),filename=str(path))
+          print('PYTHON_AST_OK')
+          PY
+          node --check recepcion/app/static/app.js
+
+      - name: Canonical and runtime validators
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+
+      - name: Final billing invariants
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          app=Path('recepcion/app')
+          core=(app/'core_runtime.py').read_text(encoding='utf-8').lower()
+          js=(app/'static/app.js').read_text(encoding='utf-8')
+          assert 'factureromovil' not in core
+          assert "setBillingStatus('APROBADA')" not in js
+          assert "setBillingStatus('PENDIENTE')" in js and "setBillingStatus('EMITIDA')" in js
+          assert "if(email&&!email.includes('@'))" in js
+          assert 'discardPendingBilling' in js
+          assert '/api/billing/print-data-form' in js
+          assert not any(app.rglob('*.pyc'))
+          m=json.loads((app/'update_manifest.json').read_text(encoding='utf-8'))
+          assert m['version']=='4.6.26'
+          assert m['notes']['candidate_only'] is True
+          assert m['notes']['billing_logic_changes'] is True
+          assert m['notes']['azur_logic_changes'] is False
+          assert m['notes']['database_schema_changes'] is False
+          assert m['notes']['release_channel_modified'] is False
+          print('FINAL_BILLING_INVARIANTS_OK')
+          PY
+
+      - name: Remove temporary workflow and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/finalize-billing-cleanup-candidate.yml
+          git add recepcion/app
+          git commit -m "refactor: finish canonical billing cleanup"
+          git push origin HEAD:billing-cleanup-20260930
