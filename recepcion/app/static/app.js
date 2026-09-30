@@ -183,8 +183,7 @@ function openProtectionStatus(){
   setTimeout(()=>document.querySelector('#protectionPanel')?.scrollIntoView({behavior:'smooth',block:'start'}),80);
 }
 const EXTERNAL_APP_URLS={
-  confirmafy:'https://confirmafy.com/app/calendar',
-  facturero:'https://app.factureromovil.com/documentos/facturas'
+  confirmafy:'https://confirmafy.com/app/calendar'
 };
 async function openExternalApp(target){
   const key=String(target||'').toLowerCase(),fallback=EXTERNAL_APP_URLS[key];
@@ -1901,6 +1900,7 @@ async function saveAgendaAppointment(appointmentId=null){try{const p=agendaPatie
 async function deleteAgendaAppointment(id){if(!confirmDeletion('¿Eliminar esta cita y liberar el horario? La ficha del paciente no se borrará.'))return;try{await singleFlightMutation(`appointment:delete:${id}`,async()=>{await api(`/api/agenda/appointments/${id}`,{method:'DELETE'});invalidateAgendaSlotCache();invalidateAttentionWeekCache();closeModal();await loadAgenda()},'Eliminando…')}catch(e){alert(e.message)}}
 let billingGroupsCache=[];
 let billingPreferencesCache={};
+let billingViewState='PENDIENTE';
 function billingPreferenceForPatient(patientId){return billingPreferencesCache[String(Number(patientId))]||null}
 function billingRecipientDraft(patientId,fecha){const p=billingPreferenceForPatient(patientId);return p?.enabled?{alternate:true,identificacion:p.identificacion||'',nombre:p.nombre||'',direccion:p.direccion||'',telefono:p.telefono||'',correo:p.correo||''}:null}
 function billingRecipientFromPatient(p={}){return {alternate:false,identificacion:String(p.cedula||'').trim(),nombre:String(p.nombre||'').trim(),direccion:String(p.lugar||'').trim(),telefono:String(p.celular||'').replace(/[^0-9]/g,''),correo:String(p.correo||'').trim().toLowerCase()}}
@@ -1912,18 +1912,27 @@ function billingRecipientIdInput(el){el.value=String(el.value||'').replace(/\D/g
 function completeBillingEmailDomain(domain){const input=$('#brEmail');if(!input)return;const current=String(input.value||'').trim().toLowerCase();const local=(current.includes('@')?current.split('@')[0]:current).trim();if(!local){input.focus();return}input.value=local+String(domain||'').toLowerCase();input.focus()}
 function billingRecipientMode(mode){const alt=mode==='alternate',box=$('#billingRecipientAlt'),patient=$('#billingRecipientPatient');box?.classList.toggle('hidden',!alt);patient?.classList.toggle('selected',!alt);$('#billingRecipientOther')?.classList.toggle('selected',alt);if($('#brAlternate'))$('#brAlternate').value=alt?'1':'0';if(alt)setTimeout(()=>$('#brId')?.focus(),0)}
 function findBillingGroupCached(patientId,fecha){return billingGroupsCache.find(x=>Number(x.patient.id)===Number(patientId)&&x.fecha===String(fecha).slice(0,10))||null}
+async function printBillingDataForm(button=null){
+  const old=button?.textContent||'';
+  if(button){button.disabled=true;button.textContent='Enviando…'}
+  try{
+    const out=await api('/api/billing/print-data-form',{method:'POST',body:'{}'});
+    if(button){button.textContent='✓ Enviado';setTimeout(()=>{if(button.isConnected){button.textContent=old||'Imprimir formulario';button.disabled=false}},1300)}
+    return out;
+  }catch(e){if(button){button.disabled=false;button.textContent=old||'Imprimir formulario'}alert(e.message||String(e));return null}
+}
 async function openBillingRecipientEditor(patientId,fecha=null){
   let p=null;if(fecha){const g=findBillingGroupCached(patientId,fecha);p=g?.patient||null}if(!p)p=await api('/api/patients/'+patientId);
   let pref=billingPreferenceForPatient(patientId);if(pref===undefined||pref===null){try{const d=await api(`/api/patients/${Number(patientId)}/billing-preference`);pref=d.preference;if(pref)billingPreferencesCache[String(Number(patientId))]=pref}catch{}}
   const alt=!!pref?.enabled,d=alt?{identificacion:pref.identificacion,nombre:pref.nombre,direccion:pref.direccion,telefono:pref.telefono,correo:pref.correo}:{identificacion:'',nombre:'',direccion:'',telefono:'',correo:''};
-  openModal(`<div class="billing-recipient-editor"><div class="modal-form-heading"><h2>Preferencia de facturación</h2><p>La ficha clínica seguirá a nombre de ${esc(p.nombre||'paciente')}. Si eliges otra persona o empresa, esta preferencia se guardará para las próximas facturas.</p></div><input id="brAlternate" type="hidden" value="${alt?'1':'0'}"><div class="billing-recipient-modes"><button id="billingRecipientPatient" class="${alt?'':'selected'}" type="button" onclick="billingRecipientMode('patient')"><b>Facturar al paciente</b><span>Usar su ficha normal</span></button><button id="billingRecipientOther" class="${alt?'selected':''}" type="button" onclick="billingRecipientMode('alternate')"><b>Otra persona o empresa</b><span>Guardar como preferencia</span></button></div><div id="billingRecipientAlt" class="billing-recipient-alt ${alt?'':'hidden'}"><div class="form-grid"><div class="form-field"><label>Cédula o RUC</label><input id="brId" inputmode="numeric" maxlength="13" value="${esc(d.identificacion||'')}" oninput="billingRecipientIdInput(this)"></div><div class="form-field"><label>Nombre o razón social</label><input id="brName" class="uppercase-search" value="${esc(d.nombre||'')}" oninput="upperSearchInput(this)"></div><div class="form-field"><label>Dirección</label><input id="brAddress" value="${esc(d.direccion||'')}"></div><div class="form-field"><label>Teléfono</label><input id="brPhone" inputmode="numeric" value="${esc(d.telefono||'')}" oninput="formatPhoneInput(this)"></div><div class="form-field email-field billing-email-field"><label>Correo</label><input id="brEmail" type="email" value="${esc(d.correo||'')}" oninput="lowerEmailInput(this)"><div class="email-domain-chips"><button type="button" onclick="completeBillingEmailDomain('@gmail.com')">@gmail.com</button><button type="button" onclick="completeBillingEmailDomain('@hotmail.com')">@hotmail.com</button><button type="button" onclick="completeBillingEmailDomain('@outlook.com')">@outlook.com</button></div></div></div><div class="billing-recipient-help">Esta preferencia se guardará en la base y la respetarán tanto la emisión individual como “Emitir todas”.</div></div><div class="actions"><button onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveBillingRecipientEditor(${Number(patientId)},${fecha?`'${String(fecha).slice(0,10)}'`:'null'})">Guardar preferencia</button></div></div>`)
+  openModal(`<div class="billing-recipient-editor"><div class="modal-form-heading"><h2>Preferencia de facturación</h2><p>La ficha clínica seguirá a nombre de ${esc(p.nombre||'paciente')}. Si eliges otra persona o empresa, esta preferencia se guardará para las próximas facturas.</p></div><input id="brAlternate" type="hidden" value="${alt?'1':'0'}"><div class="billing-recipient-modes"><button id="billingRecipientPatient" class="${alt?'':'selected'}" type="button" onclick="billingRecipientMode('patient')"><b>Facturar al paciente</b><span>Usar su ficha normal</span></button><button id="billingRecipientOther" class="${alt?'selected':''}" type="button" onclick="billingRecipientMode('alternate')"><b>Otra persona o empresa</b><span>Guardar como preferencia</span></button></div><div id="billingRecipientAlt" class="billing-recipient-alt ${alt?'':'hidden'}"><div class="form-grid"><div class="form-field"><label>Cédula o RUC</label><input id="brId" inputmode="numeric" maxlength="13" value="${esc(d.identificacion||'')}" oninput="billingRecipientIdInput(this)"></div><div class="form-field"><label>Nombre o razón social</label><input id="brName" class="uppercase-search" value="${esc(d.nombre||'')}" oninput="upperSearchInput(this)"></div><div class="form-field"><label>Dirección</label><input id="brAddress" value="${esc(d.direccion||'')}"></div><div class="form-field"><label>Teléfono</label><input id="brPhone" inputmode="numeric" value="${esc(d.telefono||'')}" oninput="formatPhoneInput(this)"></div><div class="form-field email-field billing-email-field"><label>Correo (opcional)</label><input id="brEmail" type="email" value="${esc(d.correo||'')}" oninput="lowerEmailInput(this)"><div class="email-domain-chips"><button type="button" onclick="completeBillingEmailDomain('@gmail.com')">@gmail.com</button><button type="button" onclick="completeBillingEmailDomain('@hotmail.com')">@hotmail.com</button><button type="button" onclick="completeBillingEmailDomain('@outlook.com')">@outlook.com</button></div></div></div><div class="billing-data-form-actions"><div><b>¿El paciente llenará otros datos?</b><small>Imprime una hoja térmica para completar los datos de facturación.</small></div><button type="button" onclick="printBillingDataForm(this)">🖨 Imprimir formulario</button></div><div class="billing-recipient-help">Esta preferencia se guardará en la base y la respetarán tanto la emisión individual como “Emitir todas”.</div></div><div class="actions"><button onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveBillingRecipientEditor(${Number(patientId)},${fecha?`'${String(fecha).slice(0,10)}'`:'null'})">Guardar preferencia</button></div></div>`)
 }
 async function saveBillingRecipientEditor(patientId,fecha=null){
   const alt=$('#brAlternate')?.value==='1';
   try{
     if(!alt){await api(`/api/patients/${Number(patientId)}/billing-preference`,{method:'DELETE'});delete billingPreferencesCache[String(Number(patientId))];closeModal();if($('#billingList'))await loadBilling();return}
     const ident=String($('#brId')?.value||'').replace(/\D/g,''),name=String($('#brName')?.value||'').trim().toUpperCase(),email=String($('#brEmail')?.value||'').trim().toLowerCase();
-    if(![10,13].includes(ident.length))throw Error('La cédula debe tener 10 dígitos o el RUC 13 dígitos.');if(name.length<3)throw Error('Ingresa el nombre o razón social.');if(!email.includes('@'))throw Error('Ingresa un correo válido.');
+    if(![10,13].includes(ident.length))throw Error('La cédula debe tener 10 dígitos o el RUC 13 dígitos.');if(name.length<3)throw Error('Ingresa el nombre o razón social.');if(email&&!email.includes('@'))throw Error('Ingresa un correo válido.');
     const d=await api(`/api/patients/${Number(patientId)}/billing-preference`,{method:'PUT',body:JSON.stringify({enabled:true,identificacion:ident,nombre:name,direccion:String($('#brAddress')?.value||'').trim().toUpperCase(),telefono:String($('#brPhone')?.value||'').replace(/[^0-9]/g,''),correo:email})});if(d.preference)billingPreferencesCache[String(Number(patientId))]=d.preference;closeModal();if($('#billingList'))await loadBilling();
   }catch(e){alert(e.message)}
 }
@@ -2028,7 +2037,7 @@ function billingStatusBadge(state){
   return `<span class="billing-status ${String(state).toLowerCase()}">${label}</span>`;
 }
 function billingMissingFields(p={}){
-  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;
+  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out;
 }
 function billingServicesHtml(g){
   return g.items.map(x=>`<div class="billing-line"><span>${serviceBadge(x.visit)}</span><b>${money(x.visit.valor)}</b></div>`).join('');
@@ -2039,11 +2048,12 @@ function billingCardHtml(g){
   const state=billingGroupStatus(g), missing=billingMissingFields(g.patient), total=billingTotal(g), invoice=billingInvoiceNumber(g), alt=billingRecipientDraft(g.patient.id,g.fecha);
   let actions='';
   const recipientButton=`<button onclick="openBillingRecipientEditor(${g.patient.id},'${g.fecha}')">👤 ${alt?.alternate?'Editar datos de factura':'Facturar con otros datos'}</button>`;
+  const discardButton=`<button class="billing-discard" onclick="discardPendingBilling(${g.patient.id},'${g.fecha}',event)">🗑 Quitar de Por emitir</button>`;
   if(state==='PENDIENTE'){
     const approve=`<button class="primary billing-approve" onclick="approveBilling(${g.patient.id},'${g.fecha}')">✓ Aprobar para facturar</button>`;
-    actions=alt?.alternate?`${recipientButton}${approve}`:(missing.length?`<button class="complete-patient-list-btn" onclick="editPatientFromBilling(${g.patient.id})">✎ Completar datos</button>${recipientButton}`:`${recipientButton}${approve}`);
+    actions=alt?.alternate?`${discardButton}${recipientButton}${approve}`:(missing.length?`${discardButton}<button class="complete-patient-list-btn" onclick="editPatientFromBilling(${g.patient.id})">✎ Completar datos</button>${recipientButton}`:`${discardButton}${recipientButton}${approve}`);
   }else if(state==='APROBADA'){
-    actions=`${recipientButton}<button class="primary" onclick="previewAzurInvoice(${g.patient.id},'${g.fecha}')">⚡ Emitir en AZUR</button><button onclick="reopenBilling(${g.patient.id},'${g.fecha}')">Volver a pendiente</button><button onclick="markBillingEmitted(${g.patient.id},'${g.fecha}')">Marcar emitida manualmente</button>`;
+    actions=`${discardButton}${recipientButton}<button class="primary" onclick="previewAzurInvoice(${g.patient.id},'${g.fecha}')">⚡ Emitir en AZUR</button><button onclick="reopenBilling(${g.patient.id},'${g.fecha}')">Volver a pendiente</button><button onclick="markBillingEmitted(${g.patient.id},'${g.fecha}')">Marcar emitida manualmente</button>`;
   }else if(state==='EMITIDA'){
     actions=`${recipientButton}<button onclick="copyBillingData(${g.patient.id},'${g.fecha}')">📋 Ver datos de factura</button>`;
   }
@@ -2054,7 +2064,7 @@ function billingCardHtml(g){
 async function loadBilling(){
   try{
     const params=new URLSearchParams();
-    const estado=$('#bEstado')?.value||'PENDIENTE';
+    const estado=billingViewState||'PENDIENTE';
     params.set('estado',estado);
     const d=await api('/api/billing?'+params.toString());
     billingPreferencesCache={...billingPreferencesCache,...(d.billing_preferences||{})};
@@ -2066,7 +2076,7 @@ async function loadBilling(){
   }catch(e){$('#billingList').innerHTML=`<div class="panel err">${esc(e.message)}</div>`}
 }
 async function setBillingStatus(state){
-  if($('#bEstado'))$('#bEstado').value=state;await loadBilling();
+  billingViewState=String(state||'PENDIENTE').toUpperCase();await loadBilling();
 }
 async function reviewNextBilling(){
   try{
@@ -2075,7 +2085,7 @@ async function reviewNextBilling(){
     if(d.billing_preference)billingPreferencesCache[String(Number(d.patient?.id||0))]=d.billing_preference;
     const groups=billingGroupRows(d.items||[]).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
     if(!groups.length){alert('No hay facturas pendientes.');return}
-    const g=groups[0],p=g.patient||{},missing=missingPatientFields(p).filter(x=>['cédula','correo'].includes(x)),alt=billingRecipientDraft(p.id,g.fecha);
+    const g=groups[0],p=g.patient||{},missing=missingPatientFields(p).filter(x=>['cédula'].includes(x)),alt=billingRecipientDraft(p.id,g.fecha);
     const services=billingServicesHtml(g);const total=money(billingTotal(g));
     const warning=missing.length&&!alt?.alternate?`<div class="data-warning"><span class="warning-icon">⚠</span><span>Falta ${esc(missing.join(' y '))} para facturar con los datos del paciente.</span></div>`:'';
     const recipient=alt?.alternate?`<div class="billing-recipient-note"><span>Factura a</span><b>${esc(alt.nombre||'OTROS DATOS')}</b><small>${esc(billingRecipientKind(alt.identificacion))}: ${esc(alt.identificacion||'—')}</small></div>`:'';
@@ -2174,7 +2184,7 @@ async function copyBillingData(patientId,fecha){
     const currentIndex=eligible.findIndex(x=>Number(x.patient.id)===Number(patientId)&&x.fecha===fecha);
     const next=currentIndex>=0?eligible[currentIndex+1]:null;
     const nextButton=next?`<button class="billing-next-patient" onclick="copyBillingData(${next.patient.id},'${next.fecha}')">Siguiente paciente →</button>`:`<button class="billing-next-patient" disabled>Último paciente</button>`;
-    openModal(`<div class="billing-copy-sheet"><div class="billing-copy-head"><div><h2>Datos de facturación</h2><p class="muted">Estos son los datos que se usarán para la factura electrónica.</p><div class="billing-copy-recipient"><span>${r.alternate?'FACTURA CON OTROS DATOS':'DATOS DEL PACIENTE'}</span><b>${esc(recipientName)}</b><button onclick="openBillingRecipientEditor(${Number(patientId)},'${String(fecha).slice(0,10)}')">Editar</button></div></div><button class="external-billing-link" onclick="openExternalApp(\'facturero\')">Abrir Facturero Móvil ↗</button></div>
+    openModal(`<div class="billing-copy-sheet"><div class="billing-copy-head"><div><h2>Datos de facturación</h2><p class="muted">Estos son los datos que se usarán para la factura electrónica.</p><div class="billing-copy-recipient"><span>${r.alternate?'FACTURA CON OTROS DATOS':'DATOS DEL PACIENTE'}</span><b>${esc(recipientName)}</b><button onclick="openBillingRecipientEditor(${Number(patientId)},'${String(fecha).slice(0,10)}')">Editar</button></div></div></div>
       <div class="billing-copy-grid">
         ${billingFieldRow('Identificación',cedula)}
         ${billingFieldRow('Razón social o nombre',recipientName)}

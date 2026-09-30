@@ -1,14 +1,12 @@
 from __future__ import annotations
-import reception_billing_modal_cleanup as _dep_billing_modal_cleanup
+import core_runtime as core
 import os as _os
 import re as _re
 import subprocess as _subprocess
 import sys as _sys
 from pathlib import Path as _Path
-core = _dep_billing_modal_cleanup.core
-app = _dep_billing_modal_cleanup.app
-APP_VERSION = '4.4.82'
-core.APP_VERSION = APP_VERSION
+app = core.app
+APP_VERSION = getattr(core, 'APP_VERSION', '')
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
 try:

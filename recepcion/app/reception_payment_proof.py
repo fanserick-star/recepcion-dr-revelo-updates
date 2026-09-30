@@ -1,12 +1,10 @@
 from __future__ import annotations
-import reception_billing_optional_email as _dep_billing_optional_email
+import core_runtime as core
 import os as _os
 import re as _re
 from datetime import date as _date, datetime as _datetime
-core = _dep_billing_optional_email.core
-app = _dep_billing_optional_email.app
-APP_VERSION = '4.4.85'
-core.APP_VERSION = APP_VERSION
+app = core.app
+APP_VERSION = getattr(core, 'APP_VERSION', '')
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
 HOME_BUTTON_PATCHED = False
