@@ -1,0 +1,118 @@
+name: Apply safe Reception frontend consolidation
+
+on:
+  push:
+    branches:
+      - audit-general-reception-4629
+    paths:
+      - ".github/workflows/apply-general-reception-frontend-cleanup.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit-general-reception-4629
+          fetch-depth: 0
+      - name: Consolidate optional email and removed Facturero into canonical frontend
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('recepcion/app')
+          appjs=root/'static/app.js'
+          text=appjs.read_text(encoding='utf-8')
+
+          old="""function billingMissingFields(p={}){
+  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;
+}"""
+          new="""function billingMissingFields(p={}){
+  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out;
+}"""
+          if old not in text:
+              raise SystemExit('billingMissingFields canonical anchor not found')
+          text=text.replace(old,new,1)
+
+          old_urls="""const EXTERNAL_APP_URLS={
+  confirmafy:'https://confirmafy.com/app/calendar',
+  facturero:'https://app.factureromovil.com/documentos/facturas'
+};"""
+          new_urls="""const EXTERNAL_APP_URLS={
+  confirmafy:'https://confirmafy.com/app/calendar'
+};"""
+          if old_urls not in text:
+              raise SystemExit('Facturero destination anchor not found')
+          text=text.replace(old_urls,new_urls,1)
+
+          marker='Abrir Facturero Móvil ↗'
+          if marker not in text:
+              raise SystemExit('Facturero modal button anchor not found')
+          start=text.rfind('<button',0,text.index(marker))
+          end=text.index('</button>',text.index(marker))+len('</button>')
+          if start < 0:
+              raise SystemExit('Facturero button start not found')
+          text=text[:start]+text[end:]
+          if 'factureromovil' in text.lower() or 'Facturero Móvil' in text:
+              raise SystemExit('Facturero residue remains in canonical app.js')
+          appjs.write_text(text,encoding='utf-8')
+
+          p=root/'reception_payment_proof.py'
+          text=p.read_text(encoding='utf-8')
+          text=text.replace('import reception_billing_optional_email as _dep_billing_optional_email\n','import reception_update_launcher as _dep_update_launcher\n')
+          text=text.replace('core = _dep_billing_optional_email.core\napp = _dep_billing_optional_email.app\n','core = _dep_update_launcher.core\napp = _dep_update_launcher.app\n')
+          p.write_text(text,encoding='utf-8')
+
+          p=root/'reception_update_launcher.py'
+          text=p.read_text(encoding='utf-8')
+          text=text.replace('import reception_billing_modal_cleanup as _dep_billing_modal_cleanup\n','import reception_billing_issued_filters as _dep_billing_issued_filters\n')
+          text=text.replace('core = _dep_billing_modal_cleanup.core\napp = _dep_billing_modal_cleanup.app\n','core = _dep_billing_issued_filters.core\napp = _dep_billing_issued_filters.app\n')
+          p.write_text(text,encoding='utf-8')
+
+          features=root/'features_runtime.py'
+          text=features.read_text(encoding='utf-8')
+          for line in [
+              'import reception_billing_modal_cleanup\n',
+              'import reception_billing_optional_email\n',
+              '    reception_billing_modal_cleanup,\n',
+              '    reception_billing_optional_email,\n',
+          ]:
+              text=text.replace(line,'')
+          features.write_text(text,encoding='utf-8')
+
+          obsolete=['reception_billing_modal_cleanup.py','reception_billing_optional_email.py']
+          manifest_path=root/'update_manifest.json'
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+          for key in ('required_dependencies','copy'):
+              manifest[key]=[x for x in manifest.get(key,[]) if x not in obsolete]
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          for name in obsolete:
+              p=root/name
+              if p.exists(): p.unlink()
+
+          Path('.github/workflows/apply-general-reception-frontend-cleanup.yml').unlink()
+          PY
+
+          for removed in reception_billing_modal_cleanup reception_billing_optional_email; do
+            if grep -R --include='*.py' -n "$removed" recepcion/app; then
+              echo "Remaining reference to removed module: $removed" >&2
+              exit 1
+            fi
+          done
+          node --check recepcion/app/static/app.js
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          git diff --check
+      - name: Commit candidate frontend consolidation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Consolidate Reception billing frontend patches"
+          git push origin HEAD:audit-general-reception-4629
