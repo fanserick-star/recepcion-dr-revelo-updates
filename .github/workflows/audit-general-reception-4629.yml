@@ -80,3 +80,4 @@ jobs:
             find recepcion/app -type f \( -name '*.pyc' -o -path '*/__pycache__/*' \) -print
             exit 1
           fi
+# rerun after first conservative runtime cleanup
