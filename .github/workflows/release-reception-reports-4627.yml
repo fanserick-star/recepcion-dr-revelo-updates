@@ -25,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           RELEASE_SHA=$(git log -1 --format=%H -- recepcion/app/recepcion-version.json)
+          export RELEASE_SHA
           echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
