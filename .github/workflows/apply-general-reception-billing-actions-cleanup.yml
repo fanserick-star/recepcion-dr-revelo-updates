@@ -1,0 +1,68 @@
+name: Apply safe Reception billing actions cleanup
+
+on:
+  push:
+    branches:
+      - audit-general-reception-4629
+    paths:
+      - ".github/workflows/apply-general-reception-billing-actions-cleanup.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit-general-reception-4629
+          fetch-depth: 0
+      - name: Remove duplicate billing actions wrapper
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('recepcion/app')
+
+          p=root/'reception_interface_cleanup.py'
+          text=p.read_text(encoding='utf-8')
+          old='import reception_billing_actions as _dep_billing_actions\n'
+          if old not in text:
+              raise SystemExit('billing actions dependency not found')
+          text=text.replace(old,'import reception_billing_discard as _dep_billing_discard\n',1)
+          text=text.replace('core = _dep_billing_actions.core\napp = _dep_billing_actions.app\n','core = _dep_billing_discard.core\napp = _dep_billing_discard.app\n',1)
+          p.write_text(text,encoding='utf-8')
+
+          features=root/'features_runtime.py'
+          text=features.read_text(encoding='utf-8')
+          text=text.replace('import reception_billing_actions\n','')
+          text=text.replace('    reception_billing_actions,\n','')
+          features.write_text(text,encoding='utf-8')
+
+          manifest_path=root/'update_manifest.json'
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+          for key in ('required_dependencies','copy'):
+              manifest[key]=[x for x in manifest.get(key,[]) if x!='reception_billing_actions.py']
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          obsolete=root/'reception_billing_actions.py'
+          if obsolete.exists(): obsolete.unlink()
+          Path('.github/workflows/apply-general-reception-billing-actions-cleanup.yml').unlink()
+          PY
+          if grep -R --include='*.py' -n 'reception_billing_actions' recepcion/app; then
+            echo 'Remaining reference to reception_billing_actions' >&2
+            exit 1
+          fi
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          git diff --check
+      - name: Commit duplicate billing wrapper removal
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Remove duplicate Reception billing actions wrapper"
+          git push origin HEAD:audit-general-reception-4629
