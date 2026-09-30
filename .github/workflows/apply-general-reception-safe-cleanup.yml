@@ -57,6 +57,11 @@ jobs:
           text=text.replace('core = _dep_version_sidebar.core\napp = _dep_version_sidebar.app\n','core = _dep_history_bridge.core\napp = _dep_history_bridge.app\n')
           p.write_text(text,encoding='utf-8')
 
+          p=root/'reception_system_status.py'
+          text=p.read_text(encoding='utf-8')
+          text=text.replace("targets = [('reception_update_restart', 'V4482_JS'), ('reception_update_launcher', 'V4483_JS'),", "targets = [('reception_update_launcher', 'V4483_JS'),")
+          p.write_text(text,encoding='utf-8')
+
           obsolete=[
               'reception_update_restart.py',
               'reception_launcher_status.py',
@@ -73,7 +78,6 @@ jobs:
               path=root/name
               if path.exists(): path.unlink()
 
-          # This workflow is temporary and must not become part of the runtime history.
           Path('.github/workflows/apply-general-reception-safe-cleanup.yml').unlink()
           PY
 
