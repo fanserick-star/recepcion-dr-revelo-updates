@@ -39,6 +39,28 @@ jobs:
       - name: Apply billing consolidation
         run: python tools/stage_billing_cleanup.py
 
+      - name: Remove stale import dependencies
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          app=Path('recepcion/app')
+          replacements={
+            'reception_payment_proof.py':(
+              "import reception_billing_optional_email as _dep_billing_optional_email\nimport os as _os\nimport re as _re\nfrom datetime import date as _date, datetime as _datetime\ncore = _dep_billing_optional_email.core\napp = _dep_billing_optional_email.app\nAPP_VERSION = '4.4.85'\ncore.APP_VERSION = APP_VERSION",
+              "import core_runtime as core\nimport os as _os\nimport re as _re\nfrom datetime import date as _date, datetime as _datetime\napp = core.app\nAPP_VERSION = getattr(core, 'APP_VERSION', '')"
+            ),
+            'reception_update_restart.py':(
+              "import reception_billing_modal_cleanup as _dep_billing_modal_cleanup\nimport os as _os\nimport re as _re\nimport subprocess as _subprocess\nimport sys as _sys\nfrom pathlib import Path as _Path\ncore = _dep_billing_modal_cleanup.core\napp = _dep_billing_modal_cleanup.app\nAPP_VERSION = '4.4.82'\ncore.APP_VERSION = APP_VERSION",
+              "import core_runtime as core\nimport os as _os\nimport re as _re\nimport subprocess as _subprocess\nimport sys as _sys\nfrom pathlib import Path as _Path\napp = core.app\nAPP_VERSION = getattr(core, 'APP_VERSION', '')"
+            ),
+          }
+          for name,(old,new) in replacements.items():
+            p=app/name;s=p.read_text(encoding='utf-8')
+            if s.count(old)!=1: raise SystemExit(f'{name}: stale dependency header count={s.count(old)}')
+            p.write_text(s.replace(old,new,1),encoding='utf-8')
+          print('STALE_DEPENDENCIES_REMOVED')
+          PY
+
       - name: Validate Python syntax
         run: |
           python - <<'PY'
