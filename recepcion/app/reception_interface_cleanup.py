@@ -1,8 +1,8 @@
 from __future__ import annotations
-import reception_billing_actions as _dep_billing_actions
+import reception_billing_discard as _dep_billing_discard
 import re as _re
-core = _dep_billing_actions.core
-app = _dep_billing_actions.app
+core = _dep_billing_discard.core
+app = _dep_billing_discard.app
 APP_VERSION = '4.4.79'
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False

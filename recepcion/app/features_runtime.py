@@ -23,7 +23,6 @@ import reception_printing_queue
 import reception_attention_transaction
 import reception_billing_history
 import reception_billing_discard
-import reception_billing_actions
 import reception_interface_cleanup
 import reception_billing_issued_filters
 import reception_update_launcher
@@ -64,7 +63,6 @@ FEATURE_MODULES = (
     reception_attention_transaction,
     reception_billing_history,
     reception_billing_discard,
-    reception_billing_actions,
     reception_interface_cleanup,
     reception_billing_issued_filters,
     reception_update_launcher,
