@@ -23,6 +23,19 @@ jobs:
       - name: Create candidate branch
         run: git checkout -B billing-cleanup-20260930
 
+      - name: Normalize staging script quoting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/stage_billing_cleanup.py')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("discard = r'''", 'discard = r"""', 1)
+          s=s.replace("\n'''\nwrite(APP / \"reception_billing_discard.py\", discard)", "\n\"\"\"\nwrite(APP / \"reception_billing_discard.py\", discard)", 1)
+          s=s.replace("interface_cleanup = r'''", 'interface_cleanup = r"""', 1)
+          s=s.replace("\n'''\nwrite(APP / \"reception_interface_cleanup.py\", interface_cleanup)", "\n\"\"\"\nwrite(APP / \"reception_interface_cleanup.py\", interface_cleanup)", 1)
+          p.write_text(s,encoding='utf-8')
+          PY
+
       - name: Apply billing consolidation
         run: python tools/stage_billing_cleanup.py
 
