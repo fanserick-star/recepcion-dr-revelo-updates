@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.88",
-  "app_version": "1.3.88",
-  "runtime_version": "1.3.88",
+  "version": "1.3.89",
+  "app_version": "1.3.89",
+  "runtime_version": "1.3.89",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -16,6 +16,7 @@
     "cloud_tombstone_patch.py",
     "lan_bridge.py",
     "documentos_clinicos.py",
+    "material_pacientes.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64"
@@ -45,6 +46,7 @@
     "cloud_tombstone_patch.py",
     "lan_bridge.py",
     "documentos_clinicos.py",
+    "material_pacientes.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
@@ -52,9 +54,9 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Recepción queda como autoridad exclusiva de vínculos; Historia consume el clinical_patient_id por LAN y elimina autovinculaciones silenciosas.",
-    "previous_version": "1.3.87",
-    "functional_changes": false,
+    "purpose": "Agrega Material para pacientes con documentos y multimedia locales, mueve Recuperación fuera de la navegación principal y añade acceso rápido imprimible a la dieta para cálculos.",
+    "previous_version": "1.3.88",
+    "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -220,6 +222,17 @@
     "professional_dialogs_preserved": true,
     "waiting_room_avatar_removed": true,
     "procedure_proc_box_removed": true,
-    "doctor_silent_auto_link": false
+    "doctor_silent_auto_link": false,
+    "material_patients_enabled": true,
+    "material_local_only": true,
+    "material_neon_sync": false,
+    "material_multimedia_viewer": true,
+    "material_stream_upload": true,
+    "material_executable_types_blocked": true,
+    "material_diet_quick_print": true,
+    "material_consultation_quick_access": true,
+    "recovery_removed_from_primary_nav": true,
+    "recovery_available_in_settings": true,
+    "canonical_version_fallback_fixed": true
   }
 }
