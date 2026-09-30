@@ -3,6 +3,7 @@ from __future__ import annotations
 # Deterministic current runtime. No historical release registry.
 import json
 import os
+import re
 from pathlib import Path
 
 import core_runtime
@@ -131,6 +132,7 @@ def _install_versioned_overlay_home() -> None:
         ) as handle:
             html = handle.read()
         version = _read_current_app_version()
+        html = re.sub(r'(/static/app\.js\?v=)[^"\']+', rf'\g<1>{version}', html, count=1)
         addon = (
             f'<link rel="stylesheet" href="/v460/overlay.css?v={version}">'
             f'<link rel="stylesheet" href="/static/configuration.css?v={version}">'

@@ -74,7 +74,7 @@ function renderDataphone(d={}){
 window.loadConsolidatedDataphone=async function(){try{renderDataphone(await call('/api/v4506/dataphone/config'))}catch(e){const x=q('#configDataphoneSummary');if(x)x.textContent=e.message||e}};
 window.configSaveDataphone=async function(){
   try{const d=dpCache||{};const body={provider:q('#cfgDpProvider')?.value||'BENDO',model:q('#cfgDpModel')?.value||'Bendo Smart',environment:d.environment||'PRODUCCION',api_base_url:q('#cfgDpBase')?.value||'',api_key:q('#cfgDpKey')?.value||null,merchant_id:q('#cfgDpMerchant')?.value||'',terminal_id:q('#cfgDpTerminal')?.value||'',auth_header:q('#cfgDpAuthHeader')?.value||d.auth_header||'Authorization',auth_scheme:q('#cfgDpAuthScheme')?.value||d.auth_scheme||'Bearer',health_path:q('#cfgDpHealth')?.value||'',create_payment_path:q('#cfgDpCreate')?.value||'',status_path_template:q('#cfgDpStatus')?.value||'',create_body_template:q('#cfgDpTemplate')?.value||d.create_body_template||'',response_id_field:q('#cfgDpRespId')?.value||d.response_id_field||'id',response_status_field:q('#cfgDpRespStatus')?.value||d.response_status_field||'status',approved_values:d.approved_values||'APPROVED,COMPLETED,SUCCESS',declined_values:d.declined_values||'DECLINED,FAILED,REJECTED,CANCELLED',webhook_public_url:q('#cfgDpWebhook')?.value||'',webhook_secret:q('#cfgDpWebhookSecret')?.value||null};const out=await call('/api/v4506/dataphone/config',{method:'POST',body:JSON.stringify(body)});renderDataphone(out);alert('Configuración de Bendo guardada en esta PC.')}catch(e){alert(e.message||e)}};
-window.configValidateDataphone=async function(){try{const d=await call('/api/v4506/dataphone/validate',{method:'POST',body:'{}'});const target=q('#configDataphoneSummary');if(target)target.textContent=d.message||'';await window.loadConsolidatedDataphone()}catch(e){alert(e.message||e)}};
+window.configValidateDataphone=async function(){try{const d=await call('/api/v4506/dataphone/validate',{method:'POST',body:'{}'});await window.loadConsolidatedDataphone();const target=q('#configDataphoneDetail')||q('#configDataphoneSummary');if(target)target.textContent=d.message||''}catch(e){alert(e.message||e)}};
 window.configTestDataphone=async function(){try{const d=await call('/api/v4506/dataphone/test',{method:'POST',body:'{}'});const target=q('#configDataphoneSummary');if(target)target.textContent=d.message||'Prueba terminada.'}catch(e){alert(e.message||e)}};
 
 function fmtBytes(value){let n=Number(value||0);if(n<1024)return n+' B';if(n<1024*1024)return(n/1024).toFixed(1)+' KB';return(n/(1024*1024)).toFixed(1)+' MB'}
@@ -87,7 +87,24 @@ window.loadConsolidatedSystem=async function(deep=false){try{const d=await call(
 window.configPrintTest=async function(){try{const d=await call('/api/v4501/printing/test',{method:'POST',body:'{}'});alert('Prueba enviada a '+(d.printer||'la impresora')+'.')}catch(e){alert(e.message||e)}};
 window.configCleanupTemps=async function(){if(!confirm('¿Limpiar temporales antiguos y conservar intactos pacientes, bases y respaldos recientes?'))return;try{const d=await call('/api/v4501/maintenance/cleanup',{method:'POST',body:'{}'});alert(`Limpieza terminada. ${d.removed_files||0} archivo(s), ${d.removed_dirs||0} carpeta(s), ${fmtBytes(d.freed_bytes||0)} liberados.`);await window.loadConsolidatedSystem(false)}catch(e){alert(e.message||e)}};
 window.configLaunchUpdater=async function(){const status=q('#updateStatus');try{if(status)status.textContent='Abriendo launcher oficial…';let d;try{d=await call('/api/v4483/launch-updater',{method:'POST',body:'{}'})}catch(_e){d=await call('/api/app/restart',{method:'POST',body:'{}'})}if(status)status.textContent=d.message||'Launcher abierto. Si existe una actualización obligatoria, se instalará antes de continuar.'}catch(e){if(status)status.textContent=e.message||e;alert(e.message||e)}};
-window.configOpenAgenda=function(){const btn=q('#cloudAgendaLinks .cloud-single-actions button');if(btn)btn.click()};
+
+window.openAzurConfig=function(){
+  if(typeof window.show==='function')window.show('config');
+  const btn=q('[data-config-tab="facturacion"]');
+  window.showConfigTab?.('facturacion',btn);
+  const panel=q('#azurConfigPanel');if(panel){panel.open=true;setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),60)}
+};
+window.openDataphoneConfig=function(){
+  if(typeof window.show==='function')window.show('config');
+  const btn=q('[data-config-tab="facturacion"]');
+  window.showConfigTab?.('facturacion',btn);
+  const body=q('#configDataphoneBody');const details=body?.closest('details');if(details){details.open=true;setTimeout(()=>details.scrollIntoView({behavior:'smooth',block:'start'}),60)}
+};
+window.configOpenAgenda=async function(){
+  let btn=q('#cloudAgendaLinks .cloud-single-actions button');
+  if(!btn&&typeof window.loadMobileConfigLinks==='function'){await window.loadMobileConfigLinks(false);btn=q('#cloudAgendaLinks .cloud-single-actions button')}
+  if(btn)btn.click();
+};
 
 const originalShow=window.showConfigTab;
 window.showConfigTab=function(tab='general',button=null){
