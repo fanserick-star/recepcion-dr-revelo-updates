@@ -40,6 +40,18 @@ jobs:
           path.write_text(text.replace(old,new,1),encoding='utf-8',newline='\n')
           PY
 
+      - name: Remove remaining doctor silent autolink
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('historia-clinica/app/app.py')
+          text=path.read_text(encoding='utf-8-sig')
+          old='''                if len(candidates) == 1:\n                    patient_id = str(candidates[0]["id"])\n                    _link_queue_patient(\n                        conn,\n                        row,\n                        patient_id,\n                        "auto_" + (reason or "search"),\n                    )\n'''
+          assert old in text
+          new='''                # Recepción es la autoridad del vínculo. Aunque exista un único\n                # candidato, Historia no lo selecciona silenciosamente.\n                pass\n'''
+          path.write_text(text.replace(old,new,1),encoding='utf-8',newline='\n')
+          PY
+
       - name: Validate canonical runtimes
         run: |
           python tools/test_reception_canonical_source.py
