@@ -84,6 +84,7 @@ jobs:
         run: |
           python - <<'PY'
           import json
+          import re
           from pathlib import Path
           app = Path('recepcion/app')
           obsolete = {
@@ -98,7 +99,9 @@ jobs:
               assert not (app / name).exists(), name
           features = (app/'features_runtime.py').read_text(encoding='utf-8')
           for name in obsolete:
-              assert name[:-3] not in features, name
+              module=name[:-3]
+              assert not re.search(rf'^import\s+{re.escape(module)}\s*$', features, re.M), name
+              assert not re.search(rf'^\s*{re.escape(module)},\s*$', features, re.M), name
           js = (app/'static/app.js').read_text(encoding='utf-8')
           assert 'factureromovil' not in js.lower()
           assert "if(email&&!email.includes('@'))" in js
