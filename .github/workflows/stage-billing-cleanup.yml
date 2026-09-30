@@ -56,7 +56,7 @@ jobs:
         run: python tools/test_reception_canonical_source.py
 
       - name: Validate runtime layout
-        run: python tools/validate_reception_runtime_layout.py
+        run: python tools/validate_reception_runtime_layout.py recepcion/app
 
       - name: Validate billing cleanup invariants
         run: |
