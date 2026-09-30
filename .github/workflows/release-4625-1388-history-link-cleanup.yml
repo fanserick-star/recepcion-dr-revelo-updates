@@ -28,6 +28,18 @@ jobs:
       - name: Apply audit cleanup
         run: python tools/patch_4625_1388_history_link_cleanup.py
 
+      - name: Rewire dependent terminal panel
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path=Path('recepcion/app/reception_payment_terminal_panel.py')
+          text=path.read_text(encoding='utf-8-sig')
+          old="import reception_history_patient_details as _dep_history_patient_details\ncore = _dep_history_patient_details.core\napp = _dep_history_patient_details.app\n"
+          new="import reception_history_cancellation as _dep_history_cancellation\ncore = _dep_history_cancellation.core\napp = _dep_history_cancellation.app\n"
+          assert old in text
+          path.write_text(text.replace(old,new,1),encoding='utf-8',newline='\n')
+          PY
+
       - name: Validate canonical runtimes
         run: |
           python tools/test_reception_canonical_source.py
@@ -41,6 +53,7 @@ jobs:
             recepcion/app/reception_history_transport.py \
             recepcion/app/reception_history_cancellation.py \
             recepcion/app/reception_history_identity_consolidated.py \
+            recepcion/app/reception_payment_terminal_panel.py \
             historia-clinica/app/lan_bridge.py \
             historia-clinica/app/app.py
           git diff --check
@@ -50,66 +63,46 @@ jobs:
           python - <<'PY'
           import ast, json
           from pathlib import Path
-
-          rroot=Path('recepcion/app')
-          hroot=Path('historia-clinica/app')
+          rroot=Path('recepcion/app'); hroot=Path('historia-clinica/app')
           rv=json.loads((rroot/'recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
           hv=json.loads((hroot/'historia-version.json').read_text(encoding='utf-8-sig'))['version']
           assert rv=='4.6.25',rv
           assert hv=='1.3.88',hv
-
-          removed=[
-            'reception_history_attention_type.py',
-            'reception_history_patient_details.py',
-            'reception_history_name_lookup.py',
-            'reception_history_requeue_guard.py',
-          ]
-          for name in removed:
-              assert not (rroot/name).exists(), name
+          removed=['reception_history_attention_type.py','reception_history_patient_details.py','reception_history_name_lookup.py','reception_history_requeue_guard.py']
+          for name in removed: assert not (rroot/name).exists(),name
           features=(rroot/'features_runtime.py').read_text(encoding='utf-8-sig')
-          for name in [x[:-3] for x in removed]:
-              assert name not in features,name
-
+          for name in [x[:-3] for x in removed]: assert name not in features,name
+          panel=(rroot/'reception_payment_terminal_panel.py').read_text(encoding='utf-8-sig')
+          assert 'reception_history_patient_details' not in panel
+          assert 'reception_history_cancellation' in panel
           bridge=(rroot/'historia_bridge.py').read_text(encoding='utf-8-sig')
-          for forbidden in ('waiting_queue','OUTBOX_DB','flush_pending','CREATE SCHEMA','CREATE TABLE'):
-              assert forbidden not in bridge, forbidden
-          assert 'HISTORIA_DATABASE_URL' in bridge
-          assert 'DATABASE_URL' in bridge
-
+          for forbidden in ('waiting_queue','OUTBOX_DB','flush_pending','CREATE SCHEMA','CREATE TABLE'): assert forbidden not in bridge,forbidden
+          assert 'HISTORIA_DATABASE_URL' in bridge and 'DATABASE_URL' in bridge
           handoff=(rroot/'reception_history_bridge.py').read_text(encoding='utf-8-sig')
           assert 'Procedimiento -' in handoff
           assert 'patient_status=_patient_status(type_code)' in handoff
           assert 'birth_date=str(birth or "")' in handoff
-
           ident=(rroot/'reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
           assert '_v4618_' not in ident
           assert '_safe_exact_identification_match' not in ident
           assert 'auto_link=True' not in ident
-          assert "Cambiar vínculo" in ident
-          assert "Confirmar vínculo" in ident
+          assert 'Cambiar vínculo' in ident and 'Confirmar vínculo' in ident
           assert '_SCHEMA_VALIDATED' in ident
           assert 'se conservó el nombre clínico existente' in ident
-
           lan=(hroot/'lan_bridge.py').read_text(encoding='utf-8-sig')
-          tree=ast.parse(lan)
-          cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='LanService')
+          tree=ast.parse(lan); cls=next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name=='LanService')
           resolve=next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='_resolve_patient')
           src=ast.get_source_segment(lan,resolve) or ''
-          assert 'INSERT INTO patient_links' not in src
-          assert 'national_id_search' not in src
-
+          assert 'INSERT INTO patient_links' not in src and 'national_id_search' not in src
           app=(hroot/'app.py').read_text(encoding='utf-8-sig')
-          tree=ast.parse(app)
-          qv=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_queue_validated_link')
+          tree=ast.parse(app); qv=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='_queue_validated_link')
           qsrc=ast.get_source_segment(app,qv) or ''
           assert 'repair_exact_identification' not in qsrc
           assert 'Trust the clinical id supplied by Reception' in qsrc
           assert '"auto_" + (reason or "search")' not in app
-
           rmanifest=json.loads((rroot/'update_manifest.json').read_text(encoding='utf-8-sig'))
           for key in ('copy','required_dependencies'):
-              for name in removed:
-                  assert name not in rmanifest[key]
+              for name in removed: assert name not in rmanifest[key]
           notes=rmanifest['notes']
           assert notes['waiting_queue_transport']=='lan_only'
           assert notes['waiting_queue_cloud_write'] is False
@@ -123,8 +116,7 @@ jobs:
           import ast
           from pathlib import Path
           src=Path('recepcion/app/reception_history_identity_consolidated.py').read_text(encoding='utf-8-sig')
-          tree=ast.parse(src)
-          js=None
+          tree=ast.parse(src); js=None
           for node in tree.body:
               if isinstance(node,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='V4613_JS' for t in node.targets):
                   js=ast.literal_eval(node.value);break
