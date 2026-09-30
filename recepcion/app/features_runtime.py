@@ -23,19 +23,13 @@ import reception_printing_queue
 import reception_attention_transaction
 import reception_billing_history
 import reception_billing_discard
-import reception_billing_actions
 import reception_interface_cleanup
-import reception_billing_issued_filters
-import reception_billing_modal_cleanup
 import reception_update_restart
 import reception_update_launcher
-import reception_billing_optional_email
 import reception_payment_proof
 import reception_printing_menu
 import reception_payment_proof_margins
 import reception_payment_proof_layout
-import reception_billing_data_form
-import reception_billing_data_form_compact
 import reception_billing_data_form_layout
 import reception_system_status
 import reception_consultation_discount
@@ -71,19 +65,13 @@ FEATURE_MODULES = (
     reception_attention_transaction,
     reception_billing_history,
     reception_billing_discard,
-    reception_billing_actions,
     reception_interface_cleanup,
-    reception_billing_issued_filters,
-    reception_billing_modal_cleanup,
     reception_update_restart,
     reception_update_launcher,
-    reception_billing_optional_email,
     reception_payment_proof,
     reception_printing_menu,
     reception_payment_proof_margins,
     reception_payment_proof_layout,
-    reception_billing_data_form,
-    reception_billing_data_form_compact,
     reception_billing_data_form_layout,
     reception_system_status,
     reception_consultation_discount,

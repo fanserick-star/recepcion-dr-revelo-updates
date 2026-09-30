@@ -1,13 +1,12 @@
 from __future__ import annotations
-import reception_attention_transaction as _dep_attention_transaction
+import core_runtime as core
 import json as _json
 from datetime import date as _date, datetime as _datetime, timedelta as _timedelta
-core = _dep_attention_transaction.core
-app = _dep_attention_transaction.app
-APP_VERSION = '4.4.76'
-core.APP_VERSION = APP_VERSION
+app = core.app
+APP_VERSION = getattr(core, 'APP_VERSION', '')
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
+_BACKFILL_DONE = False
 
 def _remove_api_route(path: str, method: str) -> int:
     wanted = str(method or '').upper()
@@ -315,10 +314,13 @@ try:
 
     @app.get('/api/billing')
     def v4476_billing_list(estado: str='TODAS', desde: _date | None=None, hasta: _date | None=None, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
-        try:
-            _backfill_active_trash_to_emissions(db)
-        except Exception:
-            pass
+        global _BACKFILL_DONE
+        if not _BACKFILL_DONE:
+            try:
+                _backfill_active_trash_to_emissions(db)
+                _BACKFILL_DONE = True
+            except Exception:
+                pass
         result = dict(_stable_billing_list(estado, desde, hasta, db, user) or {})
         requested = str(estado or 'TODAS').strip().upper()
         hidden = _active_trashed_patient_ids()
