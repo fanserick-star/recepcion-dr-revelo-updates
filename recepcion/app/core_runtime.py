@@ -3050,12 +3050,8 @@ def invalidate_user_cache(username: Optional[str] = None):
 
 
 def _auto_login_enabled() -> bool:
-    # La interfaz clínica solo se permite desde loopback. El servidor escucha también
-    # en la LAN únicamente para la superficie protegida de Agenda móvil.
-    try:
-        return bool(_app_preferences().get("auto_login", True))
-    except Exception:
-        return True
+    # Recepción es una aplicación local del consultorio: no exponemos un interruptor que pueda bloquear el arranque.
+    return True
 
 
 def _default_local_user() -> Optional[User]:
@@ -3963,7 +3959,6 @@ DESKTOP_RUNTIME_STATUS_PATH = os.path.join(DATA_DIR, "desktop_runtime_status.jso
 VALID_WINDOW_MODES = {"AUTO", "WEBVIEW2", "EDGE"}
 EXTERNAL_DESTINATIONS = {
     "confirmafy": "https://confirmafy.com/app/calendar",
-    "facturero": "https://app.factureromovil.com/documentos/facturas",
     "azur": "https://azur.com.ec/plataforma",
 }
 
@@ -4578,7 +4573,6 @@ def recover_connectivity(user: User = Depends(current_user)):
 
 
 @app.post("/api/backup/now")
-@app.post("/api/data-protection/backup")
 def backup_now(user: User = Depends(current_user)):
     path = create_local_backup_snapshot(force=True)
     if not path:
@@ -7714,7 +7708,7 @@ def _upsert_local_env(values: dict[str, str]) -> None:
     """Actualiza claves concretas del .env sin tocar DATABASE_URL ni otros secretos."""
     env_path = Path(BASE_DIR) / ".env"
     try:
-        existing = env_path.read_text(encoding="utf-8") if env_path.exists() else ""
+        existing = env_path.read_text(encoding="utf-8-sig") if env_path.exists() else ""
     except Exception as exc:
         raise HTTPException(500, f"No se pudo leer .env: {exc}")
     lines = existing.splitlines()
@@ -9225,7 +9219,12 @@ def add_procedure(data: ProcedureIn, db: Session = Depends(get_db), user: User =
         raise HTTPException(400, "El nombre del procedimiento es obligatorio")
     if db.scalar(select(Procedure).where(Procedure.nombre == name)):
         raise HTTPException(409, "Ese procedimiento ya existe")
-    p = Procedure(nombre=name, valor_default=data.valor_default)
+    value = data.valor_default
+    if value is not None:
+        value = round(float(value), 2)
+        if value < 0:
+            raise HTTPException(400, "El valor del procedimiento no puede ser negativo")
+    p = Procedure(nombre=name, valor_default=value)
     db.add(p)
     audit(db, user, "crear_procedimiento", name)
     db.commit()
@@ -9238,11 +9237,16 @@ def update_procedure_value(procedure_id: int, data: ProcedureValueIn, db: Sessio
     p = db.get(Procedure, procedure_id)
     if not p:
         raise HTTPException(404, "Procedimiento no encontrado")
-    p.valor_default = data.valor_default
+    value = data.valor_default
+    if value is not None:
+        value = round(float(value), 2)
+        if value < 0:
+            raise HTTPException(400, "El valor del procedimiento no puede ser negativo")
+    p.valor_default = value
     if is_offline_db(db):
         add_queue(
             db, "procedure.update", "procedure",
-            {"procedure_id": procedure_id, "valor_default": data.valor_default},
+            {"procedure_id": procedure_id, "valor_default": value},
             user.username, procedure_id,
         )
         audit(db, user, "editar_valor_procedimiento_offline", f"{p.nombre}: {data.valor_default}")

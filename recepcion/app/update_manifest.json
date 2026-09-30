@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.27",
-  "app_version": "4.6.27",
-  "runtime_version": "4.6.27",
+  "version": "4.6.28",
+  "app_version": "4.6.28",
+  "runtime_version": "4.6.28",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -17,6 +17,8 @@
     "historia_bridge.py",
     "historia_lan_transport.py",
     "static/app.js",
+    "static/configuration.js",
+    "static/configuration.css",
     "static/azur_mark.svg",
     "static/doctor_full_logo.png",
     "static/doctor_icon.ico",
@@ -86,6 +88,8 @@
     "update_manifest.json",
     "static/runtime_keep.txt",
     "static/app.js",
+    "static/configuration.js",
+    "static/configuration.css",
     "static/azur_mark.svg",
     "static/doctor_full_logo.png",
     "static/doctor_icon.ico",
@@ -142,9 +146,9 @@
     "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Audita y blinda Reportes: dinero exacto por centavos, pacientes únicos, control cruzado de totales, eliminación sin saldos fantasma y XLSX compatible/autovalidado.",
-    "previous_version": "4.6.26",
-    "candidate_only": false,
+    "purpose": "Consolida Configuración en cinco secciones canónicas, elimina UI redundante y blinda preferencias locales, respaldos, .env y precios.",
+    "previous_version": "4.6.27",
+    "candidate_only": true,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
@@ -296,7 +300,26 @@
     "reports_deleted_visits_recalculated": true,
     "xlsx_spreadsheetml_order_fixed": true,
     "xlsx_runtime_package_validation": true,
-    "xlsx_no_new_runtime_dependency": true
+    "xlsx_no_new_runtime_dependency": true,
+    "configuration_tabs": [
+      "Recepción",
+      "Agenda y WhatsApp",
+      "Servicios y precios",
+      "Facturación y cobros",
+      "Sistema"
+    ],
+    "configuration_v458_loaded": false,
+    "configuration_v459_loaded": false,
+    "local_login_toggle_removed": true,
+    "delete_confirmation_toggle_removed": true,
+    "destructive_actions_always_confirm": true,
+    "backup_api_canonical": "/api/backup/now",
+    "env_bom_safe_read_write": true,
+    "facturero_mobile_destination_removed": true,
+    "procedure_negative_price_blocked": true,
+    "procedure_price_two_decimals": true,
+    "azur_credentials_advanced_only": true,
+    "dataphone_credentials_advanced_only": true
   },
   "channel": "launcher-v1-stable"
 }

@@ -158,15 +158,14 @@
       <div class="panel report-panel report-detail-panel"><div class="report-panel-title"><h3>Detalle del período</h3><span>Paciente por paciente</span></div><div id="reportTable"></div></div>
     </section>
 
-    <section id="config" class="hidden">
-      <div class="config-title-row"><div><h1>Configuración</h1><p class="muted">Cada ajuste está agrupado según lo que necesitas hacer.</p></div></div>
+    <section id="config" class="hidden config-consolidated">
+      <div class="config-title-row"><div><h1>Configuración</h1><p class="muted">Lo que usas a diario primero; las opciones técnicas quedan en Avanzado.</p></div></div>
       <div class="config-tabs" role="tablist" aria-label="Secciones de configuración">
         <button class="active" data-config-tab="general" onclick="showConfigTab('general',this)">Recepción</button>
         <button data-config-tab="agenda" onclick="showConfigTab('agenda',this)">Agenda y WhatsApp</button>
         <button data-config-tab="procedimientos" onclick="showConfigTab('procedimientos',this)">Servicios y precios</button>
-        <button data-config-tab="facturacion" onclick="showConfigTab('facturacion',this)">Facturación AZUR</button>
-        <button data-config-tab="sistema" onclick="showConfigTab('sistema',this)">Conexión y respaldo</button>
-        <button data-config-tab="actualizaciones" onclick="showConfigTab('actualizaciones',this)">Programa</button>
+        <button data-config-tab="facturacion" onclick="showConfigTab('facturacion',this)">Facturación y cobros</button>
+        <button data-config-tab="sistema" onclick="showConfigTab('sistema',this)">Sistema</button>
       </div>
 
       <div class="config-section" data-config-section="general">
@@ -177,93 +176,105 @@
             <label><span>Impresora de recibos</span><select id="printerSelect"><option value="">Predeterminada de Windows</option></select><small id="printerStatusText">Buscando impresoras…</small></label>
             <label class="receipt-pressure-setting"><span>Dato opcional del recibo</span><div class="receipt-toggle-row"><b>Mostrar presión arterial</b><input id="showBloodPressureToggle" type="checkbox" checked></div></label>
           </div>
-          <div class="actions"><button class="primary-soft" onclick="saveReceiptSettings()">Guardar recibos e impresora</button></div>
+          <div class="actions"><button class="primary-soft" onclick="saveReceiptSettings()">Guardar recibos e impresora</button><button onclick="configPrintTest()">🖨 Imprimir prueba</button></div>
         </div>
-        <div class="panel behavior-settings-panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Inicio y seguridad</h3><p class="muted">Preferencias de esta PC de recepción.</p></div></div>
-          <div class="compact-toggle-grid"><label class="switch-setting"><div><b>Abrir sin pedir contraseña</b><small>Entra directamente al programa en esta PC.</small></div><input id="autoLoginToggle" type="checkbox" checked></label><label class="switch-setting"><div><b>Preguntar antes de borrar</b><small>Evita eliminar pacientes, atenciones o citas por accidente.</small></div><input id="confirmDeleteToggle" type="checkbox" checked></label></div>
-          <div class="actions"><button onclick="saveBehaviorSettings()">Guardar preferencias</button></div>
-        </div>
+        <div class="config-info-note config-safe-defaults"><b>Protecciones fijas</b><span>Recepción abre directamente en esta PC y siempre pide confirmación antes de borrar. Ya no hay interruptores que puedan desactivar esas protecciones por accidente.</span></div>
       </div>
 
       <div class="config-section hidden" data-config-section="agenda">
         <div class="panel compact-config-panel remote-agenda-panel">
-          <div class="config-panel-head"><div><h3>☁️ Agenda Web 24/7</h3><p class="muted">Un solo enlace de consulta. El modo agendador se habilita únicamente en tus dispositivos.</p></div><span id="cloudAgendaPill" class="performance-pill">24/7</span></div>
-          <div class="config-help-strip"><b>Doctor:</b> solo consulta. <b>Tu dispositivo:</b> puede guardar en privado el modo agendador y cambiar con un botón sutil dentro de la web.</div>
+          <div class="config-panel-head"><div><h3>Agenda Web 24/7</h3><p class="muted">Consulta y agenda desde tus dispositivos sin depender de que esta PC esté encendida.</p></div><span id="cloudAgendaPill" class="performance-pill">24/7</span></div>
           <div id="cloudAgendaLinks" class="mobile-link-box">Preparando Agenda Web…</div>
-          <div class="actions remote-agenda-actions"><button onclick="loadMobileConfigLinks(true)">↻ Verificar con Neon</button><button class="danger-lite" onclick="rotateMobileLinks()">🔑 Regenerar acceso</button></div>
+          <div class="actions remote-agenda-actions"><button onclick="loadMobileConfigLinks(true)">↻ Verificar con Neon</button><button class="primary-soft" onclick="configOpenAgenda()">Abrir Agenda</button></div>
+          <details class="config-advanced"><summary>Accesos avanzados de Agenda</summary><div class="config-advanced-body"><p>Regenerar accesos invalida los enlaces y dispositivos preparados anteriormente.</p><button class="danger-lite" onclick="rotateMobileLinks()">🔑 Regenerar accesos</button></div></details>
         </div>
+
         <div class="panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Mensajes de WhatsApp</h3><p class="muted">Estado de la automatización y de las entregas recientes a pacientes.</p></div><span id="whatsappStatusPill" class="performance-pill">Cargando</span></div>
-          <div class="config-help-strip whatsapp-help"><b>Confirmación:</b> 8:00 AM del día anterior. <b>Recordatorio final:</b> 2 horas antes cuando la plantilla esté aprobada.</div>
+          <div class="config-panel-head"><div><h3>WhatsApp Cloud</h3><p class="muted">Automatización 24/7, plantillas aprobadas y entregas recientes.</p></div><span id="whatsappStatusPill" class="performance-pill">Cargando</span></div>
           <div id="whatsappStatusText" class="desktop-runtime-status">Consultando estado…</div>
+          <div id="configWhatsappTemplates" class="config-template-grid"></div>
           <div class="wa-delivery-head"><b>Últimos 7 días</b><button id="waDeliveryRefreshBtn" onclick="loadWhatsappCloudStatus(true)">↻ Actualizar mensajes</button></div>
           <div id="whatsappDeliverySummary" class="wa-delivery-summary"><span>Sin consultar todavía.</span></div>
           <div id="whatsappDeliveryList" class="wa-delivery-list"></div>
         </div>
-        <div class="panel compact-config-panel whatsapp-test-panel">
-          <div class="config-panel-head"><div><h3>🧪 Pruebas de mensajes</h3><p class="muted">Prueba cualquiera de las tres plantillas sin activar envíos automáticos locales.</p></div><span id="whatsappTestPill" class="performance-pill">MANUAL</span></div>
-          <div class="config-help-strip"><b>Idiomas:</b> recordatorio_cita conserva el idioma ya aprobado por Meta; cita_agendada y recordatorio_hoy usan Español (Ecuador).</div>
-          <div class="whatsapp-test-grid">
-            <label><span>Mensaje a probar</span><select id="waTestTemplate"><option value="recordatorio_cita">Confirmación · recordatorio_cita</option><option value="cita_agendada">Cita agendada · cita_agendada</option><option value="recordatorio_hoy">Recordatorio de hoy · recordatorio_hoy</option></select></label>
-            <label><span>Número de prueba</span><input id="waTestPhone" inputmode="tel" autocomplete="off" placeholder="09xxxxxxxx"><small>Se recuerda en esta PC y no se publica en GitHub.</small></label>
-            <label><span>Nombre de prueba</span><input id="waTestName" autocomplete="off" value="Prueba" maxlength="80"></label>
-            <label><span>Fecha mostrada</span><input id="waTestDate" type="date"></label>
-            <label><span>Hora mostrada</span><input id="waTestTime" type="time" value="15:00" step="60"></label>
+
+        <details class="panel compact-config-panel config-advanced whatsapp-test-panel">
+          <summary>Prueba técnica de WhatsApp</summary>
+          <div class="config-advanced-body">
+            <p class="muted">La prueba usa el mismo Worker Cloud 24/7. No guarda tokens de Meta en esta PC y no crea pacientes ni citas reales.</p>
+            <div class="whatsapp-test-grid">
+              <label><span>Plantilla</span><select id="waTestTemplate"><option value="recordatorio_cita">Confirmación de cita</option><option value="cita_agendada">Cita agendada</option><option value="recordatorio_hoy">Recordatorio del día</option></select></label>
+              <label><span>Número de prueba</span><input id="waTestPhone" inputmode="tel" autocomplete="off" placeholder="09xxxxxxxx"></label>
+              <label><span>Nombre</span><input id="waTestName" autocomplete="off" value="Prueba" maxlength="80"></label>
+              <label><span>Fecha mostrada</span><input id="waTestDate" type="date"></label>
+              <label><span>Hora mostrada</span><input id="waTestTime" type="time" value="15:00" step="60"></label>
+            </div>
+            <div id="whatsappTestResult" class="desktop-runtime-status">No se ha enviado ninguna prueba.</div>
+            <div class="actions"><button id="waTestSendBtn" class="primary-soft" onclick="sendWhatsappTest()">☁ Enviar prueba por Cloud</button><button id="configFinishWaTest" class="hidden" onclick="configFinishWhatsappTest()">Finalizar prueba</button></div>
           </div>
-          <div id="whatsappTestResult" class="desktop-runtime-status">No se ha enviado ninguna prueba.</div>
-          <div class="actions"><button id="waTestSendBtn" class="primary-soft" onclick="sendWhatsappTest()">📨 Enviar mensaje de prueba</button></div>
-          <div class="config-info-note"><b>Prueba aislada</b><span>No crea citas, no modifica pacientes y no enciende el worker local. Si una plantilla sigue pendiente en Meta, Meta la rechazará sin afectar producción.</span></div>
-        </div>
+        </details>
       </div>
 
       <div class="config-section hidden" data-config-section="procedimientos">
         <div class="panel procedure-values-panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Servicios y precios</h3><p class="muted">Aquí se administran los procedimientos disponibles y su valor predeterminado.</p></div></div>
-          <div class="config-help-strip">Los cambios afectan las nuevas atenciones. El historial anterior conserva sus valores originales.</div>
+          <div class="config-panel-head"><div><h3>Servicios y precios</h3><p class="muted">Administra los procedimientos disponibles y su valor predeterminado.</p></div></div>
+          <div class="config-help-strip">Los precios se guardan con dos decimales y nunca pueden ser negativos. El historial anterior conserva sus valores originales.</div>
           <div id="procList"></div>
-          <div class="compact-add-procedure"><input id="procName" class="uppercase-name" placeholder="Nuevo servicio o procedimiento" oninput="upperNameInput(this)"><input id="procValue" type="number" step="0.01" placeholder="Valor"><button class="primary-soft" onclick="addProcedure()">Agregar</button></div>
+          <div class="compact-add-procedure"><input id="procName" class="uppercase-name" placeholder="Nuevo servicio o procedimiento" oninput="upperNameInput(this)"><input id="procValue" type="number" min="0" step="0.01" placeholder="Valor"><button class="primary-soft" onclick="addProcedure()">Agregar</button></div>
         </div>
       </div>
 
       <div class="config-section hidden" data-config-section="facturacion">
-        <div id="azurConfigPanel" class="panel azur-config-panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Conexión con AZUR</h3><p class="muted">Datos técnicos para que Facturación pueda emitir comprobantes electrónicos.</p></div><span id="azurStatusPill" class="performance-pill">Sin configurar</span></div>
-          <div class="config-help-strip">Normalmente solo se configura una vez. La API key se guarda únicamente en el archivo <b>.env</b> de esta PC.</div>
-          <div class="azur-settings-grid"><label><span>Dirección de AZUR</span><input id="azurBaseUrl" type="url" placeholder="https://azur.com.ec" autocomplete="off"></label><label><span>API key</span><input id="azurApiKey" type="password" placeholder="Dejar vacío para conservar la guardada" autocomplete="new-password"><small id="azurKeyHint">No hay API key guardada.</small></label></div>
-          <div id="azurConnectionResult" class="desktop-runtime-status">Puedes probar la conexión sin emitir ninguna factura.</div>
-          <div class="actions"><button class="primary-soft" onclick="saveAzurConfig()">Guardar AZUR</button><button onclick="testAzurConnection()">🔌 Probar conexión</button></div>
+        <div class="config-integration-grid">
+          <div class="panel compact-config-panel config-integration-card"><div><span>FACTURACIÓN ELECTRÓNICA</span><h3>AZUR</h3><p>Emisión de facturas y comunicación con SRI.</p></div><span id="azurStatusPill" class="performance-pill">Comprobando</span><div id="azurConnectionResult" class="desktop-runtime-status">Consultando conexión…</div><div class="actions"><button onclick="testAzurConnection()">🔌 Probar conexión</button></div></div>
+          <div class="panel compact-config-panel config-integration-card"><div><span>COBRO CON TARJETA</span><h3>Bendo Smart</h3><p>Preparado para automatizar el cobro cuando estén disponibles el contrato y credenciales oficiales.</p></div><span id="configDataphonePill" class="performance-pill">Comprobando</span><div id="configDataphoneSummary" class="desktop-runtime-status">Consultando Bendo…</div><div class="actions"><button onclick="configValidateDataphone()">Revisar preparación</button><button onclick="configTestDataphone()">Probar API</button></div></div>
         </div>
+
+        <details id="azurConfigPanel" class="panel compact-config-panel config-advanced">
+          <summary>Configuración avanzada de AZUR</summary>
+          <div class="config-advanced-body">
+            <p class="muted">Normalmente no necesitas tocar estos datos después del instalador maestro.</p>
+            <div class="azur-settings-grid"><label><span>Dirección de AZUR</span><input id="azurBaseUrl" type="url" placeholder="https://azur.com.ec" autocomplete="off"></label><label><span>API key</span><input id="azurApiKey" type="password" placeholder="Dejar vacío para conservar la guardada" autocomplete="new-password"><small id="azurKeyHint">No hay API key guardada.</small></label></div>
+            <div class="actions"><button class="primary-soft" onclick="saveAzurConfig()">Guardar AZUR</button></div>
+          </div>
+        </details>
+
+        <details class="panel compact-config-panel config-advanced">
+          <summary>Configuración avanzada de Bendo</summary>
+          <div id="configDataphoneBody" class="config-advanced-body"><div class="system-status-loading">Cargando configuración…</div></div>
+        </details>
       </div>
 
       <div class="config-section hidden" data-config-section="sistema">
-        <div class="config-two-col config-connection-grid">
+        <div class="config-two-col config-system-top">
           <div id="protectionPanel" class="panel protection-panel compact-config-panel">
-            <div class="config-panel-head"><div><h3>Conexión y sincronización</h3><p class="muted">Si aparece “Sin Internet”, el programa sigue trabajando con la copia de esta PC.</p></div><button onclick="refreshProtectionStatus(true)">Actualizar estado</button></div>
+            <div class="config-panel-head"><div><h3>Neon y copia local</h3><p class="muted">Puedes seguir trabajando sin Internet; los cambios pendientes se sincronizan al volver la conexión.</p></div><button onclick="refreshProtectionStatus(true)">Actualizar</button></div>
             <div id="protectionStatus" class="protection-status">Cargando…</div>
             <div id="syncQueuePanel" class="sync-queue-panel hidden"></div>
-            <div class="actions"><button id="recoverCloudBtn" class="primary-soft" onclick="recoverCloudNow()">🔄 Reconectar ahora</button><button id="backupNowBtn" onclick="createBackupNow()">🛡 Crear respaldo local</button></div>
+            <div class="actions"><button id="recoverCloudBtn" class="primary-soft" onclick="recoverCloudNow()">🔄 Reconectar ahora</button><button id="backupNowBtn" onclick="createBackupNow()">🛡 Crear respaldo</button></div>
           </div>
-          <div class="panel system-status-panel compact-config-panel">
-            <div class="config-panel-head"><div><h3>Resumen de datos</h3><p class="muted">Estado de Neon, la copia local y los cambios pendientes.</p></div><button onclick="loadSystemStatus()">Actualizar</button></div>
-            <div id="systemStatusGrid" class="system-status-grid system-status-simple"><div class="system-status-loading">Cargando estado…</div></div>
+          <div class="panel compact-config-panel">
+            <div class="config-panel-head"><div><h3>Programa</h3><p class="muted">Versión real y actualización mediante el launcher oficial.</p></div><span id="currentVersionBadge" class="version-badge">Comprobando</span></div>
+            <div id="updateStatus" class="desktop-runtime-status">Sistema de actualización automática activo.</div>
+            <div class="actions"><button class="primary-soft" onclick="configLaunchUpdater()">⬆ Comprobar actualización</button></div>
           </div>
         </div>
-        <div class="config-info-note"><b>¿Qué pasa si se va Internet?</b><span>Puedes seguir trabajando. Los cambios se guardan en esta PC y se sincronizan automáticamente cuando vuelve la conexión.</span></div>
-      </div>
 
-      <div class="config-section hidden" data-config-section="actualizaciones">
-        <div class="panel performance-panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Ventana y rendimiento</h3><p class="muted">Cómo se abre Recepción y cómo ahorra recursos en la PC del consultorio.</p></div><span class="performance-pill">⚡ Liviano</span></div>
-          <div class="performance-settings-grid"><label class="window-mode-setting"><span>Forma de abrir Recepción</span><select id="windowModeSelect"><option value="AUTO">Automático (recomendado)</option><option value="WEBVIEW2">Ventana ligera WebView2</option><option value="EDGE">Edge en modo aplicación</option></select><small>Automático usa la opción más liviana disponible.</small></label><div class="afk-setting-card"><span>Ahorro de Neon</span><b>Automático · después de 5 minutos</b><small>Cuando nadie usa el programa, deja de consultar la nube hasta que vuelvas.</small></div></div>
-          <div id="desktopRuntimeStatus" class="desktop-runtime-status">Comprobando el modo de ventana…</div>
-          <div class="actions"><button class="primary-soft" onclick="saveWindowMode()">Guardar modo de ventana</button></div>
+        <div class="panel compact-config-panel">
+          <div class="config-panel-head"><div><h3>Estado del sistema</h3><p class="muted">Una sola revisión para copia local, Neon, impresora, respaldos y actualizador.</p></div><button onclick="loadConsolidatedSystem(true)">↻ Revisar sistema</button></div>
+          <div id="systemStatusGrid" class="system-status-grid config-system-grid"><div class="system-status-loading">Cargando estado…</div></div>
+          <div id="configMaintenanceNote" class="desktop-runtime-status">Sin revisar todavía.</div>
+          <div class="actions"><button onclick="configPrintTest()">🖨 Imprimir prueba</button><button onclick="configCleanupTemps()">Limpiar temporales</button></div>
         </div>
-        <div class="panel updater-panel compact-config-panel">
-          <div class="config-panel-head"><div><h3>Actualizaciones del programa</h3><p class="muted">Las nuevas versiones se aplican automáticamente. El ZIP manual sirve como respaldo.</p></div><span id="currentVersionBadge" class="version-badge">v4.3.34</span></div>
-          <div class="update-drop-row"><input id="updatePackage" type="file" accept=".zip,application/zip"><button class="primary" onclick="applyUpdatePackage()">Aplicar ZIP manual</button><button onclick="restartReception()">↻ Reiniciar Recepción</button></div>
-          <div id="updateStatus" class="muted update-status">Sistema de actualización automática activo.</div>
-        </div>
+
+        <details class="panel compact-config-panel config-advanced">
+          <summary>Ventana y rendimiento · Avanzado</summary>
+          <div class="config-advanced-body">
+            <div class="performance-settings-grid"><label class="window-mode-setting"><span>Forma de abrir Recepción</span><select id="windowModeSelect"><option value="AUTO">Automático (recomendado)</option><option value="WEBVIEW2">Ventana ligera WebView2</option><option value="EDGE">Edge en modo aplicación</option></select><small>Déjalo en Automático salvo que estemos diagnosticando un problema.</small></label><div class="afk-setting-card"><span>Ahorro de Neon</span><b>Automático · después de 5 minutos</b><small>Reduce consultas cuando nadie usa el programa.</small></div></div>
+            <div id="desktopRuntimeStatus" class="desktop-runtime-status">Comprobando el modo de ventana…</div>
+            <div class="actions"><button onclick="saveWindowMode()">Guardar modo</button></div>
+          </div>
+        </details>
       </div>
     </section>
   </main>
