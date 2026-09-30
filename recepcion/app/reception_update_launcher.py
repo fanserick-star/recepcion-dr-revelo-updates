@@ -1,12 +1,12 @@
 from __future__ import annotations
-import reception_update_restart as _dep_update_restart
+import reception_billing_modal_cleanup as _dep_billing_modal_cleanup
 import os as _os
 import re as _re
 import subprocess as _subprocess
 import sys as _sys
 from pathlib import Path as _Path
-core = _dep_update_restart.core
-app = _dep_update_restart.app
+core = _dep_billing_modal_cleanup.core
+app = _dep_billing_modal_cleanup.app
 APP_VERSION = '4.4.83'
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False

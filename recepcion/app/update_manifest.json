@@ -45,7 +45,6 @@
     "reception_history_transport.py",
     "reception_interface_cleanup.py",
     "reception_interface_recovery.py",
-    "reception_launcher_status.py",
     "reception_payment_proof.py",
     "reception_payment_proof_layout.py",
     "reception_payment_proof_margins.py",
@@ -69,9 +68,6 @@
     "reception_receipt_width.py",
     "reception_system_status.py",
     "reception_update_launcher.py",
-    "reception_update_restart.py",
-    "reception_version_display.py",
-    "reception_version_sidebar.py",
     "reception_history_identity_consolidated.py"
   ],
   "installation_prerequisites": [],
@@ -116,7 +112,6 @@
     "reception_history_transport.py",
     "reception_interface_cleanup.py",
     "reception_interface_recovery.py",
-    "reception_launcher_status.py",
     "reception_payment_proof.py",
     "reception_payment_proof_layout.py",
     "reception_payment_proof_margins.py",
@@ -140,9 +135,6 @@
     "reception_receipt_width.py",
     "reception_system_status.py",
     "reception_update_launcher.py",
-    "reception_update_restart.py",
-    "reception_version_display.py",
-    "reception_version_sidebar.py",
     "reception_history_identity_consolidated.py"
   ],
   "notes": {

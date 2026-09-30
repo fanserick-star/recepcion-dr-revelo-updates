@@ -23,7 +23,7 @@ def _strip_redundant_version_overlays():
     """
     global REMOVED_REDUNDANT_JS_BLOCKS, REMOVED_REDUNDANT_TIMEOUTS
     js = getattr(core, 'V460_OVERLAY_JS', '') or ''
-    targets = [('reception_update_restart', 'V4482_JS'), ('reception_update_launcher', 'V4483_JS'), ('reception_payment_proof_margins', 'V4487_JS'), ('reception_payment_proof_layout', 'V4488_JS'), ('reception_billing_data_form_compact', 'V4490_JS'), ('reception_billing_data_form_layout', 'V4491_JS')]
+    targets = [('reception_update_launcher', 'V4483_JS'), ('reception_payment_proof_margins', 'V4487_JS'), ('reception_payment_proof_layout', 'V4488_JS'), ('reception_billing_data_form_compact', 'V4490_JS'), ('reception_billing_data_form_layout', 'V4491_JS')]
     blocks = 0
     timers = 0
     for module_name, attr in targets:

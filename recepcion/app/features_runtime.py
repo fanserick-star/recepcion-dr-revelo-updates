@@ -28,7 +28,6 @@ import reception_billing_actions
 import reception_interface_cleanup
 import reception_billing_issued_filters
 import reception_billing_modal_cleanup
-import reception_update_restart
 import reception_update_launcher
 import reception_billing_optional_email
 import reception_payment_proof
@@ -45,9 +44,6 @@ import reception_payment_terminal_interface
 import reception_payment_terminal_config
 import reception_payment_terminal_manual
 import reception_history_bridge
-import reception_launcher_status
-import reception_version_display
-import reception_version_sidebar
 import reception_history_transport
 import reception_history_cancellation
 import reception_payment_terminal_feedback
@@ -76,7 +72,6 @@ FEATURE_MODULES = (
     reception_interface_cleanup,
     reception_billing_issued_filters,
     reception_billing_modal_cleanup,
-    reception_update_restart,
     reception_update_launcher,
     reception_billing_optional_email,
     reception_payment_proof,
@@ -93,9 +88,6 @@ FEATURE_MODULES = (
     reception_payment_terminal_config,
     reception_payment_terminal_manual,
     reception_history_bridge,
-    reception_launcher_status,
-    reception_version_display,
-    reception_version_sidebar,
     reception_history_transport,
     reception_history_cancellation,
     reception_payment_terminal_feedback,
@@ -156,12 +148,9 @@ def _strip_legacy_configuration_overlays() -> None:
     css = getattr(core_runtime, "V460_OVERLAY_CSS", "") or ""
     js = getattr(core_runtime, "V460_OVERLAY_JS", "") or ""
     blocks = [
-        (reception_update_restart, ("V4482_CSS", "V4482_JS")),
         (reception_update_launcher, ("V4483_CSS", "V4483_JS")),
         (reception_system_status, ("V4501_JS",)),
         (reception_payment_terminal_config, ("V4506_JS",)),
-        (reception_version_display, ("V4518_CSS", "V4518_JS")),
-        (reception_version_sidebar, ("V4519_CSS", "V4519_JS")),
     ]
     for module, attrs in blocks:
         for attr in attrs:

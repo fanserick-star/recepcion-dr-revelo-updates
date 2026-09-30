@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import reception_version_sidebar as _dep_version_sidebar
+import reception_history_bridge as _dep_history_bridge
 import historia_bridge
 import historia_lan_transport
 
-core = _dep_version_sidebar.core
-app = _dep_version_sidebar.app
+core = _dep_history_bridge.core
+app = _dep_history_bridge.app
 APP_VERSION = "4.6.25"
 core.APP_VERSION = APP_VERSION
 historia_lan_transport.install(historia_bridge)
