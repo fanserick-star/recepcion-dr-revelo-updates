@@ -1,11 +1,11 @@
 from __future__ import annotations
-import reception_interface_recovery as _dep_interface_recovery
+import reception_attention_identity as _dep_attention_identity
 import os
 import queue
 import threading
 import time
-core = _dep_interface_recovery.core
-app = _dep_interface_recovery.app
+core = _dep_attention_identity.core
+app = _dep_attention_identity.app
 APP_VERSION = '4.4.74'
 core.APP_VERSION = APP_VERSION
 PATCH_BOOT_OK = False

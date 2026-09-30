@@ -19,7 +19,6 @@ import reception_receipt_readability
 import reception_receipt_size
 import reception_receipt_width
 import reception_attention_identity
-import reception_interface_recovery
 import reception_printing_queue
 import reception_attention_transaction
 import reception_billing_history
@@ -61,7 +60,6 @@ FEATURE_MODULES = (
     reception_receipt_size,
     reception_receipt_width,
     reception_attention_identity,
-    reception_interface_recovery,
     reception_printing_queue,
     reception_attention_transaction,
     reception_billing_history,
