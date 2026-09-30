@@ -116,6 +116,15 @@ jobs:
           print('BILLING_INVARIANTS_OK')
           PY
 
+      - name: Remove generated Python caches
+        run: |
+          find recepcion/app -type d -name __pycache__ -prune -exec rm -rf {} +
+          if find recepcion/app -type f \( -name '*.pyc' -o -name '*.pyo' \) | grep -q .; then
+            echo 'Compiled Python artifacts remain in runtime tree' >&2
+            exit 1
+          fi
+          echo 'PYTHON_CACHE_CLEAN'
+
       - name: Commit candidate cleanup
         run: |
           git config user.name "github-actions[bot]"
