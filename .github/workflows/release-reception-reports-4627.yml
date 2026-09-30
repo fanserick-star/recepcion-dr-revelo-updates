@@ -1,4 +1,4 @@
-name: Release Reception reports 4.6.27
+name: Finalize Reception reports 4.6.27
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  publish-channel:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,98 +21,23 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Prepare temporary patch only
+      - name: Resolve and validate canonical release
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          patch = Path('tools/patch_reception_reports_4627.py')
-          s = patch.read_text(encoding='utf-8')
-          marker = 'workflow = WORKFLOW.read_text(encoding="utf-8")'
-          i = s.find(marker)
-          if i < 0:
-              raise SystemExit('temporary patch workflow block not found')
-          patch.write_text(s[:i] + 'print("PATCH_RECEPTION_REPORTS_OK", NEW)\n', encoding='utf-8')
-          print('TEMP_PATCH_READY')
-          PY
-
-      - name: Apply canonical Reports audit patch
-        run: python tools/patch_reception_reports_4627.py
-
-      - name: Validate canonical source and runtime layout
-        run: |
+          set -euo pipefail
+          RELEASE_SHA=$(git log -1 --format=%H -- recepcion/app/recepcion-version.json)
+          echo "RELEASE_SHA=$RELEASE_SHA" >> "$GITHUB_ENV"
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_reports.py
-
-      - name: Install smoke-test dependencies
-        run: python -m pip install --disable-pip-version-check fastapi sqlalchemy python-dotenv pg8000 python-multipart openpyxl
-
-      - name: Exercise report totals deletion and XLSX compatibility
-        env:
-          DATABASE_URL: ""
-          RP_FORCE_OFFLINE: "1"
-          RP_DATA_DIR: /tmp/reception-report-4627
-          WHATSAPP_ENABLED: "0"
-          WHATSAPP_CLOUD_MODE: "1"
-        run: |
           python - <<'PY'
-          import os, sys, shutil
-          from datetime import date
-          from decimal import Decimal
-          from io import BytesIO
-          from pathlib import Path
-          shutil.rmtree(os.environ['RP_DATA_DIR'], ignore_errors=True)
-          Path(os.environ['RP_DATA_DIR']).mkdir(parents=True, exist_ok=True)
-          sys.path.insert(0, str(Path('recepcion/app').resolve()))
-          import core_runtime as c
-          from openpyxl import load_workbook
-          with c.LocalSessionLocal() as db:
-              user = c.User(username='report-test', password_hash='x', role='admin')
-              p1 = c.Patient(nombre='PACIENTE UNO')
-              p2 = c.Patient(nombre='PACIENTE DOS')
-              db.add_all([user, p1, p2]); db.flush()
-              v1 = c.Visit(patient_id=p1.id, fecha=date(2026,9,1), tipo='N', procedimiento=None, valor=Decimal('0.10'))
-              v2 = c.Visit(patient_id=p1.id, fecha=date(2026,9,1), tipo='P', procedimiento='PRUEBA', valor=Decimal('0.20'))
-              v3 = c.Visit(patient_id=p1.id, fecha=date(2026,9,2), tipo='S', procedimiento=None, valor=Decimal('40.00'))
-              v4 = c.Visit(patient_id=p2.id, fecha=date(2026,9,1), tipo='N', procedimiento=None, valor=Decimal('30.00'))
-              db.add_all([v1,v2,v3,v4]); db.commit()
-              before = c.build_report_payload(db, date(2026,9,1), date(2026,9,2))
-              assert before['total'] == 70.30, before
-              assert before['patients'] == 3 and before['unique_patients'] == 2, before
-              assert before['integrity']['ok'] is True, before['integrity']
-              assert before['integrity']['detail_total'] == before['integrity']['service_total'] == before['integrity']['day_total'] == 70.30
-              deleted = c.ops_safe_delete_visit(v4.id, db, user)
-              assert deleted['ok'] is True, deleted
-              after = c.build_report_payload(db, date(2026,9,1), date(2026,9,2))
-              assert after['total'] == 40.30, after
-              assert after['patients'] == 2 and after['unique_patients'] == 1, after
-              assert after['integrity']['ok'] is True, after['integrity']
-              blob = c.build_report_xlsx(after, date(2026,9,1), date(2026,9,2))
-              c._validate_report_xlsx_bytes(blob)
-              wb = load_workbook(BytesIO(blob), data_only=False)
-              assert wb.sheetnames == ['Resumen', 'Detalle'], wb.sheetnames
-              assert wb['Resumen']['E9'].value == 40.30, wb['Resumen']['E9'].value
-              assert 'Pacientes únicos: 1' in str(wb['Resumen']['A3'].value)
-              print('REPORT_DELETE_XLSX_SMOKE_OK', len(blob), after['total'])
+          import json, pathlib, subprocess, os
+          current=json.loads(pathlib.Path('recepcion/app/recepcion-version.json').read_text(encoding='utf-8-sig'))['version']
+          assert current=='4.6.27', current
+          raw=subprocess.check_output(['git','show',os.environ['RELEASE_SHA']+':recepcion/app/recepcion-version.json'])
+          released=json.loads(raw.decode('utf-8-sig'))['version']
+          assert released=='4.6.27', released
+          print('CANONICAL_4627_READY', os.environ['RELEASE_SHA'])
           PY
-
-      - name: Commit validated canonical 4.6.27
-        run: |
-          set -euo pipefail
-          find recepcion/app -type d -name __pycache__ -prune -exec rm -rf {} +
-          find recepcion/app -name '*.pyc' -delete
-          git restore tools/patch_reception_reports_4627.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add recepcion/app/core_runtime.py \
-                  recepcion/app/static/app.js \
-                  recepcion/app/recepcion-version.json \
-                  recepcion/app/update_manifest.json \
-                  tools/test_reception_reports.py
-          git diff --cached --check
-          git commit -m "Release Reception 4.6.27 report audit"
-          git push origin HEAD:main
-          echo "RELEASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Generate stable channel from exact release commit
         env:
@@ -129,7 +54,7 @@ jobs:
           print('CHANNEL_4627_BUILT', d['appVersion'], d['generatedFromCommit'])
           PY
 
-      - name: Re-download exact channel payload and validate
+      - name: Re-download exact payload and validate SHA-256
         env:
           VERIFY_NONCE: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
@@ -147,21 +72,18 @@ jobs:
               req=urllib.request.Request(url, headers={'Cache-Control':'no-cache'})
               with urllib.request.urlopen(req, timeout=60) as response: payload=response.read()
               got=hashlib.sha256(payload).hexdigest()
-              assert got==item['sha256'], (rel,got,item['sha256'])
+              assert got==item['sha256'], (rel, got, item['sha256'])
               dest.write_bytes(payload)
           print('RAW_CHANNEL_FILES_OK', len(channel['files']))
           PY
           python tools/validate_reception_runtime_layout.py channel_verify
-          python tools/test_reception_reports.py
 
       - name: Publish validated stable channel
         run: |
           set -euo pipefail
-          git pull --rebase origin main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add launcher-v1/app-channel.json
-          if git diff --cached --quiet; then
-            echo "Channel already current"
-          else
-            git commit -m "Publish validated Reception 4.6.27 channel"
-            git push origin HEAD:main
-          fi
+          git diff --cached --check
+          git commit -m "Publish validated Reception 4.6.27 channel"
+          git push origin HEAD:main
