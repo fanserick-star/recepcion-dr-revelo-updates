@@ -23,10 +23,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
-          cache-dependency-path: recepcion/app/requirements.txt
-      - name: Install Reception dependencies
-        run: python -m pip install -r recepcion/app/requirements.txt
+      - name: Install minimal Reception runtime dependencies for audit
+        run: >-
+          python -m pip install
+          fastapi uvicorn sqlalchemy pg8000 python-dotenv python-multipart
       - name: Validate canonical source
         run: python tools/test_reception_canonical_source.py
       - name: Validate runtime layout
