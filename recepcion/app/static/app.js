@@ -2216,9 +2216,10 @@ function renderReportComparison(d){
   const c=d?.comparison;
   if(!c?.available){box.classList.add('hidden');box.innerHTML='';return}
   const prev=c.previous||{};
-  const current={patients:d.patients,consultations:d.consultations,P:d.P,total:d.total};
+  const current={patients:d.patients,unique_patients:d.unique_patients??d.patients,consultations:d.consultations,P:d.P,total:d.total};
   const cards=[
-    ['Pacientes',current.patients,prev.patients,false],
+    ['Atenciones paciente/día',current.patients,prev.patients,false],
+    ['Pacientes únicos',current.unique_patients,prev.unique_patients??prev.patients,false],
     ['Consultas',current.consultations,prev.consultations,false],
     ['Procedimientos',current.P,prev.P,false],
     ['Total',current.total,prev.total,true],
@@ -2232,12 +2233,14 @@ async function loadReport(){
     const d=await api(`/api/report?desde=${desde}&hasta=${hasta}`);
     renderReportComparison(d);
     $('#reportSummary').innerHTML=`
-      <div class="report-kpi"><span>Pacientes atendidos</span><b>${d.patients}</b></div>
+      <div class="report-kpi"><span>Atenciones paciente/día</span><b>${d.patients}</b></div>
+      <div class="report-kpi"><span>Pacientes únicos</span><b>${d.unique_patients??d.patients}</b></div>
       <div class="report-kpi"><span>Nuevos</span><b>${d.N}</b></div>
       <div class="report-kpi"><span>Subsecuentes</span><b>${d.S}</b></div>
       <div class="report-kpi"><span>Consultas</span><b>${d.consultations}</b></div>
       <div class="report-kpi"><span>Procedimientos</span><b>${d.P}</b></div>
-      <div class="report-kpi money"><span>Total del período</span><b>${money(d.total)}</b></div>`;
+      <div class="report-kpi money"><span>Total del período</span><b>${money(d.total)}</b></div>
+      <div class="report-kpi"><span>Control de totales</span><b>${d.integrity?.ok?'✓ Verificado':'⚠ Revisar'}</b></div>`;
     $('#reportServices').innerHTML=(d.services||[]).length?`<div class="report-simple-table"><div class="head"><span>Atención</span><span>Cantidad</span><span>Total</span></div>${d.services.map(x=>`<div><strong>${esc(reportServiceLabel(x.service))}</strong><span>${x.count}</span><b>${money(x.total)}</b></div>`).join('')}</div>`:`<div class="empty-state">No hay atenciones en este período.</div>`;
     $('#reportDaily').innerHTML=(d.days||[]).length?`<div class="report-daily-list">${d.days.map(x=>`<div class="report-day-row"><div><b>${fmtDate(x.fecha)}</b><small>${x.patients} paciente${x.patients===1?'':'s'}</small></div><div><span>${x.N} nuevos</span><span>${x.S} subsecuentes</span></div><div><span>${x.consultations} consultas</span><span>${x.procedures} procedimientos</span></div><strong>${money(x.total)}</strong></div>`).join('')}</div>`:`<div class="empty-state">No hay días con atenciones en este período.</div>`;
     $('#reportTable').innerHTML=(d.details||[]).length?`<div class="report-detail-wrap"><table class="report-detail-table"><thead><tr><th>Fecha</th><th>Turno</th><th>Paciente</th><th>Estado</th><th>Atención</th><th>Valor</th></tr></thead><tbody>${d.details.map(x=>`<tr><td>${fmtDate(x.fecha)}</td><td>${x.turno}</td><td><b>${esc(x.patient?.nombre||'')}</b></td><td><span class="report-status ${x.classification==='NUEVO'?'new':'sub'}">${x.classification==='NUEVO'?'Nuevo':'Subsecuente'}</span></td><td>${esc(reportServiceLabel(x.service))}</td><td><b>${money(x.value)}</b></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty-state">No hay detalle para mostrar.</div>`;

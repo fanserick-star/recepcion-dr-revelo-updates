@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.26",
-  "app_version": "4.6.26",
-  "runtime_version": "4.6.26",
+  "version": "4.6.27",
+  "app_version": "4.6.27",
+  "runtime_version": "4.6.27",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -142,8 +142,8 @@
     "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Consolida Agenda y WhatsApp: UI de Agenda pasa a fuente canónica, elimina controles de túnel legado y residuos de pruebas, y unifica horario 24 h.",
-    "previous_version": "4.6.25",
+    "purpose": "Audita y blinda Reportes: dinero exacto por centavos, pacientes únicos, control cruzado de totales, eliminación sin saldos fantasma y XLSX compatible/autovalidado.",
+    "previous_version": "4.6.26",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -192,7 +192,7 @@
     "billing_logic_changes": false,
     "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
-    "procedure_logic_changes": true,
+    "procedure_logic_changes": false,
     "printing_changes": false,
     "production_status": "stable",
     "rollback_safe": true,
@@ -289,7 +289,14 @@
     "legacy_remote_tunnel_start_controls_removed": true,
     "legacy_remote_tunnel_startup_cleanup_preserved": true,
     "whatsapp_old_test_cleanup_endpoint_removed": true,
-    "whatsapp_cloud_mode_preserved": true
+    "whatsapp_cloud_mode_preserved": true,
+    "reports_decimal_money": true,
+    "reports_unique_patients": true,
+    "reports_cross_total_integrity": true,
+    "reports_deleted_visits_recalculated": true,
+    "xlsx_spreadsheetml_order_fixed": true,
+    "xlsx_runtime_package_validation": true,
+    "xlsx_no_new_runtime_dependency": true
   },
   "channel": "launcher-v1-stable"
 }

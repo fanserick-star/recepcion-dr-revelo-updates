@@ -24,6 +24,7 @@ import webbrowser
 import unicodedata
 from difflib import SequenceMatcher
 from datetime import date, datetime, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Optional
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse, unquote, quote
@@ -35,6 +36,7 @@ from azur_client import AzurError, emit_invoice as azur_emit_invoice, query_comp
 from whatsapp_client import WhatsAppError, build_template_payload as whatsapp_build_template_payload, send_template as whatsapp_send_template
 from remote_agenda import stop_managed_tunnel as remote_stop_tunnel
 from xml.sax.saxutils import escape as xml_escape
+from xml.etree import ElementTree as ET
 
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, File, Form, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
@@ -5789,6 +5791,19 @@ def _v4457_consultation_turns(patient_days: dict) -> dict:
     return turns
 
 
+_REPORT_CENT = Decimal("0.01")
+
+def _report_money(value) -> Decimal:
+    """Convierte cualquier valor monetario del reporte a centavos exactos."""
+    if value is None:
+        return Decimal("0.00")
+    amount = value if isinstance(value, Decimal) else Decimal(str(value))
+    return amount.quantize(_REPORT_CENT, rounding=ROUND_HALF_UP)
+
+def _report_money_float(value) -> float:
+    return float(_report_money(value))
+
+
 def build_report_data(rows):
     """Agrupa el período en pacientes/día para que N/S no se infle por procedimientos."""
     patient_days = {}
@@ -5796,6 +5811,7 @@ def build_report_data(rows):
         patient_days.setdefault((v.fecha, p.id), []).append((v, p))
 
     turns = _v4457_consultation_turns(patient_days)
+    unique_patient_count = len({int(p.id) for _v, p in rows})
 
     daily = {}
     service_totals = {}
@@ -5806,7 +5822,7 @@ def build_report_data(rows):
         classification = "NUEVO" if is_new else "SUBSECUENTE"
         d = daily.setdefault(fecha, {
             "fecha": fecha, "patients": 0, "N": 0, "S": 0,
-            "consultations": 0, "procedures": 0, "total": 0.0,
+            "consultations": 0, "procedures": 0, "total": Decimal("0.00"),
         })
         d["patients"] += 1
         d["N" if is_new else "S"] += 1
@@ -5815,13 +5831,13 @@ def build_report_data(rows):
             procedure = (v.procedimiento or "").strip().upper()
             is_proc = is_procedure(v)
             service = procedure or ("PROCEDIMIENTO" if is_proc else "CONSULTA")
-            value = float(v.valor or 0)
+            value = _report_money(v.valor)
             if is_proc:
                 d["procedures"] += 1
             else:
                 d["consultations"] += 1
             d["total"] += value
-            st = service_totals.setdefault(service, {"service": service, "count": 0, "total": 0.0})
+            st = service_totals.setdefault(service, {"service": service, "count": 0, "total": Decimal("0.00")})
             st["count"] += 1
             st["total"] += value
             detail_rows.append({
@@ -5831,10 +5847,15 @@ def build_report_data(rows):
                 "patient": p_dict(p),
                 "classification": classification,
                 "service": service,
-                "value": value,
+                "value": _report_money_float(value),
                 "observacion": v.observacion or "",
                 "visit_id": v.id,
             })
+
+    for item in daily.values():
+        item["total"] = _report_money_float(item["total"])
+    for item in service_totals.values():
+        item["total"] = _report_money_float(item["total"])
 
     days = [daily[d] for d in sorted(daily)]
     services = sorted(service_totals.values(), key=lambda x: (0 if x["service"] == "CONSULTA" else 1, x["service"]))
@@ -5842,10 +5863,16 @@ def build_report_data(rows):
     new_count = sum(1 for items in patient_days.values() if any(v.tipo == "N" for v, _ in items))
     consultations = sum(not is_procedure(v) for v, _ in rows)
     procedures = sum(is_procedure(v) for v, _ in rows)
-    total = sum(float(v.valor or 0) for v, _ in rows)
+    total_decimal = sum((_report_money(v.valor) for v, _ in rows), Decimal("0.00"))
+    total = _report_money_float(total_decimal)
+    detail_total_decimal = sum((_report_money(item.get("value")) for item in detail_rows), Decimal("0.00"))
+    service_total_decimal = sum((_report_money(item.get("total")) for item in services), Decimal("0.00"))
+    day_total_decimal = sum((_report_money(item.get("total")) for item in days), Decimal("0.00"))
+    integrity_ok = total_decimal == detail_total_decimal == service_total_decimal == day_total_decimal
     return {
         "count": len(rows),
         "patients": patient_count,
+        "unique_patients": unique_patient_count,
         "N": new_count,
         "S": patient_count - new_count,
         "consultations": consultations,
@@ -5853,6 +5880,13 @@ def build_report_data(rows):
         "total": total,
         "services": services,
         "days": days,
+        "integrity": {
+            "ok": integrity_ok,
+            "detail_total": _report_money_float(detail_total_decimal),
+            "service_total": _report_money_float(service_total_decimal),
+            "day_total": _report_money_float(day_total_decimal),
+            "overall_total": total,
+        },
         "details": detail_rows,
         "rows": [{**v_dict(v), "patient": p_dict(p)} for v, p in rows],
     }
@@ -5902,7 +5936,7 @@ def _xlsx_sheet(rows, widths, merges=None, freeze_row=None, auto_filter=None) ->
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
         f'{pane}<sheetFormatPr defaultRowHeight="15"/><cols>{cols}</cols>'
-        f'<sheetData>{"".join(row_xml)}</sheetData>{merge_xml}{filter_xml}'
+        f'<sheetData>{"".join(row_xml)}</sheetData>{filter_xml}{merge_xml}'
         '<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.2" footer="0.2"/>'
         '</worksheet>'
     )
@@ -5932,7 +5966,7 @@ def build_report_payload(db: Session, desde: date, hasta: date) -> dict:
             "current_from": desde, "current_to": hasta,
             "previous_from": previous_from, "previous_to": previous_to,
             "previous": {
-                "patients": prev["patients"], "N": prev["N"], "S": prev["S"],
+                "patients": prev["patients"], "unique_patients": prev.get("unique_patients", prev["patients"]), "N": prev["N"], "S": prev["S"],
                 "consultations": prev["consultations"], "P": prev["P"], "total": prev["total"],
             },
         }
@@ -5940,9 +5974,37 @@ def build_report_payload(db: Session, desde: date, hasta: date) -> dict:
     return data
 
 
+def _validate_report_xlsx_bytes(content: bytes) -> None:
+    """Fail closed before saving/sending an XLSX whose package is malformed."""
+    required = {
+        "[Content_Types].xml", "_rels/.rels", "xl/workbook.xml",
+        "xl/_rels/workbook.xml.rels", "xl/styles.xml",
+        "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml",
+    }
+    try:
+        with zipfile.ZipFile(io.BytesIO(content), "r") as zf:
+            names = set(zf.namelist())
+            missing = sorted(required - names)
+            if missing:
+                raise ValueError("faltan partes XLSX: " + ", ".join(missing))
+            for name in required:
+                if name.endswith(".xml") or name.endswith(".rels"):
+                    ET.fromstring(zf.read(name))
+            ns = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+            for name in ("xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"):
+                root = ET.fromstring(zf.read(name))
+                tags = [child.tag.removeprefix(ns) for child in list(root)]
+                if "autoFilter" in tags and "mergeCells" in tags:
+                    if tags.index("autoFilter") > tags.index("mergeCells"):
+                        raise ValueError(f"orden SpreadsheetML inválido en {name}")
+    except Exception as exc:
+        raise RuntimeError(f"No se pudo generar un Excel compatible: {exc}") from exc
+
+
 def build_report_xlsx(data: dict, desde: date, hasta: date) -> bytes:
     """Genera un XLSX real con una hoja de resumen y otra de detalle."""
-    period = f"Período: {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
+    integrity_label = "Totales verificados" if (data.get("integrity") or {}).get("ok") else "REVISAR TOTALES"
+    period = f"Período: {desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')} · Pacientes únicos: {data.get('unique_patients', data.get('patients', 0))} · {integrity_label}"
 
     summary_rows = []
     def add(row, cells, height=None):
@@ -6135,7 +6197,9 @@ def build_report_xlsx(data: dict, desde: date, hasta: date) -> bytes:
         z.writestr('xl/styles.xml', styles)
         z.writestr('xl/worksheets/sheet1.xml', summary_xml)
         z.writestr('xl/worksheets/sheet2.xml', detail_xml)
-    return out.getvalue()
+    content = out.getvalue()
+    _validate_report_xlsx_bytes(content)
+    return content
 
 
 @app.get("/api/report")
