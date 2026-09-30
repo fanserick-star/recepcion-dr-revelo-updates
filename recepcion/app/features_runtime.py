@@ -132,12 +132,10 @@ def _install_versioned_overlay_home() -> None:
             html = handle.read()
         version = _read_current_app_version()
         addon = (
-            '<link rel="stylesheet" href="/v458/settings.css?v=4.3.58">'
-            '<script defer src="/v458/settings.js?v=4.3.58"></script>'
-            '<link rel="stylesheet" href="/v459/settings.css?v=4.3.59">'
-            '<script defer src="/v459/settings.js?v=4.3.59"></script>'
             f'<link rel="stylesheet" href="/v460/overlay.css?v={version}">'
+            f'<link rel="stylesheet" href="/static/configuration.css?v={version}">'
             f'<script defer src="/v460/overlay.js?v={version}"></script>'
+            f'<script defer src="/static/configuration.js?v={version}"></script>'
         )
         return (
             html.replace("</head>", addon + "</head>", 1)
@@ -149,6 +147,34 @@ def _install_versioned_overlay_home() -> None:
         app.openapi_schema = None
     except Exception:
         pass
+
+
+def _strip_legacy_configuration_overlays() -> None:
+    """Retire only superseded Configuration UI blocks; backend endpoints stay available."""
+    css = getattr(core_runtime, "V460_OVERLAY_CSS", "") or ""
+    js = getattr(core_runtime, "V460_OVERLAY_JS", "") or ""
+    blocks = [
+        (reception_update_restart, ("V4482_CSS", "V4482_JS")),
+        (reception_update_launcher, ("V4483_CSS", "V4483_JS")),
+        (reception_system_status, ("V4501_JS",)),
+        (reception_payment_terminal_config, ("V4506_JS",)),
+        (reception_version_display, ("V4518_CSS", "V4518_JS")),
+        (reception_version_sidebar, ("V4519_CSS", "V4519_JS")),
+    ]
+    for module, attrs in blocks:
+        for attr in attrs:
+            block = getattr(module, attr, "") or ""
+            if not block:
+                continue
+            if attr.endswith("_CSS"):
+                css = css.replace(block, "")
+            else:
+                js = js.replace(block, "")
+    core_runtime.V460_OVERLAY_CSS = css
+    core_runtime.V460_OVERLAY_JS = js
+
+
+_strip_legacy_configuration_overlays()
 
 
 _install_versioned_overlay_home()

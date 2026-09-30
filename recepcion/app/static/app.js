@@ -160,7 +160,7 @@ function completeEmailDomain(domain){
   clearPatientFieldError('fMail');input.focus();
   try{input.setSelectionRange(input.value.length,input.value.length)}catch{}
 }
-function confirmDeletion(message){return appPreferences.confirm_delete===false?true:confirm(message)}
+function confirmDeletion(message){return confirm(message)}
 
 let connectivityTimer=null;
 let connectivityBusy=false;
@@ -2576,18 +2576,12 @@ async function createBackupNow(){
   const btn=$('#backupNowBtn');
   try{
     if(btn){btn.disabled=true;btn.textContent='Creando respaldo…'}
-    let d=null,lastErr=null;
-    for(const endpoint of ['/api/backup/now','/api/data-protection/backup']){
-      try{d=await api(endpoint,{method:'POST'});break}catch(e){lastErr=e}
-    }
-    if(!d)throw lastErr||Error('No se pudo crear el respaldo.');
+    const d=await api('/api/backup/now',{method:'POST'});
     await refreshProtectionStatus(true);
-    alert(`Respaldo creado correctamente.\n${fmtDateTime(d.last_backup)}`);
-  }catch(e){
-    const msg=String(e?.message||e||'');
-    if(/not found/i.test(msg))alert('El servidor que quedó abierto es de una versión anterior. Pulsa “Reiniciar Recepción” en Programa y vuelve a intentar el respaldo.');
-    else alert(msg);
-  }finally{if(btn){btn.disabled=false;btn.textContent='🛡 Crear respaldo local'}}
+    alert(`Respaldo creado correctamente.
+${fmtDateTime(d.last_backup)}`);
+  }catch(e){alert(e.message||'No se pudo crear el respaldo.')}
+  finally{if(btn){btn.disabled=false;btn.textContent='🛡 Crear respaldo'}}
 }
 async function restartReception(){
   if(!confirm('¿Reiniciar Recepción ahora?\n\nLa ventana se recargará sola cuando el nuevo proceso esté listo.'))return;
