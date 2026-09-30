@@ -3972,7 +3972,6 @@ DESKTOP_RUNTIME_STATUS_PATH = os.path.join(DATA_DIR, "desktop_runtime_status.jso
 VALID_WINDOW_MODES = {"AUTO", "WEBVIEW2", "EDGE"}
 EXTERNAL_DESTINATIONS = {
     "confirmafy": "https://confirmafy.com/app/calendar",
-    "facturero": "https://app.factureromovil.com/documentos/facturas",
     "azur": "https://azur.com.ec/plataforma",
 }
 

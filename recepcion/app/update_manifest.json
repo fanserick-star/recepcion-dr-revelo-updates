@@ -177,7 +177,7 @@
     "patient_merge_fields_canonical": true,
     "clinical_records_auto_deleted": false,
     "clinical_records_auto_merged": false,
-    "billing_logic_changes": false,
+    "billing_logic_changes": true,
     "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
     "procedure_logic_changes": true,
@@ -197,7 +197,7 @@
     "runtime_import_hook": false,
     "single_version_source": "recepcion-version.json",
     "clean_install_frontend_complete": true,
-    "release_channel_modified": true,
+    "release_channel_modified": false,
     "attention_save_never_waits_for_reception_neon": false,
     "consultation_print_non_blocking": true,
     "procedure_print_message_removed": true,
@@ -286,7 +286,10 @@
     "billing_history_backfill_once_per_process": true,
     "billing_post_render_discard_decorator": false,
     "billing_dom_cleanup_wrappers": false,
-    "payment_storage_changes": false
+    "payment_storage_changes": false,
+    "billing_approved_tab_removed_at_source": true,
+    "billing_facturero_backend_destination_removed": true,
+    "billing_facturero_runtime_pop_required": false
   },
   "channel": "launcher-v1-stable"
 }

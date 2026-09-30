@@ -2070,7 +2070,7 @@ async function loadBilling(){
     billingPreferencesCache={...billingPreferencesCache,...(d.billing_preferences||{})};
     const groups=billingGroupRows(d.items||[]);
     billingGroupsCache=groups;
-    $('#billingSummary').innerHTML=`<button onclick="setBillingStatus('PENDIENTE')"><b>${d.counts?.PENDIENTE||0}</b><span>Pendientes</span></button><button onclick="setBillingStatus('APROBADA')"><b>${d.counts?.APROBADA||0}</b><span>Aprobadas</span></button><button onclick="setBillingStatus('EMITIDA')"><b>${d.counts?.EMITIDA||0}</b><span>Emitidas</span></button>`;
+    $('#billingSummary').innerHTML=`<button onclick="setBillingStatus('PENDIENTE')"><b>${d.counts?.PENDIENTE||0}</b><span>Pendientes</span></button><button onclick="setBillingStatus('EMITIDA')"><b>${d.counts?.EMITIDA||0}</b><span>Emitidas</span></button>`;
     setBillingPendingSummary({billing:Number(d.counts?.PENDIENTE||0)+Number(d.counts?.APROBADA||0),billing_pending:Number(d.counts?.PENDIENTE||0),billing_approved:Number(d.counts?.APROBADA||0)});
     $('#billingList').innerHTML=groups.map(billingCardHtml).join('')||'<div class="panel muted">No hay facturaciones en este estado.</div>';
   }catch(e){$('#billingList').innerHTML=`<div class="panel err">${esc(e.message)}</div>`}

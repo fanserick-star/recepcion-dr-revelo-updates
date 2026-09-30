@@ -6,13 +6,9 @@ app = core.app
 APP_VERSION = getattr(core, "APP_VERSION", "")
 PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ""
-FACTURERO_DESTINATION_REMOVED = False
+FACTURERO_DESTINATION_REMOVED = "facturero" not in getattr(core, "EXTERNAL_DESTINATIONS", {})
 
 try:
-    destinations = getattr(core, "EXTERNAL_DESTINATIONS", None)
-    if isinstance(destinations, dict):
-        FACTURERO_DESTINATION_REMOVED = destinations.pop("facturero", None) is not None
-
     # Only compatibility CSS remains. Billing source itself no longer creates
     # these obsolete controls, so there are no loadBilling/setBillingStatus wrappers.
     core.V460_OVERLAY_CSS = (getattr(core, "V460_OVERLAY_CSS", "") or "") + r'''
