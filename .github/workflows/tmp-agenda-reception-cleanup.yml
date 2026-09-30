@@ -45,7 +45,7 @@ jobs:
           node --check /tmp/agenda.js
           node --check /tmp/agendar.js
           python tools/test_reception_canonical_source.py
-          python tools/validate_reception_runtime_layout.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
           python - <<'PY'
           from pathlib import Path
           app=Path('recepcion/app/static/app.js').read_text(encoding='utf-8')
