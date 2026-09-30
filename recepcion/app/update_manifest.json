@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.25",
-  "app_version": "4.6.25",
-  "runtime_version": "4.6.25",
+  "version": "4.6.26",
+  "app_version": "4.6.26",
+  "runtime_version": "4.6.26",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -142,8 +142,8 @@
     "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Consolida la vinculación Recepción-Historia: Neon sólo identidad/vínculos y LAN sólo Pacientes en espera; elimina capas obsoletas y reduce acciones redundantes.",
-    "previous_version": "4.6.24",
+    "purpose": "Consolida Agenda y WhatsApp: UI de Agenda pasa a fuente canónica, elimina controles de túnel legado y residuos de pruebas, y unifica horario 24 h.",
+    "previous_version": "4.6.25",
     "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -280,7 +280,16 @@
     "manual_link_double_confirmation": true,
     "demographics_name_birth_conflict_guard": true,
     "history_schema_validation_cached": true,
-    "procedure_recovery_temporary_layer_removed": true
+    "procedure_recovery_temporary_layer_removed": true,
+    "agenda_ui_canonical": true,
+    "agenda_historical_overlay_removed": true,
+    "agenda_24h_format": true,
+    "agenda_cloud_conflict_logic_preserved": true,
+    "agenda_offline_cache_logic_preserved": true,
+    "legacy_remote_tunnel_start_controls_removed": true,
+    "legacy_remote_tunnel_startup_cleanup_preserved": true,
+    "whatsapp_old_test_cleanup_endpoint_removed": true,
+    "whatsapp_cloud_mode_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

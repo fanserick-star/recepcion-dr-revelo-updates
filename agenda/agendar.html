@@ -30,7 +30,7 @@ const add=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 const parse=v=>{const [y,m,d]=String(v).split('-').map(Number);return new Date(y,m-1,d,12)};
 const fmtDate=v=>new Intl.DateTimeFormat('es-EC',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(parse(v));
 const fmtShort=v=>new Intl.DateTimeFormat('es-EC',{weekday:'short',day:'numeric',month:'short'}).format(parse(v)).replaceAll('.','');
-const fmtTime=v=>{const [hh,mm]=String(v).split(':').map(Number);return `${hh%12||12}:${pad(mm)} ${hh>=12?'p. m.':'a. m.'}`};
+const fmtTime=v=>{const [hh,mm]=String(v).split(':').map(Number);return `${pad(hh)}:${pad(mm)}`};
 function setStep(n){[1,2,3].forEach(i=>$('#st'+i).classList.toggle('active',i<=n))}
 function occupiedSet(){return new Set((state.data?.occupied||[]).map(x=>`${x.date}|${x.time}`))}
 function availableCount(date){const occ=occupiedSet();return (state.data?.times||[]).filter(t=>!occ.has(`${date}|${t}`)).length}

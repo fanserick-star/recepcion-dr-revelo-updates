@@ -85,8 +85,8 @@ function pad(n){return String(n).padStart(2,'0')}
 function toISO(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function parseISO(v){const [y,m,d]=String(v).slice(0,10).split('-').map(Number);return new Date(y,m-1,d)}
 function fmtDate(v){if(!v)return '';const [y,m,d]=String(v).slice(0,10).split('-');return d&&m&&y?`${d}/${m}/${y}`:esc(v)}
-function fmtTime(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);let h=Number(m[1]),min=m[2];const ap=h>=12?'p. m.':'a. m.';h=h%12||12;return `${h}:${min} ${ap}`}
-function fmtTimeCompact(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);let h=Number(m[1]),min=m[2];h=h%12||12;return `${h}:${min}`}
+function fmtTime(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);return `${pad(Number(m[1]))}:${m[2]}`}
+function fmtTimeCompact(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);return `${pad(Number(m[1]))}:${m[2]}`}
 function fmtDateTime(v){if(!v)return 'Aún no disponible';const d=new Date(v);if(Number.isNaN(d.getTime()))return esc(v);return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`}
 function money(v){return v==null?'':`$${Number(v).toFixed(2)}`}
 function digitsOnlyInput(el){
@@ -2978,3 +2978,121 @@ async function resolveWhatsappResponse(id,action){
 const v4418OriginalLoadDashboard=loadDashboard;
 loadDashboard=function(){const result=v4418OriginalLoadDashboard.apply(this,arguments);refreshWhatsappReviewBadge(false);return result;};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!appIdleMode)refreshWhatsappReviewBadge(false)});
+
+
+// Agenda canónica: flujo consolidado desde el antiguo overlay histórico.
+;(()=>{
+  if(window.__agendaCanonicalFlow)return;
+  window.__agendaCanonicalFlow=true;
+
+  const wait=(ms,fn)=>setTimeout(()=>{try{fn()}catch(_e){}},ms);
+
+  // Nueva atención: primera pintura 100% local. Después de que el espejo Cloud
+  // tuvo tiempo de terminar, una lectura LOCAL muy barata actualiza la lista.
+  const stableLoadAttentionWeek=window.loadAttentionWeek;
+  if(typeof stableLoadAttentionWeek==='function'){
+    let seq=0;
+    window.loadAttentionWeek=async function(force=false,anchorValue=null){
+      const token=++seq;
+      const effective=anchorValue||(typeof attentionWeekAnchor!=='undefined'?attentionWeekAnchor:null);
+      const result=await stableLoadAttentionWeek.call(this,force,effective);
+      if(!force){
+        [1600,4800].forEach(delay=>wait(delay,()=>{
+          if(token!==seq||!document.querySelector('#attentionWeekCalendar'))return;
+          try{if(typeof invalidateAttentionWeekCache==='function')invalidateAttentionWeekCache()}catch(_e){}
+          Promise.resolve(stableLoadAttentionWeek.call(window,true,effective)).catch(()=>{});
+        }));
+      }
+      return result;
+    };
+  }
+
+  // Agenda principal: una sola segunda lectura local. La primera ya no espera a
+  // Neon gracias al backend v4.4.49.
+  const stableLoadAgenda=window.loadAgenda;
+  if(typeof stableLoadAgenda==='function'){
+    let agendaSeq=0;
+    window.loadAgenda=async function(){
+      const token=++agendaSeq,args=arguments;
+      const result=await stableLoadAgenda.apply(this,args);
+      wait(2600,()=>{
+        if(token!==agendaSeq)return;
+        const sec=document.querySelector('#agenda');
+        if(sec?.classList?.contains('hidden'))return;
+        Promise.resolve(stableLoadAgenda.apply(window,args)).catch(()=>{});
+      });
+      return result;
+    };
+  }
+
+  // Las citas legacy que YA tienen patient_id no son pacientes nuevos. Solo
+  // los registros realmente staged/sin ficha siguen usando el flujo WhatsApp.
+  const stableAttentionWeekRow=window.attentionWeekRow;
+  if(typeof stableAttentionWeekRow==='function')window.attentionWeekRow=function(row){
+    if(String(row?.source_type||'')==='CONFIRMAFY_LEGACY'&&Number(row?.patient?.id||0)>0){
+      return stableAttentionWeekRow.call(this,{...row,source_type:'PATIENT_APPOINTMENT'});
+    }
+    return stableAttentionWeekRow.apply(this,arguments);
+  };
+  const stableNativeAgendaRowCell=window.nativeAgendaRowCell;
+  if(typeof stableNativeAgendaRowCell==='function')window.nativeAgendaRowCell=function(row,date,time){
+    if(String(row?.source_type||'')==='CONFIRMAFY_LEGACY'&&Number(row?.patient?.id||0)>0){
+      return stableNativeAgendaRowCell.call(this,{...row,source_type:'PATIENT_APPOINTMENT'},date,time);
+    }
+    return stableNativeAgendaRowCell.apply(this,arguments);
+  };
+
+  const stableAttendFromAgenda=window.attendFromAgenda;
+  async function openExistingUpdateAndAttend(patientId,fecha){
+    const id=Number(patientId||0),today=toISO(new Date()),target=String(fecha||today).slice(0,10);
+    if(!id)return stableAttendFromAgenda?.apply(window,arguments);
+    if(target!==today&&!confirm(`Esta cita corresponde al ${fmtDate(target)}. ¿Registrar la atención con esa fecha?`))return;
+    try{
+      const p=await api('/api/patients/'+id);
+      const missing=typeof missingPatientFields==='function'?missingPatientFields(p):[];
+      if(!missing.length){
+        return attentionFor(id,{fecha:target});
+      }
+      const missingText=missing.join(', ');
+      openModal(`<div class="patient-form-modal agenda-existing-attend"><div class="modal-form-heading"><h2>Actualizar datos y atender</h2><p>Esta cita ya pertenece a <b>${esc(p.nombre||'este paciente')}</b>. Actualizaremos la misma ficha; no se creará otra.</p></div><div class="agenda-existing-note">Falta completar: <b>${esc(missingText)}</b></div>${patientForm(p)}<div class="actions form-actions"><button class="cancel-btn" onclick="newAttention()">Volver</button><button class="primary" onclick="saveExistingAndAttendFromAgenda(${id},'${target}')">Guardar cambios y atender</button></div></div>`);
+      wait(35,()=>{
+        try{window.__v4446PhoneGuardTest?.installWatcher?.(id,null)}catch(_e){}
+        const first=missing.includes('cédula')?$('#fCedula'):(missing.includes('celular')?$('#fCel'):(missing.includes('correo')?$('#fMail'):$('#fNombre')));
+        first?.focus?.();
+      });
+    }catch(e){alert(e.message||e)}
+  }
+  if(typeof stableAttendFromAgenda==='function')window.attendFromAgenda=openExistingUpdateAndAttend;
+
+  window.saveExistingAndAttendFromAgenda=async function(patientId,fecha){
+    const id=Number(patientId||0),target=String(fecha||toISO(new Date())).slice(0,10);
+    try{
+      const guard=window.__v4446PhoneGuardTest;
+      if(guard?.checkVisiblePhone){
+        const owner=await guard.checkVisiblePhone(id,false);
+        if(owner){
+          alert(`⚠ Este celular ya pertenece a otra ficha\n\n${owner.nombre||'Paciente existente'}\n\nNo se cambió esta ficha. Revisa el paciente correcto.`);
+          return;
+        }
+      }
+      const data=getPatientForm();
+      await api('/api/patients/'+id,{method:'PUT',body:JSON.stringify(data)});
+      try{if(typeof invalidateAttentionWeekCache==='function')invalidateAttentionWeekCache()}catch(_e){}
+      await attentionFor(id,{fecha:target});
+    }catch(e){alert(e.message||e)}
+  };
+
+  // Compatibilidad con citas antiguas importadas: si conservan patient_id,
+  // nunca las convertimos a staged ni mostramos "Nueva ficha".
+  const stableAttendLegacy=window.attendLegacyConfirmafy;
+  if(typeof stableAttendLegacy==='function')window.attendLegacyConfirmafy=async function(appointmentId,fecha){
+    try{
+      const row=await api(`/api/agenda/appointments/${Number(appointmentId)}`);
+      const patientId=Number(row?.patient?.id||row?.appointment?.patient_id||0);
+      if(patientId)return window.attendFromAgenda(patientId,String(fecha||row?.appointment?.fecha||'').slice(0,10));
+    }catch(_e){}
+    return stableAttendLegacy.apply(this,arguments);
+  };
+
+  window.__agendaCanonicalTest={openExistingUpdateAndAttend};
+})();

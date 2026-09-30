@@ -33,14 +33,7 @@ import urllib.error
 
 from azur_client import AzurError, emit_invoice as azur_emit_invoice, query_comprobante as azur_query_comprobante, mask_api_key as azur_mask_api_key, normalize_base_url as azur_normalize_base_url, test_connection as azur_test_connection
 from whatsapp_client import WhatsAppError, build_template_payload as whatsapp_build_template_payload, send_template as whatsapp_send_template
-from remote_agenda import (
-    normalize_public_base_url as remote_normalize_base_url,
-    start_quick_tunnel as remote_start_quick_tunnel,
-    start_named_tunnel as remote_start_named_tunnel,
-    start_named_tunnel_background as remote_start_named_tunnel_background,
-    stop_managed_tunnel as remote_stop_tunnel,
-    tunnel_status as remote_tunnel_status,
-)
+from remote_agenda import stop_managed_tunnel as remote_stop_tunnel
 from xml.sax.saxutils import escape as xml_escape
 
 from fastapi import FastAPI, HTTPException, Request, Response, Depends, File, Form, UploadFile
@@ -110,8 +103,8 @@ WHATSAPP_HEADER_IMAGE_ID = (os.getenv("WHATSAPP_HEADER_IMAGE_ID") or "").strip()
 WHATSAPP_TEMPLATE_CITA_AGENDADA = (os.getenv("WHATSAPP_TEMPLATE_CITA_AGENDADA") or "cita_agendada").strip() or "cita_agendada"
 WHATSAPP_TEMPLATE_RECORDATORIO_CITA = (os.getenv("WHATSAPP_TEMPLATE_RECORDATORIO_CITA") or "recordatorio_cita").strip() or "recordatorio_cita"
 WHATSAPP_TEMPLATE_RECORDATORIO_HOY = (os.getenv("WHATSAPP_TEMPLATE_RECORDATORIO_HOY") or "recordatorio_hoy").strip() or "recordatorio_hoy"
-# Activación por plantilla: solo recordatorio_cita está aprobado hoy. Aunque
-# WHATSAPP_ENABLED llegue a 1, las otras dos no se intentan hasta aprobarlas.
+# Activación local por plantilla. En la arquitectura actual Cloudflare es la autoridad
+# de envío 24/7; estas banderas solo gobiernan el fallback local si Cloud se desactiva.
 WHATSAPP_AUTO_CITA_AGENDADA = (os.getenv("WHATSAPP_AUTO_CITA_AGENDADA") or "1").strip() != "0"
 WHATSAPP_AUTO_RECORDATORIO_CITA = (os.getenv("WHATSAPP_AUTO_RECORDATORIO_CITA") or "1").strip() != "0"
 WHATSAPP_AUTO_RECORDATORIO_HOY = (os.getenv("WHATSAPP_AUTO_RECORDATORIO_HOY") or "1").strip() != "0"
@@ -139,10 +132,6 @@ MOBILE_DOCTOR_TOKEN = (os.getenv("MOBILE_DOCTOR_TOKEN") or "").strip()
 MOBILE_RECEPTION_TOKEN = (os.getenv("MOBILE_RECEPTION_TOKEN") or "").strip()
 AGENDA_CLOUD_BASE_URL = (os.getenv("AGENDA_CLOUD_BASE_URL") or "https://fanserick-star.github.io/recepcion-dr-revelo-updates/").strip().rstrip("/") + "/"
 AGENDA_CLOUD_KEYS_SYNCED_SHA = (os.getenv("AGENDA_CLOUD_KEYS_SYNCED_SHA") or "").strip()
-# Agenda remota por HTTPS. El token del túnel se lee únicamente del .env local.
-REMOTE_AGENDA_BASE_URL = (os.getenv("REMOTE_AGENDA_BASE_URL") or "").strip().rstrip("/")
-REMOTE_AGENDA_TUNNEL_TOKEN = (os.getenv("REMOTE_AGENDA_TUNNEL_TOKEN") or "").strip()
-REMOTE_AGENDA_AUTOSTART = (os.getenv("REMOTE_AGENDA_AUTOSTART") or "1").strip() != "0"
 
 # ---------------------------------------------------------------------------
 # Base principal (nube) + cache local de emergencia
@@ -6485,125 +6474,6 @@ def _agenda_cloud_payload(doctor: str, reception: str, *, force_sync: bool = Fal
     }
 
 
-def _mobile_remote_payload(doctor: str, reception: str) -> dict:
-    status = remote_tunnel_status(DATA_DIR)
-    configured_base = ""
-    try:
-        configured_base = remote_normalize_base_url(REMOTE_AGENDA_BASE_URL) if REMOTE_AGENDA_BASE_URL else ""
-    except Exception:
-        configured_base = ""
-    active_base = str(status.get("public_base_url") or "").rstrip("/")
-    base = active_base or configured_base
-    return {
-        "configured": bool(configured_base and REMOTE_AGENDA_TUNNEL_TOKEN),
-        "autostart": bool(REMOTE_AGENDA_AUTOSTART),
-        "running": bool(status.get("running")),
-        "mode": status.get("mode") or "off",
-        "public_base_url": base,
-        "active_base_url": active_base,
-        "doctor_url": base + _mobile_secret_path(doctor) if base else "",
-        "reception_url": base + _mobile_secret_path(reception) if base else "",
-        "cloudflared_ready": bool(status.get("cloudflared_ready")),
-        "downloading": bool(status.get("downloading")),
-        "last_error": status.get("last_error") or "",
-    }
-
-
-@app.get("/api/mobile/config")
-def mobile_config(request: Request, force_cloud: bool = False, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta configuración solo se abre desde la PC de Recepción")
-    doctor, reception = _ensure_mobile_tokens()
-    lan_ip = _preferred_lan_ip()
-    lan_base = f"http://{lan_ip}:{MOBILE_LAN_PORT}" if lan_ip else ""
-    firewall = _mobile_firewall_present() or _try_add_mobile_firewall_rule()
-    return {
-        "enabled": True,
-        "doctor_path": _mobile_secret_path(doctor),
-        "reception_path": _mobile_secret_path(reception),
-        "lan_ip": lan_ip,
-        "lan_base_url": lan_base,
-        "firewall_ready": firewall,
-        # Verificar la configuración también vuelve a registrar las llaves
-        # actuales en Neon sin cambiarlas. Así una pérdida del registro cloud
-        # no obliga a reemplazar el acceso guardado del doctor.
-        "cloud": _agenda_cloud_payload(doctor, reception, force_sync=bool(force_cloud)),
-        "note": (
-            "La Agenda Cloud funciona 24/7 aunque esta PC esté apagada. La red local queda disponible solo como respaldo dentro del consultorio."
-            if lan_ip else
-            "La Agenda Cloud funciona 24/7 aunque esta PC esté apagada. No se detectó una red local para el acceso de respaldo."
-        ),
-    }
-
-
-@app.post("/api/mobile/network/enable")
-def mobile_network_enable(request: Request, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
-    if os.name != "nt":
-        return {"ready": True, "elevation_requested": False, "message": "No requiere regla de Windows."}
-    if _mobile_firewall_present() or _try_add_mobile_firewall_rule():
-        return {"ready": True, "elevation_requested": False, "message": "Acceso desde la red local habilitado."}
-    requested = _request_mobile_firewall_elevation()
-    return {
-        "ready": False,
-        "elevation_requested": requested,
-        "message": (
-            "Windows pidió permiso de administrador. Acéptalo y luego pulsa Renovar enlaces."
-            if requested else
-            "Windows no pudo abrir el permiso automáticamente. Revisa el Firewall de Windows."
-        ),
-    }
-
-
-@app.get("/api/mobile/remote/status")
-def mobile_remote_status(request: Request, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta configuración solo se abre desde la PC de Recepción")
-    doctor, reception = _ensure_mobile_tokens()
-    return _mobile_remote_payload(doctor, reception)
-
-
-@app.post("/api/mobile/remote/quick/start")
-def mobile_remote_quick_start(request: Request, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
-    try:
-        remote_start_quick_tunnel(DATA_DIR, origin=f"http://127.0.0.1:{LOCAL_HTTP_PORT}", wait_seconds=18)
-    except Exception as exc:
-        raise HTTPException(502, f"No se pudo publicar la agenda: {exc}")
-    doctor, reception = _ensure_mobile_tokens()
-    payload = _mobile_remote_payload(doctor, reception)
-    payload["message"] = (
-        "Acceso remoto de prueba listo. Este enlace cambia si se reinicia el túnel; para el enlace definitivo configura el túnel estable."
-        if payload.get("active_base_url") else
-        "Cloudflare está conectando. Pulsa Actualizar estado en unos segundos."
-    )
-    return payload
-
-
-@app.post("/api/mobile/remote/stable/restart")
-def mobile_remote_stable_restart(request: Request, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
-    if not REMOTE_AGENDA_BASE_URL or not REMOTE_AGENDA_TUNNEL_TOKEN:
-        raise HTTPException(400, "El túnel estable todavía no está configurado en .env")
-    try:
-        remote_start_named_tunnel(DATA_DIR, REMOTE_AGENDA_TUNNEL_TOKEN, REMOTE_AGENDA_BASE_URL)
-    except Exception as exc:
-        raise HTTPException(502, f"No se pudo iniciar el túnel estable: {exc}")
-    doctor, reception = _ensure_mobile_tokens()
-    return _mobile_remote_payload(doctor, reception)
-
-
-@app.post("/api/mobile/remote/stop")
-def mobile_remote_stop(request: Request, user: User = Depends(current_user)):
-    if not _is_loopback_client(request):
-        raise HTTPException(403, "Esta acción solo se ejecuta desde la PC de Recepción")
-    remote_stop_tunnel(DATA_DIR)
-    doctor, reception = _ensure_mobile_tokens()
-    return {**_mobile_remote_payload(doctor, reception), "message": "Acceso remoto detenido."}
-
 
 @app.post("/api/mobile/links/rotate")
 def mobile_rotate_links(request: Request, user: User = Depends(current_user)):
@@ -12207,34 +12077,6 @@ def _wa_apply_ok(result: str) -> bool:
     return not (value.startswith("ERROR") or value.startswith("INVALID"))
 
 
-
-WA_TEST_CLEANUP_PHONE_V4424 = "593967841449"
-WA_TEST_CLEANUP_CUTOFF_V4424 = datetime(2026, 8, 31, 1, 29, 0)
-
-@app.post("/api/whatsapp-responses/cleanup-old-tests")
-def whatsapp_cleanup_old_tests_v4424(user: User = Depends(current_user)):
-    if FORCE_OFFLINE or cloud_engine is None:
-        return {"available": False, "cleaned": 0}
-    try:
-        with cloud_engine.begin() as conn:
-            if not _wa_inbound_table_ready(conn):
-                return {"available": True, "ready": False, "cleaned": 0}
-            result = conn.execute(text("""
-                UPDATE whatsapp_cloud.inbound_responses
-                SET resolved_at = COALESCE(resolved_at, CURRENT_TIMESTAMP),
-                    resolved_by = 'cleanup-v4.4.24',
-                    resolution = 'RESUELTO'
-                WHERE resolved_at IS NULL
-                  AND upper(coalesce(interpretation,'')) = 'REVISAR'
-                  AND regexp_replace(coalesce(phone,''), '[^0-9]', '', 'g') = :phone
-                  AND received_at < :cutoff
-            """), {
-                "phone": WA_TEST_CLEANUP_PHONE_V4424,
-                "cutoff": WA_TEST_CLEANUP_CUTOFF_V4424,
-            })
-            return {"available": True, "ready": True, "cleaned": max(0, int(result.rowcount or 0))}
-    except Exception as exc:
-        return {"available": False, "cleaned": 0, "error": str(exc)[:180]}
 
 
 @app.get("/api/auto-bookings/recent")
