@@ -111,7 +111,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm .github/workflows/release-reception-reports-4627.yml tools/patch_reception_reports_4627.py
+          git rm -f .github/workflows/release-reception-reports-4627.yml tools/patch_reception_reports_4627.py
           git add recepcion/app tools/test_reception_reports.py .github/workflows/publish-reception-app-channel.yml
           git commit -m "Release Reception 4.6.27 report audit"
           git push origin HEAD:main
