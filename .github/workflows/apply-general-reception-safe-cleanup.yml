@@ -1,0 +1,96 @@
+name: Apply safe general Reception cleanup
+
+on:
+  push:
+    branches:
+      - audit-general-reception-4629
+    paths:
+      - ".github/workflows/apply-general-reception-safe-cleanup.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !startsWith(github.event.head_commit.message, 'Apply safe general Reception cleanup') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit-general-reception-4629
+          fetch-depth: 0
+      - name: Apply conservative runtime cleanup
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root=Path('recepcion/app')
+          features=root/'features_runtime.py'
+          text=features.read_text(encoding='utf-8')
+          for line in [
+              'import reception_update_restart\n',
+              'import reception_launcher_status\n',
+              'import reception_version_display\n',
+              'import reception_version_sidebar\n',
+              '    reception_update_restart,\n',
+              '    reception_launcher_status,\n',
+              '    reception_version_display,\n',
+              '    reception_version_sidebar,\n',
+              '        (reception_update_restart, ("V4482_CSS", "V4482_JS")),\n',
+              '        (reception_version_display, ("V4518_CSS", "V4518_JS")),\n',
+              '        (reception_version_sidebar, ("V4519_CSS", "V4519_JS")),\n',
+          ]:
+              text=text.replace(line,'')
+          features.write_text(text,encoding='utf-8')
+
+          p=root/'reception_update_launcher.py'
+          text=p.read_text(encoding='utf-8')
+          text=text.replace('import reception_update_restart as _dep_update_restart\n','import reception_billing_modal_cleanup as _dep_billing_modal_cleanup\n')
+          text=text.replace('core = _dep_update_restart.core\napp = _dep_update_restart.app\n','core = _dep_billing_modal_cleanup.core\napp = _dep_billing_modal_cleanup.app\n')
+          p.write_text(text,encoding='utf-8')
+
+          p=root/'reception_history_transport.py'
+          text=p.read_text(encoding='utf-8')
+          text=text.replace('import reception_version_sidebar as _dep_version_sidebar\n','import reception_history_bridge as _dep_history_bridge\n')
+          text=text.replace('core = _dep_version_sidebar.core\napp = _dep_version_sidebar.app\n','core = _dep_history_bridge.core\napp = _dep_history_bridge.app\n')
+          p.write_text(text,encoding='utf-8')
+
+          obsolete=[
+              'reception_update_restart.py',
+              'reception_launcher_status.py',
+              'reception_version_display.py',
+              'reception_version_sidebar.py',
+          ]
+          manifest_path=root/'update_manifest.json'
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8-sig'))
+          for key in ('required_dependencies','copy'):
+              manifest[key]=[x for x in manifest.get(key,[]) if x not in obsolete]
+          manifest_path.write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+
+          for name in obsolete:
+              path=root/name
+              if path.exists(): path.unlink()
+
+          # This workflow is temporary and must not become part of the runtime history.
+          Path('.github/workflows/apply-general-reception-safe-cleanup.yml').unlink()
+          PY
+
+          for removed in reception_update_restart reception_launcher_status reception_version_display reception_version_sidebar; do
+            if grep -R --include='*.py' -n "$removed" recepcion/app; then
+              echo "Remaining reference to removed module: $removed" >&2
+              exit 1
+            fi
+          done
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          git diff --check
+      - name: Commit candidate cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Apply safe general Reception cleanup"
+          git push origin HEAD:audit-general-reception-4629
