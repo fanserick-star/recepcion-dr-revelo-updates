@@ -21,6 +21,38 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Align temporary patch with current publisher
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          patch = Path('tools/patch_reception_reports_4627.py')
+          s = patch.read_text(encoding='utf-8')
+          marker = 'workflow = WORKFLOW.read_text(encoding="utf-8")'
+          i = s.find(marker)
+          if i < 0:
+              raise SystemExit('temporary patch workflow block not found')
+          s = s[:i] + 'print("PATCH_RECEPTION_REPORTS_OK", NEW)\n'
+          patch.write_text(s, encoding='utf-8')
+
+          wf = Path('.github/workflows/publish-reception-app-channel.yml')
+          w = wf.read_text(encoding='utf-8')
+          anchor = '''      - name: Enforce canonical Reception source
+        run: |
+          python tools/test_reception_canonical_source.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+'''
+          addition = '''
+      - name: Validate report invariants
+        run: python tools/test_reception_reports.py
+'''
+          if 'Validate report invariants' not in w:
+              if anchor not in w:
+                  raise SystemExit('current publisher anchor not found')
+              w = w.replace(anchor, anchor + addition, 1)
+              wf.write_text(w, encoding='utf-8')
+          print('TEMP_PATCH_ANCHOR_ALIGNED')
+          PY
+
       - name: Apply canonical Reports audit patch
         run: python tools/patch_reception_reports_4627.py
 
