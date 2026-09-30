@@ -76,7 +76,9 @@ jobs:
           assert 'reception_history_patient_details' not in panel
           assert 'reception_history_cancellation' in panel
           bridge=(rroot/'historia_bridge.py').read_text(encoding='utf-8-sig')
-          for forbidden in ('waiting_queue','OUTBOX_DB','flush_pending','CREATE SCHEMA','CREATE TABLE'): assert forbidden not in bridge,forbidden
+          for forbidden in ('OUTBOX_DB','flush_pending','CREATE SCHEMA','CREATE TABLE','INSERT INTO waiting_queue','UPDATE waiting_queue','FROM waiting_queue'):
+              assert forbidden not in bridge,forbidden
+          assert '"waiting_queue_transport": "lan_only"' in bridge
           assert 'HISTORIA_DATABASE_URL' in bridge and 'DATABASE_URL' in bridge
           handoff=(rroot/'reception_history_bridge.py').read_text(encoding='utf-8-sig')
           assert 'Procedimiento -' in handoff
