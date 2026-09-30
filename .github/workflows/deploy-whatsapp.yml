@@ -1,0 +1,153 @@
+name: Deploy WhatsApp Cloud
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare/whatsapp_worker.js'
+      - 'cloudflare/wrangler.whatsapp.jsonc'
+      - '.github/workflows/deploy-whatsapp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-whatsapp-cloud-canonical
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_NAME: dr-revelo-whatsapp-cloud
+      WORKER_URL: https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validar fuente canónica
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+
+          python - <<'PY'
+          import os, pathlib, re
+          p=pathlib.Path('cloudflare/whatsapp_worker.js')
+          s=p.read_text(encoding='utf-8')
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID'].strip()
+          assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
+          assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
+          required=[
+            'worker_version: "2.6.23"',
+            'scheduler_created_at_timezone: "utc_storage_v1"',
+            'scheduler_booking_grace: "12h_v1"',
+            'autoagenda_recovery: "one_time_reclaim_v1"',
+            'autoagenda_authorization_mode: "env_or_db_v2"',
+            'autoagenda_forward: "authorized_v1"',
+            'autoagenda_enrollment: "one_time_v1"',
+            'autoagenda_time_parser: "ampm_v2"',
+            'autoagenda_week_guard: "monday_sunday_v1"',
+            'diagnostics_export: "cf_token_aesgcm_v1"',
+            "CASE WHEN kind='cita_agendada' THEN interval '12 hours' ELSE interval '4 hours' END",
+            "b.created_at AT TIME ZONE 'UTC'",
+          ]
+          for marker in required:
+              assert marker in s, marker
+          assert '7Futs0wTVk95' not in s, 'El código real de recuperación no debe publicarse'
+          p.write_text(s.replace('__CF_ACCOUNT_ID__', account), encoding='utf-8')
+          print('WHATSAPP_CANONICAL_SOURCE_OK')
+          PY
+
+          cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
+          node --check /tmp/whatsapp_worker.mjs
+
+      - name: Dry-run canónico
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars --dry-run --outdir /tmp/cf-dry
+          test -n "$(find /tmp/cf-dry -type f -print -quit)"
+
+      - name: Desplegar Worker y cron canónicos
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
+
+      - name: Verificar cron 24/7 cada 5 minutos
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$WORKER_NAME/schedules" \
+            -o /tmp/schedules.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/schedules.json','r',encoding='utf-8'))
+          assert d.get('success') is True, d
+          crons=sorted(x.get('cron') for x in d.get('result',{}).get('schedules',[]))
+          assert crons == ['*/5 * * * *'], crons
+          print('WHATSAPP_CRON_CANONICAL_OK', crons)
+          PY
+
+      - name: Verificar producción
+        shell: bash
+        run: |
+          set -euo pipefail
+          OK=0
+          for i in $(seq 1 20); do
+            if curl -fsS --max-time 15 -H 'Cache-Control: no-cache' "$WORKER_URL/health?ci=$(date +%s%N)" -o /tmp/health.json; then
+              if python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
+          assert d.get('ok') is True, d
+          assert d.get('worker_version') == '2.6.23', d
+          assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
+          assert d.get('scheduler_booking_grace') == '12h_v1', d
+          assert d.get('autoagenda_recovery') == 'one_time_reclaim_v1', d
+          assert d.get('autoagenda_authorization_mode') == 'env_or_db_v2', d
+          assert d.get('autoagenda_forward') == 'authorized_v1', d
+          assert d.get('autoagenda_enrollment') == 'one_time_v1', d
+          assert d.get('autoagenda_time_parser') == 'ampm_v2', d
+          assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
+          assert d.get('autoagenda_ui') == 'emoji_v1', d
+          assert d.get('diagnostics_read') == 'capability_v1', d
+          assert d.get('diagnostics_export') == 'cf_token_aesgcm_v1', d
+          print('WHATSAPP_PRODUCTION_OK')
+          PY
+              then
+                OK=1
+                break
+              fi
+            fi
+            sleep 3
+          done
+          test "$OK" = "1"
+          cat /tmp/health.json
+
+      - name: Probar disponibilidad pública
+        shell: bash
+        run: |
+          set -euo pipefail
+          FROM=$(date -u +%F)
+          TO=$(date -u -d '+14 days' +%F)
+          curl -fsS --max-time 15 -H 'Origin: https://fanserick-star.github.io' \
+            "$WORKER_URL/booking/availability?from=$FROM&to=$TO" -o /tmp/availability.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/availability.json','r',encoding='utf-8'))
+          assert d.get('ok') is True, d
+          assert isinstance(d.get('times'), list), d
+          assert isinstance(d.get('occupied'), list), d
+          print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
+          PY
