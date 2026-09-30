@@ -29,32 +29,24 @@ jobs:
           appjs=root/'static/app.js'
           text=appjs.read_text(encoding='utf-8')
 
-          old="""function billingMissingFields(p={}){
-  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;
-}"""
-          new="""function billingMissingFields(p={}){
-  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out;
-}"""
+          old="function billingMissingFields(p={}){\n  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;\n}"
+          new="function billingMissingFields(p={}){\n  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out;\n}"
           if old not in text:
               raise SystemExit('billingMissingFields canonical anchor not found')
           text=text.replace(old,new,1)
 
-          old_urls="""const EXTERNAL_APP_URLS={
-  confirmafy:'https://confirmafy.com/app/calendar',
-  facturero:'https://app.factureromovil.com/documentos/facturas'
-};"""
-          new_urls="""const EXTERNAL_APP_URLS={
-  confirmafy:'https://confirmafy.com/app/calendar'
-};"""
+          old_urls="const EXTERNAL_APP_URLS={\n  confirmafy:'https://confirmafy.com/app/calendar',\n  facturero:'https://app.factureromovil.com/documentos/facturas'\n};"
+          new_urls="const EXTERNAL_APP_URLS={\n  confirmafy:'https://confirmafy.com/app/calendar'\n};"
           if old_urls not in text:
               raise SystemExit('Facturero destination anchor not found')
           text=text.replace(old_urls,new_urls,1)
 
           marker='Abrir Facturero Móvil ↗'
-          if marker not in text:
+          marker_at=text.index(marker) if marker in text else -1
+          if marker_at < 0:
               raise SystemExit('Facturero modal button anchor not found')
-          start=text.rfind('<button',0,text.index(marker))
-          end=text.index('</button>',text.index(marker))+len('</button>')
+          start=text.rfind('<button',0,marker_at)
+          end=text.index('</button>',marker_at)+len('</button>')
           if start < 0:
               raise SystemExit('Facturero button start not found')
           text=text[:start]+text[end:]
@@ -76,12 +68,7 @@ jobs:
 
           features=root/'features_runtime.py'
           text=features.read_text(encoding='utf-8')
-          for line in [
-              'import reception_billing_modal_cleanup\n',
-              'import reception_billing_optional_email\n',
-              '    reception_billing_modal_cleanup,\n',
-              '    reception_billing_optional_email,\n',
-          ]:
+          for line in ['import reception_billing_modal_cleanup\n','import reception_billing_optional_email\n','    reception_billing_modal_cleanup,\n','    reception_billing_optional_email,\n']:
               text=text.replace(line,'')
           features.write_text(text,encoding='utf-8')
 
