@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.30",
-  "app_version": "4.6.30",
-  "runtime_version": "4.6.30",
+  "version": "4.6.31",
+  "app_version": "4.6.31",
+  "runtime_version": "4.6.31",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -160,8 +160,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Pantalla TV oficial de turnos: estado en vivo por LAN, publicidad local condicional y modo de pruebas aislado.",
-    "previous_version": "4.6.29",
+    "purpose": "Hotfix de Pantalla TV oficial: corrige la importación de recursos compartidos al iniciar el servidor TV.",
+    "previous_version": "4.6.30",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
