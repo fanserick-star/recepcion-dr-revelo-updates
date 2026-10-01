@@ -8,6 +8,7 @@ on:
       - "launcher-v1/app-channel-source.json"
       - "tools/build_reception_app_channel.py"
       - "tools/test_reception_canonical_source.py"
+      - "tools/test_reception_safe_optimization.py"
       - "tools/validate_reception_runtime_layout.py"
       - "updates/**"
       - "releases/reception/**"
@@ -43,6 +44,7 @@ jobs:
       - name: Verify canonical source contract
         run: |
           python tools/test_reception_canonical_source.py
+          python tools/test_reception_safe_optimization.py
           python tools/validate_reception_runtime_layout.py recepcion/app
 
       - name: Block new versioned Reception folders under updates
