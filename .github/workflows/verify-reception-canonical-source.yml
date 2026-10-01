@@ -45,6 +45,19 @@ jobs:
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
+          python - <<'PY'
+          from pathlib import Path
+
+          bridge = Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
+          cancellation = Path('recepcion/app/reception_history_cancellation.py').read_text(encoding='utf-8')
+          assert 'import reception_history_cancellation as _dep_history_cancellation' in bridge
+          assert 'historia_lan_transport.install(historia_bridge)' in cancellation
+          assert 'delete_visit_and_cancel_historia_safe' in cancellation
+          assert 'delete_visit_and_cancel_historia_direct' in cancellation
+          assert 'reconcile_recent_deleted_handoffs' in cancellation
+          assert 'core.APP_VERSION =' not in cancellation
+          print('RECEPTION -> HISTORIA DELETE SYNC GUARD OK')
+          PY
           PYTHONPATH=recepcion/app python - <<'PY'
           from reception_tv_service import TVTurnService
 
