@@ -11,6 +11,7 @@ from pathlib import Path
 import cloud_sync
 import cloud_tombstone_patch
 import consentimiento_informado
+import historia_link_helper
 import material_consentimiento_patch
 import material_pacientes
 import tv_turn_bridge
@@ -145,6 +146,7 @@ def install() -> None:
     material_pacientes.install_fastapi_hook()
     consentimiento_informado.install_fastapi_hook()
     material_consentimiento_patch.install_fastapi_hook()
+    historia_link_helper.install_fastapi_hook()
 
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):
