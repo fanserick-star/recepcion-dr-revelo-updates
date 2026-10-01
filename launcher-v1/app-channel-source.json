@@ -6,3 +6,4 @@
   "sourceRoot": "recepcion/app",
   "notes": "Runtime semántico consolidado de Recepción. La fuente viva única es recepcion/app; la Agenda 24/7 y sus integraciones se publican desde sus fuentes canónicas, sin capas versionadas temporales. El payload se deriva del update_manifest.json canónico y la versión de recepcion-version.json."
 }
+
