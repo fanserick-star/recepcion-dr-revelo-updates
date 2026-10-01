@@ -10,6 +10,7 @@ from pathlib import Path
 
 import cloud_sync
 import cloud_tombstone_patch
+import consentimiento_informado
 import material_pacientes
 import tv_turn_bridge
 
@@ -138,9 +139,10 @@ def install() -> None:
     # Solo expone estado de cola sin nombres/identificación y no escribe datos.
     tv_turn_bridge.install()
 
-    # Se registra antes de que app.py construya FastAPI. El módulo de Material
-    # solo añade UI/rutas locales y no interviene en base clínica, Neon ni LAN.
+    # Estos módulos agregan únicamente UI/rutas locales antes de que app.py
+    # construya FastAPI. No alteran Neon, LAN ni el contenido de las historias.
     material_pacientes.install_fastapi_hook()
+    consentimiento_informado.install_fastapi_hook()
 
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):
