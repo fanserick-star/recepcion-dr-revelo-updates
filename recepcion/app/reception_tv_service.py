@@ -22,17 +22,20 @@ class TVTurnService(TVMediaMixin):
         self.history_error = ""
         self.last_history_seen_epoch = 0.0
         self.last_tv_seen_epoch = 0.0
-        self.last_test_tv_seen_epoch = 0.0
+        self.history_initialized = False
         self.config = self._load_config()
         self.live = {
             "mode": "idle",
             "turn": None,
             "waiting_count": 0,
+            "next_waiting_turn": None,
+            "next_waiting_queue_id": "",
             "event_id": 0,
             "sound": True,
             "sound_test": False,
             "current_queue_id": "",
             "called_queue_id": "",
+            "call_before_attending_id": "",
             "history_online": False,
             "history_host": "",
             "history_last_seen": "",
@@ -51,6 +54,13 @@ class TVTurnService(TVMediaMixin):
             "last_change": _now_iso(),
         }
 
+    def _tv_online(self) -> bool:
+        return bool(self.last_tv_seen_epoch and _epoch() - self.last_tv_seen_epoch < 8)
+
+    def _display_mode(self) -> str:
+        mode = str(self.config.get("display_mode") or "live").strip().lower()
+        return mode if mode in {"live", "test"} else "live"
+
     def live_snapshot(self, *, touch_tv: bool = False) -> dict:
         if touch_tv:
             self.last_tv_seen_epoch = _epoch()
@@ -64,7 +74,7 @@ class TVTurnService(TVMediaMixin):
                 if self.last_history_seen_epoch
                 else None
             )
-            out["tv_online"] = bool(self.last_tv_seen_epoch and _epoch() - self.last_tv_seen_epoch < 8)
+            out["tv_online"] = self._tv_online()
             out["advertising"] = self._advertising_allowed(out)
             out["video_count"] = len(self.video_items())
             out["server_port"] = PORT
@@ -72,20 +82,45 @@ class TVTurnService(TVMediaMixin):
             out["control_url"] = f"http://127.0.0.1:{PORT}/control"
             out["version"] = APP_VERSION
             out["procedures_excluded"] = True
+            out["display_mode"] = self._display_mode()
             return out
 
     def test_snapshot(self, *, touch_tv: bool = False) -> dict:
         if touch_tv:
-            self.last_test_tv_seen_epoch = _epoch()
+            self.last_tv_seen_epoch = _epoch()
         with self.lock:
             out = dict(self.test)
             out["advertising"] = self._advertising_allowed(out)
-            out["tv_online"] = bool(self.last_test_tv_seen_epoch and _epoch() - self.last_test_tv_seen_epoch < 8)
+            out["tv_online"] = self._tv_online()
             out["video_count"] = len(self.video_items())
             out["server_port"] = PORT
-            out["tv_url"] = f"http://{_lan_ip()}:{PORT}/TV-PRUEBAS"
+            out["tv_url"] = f"http://{_lan_ip()}:{PORT}/TV"
             out["version"] = APP_VERSION
+            out["display_mode"] = self._display_mode()
+            out["next_waiting_turn"] = (
+                int(out.get("turn") or 1)
+                if out.get("mode") == "idle" and int(out.get("waiting_count") or 0) > 0
+                else None
+            )
             return out
+
+    def display_snapshot(self, *, touch_tv: bool = False) -> dict:
+        if touch_tv:
+            self.last_tv_seen_epoch = _epoch()
+        mode = self._display_mode()
+        out = self.test_snapshot() if mode == "test" else self.live_snapshot()
+        out["display_mode"] = mode
+        out["test_mode"] = mode == "test"
+        return out
+
+    def set_display_mode(self, value: object) -> dict:
+        mode = str(value or "").strip().lower()
+        if mode not in {"live", "test"}:
+            raise ValueError("Modo de pantalla inválido")
+        with self.lock:
+            self.config["display_mode"] = mode
+            self._save_config()
+        return self.display_snapshot()
 
     def _history_state(self) -> dict:
         state = historia_lan_transport._snapshot()
@@ -134,39 +169,76 @@ class TVTurnService(TVMediaMixin):
         waiting = [x for x in waiting if x.get("turn") not in (None, "")]
         waiting_count = len(waiting)
         with self.lock:
+            first_sync = not self.history_initialized
             prev_current_id = str(self.live.get("current_queue_id") or "")
             called_id = str(self.live.get("called_queue_id") or "")
             self.live["history_online"] = True
             self.live["history_host"] = str(payload.get("host") or "")
             self.live["history_last_seen"] = _now_iso()
             self.live["waiting_count"] = waiting_count
+            self.live["next_waiting_turn"] = int(waiting[0]["turn"]) if waiting else None
+            self.live["next_waiting_queue_id"] = str(waiting[0].get("queue_id") or "") if waiting else ""
             self.last_history_seen_epoch = now
             self.history_error = ""
 
             if current and current.get("turn") not in (None, ""):
                 current_id = str(current.get("queue_id") or "")
                 turn = int(current.get("turn"))
-                changed = (
-                    self.live.get("mode") != "attending"
-                    or prev_current_id != current_id
-                    or int(self.live.get("turn") or 0) != turn
-                )
-                self.live["mode"] = "attending"
+                newly_opened = prev_current_id != current_id
+                was_already_called = bool(called_id and called_id == current_id)
+                pre_call_id = str(self.live.get("call_before_attending_id") or "")
+
                 self.live["turn"] = turn
                 self.live["current_queue_id"] = current_id
                 self.live["called_queue_id"] = ""
-                if changed:
+
+                if first_sync:
+                    # Si Recepción se reinicia con una consulta ya abierta, no vuelve a sonar.
+                    self.live["mode"] = "attending"
+                    self.live["call_before_attending_id"] = ""
+                    self.live["calling_started_epoch"] = 0.0
+                    self.live["attention_started_epoch"] = now
+                    self.live["last_change"] = _now_iso()
+                    self.history_initialized = True
+                    return
+
+                if newly_opened and not was_already_called:
+                    # Primer paciente (o apertura directa): Atender en Historia hace el llamado
+                    # durante unos segundos antes de pasar a EN ATENCIÓN.
+                    self.live["mode"] = "calling"
+                    self.live["call_before_attending_id"] = current_id
+                    self.live["calling_started_epoch"] = now
+                    self.live["attention_started_epoch"] = now
                     self.live["sound_test"] = False
                     self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
+                    self.live["last_change"] = _now_iso()
+                    self.history_initialized = True
+                    return
+
+                if pre_call_id == current_id and self.live.get("mode") == "calling":
+                    if now - float(self.live.get("calling_started_epoch") or 0.0) < 5.0:
+                        self.history_initialized = True
+                        return
+                    self.live["call_before_attending_id"] = ""
+
+                changed = self.live.get("mode") != "attending" or newly_opened
+                self.live["mode"] = "attending"
+                self.live["calling_started_epoch"] = 0.0
+                if changed:
+                    self.live["sound_test"] = False
                     self.live["attention_started_epoch"] = now
                     self.live["last_change"] = _now_iso()
                 elif not self.live.get("attention_started_epoch"):
                     self.live["attention_started_epoch"] = now
+                self.history_initialized = True
                 return
+
+            self.history_initialized = True
 
             if prev_current_id:
                 finished_status = self._recent_status(payload, prev_current_id)
                 self.live["current_queue_id"] = ""
+                self.live["call_before_attending_id"] = ""
                 self.live["attention_started_epoch"] = 0.0
                 if finished_status == "completed" and waiting:
                     nxt = waiting[0]
@@ -178,6 +250,7 @@ class TVTurnService(TVMediaMixin):
                     self.live["sound_test"] = False
                     self.live["last_change"] = _now_iso()
                 else:
+                    # Cancelar/eliminar nunca equivale a llamar al siguiente.
                     self.live["mode"] = "idle"
                     self.live["turn"] = None
                     self.live["called_queue_id"] = ""
@@ -204,6 +277,7 @@ class TVTurnService(TVMediaMixin):
 
             self.live["mode"] = "idle"
             self.live["turn"] = None
+            self.live["calling_started_epoch"] = 0.0
 
     def mark_history_offline(self, exc: Exception) -> None:
         with self.lock:
@@ -330,6 +404,8 @@ class TVTurnService(TVMediaMixin):
             "mode": live.get("mode"),
             "turn": live.get("turn"),
             "waiting_count": live.get("waiting_count"),
+            "next_waiting_turn": live.get("next_waiting_turn"),
             "advertising": live.get("advertising"),
+            "display_mode": self._display_mode(),
             "version": APP_VERSION,
         }
