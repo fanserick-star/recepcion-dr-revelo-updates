@@ -163,7 +163,7 @@ def install() -> None:
             status = cloud_sync.get_sync_status(self.data_dir)
             if status.get("state") == "afk":
                 cloud_sync._write_status(
-                    service.data_dir,
+                    self.data_dir,
                     configured=bool(self.url and self.enabled),
                     online=False,
                     state="ready",
