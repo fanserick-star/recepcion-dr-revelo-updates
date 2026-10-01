@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.28",
-  "app_version": "4.6.28",
-  "runtime_version": "4.6.28",
+  "version": "4.6.29",
+  "app_version": "4.6.29",
+  "runtime_version": "4.6.29",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -146,9 +146,9 @@
     "reception_history_identity_consolidated.py"
   ],
   "notes": {
-    "purpose": "Consolida Configuración en cinco secciones canónicas, elimina UI redundante y blinda preferencias locales, respaldos, .env y precios.",
-    "previous_version": "4.6.27",
-    "candidate_only": true,
+    "purpose": "Hotfix urgente: prioriza la coincidencia exacta de apellidos y nombres en la búsqueda manual de Historia, evitando que fichas antiguas correctas queden fuera por coincidencias débiles recientes.",
+    "previous_version": "4.6.28",
+    "candidate_only": false,
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
@@ -175,6 +175,7 @@
     "history_search_typed_name_primary": true,
     "history_search_multiword_token_order_independent": true,
     "history_search_multiword_common_token_flood_fixed": true,
+    "history_search_exact_full_name_prefetched": true,
     "history_search_name_not_misclassified_as_identification": true,
     "history_manual_link_without_national_id": true,
     "exact_identification_duplicate_safe_resolution": true,
