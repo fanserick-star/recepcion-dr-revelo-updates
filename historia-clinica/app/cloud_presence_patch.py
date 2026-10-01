@@ -11,6 +11,7 @@ from pathlib import Path
 import cloud_sync
 import cloud_tombstone_patch
 import consentimiento_informado
+import material_consentimiento_patch
 import material_pacientes
 import tv_turn_bridge
 
@@ -143,6 +144,7 @@ def install() -> None:
     # construya FastAPI. No alteran Neon, LAN ni el contenido de las historias.
     material_pacientes.install_fastapi_hook()
     consentimiento_informado.install_fastapi_hook()
+    material_consentimiento_patch.install_fastapi_hook()
 
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):
@@ -161,7 +163,7 @@ def install() -> None:
             status = cloud_sync.get_sync_status(self.data_dir)
             if status.get("state") == "afk":
                 cloud_sync._write_status(
-                    self.data_dir,
+                    service.data_dir,
                     configured=bool(self.url and self.enabled),
                     online=False,
                     state="ready",
