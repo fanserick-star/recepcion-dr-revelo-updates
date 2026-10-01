@@ -11,7 +11,12 @@ from reception_tv_common import CONFIG_PATH, DATA_DIR, FIREWALL_RULE, PORT, ROOT
 
 class TVMediaMixin:
     def _load_config(self) -> dict:
-        default = {"videos_enabled": True, "video_volume": 0.20, "video_order": []}
+        default = {
+            "videos_enabled": True,
+            "video_volume": 0.20,
+            "video_order": [],
+            "display_mode": "live",
+        }
         if not CONFIG_PATH.is_file():
             return default
         try:
@@ -21,7 +26,15 @@ class TVMediaMixin:
             enabled = bool(data.get("videos_enabled", True))
             volume = max(0.0, min(1.0, float(data.get("video_volume", 0.20))))
             order = [str(x) for x in (data.get("video_order") or []) if isinstance(x, str)]
-            return {"videos_enabled": enabled, "video_volume": volume, "video_order": order}
+            display_mode = str(data.get("display_mode") or "live").strip().lower()
+            if display_mode not in {"live", "test"}:
+                display_mode = "live"
+            return {
+                "videos_enabled": enabled,
+                "video_volume": volume,
+                "video_order": order,
+                "display_mode": display_mode,
+            }
         except Exception:
             return default
 
