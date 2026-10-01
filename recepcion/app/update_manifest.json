@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.33",
-  "app_version": "4.6.33",
-  "runtime_version": "4.6.33",
+  "version": "4.6.34",
+  "app_version": "4.6.34",
+  "runtime_version": "4.6.34",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -160,8 +160,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Hotfix de sincronización Recepción → Historia: al eliminar una consulta se cancela inmediatamente su entrada en espera y se reconcilian handoffs recientes ya eliminados.",
-    "previous_version": "4.6.32",
+    "purpose": "Hotfix de borrado desde Inicio: Recepción elimina usando el ID local que realmente muestra la interfaz, replica el borrado a Neon mediante id_map y cancela la misma atención en Historia sin confundir IDs locales con IDs de nube.",
+    "previous_version": "4.6.33",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -176,8 +176,10 @@
     "procedure_turn_consumption": false,
     "waiting_queue_transport": "lan_only",
     "historia_delete_sync_active": true,
+    "historia_delete_uses_visible_local_id": true,
     "historia_restore_sync_active": true,
     "historia_recent_deleted_reconcile": true,
+    "historia_recent_reconcile_maps_local_to_cloud": true,
     "historia_cancel_never_calls_next": true,
     "tv_turns_enabled": true,
     "tv_turns_port": 8899,
