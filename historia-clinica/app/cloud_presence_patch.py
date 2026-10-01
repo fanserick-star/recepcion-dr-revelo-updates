@@ -11,6 +11,7 @@ from pathlib import Path
 import cloud_sync
 import cloud_tombstone_patch
 import material_pacientes
+import tv_turn_bridge
 
 AFK_SECONDS = 300
 HEARTBEAT_SECONDS = 240
@@ -88,7 +89,6 @@ def _heartbeat_once(service) -> None:
     pending = _pending_count(service)
     idle = _idle_seconds(service)
 
-    # AFK real: con la cola limpia no se abre ninguna conexión a Neon.
     if pending == 0 and idle >= AFK_SECONDS:
         try:
             cloud_sync._write_status(
@@ -105,8 +105,6 @@ def _heartbeat_once(service) -> None:
             pass
         return
 
-    # Si hay cambios pendientes, el ciclo principal ya usa Neon y registra el
-    # dispositivo durante ese mismo push; no duplicamos conexiones.
     if pending > 0:
         return
 
@@ -136,6 +134,10 @@ def _heartbeat_loop(service) -> None:
 
 
 def install() -> None:
+    # El endpoint LAN de TV se instala antes de que app.py cree LAN_SERVICE.
+    # Solo expone estado de cola sin nombres/identificación y no escribe datos.
+    tv_turn_bridge.install()
+
     # Se registra antes de que app.py construya FastAPI. El módulo de Material
     # solo añade UI/rutas locales y no interviene en base clínica, Neon ni LAN.
     material_pacientes.install_fastapi_hook()
