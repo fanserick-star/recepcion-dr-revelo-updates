@@ -4,7 +4,7 @@ import json
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
-from reception_tv_service import (
+from reception_tv_common import (
     CONTROL_PATH,
     DISPLAY_PATH,
     LOGO_FULL,
