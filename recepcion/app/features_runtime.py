@@ -53,6 +53,7 @@ import reception_history_cancellation
 import reception_payment_terminal_feedback
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
+import reception_tv_turns
 
 FEATURE_MODULES = (
     reception_payments_and_agenda,
@@ -101,6 +102,7 @@ FEATURE_MODULES = (
     reception_payment_terminal_feedback,
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
+    reception_tv_turns,
 )
 
 
