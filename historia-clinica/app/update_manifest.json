@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.92",
-  "app_version": "1.3.92",
-  "runtime_version": "1.3.92",
+  "version": "1.3.93",
+  "app_version": "1.3.93",
+  "runtime_version": "1.3.93",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -20,6 +20,7 @@
     "material_pacientes.py",
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
+    "historia_link_helper.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64"
@@ -41,6 +42,7 @@
     "material_pacientes.py",
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
+    "historia_link_helper.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
@@ -48,8 +50,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Muestra Consentimiento informado en Material para pacientes, dentro del mismo Acceso rápido donde está la dieta para cálculos, manteniendo además los accesos desde ficha y consulta.",
-    "previous_version": "1.3.91",
+    "purpose": "Mejora el vínculo entre pacientes en espera y fichas históricas: la búsqueda manual usa primero la cédula, muestra varias fichas posibles y tolera nombres incompletos o con errores de escritura sin autovincularlos.",
+    "previous_version": "1.3.92",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -74,6 +76,11 @@
     "consentimiento_encounter_autosave_before_open": true,
     "consentimiento_does_not_finalize_consultation": true,
     "consentimiento_database_writes": false,
-    "consentimiento_material_quick_access": true
+    "consentimiento_material_quick_access": true,
+    "history_link_search_prefers_identification": true,
+    "history_link_multiple_candidates": true,
+    "history_link_fuzzy_name_candidates": true,
+    "history_link_existing_routes_preserved": true,
+    "history_link_patient_data_writes": false
   }
 }
