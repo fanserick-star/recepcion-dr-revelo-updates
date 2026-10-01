@@ -20,7 +20,7 @@ from reception_tv_common import (
 
 def build_handler(service):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "DrReveloTV/1.0"
+        server_version = "DrReveloTV/1.1"
 
         def log_message(self, _format, *_args):
             return
@@ -83,10 +83,12 @@ def build_handler(service):
                 if not DISPLAY_PATH.is_file():
                     return self._send_text(503, "Pantalla TV no instalada")
                 return self._send(200, DISPLAY_PATH.read_bytes(), "text/html; charset=utf-8")
+            if path == "/api/display-state":
+                return self._send_json(200, service.display_snapshot(touch_tv=query.get("tv") == ["1"]))
             if path == "/api/live-state":
-                return self._send_json(200, service.live_snapshot(touch_tv=query.get("tv") == ["1"]))
+                return self._send_json(200, service.live_snapshot())
             if path == "/api/test-state":
-                return self._send_json(200, service.test_snapshot(touch_tv=query.get("tv") == ["1"]))
+                return self._send_json(200, service.test_snapshot())
             if path == "/api/videos":
                 return self._send_json(200, service.video_config())
             if path == "/api/status":
@@ -112,6 +114,9 @@ def build_handler(service):
             path = parts.path
             query = urllib.parse.parse_qs(parts.query)
             try:
+                if path == "/api/display-mode":
+                    data = self._json_body()
+                    return self._send_json(200, service.set_display_mode(data.get("mode")))
                 if path == "/api/test/set":
                     data = self._json_body()
                     if str(data.get("action") or "") == "finish":
