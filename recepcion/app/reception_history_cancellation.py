@@ -90,14 +90,50 @@ if _old_safe_delete_visit is None or _old_direct_delete_visit is None:
     raise RuntimeError("No se encontraron las rutas de borrado necesarias para sincronizar Historia Clínica")
 
 
+def _delete_visit_source_aware(endpoint, visit_id: int, db, user):
+    """Borra la atención que el usuario realmente ve en Recepción.
+
+    Inicio y Pacientes leen desde la copia local para que la PC antigua sea rápida.
+    Una atención creada local-first puede tener un ID local distinto del ID que
+    recibió luego en Neon. Por eso un DELETE no debe interpretar ciegamente el ID
+    visible como ID de Neon: primero se borra la fila local y la cola offline ya
+    existente traduce ese ID mediante id_map antes de replicar el borrado a nube.
+
+    Si la fila no existe localmente (por ejemplo una llamada API con un ID de nube),
+    conservamos el comportamiento anterior usando la sesión recibida.
+    """
+    local_db = None
+    try:
+        local_db = core.LocalSessionLocal()
+        local_visit = local_db.get(core.Visit, int(visit_id))
+        if local_visit is not None:
+            captured = _capture_visit(local_db, visit_id)
+            result = endpoint(int(visit_id), local_db, user)
+            return result, captured, "local"
+    finally:
+        try:
+            if local_db is not None:
+                local_db.close()
+        except Exception:
+            pass
+
+    captured = _capture_visit(db, visit_id)
+    result = endpoint(int(visit_id), db, user)
+    return result, captured, "request-db"
+
+
 @app.delete("/api/safety/visits/{visit_id}")
 def delete_visit_and_cancel_historia_safe(
     visit_id: int,
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    captured = _capture_visit(db, visit_id)
-    result = _old_safe_delete_visit(visit_id, db, user)
+    result, captured, _source = _delete_visit_source_aware(
+        _old_safe_delete_visit,
+        visit_id,
+        db,
+        user,
+    )
     patient_id = (
         str((result or {}).get("patient_id") or "")
         if isinstance(result, dict)
@@ -113,8 +149,12 @@ def delete_visit_and_cancel_historia_direct(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    captured = _capture_visit(db, visit_id)
-    result = _old_direct_delete_visit(visit_id, db, user)
+    result, captured, _source = _delete_visit_source_aware(
+        _old_direct_delete_visit,
+        visit_id,
+        db,
+        user,
+    )
     patient_id = (
         str((result or {}).get("patient_id") or "")
         if isinstance(result, dict)
@@ -145,17 +185,30 @@ if _old_restore_trash is not None:
         return result
 
 
+def _mapped_cloud_visit_ids(local_db, visit_ids: list[int]) -> list[int]:
+    mapped = []
+    for value in visit_ids:
+        try:
+            cloud_id = int(core.resolve_cloud_id(local_db, "visit", int(value)))
+        except Exception:
+            cloud_id = int(value)
+        if cloud_id not in mapped:
+            mapped.append(cloud_id)
+    return mapped
+
+
 def _recent_deleted_handoffs(days: int = 2) -> list[dict]:
     """Encuentra handoffs LAN recientes cuya atención ya no existe en Recepción.
 
-    Solo repara automáticamente si podemos consultar la base autoritativa. Si
-    Recepción usa Neon y Neon no responde, no inferimos una eliminación desde
-    una cache potencialmente incompleta.
+    Los visit_ids del handoff corresponden al ID visible/local. Si Neon es la
+    autoridad, cada ID se traduce primero con id_map antes de comprobar existencia.
+    Esto evita cancelar por error una atención válida cuyo ID de nube es distinto.
     """
     path = historia_lan_transport.LAN_OUTBOX_DB
     if not path.is_file():
         return []
 
+    authoritative_is_cloud = core.CloudSessionLocal is not None
     session_factory = core.CloudSessionLocal or core.LocalSessionLocal
     cutoff = (datetime.now() - timedelta(days=max(1, int(days)))).isoformat(timespec="seconds")
     try:
@@ -174,9 +227,11 @@ def _recent_deleted_handoffs(days: int = 2) -> list[dict]:
         return []
 
     db = None
+    local_db = None
     out = []
     try:
         db = session_factory()
+        local_db = core.LocalSessionLocal()
         # Fuerza la conexión antes de tomar cualquier decisión destructiva.
         db.execute(core.select(core.Visit.id).limit(1)).all()
         for event_id, payload_json in rows:
@@ -194,8 +249,14 @@ def _recent_deleted_handoffs(days: int = 2) -> list[dict]:
                     pass
             if not visit_ids:
                 continue
+
+            authoritative_ids = (
+                _mapped_cloud_visit_ids(local_db, visit_ids)
+                if authoritative_is_cloud
+                else visit_ids
+            )
             surviving = list(
-                db.scalars(core.select(core.Visit.id).where(core.Visit.id.in_(visit_ids)))
+                db.scalars(core.select(core.Visit.id).where(core.Visit.id.in_(authoritative_ids)))
             )
             if surviving:
                 continue
@@ -213,6 +274,11 @@ def _recent_deleted_handoffs(days: int = 2) -> list[dict]:
         try:
             if db is not None:
                 db.close()
+        except Exception:
+            pass
+        try:
+            if local_db is not None:
+                local_db.close()
         except Exception:
             pass
     return out
@@ -248,9 +314,11 @@ def history_cancel_health(user=core.Depends(core.current_user)):
     return {
         "ok": True,
         "delete_sync_active": True,
+        "delete_uses_visible_local_id": True,
         "restore_sync_active": _old_restore_trash is not None,
         "transport": "lan-only",
         "startup_recent_delete_reconcile": True,
+        "startup_reconcile_maps_local_to_cloud": True,
         "signed_history_protected": True,
         "database_schema_changes": False,
     }
