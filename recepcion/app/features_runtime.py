@@ -104,6 +104,80 @@ FEATURE_MODULES = (
 )
 
 
+def _install_history_exact_name_search_hotfix() -> None:
+    """Keep old exact Historia records visible even when broad token search is crowded."""
+    module = reception_history_identity_consolidated
+    base_search = module._search_candidates
+    if getattr(base_search, "__exact_name_hotfix__", False):
+        return
+
+    def patched(cur, demo, query, limit):
+        rows = list(base_search(cur, demo, query, limit) or [])
+        typed_name = module._fuzzy_text(query or demo.get("name"))
+        tokens = [token for token in typed_name.split() if len(token) >= 2]
+        if len(tokens) < 2:
+            return rows
+
+        name_expr = (
+            "TRANSLATE(UPPER(COALESCE(p.name_search,p.name,'')),"
+            "'ÁÉÍÓÚÜÑZ','AEIOUUNS')"
+        )
+        cur.execute(
+            """
+            SELECT p.id,p.name,p.name_search,p.national_id,p.national_id_search,
+                   p.birth_date,p.phone,p.email,p.address,p.merged_into_patient_id
+            FROM public.patients p
+            WHERE p.deleted_at IS NULL
+              AND """ + name_expr + " = %s LIMIT 20",
+            (typed_name,),
+        )
+
+        exact_rows = []
+        for raw in cur.fetchall() or []:
+            item = module._dict_row(cur, raw)
+            canonical_id = (
+                module._clean(item.get("merged_into_patient_id"), 120)
+                or module._clean(item.get("id"), 120)
+            )
+            if canonical_id != module._clean(item.get("id"), 120):
+                canonical = module._patient_row(cur, canonical_id)
+                if canonical:
+                    item = canonical
+            item.update(module._history_summary(cur, item["id"]))
+            score, reasons = module._candidate_score(item, demo, query)
+            item["match_score"] = score
+            item["match_reasons"] = reasons
+            exact_rows.append(item)
+
+        if not exact_rows:
+            return rows
+
+        combined = []
+        seen = set()
+        for item in exact_rows + rows:
+            patient_id = str(item.get("id") or "")
+            if not patient_id or patient_id in seen:
+                continue
+            combined.append(item)
+            seen.add(patient_id)
+
+        combined.sort(
+            key=lambda item: (
+                int(item.get("match_score") or 0),
+                int(item.get("history_date_count") or 0),
+                module._clean(item.get("last_history_date"), 20),
+            ),
+            reverse=True,
+        )
+        return combined[: max(1, min(int(limit or 30), 40))]
+
+    patched.__exact_name_hotfix__ = True
+    module._search_candidates = patched
+
+
+_install_history_exact_name_search_hotfix()
+
+
 def _read_current_app_version() -> str:
     version_doc = json.loads(
         Path(__file__).with_name("recepcion-version.json").read_text(encoding="utf-8-sig")
