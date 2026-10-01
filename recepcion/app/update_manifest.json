@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.31",
-  "app_version": "4.6.31",
-  "runtime_version": "4.6.31",
+  "version": "4.6.32",
+  "app_version": "4.6.32",
+  "runtime_version": "4.6.32",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -160,8 +160,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Hotfix de Pantalla TV oficial: corrige la importación de recursos compartidos al iniciar el servidor TV.",
-    "previous_version": "4.6.30",
+    "purpose": "Pantalla TV integrada dentro de Recepción, una sola URL para EN VIVO/PRUEBAS y visualización segura del próximo turno en espera.",
+    "previous_version": "4.6.31",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -183,6 +183,10 @@
     "tv_advertising_condition": "in_consultation_and_waiting_consultation",
     "tv_waiting_count_hidden": true,
     "tv_test_mode_isolated": true,
+    "tv_test_uses_same_display_url": true,
+    "tv_control_embedded_in_reception": true,
+    "tv_idle_next_waiting_turn_visible": true,
+    "tv_first_attend_generates_call": true,
     "tv_cancel_never_calls_next": true,
     "tv_complete_calls_next_when_waiting": true,
     "tv_video_storage": "local_reception_pc",

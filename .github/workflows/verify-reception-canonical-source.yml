@@ -45,6 +45,65 @@ jobs:
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
+          PYTHONPATH=recepcion/app python - <<'PY'
+          from reception_tv_service import TVTurnService
+
+          def payload(current=None, waiting=None, recent=None):
+              return {
+                  'host': '127.0.0.1',
+                  'current': current,
+                  'waiting': waiting or [],
+                  'recent': recent or [],
+              }
+
+          service = TVTurnService()
+          q6 = {'queue_id': 'q6', 'turn': 6, 'status': 'waiting'}
+          service.apply_history(payload(waiting=[q6]))
+          snap = service.live_snapshot()
+          assert snap['mode'] == 'idle'
+          assert snap['waiting_count'] == 1
+          assert snap['next_waiting_turn'] == 6
+
+          current6 = {'queue_id': 'q6', 'turn': 6, 'status': 'in_consultation'}
+          service.apply_history(payload(current=current6))
+          snap = service.live_snapshot()
+          assert snap['mode'] == 'calling', snap
+          assert snap['turn'] == 6
+
+          service.live['calling_started_epoch'] -= 6
+          service.apply_history(payload(current=current6))
+          snap = service.live_snapshot()
+          assert snap['mode'] == 'attending', snap
+
+          q7 = {'queue_id': 'q7', 'turn': 7, 'status': 'waiting'}
+          service.apply_history(payload(
+              waiting=[q7],
+              recent=[{'queue_id': 'q6', 'status': 'completed'}],
+          ))
+          snap = service.live_snapshot()
+          assert snap['mode'] == 'calling', snap
+          assert snap['turn'] == 7
+
+          cancelled = TVTurnService()
+          cancelled.apply_history(payload(waiting=[q6]))
+          cancelled.apply_history(payload(current=current6))
+          cancelled.live['calling_started_epoch'] -= 6
+          cancelled.apply_history(payload(current=current6))
+          cancelled.apply_history(payload(
+              waiting=[q7],
+              recent=[{'queue_id': 'q6', 'status': 'cancelled'}],
+          ))
+          snap = cancelled.live_snapshot()
+          assert snap['mode'] == 'idle', snap
+          assert snap['turn'] is None
+          assert snap['next_waiting_turn'] == 7
+
+          service.config['display_mode'] = 'test'
+          assert service.display_snapshot()['display_mode'] == 'test'
+          service.config['display_mode'] = 'live'
+          assert service.display_snapshot()['display_mode'] == 'live'
+          print('RECEPTION TV STATE MACHINE OK')
+          PY
 
       - name: Block new versioned Reception folders under updates
         shell: bash
