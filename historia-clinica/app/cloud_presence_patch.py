@@ -14,6 +14,7 @@ import consentimiento_informado
 import historia_link_helper
 import material_consentimiento_patch
 import material_pacientes
+import queue_open_attention
 import tv_turn_bridge
 
 AFK_SECONDS = 300
@@ -147,6 +148,7 @@ def install() -> None:
     consentimiento_informado.install_fastapi_hook()
     material_consentimiento_patch.install_fastapi_hook()
     historia_link_helper.install_fastapi_hook()
+    queue_open_attention.install_fastapi_hook()
 
     cls = cloud_sync.CloudSyncService
     if getattr(cls, "_v131_afk_installed", False):

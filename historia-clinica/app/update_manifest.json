@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.93",
-  "app_version": "1.3.93",
-  "runtime_version": "1.3.93",
+  "version": "1.3.94",
+  "app_version": "1.3.94",
+  "runtime_version": "1.3.94",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -21,6 +21,7 @@
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
     "historia_link_helper.py",
+    "queue_open_attention.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64"
@@ -43,6 +44,7 @@
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
     "historia_link_helper.py",
+    "queue_open_attention.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
@@ -50,8 +52,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Mejora el vínculo entre pacientes en espera y fichas históricas: la búsqueda manual usa primero la cédula, muestra varias fichas posibles y tolera nombres incompletos o con errores de escritura sin autovincularlos.",
-    "previous_version": "1.3.92",
+    "purpose": "Inicia la atención automáticamente cuando el doctor abre la ficha desde Pacientes en espera, sin depender de pulsar Atender después. Si la ficha todavía debe vincularse, la atención empieza solamente al seleccionar la ficha correcta.",
+    "previous_version": "1.3.93",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -81,6 +83,11 @@
     "history_link_multiple_candidates": true,
     "history_link_fuzzy_name_candidates": true,
     "history_link_existing_routes_preserved": true,
-    "history_link_patient_data_writes": false
+    "history_link_patient_data_writes": false,
+    "queue_open_starts_attention": true,
+    "queue_link_then_open_starts_attention": true,
+    "queue_open_attention_idempotent": true,
+    "search_patient_open_unchanged": true,
+    "procedure_tv_behavior_unchanged": true
   }
 }
