@@ -4,6 +4,7 @@ import reception_payment_terminal_manual as _dep_payment_terminal_manual
 import reception_payment_terminal as payment_core
 import historia_bridge
 import reception_history_cancellation as _dep_history_cancellation  # noqa: F401
+import reception_history_lan_resilience as _dep_history_lan_resilience  # noqa: F401
 
 core = _dep_payment_terminal_manual.core
 app = _dep_payment_terminal_manual.app
@@ -98,6 +99,8 @@ def history_handoff_health(user=core.Depends(core.current_user)):
         "lan_online": bool(state.get("lan_online")),
         "pending": int(state.get("pending") or 0),
         "delete_sync_active": bool(getattr(_dep_history_cancellation, "PATCH_DELETE_HISTORY_CANCEL_OK", False)),
+        "lan_auto_recovery": bool(state.get("lan_auto_recovery")),
+        "lan_active_subnet_scan": bool(state.get("lan_active_subnet_scan")),
     }
 
 PATCH_BOOT_OK = True
