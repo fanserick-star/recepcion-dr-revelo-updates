@@ -190,8 +190,11 @@ def _read_current_app_version() -> str:
     return version
 
 
+CURRENT_APP_VERSION = _read_current_app_version()
+
+
 def _install_versioned_overlay_home() -> None:
-    """Serve overlay assets with the canonical app version as cache-buster."""
+    """Serve every mutable base UI asset with the canonical version as cache-buster."""
     app = core_runtime.app
     for route in list(app.router.routes):
         if (
@@ -207,8 +210,18 @@ def _install_versioned_overlay_home() -> None:
             encoding="utf-8",
         ) as handle:
             html = handle.read()
-        version = _read_current_app_version()
-        html = re.sub(r'(/static/app\.js\?v=)[^"\']+', rf'\g<1>{version}', html, count=1)
+        version = CURRENT_APP_VERSION
+        # index.html aún conserva números históricos en los query strings de
+        # algunos assets base. Reescribir SOLO el cache-buster evita que WebView
+        # reutilice CSS, JS o favicon viejos después de una actualización; no
+        # modifica el contenido ni el flujo funcional de la interfaz.
+        for asset in ("app.js", "style.css", "doctor_icon.ico"):
+            escaped = re.escape(asset)
+            html = re.sub(
+                rf'(/static/{escaped}\?v=)[^"\']+',
+                rf'\g<1>{version}',
+                html,
+            )
         addon = (
             f'<link rel="stylesheet" href="/v460/overlay.css?v={version}">'
             f'<link rel="stylesheet" href="/static/configuration.css?v={version}">'
@@ -257,7 +270,6 @@ _strip_legacy_configuration_overlays()
 
 _install_versioned_overlay_home()
 
-CURRENT_APP_VERSION = _read_current_app_version()
 core_runtime.APP_VERSION = CURRENT_APP_VERSION
 for _feature_module in FEATURE_MODULES:
     _feature_module.APP_VERSION = CURRENT_APP_VERSION
