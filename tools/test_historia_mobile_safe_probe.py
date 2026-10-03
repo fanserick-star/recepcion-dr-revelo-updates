@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import base64
 import json
 import urllib.error
 import urllib.request
 
-AUTH_URL="https://ep-sweet-mud-arlsk7qa.neonauth.us-west-2.aws.neon.tech/neondb/auth/token/anonymous"
+AUTH_URL="https://ep-shiny-scene-a66ta52d.neonauth.us-west-2.aws.neon.tech/neondb/auth/token/anonymous"
 API_URL="https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 ORIGIN="https://fanserick-star.github.io"
 PROBE_TOKEN="historia-mobile-safe-probe-20261003"
@@ -40,6 +41,14 @@ def main():
         auth={}
     jwt=str(auth.get("token") or "")
     auth_ok=(auth_http==200 and jwt.count(".")==2)
+    claims={}
+    if auth_ok:
+        try:
+            part=jwt.split(".")[1]
+            part += "=" * ((4-len(part)%4)%4)
+            claims=json.loads(base64.urlsafe_b64decode(part.encode()).decode("utf-8"))
+        except Exception:
+            claims={}
 
     options_http,options_headers,_=request(
         API_URL+"/rpc/status",
@@ -63,8 +72,10 @@ def main():
     origins={allow_origin(options_headers),allow_origin(status_headers)}
     cors_ok=all(value in {ORIGIN,"*"} for value in origins if value) and bool(origins- {""})
     denied_message=str(denied.get("message") or "") if isinstance(denied,dict) else ""
+    # En esta prueba una respuesta de la función que niegue la llave clínica es
+    # la señal correcta. 404/permission errors se consideran fallo.
     access_guard_ok=(
-        status_http in (401,403)
+        status_http in (400,401,403)
         and "Acceso clínico no autorizado" in denied_message
     )
     ok=(
@@ -76,6 +87,7 @@ def main():
     print(json.dumps({
         "auth_http":auth_http,
         "auth_ok":auth_ok,
+        "jwt_role":claims.get("role"),
         "options_http":options_http,
         "guard_http":status_http,
         "guard_code":str(denied.get("code") or "") if isinstance(denied,dict) else "",
