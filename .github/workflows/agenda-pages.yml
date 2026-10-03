@@ -41,7 +41,15 @@ jobs:
           assert '[3,4,5,6].includes(day)' in public
           assert 'timesForDate' in public
           assert 'Los miércoles desde las 10:00' in public
-          print('AGENDA_WEDNESDAY_SOURCE_OK')
+          assert "HISTORY_API='https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1'" in doctor
+          assert "historyRpc('search'" in doctor
+          assert "historyRpc('patient'" in doctor
+          assert 'id="tabHistory"' in doctor
+          assert 'Ver historia clínica' in doctor
+          assert 'HISTORIA CLÍNICA · SOLO LECTURA' in doctor
+          assert 'La historia se consulta en vivo. No se guarda una copia clínica en este teléfono.' in doctor
+          assert 'revelo_historia_' not in doctor
+          print('AGENDA_AND_DIRECT_HISTORIA_SOURCE_OK')
           PY
 
       - name: Setup Pages
