@@ -65,6 +65,9 @@ jobs:
               raise SystemExit(1)
           PY
 
+      - name: Validar canal seguro de Historia
+        run: python tools/test_historia_mobile_safe_probe.py
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload Agenda
