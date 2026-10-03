@@ -278,7 +278,9 @@ def v4637_history_name_link_health(user=core.Depends(core.current_user)):
         "single_query_history_summary": True,
         "identification_is_secondary_signal": True,
         "manual_confirmation_preserved": True,
-        "different_valid_identifications_blocked_by_existing_link_route": True,
+        "different_valid_identifications_blocked_by_existing_link_route": False,
+        "confirmed_history_id_corrects_reception_identification": True,
+        "doctor_identity_correction_required": False,
         "patient_data_destructive_changes": False,
     }
 
