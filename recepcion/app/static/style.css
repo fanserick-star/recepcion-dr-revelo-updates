@@ -987,3 +987,26 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 /* Agenda canónica: estilo de actualización de paciente existente. */
 .agenda-existing-note{margin:10px 0 14px;padding:10px 12px;border-radius:11px;background:#eef6ff;border:1px solid #d6e6f5;color:#536d86;font-size:10px;line-height:1.4}
 .agenda-existing-note b{color:#274d70}
+
+
+/* v4.6.50 · Agenda de 4 días: MIÉRCOLES–SÁBADO */
+.native-schedule{
+  grid-template-columns:76px repeat(4,minmax(220px,1fr));
+  min-width:980px;
+}
+.native-slot.closed{
+  background:#f3f5f8;
+  color:#a0a9b6;
+  border:1px solid #e5e9ef;
+  text-align:center;
+  cursor:default;
+  opacity:.72;
+}
+.native-slot.closed b{font-size:11px;color:#8792a1}
+.native-slot.closed span{font-size:9.5px;color:#9aa4b2}
+@media(min-width:1500px){
+  .native-schedule{min-width:0;grid-template-columns:80px repeat(4,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .native-schedule{min-width:920px;grid-template-columns:68px repeat(4,minmax(205px,1fr))}
+}
