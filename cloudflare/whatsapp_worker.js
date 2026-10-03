@@ -5984,7 +5984,7 @@ function bookingValidDay(v2) {
 function bookingTimes() {
   const out = [];
   for (let m2 = 480; m2 <= 1020; m2 += 20) {
-    if (m2 >= 750 && m2 < 840) continue;
+    if (m2 < 840 && m2 + 20 > 750) continue;
     out.push(`${String(Math.floor(m2 / 60)).padStart(2, "0")}:${String(m2 % 60).padStart(2, "0")}`);
   }
   return out;
