@@ -1,10 +1,9 @@
-name: Aplicar agenda miércoles
+name: Finalizar agenda miércoles
 
 on:
   push:
     branches: [main]
     paths:
-      - 'tools/maintenance/apply_wednesday_schedule_20261003.py'
       - '.github/workflows/apply-wednesday-schedule.yml'
   workflow_dispatch:
 
@@ -16,63 +15,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  migrate:
+  finalize:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Corregir validación del selector web
+      - name: Alinear descanso 12:30-14:00 en WhatsApp
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          p=Path('tools/maintenance/apply_wednesday_schedule_20261003.py')
+          p=Path('cloudflare/whatsapp_worker.js')
           s=p.read_text(encoding='utf-8')
-          old='''    s = replace_exact(s, "Math.max(0,Math.min(2,Number(state.dayIndex)||0))", "Math.max(0,Math.min(3,Number(state.dayIndex)||0))", label="doctor day clamps", count=2)'''
-          new='''    s = replace_exact(s, "Math.max(0,Math.min(2,Number(state.dayIndex)||0))", "Math.max(0,Math.min(3,Number(state.dayIndex)||0))", label="doctor state day clamp")\n    s = replace_exact(s, "Math.max(0,Math.min(2,Number(i)||0))", "Math.max(0,Math.min(3,Number(i)||0))", label="doctor picker day clamp")'''
+          old='if (m2 >= 750 && m2 < 840) continue;'
+          new='if (m2 < 840 && m2 + 20 > 750) continue;'
           if s.count(old) != 1:
-              raise SystemExit('No se encontró exactamente la validación antigua del selector')
-          p.write_text(s.replace(old,new),encoding='utf-8')
+              raise SystemExit(f'Esperaba una regla antigua de almuerzo; encontré {s.count(old)}')
+          s=s.replace(old,new)
+          p.write_text(s,encoding='utf-8')
           PY
-
-      - name: Aplicar migración canónica
-        run: python tools/maintenance/apply_wednesday_schedule_20261003.py
-
-      - name: Validar sintaxis
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m py_compile recepcion/app/core_runtime.py
           cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
           node --check /tmp/whatsapp_worker.mjs
-          grep -q 'Miércoles' recepcion/app/core_runtime.py
-          grep -q 'MIÉRCOLES' agenda/index.html
-          grep -q 'worker_version: "2.6.24"' cloudflare/whatsapp_worker.js
-          grep -q 'wed_10_17_break_1230_1400_v1' cloudflare/whatsapp_worker.js
+          grep -q 'if (m2 < 840 && m2 + 20 > 750) continue;' cloudflare/whatsapp_worker.js
 
-      - name: Confirmar que hubo cambios
-        run: git diff --exit-code && { echo 'La migración no produjo cambios'; exit 1; } || true
-
-      - name: Publicar fuentes actualizadas
+      - name: Publicar corrección canónica
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add \
-            recepcion/app/core_runtime.py \
-            recepcion/app/static/app.js \
-            recepcion/app/static/style.css \
-            recepcion/app/update_manifest.json \
-            agenda/index.html \
-            agenda/agendar.html \
-            cloudflare/whatsapp_worker.js
-          git commit -m 'Agenda: habilitar miércoles 10:00-17:00'
+          git add cloudflare/whatsapp_worker.js
+          git commit -m 'WhatsApp: respetar descanso 12:30-14:00'
           git push origin HEAD:main
