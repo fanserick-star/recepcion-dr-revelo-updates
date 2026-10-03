@@ -431,7 +431,7 @@ def _correct_reception_identification_from_history(db, patient, clinical_patient
     return detail
 
 
-def _prepare_identity(db, reception_patient_id, *, sync=True):
+def _prepare_identity(db, reception_patient_id, *, sync=True, user=None):
     patient = _reception_patient(db, reception_patient_id)
     demo = _demographics(patient)
     conn = _connect_public()
@@ -645,7 +645,7 @@ def historia_identity_prepare(
 ):
     try:
         result = _prepare_identity(
-            db, reception_patient_id, sync=True
+            db, reception_patient_id, sync=True, user=user
         )
         if (
             result.get("auto_linked")
