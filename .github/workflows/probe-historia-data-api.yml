@@ -23,12 +23,25 @@ jobs:
           set -euo pipefail
           API='https://ep-sweet-mud-arlsk7qa.apirest.us-west-2.aws.neon.tech/neondb/rest/v1/'
           AUTH='https://ep-sweet-mud-arlsk7qa.neonauth.us-west-2.aws.neon.tech/neondb/auth/token/anonymous'
-          api_code="$(curl -L -sS -o /tmp/api.out -w '%{http_code}' --max-time 20 "$API" || true)"
-          auth_code="$(curl -L -sS -o /tmp/auth.out -w '%{http_code}' --max-time 20 "$AUTH" || true)"
-          api_ct="$(file -b --mime-type /tmp/api.out 2>/dev/null || true)"
-          auth_ct="$(file -b --mime-type /tmp/auth.out 2>/dev/null || true)"
+          curl -L -sS -o /tmp/api.out -w '%{http_code}' --max-time 20 "$API" >/tmp/api.code || true
+          curl -L -sS -o /tmp/auth.out -w '%{http_code}' --max-time 20 "$AUTH" >/tmp/auth.code || true
           mkdir -p diagnostics
-          printf '{"api_http":"%s","auth_http":"%s","api_body_bytes":%s,"auth_body_bytes":%s}\n'             "$api_code" "$auth_code" "$(wc -c </tmp/api.out 2>/dev/null || echo 0)" "$(wc -c </tmp/auth.out 2>/dev/null || echo 0)"             > diagnostics/historia-data-api-probe.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          def read(path, limit=600):
+              try:
+                  return Path(path).read_text(encoding='utf-8',errors='replace')[:limit]
+              except Exception:
+                  return ''
+          doc={
+              'api_http':read('/tmp/api.code',20).strip(),
+              'auth_http':read('/tmp/auth.code',20).strip(),
+              'api_body':read('/tmp/api.out'),
+              'auth_body':read('/tmp/auth.out'),
+          }
+          Path('diagnostics/historia-data-api-probe.json').write_text(json.dumps(doc,ensure_ascii=False),encoding='utf-8')
+          PY
       - name: Publish sanitized result
         shell: bash
         run: |
