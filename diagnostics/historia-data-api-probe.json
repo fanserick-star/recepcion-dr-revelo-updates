@@ -1,1 +1,0 @@
-{"api_http": "400", "auth_http": "404", "api_body": "{\"message\":\"missing authentication credentials: required authorization bearer token in JWT format\",\"code\":null,\"detail\":null,\"hint\":null}", "auth_body": "{\"error\":\"Upstream control-plane error\",\"code\":404,\"cause\":{\"error\":\"endpoint not found\",\"cpStatus\":404}}"}
