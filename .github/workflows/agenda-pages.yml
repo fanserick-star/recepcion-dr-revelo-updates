@@ -52,6 +52,19 @@ jobs:
           print('AGENDA_AND_DIRECT_HISTORIA_SOURCE_OK')
           PY
 
+      - name: Verificar JWKS de acceso móvil
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /tmp/historia-jwks.json -w '%{http_code}' --max-time 20 'https://ep-shiny-scene-a66ta52d.neonauth.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json')"
+          python - "$code" <<'PY'
+          import json,sys
+          d=json.load(open('/tmp/historia-jwks.json',encoding='utf-8'))
+          print('HISTORIA_JWKS',sys.argv[1],len(d.get('keys') or []))
+          if sys.argv[1] != '200' or not d.get('keys'):
+              raise SystemExit(1)
+          PY
+
       - name: Validar lectura directa de Historia
         run: python tools/test_historia_mobile_api_v2.py
 
