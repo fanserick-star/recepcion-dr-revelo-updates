@@ -15,6 +15,7 @@ import historia_link_helper
 import material_consentimiento_patch
 import material_pacientes
 import queue_open_attention
+import sync_status_resilience
 import tv_turn_bridge
 
 AFK_SECONDS = 300
@@ -138,6 +139,10 @@ def _heartbeat_loop(service) -> None:
 
 
 def install() -> None:
+    # 1.3.95: el estado auxiliar de Nube no puede detener el sincronizador por
+    # un bloqueo temporal de Windows/antivirus sobre sync_status.json.
+    sync_status_resilience.install()
+
     # El endpoint LAN de TV se instala antes de que app.py cree LAN_SERVICE.
     # Solo expone estado de cola sin nombres/identificación y no escribe datos.
     tv_turn_bridge.install()
