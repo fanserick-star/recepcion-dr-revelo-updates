@@ -53,6 +53,7 @@ jobs:
             'bookingTimeAllowed(date, time)',
             'days: [3, 4, 5, 6]',
             'times_by_day:',
+            'if (m2 < 840 && m2 + 20 > 750) continue;',
             'scheduler_created_at_timezone: "utc_storage_v1"',
             'scheduler_booking_grace: "12h_v1"',
             'autoagenda_recovery: "one_time_reclaim_v1"',
@@ -162,5 +163,6 @@ jobs:
           assert wed and wed[0] == '10:00', wed
           assert all(str(t) >= '10:00' for t in wed), wed
           assert '12:20' not in wed and '12:40' not in wed and '13:00' not in wed and '13:20' not in wed and '13:40' not in wed, wed
+          assert '14:00' in wed and '17:00' in wed, wed
           print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
           PY
