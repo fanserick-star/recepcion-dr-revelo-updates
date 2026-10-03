@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.47",
-  "app_version": "4.6.47",
-  "runtime_version": "4.6.47",
+  "version": "4.6.48",
+  "app_version": "4.6.48",
+  "runtime_version": "4.6.48",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.47: corrige el llamado indebido de la pantalla TV cuando el doctor abre desde Historia una ficha que está en Pacientes en espera. Abrir/atender una ficha ahora sólo cambia el estado visual a EN ATENCIÓN y no incrementa event_id, no reproduce ding y no anuncia voz. Se conservan sin cambios los llamados explícitos, Llamar nuevamente y el llamado automático del siguiente turno después de Finalizar. No cambia Agenda, mensajería, vinculación, facturación, impresión, pacientes, número oficial de turno ni Historia Clínica.",
-    "previous_version": "4.6.46",
+    "purpose": "Recepción 4.6.48: habilita miércoles como día de atención en Agenda, de 10:00 a 17:00, con el mismo descanso 12:30–14:00. Alinea Inicio/Agenda de Recepción, Agenda web 24/7 del doctor, autoagendamiento público y comandos de autoagenda por WhatsApp. Jueves, viernes y sábado conservan sus horarios existentes. No cambia pacientes, facturación, impresión, Historia Clínica ni turnos/TV.",
+    "previous_version": "4.6.47",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -266,7 +266,19 @@
     "tv_footer_bottom_vh": 2.3,
     "tv_display_logic_changes": true,
     "rollback_safe": true,
-    "single_version_source": "recepcion-version.json"
+    "single_version_source": "recepcion-version.json",
+    "agenda_days": [
+      "MIERCOLES",
+      "JUEVES",
+      "VIERNES",
+      "SABADO"
+    ],
+    "agenda_wednesday_hours": "10:00-17:00",
+    "agenda_break": "12:30-14:00",
+    "agenda_web_doctor_updated": true,
+    "agenda_public_booking_updated": true,
+    "agenda_whatsapp_autoagenda_updated": true,
+    "agenda_other_days_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

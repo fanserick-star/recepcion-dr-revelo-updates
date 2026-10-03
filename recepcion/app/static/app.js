@@ -570,14 +570,14 @@ async function globalSearchPatients(force=false){
 document.addEventListener('click',e=>{const wrap=e.target.closest?.('.global-search-wrap');if(!wrap)closeGlobalSearchResults()});
 
 function nextClinicDate(anchorValue=null){
-  // Próximo día de consultorio: jueves, viernes o sábado.
+  // Próximo día de consultorio: miércoles, jueves, viernes o sábado.
   // Si hoy ya es uno de esos días, usamos hoy para que Reagendar pueda
   // mostrar los horarios disponibles de la jornada actual.
   const start=anchorValue?parseISO(anchorValue):new Date();
   const base=new Date(start.getFullYear(),start.getMonth(),start.getDate());
   for(let offset=0;offset<=7;offset++){
     const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+offset);
-    if([4,5,6].includes(d.getDay()))return toISO(d);
+    if([3,4,5,6].includes(d.getDay()))return toISO(d);
   }
   return toISO(base);
 }
@@ -586,6 +586,7 @@ function weekDays(anchorValue){
   const day=anchor.getDay();
   const monday=new Date(anchor.getFullYear(),anchor.getMonth(),anchor.getDate()-((day+6)%7));
   return [
+    {label:'Miércoles',date:new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+2)},
     {label:'Jueves',date:new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+3)},
     {label:'Viernes',date:new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+4)},
     {label:'Sábado',date:new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+5)},
@@ -596,15 +597,14 @@ function defaultWeekSelection(days,anchorValue){
   const iso=toISO(anchor);
   if(days.some(x=>x.iso===iso))return iso;
   const dow=anchor.getDay();
-  if(dow===0)return days[2].iso;
-  if(dow<=3)return days[0].iso;
-  return days[2].iso;
+  if(dow===0)return days[3].iso;
+  return days[0].iso;
 }
 function renderHomeWeekNav(days){
   const box=$('#homeWeekNav');
   if(!box)return;
   const first=days?.[0]?.iso?fmtDate(days[0].iso):'';
-  const last=days?.[2]?.iso?fmtDate(days[2].iso):'';
+  const last=days?.[3]?.iso?fmtDate(days[3].iso):'';
   box.innerHTML=`<button class="tiny-week-btn" onclick="shiftHomeWeek(-1)" title="Semana anterior">←</button><span class="tiny-week-label">${first&&last?`Semana ${first} · ${last}`:'Semana'}</span><button class="tiny-week-btn" onclick="homeThisWeek()" title="Volver a esta semana">Hoy</button><button class="tiny-week-btn" onclick="shiftHomeWeek(1)" title="Semana siguiente">→</button>`;
 }
 function applyWeekPayload(anchor,payload,preferredDate=null){
@@ -638,7 +638,7 @@ function renderWeekCards(days){
 }
 function renderHomeDayPayload(iso,d){
   if(!d)return;
-  const label=d.label||weeklyData[iso]?.label||(['4','5','6'].includes(String(parseISO(iso).getDay()))?['','','','','Jueves','Viernes','Sábado'][parseISO(iso).getDay()]:'Día');
+  const label=d.label||weeklyData[iso]?.label||(['3','4','5','6'].includes(String(parseISO(iso).getDay()))?['','','','Miércoles','Jueves','Viernes','Sábado'][parseISO(iso).getDay()]:'Día');
   const count=Number(d.count||0);
   $('#selectedDayTitle').innerHTML=`<div><h2>${esc(label)} ${fmtDate(iso)}</h2><span>${count} ${count===1?'paciente':'pacientes'}</span></div>`;
   try{

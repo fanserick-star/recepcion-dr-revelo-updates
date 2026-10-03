@@ -5728,6 +5728,7 @@ def home_week(anchor: date, db: Session = Depends(get_db), user: User = Depends(
     """Inicio semanal en una sola petición/conexión a Neon."""
     monday = anchor - timedelta(days=anchor.weekday())
     defs = [
+        ("Miércoles", monday + timedelta(days=2)),
         ("Jueves", monday + timedelta(days=3)),
         ("Viernes", monday + timedelta(days=4)),
         ("Sábado", monday + timedelta(days=5)),
@@ -7043,6 +7044,7 @@ def agenda_week(anchor: date, db: Session = Depends(get_db), user: User = Depend
     """
     monday = anchor - timedelta(days=anchor.weekday())
     day_defs = [
+        ("Miércoles", monday + timedelta(days=2)),
         ("Jueves", monday + timedelta(days=3)),
         ("Viernes", monday + timedelta(days=4)),
         ("Sábado", monday + timedelta(days=5)),
@@ -7200,7 +7202,10 @@ def agenda_slots(
     # Todas las citas son de 20 minutos. Se respeta el almuerzo 12:30–14:00
     # (por eso 12:20 tampoco se ofrece, porque terminaría dentro del almuerzo)
     # y la última cita comienza a las 17:00.
-    for minute in range(8 * 60, 17 * 60 + 1, 20):
+    # Miércoles el doctor inicia a las 10:00; jueves, viernes y sábado
+    # conservan el horario que ya tenían. Todos mantienen 12:30–14:00.
+    start_minute = 10 * 60 if fecha.weekday() == 2 else 8 * 60
+    for minute in range(start_minute, 17 * 60 + 1, 20):
         end_minute = minute + 20
         if minute < 14 * 60 and end_minute > 12 * 60 + 30:
             continue

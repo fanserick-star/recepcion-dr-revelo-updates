@@ -5979,7 +5979,7 @@ function bookingDateObj(v2) {
 }
 function bookingValidDay(v2) {
   const d2 = bookingDateObj(v2);
-  return !!d2 && [4, 5, 6].includes(d2.getUTCDay());
+  return !!d2 && [3, 4, 5, 6].includes(d2.getUTCDay());
 }
 function bookingTimes() {
   const out = [];
@@ -5990,6 +5990,11 @@ function bookingTimes() {
   return out;
 }
 var BOOKING_TIMES = new Set(bookingTimes());
+function bookingTimeAllowed(date, time) {
+  const d2 = bookingDateObj(date);
+  if (!d2 || !BOOKING_TIMES.has(String(time || ""))) return false;
+  return d2.getUTCDay() !== 3 || String(time || "") >= "10:00";
+}
 function bookingHeaders(request, extra = {}) {
   const h = new Headers(extra);
   h.set("content-type", "application/json; charset=utf-8");
@@ -6068,7 +6073,7 @@ async function serveBookingAvailability(request, env, u) {
         SELECT CAST(fecha AS text),CAST(hora AS text) FROM public.confirmafy_agenda_items WHERE fecha BETWEEN $1::date AND $2::date`, [from, to]);
       return (r.rows || []).map((x2) => ({ date: String(x2.fecha || "").slice(0, 10), time: String(x2.hora || "").slice(0, 5) }));
     });
-    const payload = JSON.stringify({ ok: true, today: bookingToday(), max_days: BOOKING_MAX_DAYS, days: [4, 5, 6], times: bookingTimes(), occupied });
+    const payload = JSON.stringify({ ok: true, today: bookingToday(), max_days: BOOKING_MAX_DAYS, days: [3, 4, 5, 6], times: bookingTimes(), times_by_day: { "3": bookingTimes().filter((t) => t >= "10:00"), "4": bookingTimes(), "5": bookingTimes(), "6": bookingTimes() }, schedule: "wed_10_17_break_1230_1400_v1", occupied });
     await cache.put(cacheKey, new Response(payload, { headers: { "Cache-Control": `max-age=${BOOKING_CACHE_SECONDS}`, "content-type": "application/json; charset=utf-8" } }));
     return new Response(payload, { status: 200, headers: bookingHeaders(request, { "cache-control": "public, max-age=30", "x-booking-cache": "MISS" }) });
   } catch (e) {
@@ -6092,7 +6097,7 @@ async function serveBookingCreate(request, env, ctx) {
   const name = bookingCleanName(data.name), phone = bookingCleanPhone(data.phone), date = String(data.date || "").slice(0, 10), time = String(data.time || "").slice(0, 5);
   if (name.length < 5) return bookingJson(request, { ok: false, error: "Ingrese sus apellidos y nombres completos." }, 400);
   if (!phone) return bookingJson(request, { ok: false, error: "Ingrese un celular ecuatoriano v\xE1lido de 10 d\xEDgitos." }, 400);
-  if (!bookingValidDay(date) || !bookingDateWithinHorizon(date) || !BOOKING_TIMES.has(time)) return bookingJson(request, { ok: false, error: "El horario seleccionado no est\xE1 disponible para autoagendamiento." }, 400);
+  if (!bookingValidDay(date) || !bookingDateWithinHorizon(date) || !bookingTimeAllowed(date, time)) return bookingJson(request, { ok: false, error: "El horario seleccionado no est\xE1 disponible para autoagendamiento." }, 400);
   const sourceHash = BOOKING_SOURCE_PREFIX + crypto.randomUUID().replaceAll("-", "").slice(0, 32);
   try {
     const row = await withClient(env, async (client) => {
@@ -6445,7 +6450,7 @@ function parseAutoagendaForward(raw) {
   const phone = bookingCleanPhone(lines[2]);
   if (name.length < 5) return { ok: false, error: "No pude identificar correctamente el nombre del paciente." };
   if (!phone) return { ok: false, error: "El celular del paciente debe tener 10 dígitos y comenzar con 09." };
-  if (!date || !bookingValidDay(date) || !bookingDateWithinHorizon(date) || !BOOKING_TIMES.has(time)) {
+  if (!date || !bookingValidDay(date) || !bookingDateWithinHorizon(date) || !bookingTimeAllowed(date, time)) {
     return { ok: false, error: `El horario ${m[1]} ${time} no está habilitado en la agenda.` };
   }
   return { ok: true, weekday: m[1], name, phone, date, time };
@@ -6753,7 +6758,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.23", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.24", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
