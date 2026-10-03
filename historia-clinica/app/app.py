@@ -1248,9 +1248,50 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
 {APP_DIALOG_HTML}{extra_script}</body></html>"""
 
 
+_QUEUE_ID_PLACEHOLDERS = {
+    "SINCEDULA",
+    "SINIDENTIFICACION",
+    "NOIDENTIFICACION",
+    "NOTIENE",
+    "NOREGISTRA",
+    "NOREGISTRADA",
+    "NOAPLICA",
+    "NINGUNA",
+    "PENDIENTE",
+    "CEDULAPENDIENTE",
+    "NA",
+}
+
+
+def _queue_identification_key(value) -> str:
+    """Normaliza una identificación real y descarta textos de interfaz como 'Sin cédula'."""
+    normalized = normalize_search(value or "")
+    compact = re.sub(r"[^A-Z0-9]", "", normalized)
+    if not compact:
+        return ""
+    if compact in _QUEUE_ID_PLACEHOLDERS:
+        return ""
+    if compact.startswith("SINCEDULA") or compact.startswith("SINIDENTIFICACION"):
+        return ""
+    return normalized
+
+
+def _queue_name_compatible(queue_name, patient_name) -> bool:
+    """Señal secundaria segura cuando una cédula administrativa fue digitada mal."""
+    q = normalize_search(queue_name or "")
+    p = normalize_search(patient_name or "")
+    if not q or not p or q in {"PACIENTE", "SIN NOMBRE"}:
+        return False
+    if q == p:
+        return True
+    q_tokens = [t for t in q.split() if len(t) >= 2]
+    p_tokens = set(t for t in p.split() if len(t) >= 2)
+    return len(q_tokens) >= 2 and all(t in p_tokens for t in q_tokens)
+
+
 def _queue_strong_candidates(conn, row):
     """Candidatos seguros para vincular un turno de Recepción con Historia."""
-    identification = normalize_search(row["identification"] or "")
+    identification = _queue_identification_key(row["identification"] or "")
     if identification:
         exact = conn.execute(
             "SELECT * FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 3",
@@ -1553,7 +1594,7 @@ def _create_new_patient_from_queue(conn, row) -> str:
     Si Recepción envió identificación y ya existe exactamente esa identificación,
     reutiliza la ficha existente para no duplicarla.
     """
-    identification = normalize_search(row["identification"] or "")
+    identification = _queue_identification_key(row["identification"] or "")
     if identification:
         exact = conn.execute(
             "SELECT id FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 2",
@@ -1610,7 +1651,7 @@ def _create_new_patient_from_queue(conn, row) -> str:
         return canonical_id
 
     stamp = now_iso()
-    raw_id = str(row["identification"] or "").strip()
+    raw_id = str(row["identification"] or "").strip() if identification else ""
     digest = hashlib.sha256(
         f"{patient_id}|{name}|{raw_id}|{stamp}|reception_new".encode("utf-8")
     ).hexdigest()
@@ -1704,9 +1745,31 @@ def _queue_validated_link(conn, row):
             linked_id = str(canonical["id"])
             linked = canonical
             _link_queue_patient(conn, row, linked_id, "repair_merged_patient")
-    identification = normalize_search(row["identification"] or "")
-    linked_ident = normalize_search(linked["national_id_search"] or "")
+    identification = _queue_identification_key(row["identification"] or "")
+    linked_ident = _queue_identification_key(linked["national_id_search"] or "")
     if identification and linked_ident and linked_ident != identification:
+        reception_patient_id = str(row["reception_patient_id"] or "").strip()
+        verified = None
+        if reception_patient_id:
+            try:
+                verified = conn.execute(
+                    """SELECT verified,matched_by
+                       FROM patient_links
+                       WHERE reception_patient_id=? AND clinical_patient_id=?
+                       LIMIT 1""",
+                    (reception_patient_id, linked_id),
+                ).fetchone()
+            except sqlite3.Error:
+                verified = None
+        if (
+            verified
+            and int(verified["verified"] or 0) == 1
+            and _queue_name_compatible(row["display_name"], linked["name_search"] or linked["name"])
+        ):
+            # El vínculo humano ya fue confirmado; una cédula administrativa mal
+            # digitada no debe impedir abrir la ficha correcta. No se modifica
+            # ningún dato identificatorio de la ficha clínica.
+            return linked_id
         return ""
     return linked_id
 
