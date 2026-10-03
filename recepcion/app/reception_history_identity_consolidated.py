@@ -338,6 +338,99 @@ def _sync_demographics(cur, clinical_patient_id, demo):
     return changes, warnings
 
 
+
+def _reception_patient_update_payload(patient, *, extranjero: bool) -> dict:
+    return {
+        "patient_id": int(patient.id),
+        "extranjero": bool(extranjero),
+        "cedula": getattr(patient, "cedula", None),
+        "nombre": getattr(patient, "nombre", None),
+        "fecha_nacimiento": getattr(patient, "fecha_nacimiento", None),
+        "celular": getattr(patient, "celular", None),
+        "correo": getattr(patient, "correo", None),
+        "lugar": getattr(patient, "lugar", None),
+        "notas": getattr(patient, "notas", None),
+    }
+
+
+def _correct_reception_identification_from_history(db, patient, clinical_patient, user) -> dict:
+    """Corrige exclusivamente la ficha administrativa de Recepción.
+
+    Solo se ejecuta con una ficha de Historia ya vinculada/confirmada. Historia
+    nunca es modificada por esta función y el doctor no participa en la corrección.
+    """
+    target_raw = _clean((clinical_patient or {}).get("national_id"), 120)
+    target_key = _usable_id(
+        (clinical_patient or {}).get("national_id_search") or target_raw
+    )
+    if not target_key:
+        return {}
+
+    current_raw = _clean(getattr(patient, "cedula", ""), 120)
+    current_key = _usable_id(current_raw)
+    if current_key == target_key:
+        return {}
+
+    # Nunca crear dos pacientes de Recepción con la misma identificación.
+    duplicate = db.scalar(
+        core.select(core.Patient).where(
+            core.Patient.cedula == target_raw,
+            core.Patient.id != int(patient.id),
+        )
+    )
+    if duplicate:
+        raise core.HTTPException(
+            409,
+            "La cédula correcta de Historia ya está registrada en otra ficha de Recepción. "
+            "Revise ese duplicado antes de vincular; no se cambió ningún dato.",
+        )
+
+    before = current_raw
+    patient.cedula = target_raw
+
+    digits = re.sub(r"\D", "", target_raw)
+    extranjero = not (
+        len(digits) == 10
+        and getattr(core, "valid_ecuadorian_cedula", lambda _v: False)(digits)
+    )
+
+    detail = {
+        "reception_patient_id": int(patient.id),
+        "before": before,
+        "after": target_raw,
+        "source": "historia_verified_identity",
+        "clinical_patient_id": _clean((clinical_patient or {}).get("id"), 120),
+    }
+
+    if core.is_offline_db(db):
+        core.add_queue(
+            db,
+            "patient.update",
+            "patient",
+            _reception_patient_update_payload(patient, extranjero=extranjero),
+            user.username,
+            int(patient.id),
+        )
+        core.audit(
+            db,
+            user,
+            "corregir_cedula_desde_historia_offline",
+            json.dumps(detail, ensure_ascii=False),
+        )
+        db.commit()
+    else:
+        core.audit(
+            db,
+            user,
+            "corregir_cedula_desde_historia",
+            json.dumps(detail, ensure_ascii=False),
+        )
+        db.commit()
+        core.mirror_patient_to_local(patient)
+
+    return detail
+
+
 def _prepare_identity(db, reception_patient_id, *, sync=True):
     patient = _reception_patient(db, reception_patient_id)
     demo = _demographics(patient)
@@ -346,7 +439,12 @@ def _prepare_identity(db, reception_patient_id, *, sync=True):
         cur = conn.cursor()
         linked = _linked_patient(cur, patient.id)
         changed, warnings = {}, []
+        reception_correction = {}
         if linked is not None and sync:
+            reception_correction = _correct_reception_identification_from_history(
+                db, patient, linked, user
+            )
+            demo = _demographics(patient)
             _upsert_link(cur, patient.id, linked["id"], linked.get("matched_by") or "reception_verified")
             changed, warnings = _sync_demographics(cur, linked["id"], demo)
             conn.commit()
@@ -364,6 +462,7 @@ def _prepare_identity(db, reception_patient_id, *, sync=True):
             "history_date_count": int((linked or {}).get("history_date_count") or 0),
             "last_history_date": _clean((linked or {}).get("last_history_date"), 20),
             "demographics_changed": changed,
+            "reception_identification_corrected": reception_correction,
             "warnings": warnings,
         }
     finally:
@@ -674,15 +773,14 @@ def historia_identity_link(
         if not target:
             raise core.HTTPException(404, "La ficha seleccionada ya no existe")
 
-        reception_ident = _usable_id(demo.get("national_id"))
-        target_ident = _usable_id(target.get("national_id"))
-        if reception_ident and target_ident and reception_ident != target_ident:
-            raise core.HTTPException(
-                409,
-                "La ficha seleccionada tiene otra cédula/identificación. Revise antes de vincular.",
-            )
-
         previous = _linked_patient(cur, patient.id)
+        reception_correction = _correct_reception_identification_from_history(
+            db, patient, target, user
+        )
+        # A partir de aquí la ficha administrativa de Recepción ya contiene la
+        # identificación confirmada de Historia; ese es el dato que se enviará
+        # al doctor y a los siguientes handoffs.
+        demo = _demographics(patient)
         _upsert_link(
             cur, patient.id, target["id"], "reception_manual_verified"
         )
@@ -702,6 +800,7 @@ def historia_identity_link(
                             (previous or {}).get("id") or ""
                         ),
                         "clinical_patient_id": target["id"],
+                        "reception_identification_corrected": reception_correction,
                         "changes": changes,
                         "warnings": warnings,
                     },
@@ -720,6 +819,7 @@ def historia_identity_link(
             "clinical_patient": linked,
             "history_date_count": int((linked or {}).get("history_date_count") or 0),
             "last_history_date": _clean((linked or {}).get("last_history_date"), 20),
+            "reception_identification_corrected": reception_correction,
             "warnings": warnings,
         }
     finally:
@@ -872,7 +972,13 @@ V4613_JS = r"""
               statusCache.set(Number(pid),{at:Date.now(),data:linked});closeSearch();
               for(const host of modalRoots()){const c=host.querySelector(':scope > .v4613-history-card');if(c&&Number(c.dataset.pid||0)===Number(pid))c.dataset.settled='0'}
               renderAll(false);
-              if(typeof window.rpAlert==='function')window.rpAlert('Ficha vinculada correctamente.','Historia Clínica');
+              if(typeof window.rpAlert==='function'){
+                const correction=linked?.reception_identification_corrected||{};
+                const msg=correction.after
+                  ? 'Ficha vinculada correctamente. Recepción corrigió la cédula a '+correction.after+'.'
+                  : 'Ficha vinculada correctamente.';
+                window.rpAlert(msg,'Historia Clínica');
+              }
             }catch(err){btn.disabled=false;btn.dataset.confirm='0';btn.textContent='Vincular esta ficha';btn.style.background='';results.insertAdjacentHTML('afterbegin',`<div class="v4613-empty">${esc(err.message||'No se pudo vincular.')}</div>`)}
           };
           results.appendChild(card);
