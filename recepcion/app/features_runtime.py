@@ -53,6 +53,8 @@ import reception_history_cancellation
 import reception_payment_terminal_feedback
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
+import reception_messaging_runtime
+import reception_messaging_runtime_guard
 import reception_tv_turns
 
 FEATURE_MODULES = (
@@ -102,6 +104,8 @@ FEATURE_MODULES = (
     reception_payment_terminal_feedback,
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
+    reception_messaging_runtime,
+    reception_messaging_runtime_guard,
     reception_tv_turns,
 )
 
@@ -180,6 +184,63 @@ def _install_history_exact_name_search_hotfix() -> None:
 _install_history_exact_name_search_hotfix()
 
 
+def _install_reception_name_authority() -> None:
+    """For an already linked chart, Reception owns the current patient name.
+
+    A non-empty Reception name may correct a misspelling in Historia. Empty
+    Reception values never erase the clinical chart name. The existing
+    identification conflict guards remain in the canonical sync function.
+    """
+    module = reception_history_identity_consolidated
+    base_sync = module._sync_demographics
+    if getattr(base_sync, "__reception_name_authority__", False):
+        return
+
+    def patched(cur, clinical_patient_id, demo):
+        before = module._patient_row(cur, clinical_patient_id)
+        if not before:
+            return base_sync(cur, clinical_patient_id, demo)
+
+        wanted_name = module._clean((demo or {}).get("name"), 260)
+        current_name = module._clean(before.get("name"), 260)
+
+        # Let the canonical function synchronize every other demographic field,
+        # but prevent its older "keep Historia name" rule from producing a false
+        # warning. Name authority is applied immediately afterwards.
+        canonical_demo = dict(demo or {})
+        if current_name:
+            canonical_demo["name"] = current_name
+        changes, warnings = base_sync(cur, clinical_patient_id, canonical_demo)
+        changes = dict(changes or {})
+        warnings = list(warnings or [])
+
+        if wanted_name and module._norm_text(wanted_name) != module._norm_text(current_name):
+            normalized = module._norm_text(wanted_name)
+            stamp = module.datetime.now().isoformat(timespec="seconds")
+            cur.execute(
+                """
+                UPDATE public.patients
+                   SET name=%s,
+                       name_search=%s,
+                       updated_at=%s,
+                       cloud_updated_at=now()
+                 WHERE id=%s
+                   AND deleted_at IS NULL
+                """,
+                (wanted_name, normalized, stamp, str(clinical_patient_id)),
+            )
+            changes["name"] = wanted_name
+            changes["name_search"] = normalized
+
+        return changes, warnings
+
+    patched.__reception_name_authority__ = True
+    module._sync_demographics = patched
+
+
+_install_reception_name_authority()
+
+
 def _read_current_app_version() -> str:
     version_doc = json.loads(
         Path(__file__).with_name("recepcion-version.json").read_text(encoding="utf-8-sig")
@@ -253,6 +314,7 @@ def _strip_legacy_configuration_overlays() -> None:
 
 
 _strip_legacy_configuration_overlays()
+reception_messaging_runtime.install()
 
 
 _install_versioned_overlay_home()
