@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.40",
-  "app_version": "4.6.40",
-  "runtime_version": "4.6.40",
+  "version": "4.6.41",
+  "app_version": "4.6.41",
+  "runtime_version": "4.6.41",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -168,8 +168,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.40: corrige la visualización del estado de citas sin ficha vinculada. Las respuestas decisivas de WhatsApp Cloud (confirmado / no asistirá) ahora se reflejan tanto en la tarjeta semanal como en el detalle de la cita, aunque todavía no exista una ficha de paciente vinculada. Se mantiene la mensajería consolidada de 4.6.39, el retiro de Confirmafy de la interfaz y la prioridad del nombre de Recepción sobre Historia ya vinculada.",
-    "previous_version": "4.6.39",
+    "purpose": "Recepción 4.6.41: al abrir Buscar y vincular ficha de Historia, el campo de búsqueda se precarga con el nombre del paciente de Recepción y no con su cédula. La búsqueda en vivo sigue usando el nombre como referencia principal, mientras cédula, celular y fecha de nacimiento permanecen como señales secundarias de confirmación. Se conservan sin cambios la mensajería, Agenda, facturación, impresión, TV, turnos y sincronización con Historia de 4.6.40.",
+    "previous_version": "4.6.40",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -202,6 +202,8 @@
     "procedure_turn_consumption": false,
     "waiting_queue_transport": "lan_only",
     "history_link_name_primary": true,
+    "history_link_name_prefill": true,
+    "history_link_numeric_prefill_replaced": true,
     "history_link_live_results": true,
     "history_link_single_query_summary": true,
     "history_link_identification_secondary_signal": true,
