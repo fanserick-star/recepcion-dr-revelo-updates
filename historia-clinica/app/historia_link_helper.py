@@ -25,6 +25,33 @@ def _norm_id(value: object) -> str:
     return re.sub(r"[^A-Z0-9]", "", _norm_text(value))
 
 
+_ID_PLACEHOLDERS = {
+    "SINCEDULA",
+    "SINIDENTIFICACION",
+    "NOIDENTIFICACION",
+    "NOTIENE",
+    "NOREGISTRA",
+    "NOREGISTRADA",
+    "NOAPLICA",
+    "NINGUNA",
+    "PENDIENTE",
+    "CEDULAPENDIENTE",
+    "NA",
+}
+
+
+def _usable_identification(value: object) -> str:
+    """Return a normalized real identifier; ignore UI placeholders such as 'Sin cédula'."""
+    compact = _norm_id(value)
+    if not compact:
+        return ""
+    if compact in _ID_PLACEHOLDERS:
+        return ""
+    if compact.startswith("SINCEDULA") or compact.startswith("SINIDENTIFICACION"):
+        return ""
+    return compact
+
+
 def _tokens(value: object) -> list[str]:
     return [t for t in re.findall(r"[A-Z0-9]+", _norm_text(value)) if len(t) >= 2]
 
@@ -60,9 +87,9 @@ def _candidate_rows(queue_id: str, query: str = "", limit: int = 15) -> dict:
             return {"ok": False, "results": [], "error": "Turno no encontrado"}
 
         queue_name = str(queue["display_name"] or "").strip()
-        queue_ident = _norm_id(queue["identification"] or "")
+        queue_ident = _usable_identification(queue["identification"] or "")
         manual = str(query or "").strip()
-        manual_ident = _norm_id(manual)
+        manual_ident = _usable_identification(manual)
         manual_has_letters = bool(re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", manual))
         name_basis = manual if manual_has_letters else queue_name
 
@@ -121,7 +148,7 @@ def _candidate_rows(queue_id: str, query: str = "", limit: int = 15) -> dict:
         cand_name = str(row["name"] or "").strip()
         cand_name_norm = _norm_text(row["name_search"] or cand_name)
         cand_tokens = _tokens(cand_name_norm)
-        cand_ident = _norm_id(row["national_id_search"] or row["national_id"] or "")
+        cand_ident = _usable_identification(row["national_id_search"] or row["national_id"] or "")
 
         score = 0
         reasons: list[str] = []
@@ -309,7 +336,10 @@ def _queue_initial(queue_id: str) -> str:
             ).fetchone()
             if not row:
                 return ""
-            return str(row["identification"] or "").strip() or str(row["display_name"] or "").strip()
+            name = str(row["display_name"] or "").strip()
+            if name and _norm_id(name) not in _ID_PLACEHOLDERS:
+                return name
+            return _usable_identification(row["identification"] or "")
     except Exception:
         return ""
 
