@@ -9,6 +9,7 @@ on:
       - "historia-clinica/launcher-v1/app-channel-source.json"
       - "releases/historia/**"
       - "tools/test_historia_canonical_source.py"
+      - "tools/test_historia_1395_blindaje.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
@@ -19,6 +20,7 @@ on:
       - "historia-clinica/launcher-v1/app-channel-source.json"
       - "releases/historia/**"
       - "tools/test_historia_canonical_source.py"
+      - "tools/test_historia_1395_blindaje.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
@@ -46,6 +48,10 @@ jobs:
       - name: Validate current clinical runtime
         run: |
           python tools/validate_historia_runtime.py historia-clinica/app
+
+      - name: Validate 1.3.95 safety guards
+        run: |
+          python tools/test_historia_1395_blindaje.py
 
       - name: Dry-run canonical channel generation
         env:
