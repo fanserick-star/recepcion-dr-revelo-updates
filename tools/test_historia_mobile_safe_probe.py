@@ -4,15 +4,12 @@ import json
 import urllib.error
 import urllib.request
 
-AUTH_URL="https://ep-shiny-scene-a66ta52d.neonauth.us-west-2.aws.neon.tech/neondb/auth/token/anonymous"
 API_URL="https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 ORIGIN="https://fanserick-star.github.io"
 PROBE_TOKEN="historia-mobile-safe-probe-20261003"
 
-def request(url, *, method="GET", jwt="", body=None, extra=None):
+def request(url, *, method="GET", body=None, extra=None):
     headers={"Accept":"application/json","Origin":ORIGIN,"Cache-Control":"no-store"}
-    if jwt:
-        headers["Authorization"]="Bearer "+jwt
     data=None
     if body is not None:
         headers["Content-Type"]="application/json"
@@ -33,24 +30,17 @@ def allow_origin(headers):
     return ""
 
 def main():
-    auth_http,_,raw=request(AUTH_URL)
-    auth=json.loads(raw or "{}")
-    jwt=str(auth.get("token") or "")
-    if auth_http!=200 or jwt.count(".")!=2:
-        raise SystemExit("HISTORIA_MOBILE_AUTH_FAILED")
-
     options_http,options_headers,_=request(
         API_URL+"/rpc/ping",
         method="OPTIONS",
         extra={
             "Access-Control-Request-Method":"POST",
-            "Access-Control-Request-Headers":"authorization,content-type",
+            "Access-Control-Request-Headers":"content-type",
         },
     )
     ping_http,ping_headers,raw=request(
         API_URL+"/rpc/ping",
         method="POST",
-        jwt=jwt,
         body={"p_probe_token":PROBE_TOKEN},
     )
     try:
@@ -70,7 +60,6 @@ def main():
         and cors_ok
     )
     print(json.dumps({
-        "auth_http":auth_http,
         "options_http":options_http,
         "ping_http":ping_http,
         "ping_ok":bool(ping.get("ok")) if isinstance(ping,dict) else False,
