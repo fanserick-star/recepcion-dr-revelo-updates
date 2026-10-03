@@ -1,0 +1,63 @@
+name: Aplicar agenda miércoles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/maintenance/apply_wednesday_schedule_20261003.py'
+      - '.github/workflows/apply-wednesday-schedule.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-wednesday-schedule-once
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Aplicar migración canónica
+        run: python tools/maintenance/apply_wednesday_schedule_20261003.py
+
+      - name: Validar sintaxis
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile recepcion/app/core_runtime.py
+          cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
+          node --check /tmp/whatsapp_worker.mjs
+          grep -q 'Miércoles' recepcion/app/core_runtime.py
+          grep -q 'MIÉRCOLES' agenda/index.html
+          grep -q 'worker_version: "2.6.24"' cloudflare/whatsapp_worker.js
+          grep -q 'wed_10_17_break_1230_1400_v1' cloudflare/whatsapp_worker.js
+
+      - name: Confirmar que hubo cambios
+        run: git diff --exit-code && { echo 'La migración no produjo cambios'; exit 1; } || true
+
+      - name: Publicar fuentes actualizadas
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            recepcion/app/core_runtime.py \
+            recepcion/app/static/app.js \
+            recepcion/app/static/style.css \
+            recepcion/app/update_manifest.json \
+            agenda/index.html \
+            agenda/agendar.html \
+            cloudflare/whatsapp_worker.js
+          git commit -m 'Agenda: habilitar miércoles 10:00-17:00'
+          git push origin HEAD:main
