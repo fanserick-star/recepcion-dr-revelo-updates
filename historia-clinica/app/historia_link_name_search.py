@@ -7,7 +7,7 @@ import sqlite3
 
 import historia_link_helper as helper
 
-PATCH_VERSION = "1.3.96"
+PATCH_VERSION = "1.3.97"
 
 
 def _queue_initial_name_first(queue_id: str) -> str:
@@ -15,12 +15,15 @@ def _queue_initial_name_first(queue_id: str) -> str:
         with sqlite3.connect(helper.DB_PATH, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT display_name,identification FROM waiting_queue WHERE id=? LIMIT 1",
+                "SELECT display_name,identification,clinical_patient_id FROM waiting_queue WHERE id=? LIMIT 1",
                 (str(queue_id),),
             ).fetchone()
             if not row:
                 return ""
-            return str(row["display_name"] or "").strip() or str(row["identification"] or "").strip()
+            name = str(row["display_name"] or "").strip()
+            if name and helper._norm_id(name) not in helper._ID_PLACEHOLDERS:
+                return name
+            return helper._usable_identification(row["identification"] or "")
     except Exception:
         return ""
 
@@ -32,7 +35,7 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
     with sqlite3.connect(helper.DB_PATH, timeout=8) as conn:
         conn.row_factory = sqlite3.Row
         queue = conn.execute(
-            """SELECT id,display_name,identification,status
+            """SELECT id,display_name,identification,clinical_patient_id,status
                FROM waiting_queue
                WHERE id=? AND status IN ('waiting','in_consultation')
                LIMIT 1""",
@@ -42,11 +45,11 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
             return {"ok": False, "results": [], "error": "Turno no encontrado"}
 
         queue_name = str(queue["display_name"] or "").strip()
-        queue_ident = helper._norm_id(queue["identification"] or "")
+        queue_ident = helper._usable_identification(queue["identification"] or "")
         manual = str(query or "").strip()
         manual_has_letters = bool(re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", manual))
         name_basis = manual if manual_has_letters else queue_name
-        manual_ident = helper._norm_id(manual) if not manual_has_letters else ""
+        manual_ident = helper._usable_identification(manual) if not manual_has_letters else ""
 
         wanted_tokens = helper._tokens(name_basis)
         queue_tokens = helper._tokens(queue_name)
@@ -56,8 +59,14 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
                 pool_tokens.append(token)
         pool_tokens = pool_tokens[:8]
 
+        linked_id = str(queue["clinical_patient_id"] or "").strip()
         match_parts = []
         params = []
+        # La ficha ya vinculada desde Recepción siempre entra en la lista de revisión.
+        # No se abre a ciegas si hay conflicto de identidad: se muestra al doctor.
+        if linked_id:
+            match_parts.append("p.id=?")
+            params.append(linked_id)
         # Nombre primero: basta una parte para construir una lista amplia.
         for token in pool_tokens:
             match_parts.append("UPPER(COALESCE(p.name_search,p.name,'')) LIKE ?")
@@ -103,11 +112,15 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
         cand_name = str(row["name"] or "").strip()
         cand_name_norm = helper._norm_text(row["name_search"] or cand_name)
         cand_tokens = helper._tokens(cand_name_norm)
-        cand_ident = helper._norm_id(row["national_id_search"] or row["national_id"] or "")
+        cand_ident = helper._usable_identification(row["national_id_search"] or row["national_id"] or "")
 
         score = 0
         reasons = []
         matched_tokens = 0
+        reception_linked = bool(linked_id and str(row["id"]) == linked_id)
+        if reception_linked:
+            score += 520
+            reasons.append("ficha vinculada en Recepción")
         if q_name_norm and cand_name_norm == q_name_norm:
             score += 700
             reasons.append("mismo nombre completo")
@@ -156,13 +169,18 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
             {
                 "id": str(row["id"]),
                 "name": cand_name or "SIN NOMBRE",
-                "national_id": str(row["national_id"] or "").strip(),
+                "national_id": (
+                    str(row["national_id"] or "").strip()
+                    if helper._usable_identification(row["national_id_search"] or row["national_id"] or "")
+                    else ""
+                ),
                 "birth_date": helper._fmt_date(row["birth_date"]),
                 "history_count": history_count,
                 "last_history_date": helper._fmt_date(row["last_history_date"]),
                 "score": int(score),
                 "reasons": reasons,
                 "id_conflict": id_conflict,
+                "reception_linked": reception_linked,
             }
         )
 
@@ -234,10 +252,15 @@ def _helper_markup_name_first(queue_id: str, initial: str) -> str:
       const hist=(Number(r.history_count||0)===1?'1 historia':Number(r.history_count||0)+' historias')+(r.last_history_date?' · Última: '+esc(r.last_history_date):'');
       const birth=r.birth_date?' · Nac. '+esc(r.birth_date):'';
       const reasons=(Array.isArray(r.reasons)?r.reasons:[]).filter(x=>x!=='identificación diferente').join(' · ');
-      const warn=r.id_conflict?'<small>⚠ BLOQUEADO: esta ficha tiene una cédula diferente a la enviada por Recepción.</small>':'';
-      const action=r.id_conflict?'<span class="blocked">No vincular</span>':'<a href="/cola/'+encodeURIComponent(qid)+'/vincular/'+encodeURIComponent(r.id)+'">Vincular esta ficha</a>';
-      return '<div class="v1393-card'+(r.id_conflict?' warn':'')+'"><div><b>'+esc(r.name||'SIN NOMBRE')+'</b>'+id+'<small>'+esc(hist)+birth+'</small>'+(reasons?'<small>Coincide: '+esc(reasons)+'</small>':'')+warn+'</div>'+action+'</div>';
+      const linked=r.reception_linked?'<small>✓ Ficha vinculada desde Recepción</small>':'';
+      const warn=r.id_conflict?'<small>⚠ La cédula enviada por Recepción es diferente. Si el nombre corresponde al paciente, puedes confirmar esta ficha. Historia no cambiará la cédula automáticamente.</small>':'';
+      const action='<a href="/cola/'+encodeURIComponent(qid)+'/vincular/'+encodeURIComponent(r.id)+'"'+(r.id_conflict?' data-conflict="1" data-name="'+esc(r.name||'')+'"':'')+'>Vincular esta ficha</a>';
+      return '<div class="v1393-card'+(r.id_conflict?' warn':'')+'"><div><b>'+esc(r.name||'SIN NOMBRE')+'</b>'+id+'<small>'+esc(hist)+birth+'</small>'+linked+(reasons?'<small>Coincide: '+esc(reasons)+'</small>':'')+warn+'</div>'+action+'</div>';
     }}).join('');
+    list.querySelectorAll('a[data-conflict="1"]').forEach(a=>a.addEventListener('click',ev=>{{
+      const name=a.getAttribute('data-name')||'esta ficha';
+      if(!confirm('La cédula enviada por Recepción no coincide con '+name+'.\n\nSi verificaste que el nombre y la historia corresponden al paciente, puedes continuar. No se modificará la cédula guardada en Historia.\n\n¿Vincular esta ficha?'))ev.preventDefault();
+    }}));
   }};
   let seq=0,debounce=0;
   const run=async()=>{{
