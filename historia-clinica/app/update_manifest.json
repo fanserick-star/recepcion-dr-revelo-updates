@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.94",
-  "app_version": "1.3.94",
-  "runtime_version": "1.3.94",
+  "version": "1.3.95",
+  "app_version": "1.3.95",
+  "runtime_version": "1.3.95",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -22,6 +22,7 @@
     "material_consentimiento_patch.py",
     "historia_link_helper.py",
     "queue_open_attention.py",
+    "sync_status_resilience.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64"
@@ -45,6 +46,7 @@
     "material_consentimiento_patch.py",
     "historia_link_helper.py",
     "queue_open_attention.py",
+    "sync_status_resilience.py",
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
@@ -52,8 +54,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Inicia la atención automáticamente cuando el doctor abre la ficha desde Pacientes en espera, sin depender de pulsar Atender después. Si la ficha todavía debe vincularse, la atención empieza solamente al seleccionar la ficha correcta.",
-    "previous_version": "1.3.93",
+    "purpose": "Blindaje de Historia Clínica: si ya hay otra consulta En atención, abrir la siguiente ficha exige confirmación antes de cambiar el turno activo; además, la escritura auxiliar de sync_status.json usa temporales únicos, reintentos y fallback no fatal para que un bloqueo de Windows/antivirus no detenga la sincronización real.",
+    "previous_version": "1.3.94",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -71,7 +73,12 @@
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
     "clinical_data_changes": false,
-    "cloud_logic_changes": false,
+    "cloud_logic_changes": true,
+    "cloud_sync_data_logic_changes": false,
+    "cloud_status_write_resilience": true,
+    "cloud_status_unique_temp_files": true,
+    "cloud_status_atomic_replace_retry": true,
+    "cloud_status_write_failure_nonfatal": true,
     "printing_changes": false,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
@@ -87,6 +94,10 @@
     "queue_open_starts_attention": true,
     "queue_link_then_open_starts_attention": true,
     "queue_open_attention_idempotent": true,
+    "queue_parallel_consultation_confirmation": true,
+    "queue_parallel_confirmation_after_link_selection": true,
+    "queue_previous_attention_never_auto_completed": true,
+    "queue_race_guard_keeps_target_waiting": true,
     "search_patient_open_unchanged": true,
     "procedure_tv_behavior_unchanged": true
   }
