@@ -53,7 +53,7 @@ jobs:
           PY
 
       - name: Validar lectura directa de Historia
-        run: python tools/test_historia_mobile_api.py
+        run: python tools/test_historia_mobile_api_v2.py
 
       - name: Mostrar diagnóstico sanitizado de Historia
         if: always()
