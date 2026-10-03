@@ -360,11 +360,12 @@ def _correct_reception_identification_from_history(db, patient, clinical_patient
     nunca es modificada por esta función y el doctor no participa en la corrección.
     """
     target_raw = _clean((clinical_patient or {}).get("national_id"), 120)
-    target_key = _usable_id(
-        (clinical_patient or {}).get("national_id_search") or target_raw
-    )
+    target_search = _clean((clinical_patient or {}).get("national_id_search"), 120)
+    target_key = _usable_id(target_search or target_raw)
     if not target_key:
         return {}
+    if not target_raw:
+        target_raw = target_search
 
     current_raw = _clean(getattr(patient, "cedula", ""), 120)
     current_key = _usable_id(current_raw)
