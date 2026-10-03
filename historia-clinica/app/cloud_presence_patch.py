@@ -12,6 +12,7 @@ import cloud_sync
 import cloud_tombstone_patch
 import consentimiento_informado
 import historia_link_helper
+import historia_link_name_search
 import material_consentimiento_patch
 import material_pacientes
 import queue_open_attention
