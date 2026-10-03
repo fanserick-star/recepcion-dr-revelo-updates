@@ -55,7 +55,7 @@ def main():
         method="OPTIONS",
         extra={
             "Access-Control-Request-Method":"POST",
-            "Access-Control-Request-Headers":"authorization,content-type",
+            "Access-Control-Request-Headers":"authorization,content-type,content-profile,accept-profile",
         },
     )
     status_http,status_headers,raw=request(
@@ -63,6 +63,10 @@ def main():
         method="POST",
         jwt=jwt if auth_ok else "",
         body={"p_token":"historia-mobile-invalid-probe"},
+        extra={
+            "Content-Profile":"mobile_history_api",
+            "Accept-Profile":"mobile_history_api",
+        },
     )
     try:
         denied=json.loads(raw or "{}")
