@@ -16,12 +16,12 @@ from reception_tv_common import (
     _is_loopback,
     _is_video_name,
 )
-from reception_tv_voice import turn_voice_wav
+from reception_tv_voice_selector import inject_control, inject_display
 
 
 def build_handler(service):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "DrReveloTV/1.1"
+        server_version = "DrReveloTV/1.2"
 
         def log_message(self, _format, *_args):
             return
@@ -79,30 +79,25 @@ def build_handler(service):
                     return
                 if not CONTROL_PATH.is_file():
                     return self._send_text(503, "Panel TV no instalado")
-                return self._send(200, CONTROL_PATH.read_bytes(), "text/html; charset=utf-8")
+                return self._send(200, inject_control(CONTROL_PATH.read_bytes()), "text/html; charset=utf-8")
             if path in {"/TV", "/TV-PRUEBAS"}:
                 if not DISPLAY_PATH.is_file():
                     return self._send_text(503, "Pantalla TV no instalada")
-                return self._send(200, DISPLAY_PATH.read_bytes(), "text/html; charset=utf-8")
+                return self._send(200, inject_display(DISPLAY_PATH.read_bytes()), "text/html; charset=utf-8")
             if path == "/api/display-state":
                 return self._send_json(200, service.display_snapshot(touch_tv=query.get("tv") == ["1"]))
             if path == "/api/live-state":
                 return self._send_json(200, service.live_snapshot())
             if path == "/api/test-state":
                 return self._send_json(200, service.test_snapshot())
+            if path == "/api/voice-settings":
+                if not self._require_control():
+                    return
+                return self._send_json(200, service.voice_settings())
             if path == "/api/videos":
                 return self._send_json(200, service.video_config())
             if path == "/api/status":
                 return self._send_json(200, service.status())
-            if path == "/api/turn-voice.wav":
-                try:
-                    turn = (query.get("turn") or [""])[0]
-                    data = turn_voice_wav(turn)
-                    return self._send(200, data, "audio/wav", "public, max-age=86400")
-                except ValueError as exc:
-                    return self._send_text(400, str(exc))
-                except Exception as exc:
-                    return self._send_text(503, f"Voz no disponible: {str(exc)[:180]}")
             if path == "/ding.wav":
                 return self._send(200, _DING, "audio/wav", "public, max-age=3600")
             if path == "/assets/logo-full.png":
@@ -118,11 +113,22 @@ def build_handler(service):
             return self._send_text(404, "No encontrado")
 
         def do_POST(self):
-            if not self._require_lan() or not self._require_control():
+            if not self._require_lan():
                 return
             parts = urllib.parse.urlsplit(self.path)
             path = parts.path
             query = urllib.parse.parse_qs(parts.query)
+
+            # Única escritura permitida desde la TV: informar las voces que su navegador ofrece.
+            # No modifica turnos, pacientes ni estados clínicos.
+            if path == "/api/tv/voices":
+                try:
+                    return self._send_json(200, service.report_tv_voices(self._json_body()))
+                except Exception as exc:
+                    return self._send_json(400, {"ok": False, "error": str(exc)[:180]})
+
+            if not self._require_control():
+                return
             try:
                 if path == "/api/display-mode":
                     data = self._json_body()
@@ -136,6 +142,10 @@ def build_handler(service):
                     return self._send_json(200, service.recall_live())
                 if path == "/api/live/test-sound":
                     return self._send_json(200, service.test_sound_live())
+                if path == "/api/voice/settings":
+                    return self._send_json(200, service.set_voice_settings(self._json_body()))
+                if path == "/api/voice/test":
+                    return self._send_json(200, service.trigger_voice_test(self._json_body()))
                 if path == "/api/videos/settings":
                     data = self._json_body()
                     with service.lock:
