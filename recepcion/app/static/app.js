@@ -1766,7 +1766,7 @@ function agendaPhoneOk(p={}){return !!String(p.celular||'').replace(/[^0-9]/g,''
 function mondayIso(value){const d=parseISO(value||toISO(new Date()));const day=d.getDay()===0?6:d.getDay()-1;d.setDate(d.getDate()-day);return toISO(d)}
 function firstClinicAnchorOfMonth(year,monthZero){
   const d=new Date(Number(year),Number(monthZero),1);
-  for(let i=0;i<7;i++){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i);if(x.getDay()===4)return toISO(x)}
+  for(let i=0;i<7;i++){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i);if(x.getDay()===3)return toISO(x)}
   return toISO(d);
 }
 function agendaTodayIso(){return toISO(new Date())}
@@ -1823,7 +1823,16 @@ async function loadAgenda(){
     setTimeout(()=>cleanupOldWhatsappTestsOnce(),120);
   }catch(e){if(box)box.innerHTML=`<div class="panel err">${esc(e.message)}</div>`}
 }
+function agendaSlotOpenForDay(date,time){
+  const d=parseISO(date),parts=String(time||'').split(':'),minutes=(Number(parts[0]||0)*60)+Number(parts[1]||0);
+  // Miércoles: atención 10:00–17:00. Los demás días conservan su horario actual.
+  if(d.getDay()===3&&minutes<10*60)return false;
+  return true;
+}
 function nativeAgendaRowCell(row,date,time){
+  // Si existiera una cita histórica fuera del horario nuevo, se sigue mostrando.
+  // Solo se bloquean los huecos libres para impedir agendar donde el doctor no atiende.
+  if(!row&&!agendaSlotOpenForDay(date,time))return `<div class="native-slot closed"><b>${esc(fmtTime(time))}</b><span>No disponible</span></div>`;
   if(!row)return `<button class="native-slot free" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">${esc(fmtTime(time))}</b><span>Disponible</span></button>`;
   const a=row.appointment||{},p=row.patient||{},staged=row.staged||{},source=String(row.source_type||''),unlinked=source==='MOBILE_UNLINKED'||source==='LEGACY_UNLINKED'||source==='CONFIRMAFY_STAGED'||source==='CONFIRMAFY_LEGACY';
   const name=staged.nombre||p.nombre||'PACIENTE';const status=agendaStatusInfo(a.estado);const sourceBadge=unlinked?'<small class="native-unlinked">SIN VINCULAR</small>':'';
