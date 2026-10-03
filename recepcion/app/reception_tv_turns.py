@@ -15,6 +15,11 @@ class ClinicTVTurnService(TVTurnService):
     de llamado y por eso no sonaba. Conservamos brevemente el turno actual hasta poder
     distinguir completed de cancelled y, si fue completed, aseguramos un único llamado
     del siguiente turno. Cancelar/eliminar continúa sin llamar a nadie.
+
+    Abrir una ficha desde Pacientes en espera sólo inicia la atención clínica. No es una
+    orden de llamado: nunca debe crear un evento de TV, ding ni anuncio de voz. Los únicos
+    llamados son los eventos explícitos ya existentes (llamar, volver a llamar y el llamado
+    automático del siguiente turno después de Finalizar).
     """
 
     FINALIZE_GRACE_SECONDS = 2.8
@@ -84,10 +89,23 @@ class ClinicTVTurnService(TVTurnService):
     def apply_history(self, payload: dict) -> None:
         waiting = self._valid_waiting(payload)
         has_current = self._has_current_turn(payload)
+        current = payload.get("current") if isinstance(payload.get("current"), dict) else None
+        current_id = str((current or {}).get("queue_id") or "") if has_current else ""
         with self.lock:
             prev_current_id = str(self.live.get("current_queue_id") or "")
+            prev_called_id = str(self.live.get("called_queue_id") or "")
+            prev_event_id = int(self.live.get("event_id") or 0)
             prev_turn = self.live.get("turn")
             prev_mode = str(self.live.get("mode") or "")
+
+        # Si Historia pasa un turno de waiting a in_consultation porque el doctor abrió
+        # la ficha, eso NO es una orden de llamado. Sólo preservamos el sonido cuando el
+        # mismo queue_id ya había sido llamado explícitamente y figura en called_queue_id.
+        direct_open_without_call = bool(
+            current_id
+            and current_id != prev_current_id
+            and current_id != prev_called_id
+        )
 
         terminal = self._recent_terminal_status(payload, prev_current_id) if prev_current_id and not has_current else ""
         now = _epoch()
@@ -100,6 +118,22 @@ class ClinicTVTurnService(TVTurnService):
             self._clear_finish_pending()
 
         super().apply_history(payload)
+
+        if direct_open_without_call:
+            with self.lock:
+                # TVTurnService antiguo convertía una apertura directa en mode=calling y
+                # sumaba event_id. Revertimos exclusivamente ese evento sintético.
+                if str(self.live.get("current_queue_id") or "") == current_id:
+                    if int(self.live.get("event_id") or 0) == prev_event_id + 1:
+                        self.live["event_id"] = prev_event_id
+                    self.live["mode"] = "attending"
+                    self.live["called_queue_id"] = ""
+                    self.live["call_before_attending_id"] = ""
+                    self.live["calling_started_epoch"] = 0.0
+                    self.live["attention_started_epoch"] = now
+                    self.live["sound_test"] = False
+                    self.live["last_change"] = _now_iso()
+            return
 
         if prev_current_id and not has_current and waiting:
             if terminal == "completed":
@@ -240,6 +274,7 @@ def tv_turnos_health(user=core_runtime.Depends(core_runtime.current_user)):
     out["finish_calls_next_with_sound"] = True
     out["finish_transition_grace_seconds"] = ClinicTVTurnService.FINALIZE_GRACE_SECONDS
     out["cancel_never_calls_next"] = True
+    out["opening_waiting_card_never_calls"] = True
     return out
 
 
