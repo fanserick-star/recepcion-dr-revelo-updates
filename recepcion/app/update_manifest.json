@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.43",
-  "app_version": "4.6.43",
-  "runtime_version": "4.6.43",
+  "version": "4.6.44",
+  "app_version": "4.6.44",
+  "runtime_version": "4.6.44",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -168,8 +168,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.43: añade anuncio por voz al llamado de turnos en la pantalla TV. Cada evento real de LLAMANDO TURNO conserva el ding existente y, después de una pausa breve, anuncia en español 'Turno número N' usando la voz disponible del navegador/sistema, priorizando es-EC y luego cualquier voz en español. La voz se dispara una sola vez por event_id, por lo que el llamado automático al Finalizar de 4.6.42 no se duplica cuando el doctor abre la ficha siguiente. Si el navegador no ofrece síntesis de voz, el ding y la señal visual continúan funcionando sin error. Se conservan sin cambios Agenda, mensajería, vinculación, facturación, impresión, pacientes e Historia Clínica.",
-    "previous_version": "4.6.42",
+    "purpose": "Recepción 4.6.44: completa el anuncio por voz del llamado de turnos en la pantalla TV. Conserva exactamente el evento, ding y lógica de turnos ya publicados; la única variación funcional es que la voz ahora anuncia 'Turno número N, por favor pasar a consulta.' usando la voz disponible del navegador/sistema, priorizando es-EC y luego cualquier voz en español. La voz se dispara una sola vez por event_id. Si el navegador no ofrece síntesis de voz, el ding y la señal visual continúan funcionando sin error. Se conservan sin cambios Agenda, mensajería, vinculación, facturación, impresión, pacientes, turnos e Historia Clínica.",
+    "previous_version": "4.6.43",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -243,7 +243,7 @@
     "tv_finish_transition_grace_seconds": 2.8,
     "tv_finish_does_not_double_ring_on_open": true,
     "tv_voice_announcement": true,
-    "tv_voice_phrase": "Turno número N",
+    "tv_voice_phrase": "Turno número N, por favor pasar a consulta.",
     "tv_voice_language_preference": "es-EC_then_es",
     "tv_voice_after_ding_ms": 650,
     "tv_voice_once_per_event": true,
