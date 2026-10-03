@@ -54,6 +54,7 @@ import reception_payment_terminal_feedback
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
 import reception_messaging_runtime
+import reception_messaging_runtime_guard
 import reception_tv_turns
 
 FEATURE_MODULES = (
@@ -104,6 +105,7 @@ FEATURE_MODULES = (
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
     reception_messaging_runtime,
+    reception_messaging_runtime_guard,
     reception_tv_turns,
 )
 
