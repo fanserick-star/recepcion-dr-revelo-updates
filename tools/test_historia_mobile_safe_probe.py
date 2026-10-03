@@ -30,40 +30,43 @@ def allow_origin(headers):
     return ""
 
 def main():
+    # Verifica el canal público de transporte y, a la vez, que una llave falsa
+    # NO pueda leer datos clínicos. La prueba exitosa con la llave real se hace
+    # contra Neon desde el mantenimiento del sistema, nunca se publica en GitHub.
     options_http,options_headers,_=request(
-        API_URL+"/rpc/ping",
+        API_URL+"/rpc/status",
         method="OPTIONS",
         extra={
             "Access-Control-Request-Method":"POST",
             "Access-Control-Request-Headers":"content-type",
         },
     )
-    ping_http,ping_headers,raw=request(
-        API_URL+"/rpc/ping",
+    status_http,status_headers,raw=request(
+        API_URL+"/rpc/status",
         method="POST",
-        body={"p_probe_token":PROBE_TOKEN},
+        body={"p_token":"historia-mobile-invalid-probe"},
     )
     try:
-        ping=json.loads(raw or "{}")
+        denied=json.loads(raw or "{}")
     except Exception:
-        ping={}
+        denied={}
 
-    origins={allow_origin(options_headers),allow_origin(ping_headers)}
+    origins={allow_origin(options_headers),allow_origin(status_headers)}
     cors_ok=all(value in {ORIGIN,"*"} for value in origins if value) and bool(origins- {""})
+    denied_message=str(denied.get("message") or "") if isinstance(denied,dict) else ""
+    access_guard_ok=(
+        status_http in (401,403)
+        and "Acceso clínico no autorizado" in denied_message
+    )
     ok=(
         options_http in (200,204)
-        and ping_http==200
-        and isinstance(ping,dict)
-        and ping.get("ok") is True
-        and ping.get("source")=="historia_neon"
-        and ping.get("mode")=="read_only"
+        and access_guard_ok
         and cors_ok
     )
     print(json.dumps({
         "options_http":options_http,
-        "ping_http":ping_http,
-        "ping_ok":bool(ping.get("ok")) if isinstance(ping,dict) else False,
-        "source":ping.get("source") if isinstance(ping,dict) else None,
+        "guard_http":status_http,
+        "access_guard_ok":access_guard_ok,
         "cors_ok":cors_ok,
         "ok":ok,
     },separators=(",",":")))
