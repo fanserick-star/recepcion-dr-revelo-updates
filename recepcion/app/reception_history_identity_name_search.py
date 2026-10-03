@@ -210,6 +210,19 @@ V4637_JS = r"""
   if(window.__v4637NameFirstHistoryLink)return;
   window.__v4637NameFirstHistoryLink=true;
   let debounce=0;
+  function visibleReceptionName(overlay){
+    const candidates=[
+      ...document.querySelectorAll('.v4413-profile-name h2'),
+      ...document.querySelectorAll('.patient-profile h2'),
+      ...document.querySelectorAll('.attention-patient-name')
+    ];
+    for(const el of candidates){
+      if(!el||overlay.contains(el))continue;
+      const value=String(el.textContent||'').trim();
+      if(value&&/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(value))return value;
+    }
+    return '';
+  }
   function enhance(){
     const overlay=document.querySelector('.v4613-overlay');
     if(!overlay||overlay.dataset.nameFirst==='1')return;
@@ -224,6 +237,12 @@ V4637_JS = r"""
     if(input){
       input.placeholder='Escriba nombre o apellido…';
       input.setAttribute('aria-label','Buscar ficha por nombre');
+      const receptionName=visibleReceptionName(overlay);
+      const initial=String(input.value||'').trim();
+      if(receptionName&&(!/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(initial)||/^\d+$/.test(initial))){
+        input.value=receptionName;
+        setTimeout(()=>{ if(go&&!go.disabled) go.click(); },0);
+      }
       input.addEventListener('input',()=>{
         clearTimeout(debounce);
         debounce=setTimeout(()=>{ if(go&&!go.disabled) go.click(); },220);
@@ -255,6 +274,7 @@ def v4637_history_name_link_health(user=core.Depends(core.current_user)):
         "version": APP_VERSION,
         "name_is_primary_search": True,
         "live_results": True,
+        "prefill_uses_reception_name": True,
         "single_query_history_summary": True,
         "identification_is_secondary_signal": True,
         "manual_confirmation_preserved": True,
