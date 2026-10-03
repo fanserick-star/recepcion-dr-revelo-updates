@@ -16,6 +16,7 @@ from reception_tv_common import (
     _is_loopback,
     _is_video_name,
 )
+from reception_tv_voice import turn_voice_wav
 
 
 def build_handler(service):
@@ -93,6 +94,15 @@ def build_handler(service):
                 return self._send_json(200, service.video_config())
             if path == "/api/status":
                 return self._send_json(200, service.status())
+            if path == "/api/turn-voice.wav":
+                try:
+                    turn = (query.get("turn") or [""])[0]
+                    data = turn_voice_wav(turn)
+                    return self._send(200, data, "audio/wav", "public, max-age=86400")
+                except ValueError as exc:
+                    return self._send_text(400, str(exc))
+                except Exception as exc:
+                    return self._send_text(503, f"Voz no disponible: {str(exc)[:180]}")
             if path == "/ding.wav":
                 return self._send(200, _DING, "audio/wav", "public, max-age=3600")
             if path == "/assets/logo-full.png":
