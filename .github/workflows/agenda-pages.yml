@@ -6,6 +6,7 @@ on:
     paths:
       - 'agenda/**'
       - '.github/workflows/agenda-pages.yml'
+      - 'tools/test_historia_mobile_safe_probe.py'
   workflow_dispatch:
 
 permissions:
@@ -52,7 +53,7 @@ jobs:
           print('AGENDA_AND_DIRECT_HISTORIA_SOURCE_OK')
           PY
 
-      - name: Verificar JWKS de acceso móvil
+      - name: Verificar JWKS de Agenda
         shell: bash
         run: |
           set -euo pipefail
