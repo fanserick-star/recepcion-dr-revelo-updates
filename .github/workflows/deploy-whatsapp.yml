@@ -148,8 +148,9 @@ jobs:
           set -euo pipefail
           FROM=$(date -u +%F)
           TO=$(date -u -d '+14 days' +%F)
-          curl -fsS --max-time 15 -H 'Origin: https://fanserick-star.github.io' \
-            "$WORKER_URL/booking/availability?from=$FROM&to=$TO" -o /tmp/availability.json
+          BUST=$(date +%s%N)
+          curl -fsS --max-time 15 -H 'Origin: https://fanserick-star.github.io' -H 'Cache-Control: no-cache' \
+            "$WORKER_URL/booking/availability?from=$FROM&to=$TO&ci=$BUST" -o /tmp/availability.json
           python - <<'PY'
           import json
           d=json.load(open('/tmp/availability.json','r',encoding='utf-8'))
