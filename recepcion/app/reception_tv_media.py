@@ -16,6 +16,11 @@ class TVMediaMixin:
             "video_volume": 0.20,
             "video_order": [],
             "display_mode": "live",
+            "voice_uri": "",
+            "voice_name": "",
+            "voice_lang": "",
+            "voice_rate": 0.90,
+            "voice_pitch": 1.00,
         }
         if not CONFIG_PATH.is_file():
             return default
@@ -29,11 +34,21 @@ class TVMediaMixin:
             display_mode = str(data.get("display_mode") or "live").strip().lower()
             if display_mode not in {"live", "test"}:
                 display_mode = "live"
+            voice_uri = str(data.get("voice_uri") or "")[:240]
+            voice_name = str(data.get("voice_name") or "")[:180]
+            voice_lang = str(data.get("voice_lang") or "")[:40]
+            voice_rate = max(0.60, min(1.30, float(data.get("voice_rate", 0.90))))
+            voice_pitch = max(0.70, min(1.30, float(data.get("voice_pitch", 1.00))))
             return {
                 "videos_enabled": enabled,
                 "video_volume": volume,
                 "video_order": order,
                 "display_mode": display_mode,
+                "voice_uri": voice_uri,
+                "voice_name": voice_name,
+                "voice_lang": voice_lang,
+                "voice_rate": voice_rate,
+                "voice_pitch": voice_pitch,
             }
         except Exception:
             return default
