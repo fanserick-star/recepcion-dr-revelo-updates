@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.41",
-  "app_version": "4.6.41",
-  "runtime_version": "4.6.41",
+  "version": "4.6.42",
+  "app_version": "4.6.42",
+  "runtime_version": "4.6.42",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -168,8 +168,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.41: al abrir Buscar y vincular ficha de Historia, el campo de búsqueda se precarga con el nombre del paciente de Recepción y no con su cédula. La búsqueda en vivo sigue usando el nombre como referencia principal, mientras cédula, celular y fecha de nacimiento permanecen como señales secundarias de confirmación. Se conservan sin cambios la mensajería, Agenda, facturación, impresión, TV, turnos y sincronización con Historia de 4.6.40.",
-    "previous_version": "4.6.40",
+    "purpose": "Recepción 4.6.42: corrige el llamado sonoro del siguiente turno cuando el doctor pulsa Finalizar consulta. Se protege la transición breve en la que Historia puede dejar de mostrar el turno actual antes de exponer su estado terminal; al confirmar completed, Recepción pasa a LLAMANDO TURNO, incrementa un único evento de sonido y evita que vuelva a sonar al abrir la ficha ya llamada. Cancelar o eliminar continúa sin llamar al siguiente. Se conservan sin cambios las mejoras de Agenda, mensajería, vinculación de fichas, facturación e impresión de 4.6.41.",
+    "previous_version": "4.6.41",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -239,10 +239,13 @@
     "tv_first_attend_generates_call": true,
     "tv_cancel_never_calls_next": true,
     "tv_complete_calls_next_when_waiting": true,
+    "tv_finish_call_sound_reliable": true,
+    "tv_finish_transition_grace_seconds": 2.8,
+    "tv_finish_does_not_double_ring_on_open": true,
     "tv_video_storage": "local_reception_pc",
     "tv_display_panel_bottom_vh": 8.5,
     "tv_footer_bottom_vh": 2.3,
-    "tv_display_logic_changes": false,
+    "tv_display_logic_changes": true,
     "rollback_safe": true,
     "single_version_source": "recepcion-version.json"
   },
