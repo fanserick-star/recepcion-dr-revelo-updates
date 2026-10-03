@@ -53,6 +53,7 @@ import reception_history_cancellation
 import reception_payment_terminal_feedback
 import reception_payment_terminal_panel
 import reception_history_identity_consolidated
+import reception_messaging_runtime
 import reception_tv_turns
 
 FEATURE_MODULES = (
@@ -102,6 +103,7 @@ FEATURE_MODULES = (
     reception_payment_terminal_feedback,
     reception_payment_terminal_panel,
     reception_history_identity_consolidated,
+    reception_messaging_runtime,
     reception_tv_turns,
 )
 
@@ -310,6 +312,7 @@ def _strip_legacy_configuration_overlays() -> None:
 
 
 _strip_legacy_configuration_overlays()
+reception_messaging_runtime.install()
 
 
 _install_versioned_overlay_home()
