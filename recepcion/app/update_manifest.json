@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.50",
-  "app_version": "4.6.50",
-  "runtime_version": "4.6.50",
+  "version": "4.6.51",
+  "app_version": "4.6.51",
+  "runtime_version": "4.6.51",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.50: corrige la Agenda tras habilitar miércoles. La grilla ahora tiene cuatro columnas reales (miércoles, jueves, viernes y sábado), el encabezado incluye miércoles y los huecos del miércoles antes de las 10:00 aparecen como no disponibles y no se pueden agendar. Mantiene visibles citas históricas si existieran fuera del nuevo horario y conserva sin cambios los demás días.",
-    "previous_version": "4.6.49",
+    "purpose": "Recepción 4.6.51: corrige la cabecera de la Pantalla TV. Deja de usar el logo completo con fondo blanco incrustado y utiliza el isotipo transparente sobre el fondo real de la TV, con el nombre y cargo renderizados como texto nítido. No cambia turnos, voz, sonidos, videos ni lógica clínica.",
+    "previous_version": "4.6.50",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -294,7 +294,14 @@
     "agenda_wednesday_pre_10_slots_clickable": false,
     "agenda_wednesday_pre_10_existing_appointments_preserved": true,
     "agenda_subtitle_includes_wednesday": true,
-    "history_logic_changes": false
+    "history_logic_changes": false,
+    "tv_header_uses_transparent_isotype": true,
+    "tv_header_full_logo_removed": true,
+    "tv_header_duplicate_text_removed": true,
+    "tv_header_background_rectangle_removed": true,
+    "tv_turn_logic_changes": false,
+    "tv_voice_logic_changes": false,
+    "tv_video_logic_changes": false
   },
   "channel": "launcher-v1-stable"
 }
