@@ -4,6 +4,7 @@ import json
 import urllib.error
 import urllib.request
 
+AUTH_URL="https://ep-sweet-mud-arlsk7qa.neonauth.us-west-2.aws.neon.tech/neondb/auth/token/anonymous"
 API_URL="https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1"
 ORIGIN="https://fanserick-star.github.io"
 PROBE_TOKEN="historia-mobile-safe-probe-20261003"
@@ -30,20 +31,26 @@ def allow_origin(headers):
     return ""
 
 def main():
-    # Verifica el canal público de transporte y, a la vez, que una llave falsa
-    # NO pueda leer datos clínicos. La prueba exitosa con la llave real se hace
-    # contra Neon desde el mantenimiento del sistema, nunca se publica en GitHub.
+    auth_http,_,raw=request(AUTH_URL)
+    try:
+        auth=json.loads(raw or "{}")
+    except Exception:
+        auth={}
+    jwt=str(auth.get("token") or "")
+    auth_ok=(auth_http==200 and jwt.count(".")==2)
+
     options_http,options_headers,_=request(
         API_URL+"/rpc/status",
         method="OPTIONS",
         extra={
             "Access-Control-Request-Method":"POST",
-            "Access-Control-Request-Headers":"content-type",
+            "Access-Control-Request-Headers":"authorization,content-type",
         },
     )
     status_http,status_headers,raw=request(
         API_URL+"/rpc/status",
         method="POST",
+        jwt=jwt if auth_ok else "",
         body={"p_token":"historia-mobile-invalid-probe"},
     )
     try:
@@ -59,11 +66,14 @@ def main():
         and "Acceso clínico no autorizado" in denied_message
     )
     ok=(
-        options_http in (200,204)
+        auth_ok
+        and options_http in (200,204)
         and access_guard_ok
         and cors_ok
     )
     print(json.dumps({
+        "auth_http":auth_http,
+        "auth_ok":auth_ok,
         "options_http":options_http,
         "guard_http":status_http,
         "guard_code":str(denied.get("code") or "") if isinstance(denied,dict) else "",
