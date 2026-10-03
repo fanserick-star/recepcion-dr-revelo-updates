@@ -19,6 +19,14 @@ class ClinicTVTurnService(TVTurnService):
 
     FINALIZE_GRACE_SECONDS = 2.8
 
+    def __init__(self):
+        super().__init__()
+        self.tv_voice_capabilities: list[dict] = []
+        self.tv_voice_supported = False
+        self.tv_voice_reported_epoch = 0.0
+        self.voice_test_id = 0
+        self.voice_test_turn = 6
+
     @staticmethod
     def _valid_waiting(payload: dict) -> list[dict]:
         return [
@@ -95,8 +103,6 @@ class ClinicTVTurnService(TVTurnService):
 
         if prev_current_id and not has_current and waiting:
             if terminal == "completed":
-                # Garantiza que Finalizar consulta genere el mismo evento de llamado
-                # que un llamado manual: cambia a LLAMANDO TURNO y reproduce el ding.
                 self._ensure_next_called(waiting)
                 self._clear_finish_pending()
                 return
@@ -107,8 +113,6 @@ class ClinicTVTurnService(TVTurnService):
             pending_id = str(getattr(self, "_finish_pending_id", "") or "")
             pending_since = float(getattr(self, "_finish_pending_since", 0.0) or 0.0)
             if pending_id == prev_current_id and pending_since and now - pending_since < self.FINALIZE_GRACE_SECONDS:
-                # No perdemos el contexto del turno actual por una lectura intermedia.
-                # En el siguiente sondeo el estado terminal normalmente ya está visible.
                 with self.lock:
                     self.live["current_queue_id"] = prev_current_id
                     self.live["turn"] = prev_turn
@@ -120,10 +124,98 @@ class ClinicTVTurnService(TVTurnService):
                 return
             self._clear_finish_pending()
 
+    def _voice_config(self) -> dict:
+        return {
+            "voice_uri": str(self.config.get("voice_uri") or ""),
+            "voice_name": str(self.config.get("voice_name") or ""),
+            "voice_lang": str(self.config.get("voice_lang") or ""),
+            "rate": float(self.config.get("voice_rate", 0.90)),
+            "pitch": float(self.config.get("voice_pitch", 1.00)),
+        }
+
+    def report_tv_voices(self, payload: dict) -> dict:
+        raw = payload.get("voices") or []
+        voices = []
+        seen = set()
+        for item in raw[:64] if isinstance(raw, list) else []:
+            if not isinstance(item, dict):
+                continue
+            uri = str(item.get("voiceURI") or item.get("name") or "")[:240]
+            name = str(item.get("name") or "")[:180]
+            lang = str(item.get("lang") or "")[:40]
+            if not uri and not name:
+                continue
+            key = (uri, name, lang)
+            if key in seen:
+                continue
+            seen.add(key)
+            voices.append({
+                "voiceURI": uri,
+                "name": name,
+                "lang": lang,
+                "default": bool(item.get("default")),
+                "localService": bool(item.get("localService")),
+            })
+        with self.lock:
+            self.tv_voice_capabilities = voices
+            self.tv_voice_supported = bool(payload.get("supported"))
+            self.tv_voice_reported_epoch = _epoch()
+        return {"ok": True, "count": len(voices)}
+
+    def voice_settings(self) -> dict:
+        with self.lock:
+            return {
+                "ok": True,
+                "config": self._voice_config(),
+                "voices": list(self.tv_voice_capabilities),
+                "tv_voice_supported": bool(self.tv_voice_supported),
+                "tv_voice_reported": bool(self.tv_voice_reported_epoch),
+                "tv_voice_age_seconds": max(0.0, _epoch() - self.tv_voice_reported_epoch) if self.tv_voice_reported_epoch else None,
+            }
+
+    def set_voice_settings(self, payload: dict) -> dict:
+        uri = str(payload.get("voice_uri") or "")[:240]
+        rate = max(0.60, min(1.30, float(payload.get("rate", self.config.get("voice_rate", 0.90)))))
+        pitch = max(0.70, min(1.30, float(payload.get("pitch", self.config.get("voice_pitch", 1.00)))))
+        chosen = None
+        with self.lock:
+            if uri:
+                for item in self.tv_voice_capabilities:
+                    if str(item.get("voiceURI") or "") == uri:
+                        chosen = item
+                        break
+                if self.tv_voice_capabilities and chosen is None:
+                    raise ValueError("La voz escogida ya no está disponible en el televisor")
+            self.config["voice_uri"] = uri if chosen or not uri else ""
+            self.config["voice_name"] = str((chosen or {}).get("name") or "")
+            self.config["voice_lang"] = str((chosen or {}).get("lang") or "")
+            self.config["voice_rate"] = rate
+            self.config["voice_pitch"] = pitch
+            self._save_config()
+        return self.voice_settings()
+
+    def trigger_voice_test(self, payload: dict) -> dict:
+        try:
+            turn = int(payload.get("turn") or 6)
+        except (TypeError, ValueError):
+            turn = 6
+        turn = max(1, min(999, turn))
+        with self.lock:
+            self.voice_test_id += 1
+            self.voice_test_turn = turn
+            return {"ok": True, "voice_test_id": self.voice_test_id, "turn": turn}
+
+    def display_snapshot(self, *, touch_tv: bool = False) -> dict:
+        out = super().display_snapshot(touch_tv=touch_tv)
+        with self.lock:
+            out["voice"] = self._voice_config()
+            out["voice_test_id"] = int(self.voice_test_id)
+            out["voice_test_turn"] = int(self.voice_test_turn)
+        return out
+
 
 SERVICE = ClinicTVTurnService()
 
-# Acceso integrado dentro de Recepción. No cambia atención, caja, facturación ni agenda.
 TV_OVERLAY_CSS = r"""
 #tvOfficialShortcut{position:fixed;right:18px;bottom:18px;z-index:2147482000;border:1px solid rgba(255,255,255,.22);background:#173a52;color:#fff;border-radius:12px;padding:10px 13px;font:800 12px/1.1 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.2);cursor:pointer}#tvOfficialShortcut:hover{background:#245877}
 #tvOfficialModal{position:fixed;inset:0;z-index:2147483000;display:none;align-items:stretch;justify-content:center;background:rgba(4,13,20,.76);backdrop-filter:blur(3px);padding:18px}#tvOfficialModal.tv-open{display:flex}#tvOfficialShell{width:min(1220px,98vw);height:calc(100vh - 36px);background:#0b1821;border:1px solid rgba(255,255,255,.22);border-radius:18px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.42);display:flex;flex-direction:column}#tvOfficialBar{height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 12px 0 16px;background:#112a36;border-bottom:1px solid rgba(255,255,255,.12);color:#fff;font:800 13px/1 system-ui,-apple-system,Segoe UI,sans-serif}#tvOfficialClose{border:0;background:#294a58;color:#fff;border-radius:9px;padding:8px 12px;font-weight:900;cursor:pointer}#tvOfficialFrame{width:100%;flex:1;border:0;background:#0b1821}
