@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.49",
-  "app_version": "4.6.49",
-  "runtime_version": "4.6.49",
+  "version": "4.6.50",
+  "app_version": "4.6.50",
+  "runtime_version": "4.6.50",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,13 +170,13 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.49: al confirmar/vincular una ficha correcta de Historia Clínica, Recepción corrige su propia cédula/identificación con la registrada en la ficha clínica antes de enviar al paciente al doctor. La corrección queda auditada, se refleja en la copia local y no modifica Historia ni facturas ya emitidas. Si esa cédula ya pertenece a otra ficha de Recepción, se bloquea para revisar el duplicado.",
-    "previous_version": "4.6.48",
+    "purpose": "Recepción 4.6.50: corrige la Agenda tras habilitar miércoles. La grilla ahora tiene cuatro columnas reales (miércoles, jueves, viernes y sábado), el encabezado incluye miércoles y los huecos del miércoles antes de las 10:00 aparecen como no disponibles y no se pueden agendar. Mantiene visibles citas históricas si existieran fuera del nuevo horario y conserva sin cambios los demás días.",
+    "previous_version": "4.6.49",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
-    "patient_data_changes": true,
+    "patient_data_changes": false,
     "patient_data_destructive_changes": false,
     "billing_logic_changes": false,
     "azur_logic_changes": false,
@@ -264,7 +264,7 @@
     "tv_video_storage": "local_reception_pc",
     "tv_display_panel_bottom_vh": 8.5,
     "tv_footer_bottom_vh": 2.3,
-    "tv_display_logic_changes": true,
+    "tv_display_logic_changes": false,
     "rollback_safe": true,
     "single_version_source": "recepcion-version.json",
     "agenda_days": [
@@ -288,7 +288,13 @@
     "history_identity_correction_audited": true,
     "history_identity_correction_mirrored_local": true,
     "billing_issued_documents_unchanged": true,
-    "history_link_conflicting_id_corrects_reception_on_confirm": true
+    "history_link_conflicting_id_corrects_reception_on_confirm": true,
+    "agenda_four_day_grid_fixed": true,
+    "agenda_wednesday_visual_start": "10:00",
+    "agenda_wednesday_pre_10_slots_clickable": false,
+    "agenda_wednesday_pre_10_existing_appointments_preserved": true,
+    "agenda_subtitle_includes_wednesday": true,
+    "history_logic_changes": false
   },
   "channel": "launcher-v1-stable"
 }
