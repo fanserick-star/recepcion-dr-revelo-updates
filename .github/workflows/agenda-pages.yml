@@ -68,14 +68,6 @@ jobs:
       - name: Validar lectura directa de Historia
         run: python tools/test_historia_mobile_app_path.py
 
-      - name: Mostrar diagnóstico sanitizado de Historia
-        if: always()
-        shell: bash
-        run: |
-          if [ -f diagnostics/historia-data-api-probe.json ]; then
-            cat diagnostics/historia-data-api-probe.json
-          fi
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload Agenda
