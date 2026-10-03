@@ -27,6 +27,21 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Corregir validación del selector web
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/maintenance/apply_wednesday_schedule_20261003.py')
+          s=p.read_text(encoding='utf-8')
+          old='''    s = replace_exact(s, "Math.max(0,Math.min(2,Number(state.dayIndex)||0))", "Math.max(0,Math.min(3,Number(state.dayIndex)||0))", label="doctor day clamps", count=2)'''
+          new='''    s = replace_exact(s, "Math.max(0,Math.min(2,Number(state.dayIndex)||0))", "Math.max(0,Math.min(3,Number(state.dayIndex)||0))", label="doctor state day clamp")\n    s = replace_exact(s, "Math.max(0,Math.min(2,Number(i)||0))", "Math.max(0,Math.min(3,Number(i)||0))", label="doctor picker day clamp")'''
+          if s.count(old) != 1:
+              raise SystemExit('No se encontró exactamente la validación antigua del selector')
+          p.write_text(s.replace(old,new),encoding='utf-8')
+          PY
+
       - name: Aplicar migración canónica
         run: python tools/maintenance/apply_wednesday_schedule_20261003.py
 
