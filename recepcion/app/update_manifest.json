@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.48",
-  "app_version": "4.6.48",
-  "runtime_version": "4.6.48",
+  "version": "4.6.49",
+  "app_version": "4.6.49",
+  "runtime_version": "4.6.49",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,13 +170,13 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.48: habilita miércoles como día de atención en Agenda, de 10:00 a 17:00, con el mismo descanso 12:30–14:00. Alinea Inicio/Agenda de Recepción, Agenda web 24/7 del doctor, autoagendamiento público y comandos de autoagenda por WhatsApp. Jueves, viernes y sábado conservan sus horarios existentes. No cambia pacientes, facturación, impresión, Historia Clínica ni turnos/TV.",
-    "previous_version": "4.6.47",
+    "purpose": "Recepción 4.6.49: al confirmar/vincular una ficha correcta de Historia Clínica, Recepción corrige su propia cédula/identificación con la registrada en la ficha clínica antes de enviar al paciente al doctor. La corrección queda auditada, se refleja en la copia local y no modifica Historia ni facturas ya emitidas. Si esa cédula ya pertenece a otra ficha de Recepción, se bloquea para revisar el duplicado.",
+    "previous_version": "4.6.48",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
-    "patient_data_changes": false,
+    "patient_data_changes": true,
     "patient_data_destructive_changes": false,
     "billing_logic_changes": false,
     "azur_logic_changes": false,
@@ -278,7 +278,16 @@
     "agenda_web_doctor_updated": true,
     "agenda_public_booking_updated": true,
     "agenda_whatsapp_autoagenda_updated": true,
-    "agenda_other_days_preserved": true
+    "agenda_other_days_preserved": true,
+    "history_identity_reception_is_correction_authority": true,
+    "history_identity_doctor_never_corrects_reception_id": true,
+    "history_identity_manual_link_corrects_reception_id": true,
+    "history_identity_existing_verified_link_repairs_reception_id": true,
+    "history_identity_clinical_id_never_overwritten": true,
+    "history_identity_duplicate_reception_id_blocked": true,
+    "history_identity_correction_audited": true,
+    "history_identity_correction_mirrored_local": true,
+    "billing_issued_documents_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }
