@@ -26,6 +26,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Validar agenda de miércoles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          doctor=Path('agenda/index.html').read_text(encoding='utf-8')
+          public=Path('agenda/agendar.html').read_text(encoding='utf-8')
+          assert "['MIÉRCOLES','JUEVES','VIERNES','SÁBADO']" in doctor
+          assert "dow!==3||String(t)>='10:00'" in doctor
+          assert 'ALMUERZO · 12:30 – 14:00' in doctor
+          assert '[3,4,5,6].includes(day)' in public
+          assert 'timesForDate' in public
+          assert 'Los miércoles desde las 10:00' in public
+          print('AGENDA_WEDNESDAY_SOURCE_OK')
+          PY
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload Agenda
