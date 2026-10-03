@@ -7,7 +7,7 @@ import sqlite3
 
 import historia_link_helper as helper
 
-PATCH_VERSION = "1.3.97"
+PATCH_VERSION = "1.3.98"
 
 
 def _queue_initial_name_first(queue_id: str) -> str:
@@ -253,14 +253,10 @@ def _helper_markup_name_first(queue_id: str, initial: str) -> str:
       const birth=r.birth_date?' · Nac. '+esc(r.birth_date):'';
       const reasons=(Array.isArray(r.reasons)?r.reasons:[]).filter(x=>x!=='identificación diferente').join(' · ');
       const linked=r.reception_linked?'<small>✓ Ficha vinculada desde Recepción</small>':'';
-      const warn=r.id_conflict?'<small>⚠ La cédula enviada por Recepción es diferente. Si el nombre corresponde al paciente, puedes confirmar esta ficha. Historia no cambiará la cédula automáticamente.</small>':'';
-      const action='<a href="/cola/'+encodeURIComponent(qid)+'/vincular/'+encodeURIComponent(r.id)+'"'+(r.id_conflict?' data-conflict="1" data-name="'+esc(r.name||'')+'"':'')+'>Vincular esta ficha</a>';
+      const warn=r.id_conflict?'<small>⚠ BLOQUEADO: la cédula enviada por Recepción es diferente. Corrija el dato en Recepción antes de atender.</small>':'';
+      const action=r.id_conflict?'<span class="blocked">Corregir en Recepción</span>':'<a href="/cola/'+encodeURIComponent(qid)+'/vincular/'+encodeURIComponent(r.id)+'">Vincular esta ficha</a>';
       return '<div class="v1393-card'+(r.id_conflict?' warn':'')+'"><div><b>'+esc(r.name||'SIN NOMBRE')+'</b>'+id+'<small>'+esc(hist)+birth+'</small>'+linked+(reasons?'<small>Coincide: '+esc(reasons)+'</small>':'')+warn+'</div>'+action+'</div>';
     }}).join('');
-    list.querySelectorAll('a[data-conflict="1"]').forEach(a=>a.addEventListener('click',ev=>{{
-      const name=a.getAttribute('data-name')||'esta ficha';
-      if(!confirm('La cédula enviada por Recepción no coincide con '+name+'.\n\nSi verificaste que el nombre y la historia corresponden al paciente, puedes continuar. No se modificará la cédula guardada en Historia.\n\n¿Vincular esta ficha?'))ev.preventDefault();
-    }}));
   }};
   let seq=0,debounce=0;
   const run=async()=>{{
