@@ -1748,28 +1748,8 @@ def _queue_validated_link(conn, row):
     identification = _queue_identification_key(row["identification"] or "")
     linked_ident = _queue_identification_key(linked["national_id_search"] or "")
     if identification and linked_ident and linked_ident != identification:
-        reception_patient_id = str(row["reception_patient_id"] or "").strip()
-        verified = None
-        if reception_patient_id:
-            try:
-                verified = conn.execute(
-                    """SELECT verified,matched_by
-                       FROM patient_links
-                       WHERE reception_patient_id=? AND clinical_patient_id=?
-                       LIMIT 1""",
-                    (reception_patient_id, linked_id),
-                ).fetchone()
-            except sqlite3.Error:
-                verified = None
-        if (
-            verified
-            and int(verified["verified"] or 0) == 1
-            and _queue_name_compatible(row["display_name"], linked["name_search"] or linked["name"])
-        ):
-            # El vínculo humano ya fue confirmado; una cédula administrativa mal
-            # digitada no debe impedir abrir la ficha correcta. No se modifica
-            # ningún dato identificatorio de la ficha clínica.
-            return linked_id
+        # Historia no corrige ni autoriza contradicciones administrativas.
+        # Recepción debe resolver/corregir la identificación antes del handoff.
         return ""
     return linked_id
 
