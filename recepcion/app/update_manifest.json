@@ -210,7 +210,7 @@
     "history_link_single_query_summary": true,
     "history_link_identification_secondary_signal": true,
     "history_link_manual_confirmation_preserved": true,
-    "history_link_conflicting_valid_ids_blocked": true,
+    "history_link_conflicting_valid_ids_blocked": false,
     "history_link_reception_name_authoritative": true,
     "history_link_empty_reception_name_never_erases": true,
     "history_link_existing_encounters_unchanged": true,
@@ -287,7 +287,8 @@
     "history_identity_duplicate_reception_id_blocked": true,
     "history_identity_correction_audited": true,
     "history_identity_correction_mirrored_local": true,
-    "billing_issued_documents_unchanged": true
+    "billing_issued_documents_unchanged": true,
+    "history_link_conflicting_id_corrects_reception_on_confirm": true
   },
   "channel": "launcher-v1-stable"
 }
