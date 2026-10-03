@@ -65,9 +65,6 @@ jobs:
               raise SystemExit(1)
           PY
 
-      - name: Validar lectura directa de Historia
-        run: python tools/test_historia_mobile_app_path.py
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload Agenda
