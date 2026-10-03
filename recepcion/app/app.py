@@ -1,6 +1,7 @@
 from __future__ import annotations
 import reception_history_bridge as _dep_history_bridge
 import reception_payment_terminal_panel as _dep_payment_terminal_panel
+import reception_mobile_history as _dep_mobile_history
 import features_runtime
 import json
 import time
@@ -11,6 +12,7 @@ import sqlite3
 import historia_bridge
 core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
+_dep_mobile_history.install(app, core)
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()
