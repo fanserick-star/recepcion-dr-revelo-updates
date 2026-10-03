@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+import time
 
 import core_runtime as core
 import reception_messaging_runtime as messaging
 
 app = core.app
+APP_VERSION = "4.6.40"
 _INSTALLED = False
 _ORIGINAL_INSTALL = messaging.install
+_STAGED_STATE_CACHE: dict[int, tuple[float, str]] = {}
+_STAGED_STATE_TTL = 30.0
 
 
 def _iso(value) -> str:
@@ -192,6 +196,128 @@ def _history_payload(*, source_type: str, source_id: int, fecha: date | None, ho
     }
 
 
+def _latest_staged_states(item_ids) -> dict[int, str]:
+    """Estado visual de citas sin ficha derivado de la última respuesta decisiva.
+
+    ConfirmafyAgendaItem no tiene columna ``estado``: las confirmaciones 24/7 se
+    guardan en whatsapp_cloud.inbound_responses. Consultamos todos los bloques
+    visibles en una sola consulta y cacheamos 30 s para no convertir Agenda en
+    un N+1 contra Neon. Un fallo de nube conserva el último estado conocido.
+    """
+    ids = sorted({int(x) for x in (item_ids or []) if int(x or 0) > 0})
+    if not ids:
+        return {}
+    now = time.time()
+    result: dict[int, str] = {}
+    missing: list[int] = []
+    for item_id in ids:
+        cached = _STAGED_STATE_CACHE.get(item_id)
+        if cached and now - cached[0] <= _STAGED_STATE_TTL:
+            result[item_id] = cached[1]
+        else:
+            missing.append(item_id)
+    if not missing:
+        return result
+
+    stale_fallback = {
+        item_id: _STAGED_STATE_CACHE[item_id][1]
+        for item_id in missing
+        if item_id in _STAGED_STATE_CACHE
+    }
+    if not core.cloud_configured() or not core.CloudSessionLocal or core.FORCE_OFFLINE:
+        result.update(stale_fallback)
+        return result
+
+    params = {f"id{i}": item_id for i, item_id in enumerate(missing)}
+    placeholders = ",".join(f":id{i}" for i in range(len(missing)))
+    try:
+        with core.CloudSessionLocal() as db:
+            if not core._wa_inbound_table_ready(db):
+                result.update(stale_fallback)
+                return result
+            rows = db.execute(core.text(f"""
+                SELECT DISTINCT ON (source_id)
+                       source_id, upper(coalesce(interpretation,'')) AS interpretation
+                FROM whatsapp_cloud.inbound_responses
+                WHERE source_type='staged'
+                  AND source_id IN ({placeholders})
+                  AND upper(coalesce(interpretation,'')) IN ('CONFIRMADO','NO_ASISTIRA')
+                ORDER BY source_id, received_at DESC, id DESC
+            """), params).mappings().all()
+        decisive = {
+            int(row.get("source_id")): (
+                "CONFIRMADA"
+                if str(row.get("interpretation") or "").upper() == "CONFIRMADO"
+                else "NO_ASISTIRA"
+            )
+            for row in rows
+            if int(row.get("source_id") or 0) > 0
+        }
+        for item_id in missing:
+            state = decisive.get(item_id, "PENDIENTE")
+            _STAGED_STATE_CACHE[item_id] = (now, state)
+            result[item_id] = state
+        return result
+    except Exception:
+        result.update(stale_fallback)
+        return result
+
+
+def _enrich_week_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        return payload
+    rows = []
+    ids = []
+    for day in payload.get("days") or []:
+        for row in day.get("appointments") or []:
+            staged = (row or {}).get("staged") or {}
+            item_id = int(staged.get("id") or 0)
+            if item_id > 0:
+                rows.append((row, staged, item_id))
+                ids.append(item_id)
+    states = _latest_staged_states(ids)
+    for row, staged, item_id in rows:
+        state = states.get(item_id, "PENDIENTE")
+        staged["estado"] = state
+        appointment = row.get("appointment") or {}
+        appointment["estado"] = state
+        row["appointment"] = appointment
+    return payload
+
+
+def _install_agenda_state_bridge() -> None:
+    base_week = core.agenda_week
+    if getattr(base_week, "__unlinked_whatsapp_state__", False):
+        return
+
+    def patched_agenda_week(
+        anchor: date,
+        db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user),
+    ):
+        return _enrich_week_payload(base_week(anchor=anchor, db=db, user=user))
+
+    patched_agenda_week.__unlinked_whatsapp_state__ = True
+    core.agenda_week = patched_agenda_week
+    _remove_route("/api/agenda/week", "GET")
+    app.get("/api/agenda/week")(patched_agenda_week)
+
+    _remove_route("/api/agenda/unlinked/{item_id}", "GET")
+
+    @app.get("/api/agenda/unlinked/{item_id}")
+    def unlinked_detail(
+        item_id: int,
+        db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user),
+    ):
+        item = db.get(core.ConfirmafyAgendaItem, int(item_id))
+        if not item or str(item.source_hash or "").startswith(str(core.WHATSAPP_CLOUD_TEST_PREFIX)):
+            raise core.HTTPException(404, "La cita ya no existe")
+        staged = core.confirmafy_agenda_dict(item)
+        staged["estado"] = _latest_staged_states([int(item.id)]).get(int(item.id), "PENDIENTE")
+        return {"staged": staged}
+
+
 GUARD_JS = r'''
 (()=>{
 'use strict';
@@ -217,6 +343,28 @@ window.attentionWeekRow=function(row={}){
   const title=linked?`Atender a ${shownName}`:`Atender y confirmar identidad de ${shownName}`;
   return `<div class="attention-week-row ${row.conflict?'has-conflict':''} ${linked?'':'confirmafy-unlinked'}" role="button" tabindex="0" title="${eh(title)}" onclick="${click}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();${click}}"><div class="attention-week-time">${eh(typeof window.fmtTimeCompact==='function'?window.fmtTimeCompact(staged?.hora??a.hora):(staged?.hora??a.hora??''))}</div><div class="attention-week-person"><b>${eh(shownName)}</b><small>${eh(shownPhone||(linked?'SIN CELULAR':'IDENTIDAD PENDIENTE'))}</small></div>${row.conflict?'<div class="attention-week-conflict">⚠ Horario duplicado</div>':''}</div>`;
 };
+const previousOpenUnlinked=window.openUnlinkedAgendaDetail;
+if(typeof previousOpenUnlinked==='function'){
+  window.openUnlinkedAgendaDetail=async function(itemId,fecha){
+    const result=await previousOpenUnlinked.apply(this,arguments);
+    try{
+      const d=await (typeof window.api==='function'?window.api(`/api/agenda/unlinked/${Number(itemId)}`):fetch(`/api/agenda/unlinked/${Number(itemId)}`).then(r=>r.json()));
+      const state=String(d?.staged?.estado||'PENDIENTE').toUpperCase();
+      const node=document.querySelector('.native-appointment-detail .native-detail-status');
+      if(node){
+        node.classList.remove('pending','confirmed','cancelled','rescheduled');
+        if(['CONFIRMADA','CONFIRMADO'].includes(state)){
+          node.classList.add('confirmed');node.textContent='Confirmada · sin ficha vinculada';
+        }else if(['NO_ASISTIRA','CANCELADA','CANCELADO'].includes(state)){
+          node.classList.add('cancelled');node.textContent='No asistirá · sin ficha vinculada';
+        }else{
+          node.classList.add('pending');node.textContent='Pendiente · sin ficha vinculada';
+        }
+      }
+    }catch(_e){}
+    return result;
+  };
+}
 })();
 '''
 
@@ -272,6 +420,7 @@ def install_guard() -> None:
             patient_name=str(item.nombre or ""),
         )
 
+    _install_agenda_state_bridge()
     core.V460_OVERLAY_JS = (getattr(core, "V460_OVERLAY_JS", "") or "") + "\n" + GUARD_JS
 
 
