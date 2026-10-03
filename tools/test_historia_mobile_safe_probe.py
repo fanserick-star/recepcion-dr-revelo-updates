@@ -9,8 +9,10 @@ API_URL="https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neond
 ORIGIN="https://fanserick-star.github.io"
 PROBE_TOKEN="historia-mobile-safe-probe-20261003"
 
-def request(url, *, method="GET", body=None, extra=None):
+def request(url, *, method="GET", jwt="", body=None, extra=None):
     headers={"Accept":"application/json","Origin":ORIGIN,"Cache-Control":"no-store"}
+    if jwt:
+        headers["Authorization"]="Bearer "+jwt
     data=None
     if body is not None:
         headers["Content-Type"]="application/json"
