@@ -66,6 +66,8 @@ def main():
     print(json.dumps({
         "options_http":options_http,
         "guard_http":status_http,
+        "guard_code":str(denied.get("code") or "") if isinstance(denied,dict) else "",
+        "guard_message":str(denied.get("message") or "")[:180] if isinstance(denied,dict) else "",
         "access_guard_ok":access_guard_ok,
         "cors_ok":cors_ok,
         "ok":ok,
