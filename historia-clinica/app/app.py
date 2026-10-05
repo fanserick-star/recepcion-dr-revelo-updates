@@ -236,6 +236,52 @@ def cleanup_active_queue_duplicates():
     return removed
 
 
+def cleanup_stale_waiting_queue():
+    """Expire only untouched waiting-room rows from previous local days."""
+    today = datetime.now().date().isoformat()
+    stamp = now_iso()
+    expired = []
+    with db() as conn:
+        rows = conn.execute(
+            """
+            SELECT id,display_name,queued_at,created_at,updated_at
+            FROM waiting_queue
+            WHERE status='waiting'
+              AND date(
+                    COALESCE(
+                      NULLIF(queued_at,''),
+                      NULLIF(created_at,''),
+                      NULLIF(updated_at,'')
+                    )
+                  ) < date(?)
+            ORDER BY COALESCE(queued_at,created_at,updated_at,'') ASC
+            """,
+            (today,),
+        ).fetchall()
+        expired = [str(row["id"]) for row in rows]
+        if expired:
+            conn.executemany(
+                """UPDATE waiting_queue
+                   SET status='expired',updated_at=?
+                   WHERE id=? AND status='waiting'""",
+                [(stamp, queue_id) for queue_id in expired],
+            )
+            audit(
+                conn,
+                "cleanup",
+                "waiting_queue",
+                "expired-previous-day",
+                {
+                    "expired_queue_ids": expired,
+                    "count": len(expired),
+                    "cutoff_date": today,
+                    "reason": "previous_day_waiting_room",
+                },
+            )
+            conn.commit()
+    return expired
+
+
 def cleanup_cancelled_queue_drafts():
     """
     v1.3.19: una cancelación en Recepción NUNCA puede borrar texto clínico.
@@ -563,6 +609,8 @@ LAN_SERVICE = lan_bridge.install(app, ROOT, DB_PATH, APP_VERSION, SYNC_SERVICE)
 def _startup_cloud_sync():
     SYNC_SERVICE.start()
     SYNC_SERVICE.mark_activity()
+    _v1373_reconcile_signed_queue_items()
+    cleanup_stale_waiting_queue()
 
 
 @app.on_event("shutdown")
@@ -1756,6 +1804,8 @@ def _queue_validated_link(conn, row):
 
 @app.get("/cola/{queue_id}/atender")
 def attend_from_queue(queue_id: str):
+    _v1373_reconcile_signed_queue_items()
+    cleanup_stale_waiting_queue()
     with db() as conn:
         row = conn.execute(
             "SELECT * FROM waiting_queue WHERE id=? AND status IN ('waiting','in_consultation') LIMIT 1",
@@ -1837,6 +1887,8 @@ def attend_from_queue(queue_id: str):
 
 @app.get("/cola/{queue_id}/vincular/{patient_id}")
 def link_and_attend_queue(queue_id: str, patient_id: str):
+    _v1373_reconcile_signed_queue_items()
+    cleanup_stale_waiting_queue()
     with db() as conn:
         row = conn.execute(
             "SELECT * FROM waiting_queue WHERE id=? AND status IN ('waiting','in_consultation') LIMIT 1",
@@ -1854,9 +1906,10 @@ def link_and_attend_queue(queue_id: str, patient_id: str):
 
 @app.get("/", response_class=HTMLResponse)
 def home():
+    _v1373_reconcile_signed_queue_items()
+    cleanup_stale_waiting_queue()
     cleanup_active_queue_duplicates()
     cleanup_cancelled_queue_drafts()
-    _v1373_reconcile_signed_queue_items()
     now = datetime.now()
     today = now.strftime("%Y-%m-%d")
     hour = now.hour
@@ -2232,6 +2285,8 @@ def discard_queue_item(queue_id: str):
 
 @app.get("/api/queue/status")
 def api_queue_status():
+    _v1373_reconcile_signed_queue_items()
+    cleanup_stale_waiting_queue()
     cleanup_active_queue_duplicates()
     cleanup_cancelled_queue_drafts()
     with db() as conn:
