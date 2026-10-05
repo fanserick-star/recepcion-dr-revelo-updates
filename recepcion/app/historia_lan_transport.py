@@ -379,8 +379,28 @@ def _lan_outbox_mark(event_id: str, *, sent: bool = False, error: str = "") -> N
         conn.commit()
 
 
-def _lan_outbox_counts() -> tuple[int, int]:
+def _expire_stale_lan_outbox() -> int:
+    """Do not deliver yesterday's waiting-room handoffs on a later day."""
     _ensure_lan_outbox()
+    today = datetime.now().date().isoformat()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        cur = conn.execute(
+            """
+            UPDATE events
+               SET cancelled=1,
+                   last_error='expired_previous_day'
+             WHERE sent_at IS NULL
+               AND cancelled=0
+               AND date(created_at) < date(?)
+            """,
+            (today,),
+        )
+        conn.commit()
+        return max(0, int(cur.rowcount or 0))
+
+
+def _lan_outbox_counts() -> tuple[int, int]:
+    _expire_stale_lan_outbox()
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
         pending = int(conn.execute(
             "SELECT COUNT(*) FROM events WHERE sent_at IS NULL AND cancelled=0"
@@ -416,7 +436,7 @@ def _cloud_link_id(reception_patient_id: object) -> str:
 
 
 def _flush_lan_outbox(max_items: int = 30) -> None:
-    _ensure_lan_outbox()
+    _expire_stale_lan_outbox()
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
         rows = conn.execute(
             """

@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.51",
-  "app_version": "4.6.51",
-  "runtime_version": "4.6.51",
+  "version": "4.6.52",
+  "app_version": "4.6.52",
+  "runtime_version": "4.6.52",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.51: corrige la cabecera de la Pantalla TV. Deja de usar el logo completo con fondo blanco incrustado y utiliza el isotipo transparente sobre el fondo real de la TV, con el nombre y cargo renderizados como texto nítido. No cambia turnos, voz, sonidos, videos ni lógica clínica.",
-    "previous_version": "4.6.50",
+    "purpose": "Recepción 4.6.52: evita que un paciente enviado a Historia y pendiente por falla LAN reaparezca al día siguiente. Los handoffs no entregados de días anteriores se conservan en la outbox como vencidos/cancelados y ya no se reenvían. No borra pacientes, atenciones ni historias.",
+    "previous_version": "4.6.51",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -301,7 +301,10 @@
     "tv_header_background_rectangle_removed": true,
     "tv_turn_logic_changes": false,
     "tv_voice_logic_changes": false,
-    "tv_video_logic_changes": false
+    "tv_video_logic_changes": false,
+    "historia_lan_previous_day_pending_expires": true,
+    "historia_lan_stale_events_deleted": false,
+    "waiting_queue_daily_scope": true
   },
   "channel": "launcher-v1-stable"
 }
