@@ -52,9 +52,12 @@ jobs:
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
             'bookingTimeWithinSchedule(date, time)',
+            'bookingIntervalsOverlap(timeA, durationA, timeB, durationB = 20)',
             '!bookingTimeWithinSchedule(date, time)) {',
-            'autoagenda-day|${parsed.date}',
+            'agenda-day|${date}',
+            'agenda-day|${parsed.date}',
             'const overlapping = (occ.rows || []).filter',
+            'blocked.set(`${date}|${slot}`, { date, time: slot });',
             'days: [3, 4, 5, 6]',
             'times_by_day:',
             'if (m2 < 840 && m2 + 20 > 750) continue;',
@@ -65,6 +68,8 @@ jobs:
             'autoagenda_forward: "authorized_v1"',
             'autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1"',
             'autoagenda_overlap_guard: "interval_20m_v1"',
+            'public_booking_overlap_guard: "interval_20m_v1"',
+            'availability_overlap_projection: "grid_from_intervals_v1"',
             'autoagenda_enrollment: "one_time_v1"',
             'autoagenda_time_parser: "ampm_v2"',
             'autoagenda_week_guard: "monday_sunday_v1"',
@@ -132,6 +137,8 @@ jobs:
           assert d.get('autoagenda_forward') == 'authorized_v1', d
           assert d.get('autoagenda_forward_time_policy') == 'schedule_window_any_minute_20m_v1', d
           assert d.get('autoagenda_overlap_guard') == 'interval_20m_v1', d
+          assert d.get('public_booking_overlap_guard') == 'interval_20m_v1', d
+          assert d.get('availability_overlap_projection') == 'grid_from_intervals_v1', d
           assert d.get('autoagenda_enrollment') == 'one_time_v1', d
           assert d.get('autoagenda_time_parser') == 'ampm_v2', d
           assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
