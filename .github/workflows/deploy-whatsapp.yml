@@ -47,10 +47,14 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.24"',
+            'worker_version: "2.6.25"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
+            'bookingTimeWithinSchedule(date, time)',
+            '!bookingTimeWithinSchedule(date, time)) {',
+            'autoagenda-day|${parsed.date}',
+            'const overlapping = (occ.rows || []).filter',
             'days: [3, 4, 5, 6]',
             'times_by_day:',
             'if (m2 < 840 && m2 + 20 > 750) continue;',
@@ -59,6 +63,8 @@ jobs:
             'autoagenda_recovery: "one_time_reclaim_v1"',
             'autoagenda_authorization_mode: "env_or_db_v2"',
             'autoagenda_forward: "authorized_v1"',
+            'autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1"',
+            'autoagenda_overlap_guard: "interval_20m_v1"',
             'autoagenda_enrollment: "one_time_v1"',
             'autoagenda_time_parser: "ampm_v2"',
             'autoagenda_week_guard: "monday_sunday_v1"',
@@ -117,13 +123,15 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.24', d
+          assert d.get('worker_version') == '2.6.25', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
           assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
           assert d.get('scheduler_booking_grace') == '12h_v1', d
           assert d.get('autoagenda_recovery') == 'one_time_reclaim_v1', d
           assert d.get('autoagenda_authorization_mode') == 'env_or_db_v2', d
           assert d.get('autoagenda_forward') == 'authorized_v1', d
+          assert d.get('autoagenda_forward_time_policy') == 'schedule_window_any_minute_20m_v1', d
+          assert d.get('autoagenda_overlap_guard') == 'interval_20m_v1', d
           assert d.get('autoagenda_enrollment') == 'one_time_v1', d
           assert d.get('autoagenda_time_parser') == 'ampm_v2', d
           assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
