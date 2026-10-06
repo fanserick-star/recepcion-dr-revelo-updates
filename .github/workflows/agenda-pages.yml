@@ -39,6 +39,10 @@ jobs:
           assert "['MIÉRCOLES','JUEVES','VIERNES','SÁBADO']" in doctor
           assert "dow!==3||String(t)>='10:00'" in doctor
           assert 'ALMUERZO · 12:30 – 14:00' in doctor
+          assert 'function overlaps(a,durA,b,durB=20)' in doctor
+          assert 'const blocking=overlappingRow(d,time)' in doctor
+          assert "special?'CITA':''" in doctor
+          assert 'Cita ${z.t}' in doctor
           assert '[3,4,5,6].includes(day)' in public
           assert 'timesForDate' in public
           assert 'Los miércoles desde las 10:00' in public
