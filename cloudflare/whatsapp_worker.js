@@ -1,4 +1,4 @@
-// Dr. Revelo WhatsApp Cloud Worker v2.6.14 — Neon optimized
+// Dr. Revelo WhatsApp Cloud Worker v2.6.25 — Neon optimized
 
 // node_modules/@neondatabase/serverless/index.mjs
 var So = Object.create;
@@ -5981,6 +5981,23 @@ function bookingValidDay(v2) {
   const d2 = bookingDateObj(v2);
   return !!d2 && [3, 4, 5, 6].includes(d2.getUTCDay());
 }
+function bookingTimeMinutes(v2) {
+  const m2 = /^(\d{1,2}):([0-5]\d)$/.exec(String(v2 || "").trim());
+  if (!m2) return NaN;
+  const hour = Number(m2[1]), minute = Number(m2[2]);
+  if (hour < 0 || hour > 23) return NaN;
+  return hour * 60 + minute;
+}
+function bookingTimeWithinSchedule(date, time) {
+  const d2 = bookingDateObj(date);
+  const minute = bookingTimeMinutes(time);
+  if (!d2 || !Number.isFinite(minute) || ![3, 4, 5, 6].includes(d2.getUTCDay())) return false;
+  const startMinute = d2.getUTCDay() === 3 ? 10 * 60 : 8 * 60;
+  const endMinute = minute + 20;
+  if (minute < startMinute || minute > 17 * 60) return false;
+  if (minute < 14 * 60 && endMinute > 12 * 60 + 30) return false;
+  return true;
+}
 function bookingTimes() {
   const out = [];
   for (let m2 = 480; m2 <= 1020; m2 += 20) {
@@ -5991,9 +6008,7 @@ function bookingTimes() {
 }
 var BOOKING_TIMES = new Set(bookingTimes());
 function bookingTimeAllowed(date, time) {
-  const d2 = bookingDateObj(date);
-  if (!d2 || !BOOKING_TIMES.has(String(time || ""))) return false;
-  return d2.getUTCDay() !== 3 || String(time || "") >= "10:00";
+  return bookingTimeWithinSchedule(date, time) && BOOKING_TIMES.has(String(time || ""));
 }
 function bookingHeaders(request, extra = {}) {
   const h = new Headers(extra);
@@ -6450,7 +6465,7 @@ function parseAutoagendaForward(raw) {
   const phone = bookingCleanPhone(lines[2]);
   if (name.length < 5) return { ok: false, error: "No pude identificar correctamente el nombre del paciente." };
   if (!phone) return { ok: false, error: "El celular del paciente debe tener 10 dígitos y comenzar con 09." };
-  if (!date || !bookingValidDay(date) || !bookingDateWithinHorizon(date) || !bookingTimeAllowed(date, time)) {
+  if (!date || !bookingValidDay(date) || !bookingDateWithinHorizon(date) || !bookingTimeWithinSchedule(date, time)) {
     return { ok: false, error: `El horario ${m[1]} ${time} no está habilitado en la agenda.` };
   }
   return { ok: true, weekday: m[1], name, phone, date, time };
@@ -6485,7 +6500,7 @@ async function autoagendaApply(env, parsed, messageId) {
       // Serializa citas simultáneas del mismo paciente/semana y conserva el
       // bloqueo existente del horario exacto. No crea tablas ni índices nuevos.
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`autoagenda-week|${week.start}|${parsed.phone}`]);
-      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${parsed.date}|${parsed.time}`]);
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`autoagenda-day|${parsed.date}`]);
 
       const repeated = await client.query(`SELECT id FROM public.confirmafy_agenda_items WHERE source_hash=$1 LIMIT 1`, [sourceHash]);
       if (repeated.rows?.length) {
@@ -6493,19 +6508,31 @@ async function autoagendaApply(env, parsed, messageId) {
         return "DUPLICATE_MESSAGE";
       }
 
-      // Mantiene la precedencia actual: si el bloque exacto está ocupado,
-      // primero informa cita ya registrada u horario ocupado.
-      const occ = await client.query(`SELECT kind,id,nombre,celular FROM (
-        SELECT 'appointment'::text kind,a.id,p.nombre,p.celular
+      // Los reenvíos administrativos pueden usar cualquier minuto permitido
+      // (por ejemplo, 15:30). Se valida solapamiento real de 20 minutos para
+      // conservar la misma protección de la Agenda aunque la hora no caiga
+      // exactamente en la cuadrícula pública de 20 minutos.
+      const requestedStart = bookingTimeMinutes(parsed.time);
+      const requestedEnd = requestedStart + 20;
+      const occ = await client.query(`SELECT kind,id,nombre,celular,hora,duracion FROM (
+        SELECT 'appointment'::text kind,a.id,p.nombre,p.celular,a.hora,a.duracion
         FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-        WHERE a.fecha=$1::date AND a.hora=$2 AND upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(a.origen,'') <> 'CONFIRMAFY_ATENDIDO'
+        WHERE a.fecha=$1::date AND upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(a.origen,'') <> 'CONFIRMAFY_ATENDIDO'
         UNION ALL
-        SELECT 'staged'::text kind,c.id,c.nombre,c.celular
+        SELECT 'staged'::text kind,c.id,c.nombre,c.celular,c.hora,c.duracion
         FROM public.confirmafy_agenda_items c
-        WHERE c.fecha=$1::date AND c.hora=$2
-      ) q`, [parsed.date, parsed.time]);
-      if (occ.rows?.length) {
-        const same = occ.rows.some(x => bookingCleanPhone(x.celular || "") === parsed.phone);
+        WHERE c.fecha=$1::date
+      ) q`, [parsed.date]);
+      const overlapping = (occ.rows || []).filter(x => {
+        const start = bookingTimeMinutes(String(x.hora || "").slice(0, 5));
+        const duration = Math.max(1, Number(x.duracion) || 20);
+        return Number.isFinite(start) && requestedStart < start + duration && start < requestedEnd;
+      });
+      if (overlapping.length) {
+        const same = overlapping.some(x =>
+          bookingCleanPhone(x.celular || "") === parsed.phone &&
+          String(x.hora || "").slice(0, 5) === parsed.time
+        );
         await client.query("ROLLBACK");
         return same ? "ALREADY_EXISTS" : "SLOT_TAKEN";
       }
@@ -6754,11 +6781,11 @@ var whatsapp_worker_v2_6_responses_default = {
     if (u.pathname === "/media/audio" || u.pathname.startsWith("/media/audio/")) return serveInboundAudio(request, env, u);
     if (u.pathname === "/header.jpg") {
       const source = String(env.WHATSAPP_HEADER_IMAGE_SOURCE_URL || DEFAULT_HEADER_IMAGE_URL).trim();
-      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.23" } });
+      const r = await fetch(source, { headers: { "User-Agent": "Dr-Revelo-WhatsApp-Worker/2.6.25" } });
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.24", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.25", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
