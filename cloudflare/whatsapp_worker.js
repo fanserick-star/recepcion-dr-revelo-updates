@@ -5998,6 +5998,13 @@ function bookingTimeWithinSchedule(date, time) {
   if (minute < 14 * 60 && endMinute > 12 * 60 + 30) return false;
   return true;
 }
+function bookingIntervalsOverlap(timeA, durationA, timeB, durationB = 20) {
+  const startA = bookingTimeMinutes(timeA), startB = bookingTimeMinutes(timeB);
+  if (!Number.isFinite(startA) || !Number.isFinite(startB)) return false;
+  const lengthA = Math.max(1, Number(durationA) || 20);
+  const lengthB = Math.max(1, Number(durationB) || 20);
+  return startA < startB + lengthB && startB < startA + lengthA;
+}
 function bookingTimes() {
   const out = [];
   for (let m2 = 480; m2 <= 1020; m2 += 20) {
@@ -6082,11 +6089,21 @@ async function serveBookingAvailability(request, env, u) {
   }
   try {
     const occupied = await withClient(env, async (client) => {
-      const r = await client.query(`SELECT CAST(fecha AS text) fecha,CAST(hora AS text) hora FROM public.appointments
+      const r = await client.query(`SELECT CAST(fecha AS text) fecha,CAST(hora AS text) hora,coalesce(duracion,20) duracion FROM public.appointments
         WHERE fecha BETWEEN $1::date AND $2::date AND upper(coalesce(estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(origen,'') <> 'CONFIRMAFY_ATENDIDO'
-        UNION
-        SELECT CAST(fecha AS text),CAST(hora AS text) FROM public.confirmafy_agenda_items WHERE fecha BETWEEN $1::date AND $2::date`, [from, to]);
-      return (r.rows || []).map((x2) => ({ date: String(x2.fecha || "").slice(0, 10), time: String(x2.hora || "").slice(0, 5) }));
+        UNION ALL
+        SELECT CAST(fecha AS text),CAST(hora AS text),coalesce(duracion,20) FROM public.confirmafy_agenda_items WHERE fecha BETWEEN $1::date AND $2::date`, [from, to]);
+      const blocked = new Map();
+      for (const x2 of r.rows || []) {
+        const date = String(x2.fecha || "").slice(0, 10);
+        const time = String(x2.hora || "").slice(0, 5);
+        for (const slot of bookingTimes()) {
+          if (!bookingTimeAllowed(date, slot)) continue;
+          if (!bookingIntervalsOverlap(slot, 20, time, x2.duracion)) continue;
+          blocked.set(`${date}|${slot}`, { date, time: slot });
+        }
+      }
+      return [...blocked.values()];
     });
     const payload = JSON.stringify({ ok: true, today: bookingToday(), max_days: BOOKING_MAX_DAYS, days: [3, 4, 5, 6], times: bookingTimes(), times_by_day: { "3": bookingTimes().filter((t) => t >= "10:00"), "4": bookingTimes(), "5": bookingTimes(), "6": bookingTimes() }, schedule: "wed_10_17_break_1230_1400_v1", occupied });
     await cache.put(cacheKey, new Response(payload, { headers: { "Cache-Control": `max-age=${BOOKING_CACHE_SECONDS}`, "content-type": "application/json; charset=utf-8" } }));
@@ -6118,12 +6135,18 @@ async function serveBookingCreate(request, env, ctx) {
     const row = await withClient(env, async (client) => {
       await client.query("BEGIN");
       try {
-        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`${date}|${time}`]);
-        const occ = await client.query(`SELECT 1 FROM (
-          SELECT 1 FROM public.appointments WHERE fecha=$1::date AND hora=$2 AND upper(coalesce(estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(origen,'') <> 'CONFIRMAFY_ATENDIDO'
-          UNION ALL SELECT 1 FROM public.confirmafy_agenda_items WHERE fecha=$1::date AND hora=$2
-        ) z LIMIT 1`, [date, time]);
-        if (occ.rows?.length) {
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`agenda-day|${date}`]);
+        const occ = await client.query(`SELECT hora,duracion FROM (
+          SELECT a.hora,a.duracion FROM public.appointments a
+          WHERE a.fecha=$1::date AND upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO') AND coalesce(a.origen,'') <> 'CONFIRMAFY_ATENDIDO'
+          UNION ALL
+          SELECT c.hora,c.duracion FROM public.confirmafy_agenda_items c
+          WHERE c.fecha=$1::date
+        ) z`, [date]);
+        const blocked = (occ.rows || []).some(x =>
+          bookingIntervalsOverlap(time, 20, String(x.hora || "").slice(0, 5), x.duracion)
+        );
+        if (blocked) {
           await client.query("ROLLBACK");
           return null;
         }
@@ -6497,10 +6520,11 @@ async function autoagendaApply(env, parsed, messageId) {
   return withClient(env, async client => {
     await client.query("BEGIN");
     try {
-      // Serializa citas simultáneas del mismo paciente/semana y conserva el
-      // bloqueo existente del horario exacto. No crea tablas ni índices nuevos.
+      // Serializa citas simultáneas del mismo paciente/semana y comparte un
+      // bloqueo diario con la agenda pública para evitar cruces concurrentes.
+      // No crea tablas ni índices nuevos.
       await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`autoagenda-week|${week.start}|${parsed.phone}`]);
-      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`autoagenda-day|${parsed.date}`]);
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`agenda-day|${parsed.date}`]);
 
       const repeated = await client.query(`SELECT id FROM public.confirmafy_agenda_items WHERE source_hash=$1 LIMIT 1`, [sourceHash]);
       if (repeated.rows?.length) {
@@ -6512,8 +6536,6 @@ async function autoagendaApply(env, parsed, messageId) {
       // (por ejemplo, 15:30). Se valida solapamiento real de 20 minutos para
       // conservar la misma protección de la Agenda aunque la hora no caiga
       // exactamente en la cuadrícula pública de 20 minutos.
-      const requestedStart = bookingTimeMinutes(parsed.time);
-      const requestedEnd = requestedStart + 20;
       const occ = await client.query(`SELECT kind,id,nombre,celular,hora,duracion FROM (
         SELECT 'appointment'::text kind,a.id,p.nombre,p.celular,a.hora,a.duracion
         FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
@@ -6523,11 +6545,9 @@ async function autoagendaApply(env, parsed, messageId) {
         FROM public.confirmafy_agenda_items c
         WHERE c.fecha=$1::date
       ) q`, [parsed.date]);
-      const overlapping = (occ.rows || []).filter(x => {
-        const start = bookingTimeMinutes(String(x.hora || "").slice(0, 5));
-        const duration = Math.max(1, Number(x.duracion) || 20);
-        return Number.isFinite(start) && requestedStart < start + duration && start < requestedEnd;
-      });
+      const overlapping = (occ.rows || []).filter(x =>
+        bookingIntervalsOverlap(parsed.time, 20, String(x.hora || "").slice(0, 5), x.duracion)
+      );
       if (overlapping.length) {
         const same = overlapping.some(x =>
           bookingCleanPhone(x.celular || "") === parsed.phone &&
@@ -6785,7 +6805,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.25", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
+    if (u.pathname === "/health") return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.25", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_immediate", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } });
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
