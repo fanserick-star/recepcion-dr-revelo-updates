@@ -8,6 +8,7 @@ import os
 import shutil
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -20,6 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 
 _LOCK = threading.RLock()
+_DEPENDENCY_LOCK = threading.Lock()
 _SESSION = {
     "passphrase": None,
     "expires_at": 0.0,
@@ -134,12 +136,71 @@ def _certificate_metadata(signer) -> dict:
     return {"subject": subject, "serial": serial, "not_after": not_after}
 
 
+def _ensure_pyhanko() -> None:
+    """Garantiza el motor PAdES dentro del mismo venv de Historia.
+
+    v1.4.1: el launcher 1.0.8 actualiza requirements.txt pero no instala
+    dependencias nuevas. Si pyHanko falta, se repara una sola vez y sin abrir
+    consola. No interviene el certificado ni la contraseña.
+    """
+    try:
+        import pyhanko  # noqa: F401
+        return
+    except Exception:
+        pass
+
+    with _DEPENDENCY_LOCK:
+        try:
+            import pyhanko  # noqa: F401
+            return
+        except Exception:
+            pass
+
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-input",
+                "--upgrade-strategy",
+                "only-if-needed",
+                "pyHanko==0.37.0",
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=240,
+            check=False,
+            creationflags=flags,
+        )
+        if proc.returncode != 0:
+            detail = (proc.stderr or proc.stdout or b"").decode(
+                "utf-8", errors="replace"
+            ).strip()
+            tail = "\n".join(detail.splitlines()[-4:]) if detail else ""
+            raise RuntimeError(
+                "No se pudo instalar automáticamente el componente de firma electrónica."
+                + (("\n" + tail) if tail else "")
+            )
+
+        try:
+            import pyhanko  # noqa: F401
+        except Exception as exc:
+            raise RuntimeError(
+                "El componente de firma electrónica se instaló, pero Python todavía no pudo cargarlo."
+            ) from exc
+
+
 def _load_signer(root: Path, passphrase: bytes | None = None):
+    _ensure_pyhanko()
     try:
         from pyhanko.sign import signers
     except Exception as exc:
         raise RuntimeError(
-            "Falta el componente de firma electrónica. Reabra Historia Clínica para completar la actualización."
+            "No se pudo cargar el componente de firma electrónica después de repararlo."
         ) from exc
     cert_path = _certificate_path(root)
     if not cert_path.is_file():
