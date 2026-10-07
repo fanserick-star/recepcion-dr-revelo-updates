@@ -15,6 +15,8 @@ class TVMediaMixin:
             "videos_enabled": True,
             "video_volume": 0.20,
             "video_order": [],
+            "media_source": "local",
+            "youtube_url": "",
             "display_mode": "live",
             "voice_uri": "",
             "voice_name": "",
@@ -31,6 +33,10 @@ class TVMediaMixin:
             enabled = bool(data.get("videos_enabled", True))
             volume = max(0.0, min(1.0, float(data.get("video_volume", 0.20))))
             order = [str(x) for x in (data.get("video_order") or []) if isinstance(x, str)]
+            media_source = str(data.get("media_source") or "local").strip().lower()
+            if media_source not in {"local", "youtube"}:
+                media_source = "local"
+            youtube_url = str(data.get("youtube_url") or "").strip()[:500]
             display_mode = str(data.get("display_mode") or "live").strip().lower()
             if display_mode not in {"live", "test"}:
                 display_mode = "live"
@@ -43,6 +49,8 @@ class TVMediaMixin:
                 "videos_enabled": enabled,
                 "video_volume": volume,
                 "video_order": order,
+                "media_source": media_source,
+                "youtube_url": youtube_url,
                 "display_mode": display_mode,
                 "voice_uri": voice_uri,
                 "voice_name": voice_name,
@@ -61,6 +69,52 @@ class TVMediaMixin:
             os.replace(tmp, CONFIG_PATH)
         except Exception:
             pass
+
+    @staticmethod
+    def _youtube_video_id(value: object) -> str:
+        raw = str(value or "").strip()
+        if not raw:
+            return ""
+        # También acepta pegar directamente el ID del video.
+        if re.fullmatch(r"[A-Za-z0-9_-]{11}", raw):
+            return raw
+        try:
+            parsed = urllib.parse.urlsplit(raw)
+        except Exception:
+            return ""
+        host = (parsed.hostname or "").lower()
+        if host.startswith("www."):
+            host = host[4:]
+        if host.startswith("m."):
+            host = host[2:]
+        video_id = ""
+        if host == "youtu.be":
+            video_id = (parsed.path.strip("/").split("/") or [""])[0]
+        elif host in {"youtube.com", "music.youtube.com"}:
+            path = parsed.path.strip("/")
+            if path == "watch":
+                video_id = (urllib.parse.parse_qs(parsed.query).get("v") or [""])[0]
+            elif path.startswith("shorts/") or path.startswith("embed/") or path.startswith("live/"):
+                parts = path.split("/")
+                video_id = parts[1] if len(parts) > 1 else ""
+        video_id = str(video_id or "").strip()
+        return video_id if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) else ""
+
+    def youtube_item(self) -> dict | None:
+        raw = str(self.config.get("youtube_url") or "").strip()
+        video_id = self._youtube_video_id(raw)
+        if not video_id:
+            return None
+        return {
+            "id": video_id,
+            "url": raw,
+            "embed_url": f"https://www.youtube.com/embed/{video_id}",
+            "name": f"YouTube · {video_id}",
+        }
+
+    def media_source(self) -> str:
+        source = str(self.config.get("media_source") or "local").strip().lower()
+        return source if source in {"local", "youtube"} else "local"
 
     def video_items(self) -> list[dict]:
         files = {p.name: p for p in VIDEOS_DIR.iterdir() if p.is_file() and _is_video_name(p.name)}
@@ -88,6 +142,9 @@ class TVMediaMixin:
         return {
             "enabled": bool(self.config.get("videos_enabled", True)),
             "volume": float(self.config.get("video_volume", 0.20)),
+            "source": self.media_source(),
+            "youtube_url": str(self.config.get("youtube_url") or ""),
+            "youtube": self.youtube_item(),
             "items": items,
         }
 
@@ -96,7 +153,10 @@ class TVMediaMixin:
             state.get("mode") == "attending"
             and int(state.get("waiting_count") or 0) > 0
             and self.config.get("videos_enabled", True)
-            and self.video_items()
+            and (
+                (self.media_source() == "youtube" and self.youtube_item() is not None)
+                or (self.media_source() == "local" and bool(self.video_items()))
+            )
         )
 
     def firewall_repair(self) -> dict:
