@@ -549,6 +549,52 @@ if _OLD_DASHBOARD is not None:
         return base
 
 
+_OLD_PATIENT = _remove_route("/api/patients/{pid}", "GET")
+if _OLD_PATIENT is not None:
+    @app.get("/api/patients/{pid}")
+    def patient_guard(pid: int, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
+        result = dict(_OLD_PATIENT(int(pid), db, user) or {})
+        hidden = active_deleted_visit_ids()
+        visits = [v for v in list(result.get("visits") or []) if int(v.get("id") or 0) not in hidden]
+        result["visits"] = visits
+        result["ultima_atencion"] = visits[0].get("fecha") if visits else None
+        if not visits and not result.get("historical"):
+            try:
+                p = db.get(core.Patient, int(pid))
+                hist = core.historical_summary_for_patient(p) if p is not None else None
+                result["historical"] = hist
+                result["suggested_type"] = "S" if hist else "N"
+            except Exception:
+                result["suggested_type"] = "N"
+        elif visits:
+            result["suggested_type"] = "S"
+        return result
+
+
+_OLD_PROFILE = _remove_route("/api/patients/{pid}/profile", "GET")
+if _OLD_PROFILE is not None:
+    @app.get("/api/patients/{pid}/profile")
+    def patient_profile_guard(pid: int, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
+        result = dict(_OLD_PROFILE(int(pid), db, user) or {})
+        hidden = active_deleted_visit_ids()
+        visits = [v for v in list(result.get("visits") or []) if int(v.get("id") or 0) not in hidden]
+        result["visits"] = visits
+        result["ultima_atencion"] = visits[0].get("fecha") if visits else None
+        billing = []
+        for item in list(result.get("billing") or []):
+            vid = int(item.get("visit_id") or 0)
+            state = str(item.get("estado") or "").strip().upper()
+            if vid in hidden and state != "EMITIDA":
+                continue
+            if vid in hidden and state == "EMITIDA":
+                item = dict(item)
+                item["cancelled_attention"] = True
+            billing.append(item)
+        result["billing"] = billing
+        result["deleted_visit_guard"] = True
+        return result
+
+
 _OLD_BILLING = _remove_route("/api/billing", "GET")
 if _OLD_BILLING is not None:
     @app.get("/api/billing")
