@@ -302,12 +302,13 @@ def reconcile_recent_deleted_handoffs() -> int:
     return repaired
 
 
-def _recent_live_cancelled_handoffs(days: int = 2) -> list[dict]:
-    """Recupera únicamente handoffs cancelados cuya atención TODAVÍA existe localmente.
+def _recent_live_handoffs(days: int = 2) -> list[dict]:
+    """Devuelve handoffs recientes cuya atención TODAVÍA existe localmente.
 
-    Esto corrige el falso positivo producido cuando Neon todavía no había recibido
-    una atención local-first. Una cancelación real elimina la visita local, por lo
-    que jamás entra en esta recuperación automática.
+    El restore remoto es idempotente: solo cambia cancelled -> waiting. Por eso
+    podemos comprobar todos los handoffs vivos y reparar también el caso en que
+    un visit_id borrado fue reutilizado y el event_id determinista quedó pegado a
+    un turno cancelado anterior.
     """
     path = historia_lan_transport.LAN_OUTBOX_DB
     if not path.is_file():
@@ -320,7 +321,7 @@ def _recent_live_cancelled_handoffs(days: int = 2) -> list[dict]:
                 """
                 SELECT event_id,payload_json
                 FROM events
-                WHERE created_at>=? AND cancelled=1
+                WHERE created_at>=?
                 ORDER BY created_at DESC
                 LIMIT 120
                 """,
@@ -376,7 +377,7 @@ def _recent_live_cancelled_handoffs(days: int = 2) -> list[dict]:
 
 def restore_recent_live_handoffs() -> int:
     restored = 0
-    for item in _recent_live_cancelled_handoffs():
+    for item in _recent_live_handoffs():
         targets = _restore_historia_visit(item["visit_id"], item["patient_id"])
         if targets:
             restored += 1
@@ -387,7 +388,8 @@ def _startup_reconcile_worker() -> None:
     # Da tiempo al monitor LAN para descubrir la PC del doctor. El evento local
     # queda marcado cancelado de todos modos y el transporte reintenta si hace falta.
     time.sleep(2.0)
-    # Primero repara falsos cancelados comprobando la visita local viva.
+    # Primero restaura de forma idempotente todo handoff reciente cuya visita
+    # siga viva localmente. Esto incluye event_id reutilizados tras borrar/recrear.
     restore_recent_live_handoffs()
     # Después reconcilia únicamente handoffs realmente ausentes local + nube.
     reconcile_recent_deleted_handoffs()
@@ -414,6 +416,8 @@ def history_cancel_health(user=core.Depends(core.current_user)):
         "startup_reconcile_maps_local_to_cloud": True,
         "startup_reconcile_requires_local_absence": True,
         "startup_false_cancel_self_heal": True,
+        "startup_live_handoff_idempotent_restore": True,
+        "reused_event_id_cancel_recovery": True,
         "signed_history_protected": True,
         "database_schema_changes": False,
     }
