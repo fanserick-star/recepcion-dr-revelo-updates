@@ -781,6 +781,222 @@ if _OLD_BILLING_NEXT is not None:
 
 
 # ---------------------------------------------------------------------------
+# Borrado clínico de una atención ya facturada.
+# La factura/comprobante fiscal permanece intacto; solo se crea un tombstone
+# local y se cancela el turno de Historia.
+# ---------------------------------------------------------------------------
+def _visit_fiscal_emission(db, visit) -> bool:
+    try:
+        billing = db.scalar(
+            core.select(core.BillingRecord).where(
+                core.BillingRecord.visit_id == int(visit.id)
+            )
+        )
+        if billing and str(getattr(billing, "estado", "") or "").strip().upper() == "EMITIDA":
+            return True
+    except Exception:
+        pass
+    try:
+        emission = db.scalar(
+            core.select(core.AzurEmission)
+            .where(
+                core.AzurEmission.patient_id == int(visit.patient_id),
+                core.AzurEmission.fecha == visit.fecha,
+                core.or_(
+                    core.AzurEmission.clave_acceso.is_not(None),
+                    core.AzurEmission.numero_factura.is_not(None),
+                ),
+            )
+            .order_by(core.AzurEmission.id.desc())
+        )
+        return emission is not None
+    except Exception:
+        return False
+
+
+def _ensure_visit_tombstone(local_db, visit, user):
+    try:
+        existing = local_db.scalar(
+            core.select(core.TrashItem)
+            .where(
+                core.TrashItem.entity_type == "visit",
+                core.TrashItem.entity_id == int(visit.id),
+                core.TrashItem.restored_at.is_(None),
+            )
+            .order_by(core.TrashItem.id.desc())
+        )
+        if existing is not None:
+            return existing
+    except Exception:
+        pass
+    return core._ops_capture_visit(local_db, user, visit)
+
+
+def _clinical_remove_billed_visit(visit_id: int, db, user):
+    local_db = None
+    try:
+        local_db = core.LocalSessionLocal()
+        visit = local_db.get(core.Visit, int(visit_id))
+        source_db = local_db
+        if visit is None:
+            visit = db.get(core.Visit, int(visit_id))
+            source_db = db
+        if visit is None:
+            return None
+        if not _visit_fiscal_emission(source_db, visit):
+            return None
+
+        if source_db is not local_db:
+            local_copy = local_db.get(core.Visit, int(visit_id))
+            if local_copy is not None:
+                visit = local_copy
+                source_db = local_db
+
+        if source_db is local_db:
+            _ensure_visit_tombstone(local_db, visit, user)
+            try:
+                core.audit(
+                    local_db,
+                    user,
+                    "retirar_atencion_facturada_del_flujo",
+                    f"Atención {visit.id}, paciente {visit.patient_id}, fecha {visit.fecha}; comprobante fiscal preservado",
+                )
+                local_db.commit()
+            except Exception:
+                try:
+                    local_db.rollback()
+                except Exception:
+                    pass
+        else:
+            try:
+                core._ops_capture_visit(source_db, user, visit)
+            except Exception:
+                pass
+
+        patient_id = int(getattr(visit, "patient_id", 0) or 0)
+        try:
+            historia_bridge.cancel_attention(
+                visit_id=int(visit_id),
+                reception_patient_id=str(patient_id or ""),
+            )
+        except Exception:
+            pass
+        _clear_cache()
+        return {
+            "ok": True,
+            "visit_id": int(visit_id),
+            "patient_id": patient_id,
+            "clinical_removed": True,
+            "fiscal_preserved": True,
+            "invoice_deleted": False,
+            "message": "La atención fue retirada del flujo clínico. La factura emitida se conserva en el historial fiscal.",
+        }
+    finally:
+        try:
+            if local_db is not None:
+                local_db.close()
+        except Exception:
+            pass
+
+
+_OLD_DIRECT_DELETE_GUARD = _remove_route("/api/visits/{visit_id}", "DELETE")
+if _OLD_DIRECT_DELETE_GUARD is not None:
+    @app.delete("/api/visits/{visit_id}")
+    def delete_visit_fiscal_safe(
+        visit_id: int,
+        db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user),
+    ):
+        preserved = _clinical_remove_billed_visit(int(visit_id), db, user)
+        if preserved is not None:
+            return preserved
+        return _OLD_DIRECT_DELETE_GUARD(int(visit_id), db, user)
+
+
+_OLD_SAFE_DELETE_GUARD = _remove_route("/api/safety/visits/{visit_id}", "DELETE")
+if _OLD_SAFE_DELETE_GUARD is not None:
+    @app.delete("/api/safety/visits/{visit_id}")
+    def safe_delete_visit_fiscal_safe(
+        visit_id: int,
+        db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user),
+    ):
+        preserved = _clinical_remove_billed_visit(int(visit_id), db, user)
+        if preserved is not None:
+            return preserved
+        return _OLD_SAFE_DELETE_GUARD(int(visit_id), db, user)
+
+
+# ---------------------------------------------------------------------------
+# Repara turnos ya enviados sin número durante la jornada actual.
+# Reenvía el mismo event_id; Historia actualiza la fila existente.
+# ---------------------------------------------------------------------------
+def repair_today_handoff_turns() -> dict:
+    path = Path(historia_lan_transport.LAN_OUTBOX_DB)
+    if not path.is_file():
+        return {"checked": 0, "repaired": 0, "sent": 0}
+    cutoff = date.today().isoformat()
+    try:
+        with sqlite3.connect(path, timeout=5) as conn:
+            rows = conn.execute(
+                """
+                SELECT event_id,payload_json
+                FROM events
+                WHERE substr(created_at,1,10)=?
+                  AND cancelled=0
+                ORDER BY created_at ASC
+                """,
+                (cutoff,),
+            ).fetchall()
+    except Exception:
+        return {"checked": 0, "repaired": 0, "sent": 0}
+
+    checked = repaired = sent = 0
+    try:
+        import reception_history_bridge as history_patch
+    except Exception:
+        return {"checked": 0, "repaired": 0, "sent": 0}
+
+    with core.LocalSessionLocal() as ldb:
+        for event_id, payload_json in rows:
+            try:
+                payload = json.loads(payload_json or "{}")
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            label = str(payload.get("attention_type") or "").strip().upper()
+            if label.startswith("PROCEDIMIENTO"):
+                continue
+            visit_ids = []
+            for raw in payload.get("visit_ids") or []:
+                try:
+                    visit_ids.append(int(raw))
+                except Exception:
+                    pass
+            if not visit_ids:
+                continue
+            checked += 1
+            turn = history_patch._reception_turn_for_visit(ldb, visit_ids[0])
+            if not turn:
+                continue
+            if int(payload.get("reception_turn") or 0) != int(turn):
+                payload["reception_turn"] = int(turn)
+                try:
+                    historia_lan_transport._lan_outbox_put(payload)
+                    repaired += 1
+                except Exception:
+                    continue
+            try:
+                if historia_lan_transport.send_lan(payload):
+                    historia_lan_transport._lan_outbox_mark(str(event_id), sent=True)
+                    sent += 1
+            except Exception:
+                pass
+    return {"checked": checked, "repaired": repaired, "sent": sent}
+
+
+# ---------------------------------------------------------------------------
 # Auto-reparación al arrancar.
 # - Si no está emitida: vuelve a poner el DELETE en cola y quita el fantasma local.
 # - Si está emitida: no toca la factura; la supresión anterior basta.
@@ -882,6 +1098,10 @@ def _deleted_visit_guard_startup():
             reconcile_resurrected_deleted_visits()
         except Exception:
             pass
+        try:
+            repair_today_handoff_turns()
+        except Exception:
+            pass
     threading.Thread(target=work, daemon=True, name="deleted-visit-guard").start()
 
 
@@ -902,6 +1122,10 @@ def deleted_visit_guard_health(user=core.Depends(core.current_user)):
         "historia_cloud_cancel_tombstones": True,
         "historia_cloud_cancel_cache_seconds": int(_REMOTE_CACHE_SECONDS),
         "reception_historia_timezone_bridge": "UTC<->UTC-5",
+        "billed_visit_clinical_remove": True,
+        "billed_visit_fiscal_history_preserved": True,
+        "turn_number_sent_from_reception": True,
+        "today_missing_turn_repair": True,
     }
 
 
