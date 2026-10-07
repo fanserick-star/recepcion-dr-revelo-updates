@@ -687,7 +687,7 @@ def install(app, context: dict) -> None:
             <button class='doc-primary' id='rx-save'>Guardar</button>
             <button class='doc-light' id='rx-preview'>Vista previa</button>
             <button class='doc-primary' id='rx-print'>Imprimir</button>
-            <button class='doc-light' id='rx-pdf'>Guardar PDF</button>
+            <button class='doc-light' id='rx-pdf'>PDF firmado</button>
             <span class='doc-save-state' id='rx-state'>Sin guardar</span>
             <button class='doc-muted' onclick='window.close()'>Cancelar</button>
           </div>
@@ -737,8 +737,28 @@ def install(app, context: dict) -> None:
           try{{
             const j=await saveRx(false);
             if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/receta/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('La receta se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
               await window.historiaNativePrint(j.preview_url,'recipe');
+              return;
+            }}
+            if(mode==='pdf'){{
+              const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+              const ss=await sr.json().catch(()=>({{}}));
+              if(!sr.ok||!ss.configured)throw new Error('Configure la firma electrónica en Configuración > Firma electrónica.');
+              if(!ss.unlocked)throw new Error('La firma electrónica está bloqueada. Abra Configuración > Firma electrónica e ingrese la contraseña.');
+              window.open('/api/firma/documento/receta/'+encodeURIComponent(j.id),'_blank');
               return;
             }}
             window.open(j.preview_url,'_blank');
@@ -1061,7 +1081,7 @@ footer{{
         <label>Desde<input id='cert-from' type='date' value='{today}'></label><label>Hasta<input id='cert-to' type='date' value='{today}'></label>
         </div></div></div>
         <div class='docs-card'><label>Texto del certificado (se puede editar)<textarea id='cert-body' rows='12'>{_e(text)}</textarea></label></div>
-        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Imprimir</button><button class='doc-light' id='cert-pdf'>Guardar PDF</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.close()'>Cancelar</button></div>
+        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Imprimir</button><button class='doc-light' id='cert-pdf'>PDF firmado</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.close()'>Cancelar</button></div>
         </section>
         <script>
         const patientId={json.dumps(patient_id)}, queueId={json.dumps(queue_id)}, encounterDate={json.dumps(encounter_date)}, encounterTime={json.dumps(encounter_time)}, fromConsultation={"true" if from_consultation else "false"};
@@ -1178,7 +1198,37 @@ footer{{
           if(showNotice&&window.showAppToast)showAppToast('Certificado guardado correctamente.','success');
           return j;
         }}
-        async function openCert(mode='preview'){{try{{const j=await saveCert(false);if(mode==='print'){{if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');await window.historiaNativePrint(j.preview_url,'certificate');return;}}window.open(j.preview_url,'_blank')}}catch(e){{alert(e.message)}}}}
+        async function openCert(mode='preview'){{
+          try{{
+            const j=await saveCert(false);
+            if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/certificado/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('El certificado se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
+              if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
+              await window.historiaNativePrint(j.preview_url,'certificate');
+              return;
+            }}
+            if(mode==='pdf'){{
+              const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+              const ss=await sr.json().catch(()=>({{}}));
+              if(!sr.ok||!ss.configured)throw new Error('Configure la firma electrónica en Configuración > Firma electrónica.');
+              if(!ss.unlocked)throw new Error('La firma electrónica está bloqueada. Abra Configuración > Firma electrónica e ingrese la contraseña.');
+              window.open('/api/firma/documento/certificado/'+encodeURIComponent(j.id),'_blank');
+              return;
+            }}
+            window.open(j.preview_url,'_blank');
+          }}catch(e){{alert(e.message)}}
+        }}
         document.getElementById('cert-save').onclick=()=>saveCert(true).catch(e=>alert(e.message));
         document.getElementById('cert-preview').onclick=()=>openCert('preview');
         document.getElementById('cert-print').onclick=()=>openCert('print');
@@ -1506,7 +1556,7 @@ footer{{
             <button class='doc-primary' id='rest-save'>Guardar</button>
             <button class='doc-light' id='rest-preview'>Vista previa</button>
             <button class='doc-primary' id='rest-print'>Imprimir</button>
-            <button class='doc-light' id='rest-pdf'>Guardar PDF</button>
+            <button class='doc-light' id='rest-pdf'>PDF firmado</button>
             <span class='doc-save-state' id='rest-state'>Sin guardar</span>
             <button class='doc-muted' type='button' onclick='window.close()'>Cancelar</button>
           </div>
@@ -1590,7 +1640,37 @@ footer{{
           const s=document.getElementById('rest-state');if(s)s.textContent='Guardado';
           if(showNotice&&window.showAppToast)showAppToast('Certificado guardado correctamente.','success');return j;
         }}
-        async function openRest(mode='preview'){{try{{const j=await saveRest(false);if(mode==='print'){{if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');await window.historiaNativePrint(j.preview_url,'certificate');return;}}window.open(j.preview_url,'_blank')}}catch(e){{alert(e.message)}}}}
+        async function openRest(mode='preview'){{
+          try{{
+            const j=await saveRest(false);
+            if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/reposo/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('El certificado se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
+              if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
+              await window.historiaNativePrint(j.preview_url,'certificate');
+              return;
+            }}
+            if(mode==='pdf'){{
+              const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+              const ss=await sr.json().catch(()=>({{}}));
+              if(!sr.ok||!ss.configured)throw new Error('Configure la firma electrónica en Configuración > Firma electrónica.');
+              if(!ss.unlocked)throw new Error('La firma electrónica está bloqueada. Abra Configuración > Firma electrónica e ingrese la contraseña.');
+              window.open('/api/firma/documento/reposo/'+encodeURIComponent(j.id),'_blank');
+              return;
+            }}
+            window.open(j.preview_url,'_blank');
+          }}catch(e){{alert(e.message)}}
+        }}
         document.getElementById('rest-save').onclick=()=>saveRest(true).catch(e=>alert(e.message));
         document.getElementById('rest-preview').onclick=()=>openRest('preview');
         document.getElementById('rest-print').onclick=()=>openRest('print');
@@ -1834,6 +1914,14 @@ body{{background:#e8edf1;padding:14px}}
             <button type='button' class='config-tool-btn' id='cfg-repair-lan'><b>Activar / reparar enlace LAN</b><small>Habilita la comunicación privada con la PC de Recepción.</small></button>
             <button type='button' class='config-tool-btn' id='cfg-open-folder'><b>Abrir carpeta del programa</b><small>Acceso técnico a los archivos locales de Historia Clínica.</small></button>
           </div>
+        </section>
+        <section class='docs-card'>
+          <h2>Firma electrónica</h2>
+          <p>Certificado P12/PFX del doctor guardado solo en esta PC. La contraseña se mantiene únicamente durante la sesión.</p>
+          <button type='button' class='config-tool-btn' onclick="location.href='/firma-electronica'">
+            <b>Configurar firma electrónica</b>
+            <small>Seleccionar certificado, desbloquear la firma y revisar su estado.</small>
+          </button>
         </section>
         <section class='docs-card'><h2 id='otros'>Otros ajustes</h2><p>Las actualizaciones oficiales son obligatorias. La base local y .env permanecen protegidos por el launcher.</p></section>
         </section>

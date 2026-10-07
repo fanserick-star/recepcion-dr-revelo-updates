@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.3.99",
-  "app_version": "1.3.99",
-  "runtime_version": "1.3.99",
+  "version": "1.4.0",
+  "app_version": "1.4.0",
+  "runtime_version": "1.4.0",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -17,6 +17,7 @@
     "lan_bridge.py",
     "tv_turn_bridge.py",
     "documentos_clinicos.py",
+    "firma_electronica.py",
     "material_pacientes.py",
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
@@ -44,6 +45,10 @@
     {
       "import": "webview",
       "pip": "pywebview==6.2.1"
+    },
+    {
+      "import": "pyhanko",
+      "pip": "pyHanko==0.37.0"
     }
   ],
   "copy": [
@@ -54,6 +59,7 @@
     "lan_bridge.py",
     "tv_turn_bridge.py",
     "documentos_clinicos.py",
+    "firma_electronica.py",
     "material_pacientes.py",
     "consentimiento_informado.py",
     "material_consentimiento_patch.py",
@@ -68,10 +74,10 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.3.99: la sala de espera queda limitada al día actual. Los pacientes que sigan en estado waiting de un día anterior pasan a expired y dejan de aparecer automáticamente, sin borrar la atención, la ficha ni la historia. Las consultas realmente abiertas (in_consultation) se preservan para no arriesgar borradores clínicos.",
-    "previous_version": "1.3.98",
+    "purpose": "Historia 1.4.0: integra firma electrónica PAdES local para recetas, certificados médicos y certificados de reposo. El certificado P12/PFX permanece en la PC del doctor dentro de data/ protegida; la contraseña solo vive en memoria durante la sesión y nunca se guarda en Neon ni .env. Los PDF firmados se conservan localmente con hash SHA-256 y auditoría.",
+    "previous_version": "1.3.99",
     "functional_changes": true,
-    "database_schema_changes": false,
+    "database_schema_changes": true,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
     "runtime_consolidated": true,
@@ -131,6 +137,18 @@
     "waiting_queue_previous_day_waiting_expires": true,
     "waiting_queue_expired_status": "expired",
     "waiting_queue_in_consultation_preserved": true,
-    "waiting_queue_signed_reconciled_before_expiry": true
+    "waiting_queue_signed_reconciled_before_expiry": true,
+    "electronic_signature_pades": true,
+    "electronic_signature_local_only": true,
+    "electronic_signature_password_persisted": false,
+    "electronic_signature_certificate_protected_data": true,
+    "electronic_signature_signed_pdf_audit": true,
+    "electronic_signature_cloud_changes": false,
+    "electronic_signature_supported_documents": [
+      "prescription",
+      "medical_certificate",
+      "rest_isolation_certificate"
+    ],
+    "electronic_signature_ci_smoke_test": true
   }
 }

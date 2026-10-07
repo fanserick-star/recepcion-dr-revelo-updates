@@ -1,0 +1,104 @@
+from __future__ import annotations
+
+import os
+import tempfile
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import pkcs12
+from cryptography.x509.oid import NameOID
+
+
+def _minimal_pdf(path: Path) -> None:
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+        b"<< /Length 0 >>\nstream\n\nendstream",
+    ]
+    data = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for idx, body in enumerate(objects, start=1):
+        offsets.append(len(data))
+        data.extend(f"{idx} 0 obj\n".encode("ascii"))
+        data.extend(body)
+        data.extend(b"\nendobj\n")
+    xref = len(data)
+    data.extend(f"xref\n0 {len(objects)+1}\n".encode("ascii"))
+    data.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        data.extend(f"{off:010d} 00000 n \n".encode("ascii"))
+    data.extend(
+        (
+            f"trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\n"
+            f"startxref\n{xref}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    path.write_bytes(bytes(data))
+
+
+def _test_pkcs12(path: Path, password: bytes) -> None:
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "EC"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Historia Clinica CI"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Dr. Prueba Firma"),
+        ]
+    )
+    now = datetime.now(timezone.utc)
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=5))
+        .not_valid_after(now + timedelta(days=1))
+        .sign(key, hashes.SHA256())
+    )
+    blob = pkcs12.serialize_key_and_certificates(
+        name=b"doctor-prueba",
+        key=key,
+        cert=cert,
+        cas=None,
+        encryption_algorithm=serialization.BestAvailableEncryption(password),
+    )
+    path.write_bytes(blob)
+
+
+def main() -> None:
+    import firma_electronica as fe
+
+    with tempfile.TemporaryDirectory(prefix="historia_pades_ci_") as temp:
+        root = Path(temp)
+        paths = fe._paths(root)
+        paths["firma_dir"].mkdir(parents=True, exist_ok=True)
+        password = b"Prueba-CI-2026"
+        _test_pkcs12(paths["certificate"], password)
+
+        meta = fe._unlock(root, password.decode("ascii"), ttl_seconds=900)
+        assert fe._status(root)["unlocked"] is True
+        assert meta.get("subject"), meta
+
+        source = root / "origen.pdf"
+        signed = root / "firmado.pdf"
+        _minimal_pdf(source)
+        fe._sign_pdf(root, source, signed, "Dr. Prueba Firma")
+
+        raw = signed.read_bytes()
+        assert signed.stat().st_size > source.stat().st_size
+        assert b"ETSI.CAdES.detached" in raw, "El PDF no declara el subfiltro PAdES esperado"
+        assert b"ByteRange" in raw, "El PDF no contiene ByteRange de firma"
+
+        fe._session_clear()
+        assert fe._status(root)["unlocked"] is False
+
+    print("HISTORIA_PADES_SMOKE_OK")
+
+
+if __name__ == "__main__":
+    main()

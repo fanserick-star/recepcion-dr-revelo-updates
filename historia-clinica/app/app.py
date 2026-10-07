@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_status
 import documentos_clinicos
+import firma_electronica
 import cloud_presence_patch
 cloud_presence_patch.install()
 
@@ -4585,6 +4586,7 @@ except Exception:
     pass
 
 documentos_clinicos.install(app, globals())
+firma_electronica.install(app, globals())
 
 
 # Integra los dos documentos en la consulta sin cerrar ni finalizar la atención.
