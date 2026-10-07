@@ -30,6 +30,7 @@ _SESSION = {
     "not_after": "",
 }
 _DEFAULT_SESSION_SECONDS = 8 * 60 * 60
+_STAMP_BORDER_WIDTH = 0
 
 
 def _now_iso() -> str:
@@ -134,6 +135,29 @@ def _certificate_metadata(signer) -> dict:
         except Exception:
             not_after = ""
     return {"subject": subject, "serial": serial, "not_after": not_after}
+
+
+def _certificate_legal_name(signer, fallback: str = "") -> str:
+    """Nombre del firmante tal como consta en el certificado, sin títulos profesionales."""
+    cert = getattr(signer, "signing_cert", None)
+    if cert is not None:
+        try:
+            native = cert.subject.native or {}
+            common_name = native.get("common_name") if isinstance(native, dict) else None
+            if isinstance(common_name, (list, tuple)):
+                common_name = common_name[0] if common_name else ""
+            value = str(common_name or "").strip()
+            if value:
+                return value.upper()
+        except Exception:
+            pass
+
+    value = str(fallback or "").strip()
+    for prefix in ("DR. ", "DR ", "DRA. ", "DRA "):
+        if value.upper().startswith(prefix):
+            value = value[len(prefix):].strip()
+            break
+    return value.upper()
 
 
 def _ensure_pyhanko() -> None:
@@ -425,7 +449,10 @@ def _sign_pdf(
         str(meta.get("serial") or ""),
     )
     qr_payload = _signature_qr_payload(kind, verification_code, signed_at)
-    display_name = str(doctor_name or "Dr. Armando Revelo").strip()
+    display_name = _certificate_legal_name(
+        signer,
+        str(doctor_name or "Armando Revelo"),
+    )
 
     signature_meta = signers.PdfSignatureMetadata(
         field_name="FirmaElectronicaDoctor",
@@ -436,7 +463,7 @@ def _sign_pdf(
         name=display_name,
     )
     stamp_style = stamp.QRStampStyle(
-        border_width=1,
+        border_width=_STAMP_BORDER_WIDTH,
         stamp_text=(
             "FIRMADO ELECTRONICAMENTE\n"
             "%(signer)s\n"
