@@ -163,6 +163,86 @@ def _cancelled_handoff_specs() -> list[dict]:
     return out
 
 
+_REMOTE_LOCK = threading.Lock()
+_REMOTE = {"ts": 0.0, "specs": []}
+_REMOTE_CACHE_SECONDS = 90.0
+
+
+def _cloud_cancelled_specs(force: bool = False) -> list[dict]:
+    """Cancelaciones canónicas de Historia.
+
+    Esta consulta es solo lectura y queda cacheada. Es el respaldo cuando la PC
+    de Recepción perdió su Papelera o su outbox LAN local durante una actualización.
+    """
+    now = time.monotonic()
+    with _REMOTE_LOCK:
+        if (not force) and now - float(_REMOTE.get("ts") or 0) < _REMOTE_CACHE_SECONDS:
+            return list(_REMOTE.get("specs") or [])
+
+    specs = []
+    conn = None
+    try:
+        import reception_history_identity_consolidated as identity
+        conn = identity._connect_public()
+        cur = conn.cursor()
+        cutoff = (date.today() - timedelta(days=7)).isoformat()
+        cur.execute(
+            """
+            SELECT reception_patient_id,attention_type,queued_at
+            FROM public.waiting_queue
+            WHERE status='cancelled'
+              AND deleted_at IS NULL
+              AND LEFT(COALESCE(queued_at,''),10) >= %s
+              AND NULLIF(TRIM(COALESCE(reception_patient_id,'')),'') IS NOT NULL
+            ORDER BY queued_at DESC
+            LIMIT 300
+            """,
+            (cutoff,),
+        )
+        for reception_patient_id, attention_type, queued_at in (cur.fetchall() or []):
+            try:
+                pid = int(str(reception_patient_id or "").strip())
+            except Exception:
+                continue
+            when = _parse_dt(queued_at)
+            fecha = _parse_date(queued_at)
+            if not pid or fecha is None:
+                continue
+            attention = str(attention_type or "").strip()
+            proc = ""
+            if "·" in attention:
+                proc = attention.split("·", 1)[1].strip()
+            elif attention.upper().startswith("PROCEDIMIENTO"):
+                proc = attention[len("PROCEDIMIENTO"):].strip(" :-·")
+            specs.append(
+                {
+                    "source": "historia-cloud-cancel",
+                    "visit_ids": set(),
+                    "patient_id": pid,
+                    # El nombre puede haberse corregido después (GABIO -> GABINO).
+                    # reception_patient_id + fecha + hora son la identidad fuerte.
+                    "patient_name": "",
+                    "fecha": fecha,
+                    "procedimiento": _norm_proc(proc),
+                    "valor": None,
+                    "created_at": when,
+                }
+            )
+    except Exception:
+        specs = []
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    with _REMOTE_LOCK:
+        _REMOTE["ts"] = now
+        _REMOTE["specs"] = list(specs)
+    return specs
+
+
 def _same_value(left, right) -> bool:
     if right is None:
         return True
@@ -258,7 +338,11 @@ def active_deleted_visit_ids(ldb=None, force: bool = False) -> set[int]:
     if own:
         ldb = core.LocalSessionLocal()
     try:
-        specs = _trash_specs(ldb) + _cancelled_handoff_specs()
+        specs = (
+            _trash_specs(ldb)
+            + _cancelled_handoff_specs()
+            + _cloud_cancelled_specs(force=force)
+        )
         ids = _matched_visit_ids(ldb, specs)
     finally:
         if own:
@@ -801,6 +885,8 @@ def deleted_visit_guard_health(user=core.Depends(core.current_user)):
         "emitted_invoice_preserved": True,
         "pending_deleted_visit_requeued": True,
         "cancelled_historia_never_restored": True,
+        "historia_cloud_cancel_tombstones": True,
+        "historia_cloud_cancel_cache_seconds": int(_REMOTE_CACHE_SECONDS),
     }
 
 

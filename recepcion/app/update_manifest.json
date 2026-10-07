@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.57",
-  "app_version": "4.6.57",
-  "runtime_version": "4.6.57",
+  "version": "4.6.58",
+  "app_version": "4.6.58",
+  "runtime_version": "4.6.58",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -172,8 +172,8 @@
     "reception_deleted_visit_guard.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.57: impide que una atención eliminada reaparezca después de reiniciar o refrescar desde Neon. Conserva el mapa local↔nube hasta confirmar una recopia correcta, identifica de forma segura el DELETE remoto, usa Papelera y handoffs LAN cancelados como evidencia persistente, excluye atenciones canceladas de Inicio, turnos, reportes y Por facturar, y conserva intactas las facturas ya EMITIDAS únicamente como histórico fiscal.",
-    "previous_version": "4.6.56",
+    "purpose": "Recepción 4.6.58: completa el guard de atenciones eliminadas usando también las cancelaciones canónicas de Historia/Neon como tombstones de solo lectura. Si la Papelera o el outbox LAN local se perdió, una fila de Historia con status=cancelled sigue impidiendo que Recepción reviva esa atención. La coincidencia usa reception_patient_id + fecha + hora aproximada y tolera correcciones posteriores del nombre. Mantiene intacto cualquier comprobante fiscal emitido/enviado.",
+    "previous_version": "4.6.57",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -345,7 +345,14 @@
     "tv_cancelled_visit_never_requeued": true,
     "current_anzules_case_auto_reconciled_from_cancelled_handoff": true,
     "deleted_visit_fiscal_emission_detected_by_billing_or_azur": true,
-    "deleted_visit_reconciliation_requires_explicit_delete_evidence": true
+    "deleted_visit_reconciliation_requires_explicit_delete_evidence": true,
+    "historia_cloud_cancel_tombstones": true,
+    "historia_cloud_cancel_read_only": true,
+    "historia_cloud_cancel_cache_seconds": 90,
+    "historia_cloud_cancel_match": "reception_patient_id+fecha+hora_aproximada",
+    "historia_cloud_cancel_name_changes_tolerated": true,
+    "current_anzules_cancelled_turn_4_detected": true,
+    "current_castillo_cancelled_turn_2_detected": true
   },
   "channel": "launcher-v1-stable"
 }
