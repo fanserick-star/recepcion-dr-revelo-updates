@@ -148,6 +148,7 @@
       "prescription",
       "medical_certificate",
       "rest_isolation_certificate"
-    ]
+    ],
+    "electronic_signature_ci_smoke_test": true
   }
 }
