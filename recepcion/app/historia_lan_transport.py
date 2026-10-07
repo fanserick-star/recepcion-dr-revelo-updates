@@ -453,14 +453,6 @@ def _flush_lan_outbox(max_items: int = 30) -> None:
             payload = json.loads(payload_json)
             if send_lan(payload):
                 _lan_outbox_mark(str(event_id), sent=True)
-                # Idempotente: si el mismo event_id perteneció antes a una
-                # atención cancelada pero la visita sigue viva, Historia debe
-                # volverlo a waiting. En cualquier otro estado no hace nada.
-                try:
-                    visit_ids = list(payload.get("visit_ids") or [])
-                    _send_control_lan("restore", str(event_id), visit_ids[0] if visit_ids else "")
-                except Exception:
-                    pass
             else:
                 _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
                 break
@@ -484,7 +476,13 @@ def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "")
         visits = {str(x) for x in (payload.get("visit_ids") or []) if x is not None}
         same_visit = bool(wanted_visit and wanted_visit in visits)
         same_patient = bool(wanted_patient and str(payload.get("reception_patient_id") or "") == wanted_patient)
-        if same_visit or (not wanted_visit and same_patient):
+        if wanted_visit and wanted_patient:
+            matches = same_visit and same_patient
+        elif wanted_visit:
+            matches = same_visit
+        else:
+            matches = same_patient
+        if matches:
             found.append(str(event_id))
     return list(dict.fromkeys(found))
 
@@ -564,10 +562,17 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
 
 def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: object = "") -> list[str]:
     targets = _lan_event_targets(visit_id=visit_id, reception_patient_id=reception_patient_id)
+    # Si se perdió el outbox local pero conocemos paciente+visita, el event_id es
+    # determinista y seguro. Esto permite cancelar exactamente la fila de Historia
+    # sin buscar por un visit_id reutilizable.
+    if not targets and str(visit_id or "").strip() and str(reception_patient_id or "").strip():
+        targets = [_cloud._event_id(reception_patient_id, [visit_id])]
     for target in targets:
         was_sent, payload = _lan_set_cancelled(target, action == "cancel")
         if action == "cancel":
-            if was_sent:
+            # was_sent=True: Historia recibió el handoff.
+            # payload=None: el outbox local se perdió; enviamos al event_id exacto.
+            if was_sent or payload is None:
                 threading.Thread(
                     target=_send_control_lan,
                     args=("cancel", target, visit_id),
@@ -575,7 +580,7 @@ def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: obje
                     name="historia-lan-cancel",
                 ).start()
         else:
-            if was_sent:
+            if was_sent or payload is None:
                 threading.Thread(
                     target=_send_control_lan,
                     args=("restore", target, visit_id),
@@ -713,14 +718,6 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
     _lan_outbox_put(payload)
     if send_lan(payload):
         _lan_outbox_mark(event_id, sent=True)
-        # Siempre mandamos restore después del handoff. Es una operación
-        # idempotente en Historia: solo cambia cancelled -> waiting. Esto evita
-        # que una atención nueva quede atrapada en cancelled si SQLite reutiliza
-        # un visit_id borrado y por tanto se reutiliza el event_id determinista.
-        try:
-            _send_control_lan("restore", event_id, visit_ids[0] if visit_ids else "")
-        except Exception:
-            pass
     else:
         _lan_outbox_mark(event_id, error=_snapshot().get("lan_last_error") or "Pendiente de entrega LAN")
     return event_id
