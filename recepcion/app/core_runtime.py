@@ -266,6 +266,16 @@ class Visit(Base):
     valor: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     observacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source_row: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # v4.7.0: una atención ya no se elimina físicamente. El estado clínico
+    # vive en la propia fila para que su ID y cualquier factura asociada sean
+    # permanentes.
+    estado: Mapped[str] = mapped_column(String(20), default="ACTIVA", index=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    cancelled_by: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    # El turno se asigna una sola vez y nunca se renumera al cancelar a otro.
+    reception_turn: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # Identidad estable del handoff a Historia; no depende del ID SQLite.
+    queue_event_id: Mapped[Optional[str]] = mapped_column(String(180), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     patient: Mapped[Patient] = relationship(back_populates="visits")
     billing_record: Mapped[Optional["BillingRecord"]] = relationship(
@@ -561,8 +571,84 @@ def seed_local_historical_registry() -> dict:
         return {"loaded": 0, "skipped": True, "reason": str(exc)[:160]}
 
 
+def ensure_attention_state_schema(engine) -> None:
+    """Migración aditiva v4.7.0.
+
+    Nunca borra ni mueve atenciones/facturas. Solo añade columnas de estado e
+    identidad a la tabla visits si la instalación viene de una versión anterior.
+    """
+    if engine is None:
+        return
+    try:
+        dialect = str(getattr(engine.dialect, "name", "") or "").lower()
+        with engine.begin() as conn:
+            if dialect == "sqlite":
+                cols = {
+                    str(row[1])
+                    for row in conn.exec_driver_sql("PRAGMA table_info(visits)").fetchall()
+                }
+                additions = [
+                    ("estado", "VARCHAR(20) NOT NULL DEFAULT 'ACTIVA'"),
+                    ("cancelled_at", "DATETIME"),
+                    ("cancelled_by", "VARCHAR(80)"),
+                    ("reception_turn", "INTEGER"),
+                    ("queue_event_id", "VARCHAR(180)"),
+                ]
+                for name, ddl in additions:
+                    if name not in cols:
+                        conn.exec_driver_sql(f"ALTER TABLE visits ADD COLUMN {name} {ddl}")
+                conn.exec_driver_sql(
+                    "UPDATE visits SET estado='ACTIVA' "
+                    "WHERE estado IS NULL OR TRIM(estado)=''"
+                )
+                conn.exec_driver_sql(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_estado ON visits (estado)"
+                )
+                conn.exec_driver_sql(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_reception_turn ON visits (reception_turn)"
+                )
+                conn.exec_driver_sql(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_queue_event_id ON visits (queue_event_id)"
+                )
+            else:
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN IF NOT EXISTS "
+                    "estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA'"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(80) NULL"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN IF NOT EXISTS reception_turn INTEGER NULL"
+                ))
+                conn.execute(text(
+                    "ALTER TABLE visits ADD COLUMN IF NOT EXISTS queue_event_id VARCHAR(180) NULL"
+                ))
+                conn.execute(text(
+                    "UPDATE visits SET estado='ACTIVA' "
+                    "WHERE estado IS NULL OR BTRIM(estado)=''"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_estado ON visits (estado)"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_reception_turn ON visits (reception_turn)"
+                ))
+                conn.execute(text(
+                    "CREATE INDEX IF NOT EXISTS ix_visits_queue_event_id ON visits (queue_event_id)"
+                ))
+    except Exception:
+        # La app puede seguir abriendo; la inicialización de nube reintentará la
+        # migración antes de cualquier operación que dependa de esas columnas.
+        pass
+
+
 Base.metadata.create_all(local_engine)
 LocalBase.metadata.create_all(local_engine)
+ensure_attention_state_schema(local_engine)
 # create_all no agrega columnas a una tabla SQLite existente. Esta migración local
 # es diminuta, no toca Neon y permite enriquecer las fichas históricas ya instaladas.
 try:
@@ -608,7 +694,7 @@ _cloud_initialized = False
 # billing_preferences y azur_emissions, pero heredaba el marcador antiguo v4.3.7.
 # Con el marcador viejo una PC ya inicializada podía saltarse create_all() y
 # "Aprobar para facturar" fallaba con HTTP 500 al consultar la tabla nueva.
-CLOUD_SCHEMA_MARKER = "cloud_schema_ready_v4_4_0_ops_" + hashlib.sha1(CONFIGURED_DB_URL.encode("utf-8")).hexdigest()[:10]
+CLOUD_SCHEMA_MARKER = "cloud_schema_ready_v4_7_0_attention_state_" + hashlib.sha1(CONFIGURED_DB_URL.encode("utf-8")).hexdigest()[:10]
 _state = {
     "online": False,
     "last_checked": 0.0,
@@ -2336,6 +2422,7 @@ def ensure_cloud_initialized() -> bool:
             return True
         try:
             Base.metadata.create_all(cloud_engine)
+            ensure_attention_state_schema(cloud_engine)
             ensure_performance_indexes(cloud_engine)
             seed_database(CloudSessionLocal)
             seed_initial_agenda(CloudSessionLocal)
@@ -3125,6 +3212,11 @@ def v_dict(v: Visit):
         "procedimiento": v.procedimiento,
         "valor": float(v.valor) if v.valor is not None else None,
         "observacion": v.observacion,
+        "estado": str(getattr(v, "estado", None) or VISIT_ACTIVE_STATE),
+        "cancelled_at": getattr(v, "cancelled_at", None),
+        "cancelled_by": getattr(v, "cancelled_by", None),
+        "reception_turn": getattr(v, "reception_turn", None),
+        "queue_event_id": getattr(v, "queue_event_id", None),
     }
 
 
@@ -3331,8 +3423,67 @@ def occupied_message(fecha: date, hora: str, conflicts) -> str:
     return f"El {fecha.strftime('%d/%m/%Y')} a las {hora} ya está ocupado por {names}{extra}. Elige otra hora."
 
 
-def is_procedure(v: Visit) -> bool:
-    return bool((v.procedimiento or "").strip()) or v.tipo == "P"
+VISIT_ACTIVE_STATE = "ACTIVA"
+VISIT_CANCELLED_STATE = "CANCELADA"
+
+
+def visit_is_active(v: Visit) -> bool:
+    return str(getattr(v, "estado", None) or VISIT_ACTIVE_STATE).strip().upper() != VISIT_CANCELLED_STATE
+
+
+def active_visit_clause():
+    return func.upper(func.coalesce(Visit.estado, VISIT_ACTIVE_STATE)) == VISIT_ACTIVE_STATE
+
+
+def backfill_reception_turns(db: Session, fecha: date) -> dict[int, int]:
+    """Asigna turnos faltantes sin cambiar ninguno ya persistido.
+
+    Incluye atenciones canceladas para que su número quede reservado y no mueva
+    los números que ya se entregaron o imprimieron ese día.
+    """
+    rows = list(db.scalars(
+        select(Visit).where(Visit.fecha == fecha).order_by(Visit.id.asc())
+    ))
+    consults = [v for v in rows if not is_procedure(v)]
+    patient_turn: dict[int, int] = {}
+    used: set[int] = set()
+    for v in consults:
+        try:
+            turn = int(v.reception_turn) if v.reception_turn not in (None, "") else None
+        except Exception:
+            turn = None
+        if turn and turn > 0:
+            pid = int(v.patient_id)
+            patient_turn.setdefault(pid, turn)
+            used.add(turn)
+
+    next_turn = 1
+    for v in consults:
+        pid = int(v.patient_id)
+        if pid not in patient_turn:
+            while next_turn in used:
+                next_turn += 1
+            patient_turn[pid] = next_turn
+            used.add(next_turn)
+            next_turn += 1
+        if v.reception_turn != patient_turn[pid]:
+            v.reception_turn = patient_turn[pid]
+    return patient_turn
+
+
+def ensure_visit_attention_identity(db: Session, visit: Visit) -> Visit:
+    """Fija turno e ID de evento una sola vez."""
+    if is_procedure(visit):
+        visit.reception_turn = None
+        visit.queue_event_id = None
+        return visit
+    turns = backfill_reception_turns(db, visit.fecha)
+    visit.reception_turn = int(turns.get(int(visit.patient_id)) or visit.reception_turn or 0) or None
+    if not str(visit.queue_event_id or "").strip():
+        visit.queue_event_id = "reception-" + uuid.uuid4().hex
+    if not str(visit.estado or "").strip():
+        visit.estado = VISIT_ACTIVE_STATE
+    return visit
 
 
 def valid_ecuadorian_cedula(value: str) -> bool:
