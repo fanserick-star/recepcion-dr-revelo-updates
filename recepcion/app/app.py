@@ -11,6 +11,7 @@ import sqlite3
 import historia_bridge
 core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
+import reception_deleted_visit_guard as _deleted_visit_guard
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()
@@ -61,6 +62,13 @@ def _v4541_consultation_turn(visit):
         return None
     with core.LocalSessionLocal() as local_db:
         rows = list(local_db.scalars(core.select(core.Visit).where(core.Visit.fecha == fecha).order_by(core.Visit.id.desc())))
+        hidden = set()
+        try:
+            hidden = set(core.active_deleted_visit_ids(local_db))
+        except Exception:
+            hidden = set()
+        if hidden:
+            rows = [row for row in rows if int(getattr(row, 'id', 0) or 0) not in hidden]
     groups = {}
     order = []
     for row in rows:
@@ -149,7 +157,7 @@ def _v4541_repair_recent_historia_handoffs():
         with core.LocalSessionLocal() as db:
             with sqlite3.connect(outbox, timeout=8) as local:
                 local.row_factory = sqlite3.Row
-                rows = local.execute('SELECT event_id,payload_json FROM events WHERE created_at>=? ORDER BY created_at', (cutoff,)).fetchall()
+                rows = local.execute('SELECT event_id,payload_json FROM events WHERE created_at>=? AND cancelled=0 ORDER BY created_at', (cutoff,)).fetchall()
                 for row in rows:
                     try:
                         payload = json.loads(row['payload_json'])
