@@ -46,7 +46,7 @@ from sqlalchemy import (
     create_engine, String, Integer, Date, DateTime, Numeric, ForeignKey, Text,
     select, or_, func, text, delete, update, insert, case, event
 )
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker, Session, with_loader_criteria
 from sqlalchemy.exc import SQLAlchemyError, OperationalError, IntegrityError
 from dotenv import load_dotenv
 import pg8000.dbapi as pg8000_dbapi
@@ -267,6 +267,9 @@ class Visit(Base):
     observacion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source_row: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    estado: Mapped[str] = mapped_column(String(20), default="ACTIVA", index=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    cancelled_by: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     patient: Mapped[Patient] = relationship(back_populates="visits")
     billing_record: Mapped[Optional["BillingRecord"]] = relationship(
         back_populates="visit", cascade="all, delete-orphan", uselist=False
@@ -563,6 +566,61 @@ def seed_local_historical_registry() -> dict:
 
 Base.metadata.create_all(local_engine)
 LocalBase.metadata.create_all(local_engine)
+
+
+def _ensure_visit_state_schema(engine) -> None:
+    """Migración aditiva y no destructiva del estado de una atención."""
+    if engine is None:
+        return
+    dialect = str(getattr(engine.dialect, "name", "") or "").lower()
+    with engine.begin() as conn:
+        if dialect == "sqlite":
+            cols = {str(row[1]) for row in conn.exec_driver_sql("PRAGMA table_info(visits)").fetchall()}
+            if cols and "estado" not in cols:
+                conn.exec_driver_sql("ALTER TABLE visits ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA'")
+            if cols and "cancelled_at" not in cols:
+                conn.exec_driver_sql("ALTER TABLE visits ADD COLUMN cancelled_at DATETIME")
+            if cols and "cancelled_by" not in cols:
+                conn.exec_driver_sql("ALTER TABLE visits ADD COLUMN cancelled_by VARCHAR(80)")
+            conn.exec_driver_sql("UPDATE visits SET estado='ACTIVA' WHERE estado IS NULL OR TRIM(estado)=''")
+            conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_visits_estado ON visits (estado)")
+        else:
+            conn.execute(text("ALTER TABLE visits ADD COLUMN IF NOT EXISTS estado VARCHAR(20) NOT NULL DEFAULT 'ACTIVA'"))
+            conn.execute(text("ALTER TABLE visits ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL"))
+            conn.execute(text("ALTER TABLE visits ADD COLUMN IF NOT EXISTS cancelled_by VARCHAR(80) NULL"))
+            conn.execute(text("UPDATE visits SET estado='ACTIVA' WHERE estado IS NULL OR BTRIM(estado)=''"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_visits_estado ON visits (estado)"))
+
+
+_ensure_visit_state_schema(local_engine)
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _visits_active_by_default(execute_state):
+    """Una atención CANCELADA no participa en UI/turnos/reportes/cola fiscal pendiente.
+
+    Las pantallas fiscales que necesiten preservar facturas emitidas pueden usar
+    execution_options(include_cancelled_visits=True).
+    """
+    if not execute_state.is_select:
+        return
+    if execute_state.execution_options.get("include_cancelled_visits"):
+        return
+    execute_state.statement = execute_state.statement.options(
+        with_loader_criteria(
+            Visit,
+            lambda cls: cls.estado == "ACTIVA",
+            include_aliases=True,
+        )
+    )
+
+
+def get_visit_any_state(db: Session, visit_id: int) -> Optional[Visit]:
+    return db.scalar(
+        select(Visit)
+        .where(Visit.id == int(visit_id))
+        .execution_options(include_cancelled_visits=True)
+    )
 # create_all no agrega columnas a una tabla SQLite existente. Esta migración local
 # es diminuta, no toca Neon y permite enriquecer las fichas históricas ya instaladas.
 try:
@@ -608,7 +666,7 @@ _cloud_initialized = False
 # billing_preferences y azur_emissions, pero heredaba el marcador antiguo v4.3.7.
 # Con el marcador viejo una PC ya inicializada podía saltarse create_all() y
 # "Aprobar para facturar" fallaba con HTTP 500 al consultar la tabla nueva.
-CLOUD_SCHEMA_MARKER = "cloud_schema_ready_v4_4_0_ops_" + hashlib.sha1(CONFIGURED_DB_URL.encode("utf-8")).hexdigest()[:10]
+CLOUD_SCHEMA_MARKER = "cloud_schema_ready_v4_7_0_attention_state_" + hashlib.sha1(CONFIGURED_DB_URL.encode("utf-8")).hexdigest()[:10]
 _state = {
     "online": False,
     "last_checked": 0.0,
@@ -2088,7 +2146,7 @@ def refresh_local_cache(force: bool = False, cloud_already_checked: bool = False
 
             cleanup_result = _cleanup_expired_confirmafy_appointments(cdb, ldb)
             patients = list(cdb.scalars(select(Patient).order_by(Patient.id)))
-            visits = list(cdb.scalars(select(Visit).order_by(Visit.id)))
+            visits = list(cdb.scalars(select(Visit).order_by(Visit.id).execution_options(include_cancelled_visits=True)))
             procedures = list(cdb.scalars(select(Procedure).order_by(Procedure.id)))
             users = list(cdb.scalars(select(User).order_by(User.id)))
             billing_records = list(cdb.scalars(select(BillingRecord).order_by(BillingRecord.id)))
@@ -2119,7 +2177,8 @@ def refresh_local_cache(force: bool = False, cloud_already_checked: bool = False
             ldb.add_all([Visit(
                 id=v.id, patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo,
                 procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion,
-                source_row=v.source_row, created_at=v.created_at,
+                source_row=v.source_row, created_at=v.created_at, estado=v.estado,
+                cancelled_at=v.cancelled_at, cancelled_by=v.cancelled_by,
             ) for v in visits])
             ldb.add_all([Procedure(id=p.id, nombre=p.nombre, valor_default=p.valor_default, activo=p.activo) for p in procedures])
             ldb.add_all([User(id=u.id, username=u.username, password_hash=u.password_hash, role=u.role) for u in users])
@@ -2336,6 +2395,7 @@ def ensure_cloud_initialized() -> bool:
             return True
         try:
             Base.metadata.create_all(cloud_engine)
+            _ensure_visit_state_schema(cloud_engine)
             ensure_performance_indexes(cloud_engine)
             seed_database(CloudSessionLocal)
             seed_initial_agenda(CloudSessionLocal)
@@ -2776,7 +2836,7 @@ def mirror_visit_to_local(v: Visit):
     try:
         with LocalSessionLocal() as db:
             lv = db.get(Visit, v.id)
-            values = dict(patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo, procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion, source_row=v.source_row, created_at=v.created_at)
+            values = dict(patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo, procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion, source_row=v.source_row, created_at=v.created_at, estado=v.estado, cancelled_at=v.cancelled_at, cancelled_by=v.cancelled_by)
             if lv:
                 for k, val in values.items(): setattr(lv, k, val)
             else:
@@ -3125,6 +3185,7 @@ def v_dict(v: Visit):
         "procedimiento": v.procedimiento,
         "valor": float(v.valor) if v.valor is not None else None,
         "observacion": v.observacion,
+        "estado": str(getattr(v, "estado", "ACTIVA") or "ACTIVA").upper(),
     }
 
 
@@ -3484,14 +3545,16 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
         cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
         audit(cdb, q.username, "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
 
-    elif q.operation == "visit.delete":
+    elif q.operation in {"visit.cancel", "visit.delete"}:
         local_id = int(payload["visit_id"])
         cloud_id = resolve_cloud_id(ldb, "visit", local_id)
-        v = cdb.get(Visit, cloud_id)
+        v = get_visit_any_state(cdb, cloud_id)
         if v:
-            cdb.delete(v)
+            v.estado = "CANCELADA"
+            v.cancelled_at = datetime.utcnow()
+            v.cancelled_by = str(q.username or "admin")[:80]
         result_id = cloud_id
-        audit(cdb, q.username, "sincronizar_borrado_atencion_offline", f"Atención {cloud_id}")
+        audit(cdb, q.username, "sincronizar_cancelacion_atencion", f"Atención {cloud_id}")
 
     elif q.operation in {"billing.approve", "billing.pending", "billing.emit"}:
         local_visit_id = int(payload["visit_id"])
@@ -5660,42 +5723,43 @@ def create_visit_batch(data: VisitBatchIn, db: Session = Depends(get_db), user: 
 
 @app.delete("/api/visits/{visit_id}")
 def delete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    v = db.get(Visit, visit_id)
+    """Retira una atención sin destruir su fila ni su facturación."""
+    v = get_visit_any_state(db, visit_id)
     if not v:
         raise HTTPException(404, "Atención no encontrada")
-    patient_id = v.patient_id
+    patient_id = int(v.patient_id)
+    if str(getattr(v, "estado", "ACTIVA") or "ACTIVA").upper() == "CANCELADA":
+        return {
+            "ok": True, "visit_id": int(visit_id), "patient_id": patient_id,
+            "cancelled": True, "already_cancelled": True, "fiscal_preserved": True,
+            "offline": is_offline_db(db),
+        }
     detail = f"Atención {v.id}, paciente {patient_id}, fecha {v.fecha}, servicio {v.procedimiento or 'CONSULTA'}"
+    v.estado = "CANCELADA"
+    v.cancelled_at = datetime.utcnow()
+    v.cancelled_by = str(getattr(user, "username", None) or "admin")[:80]
     if is_offline_db(db):
-        patient = db.get(Patient, int(patient_id))
         add_queue(
             db,
-            "visit.delete",
+            "visit.cancel",
             "visit",
-            {
-                "visit_id": int(visit_id),
-                "cloud_visit_id": get_id_map(db, "visit", int(visit_id)),
-                "patient_id": int(patient_id),
-                "cloud_patient_id": get_id_map(db, "patient", int(patient_id)),
-                "patient_cedula": str(getattr(patient, "cedula", "") or "") if patient else "",
-                "patient_name": str(getattr(patient, "nombre", "") or "") if patient else "",
-                "fecha": v.fecha.isoformat() if v.fecha else "",
-                "tipo": str(v.tipo or ""),
-                "procedimiento": v.procedimiento,
-                "valor": float(v.valor) if v.valor is not None else None,
-                "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else "",
-            },
-            user.username,
-            visit_id,
+            {"visit_id": int(visit_id), "cloud_visit_id": get_id_map(db, "visit", int(visit_id))},
+            getattr(user, "username", None) or "admin",
+            int(visit_id),
         )
-        audit(db, user, "borrar_atencion_offline", detail)
-        db.delete(v)
+        audit(db, user, "cancelar_atencion_offline", detail)
         db.commit()
-        return {"ok": True, "visit_id": visit_id, "patient_id": patient_id, "offline": True}
-    audit(db, user, "borrar_atencion", detail)
-    db.delete(v)
+        return {
+            "ok": True, "visit_id": int(visit_id), "patient_id": patient_id,
+            "cancelled": True, "fiscal_preserved": True, "offline": True,
+        }
+    audit(db, user, "cancelar_atencion", detail)
     db.commit()
-    mirror_delete_visit_local(visit_id)
-    return {"ok": True, "visit_id": visit_id, "patient_id": patient_id, "offline": False}
+    mirror_visit_to_local(v)
+    return {
+        "ok": True, "visit_id": int(visit_id), "patient_id": patient_id,
+        "cancelled": True, "fiscal_preserved": True, "offline": False,
+    }
 
 
 @app.get("/api/dashboard")
@@ -9051,15 +9115,10 @@ def ops_safe_delete_patient(pid: int, db: Session = Depends(get_db), user: User 
 
 @app.delete("/api/safety/visits/{visit_id}")
 def ops_safe_delete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
-    v = db.get(Visit, visit_id)
-    if not v:
-        raise HTTPException(404, "Atención no encontrada")
-    item = _ops_capture_visit(db, user, v)
-    try:
-        result = delete_visit(visit_id, db, user)
-    except Exception:
-        _ops_discard_local_trash(item.id); raise
-    return {**result, "trash_id": item.id, "undo": True, "trash_label": item.label}
+    # Desde 4.7.0 una atención no se borra físicamente. La fila y cualquier
+    # BillingRecord/Factura quedan preservados, por lo que Papelera ya no es
+    # necesaria para este tipo de operación.
+    return {**delete_visit(visit_id, db, user), "undo": False, "soft_cancel": True}
 
 
 @app.delete("/api/safety/appointments/{appointment_id}")
