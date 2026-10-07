@@ -53,6 +53,13 @@ jobs:
           assert 'Ver historia clínica' in doctor
           assert 'HISTORIA CLÍNICA · SOLO LECTURA' in doctor
           assert 'La historia se consulta en vivo. No se guarda una copia clínica en este teléfono.' in doctor
+          verify=Path('agenda/verificar.html').read_text(encoding='utf-8')
+          assert 'ARMANDO ARTURO REVELO CASTILLO' in verify
+          assert 'VÁLIDO HASTA' in verify
+          assert 'FirmaEC' in verify
+          assert 'datos del paciente' in verify
+          assert 'diagnóstico' not in verify.lower()
+          assert 'medicamento' not in verify.lower()
           assert 'revelo_historia_' not in doctor
           print('AGENDA_AND_DIRECT_HISTORIA_SOURCE_OK')
           PY

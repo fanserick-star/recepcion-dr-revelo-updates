@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#173b66">
+<meta name="robots" content="noindex,nofollow">
+<title>Verificación de firma electrónica · Dr. Armando Revelo</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#172033;background:#f3f6f9;--navy:#173b66;--green:#2b7a55;--line:#dce4ec;--muted:#68778a}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#f3f6f9}
+body{padding:22px 12px 44px}.wrap{max-width:620px;margin:auto}
+.brand{display:flex;align-items:center;gap:12px;margin:4px 4px 18px}.brand img{width:54px;height:54px;object-fit:contain;background:#fff;border-radius:14px;padding:5px;box-shadow:0 3px 14px #10243e18}.brand b{display:block;font-size:16px}.brand span{display:block;margin-top:2px;font-size:12px;color:var(--muted)}
+.card{background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:0 10px 32px #10243e12;overflow:hidden}
+.head{padding:24px 22px 18px;text-align:center;border-bottom:1px solid #edf1f5}.mark{width:56px;height:56px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;background:#eaf6ef;color:var(--green);font-size:28px;font-weight:900}.eyebrow{font-size:10px;letter-spacing:.13em;font-weight:900;color:#6a7d94}.head h1{font-size:22px;margin:5px 0 6px;color:#173b66}.head p{margin:0;color:var(--muted);font-size:12px;line-height:1.45}
+.body{padding:20px 22px 22px}.name{text-align:center;font-size:16px;font-weight:900;margin:1px 0 18px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.item{border:1px solid #e3e9ef;border-radius:13px;padding:12px}.item.full{grid-column:1/-1}.item span{display:block;font-size:9px;font-weight:900;letter-spacing:.08em;color:#7b8797;margin-bottom:5px}.item b{font-size:13px;line-height:1.35}.cert{margin-top:14px;border:1px solid #d8e7df;background:#f5faf7;border-radius:14px;padding:14px}.cert-title{font-weight:900;font-size:12px;margin-bottom:7px}.cert-state{font-size:13px;font-weight:900;color:var(--green)}.cert-state.expired{color:#7b6250}.cert small{display:block;margin-top:8px;color:#607064;line-height:1.45}
+.note{margin-top:14px;background:#f6f8fb;border-radius:13px;padding:13px;color:#5f6e80;font-size:11px;line-height:1.5}.bad{padding:30px 22px;text-align:center}.bad h1{font-size:20px;color:#7a3340}.bad p{font-size:12px;color:#6b7584;line-height:1.5}.footer{text-align:center;color:#8792a1;font-size:10px;line-height:1.45;margin-top:14px}
+@media(max-width:520px){body{padding:12px 8px 32px}.grid{grid-template-columns:1fr}.item.full{grid-column:auto}.head,.body{padding-left:16px;padding-right:16px}.brand{margin-left:6px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="brand"><img src="logo.svg" alt="Logo Dr. Armando Revelo"><div><b>Dr. Armando Revelo</b><span>Consulta de firma electrónica</span></div></div>
+  <section class="card" id="card"><div class="head"><div class="mark">✓</div><div class="eyebrow">DOCUMENTO FIRMADO ELECTRÓNICAMENTE</div><h1>Datos de la firma</h1><p>Información no clínica incorporada al QR del documento firmado.</p></div><div class="body" id="content"></div></section>
+  <div class="footer">Esta página no contiene datos del paciente ni el contenido clínico del documento.</div>
+</main>
+<script>
+(()=>{'use strict';
+const p=new URLSearchParams(location.search),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const code=String(p.get('c')||'').trim().toUpperCase(),type=String(p.get('t')||'').trim().toUpperCase(),signed=String(p.get('f')||''),issued=String(p.get('i')||''),expires=String(p.get('e')||'');
+const validCode=/^[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/.test(code),validDate=v=>/^\d{8}$/.test(v),validStamp=/^\d{8}T\d{6}$/.test(signed);
+const labels={R:'Receta médica',C:'Certificado médico',A:'Certificado de reposo / aislamiento',D:'Documento clínico'};
+function dateFromCompact(v,end=false){if(!validDate(v))return null;const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8);return new Date(y,m,d,end?23:0,end?59:0,end?59:0)}
+function stampFromCompact(v){if(!validStamp(v))return null;return new Date(+v.slice(0,4),+v.slice(4,6)-1,+v.slice(6,8),+v.slice(9,11),+v.slice(11,13),+v.slice(13,15))}
+function fmtDate(v){const d=dateFromCompact(v);return d?new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'long',year:'numeric'}).format(d):'No disponible'}
+function fmtStamp(v){const d=stampFromCompact(v);return d&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d):'No disponible'}
+if(!validCode||!validStamp||!validDate(issued)||!validDate(expires)){
+ document.getElementById('card').innerHTML='<div class="bad"><h1>QR no reconocido</h1><p>Este enlace no contiene la información mínima esperada de una firma electrónica del consultorio.</p></div>';return;
+}
+const now=new Date(),exp=dateFromCompact(expires,true),ini=dateFromCompact(issued,false),sig=stampFromCompact(signed);
+const expired=exp&&now>exp,validAtSign=!!(ini&&exp&&sig&&sig>=ini&&sig<=exp);
+const state=expired?'CERTIFICADO EXPIRADO ACTUALMENTE':'CERTIFICADO VIGENTE';
+const stateText=expired
+ ? (validAtSign?'El certificado ya expiró, pero constaba vigente en la fecha indicada de firma.':'El certificado utilizado alcanzó su fecha de expiración.')
+ : (validAtSign?'El certificado se encuentra vigente y constaba vigente en la fecha indicada de firma.':'El certificado se encuentra dentro de su periodo actual de vigencia.');
+document.getElementById('content').innerHTML=
+ '<div class="name">ARMANDO ARTURO REVELO CASTILLO</div>'+
+ '<div class="grid">'+
+ '<div class="item"><span>TIPO DE DOCUMENTO</span><b>'+esc(labels[type]||labels.D)+'</b></div>'+
+ '<div class="item"><span>CÓDIGO</span><b>'+esc(code)+'</b></div>'+
+ '<div class="item full"><span>FECHA Y HORA INDICADA DE FIRMA</span><b>'+esc(fmtStamp(signed))+'</b></div>'+
+ '<div class="item"><span>CERTIFICADO EMITIDO</span><b>'+esc(fmtDate(issued))+'</b></div>'+
+ '<div class="item"><span>CERTIFICADO VÁLIDO HASTA</span><b>'+esc(fmtDate(expires))+'</b></div>'+
+ '</div>'+
+ '<div class="cert"><div class="cert-title">Estado del certificado</div><div class="cert-state '+(expired?'expired':'')+'">'+state+'</div><small>'+esc(stateText)+'</small></div>'+
+ '<div class="note"><b>Validación criptográfica:</b> esta página consulta los datos no clínicos contenidos en el QR. Para comprobar criptográficamente la firma PAdES del archivo PDF original, utilice FirmaEC u otro validador compatible.</div>';
+})();
+</script>
+</body>
+</html>

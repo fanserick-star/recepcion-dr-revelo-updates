@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.3",
-  "app_version": "1.4.3",
-  "runtime_version": "1.4.3",
+  "version": "1.4.4",
+  "app_version": "1.4.4",
+  "runtime_version": "1.4.4",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.3: mejora visual de la estampa de firma electrónica. Se elimina por completo el recuadro exterior y el nombre visible se toma del nombre común legal del certificado del firmante, sin prefijo profesional. QR, código, fecha/hora y firma PAdES permanecen protegidos criptográficamente; la impresión normal no cambia.",
-    "previous_version": "1.4.2",
+    "purpose": "Historia 1.4.4: el QR de los PDF firmados abre una página pública de consulta de firma. Muestra código, tipo de documento, fecha/hora de firma y las fechas de emisión y expiración leídas directamente del certificado electrónico. La página no contiene datos del paciente ni contenido clínico y aclara que la validación criptográfica del PDF se realiza con FirmaEC/PAdES.",
+    "previous_version": "1.4.3",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -166,6 +166,11 @@
     "patient_data_changes": false,
     "electronic_signature_stamp_border": false,
     "electronic_signature_stamp_legal_name_from_certificate": true,
-    "electronic_signature_stamp_professional_prefix": false
+    "electronic_signature_stamp_professional_prefix": false,
+    "electronic_signature_qr_public_page": true,
+    "electronic_signature_certificate_validity_from_certificate": true,
+    "electronic_signature_qr_clinical_data": false,
+    "electronic_signature_public_page_url": "https://fanserick-star.github.io/recepcion-dr-revelo-updates/verificar.html",
+    "electronic_signature_public_page_crypto_disclaimer": true
   }
 }
