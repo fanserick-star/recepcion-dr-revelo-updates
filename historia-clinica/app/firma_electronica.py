@@ -118,6 +118,30 @@ def _session_passphrase() -> bytes | None:
         return bytes(value) if isinstance(value, (bytes, bytearray)) else None
 
 
+def _certificate_validity_iso(cert, attr: str, asn1_key: str) -> str:
+    """Lee una fecha X.509 tanto si la librería devuelve datetime como ASN.1."""
+    value = None
+    try:
+        value = getattr(cert, attr)
+    except Exception:
+        value = None
+    try:
+        value = getattr(value, "native", value)
+    except Exception:
+        pass
+    if value is None:
+        try:
+            value = cert["tbs_certificate"]["validity"][asn1_key].native
+        except Exception:
+            value = None
+    if value is None:
+        return ""
+    try:
+        return value.isoformat()
+    except Exception:
+        return str(value).strip()
+
+
 def _certificate_metadata(signer) -> dict:
     cert = getattr(signer, "signing_cert", None)
     if cert is None:
@@ -130,25 +154,11 @@ def _certificate_metadata(signer) -> dict:
         serial = str(cert.serial_number)
     except Exception:
         serial = ""
-    try:
-        not_before = cert.not_valid_before.native.isoformat()
-    except Exception:
-        try:
-            not_before = str(cert.not_valid_before.native)
-        except Exception:
-            not_before = ""
-    try:
-        not_after = cert.not_valid_after.native.isoformat()
-    except Exception:
-        try:
-            not_after = str(cert.not_valid_after.native)
-        except Exception:
-            not_after = ""
     return {
         "subject": subject,
         "serial": serial,
-        "not_before": not_before,
-        "not_after": not_after,
+        "not_before": _certificate_validity_iso(cert, "not_valid_before", "not_before"),
+        "not_after": _certificate_validity_iso(cert, "not_valid_after", "not_after"),
     }
 
 
