@@ -737,6 +737,18 @@ def install(app, context: dict) -> None:
           try{{
             const j=await saveRx(false);
             if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/receta/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('La receta se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
               await window.historiaNativePrint(j.preview_url,'recipe');
               return;
@@ -1190,6 +1202,18 @@ footer{{
           try{{
             const j=await saveCert(false);
             if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/certificado/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('El certificado se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
               await window.historiaNativePrint(j.preview_url,'certificate');
               return;
@@ -1620,6 +1644,18 @@ footer{{
           try{{
             const j=await saveRest(false);
             if(mode==='print'){{
+              try{{
+                const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
+                if(sr.ok){{
+                  const ss=await sr.json().catch(()=>({{}}));
+                  if(ss.configured&&ss.unlocked){{
+                    const signed=await fetch('/api/firma/documento/reposo/'+encodeURIComponent(j.id),{{cache:'no-store'}});
+                    if(!signed.ok&&window.showAppToast)showAppToast('El certificado se imprimirá, pero no se pudo crear su PDF firmado.','error');
+                  }}else if(ss.configured&&!ss.unlocked&&window.showAppToast){{
+                    showAppToast('Firma electrónica bloqueada: se imprimirá normalmente sin generar el PDF firmado.','info');
+                  }}
+                }}
+              }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
               await window.historiaNativePrint(j.preview_url,'certificate');
               return;
