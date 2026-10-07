@@ -453,6 +453,14 @@ def _flush_lan_outbox(max_items: int = 30) -> None:
             payload = json.loads(payload_json)
             if send_lan(payload):
                 _lan_outbox_mark(str(event_id), sent=True)
+                # Idempotente: si el mismo event_id perteneció antes a una
+                # atención cancelada pero la visita sigue viva, Historia debe
+                # volverlo a waiting. En cualquier otro estado no hace nada.
+                try:
+                    visit_ids = list(payload.get("visit_ids") or [])
+                    _send_control_lan("restore", str(event_id), visit_ids[0] if visit_ids else "")
+                except Exception:
+                    pass
             else:
                 _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
                 break
@@ -705,6 +713,14 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
     _lan_outbox_put(payload)
     if send_lan(payload):
         _lan_outbox_mark(event_id, sent=True)
+        # Siempre mandamos restore después del handoff. Es una operación
+        # idempotente en Historia: solo cambia cancelled -> waiting. Esto evita
+        # que una atención nueva quede atrapada en cancelled si SQLite reutiliza
+        # un visit_id borrado y por tanto se reutiliza el event_id determinista.
+        try:
+            _send_control_lan("restore", event_id, visit_ids[0] if visit_ids else "")
+        except Exception:
+            pass
     else:
         _lan_outbox_mark(event_id, error=_snapshot().get("lan_last_error") or "Pendiente de entrega LAN")
     return event_id
