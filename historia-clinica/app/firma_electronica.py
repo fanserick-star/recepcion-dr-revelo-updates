@@ -14,7 +14,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -27,10 +27,12 @@ _SESSION = {
     "expires_at": 0.0,
     "subject": "",
     "serial": "",
+    "not_before": "",
     "not_after": "",
 }
 _DEFAULT_SESSION_SECONDS = 8 * 60 * 60
 _STAMP_BORDER_WIDTH = 0
+_VERIFICATION_PAGE_URL = "https://fanserick-star.github.io/recepcion-dr-revelo-updates/verificar.html"
 
 
 def _now_iso() -> str:
@@ -101,6 +103,7 @@ def _session_clear() -> None:
         _SESSION["expires_at"] = 0.0
         _SESSION["subject"] = ""
         _SESSION["serial"] = ""
+        _SESSION["not_before"] = ""
         _SESSION["not_after"] = ""
 
 
@@ -118,7 +121,7 @@ def _session_passphrase() -> bytes | None:
 def _certificate_metadata(signer) -> dict:
     cert = getattr(signer, "signing_cert", None)
     if cert is None:
-        return {"subject": "", "serial": "", "not_after": ""}
+        return {"subject": "", "serial": "", "not_before": "", "not_after": ""}
     try:
         subject = str(cert.subject.human_friendly or "")
     except Exception:
@@ -128,13 +131,25 @@ def _certificate_metadata(signer) -> dict:
     except Exception:
         serial = ""
     try:
+        not_before = cert.not_valid_before.native.isoformat()
+    except Exception:
+        try:
+            not_before = str(cert.not_valid_before.native)
+        except Exception:
+            not_before = ""
+    try:
         not_after = cert.not_valid_after.native.isoformat()
     except Exception:
         try:
             not_after = str(cert.not_valid_after.native)
         except Exception:
             not_after = ""
-    return {"subject": subject, "serial": serial, "not_after": not_after}
+    return {
+        "subject": subject,
+        "serial": serial,
+        "not_before": not_before,
+        "not_after": not_after,
+    }
 
 
 def _certificate_legal_name(signer, fallback: str = "") -> str:
@@ -253,6 +268,7 @@ def _unlock(root: Path, password: str, ttl_seconds: int = _DEFAULT_SESSION_SECON
         _SESSION["expires_at"] = time.time() + ttl
         _SESSION["subject"] = meta["subject"]
         _SESSION["serial"] = meta["serial"]
+        _SESSION["not_before"] = meta["not_before"]
         _SESSION["not_after"] = meta["not_after"]
     return meta
 
@@ -265,6 +281,7 @@ def _status(root: Path) -> dict:
         meta = {
             "subject": str(_SESSION.get("subject") or ""),
             "serial": str(_SESSION.get("serial") or ""),
+            "not_before": str(_SESSION.get("not_before") or ""),
             "not_after": str(_SESSION.get("not_after") or ""),
         }
     return {
@@ -405,18 +422,35 @@ def _signature_stamp_box(kind: str) -> tuple[int, int, int, int]:
     return (425, 68, 575, 138)
 
 
-def _signature_qr_payload(kind: str, code: str, signed_at: datetime) -> str:
-    # No incluir datos clínicos ni identificadores personales del paciente.
-    label = {
-        "receta": "RECETA",
-        "certificado": "CERTIFICADO",
-        "reposo": "REPOSO",
-    }.get(str(kind or "").strip().lower(), "DOCUMENTO")
-    return (
-        "DRREVELO|FIRMA_ELECTRONICA_PAdES"
-        f"|TIPO={label}|CODIGO={code}"
-        f"|FECHA={signed_at.strftime('%Y-%m-%dT%H:%M:%S')}"
-    )
+def _compact_cert_date(value: object) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    digits = "".join(ch for ch in raw[:10] if ch.isdigit())
+    return digits[:8]
+
+
+def _signature_qr_payload(
+    kind: str,
+    code: str,
+    signed_at: datetime,
+    certificate_meta: dict,
+) -> str:
+    # URL pública deliberadamente libre de datos clínicos o del paciente.
+    kind_code = {
+        "receta": "R",
+        "certificado": "C",
+        "reposo": "A",
+    }.get(str(kind or "").strip().lower(), "D")
+    params = {
+        "v": "1",
+        "c": str(code or ""),
+        "t": kind_code,
+        "f": signed_at.strftime("%Y%m%dT%H%M%S"),
+        "i": _compact_cert_date(certificate_meta.get("not_before")),
+        "e": _compact_cert_date(certificate_meta.get("not_after")),
+    }
+    return _VERIFICATION_PAGE_URL + "?" + urlencode(params)
 
 
 def _sign_pdf(
@@ -448,7 +482,12 @@ def _sign_pdf(
         doc_id,
         str(meta.get("serial") or ""),
     )
-    qr_payload = _signature_qr_payload(kind, verification_code, signed_at)
+    qr_payload = _signature_qr_payload(
+        kind,
+        verification_code,
+        signed_at,
+        meta,
+    )
     display_name = _certificate_legal_name(
         signer,
         str(doctor_name or "Armando Revelo"),
