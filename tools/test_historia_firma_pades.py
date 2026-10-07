@@ -83,6 +83,8 @@ def main() -> None:
         meta = fe._unlock(root, password.decode("ascii"), ttl_seconds=900)
         assert fe._status(root)["unlocked"] is True
         assert meta.get("subject"), meta
+        assert meta.get("not_before"), meta
+        assert meta.get("not_after"), meta
         signer = fe._load_signer(root, password)
         assert fe._certificate_legal_name(signer, "Dr. Fallback") == "ARMANDO ARTURO REVELO CASTILLO"
         assert fe._STAMP_BORDER_WIDTH == 0
@@ -111,16 +113,15 @@ def main() -> None:
             "certificado",
             code,
             datetime.now(),
-            {
-                "not_before": "2026-07-23T15:38:10",
-                "not_after": "2027-07-23T15:38:10",
-            },
+            meta,
         )
         assert qr_payload.startswith(fe._VERIFICATION_PAGE_URL + "?"), qr_payload
         assert "FIRMASEGURA" not in qr_payload.upper()
         assert "doc-prueba-001" not in qr_payload, "El QR no debe exponer el ID interno"
         assert "c=" in qr_payload and "t=C" in qr_payload
-        assert "i=20260723" in qr_payload and "e=20270723" in qr_payload
+        assert "i=" in qr_payload and "e=" in qr_payload
+        assert "i=&" not in qr_payload and not qr_payload.endswith("i="), qr_payload
+        assert "e=&" not in qr_payload and not qr_payload.endswith("e="), qr_payload
         assert "patient" not in qr_payload.lower() and "cedula" not in qr_payload.lower()
 
         fe._session_clear()
