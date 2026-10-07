@@ -46,7 +46,7 @@ def _test_pkcs12(path: Path, password: bytes) -> None:
         [
             x509.NameAttribute(NameOID.COUNTRY_NAME, "EC"),
             x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Historia Clinica CI"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "Dr. Prueba Firma"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "ARMANDO ARTURO REVELO CASTILLO"),
         ]
     )
     now = datetime.now(timezone.utc)
@@ -83,6 +83,9 @@ def main() -> None:
         meta = fe._unlock(root, password.decode("ascii"), ttl_seconds=900)
         assert fe._status(root)["unlocked"] is True
         assert meta.get("subject"), meta
+        signer = fe._load_signer(root, password)
+        assert fe._certificate_legal_name(signer, "Dr. Fallback") == "ARMANDO ARTURO REVELO CASTILLO"
+        assert fe._STAMP_BORDER_WIDTH == 0
 
         source = root / "origen.pdf"
         signed = root / "firmado.pdf"
@@ -91,7 +94,7 @@ def main() -> None:
             root,
             source,
             signed,
-            "Dr. Prueba Firma",
+            "Dr. Armando Revelo",
             "certificado",
             "doc-prueba-001",
         )
