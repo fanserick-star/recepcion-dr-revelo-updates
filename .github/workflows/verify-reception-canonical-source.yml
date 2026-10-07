@@ -74,6 +74,9 @@ jobs:
           assert 'reception_patient_id,attention_type,queued_at' in guard
           assert 'historia_cloud_cancel_tombstones' in guard
           assert '_REMOTE_CACHE_SECONDS = 90.0' in guard
+          assert '_same_moment_reception_historia' in guard
+          assert '5 * 60 * 60' in guard
+          assert 'tolerance_minutes=20' in guard
           print('RECEPTION -> HISTORIA DELETE SYNC GUARD OK')
           PY
           PYTHONPATH=recepcion/app python - <<'PY'
