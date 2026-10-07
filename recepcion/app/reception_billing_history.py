@@ -82,7 +82,13 @@ def _save_emission_payload(record, payload: dict) -> None:
 def _preserve_patient_fiscal_history(db, patient) -> int:
     """Adjunta a AzurEmission un snapshot mínimo antes de borrar el paciente."""
     pid = int(patient.id)
-    rows = db.execute(core.select(core.BillingRecord, core.Visit).join(core.Visit, core.BillingRecord.visit_id == core.Visit.id).where(core.Visit.patient_id == pid, core.BillingRecord.estado == 'EMITIDA').order_by(core.Visit.fecha, core.Visit.id)).all()
+    rows = db.execute(
+        core.select(core.BillingRecord, core.Visit)
+        .join(core.Visit, core.BillingRecord.visit_id == core.Visit.id)
+        .where(core.Visit.patient_id == pid, core.BillingRecord.estado == 'EMITIDA')
+        .order_by(core.Visit.fecha, core.Visit.id)
+        .execution_options(include_cancelled_visits=True)
+    ).all()
     if not rows:
         return 0
     emissions = list(db.scalars(core.select(core.AzurEmission).where(core.AzurEmission.patient_id == pid).order_by(core.AzurEmission.fecha, core.AzurEmission.id)))
@@ -260,7 +266,12 @@ def _archived_emitted_items(db, desde=None, hasta=None) -> list[dict]:
 
 def _billing_counts(db, archived_items: list[dict] | None=None) -> dict:
     hidden = _active_trashed_patient_ids()
-    rows = db.execute(core.select(core.BillingRecord, core.Visit).join(core.Visit, core.BillingRecord.visit_id == core.Visit.id).where(core.Visit.fecha >= core.BILLING_QUEUE_START_DATE)).all()
+    rows = db.execute(
+        core.select(core.BillingRecord, core.Visit)
+        .join(core.Visit, core.BillingRecord.visit_id == core.Visit.id)
+        .where(core.Visit.fecha >= core.BILLING_QUEUE_START_DATE)
+        .execution_options(include_cancelled_visits=True)
+    ).all()
     pending = set()
     emitted = set()
     for billing, visit in rows:
@@ -268,7 +279,8 @@ def _billing_counts(db, archived_items: list[dict] | None=None) -> dict:
         if pid in hidden:
             continue
         state = str(billing.estado or '').upper()
-        if state in {'PENDIENTE', 'APROBADA'}:
+        visit_state = str(getattr(visit, 'estado', 'ACTIVA') or 'ACTIVA').upper()
+        if state in {'PENDIENTE', 'APROBADA'} and visit_state == 'ACTIVA':
             pending.add((pid, visit.fecha.isoformat()))
         elif state == 'EMITIDA':
             inv = str(billing.numero_factura or '').strip()
@@ -373,12 +385,11 @@ try:
 
     @app.delete('/api/safety/visits/{visit_id}')
     def v4476_safe_delete_visit(visit_id: int, db=core.Depends(core.get_db), user=core.Depends(core.current_user)):
-        visit = db.get(core.Visit, int(visit_id))
+        # 4.7.0: "eliminar atención" es una cancelación clínica no destructiva.
+        # La factura emitida permanece enlazada a la misma Visit CANCELADA.
+        visit = core.get_visit_any_state(db, int(visit_id))
         if not visit:
             raise core.HTTPException(404, 'Atención no encontrada')
-        billing = db.scalar(core.select(core.BillingRecord).where(core.BillingRecord.visit_id == int(visit_id)))
-        if billing and str(billing.estado or '').upper() == 'EMITIDA':
-            raise core.HTTPException(409, 'Esta atención ya tiene una factura emitida y no se puede borrar. El historial fiscal debe conservarse.')
         return _stable_safe_delete_visit(int(visit_id), db, user)
 
     @app.get('/api/v4476/billing/prior-emissions')
