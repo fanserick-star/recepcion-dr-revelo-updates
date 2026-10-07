@@ -424,6 +424,11 @@ def _page_html(base, status: dict) -> str:
         if unlocked
         else "La contraseña nunca se guarda en disco, Neon ni .env."
     )
+    cert_detail = (
+        "Archivo: " + str(status.get("certificate_name") or "")
+        if configured
+        else "Seleccione el archivo .p12 o .pfx del doctor."
+    )
     body = f"""
 <section class='page-head'>
   <span class='eyebrow'>SEGURIDAD LOCAL</span>
@@ -435,9 +440,7 @@ def _page_html(base, status: dict) -> str:
     <div style='border:1px solid #d8e1ea;border-radius:14px;padding:16px'>
       <strong style='display:block;font-size:16px'>{state_title}</strong>
       <span style='display:block;color:#64748b;margin-top:5px'>{state_detail}</span>
-      <div id='firma-cert' style='margin-top:12px;font-size:13px;color:#334155'>
-        {('Archivo: '+str(status.get('certificate_name') or '')) if configured else 'Seleccione el archivo .p12 o .pfx del doctor.'}
-      </div>
+      <div id='firma-cert' style='margin-top:12px;font-size:13px;color:#334155'>{cert_detail}</div>
       <button id='firma-select' class='secondary' style='margin-top:12px'>Seleccionar certificado</button>
     </div>
     <div style='border:1px solid #d8e1ea;border-radius:14px;padding:16px'>
@@ -453,6 +456,8 @@ def _page_html(base, status: dict) -> str:
   </div>
   <div id='firma-result' style='margin-top:14px;border-radius:12px;padding:12px;background:#f8fafc;color:#334155'>Cargando estado…</div>
 </section>
+"""
+    body += """
 <script>
 async function firmaStatus(){
   const r=await fetch('/api/firma/status?t='+Date.now(),{cache:'no-store'}); const s=await r.json();
@@ -476,7 +481,6 @@ firmaStatus();
 </script>
 """
     return base("Firma electrónica", body, "configuracion")
-
 
 def install(app, context: dict) -> None:
     root = Path(context["ROOT"])
