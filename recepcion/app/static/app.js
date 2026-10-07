@@ -795,7 +795,7 @@ function homeTable(rows){
   }
 }
 async function deleteVisitFromHome(visitId,fecha){
-  if(!confirmDeletion('¿Borrar esta atención?\n\nEsta acción eliminará también su pre-factura asociada.'))return;
+  if(!confirmDeletion('¿Retirar esta atención?\n\nSi todavía no fue facturada, se eliminará junto con su pre-factura. Si ya tiene factura emitida, la factura se conservará y solo se retirará la atención del flujo clínico.'))return;
   try{
     await singleFlightMutation(`visit:delete:${visitId}`,async()=>{
       await api('/api/visits/'+visitId,{method:'DELETE'});

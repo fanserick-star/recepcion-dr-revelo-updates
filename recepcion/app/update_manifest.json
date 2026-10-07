@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.59",
-  "app_version": "4.6.59",
-  "runtime_version": "4.6.59",
+  "version": "4.6.60",
+  "app_version": "4.6.60",
+  "runtime_version": "4.6.60",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -172,14 +172,14 @@
     "reception_deleted_visit_guard.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.59: corrige el emparejamiento entre atenciones de Recepción y cancelaciones de Historia cuando los timestamps están en UTC versus hora local de Ecuador (UTC-5). Mantiene una tolerancia corta de 20 minutos y acepta únicamente coincidencia directa o diferencia exacta de ±5 horas, evitando ocultar consultas legítimas distintas.",
-    "previous_version": "4.6.58",
+    "purpose": "Recepción 4.6.60: envía a Historia el número real de turno de cada consulta, repara automáticamente los handoffs del día que llegaron sin número y permite retirar del flujo clínico una atención con factura ya emitida sin borrar ni alterar el comprobante fiscal. La baja clínica crea un tombstone local, cancela el turno en Historia y conserva la factura únicamente en el histórico fiscal.",
+    "previous_version": "4.6.59",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
     "patient_data_changes": true,
-    "patient_data_destructive_changes": true,
+    "patient_data_destructive_changes": false,
     "billing_logic_changes": true,
     "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
@@ -363,7 +363,14 @@
     ],
     "cancel_match_tolerance_minutes": 20,
     "current_anzules_cancelled_turn_4_timezone_match": true,
-    "current_castillo_cancelled_turn_2_timezone_match": true
+    "current_castillo_cancelled_turn_2_timezone_match": true,
+    "reception_turn_sent_to_historia": true,
+    "reception_turn_calculation": "consulta por paciente/día, orden por primera atención, procedimientos excluidos",
+    "repair_today_missing_turns": true,
+    "billed_visit_clinical_remove": true,
+    "billed_visit_invoice_preserved": true,
+    "billed_visit_azur_preserved": true,
+    "billed_visit_history_cancelled": true
   },
   "channel": "launcher-v1-stable"
 }
