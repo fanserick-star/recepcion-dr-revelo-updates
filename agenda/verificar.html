@@ -31,7 +31,7 @@ const code=String(p.get('c')||'').trim().toUpperCase(),type=String(p.get('t')||'
 const validCode=/^[A-F0-9]{4}(?:-[A-F0-9]{4}){3}$/.test(code),validDate=v=>/^\d{8}$/.test(v),validStamp=/^\d{8}T\d{6}$/.test(signed);
 const labels={R:'Receta médica',C:'Certificado médico',A:'Certificado de reposo / aislamiento',D:'Documento clínico'};
 function dateFromCompact(v,end=false){if(!validDate(v))return null;const y=+v.slice(0,4),m=+v.slice(4,6)-1,d=+v.slice(6,8);return new Date(y,m,d,end?23:0,end?59:0,end?59:0)}
-function stampFromCompact(v){if(!validStamp)return null;return new Date(+v.slice(0,4),+v.slice(4,6)-1,+v.slice(6,8),+v.slice(9,11),+v.slice(11,13),+v.slice(13,15))}
+function stampFromCompact(v){if(!validStamp(v))return null;return new Date(+v.slice(0,4),+v.slice(4,6)-1,+v.slice(6,8),+v.slice(9,11),+v.slice(11,13),+v.slice(13,15))}
 function fmtDate(v){const d=dateFromCompact(v);return d?new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'long',year:'numeric'}).format(d):'No disponible'}
 function fmtStamp(v){const d=stampFromCompact(v);return d&&!Number.isNaN(d.getTime())?new Intl.DateTimeFormat('es-EC',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(d):'No disponible'}
 if(!validCode||!validStamp||!validDate(issued)||!validDate(expires)){
