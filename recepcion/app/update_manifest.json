@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.53",
-  "app_version": "4.6.53",
-  "runtime_version": "4.6.53",
+  "version": "4.6.54",
+  "app_version": "4.6.54",
+  "runtime_version": "4.6.54",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.53: corrige una carrera del puente hacia Historia Clínica que podía cancelar un paciente recién atendido si la atención local todavía no había terminado de sincronizarse con Neon. La reconciliación ahora exige ausencia local antes de considerar una atención borrada y restaura automáticamente handoffs cancelados por error cuya atención siga existiendo localmente.",
-    "previous_version": "4.6.52",
+    "purpose": "Recepción 4.6.54: corrige el caso borrar y recrear una consulta del mismo paciente cuando SQLite reutiliza el mismo visit_id. El handoff hacia Historia ahora ejecuta una restauración idempotente tras cada entrega y al iniciar, de modo que un event_id previamente cancelado vuelve a waiting solo si la atención continúa existiendo localmente. No revive atenciones realmente borradas y no altera historias firmadas/completadas.",
+    "previous_version": "4.6.53",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -307,7 +307,11 @@
     "waiting_queue_daily_scope": true,
     "historia_false_cancel_race_fixed": true,
     "historia_cancel_requires_local_absence": true,
-    "historia_false_cancel_self_heal": true
+    "historia_false_cancel_self_heal": true,
+    "historia_reused_event_id_cancel_recovery": true,
+    "historia_restore_after_handoff": true,
+    "historia_startup_live_handoff_restore": true,
+    "historia_completed_queue_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
