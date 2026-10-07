@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# Firma PAdES local: nunca persistir la contraseña del certificado.
+
 import hashlib
 import json
 import os
