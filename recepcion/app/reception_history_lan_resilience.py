@@ -17,7 +17,6 @@ _LAST_SCAN_MONOTONIC = 0.0
 _ORIGINAL_SEND_LAN = _lan.send_lan
 _ORIGINAL_CONTROL_LAN = _lan._send_control_lan
 _ORIGINAL_BRIDGE_STATUS = _lan.hybrid_bridge_status
-_WAS_MONITOR_STARTED = bool(getattr(_lan, "_MONITOR_STARTED", False))
 
 
 def _is_private_ipv4(value: object) -> bool:
@@ -266,6 +265,7 @@ def resilient_monitor_loop() -> None:
             state = resilient_probe_once(force_subnet_scan=False)
             online = bool(state.get("lan_online"))
             if online:
+                _lan._flush_control_outbox()
                 _lan._flush_lan_outbox()
         except Exception:
             pass
@@ -293,17 +293,6 @@ def _install() -> None:
         _lan._cloud.bridge_status = resilient_bridge_status
     except Exception:
         pass
-
-    # Caso defensivo: si otro módulo arrancó el monitor antiguo antes de este
-    # parche, agregamos un único monitor de recuperación. En el flujo normal
-    # de Recepción este bloque no se necesita.
-    if _WAS_MONITOR_STARTED:
-        threading.Thread(
-            target=resilient_monitor_loop,
-            daemon=True,
-            name="historia-lan-recovery-monitor",
-        ).start()
-
 
 _install()
 PATCH_BOOT_OK = True

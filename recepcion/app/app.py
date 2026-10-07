@@ -6,8 +6,6 @@ import json
 import time
 import urllib.request
 from pathlib import Path
-from datetime import datetime, timedelta
-import sqlite3
 import historia_bridge
 core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
@@ -137,101 +135,8 @@ def v4535_create_visit_batch_payment(data: _dep_history_bridge.payment_core.V450
             pass
     return result
 
-@app.on_event('startup')
-def _v4541_repair_recent_historia_handoffs():
-    """Repara y reenvía por LAN + nube los handoffs recientes con el turno EXACTO de Inicio."""
-    try:
-        outbox = historia_bridge.OUTBOX_DB
-        if not outbox.is_file():
-            return
-        cutoff = (datetime.now() - timedelta(days=2)).isoformat(timespec='seconds')
-        resend = []
-        with core.LocalSessionLocal() as db:
-            with sqlite3.connect(outbox, timeout=8) as local:
-                local.row_factory = sqlite3.Row
-                rows = local.execute('SELECT event_id,payload_json FROM events WHERE created_at>=? AND cancelled=0 ORDER BY created_at', (cutoff,)).fetchall()
-                for row in rows:
-                    try:
-                        payload = json.loads(row['payload_json'])
-                    except Exception:
-                        continue
-                    if str(payload.get('action') or 'handoff').lower() != 'handoff':
-                        continue
-                    ids = []
-                    for value in payload.get('visit_ids') or []:
-                        try:
-                            ids.append(int(value))
-                        except Exception:
-                            pass
-                    if not ids:
-                        continue
-                    visits = list(db.scalars(core.select(core.Visit).where(core.Visit.id.in_(ids))))
-                    if not visits:
-                        continue
-                    has_consultation = any((not str(getattr(v, 'procedimiento', '') or '').strip() for v in visits))
-                    first_type = str(getattr(visits[0], 'tipo', '') or '').strip().upper()
-                    wanted_status = {'N': 'Nuevo', 'S': 'Subsecuente'}.get(first_type, '')
-                    wanted_type = 'Consulta' if has_consultation else 'Procedimiento'
-                    consultation_visit = next((v for v in sorted(visits, key=lambda x: int(x.id)) if not str(getattr(v, 'procedimiento', '') or '').strip()), None)
-                    wanted_turn = _v4541_consultation_turn(consultation_visit) if has_consultation else None
-                    try:
-                        current_turn = int(payload.get('reception_turn')) if payload.get('reception_turn') not in (None, '') else None
-                    except Exception:
-                        current_turn = None
-                    needs_repair = str(payload.get('attention_type') or '') != wanted_type or str(payload.get('patient_status') or '') != wanted_status or current_turn != wanted_turn
-                    if not needs_repair:
-                        continue
-                    payload['attention_type'] = wanted_type
-                    payload['patient_status'] = wanted_status
-                    payload['reception_turn'] = wanted_turn
-                    local.execute("UPDATE events SET payload_json=?,sent_at=NULL,attempts=0,last_attempt_at=NULL,last_error='' WHERE event_id=?", (json.dumps(payload, ensure_ascii=False, separators=(',', ':')), row['event_id']))
-                    resend.append(payload)
-                if resend:
-                    local.commit()
-        for payload in resend:
-            try:
-                historia_bridge.queue_attention(reception_patient_id=payload.get('reception_patient_id'), display_name=payload.get('display_name') or 'Paciente', identification=payload.get('identification') or '', attention_type=payload.get('attention_type') or 'Consulta', patient_status=payload.get('patient_status') or '', reception_turn=payload.get('reception_turn'), visit_ids=list(payload.get('visit_ids') or []), birth_date=payload.get('birth_date') or '', phone=payload.get('phone') or '', email=payload.get('email') or '', address=payload.get('address') or '')
-            except Exception:
-                pass
-        if resend:
-            try:
-                historia_bridge.flush_pending(max_items=100, background=True)
-            except Exception:
-                pass
-    except Exception:
-        pass
-
-@app.get('/api/v4535/health')
-def v4535_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'historia_attention_kind_from_services': True, 'historia_cloud_schema': 'historia', 'repairs_recent_handoffs': True, 'database_schema_changes': False, 'reception_ui_changes': False}
-
-@app.get('/api/v4533/health')
-def v4533_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'version_chain_synced': True, 'visual_version_synced': True, 'database_schema_changes': False, 'preserves_data_env_excel': True}
-
-@app.on_event('startup')
-def _v4536_flush_historia_backlog():
-    try:
-        historia_bridge.flush_pending(max_items=200, background=True)
-    except Exception:
-        pass
-
-@app.get('/api/v4541/health')
-def v4541_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'historia_turn_source': 'reception_local_visible_list', 'startup_repair_uses_local_cache': True, 'startup_repair_resends_lan_and_cloud': True, 'procedures_consume_turn': False}
-
-@app.get('/api/v4539/health')
-def v4539_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'historia_turn_source': 'reception_exact', 'turn_matches_reception_daily_list': True, 'procedures_consume_turn': False}
-
-@app.get('/api/v4537/health')
-def v4537_health(user=core.Depends(core.current_user)):
-    return {'ok': True, 'version': APP_VERSION, 'historia_service_kind_separated': True, 'patient_status_separated': True, 'consultations_consume_turn': True, 'procedures_consume_turn': False, 'database_schema_changes': False, 'reception_data_changes': False}
-
-@app.get('/api/v4536/health')
-def v4536_health(user=core.Depends(core.current_user)):
-    status = historia_bridge.bridge_status()
-    return {'ok': True, 'version': APP_VERSION, 'historia_bridge_recovery': True, 'historia_remote_unique_event': True, 'historia_pending': int(status.get('pending') or 0), 'historia_last_error': str(status.get('last_error') or '')[:220], 'status_retry_seconds': 60, 'database_schema_changes': False, 'reception_data_changes': False}
+# 4.8.0: cloud-era Historia repair/flush handlers removed.
+# historia_lan_transport is the single waiting-room transport authority.
 _V4543_BASE_ACTIVATE_HISTORICAL = core.activate_historical_patient
 for _route in list(app.router.routes):
     if getattr(_route, 'path', None) == '/api/historical/{hid}/activate' and 'POST' in set(getattr(_route, 'methods', set()) or set()):

@@ -324,6 +324,7 @@ def send_lan(payload: dict) -> bool:
 
 
 def _ensure_lan_outbox() -> None:
+    """Create/migrate the local LAN outbox without touching clinical databases."""
     LAN_OUTBOX_DB.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -335,9 +336,29 @@ def _ensure_lan_outbox() -> None:
               created_at TEXT NOT NULL,
               sent_at TEXT,
               cancelled INTEGER NOT NULL DEFAULT 0,
-              last_error TEXT
+              last_error TEXT,
+              control_action TEXT,
+              control_visit_id TEXT,
+              control_pending INTEGER NOT NULL DEFAULT 0,
+              control_last_error TEXT,
+              control_sent_at TEXT
             )
             """
+        )
+        cols = {str(row[1]) for row in conn.execute("PRAGMA table_info(events)").fetchall()}
+        migrations = (
+            ("control_action", "TEXT"),
+            ("control_visit_id", "TEXT"),
+            ("control_pending", "INTEGER NOT NULL DEFAULT 0"),
+            ("control_last_error", "TEXT"),
+            ("control_sent_at", "TEXT"),
+        )
+        for name, ddl in migrations:
+            if name not in cols:
+                conn.execute(f"ALTER TABLE events ADD COLUMN {name} {ddl}")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_historia_lan_control_pending "
+            "ON events(control_pending,created_at)"
         )
         conn.commit()
 
@@ -354,9 +375,8 @@ def _lan_outbox_put(payload: dict) -> None:
             VALUES(?,?,?,NULL,0,NULL)
             ON CONFLICT(event_id) DO UPDATE SET
               payload_json=excluded.payload_json,
-              sent_at=NULL,
-              cancelled=0,
-              last_error=NULL
+              sent_at=CASE WHEN events.cancelled=0 THEN NULL ELSE events.sent_at END,
+              last_error=CASE WHEN events.cancelled=0 THEN NULL ELSE events.last_error END
             """,
             (event_id, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), _now()),
         )
@@ -377,6 +397,67 @@ def _lan_outbox_mark(event_id: str, *, sent: bool = False, error: str = "") -> N
                 (_clean(error, 240), str(event_id)),
             )
         conn.commit()
+
+
+def _queue_control_intent(event_id: str, action: str, visit_id: object = "") -> None:
+    """Persist the last exact cancel/restore intent until Historia confirms it."""
+    _ensure_lan_outbox()
+    action = str(action or "").strip().lower()
+    if action not in {"cancel", "restore"}:
+        raise ValueError("Acción LAN inválida")
+    event_id = _clean(event_id, 180)
+    if not event_id:
+        raise ValueError("Falta event_id para control LAN")
+    stamp = _now()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        row = conn.execute("SELECT event_id FROM events WHERE event_id=? LIMIT 1", (event_id,)).fetchone()
+        if row:
+            conn.execute(
+                """UPDATE events
+                   SET control_action=?,control_visit_id=?,control_pending=1,
+                       control_last_error=NULL,control_sent_at=NULL
+                   WHERE event_id=?""",
+                (action, _clean(visit_id, 120), event_id),
+            )
+        else:
+            conn.execute(
+                """INSERT INTO events(
+                     event_id,payload_json,created_at,sent_at,cancelled,last_error,
+                     control_action,control_visit_id,control_pending,control_last_error,control_sent_at
+                   ) VALUES(?,?,?,?,?,?,?,?,1,NULL,NULL)""",
+                (
+                    event_id, "{}", stamp, stamp,
+                    1 if action == "cancel" else 0,
+                    "control_only", action, _clean(visit_id, 120),
+                ),
+            )
+        conn.commit()
+
+
+def _mark_control_result(event_id: str, *, sent: bool, error: str = "") -> None:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        if sent:
+            conn.execute(
+                """UPDATE events SET control_pending=0,control_last_error=NULL,control_sent_at=?
+                   WHERE event_id=?""",
+                (_now(), str(event_id)),
+            )
+        else:
+            conn.execute(
+                """UPDATE events SET control_pending=1,control_last_error=?
+                   WHERE event_id=?""",
+                (_clean(error, 240), str(event_id)),
+            )
+        conn.commit()
+
+
+def _lan_control_pending_count() -> int:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        return int(conn.execute(
+            "SELECT COUNT(*) FROM events WHERE control_pending=1"
+        ).fetchone()[0] or 0)
 
 
 def _expire_stale_lan_outbox() -> int:
@@ -560,6 +641,31 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
     return False
 
 
+def _flush_control_outbox(max_items: int = 30) -> None:
+    """Retry exact cancel/restore commands independently from handoff delivery."""
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute(
+            """SELECT event_id,control_action,control_visit_id
+               FROM events WHERE control_pending=1
+               ORDER BY created_at LIMIT ?""",
+            (max(1, int(max_items)),),
+        ).fetchall()
+    for event_id, action, visit_id in rows:
+        action = str(action or "").strip().lower()
+        if action not in {"cancel", "restore"}:
+            _mark_control_result(str(event_id), sent=True)
+            continue
+        if _send_control_lan(action, str(event_id), visit_id or ""):
+            _mark_control_result(str(event_id), sent=True)
+            continue
+        _mark_control_result(
+            str(event_id), sent=False,
+            error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN",
+        )
+        break
+
+
 def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: object = "") -> list[str]:
     targets = _lan_event_targets(visit_id=visit_id, reception_patient_id=reception_patient_id)
     # Si se perdió el outbox local pero conocemos paciente+visita, el event_id es
@@ -569,30 +675,19 @@ def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: obje
         targets = [_cloud._event_id(reception_patient_id, [visit_id])]
     for target in targets:
         was_sent, payload = _lan_set_cancelled(target, action == "cancel")
-        if action == "cancel":
-            # was_sent=True: Historia recibió el handoff.
-            # payload=None: el outbox local se perdió; enviamos al event_id exacto.
-            if was_sent or payload is None:
-                threading.Thread(
-                    target=_send_control_lan,
-                    args=("cancel", target, visit_id),
-                    daemon=True,
-                    name="historia-lan-cancel",
-                ).start()
-        else:
-            if was_sent or payload is None:
-                threading.Thread(
-                    target=_send_control_lan,
-                    args=("restore", target, visit_id),
-                    daemon=True,
-                    name="historia-lan-restore",
-                ).start()
-            elif payload:
-                threading.Thread(
-                    target=_flush_lan_outbox,
-                    daemon=True,
-                    name="historia-lan-restore-pending",
-                ).start()
+        if was_sent or payload is None:
+            _queue_control_intent(target, action, visit_id)
+            threading.Thread(
+                target=_flush_control_outbox,
+                daemon=True,
+                name=f"historia-lan-{action}-retry",
+            ).start()
+        elif action == "restore" and payload:
+            threading.Thread(
+                target=_flush_lan_outbox,
+                daemon=True,
+                name="historia-lan-restore-pending",
+            ).start()
     return targets
 
 
@@ -615,12 +710,15 @@ def hybrid_restore_attention(*, visit_id: object, reception_patient_id: object =
 def hybrid_bridge_status() -> dict:
     lan = _snapshot()
     try:
-        pending, sent = _lan_outbox_counts()
+        handoff_pending, sent = _lan_outbox_counts()
+        control_pending = _lan_control_pending_count()
     except Exception:
-        pending, sent = 0, 0
+        handoff_pending, sent, control_pending = 0, 0, 0
     return {
         "configured": True,
-        "pending": pending,
+        "pending": handoff_pending + control_pending,
+        "handoff_pending": handoff_pending,
+        "control_pending": control_pending,
         "sent": sent,
         "cloud_reachable": False,
         "doctor_online": bool(lan.get("lan_online")),
@@ -638,13 +736,16 @@ def hybrid_bridge_status() -> dict:
 
 def _monitor_loop():
     while True:
+        online = False
         try:
             state = probe_once()
-            if state.get("lan_online"):
+            online = bool(state.get("lan_online"))
+            if online:
+                _flush_control_outbox()
                 _flush_lan_outbox()
         except Exception:
             pass
-        time.sleep(20)
+        time.sleep(6 if not online else 20)
 
 
 def install(historia_bridge_module=None) -> None:

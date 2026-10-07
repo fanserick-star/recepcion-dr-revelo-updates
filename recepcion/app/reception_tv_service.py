@@ -123,12 +123,11 @@ class TVTurnService(TVMediaMixin):
         return self.display_snapshot()
 
     def _history_state(self) -> dict:
+        # LAN discovery has one authority: historia_lan_transport's monitor.
         state = historia_lan_transport._snapshot()
-        if not state.get("lan_online") or not state.get("lan_host") or not state.get("token"):
-            state = historia_lan_transport.probe_once()
         host = str(state.get("lan_host") or "")
         token = str(state.get("token") or "")
-        if not host or not token:
+        if not state.get("lan_online") or not host or not token:
             raise RuntimeError("Historia no respondió en la red local")
         try:
             result = historia_lan_transport._http_json(
@@ -137,18 +136,12 @@ class TVTurnService(TVMediaMixin):
                 token=token,
                 timeout=1.15,
             )
-        except Exception:
-            state = historia_lan_transport.probe_once()
-            host = str(state.get("lan_host") or "")
-            token = str(state.get("token") or "")
-            if not host or not token:
-                raise
-            result = historia_lan_transport._http_json(
-                host,
-                "/tv-state",
-                token=token,
-                timeout=1.15,
+        except Exception as exc:
+            historia_lan_transport._set_state(
+                lan_online=False, token="", token_host="",
+                lan_last_error=f"TV: {type(exc).__name__}: {str(exc)[:120]}",
             )
+            raise
         if not result.get("ok"):
             raise RuntimeError(str(result.get("error") or "Historia rechazó el estado de TV"))
         result["host"] = host
@@ -285,11 +278,14 @@ class TVTurnService(TVMediaMixin):
             self.history_error = f"{type(exc).__name__}: {str(exc)[:160]}"
 
     def poll_loop(self) -> None:
-        while not self.stop_event.wait(0.9):
+        delay = 0.9
+        while not self.stop_event.wait(delay):
             try:
                 self.apply_history(self._history_state())
+                delay = 0.9
             except Exception as exc:
                 self.mark_history_offline(exc)
+                delay = 3.0
 
     def set_test(self, data: dict) -> dict:
         with self.lock:
