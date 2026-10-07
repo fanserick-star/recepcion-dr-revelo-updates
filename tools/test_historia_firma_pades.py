@@ -107,10 +107,21 @@ def main() -> None:
         code = str(meta_signed.get("verification_code") or "")
         assert len(code.replace("-", "")) == 16, code
         assert fe._signature_stamp_box("receta") != fe._signature_stamp_box("certificado")
-        qr_payload = fe._signature_qr_payload("certificado", code, datetime.now())
+        qr_payload = fe._signature_qr_payload(
+            "certificado",
+            code,
+            datetime.now(),
+            {
+                "not_before": "2026-07-23T15:38:10",
+                "not_after": "2027-07-23T15:38:10",
+            },
+        )
+        assert qr_payload.startswith(fe._VERIFICATION_PAGE_URL + "?"), qr_payload
         assert "FIRMASEGURA" not in qr_payload.upper()
-        assert "CODIGO=" in qr_payload and "TIPO=CERTIFICADO" in qr_payload
         assert "doc-prueba-001" not in qr_payload, "El QR no debe exponer el ID interno"
+        assert "c=" in qr_payload and "t=C" in qr_payload
+        assert "i=20260723" in qr_payload and "e=20270723" in qr_payload
+        assert "patient" not in qr_payload.lower() and "cedula" not in qr_payload.lower()
 
         fe._session_clear()
         assert fe._status(root)["unlocked"] is False
