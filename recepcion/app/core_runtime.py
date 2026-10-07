@@ -5720,6 +5720,7 @@ def create_visit(data: VisitIn, db: Session = Depends(get_db), user: User = Depe
     )
     db.add(v)
     db.flush()
+    ensure_visit_attention_identity(db, v)
     billing = BillingRecord(visit_id=v.id, estado="PENDIENTE")
     db.add(billing)
     db.flush()
@@ -5731,6 +5732,9 @@ def create_visit(data: VisitIn, db: Session = Depends(get_db), user: User = Depe
             "procedimiento": procedimiento,
             "valor": float(valor) if valor is not None else None,
             "observacion": data.observacion,
+            "estado": str(v.estado or VISIT_ACTIVE_STATE),
+            "reception_turn": v.reception_turn,
+            "queue_event_id": v.queue_event_id,
         }
         add_queue(db, "visit.create", "visit", payload, user.username, v.id)
         audit(db, user, "crear_atencion_offline", f"Atención local {v.id}, paciente {p.id}, {procedimiento or 'CONSULTA'}")
@@ -5801,6 +5805,7 @@ def create_visit_batch(data: VisitBatchIn, db: Session = Depends(get_db), user: 
         )
         db.add(v)
         db.flush()
+        ensure_visit_attention_identity(db, v)
         billing = BillingRecord(visit_id=v.id, estado="PENDIENTE")
         db.add(billing)
         db.flush()
@@ -5815,6 +5820,9 @@ def create_visit_batch(data: VisitBatchIn, db: Session = Depends(get_db), user: 
                 "procedimiento": procedimiento,
                 "valor": valor,
                 "observacion": data.observacion,
+                "estado": str(v.estado or VISIT_ACTIVE_STATE),
+                "reception_turn": v.reception_turn,
+                "queue_event_id": v.queue_event_id,
             }
             add_queue(db, "visit.create", "visit", payload, user.username, v.id)
             audit(db, user, "crear_atencion_multiple_offline", f"Atención local {v.id}, paciente {p.id}, {service_name}")
