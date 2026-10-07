@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.54",
-  "app_version": "4.6.54",
-  "runtime_version": "4.6.54",
+  "version": "4.6.56",
+  "app_version": "4.6.56",
+  "runtime_version": "4.6.56",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.54: corrige el caso borrar y recrear una consulta del mismo paciente cuando SQLite reutiliza el mismo visit_id. El handoff hacia Historia ahora ejecuta una restauración idempotente tras cada entrega y al iniciar, de modo que un event_id previamente cancelado vuelve a waiting solo si la atención continúa existiendo localmente. No revive atenciones realmente borradas y no altera historias firmadas/completadas.",
-    "previous_version": "4.6.53",
+    "purpose": "Recepción 4.6.56: agrega YouTube como fuente opcional de contenido para la Pantalla TV. El enlace se configura solo desde Recepción, se valida contra dominios/formas de URL de YouTube y no requiere API. Durante un llamado el video se pausa antes del sonido/voz y se reanuda al volver a publicidad. Los videos locales continúan disponibles y son la fuente predeterminada.",
+    "previous_version": "4.6.54",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -264,7 +264,7 @@
     "tv_video_storage": "local_reception_pc",
     "tv_display_panel_bottom_vh": 8.5,
     "tv_footer_bottom_vh": 2.3,
-    "tv_display_logic_changes": false,
+    "tv_display_logic_changes": true,
     "rollback_safe": true,
     "single_version_source": "recepcion-version.json",
     "agenda_days": [
@@ -311,7 +311,21 @@
     "historia_reused_event_id_cancel_recovery": true,
     "historia_restore_after_handoff": true,
     "historia_startup_live_handoff_restore": true,
-    "historia_completed_queue_preserved": true
+    "historia_completed_queue_preserved": true,
+    "tv_youtube_enabled": true,
+    "tv_youtube_api_key_required": false,
+    "tv_youtube_allowed_urls": [
+      "youtube.com/watch",
+      "youtu.be",
+      "youtube.com/shorts",
+      "youtube.com/live",
+      "youtube.com/embed"
+    ],
+    "tv_youtube_pause_on_call": true,
+    "tv_youtube_resume_after_call": true,
+    "tv_youtube_uses_existing_volume": true,
+    "tv_local_videos_preserved": true,
+    "tv_media_default_source": "local"
   },
   "channel": "launcher-v1-stable"
 }
