@@ -69,6 +69,11 @@ jobs:
           assert 'cloud_visit_id' in runtime and 'patient_cedula' in runtime
           assert "WHERE created_at>=? AND cancelled=0 ORDER BY created_at" in app_py
           assert 'reception_deleted_visit_guard as _deleted_visit_guard' in app_py
+          assert '_cloud_cancelled_specs' in guard
+          assert "status='cancelled'" in guard
+          assert 'reception_patient_id,attention_type,queued_at' in guard
+          assert 'historia_cloud_cancel_tombstones' in guard
+          assert '_REMOTE_CACHE_SECONDS = 90.0' in guard
           print('RECEPTION -> HISTORIA DELETE SYNC GUARD OK')
           PY
           PYTHONPATH=recepcion/app python - <<'PY'
