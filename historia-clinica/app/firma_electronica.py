@@ -360,18 +360,70 @@ def _render_pdf_from_url(url: str, output: Path) -> None:
         shutil.rmtree(profile_dir, ignore_errors=True)
 
 
-def _sign_pdf(root: Path, source_pdf: Path, signed_pdf: Path, doctor_name: str) -> dict:
+def _verification_code(source_pdf: Path, kind: str, doc_id: str, certificate_serial: str) -> str:
+    digest = hashlib.sha256()
+    digest.update(source_pdf.read_bytes())
+    digest.update(str(kind or "").encode("utf-8"))
+    digest.update(str(doc_id or "").encode("utf-8"))
+    digest.update(str(certificate_serial or "").encode("utf-8"))
+    raw = digest.hexdigest().upper()[:16]
+    return "-".join(raw[i:i + 4] for i in range(0, len(raw), 4))
+
+
+def _signature_stamp_box(kind: str) -> tuple[int, int, int, int]:
+    # A4 portrait ~= 595 x 842 pt.
+    # Recetas: la plantilla deja ~18 mm libres debajo de las dos copias.
+    if str(kind or "").strip().lower() == "receta":
+        return (165, 6, 430, 50)
+    # Certificados: usa el espacio inferior derecho, fuera del bloque de firma física.
+    return (425, 68, 575, 138)
+
+
+def _signature_qr_payload(kind: str, code: str, signed_at: datetime) -> str:
+    # No incluir datos clínicos ni identificadores personales del paciente.
+    label = {
+        "receta": "RECETA",
+        "certificado": "CERTIFICADO",
+        "reposo": "REPOSO",
+    }.get(str(kind or "").strip().lower(), "DOCUMENTO")
+    return (
+        "DRREVELO|FIRMA_ELECTRONICA_PAdES"
+        f"|TIPO={label}|CODIGO={code}"
+        f"|FECHA={signed_at.strftime('%Y-%m-%dT%H:%M:%S')}"
+    )
+
+
+def _sign_pdf(
+    root: Path,
+    source_pdf: Path,
+    signed_pdf: Path,
+    doctor_name: str,
+    kind: str,
+    doc_id: str,
+) -> dict:
     passphrase = _session_passphrase()
     if passphrase is None:
         raise PermissionError("La firma electrónica está bloqueada. Ingrese la contraseña en Configuración.")
     signer = _load_signer(root, passphrase)
     meta = _certificate_metadata(signer)
     try:
+        from pyhanko import stamp
+        from pyhanko.pdf_utils import text
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-        from pyhanko.sign import signers
+        from pyhanko.sign import fields, signers
         from pyhanko.sign.fields import SigSeedSubFilter
     except Exception as exc:
         raise RuntimeError("No se pudo cargar el componente PAdES de firma electrónica.") from exc
+
+    signed_at = datetime.now()
+    verification_code = _verification_code(
+        source_pdf,
+        kind,
+        doc_id,
+        str(meta.get("serial") or ""),
+    )
+    qr_payload = _signature_qr_payload(kind, verification_code, signed_at)
+    display_name = str(doctor_name or "Dr. Armando Revelo").strip()
 
     signature_meta = signers.PdfSignatureMetadata(
         field_name="FirmaElectronicaDoctor",
@@ -379,14 +431,45 @@ def _sign_pdf(root: Path, source_pdf: Path, signed_pdf: Path, doctor_name: str) 
         subfilter=SigSeedSubFilter.PADES,
         reason="Documento clínico emitido por el consultorio",
         location="Quevedo, Ecuador",
-        name=str(doctor_name or "Dr. Armando Revelo"),
+        name=display_name,
+    )
+    stamp_style = stamp.QRStampStyle(
+        border_width=1,
+        stamp_text=(
+            "FIRMADO ELECTRONICAMENTE\n"
+            "%(signer)s\n"
+            "Codigo: %(code)s\n"
+            "%(ts)s"
+        ),
+        timestamp_format="%d/%m/%Y %H:%M",
+        text_box_style=text.TextBoxStyle(font_size=6),
+        qr_inner_size=38,
+    )
+    field_spec = fields.SigFieldSpec(
+        "FirmaElectronicaDoctor",
+        on_page=-1,
+        box=_signature_stamp_box(kind),
     )
     signed_pdf.parent.mkdir(parents=True, exist_ok=True)
     with source_pdf.open("rb") as inf, signed_pdf.open("wb") as outf:
         writer = IncrementalPdfFileWriter(inf)
-        signers.PdfSigner(signature_meta=signature_meta, signer=signer).sign_pdf(writer, output=outf)
+        signers.PdfSigner(
+            signature_meta=signature_meta,
+            signer=signer,
+            stamp_style=stamp_style,
+            new_field_spec=field_spec,
+        ).sign_pdf(
+            writer,
+            output=outf,
+            appearance_text_params={
+                "url": qr_payload,
+                "code": verification_code,
+                "signer": display_name,
+            },
+        )
     if not signed_pdf.is_file() or signed_pdf.stat().st_size <= source_pdf.stat().st_size:
         raise RuntimeError("No se pudo completar la firma criptográfica del PDF.")
+    meta["verification_code"] = verification_code
     return meta
 
 
@@ -627,7 +710,7 @@ def install(app, context: dict) -> None:
         temp_pdf = Path(temp_name)
         try:
             _render_pdf_from_url(preview_url, temp_pdf)
-            meta = _sign_pdf(root, temp_pdf, final_pdf, doctor_name)
+            meta = _sign_pdf(root, temp_pdf, final_pdf, doctor_name, kind, doc_id)
             _audit_signature(db_path, root, kind, doc_id, final_pdf, meta)
         except PermissionError as exc:
             return JSONResponse({"ok": False, "error": str(exc)}, status_code=423)
