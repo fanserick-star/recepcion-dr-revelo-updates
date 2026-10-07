@@ -3,3 +3,4 @@ uvicorn==0.48.0
 pg8000==1.31.2
 pywebview==6.2.1
 pyHanko==0.37.0
+qrcode==8.2

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.1",
-  "app_version": "1.4.1",
-  "runtime_version": "1.4.1",
+  "version": "1.4.2",
+  "app_version": "1.4.2",
+  "runtime_version": "1.4.2",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -74,8 +74,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.1: corrige la activación de firma electrónica en PCs actualizadas desde versiones anteriores. Si falta pyHanko, Historia lo instala automáticamente dentro de su propio venv, sin abrir CMD, sin guardar la contraseña y sin tocar el certificado. La firma PAdES, documentos, pacientes y sincronización permanecen sin cambios.",
-    "previous_version": "1.4.0",
+    "purpose": "Historia 1.4.2: los PDF firmados electrónicamente incorporan una estampa visible discreta con QR, nombre del doctor, código de verificación y fecha/hora. La apariencia forma parte de la misma firma PAdES y queda protegida criptográficamente. La estampa no muestra FIRMASEGURA S.A.S. ni datos del paciente; la impresión normal permanece sin cambios.",
+    "previous_version": "1.4.1",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -152,6 +152,13 @@
     "electronic_signature_ci_smoke_test": true,
     "signature_dependency_self_heal": true,
     "signature_dependency_install_hidden_console": true,
-    "signature_password_never_used_for_install": true
+    "signature_password_never_used_for_install": true,
+    "electronic_signature_visible_stamp": true,
+    "electronic_signature_qr": true,
+    "electronic_signature_qr_patient_data": false,
+    "electronic_signature_stamp_certifier_visible": false,
+    "electronic_signature_stamp_text": "FIRMADO ELECTRONICAMENTE + doctor + codigo + fecha/hora",
+    "electronic_signature_preserves_pades": true,
+    "patient_data_changes": false
   }
 }
