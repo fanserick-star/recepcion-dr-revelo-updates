@@ -34,7 +34,40 @@ def _procedure_attention_type(name: object) -> str:
     return f"Procedimiento - {label}" if label else "Procedimiento"
 
 
-def _handoff_item(patient, item: dict, fallback_type: object = "") -> None:
+def _reception_turn_for_visit(db, visit_id: object):
+    try:
+        visit = db.get(core.Visit, int(visit_id))
+    except Exception:
+        visit = None
+    if visit is None or str(getattr(visit, "procedimiento", "") or "").strip():
+        return None
+    try:
+        rows = list(
+            db.scalars(
+                core.select(core.Visit)
+                .where(core.Visit.fecha == visit.fecha)
+                .order_by(core.Visit.id.asc())
+            )
+        )
+    except Exception:
+        return None
+    ordered_patients = []
+    seen = set()
+    for row in rows:
+        if str(getattr(row, "procedimiento", "") or "").strip():
+            continue
+        pid = int(getattr(row, "patient_id", 0) or 0)
+        if not pid or pid in seen:
+            continue
+        seen.add(pid)
+        ordered_patients.append(pid)
+    try:
+        return ordered_patients.index(int(visit.patient_id)) + 1
+    except Exception:
+        return None
+
+
+def _handoff_item(patient, item: dict, fallback_type: object = "", db=None) -> None:
     visit_id = item.get("id")
     if visit_id is None:
         return
@@ -47,13 +80,14 @@ def _handoff_item(patient, item: dict, fallback_type: object = "") -> None:
         if not attention_type:
             attention_type = "Subsecuente" if type_code == "S" else "Nuevo" if type_code == "N" else "Consulta"
     birth = getattr(patient, "fecha_nacimiento", None)
+    reception_turn = _reception_turn_for_visit(db, visit_id) if db is not None else None
     historia_bridge.queue_attention(
         reception_patient_id=int(patient.id),
         display_name=str(getattr(patient, "nombre", "") or "Paciente"),
         identification=str(getattr(patient, "cedula", "") or ""),
         attention_type=attention_type,
         patient_status=_patient_status(type_code),
-        reception_turn=None,
+        reception_turn=reception_turn,
         visit_ids=[visit_id],
         birth_date=str(birth or ""),
         phone=str(getattr(patient, "celular", "") or ""),
@@ -74,7 +108,7 @@ def create_visit_batch_payment(
         if patient:
             items = [x for x in list((result or {}).get("items") or []) if isinstance(x, dict)] if isinstance(result, dict) else []
             for item in items:
-                _handoff_item(patient, item, getattr(data, "tipo", ""))
+                _handoff_item(patient, item, getattr(data, "tipo", ""), db=db)
     except Exception as exc:
         try:
             core.audit(db, user, "historia_bridge_pending", f"Puente Historia Clínica pendiente: {type(exc).__name__}")
