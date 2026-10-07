@@ -399,9 +399,23 @@ def _sync_one_operation_guard(q, ldb, cdb):
         billing = cdb.scalar(
             core.select(core.BillingRecord).where(core.BillingRecord.visit_id == int(row.id))
         )
-        if billing and str(getattr(billing, "estado", "") or "").strip().upper() == "EMITIDA":
+        fiscal_emission = cdb.scalar(
+            core.select(core.AzurEmission)
+            .where(
+                core.AzurEmission.patient_id == int(row.patient_id),
+                core.AzurEmission.fecha == row.fecha,
+                core.or_(
+                    core.AzurEmission.clave_acceso.is_not(None),
+                    core.AzurEmission.numero_factura.is_not(None),
+                ),
+            )
+            .order_by(core.AzurEmission.id.desc())
+        )
+        if (
+            billing and str(getattr(billing, "estado", "") or "").strip().upper() == "EMITIDA"
+        ) or fiscal_emission is not None:
             raise RuntimeError(
-                "La atención tiene factura emitida. Se conserva el registro fiscal y se oculta del flujo clínico."
+                "La atención tiene comprobante fiscal emitido/enviado. Se conserva el registro fiscal y se oculta del flujo clínico."
             )
         cdb.delete(row)
 
@@ -687,7 +701,19 @@ def reconcile_resurrected_deleted_visits() -> dict:
                 continue
             billing = ldb.scalar(core.select(core.BillingRecord).where(core.BillingRecord.visit_id == int(vid)))
             state = str(getattr(billing, "estado", "") or "").strip().upper() if billing else ""
-            if state == "EMITIDA":
+            fiscal_emission = ldb.scalar(
+                core.select(core.AzurEmission)
+                .where(
+                    core.AzurEmission.patient_id == int(visit.patient_id),
+                    core.AzurEmission.fecha == visit.fecha,
+                    core.or_(
+                        core.AzurEmission.clave_acceso.is_not(None),
+                        core.AzurEmission.numero_factura.is_not(None),
+                    ),
+                )
+                .order_by(core.AzurEmission.id.desc())
+            )
+            if state == "EMITIDA" or fiscal_emission is not None:
                 preserved_fiscal += 1
                 continue
 
