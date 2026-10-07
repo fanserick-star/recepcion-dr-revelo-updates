@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.2",
-  "app_version": "1.4.2",
-  "runtime_version": "1.4.2",
+  "version": "1.4.3",
+  "app_version": "1.4.3",
+  "runtime_version": "1.4.3",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -49,6 +49,10 @@
     {
       "import": "pyhanko",
       "pip": "pyHanko==0.37.0"
+    },
+    {
+      "import": "qrcode",
+      "pip": "qrcode==8.2"
     }
   ],
   "copy": [
@@ -74,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.2: los PDF firmados electrónicamente incorporan una estampa visible discreta con QR, nombre del doctor, código de verificación y fecha/hora. La apariencia forma parte de la misma firma PAdES y queda protegida criptográficamente. La estampa no muestra FIRMASEGURA S.A.S. ni datos del paciente; la impresión normal permanece sin cambios.",
-    "previous_version": "1.4.1",
+    "purpose": "Historia 1.4.3: mejora visual de la estampa de firma electrónica. Se elimina por completo el recuadro exterior y el nombre visible se toma del nombre común legal del certificado del firmante, sin prefijo profesional. QR, código, fecha/hora y firma PAdES permanecen protegidos criptográficamente; la impresión normal no cambia.",
+    "previous_version": "1.4.2",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -159,6 +163,9 @@
     "electronic_signature_stamp_certifier_visible": false,
     "electronic_signature_stamp_text": "FIRMADO ELECTRONICAMENTE + doctor + codigo + fecha/hora",
     "electronic_signature_preserves_pades": true,
-    "patient_data_changes": false
+    "patient_data_changes": false,
+    "electronic_signature_stamp_border": false,
+    "electronic_signature_stamp_legal_name_from_certificate": true,
+    "electronic_signature_stamp_professional_prefix": false
   }
 }
