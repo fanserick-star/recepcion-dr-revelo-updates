@@ -155,6 +155,18 @@ def build_handler(service):
                             service.config["video_volume"] = max(
                                 0.0, min(1.0, float(data.get("volume") or 0))
                             )
+                        if "source" in data:
+                            source = str(data.get("source") or "").strip().lower()
+                            if source not in {"local", "youtube"}:
+                                raise ValueError("Fuente de publicidad inválida")
+                            service.config["media_source"] = source
+                        if "youtube_url" in data:
+                            raw_url = str(data.get("youtube_url") or "").strip()[:500]
+                            if raw_url and not service._youtube_video_id(raw_url):
+                                raise ValueError(
+                                    "Pegue un enlace válido de YouTube (watch, youtu.be, Shorts o Live)."
+                                )
+                            service.config["youtube_url"] = raw_url
                         service._save_config()
                     return self._send_json(200, {"ok": True, **service.video_config()})
                 if path == "/api/videos/upload":
