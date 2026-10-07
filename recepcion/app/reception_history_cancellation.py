@@ -250,6 +250,15 @@ def _recent_deleted_handoffs(days: int = 2) -> list[dict]:
             if not visit_ids:
                 continue
 
+            # La atención visible/local es prueba suficiente de que NO fue borrada.
+            # No consultamos Neon primero porque una atención local-first puede tardar
+            # unos segundos/minutos en recibir su ID de nube.
+            local_surviving = list(
+                local_db.scalars(core.select(core.Visit.id).where(core.Visit.id.in_(visit_ids)))
+            )
+            if local_surviving:
+                continue
+
             authoritative_ids = (
                 _mapped_cloud_visit_ids(local_db, visit_ids)
                 if authoritative_is_cloud
@@ -293,10 +302,94 @@ def reconcile_recent_deleted_handoffs() -> int:
     return repaired
 
 
+def _recent_live_cancelled_handoffs(days: int = 2) -> list[dict]:
+    """Recupera únicamente handoffs cancelados cuya atención TODAVÍA existe localmente.
+
+    Esto corrige el falso positivo producido cuando Neon todavía no había recibido
+    una atención local-first. Una cancelación real elimina la visita local, por lo
+    que jamás entra en esta recuperación automática.
+    """
+    path = historia_lan_transport.LAN_OUTBOX_DB
+    if not path.is_file():
+        return []
+
+    cutoff = (datetime.now() - timedelta(days=max(1, int(days)))).isoformat(timespec="seconds")
+    try:
+        with sqlite3.connect(path, timeout=5) as conn:
+            rows = conn.execute(
+                """
+                SELECT event_id,payload_json
+                FROM events
+                WHERE created_at>=? AND cancelled=1
+                ORDER BY created_at DESC
+                LIMIT 120
+                """,
+                (cutoff,),
+            ).fetchall()
+    except Exception:
+        return []
+
+    local_db = None
+    out = []
+    try:
+        local_db = core.LocalSessionLocal()
+        for event_id, payload_json in rows:
+            try:
+                payload = json.loads(payload_json)
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            visit_ids = []
+            for value in payload.get("visit_ids") or []:
+                try:
+                    visit_ids.append(int(value))
+                except Exception:
+                    pass
+            if not visit_ids:
+                continue
+
+            surviving = list(
+                local_db.scalars(core.select(core.Visit.id).where(core.Visit.id.in_(visit_ids)))
+            )
+            if not surviving:
+                continue
+
+            out.append(
+                {
+                    "event_id": str(event_id),
+                    "visit_id": visit_ids[0],
+                    "patient_id": str(payload.get("reception_patient_id") or ""),
+                }
+            )
+    except Exception:
+        return []
+    finally:
+        try:
+            if local_db is not None:
+                local_db.close()
+        except Exception:
+            pass
+    return out
+
+
+def restore_recent_live_handoffs() -> int:
+    restored = 0
+    for item in _recent_live_cancelled_handoffs():
+        targets = _restore_historia_visit(item["visit_id"], item["patient_id"])
+        if targets:
+            restored += 1
+    return restored
+
+
 def _startup_reconcile_worker() -> None:
     # Da tiempo al monitor LAN para descubrir la PC del doctor. El evento local
     # queda marcado cancelado de todos modos y el transporte reintenta si hace falta.
     time.sleep(2.0)
+    # Primero repara falsos cancelados comprobando la visita local viva.
+    restore_recent_live_handoffs()
+    # Después reconcilia únicamente handoffs realmente ausentes local + nube.
     reconcile_recent_deleted_handoffs()
 
 
@@ -319,6 +412,8 @@ def history_cancel_health(user=core.Depends(core.current_user)):
         "transport": "lan-only",
         "startup_recent_delete_reconcile": True,
         "startup_reconcile_maps_local_to_cloud": True,
+        "startup_reconcile_requires_local_absence": True,
+        "startup_false_cancel_self_heal": True,
         "signed_history_protected": True,
         "database_schema_changes": False,
     }
