@@ -360,13 +360,29 @@ def _ensure_audit_schema(db_path: Path) -> None:
 
 
 def _document_exists(db_path: Path, kind: str, doc_id: str) -> bool:
-    table = "prescriptions" if kind == "receta" else "certificates"
     conn = sqlite3.connect(db_path, timeout=15)
     try:
-        row = conn.execute(
-            f"SELECT 1 FROM {table} WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1",
-            (doc_id,),
-        ).fetchone()
+        if kind == "receta":
+            row = conn.execute(
+                "SELECT 1 FROM prescriptions WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1",
+                (doc_id,),
+            ).fetchone()
+        elif kind == "reposo":
+            row = conn.execute(
+                """SELECT 1 FROM certificates
+                   WHERE id=? AND COALESCE(deleted_at,'')=''
+                     AND COALESCE(certificate_type,'medical')='rest_isolation'
+                   LIMIT 1""",
+                (doc_id,),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """SELECT 1 FROM certificates
+                   WHERE id=? AND COALESCE(deleted_at,'')=''
+                     AND COALESCE(certificate_type,'medical')<>'rest_isolation'
+                   LIMIT 1""",
+                (doc_id,),
+            ).fetchone()
         return bool(row)
     finally:
         conn.close()
@@ -514,7 +530,7 @@ def install(app, context: dict) -> None:
     def firma_document(request: Request, kind: str, doc_id: str):
         _require_local(request)
         kind = str(kind or "").strip().lower()
-        if kind not in {"receta", "certificado"}:
+        if kind not in {"receta", "certificado", "reposo"}:
             raise HTTPException(status_code=404, detail="Tipo de documento no soportado.")
         try:
             doc_id = _safe_doc_id(doc_id)
@@ -528,13 +544,20 @@ def install(app, context: dict) -> None:
                 status_code=423,
             )
 
-        preview_path = f"/recetas/{quote(doc_id)}/vista" if kind == "receta" else f"/certificados/{quote(doc_id)}/vista"
+        if kind == "receta":
+            preview_path = f"/recetas/{quote(doc_id)}/vista"
+        elif kind == "reposo":
+            preview_path = f"/certificados/reposo/{quote(doc_id)}/vista"
+        else:
+            preview_path = f"/certificados/{quote(doc_id)}/vista"
         base_url = str(request.base_url).rstrip("/")
         preview_url = base_url + preview_path
         now = datetime.now()
         dest_dir = _paths(root)["signed_dir"] / now.strftime("%Y") / now.strftime("%m")
         final_pdf = dest_dir / f"{kind}_{doc_id}_{now.strftime('%Y%m%d_%H%M%S')}_firmado.pdf"
-        temp_pdf = Path(tempfile.mkstemp(prefix="historia_unsigned_", suffix=".pdf")[1])
+        temp_fd, temp_name = tempfile.mkstemp(prefix="historia_unsigned_", suffix=".pdf")
+        os.close(temp_fd)
+        temp_pdf = Path(temp_name)
         try:
             _render_pdf_from_url(preview_url, temp_pdf)
             meta = _sign_pdf(root, temp_pdf, final_pdf, doctor_name)
@@ -549,10 +572,15 @@ def install(app, context: dict) -> None:
             except Exception:
                 pass
 
-        filename = ("Receta" if kind == "receta" else "Certificado") + "_firmado.pdf"
+        filename = (
+            "Receta_firmada.pdf"
+            if kind == "receta"
+            else ("Certificado_reposo_firmado.pdf" if kind == "reposo" else "Certificado_firmado.pdf")
+        )
         return FileResponse(
             final_pdf,
             media_type="application/pdf",
             filename=filename,
             headers={"Cache-Control": "no-store"},
+            content_disposition_type="inline",
         )
