@@ -56,6 +56,9 @@ jobs:
           verify=Path('agenda/verificar.html').read_text(encoding='utf-8')
           assert 'ARMANDO ARTURO REVELO CASTILLO' in verify
           assert 'VÁLIDO HASTA' in verify
+          assert "validStamp=v=>/^\\d{8}T\\d{6}$/.test(v)" in verify
+          assert "if(!validCode||!validStamp(signed))" in verify
+          assert 'VIGENCIA NO DISPONIBLE EN ESTE QR' in verify
           assert 'FirmaEC' in verify
           assert 'datos del paciente' in verify
           assert 'diagnóstico' not in verify.lower()
