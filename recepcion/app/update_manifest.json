@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.52",
-  "app_version": "4.6.52",
-  "runtime_version": "4.6.52",
+  "version": "4.6.53",
+  "app_version": "4.6.53",
+  "runtime_version": "4.6.53",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.52: evita que un paciente enviado a Historia y pendiente por falla LAN reaparezca al día siguiente. Los handoffs no entregados de días anteriores se conservan en la outbox como vencidos/cancelados y ya no se reenvían. No borra pacientes, atenciones ni historias.",
-    "previous_version": "4.6.51",
+    "purpose": "Recepción 4.6.53: corrige una carrera del puente hacia Historia Clínica que podía cancelar un paciente recién atendido si la atención local todavía no había terminado de sincronizarse con Neon. La reconciliación ahora exige ausencia local antes de considerar una atención borrada y restaura automáticamente handoffs cancelados por error cuya atención siga existiendo localmente.",
+    "previous_version": "4.6.52",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -304,7 +304,10 @@
     "tv_video_logic_changes": false,
     "historia_lan_previous_day_pending_expires": true,
     "historia_lan_stale_events_deleted": false,
-    "waiting_queue_daily_scope": true
+    "waiting_queue_daily_scope": true,
+    "historia_false_cancel_race_fixed": true,
+    "historia_cancel_requires_local_absence": true,
+    "historia_false_cancel_self_heal": true
   },
   "channel": "launcher-v1-stable"
 }
