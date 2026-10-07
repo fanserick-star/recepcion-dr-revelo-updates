@@ -2205,7 +2205,13 @@ def refresh_local_cache(force: bool = False, cloud_already_checked: bool = False
             ldb.add_all([Visit(
                 id=v.id, patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo,
                 procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion,
-                source_row=v.source_row, created_at=v.created_at,
+                source_row=v.source_row,
+                estado=str(getattr(v, "estado", None) or VISIT_ACTIVE_STATE),
+                cancelled_at=getattr(v, "cancelled_at", None),
+                cancelled_by=getattr(v, "cancelled_by", None),
+                reception_turn=getattr(v, "reception_turn", None),
+                queue_event_id=getattr(v, "queue_event_id", None),
+                created_at=v.created_at,
             ) for v in visits])
             ldb.add_all([Procedure(id=p.id, nombre=p.nombre, valor_default=p.valor_default, activo=p.activo) for p in procedures])
             ldb.add_all([User(id=u.id, username=u.username, password_hash=u.password_hash, role=u.role) for u in users])
@@ -2863,7 +2869,17 @@ def mirror_visit_to_local(v: Visit):
     try:
         with LocalSessionLocal() as db:
             lv = db.get(Visit, v.id)
-            values = dict(patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo, procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion, source_row=v.source_row, created_at=v.created_at)
+            values = dict(
+                patient_id=v.patient_id, fecha=v.fecha, tipo=v.tipo,
+                procedimiento=v.procedimiento, valor=v.valor, observacion=v.observacion,
+                source_row=v.source_row,
+                estado=str(getattr(v, "estado", None) or VISIT_ACTIVE_STATE),
+                cancelled_at=getattr(v, "cancelled_at", None),
+                cancelled_by=getattr(v, "cancelled_by", None),
+                reception_turn=getattr(v, "reception_turn", None),
+                queue_event_id=getattr(v, "queue_event_id", None),
+                created_at=v.created_at,
+            )
             if lv:
                 for k, val in values.items(): setattr(lv, k, val)
             else:
@@ -3628,6 +3644,12 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
             procedimiento=(payload.get("procedimiento") or None),
             valor=payload.get("valor"),
             observacion=payload.get("observacion") or None,
+            source_row=payload.get("source_row"),
+            estado=str(payload.get("estado") or VISIT_ACTIVE_STATE),
+            cancelled_at=_ops_parse_datetime(payload.get("cancelled_at")) if payload.get("cancelled_at") else None,
+            cancelled_by=payload.get("cancelled_by") or None,
+            reception_turn=payload.get("reception_turn"),
+            queue_event_id=payload.get("queue_event_id") or None,
         )
         cdb.add(v)
         cdb.flush()
@@ -3635,14 +3657,26 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
         cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
         audit(cdb, q.username, "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
 
-    elif q.operation == "visit.delete":
+    elif q.operation in {"visit.cancel", "visit.delete", "visit.restore"}:
+        # v4.7.0: incluso una operación vieja "visit.delete" se convierte en
+        # cancelación lógica. Nunca vuelve a ejecutar DELETE sobre visits.
         local_id = int(payload["visit_id"])
         cloud_id = resolve_cloud_id(ldb, "visit", local_id)
         v = cdb.get(Visit, cloud_id)
         if v:
-            cdb.delete(v)
+            restoring = q.operation == "visit.restore"
+            v.estado = VISIT_ACTIVE_STATE if restoring else VISIT_CANCELLED_STATE
+            v.cancelled_at = None if restoring else (
+                _ops_parse_datetime(payload.get("cancelled_at")) or datetime.utcnow()
+            )
+            v.cancelled_by = None if restoring else (payload.get("cancelled_by") or q.username)
+            if payload.get("reception_turn") not in (None, ""):
+                v.reception_turn = int(payload["reception_turn"])
+            if payload.get("queue_event_id"):
+                v.queue_event_id = str(payload["queue_event_id"])
         result_id = cloud_id
-        audit(cdb, q.username, "sincronizar_borrado_atencion_offline", f"Atención {cloud_id}")
+        action = "restaurar" if q.operation == "visit.restore" else "cancelar"
+        audit(cdb, q.username, f"sincronizar_{action}_atencion_offline", f"Atención {cloud_id}")
 
     elif q.operation in {"billing.approve", "billing.pending", "billing.emit"}:
         local_visit_id = int(payload["visit_id"])
