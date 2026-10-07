@@ -8584,12 +8584,24 @@ def billing_list(
         stmt = stmt.where(Visit.fecha >= desde)
     if hasta:
         stmt = stmt.where(Visit.fecha <= hasta)
-    all_rows = db.execute(stmt.order_by(Visit.fecha.desc(), Visit.id.desc())).all()
+    all_rows = db.execute(
+        stmt.order_by(Visit.fecha.desc(), Visit.id.desc())
+        .execution_options(include_cancelled_visits=True)
+    ).all()
+    active_rows = [
+        row for row in all_rows
+        if str(getattr(row[1], "estado", "ACTIVA") or "ACTIVA").upper() == "ACTIVA"
+    ]
 
+    # groups = fiscal completo; active_groups = única fuente de acciones pendientes.
     groups = {}
     for row in all_rows:
         b, v, p = row
         groups.setdefault((int(p.id), v.fecha), []).append(row)
+    active_groups = {}
+    for row in active_rows:
+        b, v, p = row
+        active_groups.setdefault((int(p.id), v.fecha), []).append(row)
 
     patient_ids = sorted({key[0] for key in groups})
     emissions = list(db.scalars(select(AzurEmission).where(AzurEmission.patient_id.in_(patient_ids)))) if patient_ids else []
@@ -8601,12 +8613,13 @@ def billing_list(
     for values in emission_groups.values():
         values.sort(key=lambda x: (x.updated_at or x.created_at or datetime.min, x.id or 0), reverse=True)
 
-    states = {key: {str(b.estado or "").upper() for b, _v, _p in rows} for key, rows in groups.items()}
+    active_states = {key: {str(b.estado or "").upper() for b, _v, _p in rows} for key, rows in active_groups.items()}
+    fiscal_states = {key: {str(b.estado or "").upper() for b, _v, _p in rows} for key, rows in groups.items()}
     history_from = date.today() - timedelta(days=6)
     counts = {
-        "PENDIENTE": sum(1 for st in states.values() if "PENDIENTE" in st or "APROBADA" in st),
+        "PENDIENTE": sum(1 for st in active_states.values() if "PENDIENTE" in st or "APROBADA" in st),
         "APROBADA": 0,
-        "EMITIDA": sum(1 for st in states.values() if "EMITIDA" in st),
+        "EMITIDA": sum(1 for st in fiscal_states.values() if "EMITIDA" in st),
         "RECHAZADA": sum(1 for key in groups if any(str(x.estado or "").upper() == "RECHAZADA" for x in emission_groups.get(key, []))),
     }
 
@@ -8614,8 +8627,8 @@ def billing_list(
     rows = []
     if requested in {"PENDIENTE", "APROBADA"}:
         # Compatibilidad: ambos filtros antiguos muestran la única cola POR EMITIR.
-        for key, grouped_rows in groups.items():
-            st = states[key]
+        for key, grouped_rows in active_groups.items():
+            st = active_states[key]
             if "PENDIENTE" in st:
                 rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "PENDIENTE")
             elif "APROBADA" in st:
@@ -8630,14 +8643,20 @@ def billing_list(
     else:
         # En TODAS mostramos el grupo que requiere acción. Una factura vieja
         # emitida del mismo día no se suma al total de la atención nueva.
-        for key, grouped_rows in groups.items():
-            st = states[key]
+        all_keys = set(groups) | set(active_groups)
+        for key in all_keys:
+            active_grouped = active_groups.get(key, [])
+            st = active_states.get(key, set())
             if "PENDIENTE" in st:
-                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "PENDIENTE")
+                rows.extend(r for r in active_grouped if str(r[0].estado or "").upper() == "PENDIENTE")
             elif "APROBADA" in st:
-                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "APROBADA")
+                rows.extend(r for r in active_grouped if str(r[0].estado or "").upper() == "APROBADA")
             else:
-                rows.extend(r for r in grouped_rows if str(r[0].estado or "").upper() == "EMITIDA" and (desde or hasta or r[1].fecha >= history_from))
+                rows.extend(
+                    r for r in groups.get(key, [])
+                    if str(r[0].estado or "").upper() == "EMITIDA"
+                    and (desde or hasta or r[1].fecha >= history_from)
+                )
         rows.sort(key=lambda r: (r[1].fecha, r[1].id), reverse=True)
 
     def azur_for_row(b: BillingRecord, v: Visit, p: Patient):
