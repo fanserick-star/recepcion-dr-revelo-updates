@@ -87,12 +87,27 @@ def main() -> None:
         source = root / "origen.pdf"
         signed = root / "firmado.pdf"
         _minimal_pdf(source)
-        fe._sign_pdf(root, source, signed, "Dr. Prueba Firma")
+        meta_signed = fe._sign_pdf(
+            root,
+            source,
+            signed,
+            "Dr. Prueba Firma",
+            "certificado",
+            "doc-prueba-001",
+        )
 
         raw = signed.read_bytes()
         assert signed.stat().st_size > source.stat().st_size
         assert b"ETSI.CAdES.detached" in raw, "El PDF no declara el subfiltro PAdES esperado"
         assert b"ByteRange" in raw, "El PDF no contiene ByteRange de firma"
+        assert b"/Rect" in raw and b"/Widget" in raw, "La firma no tiene apariencia visible"
+        code = str(meta_signed.get("verification_code") or "")
+        assert len(code.replace("-", "")) == 16, code
+        assert fe._signature_stamp_box("receta") != fe._signature_stamp_box("certificado")
+        qr_payload = fe._signature_qr_payload("certificado", code, datetime.now())
+        assert "FIRMASEGURA" not in qr_payload.upper()
+        assert "CODIGO=" in qr_payload and "TIPO=CERTIFICADO" in qr_payload
+        assert "doc-prueba-001" not in qr_payload, "El QR no debe exponer el ID interno"
 
         fe._session_clear()
         assert fe._status(root)["unlocked"] is False
