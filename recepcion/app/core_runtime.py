@@ -3701,10 +3701,14 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
         if pending == 0:
             # La reconciliación completa sigue siendo necesaria tras modo offline
             # para alinear IDs locales con los definitivos de la nube.
-            refresh_local_cache(force=True, cloud_already_checked=True)
-            with LocalSessionLocal() as ldb:
-                ldb.execute(delete(OfflineIdMap))
-                ldb.commit()
+            # IMPORTANTE: el mapa local->nube solo puede borrarse si la recopia
+            # terminó bien. Si Neon falla a mitad, esos IDs son la única forma
+            # segura de completar un DELETE pendiente sin borrar otra atención.
+            refreshed = refresh_local_cache(force=True, cloud_already_checked=True)
+            if refreshed:
+                with LocalSessionLocal() as ldb:
+                    ldb.execute(delete(OfflineIdMap))
+                    ldb.commit()
         return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
     finally:
         _sync_lock.release()
@@ -5662,7 +5666,27 @@ def delete_visit(visit_id: int, db: Session = Depends(get_db), user: User = Depe
     patient_id = v.patient_id
     detail = f"Atención {v.id}, paciente {patient_id}, fecha {v.fecha}, servicio {v.procedimiento or 'CONSULTA'}"
     if is_offline_db(db):
-        add_queue(db, "visit.delete", "visit", {"visit_id": visit_id}, user.username, visit_id)
+        patient = db.get(Patient, int(patient_id))
+        add_queue(
+            db,
+            "visit.delete",
+            "visit",
+            {
+                "visit_id": int(visit_id),
+                "cloud_visit_id": get_id_map(db, "visit", int(visit_id)),
+                "patient_id": int(patient_id),
+                "cloud_patient_id": get_id_map(db, "patient", int(patient_id)),
+                "patient_cedula": str(getattr(patient, "cedula", "") or "") if patient else "",
+                "patient_name": str(getattr(patient, "nombre", "") or "") if patient else "",
+                "fecha": v.fecha.isoformat() if v.fecha else "",
+                "tipo": str(v.tipo or ""),
+                "procedimiento": v.procedimiento,
+                "valor": float(v.valor) if v.valor is not None else None,
+                "created_at": v.created_at.isoformat() if getattr(v, "created_at", None) else "",
+            },
+            user.username,
+            visit_id,
+        )
         audit(db, user, "borrar_atencion_offline", detail)
         db.delete(v)
         db.commit()

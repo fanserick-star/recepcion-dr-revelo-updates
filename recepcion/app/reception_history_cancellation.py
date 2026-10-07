@@ -108,6 +108,24 @@ def _delete_visit_source_aware(endpoint, visit_id: int, db, user):
         local_visit = local_db.get(core.Visit, int(visit_id))
         if local_visit is not None:
             captured = _capture_visit(local_db, visit_id)
+            # El botón de Inicio usa el DELETE directo. Guardamos también una
+            # Papelera/tombstone local antes de borrar para que una recopia fallida
+            # de Neon jamás pueda revivir silenciosamente esta atención.
+            if endpoint is _old_direct_delete_visit:
+                try:
+                    existing_trash = local_db.scalar(
+                        core.select(core.TrashItem)
+                        .where(
+                            core.TrashItem.entity_type == "visit",
+                            core.TrashItem.entity_id == int(visit_id),
+                            core.TrashItem.restored_at.is_(None),
+                        )
+                        .order_by(core.TrashItem.id.desc())
+                    )
+                    if existing_trash is None:
+                        core._ops_capture_visit(local_db, user, local_visit)
+                except Exception:
+                    pass
             result = endpoint(int(visit_id), local_db, user)
             return result, captured, "local"
     finally:
@@ -322,6 +340,7 @@ def _recent_live_handoffs(days: int = 2) -> list[dict]:
                 SELECT event_id,payload_json
                 FROM events
                 WHERE created_at>=?
+                  AND cancelled=0
                 ORDER BY created_at DESC
                 LIMIT 120
                 """,
