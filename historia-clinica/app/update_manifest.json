@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.0",
-  "app_version": "1.4.0",
-  "runtime_version": "1.4.0",
+  "version": "1.4.1",
+  "app_version": "1.4.1",
+  "runtime_version": "1.4.1",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -74,10 +74,10 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.0: integra firma electrónica PAdES local para recetas, certificados médicos y certificados de reposo. El certificado P12/PFX permanece en la PC del doctor dentro de data/ protegida; la contraseña solo vive en memoria durante la sesión y nunca se guarda en Neon ni .env. Los PDF firmados se conservan localmente con hash SHA-256 y auditoría.",
-    "previous_version": "1.3.99",
+    "purpose": "Historia 1.4.1: corrige la activación de firma electrónica en PCs actualizadas desde versiones anteriores. Si falta pyHanko, Historia lo instala automáticamente dentro de su propio venv, sin abrir CMD, sin guardar la contraseña y sin tocar el certificado. La firma PAdES, documentos, pacientes y sincronización permanecen sin cambios.",
+    "previous_version": "1.4.0",
     "functional_changes": true,
-    "database_schema_changes": true,
+    "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
     "runtime_consolidated": true,
@@ -149,6 +149,9 @@
       "medical_certificate",
       "rest_isolation_certificate"
     ],
-    "electronic_signature_ci_smoke_test": true
+    "electronic_signature_ci_smoke_test": true,
+    "signature_dependency_self_heal": true,
+    "signature_dependency_install_hidden_console": true,
+    "signature_password_never_used_for_install": true
   }
 }
