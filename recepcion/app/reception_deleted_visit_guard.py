@@ -252,6 +252,24 @@ def _same_value(left, right) -> bool:
         return False
 
 
+def _same_moment_reception_historia(left: object, right: object, tolerance_minutes: int = 20) -> bool:
+    """Compara timestamps aunque Recepción esté en UTC e Historia en hora Ecuador.
+
+    Recepción heredó created_at con datetime.utcnow(); Historia registra queued_at
+    con datetime.now() local. Para el consultorio esto produce exactamente 5 horas
+    de diferencia. Aceptamos coincidencia directa o UTC↔UTC-5, siempre dentro del
+    mismo margen corto para no ocultar otra consulta legítima.
+    """
+    a = _parse_dt(left)
+    b = _parse_dt(right)
+    if not a or not b:
+        return True
+    diff = (a - b).total_seconds()
+    tolerance = max(60, int(tolerance_minutes) * 60)
+    offsets = (0, 5 * 60 * 60, -5 * 60 * 60)
+    return any(abs(diff - offset) <= tolerance for offset in offsets)
+
+
 def _candidate_matches(visit, patient, spec: dict) -> bool:
     try:
         vid = int(visit.id)
@@ -280,12 +298,9 @@ def _candidate_matches(visit, patient, spec: dict) -> bool:
         return False
 
     wanted_created = spec.get("created_at")
-    current_created = _parse_dt(getattr(visit, "created_at", None))
+    current_created = getattr(visit, "created_at", None)
     if wanted_created and current_created:
-        # El handoff se crea inmediatamente después de la atención. Un margen de
-        # 20 min permite diferencias de reloj, pero evita ocultar una nueva consulta
-        # legítima del mismo paciente varias horas después.
-        if abs((current_created - wanted_created).total_seconds()) > 20 * 60:
+        if not _same_moment_reception_historia(current_created, wanted_created, tolerance_minutes=20):
             return False
     return True
 
@@ -444,12 +459,11 @@ def _visit_delete_match(payload: dict, ldb, cdb):
     if payload.get("valor") is not None:
         rows = [v for v in rows if _same_value(getattr(v, "valor", None), payload.get("valor"))]
 
-    created = _parse_dt(payload.get("created_at"))
+    created = payload.get("created_at")
     if len(rows) > 1 and created:
         close = []
         for v in rows:
-            v_created = _parse_dt(getattr(v, "created_at", None))
-            if v_created and abs((v_created - created).total_seconds()) <= 20 * 60:
+            if _same_moment_reception_historia(getattr(v, "created_at", None), created, tolerance_minutes=20):
                 close.append(v)
         rows = close
 
@@ -887,6 +901,7 @@ def deleted_visit_guard_health(user=core.Depends(core.current_user)):
         "cancelled_historia_never_restored": True,
         "historia_cloud_cancel_tombstones": True,
         "historia_cloud_cancel_cache_seconds": int(_REMOTE_CACHE_SECONDS),
+        "reception_historia_timezone_bridge": "UTC<->UTC-5",
     }
 
 
