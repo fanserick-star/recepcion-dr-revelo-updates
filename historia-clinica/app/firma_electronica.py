@@ -137,24 +137,27 @@ def _certificate_metadata(signer) -> dict:
 
 
 def _ensure_pyhanko() -> None:
-    """Garantiza el motor PAdES dentro del mismo venv de Historia.
+    """Garantiza los componentes de firma PAdES y QR dentro del venv de Historia.
 
-    v1.4.1: el launcher 1.0.8 actualiza requirements.txt pero no instala
-    dependencias nuevas. Si pyHanko falta, se repara una sola vez y sin abrir
-    consola. No interviene el certificado ni la contraseña.
+    El launcher 1.0.8 actualiza requirements.txt pero no instala dependencias
+    nuevas. Si falta pyHanko o qrcode, se reparan silenciosamente dentro del
+    mismo venv. No interviene el certificado ni la contraseña.
     """
-    try:
-        import pyhanko  # noqa: F401
-        return
-    except Exception:
-        pass
 
-    with _DEPENDENCY_LOCK:
+    def ready() -> bool:
         try:
             import pyhanko  # noqa: F401
-            return
+            import qrcode  # noqa: F401
+            return True
         except Exception:
-            pass
+            return False
+
+    if ready():
+        return
+
+    with _DEPENDENCY_LOCK:
+        if ready():
+            return
 
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         proc = subprocess.run(
@@ -168,6 +171,7 @@ def _ensure_pyhanko() -> None:
                 "--upgrade-strategy",
                 "only-if-needed",
                 "pyHanko==0.37.0",
+                "qrcode==8.2",
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
@@ -182,16 +186,14 @@ def _ensure_pyhanko() -> None:
             ).strip()
             tail = "\n".join(detail.splitlines()[-4:]) if detail else ""
             raise RuntimeError(
-                "No se pudo instalar automáticamente el componente de firma electrónica."
+                "No se pudieron instalar automáticamente los componentes de firma electrónica."
                 + (("\n" + tail) if tail else "")
             )
 
-        try:
-            import pyhanko  # noqa: F401
-        except Exception as exc:
+        if not ready():
             raise RuntimeError(
-                "El componente de firma electrónica se instaló, pero Python todavía no pudo cargarlo."
-            ) from exc
+                "Los componentes de firma electrónica se instalaron, pero Python todavía no pudo cargarlos."
+            )
 
 
 def _load_signer(root: Path, passphrase: bytes | None = None):
