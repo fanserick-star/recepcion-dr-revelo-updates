@@ -44,46 +44,52 @@ jobs:
         run: |
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
-          python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/reception_deleted_visit_guard.py recepcion/app/app.py
+          python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
           python - <<'PY'
           from pathlib import Path
 
           bridge = Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
           cancellation = Path('recepcion/app/reception_history_cancellation.py').read_text(encoding='utf-8')
-          assert 'import reception_history_cancellation as _dep_history_cancellation' in bridge
-          assert 'historia_lan_transport.install(historia_bridge)' in cancellation
-          assert 'delete_visit_and_cancel_historia_safe' in cancellation
-          assert 'delete_visit_and_cancel_historia_direct' in cancellation
-          assert 'reconcile_recent_deleted_handoffs' in cancellation
-          assert 'core.APP_VERSION =' not in cancellation
-          guard = Path('recepcion/app/reception_deleted_visit_guard.py').read_text(encoding='utf-8')
           runtime = Path('recepcion/app/core_runtime.py').read_text(encoding='utf-8')
+          lan = Path('recepcion/app/historia_lan_transport.py').read_text(encoding='utf-8')
+          billing = Path('recepcion/app/reception_billing_history.py').read_text(encoding='utf-8')
           app_py = Path('recepcion/app/app.py').read_text(encoding='utf-8')
-          assert 'AND cancelled=0' in cancellation
-          assert 'active_deleted_visit_ids' in guard
-          assert 'emitted_invoice_preserved' in guard
-          assert 'Borrado detenido: hay varias atenciones remotas parecidas' in guard
-          assert 'refreshed = refresh_local_cache' in runtime
-          assert 'if refreshed:' in runtime
-          assert 'cloud_visit_id' in runtime and 'patient_cedula' in runtime
-          assert "WHERE created_at>=? AND cancelled=0 ORDER BY created_at" in app_py
-          assert 'reception_deleted_visit_guard as _deleted_visit_guard' in app_py
-          assert '_cloud_cancelled_specs' in guard
-          assert "status='cancelled'" in guard
-          assert 'reception_patient_id,attention_type,queued_at' in guard
-          assert 'historia_cloud_cancel_tombstones' in guard
-          assert '_REMOTE_CACHE_SECONDS = 90.0' in guard
-          assert '_same_moment_reception_historia' in guard
-          assert '5 * 60 * 60' in guard
-          assert 'tolerance_minutes=20' in guard
-          assert '_reception_turn_for_visit' in Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
-          assert 'reception_turn=reception_turn' in Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
-          assert 'repair_today_handoff_turns' in guard
-          assert 'billed_visit_clinical_remove' in guard
-          assert 'fiscal_preserved' in guard
-          assert 'invoice_deleted' in guard
-          print('RECEPTION -> HISTORIA DELETE SYNC GUARD OK')
+          manifest = Path('recepcion/app/update_manifest.json').read_text(encoding='utf-8')
+
+          assert 'estado: Mapped[str]' in runtime
+          assert 'cancelled_at: Mapped[Optional[datetime]]' in runtime
+          assert 'cancelled_by: Mapped[Optional[str]]' in runtime
+          assert '_ensure_visit_state_schema(local_engine)' in runtime
+          assert 'cloud_schema_ready_v4_7_0_attention_state_' in runtime
+          assert 'with_loader_criteria' in runtime
+          assert 'include_cancelled_visits' in runtime
+          assert 'q.operation in {"visit.cancel", "visit.delete"}' in runtime
+          assert 'v.estado = "CANCELADA"' in runtime
+          assert 'db.delete(v)' not in runtime[runtime.index('@app.delete("/api/visits/{visit_id}")'):runtime.index('@app.get("/api/dashboard")')]
+          assert '"fiscal_preserved": True' in runtime
+
+          assert 'historia_lan_transport.install(historia_bridge)' in cancellation
+          assert 'startup_reconcile' in cancellation
+          assert '@app.on_event("startup")' not in cancellation
+          assert 'reconcile_recent_deleted_handoffs' not in cancellation
+          assert 'restore_recent_live_handoffs' not in cancellation
+          assert 'cancel_requires_patient_and_visit' in cancellation
+
+          assert 'if wanted_visit and wanted_patient:' in lan
+          assert 'matches = same_visit and same_patient' in lan
+          assert 'Idempotente: si el mismo event_id perteneció antes' not in lan
+          assert 'Siempre mandamos restore después del handoff' not in lan
+
+          assert '_reception_turn_for_visit' in bridge
+          assert 'reception_turn=reception_turn' in bridge
+          assert 'Esta atención ya tiene una factura emitida y no se puede borrar' not in billing
+          assert "include_cancelled_visits=True" in billing
+
+          assert 'reception_deleted_visit_guard as _deleted_visit_guard' not in app_py
+          assert 'active_deleted_visit_ids' not in app_py
+          assert 'reception_deleted_visit_guard.py' not in manifest
+          print('RECEPTION 4.7 ATTENTION STATE CONTRACT OK')
           PY
           PYTHONPATH=recepcion/app python - <<'PY'
           from reception_tv_service import TVTurnService

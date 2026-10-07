@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.6.60",
-  "app_version": "4.6.60",
-  "runtime_version": "4.6.60",
+  "version": "4.7.0",
+  "app_version": "4.7.0",
+  "runtime_version": "4.7.0",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -84,8 +84,7 @@
     "reception_tv_http.py",
     "reception_tv_voice_selector.py",
     "tv_display.html",
-    "tv_control.html",
-    "reception_deleted_visit_guard.py"
+    "tv_control.html"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -168,16 +167,15 @@
     "reception_tv_http.py",
     "reception_tv_voice_selector.py",
     "tv_display.html",
-    "tv_control.html",
-    "reception_deleted_visit_guard.py"
+    "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.6.60: envía a Historia el número real de turno de cada consulta, repara automáticamente los handoffs del día que llegaron sin número y permite retirar del flujo clínico una atención con factura ya emitida sin borrar ni alterar el comprobante fiscal. La baja clínica crea un tombstone local, cancela el turno en Historia y conserva la factura únicamente en el histórico fiscal.",
-    "previous_version": "4.6.59",
+    "purpose": "Recepción 4.7.0: refactor de raíz del ciclo de vida de atenciones. Una atención ya no se borra físicamente: se conserva con estado ACTIVA/CANCELADA, por lo que su ID no se recicla y BillingRecord/AzurEmission permanecen intactos. Las consultas normales, Inicio, reportes, turnos, TV y facturación pendiente solo ven ACTIVA; el histórico EMITIDA conserva también CANCELADA. Se eliminan los reconciliadores automáticos de borrado/restauración y el transporte LAN exige identidad paciente+visita para cancelar.",
+    "previous_version": "4.6.60",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
-    "database_schema_changes": false,
+    "database_schema_changes": true,
     "patient_data_changes": true,
     "patient_data_destructive_changes": false,
     "billing_logic_changes": true,
@@ -370,7 +368,29 @@
     "billed_visit_clinical_remove": true,
     "billed_visit_invoice_preserved": true,
     "billed_visit_azur_preserved": true,
-    "billed_visit_history_cancelled": true
+    "billed_visit_history_cancelled": true,
+    "visit_lifecycle_model": "ACTIVA/CANCELADA",
+    "physical_visit_delete": false,
+    "visit_ids_never_recycled_by_attention_cancel": true,
+    "visit_cancel_additive_schema": true,
+    "visit_cancel_fields": [
+      "estado",
+      "cancelled_at",
+      "cancelled_by"
+    ],
+    "visit_cancel_default_existing_rows": "ACTIVA",
+    "invoice_records_preserved_on_cancel": true,
+    "azur_records_preserved_on_cancel": true,
+    "pending_billing_excludes_cancelled": true,
+    "emitted_history_includes_cancelled": true,
+    "home_excludes_cancelled": true,
+    "reports_exclude_cancelled": true,
+    "tv_excludes_cancelled": true,
+    "historia_cancel_exact_identity": "reception_patient_id+visit_id/event_id",
+    "historia_startup_delete_reconcile": false,
+    "historia_auto_restore_after_handoff": false,
+    "deleted_visit_guard_removed_from_runtime": true,
+    "existing_historia_cancel_states_not_auto_imported": true
   },
   "channel": "launcher-v1-stable"
 }
