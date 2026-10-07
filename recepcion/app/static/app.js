@@ -72,6 +72,11 @@ async function api(url,opt={}){
     if(r.status===401){showLogin();throw Error('No autenticado')}
     let data; try{data=await r.json()}catch{data={}}
     if(!r.ok)throw Error(data.detail||`Error del servidor (${r.status}). Intenta nuevamente.`);
+    // Toda edición de ficha actualiza también las vistas ya cargadas. Inicio no
+    // puede conservar un nombre anterior después de guardar el paciente.
+    if(method==='PUT' && /^\/api\/patients\/\d+(?:[/?#]|$)/.test(url)){
+      syncEditedPatientIntoClientState(data);
+    }
     if(method!=='GET' && !url.includes('/api/connectivity') && !url.includes('/api/offline/sync') && !url.includes('/api/power/') && !url.includes('/api/open-external/')){
       scheduleMutationConnectivityRefresh(700);
     }
@@ -161,6 +166,32 @@ function completeEmailDomain(domain){
   try{input.setSelectionRange(input.value.length,input.value.length)}catch{}
 }
 function confirmDeletion(message){return confirm(message)}
+
+// Mantiene una sola identidad visual del paciente en toda la sesión.
+// La ficha es la autoridad del nombre: editarla NO crea otra atención ni cambia
+// visit_id, turno, BillingRecord o factura. Solo reemplaza los datos del paciente
+// dentro de las vistas/cachés que ya estaban abiertas.
+function syncEditedPatientIntoClientState(patient={}){
+  const pid=Number(patient?.id||0);if(!pid)return;
+  const merge=old=>({...((old&&typeof old==='object')?old:{}),...patient});
+  for(const day of Object.values(weeklyData||{})){
+    for(const visit of (day?.visits||[])){
+      const visitPid=Number(visit?.patient?.id||visit?.patient_id||0);
+      if(visitPid===pid)visit.patient=merge(visit.patient);
+    }
+  }
+  if(attentionContext?.patient&&Number(attentionContext.patient.id||0)===pid){
+    attentionContext.patient=merge(attentionContext.patient);
+  }
+  if(lastAttentionSlipData?.patient&&Number(lastAttentionSlipData.patient.id||0)===pid){
+    lastAttentionSlipData.patient=merge(lastAttentionSlipData.patient);
+  }
+  globalSearchCache=[];
+  // La agenda de Nueva atención tiene caché de 60 s; se invalida para que un
+  // nombre corregido tampoco reaparezca allí con el texto anterior.
+  try{invalidateAttentionWeekCache()}catch{}
+  if(selectedHomeDate&&weeklyData?.[selectedHomeDate])renderHomeDayFromCache(selectedHomeDate);
+}
 
 let connectivityTimer=null;
 let connectivityBusy=false;

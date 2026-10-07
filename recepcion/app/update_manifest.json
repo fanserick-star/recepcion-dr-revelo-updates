@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.7.0",
-  "app_version": "4.7.0",
-  "runtime_version": "4.7.0",
+  "version": "4.7.1",
+  "app_version": "4.7.1",
+  "runtime_version": "4.7.1",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.7.0: refactor de raíz del ciclo de vida de atenciones. Una atención ya no se borra físicamente: se conserva con estado ACTIVA/CANCELADA, por lo que su ID no se recicla y BillingRecord/AzurEmission permanecen intactos. Las consultas normales, Inicio, reportes, turnos, TV y facturación pendiente solo ven ACTIVA; el histórico EMITIDA conserva también CANCELADA. Se eliminan los reconciliadores automáticos de borrado/restauración y el transporte LAN exige identidad paciente+visita para cancelar.",
-    "previous_version": "4.6.60",
+    "purpose": "Recepción 4.7.1: al editar la ficha de un paciente, Inicio y las vistas ya cargadas adoptan inmediatamente el nombre y datos actuales de esa misma ficha. No se borra ni recrea la atención: se conservan patient_id, visit_id, turno, BillingRecord y cualquier factura vinculada. También se invalida la caché de agenda para impedir que reaparezca temporalmente el nombre anterior.",
+    "previous_version": "4.7.0",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -390,7 +390,14 @@
     "historia_startup_delete_reconcile": false,
     "historia_auto_restore_after_handoff": false,
     "deleted_visit_guard_removed_from_runtime": true,
-    "existing_historia_cancel_states_not_auto_imported": true
+    "existing_historia_cancel_states_not_auto_imported": true,
+    "patient_edit_updates_loaded_home_immediately": true,
+    "patient_edit_name_source": "patient_record",
+    "patient_edit_recreates_visit": false,
+    "patient_edit_preserves_visit_id": true,
+    "patient_edit_preserves_billing_and_invoice": true,
+    "patient_edit_invalidates_attention_agenda_cache": true,
+    "patient_edit_regression_guard": true
   },
   "channel": "launcher-v1-stable"
 }

@@ -28,6 +28,12 @@ def main() -> None:
     assert "appVersion" not in source, "La versión no debe duplicarse en app-channel-source.json"
     assert "minimumLauncher" not in source, "El launcher mínimo debe venir del manifiesto canónico"
 
+    frontend = (CANONICAL / "static" / "app.js").read_text(encoding="utf-8-sig")
+    assert "function syncEditedPatientIntoClientState" in frontend, "Falta sincronizar una ficha editada con Inicio"
+    assert "syncEditedPatientIntoClientState(data)" in frontend, "PUT de paciente no refresca el estado visual"
+    assert "invalidateAttentionWeekCache()" in frontend, "Editar paciente no invalida la caché de agenda"
+    assert "renderHomeDayFromCache(selectedHomeDate)" in frontend, "Inicio no se redibuja con el nombre actualizado"
+
     version = json.loads((CANONICAL / "recepcion-version.json").read_text(encoding="utf-8-sig"))
     manifest = json.loads((CANONICAL / "update_manifest.json").read_text(encoding="utf-8-sig"))
     canonical_version = str(version.get("version") or "").strip()
