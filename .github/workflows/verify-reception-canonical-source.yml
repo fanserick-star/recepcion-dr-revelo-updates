@@ -77,6 +77,12 @@ jobs:
           assert '_same_moment_reception_historia' in guard
           assert '5 * 60 * 60' in guard
           assert 'tolerance_minutes=20' in guard
+          assert '_reception_turn_for_visit' in Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
+          assert 'reception_turn=reception_turn' in Path('recepcion/app/reception_history_bridge.py').read_text(encoding='utf-8')
+          assert 'repair_today_handoff_turns' in guard
+          assert 'billed_visit_clinical_remove' in guard
+          assert 'fiscal_preserved' in guard
+          assert 'invoice_deleted' in guard
           print('RECEPTION -> HISTORIA DELETE SYNC GUARD OK')
           PY
           PYTHONPATH=recepcion/app python - <<'PY'
