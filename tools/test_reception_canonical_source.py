@@ -28,6 +28,15 @@ def main() -> None:
     assert "appVersion" not in source, "La versión no debe duplicarse en app-channel-source.json"
     assert "minimumLauncher" not in source, "El launcher mínimo debe venir del manifiesto canónico"
 
+    stale_runtime_files = {
+        "RELEASE_INFO.txt",
+        "VERIFICATION.json",
+        "reception_deleted_visit_guard.py",
+        "reception_history_identity_authority.py",
+    }
+    present_stale = sorted(name for name in stale_runtime_files if (CANONICAL / name).exists())
+    assert not present_stale, "Residuos runtime obsoletos: " + ", ".join(present_stale)
+
     frontend = (CANONICAL / "static" / "app.js").read_text(encoding="utf-8-sig")
     assert "function syncEditedPatientIntoClientState" in frontend, "Falta sincronizar una ficha editada con Inicio"
     assert "syncEditedPatientIntoClientState(data)" in frontend, "PUT de paciente no refresca el estado visual"

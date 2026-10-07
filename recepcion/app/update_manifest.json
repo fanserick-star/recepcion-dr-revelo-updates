@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.7.1",
-  "app_version": "4.7.1",
-  "runtime_version": "4.7.1",
+  "version": "4.8.0",
+  "app_version": "4.8.0",
+  "runtime_version": "4.8.0",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.7.1: al editar la ficha de un paciente, Inicio y las vistas ya cargadas adoptan inmediatamente el nombre y datos actuales de esa misma ficha. No se borra ni recrea la atención: se conservan patient_id, visit_id, turno, BillingRecord y cualquier factura vinculada. También se invalida la caché de agenda para impedir que reaparezca temporalmente el nombre anterior.",
-    "previous_version": "4.7.0",
+    "purpose": "Recepción 4.8.0: limpieza arquitectónica de Recepción↔Historia↔TV. Se eliminan reparadores cloud obsoletos de arranque y fuentes muertas; Historia usa un solo monitor LAN; las cancelaciones/restauraciones exactas quedan persistidas y se reintentan cuando la PC del doctor vuelve; un handoff cancelado no puede reactivarse por un reenvío duplicado; TV reutiliza el estado LAN compartido y reduce sondeos cuando Historia está desconectada. No se modifican facturas, pacientes ni historias clínicas.",
+    "previous_version": "4.7.1",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -397,7 +397,20 @@
     "patient_edit_preserves_visit_id": true,
     "patient_edit_preserves_billing_and_invoice": true,
     "patient_edit_invalidates_attention_agenda_cache": true,
-    "patient_edit_regression_guard": true
+    "patient_edit_regression_guard": true,
+    "architecture_cleanup_480": true,
+    "legacy_historia_cloud_startup_repair_removed": true,
+    "legacy_historia_cloud_flush_removed": true,
+    "historia_single_lan_monitor": true,
+    "historia_control_outbox_persistent": true,
+    "historia_cancel_offline_retry_exact_event": true,
+    "historia_restore_offline_retry_exact_event": true,
+    "cancelled_handoff_upsert_never_reactivates": true,
+    "historia_state_authority": "historia_lan_transport",
+    "tv_shared_lan_discovery": true,
+    "tv_offline_poll_backoff_seconds": 3,
+    "cross_system_contract_test": true,
+    "stale_repository_runtime_files_removed": true
   },
   "channel": "launcher-v1-stable"
 }
