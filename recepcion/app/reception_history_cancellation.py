@@ -384,14 +384,125 @@ def restore_recent_live_handoffs() -> int:
     return restored
 
 
+def _local_consultation_turn(local_db, visit) -> int | None:
+    if visit is None or str(getattr(visit, "procedimiento", "") or "").strip():
+        return None
+    fecha = getattr(visit, "fecha", None)
+    if not fecha:
+        return None
+    rows = list(
+        local_db.scalars(
+            core.select(core.Visit)
+            .where(core.Visit.fecha == fecha)
+            .order_by(core.Visit.id.asc())
+        )
+    )
+    first_by_patient = {}
+    for row in rows:
+        if str(getattr(row, "procedimiento", "") or "").strip():
+            continue
+        pid = int(getattr(row, "patient_id", 0) or 0)
+        rid = int(getattr(row, "id", 0) or 0)
+        if pid and rid and pid not in first_by_patient:
+            first_by_patient[pid] = rid
+    ordered = sorted(first_by_patient.items(), key=lambda item: item[1])
+    wanted = int(getattr(visit, "patient_id", 0) or 0)
+    for turn, (pid, _rid) in enumerate(ordered, 1):
+        if pid == wanted:
+            return turn
+    return None
+
+
+def rebuild_missing_recent_consultation_handoffs(hours: int = 6) -> int:
+    """Crea handoffs faltantes para consultas locales recientes de hoy.
+
+    Solo actúa si el visit_id no aparece en ninguna entrada de la outbox LAN.
+    Así no duplica handoffs normales ni reabre consultas ya atendidas que sí
+    conservan su evento original.
+    """
+    path = historia_lan_transport.LAN_OUTBOX_DB
+    known_visit_ids = set()
+    if path.is_file():
+        try:
+            with sqlite3.connect(path, timeout=5) as conn:
+                for (payload_json,) in conn.execute("SELECT payload_json FROM events").fetchall():
+                    try:
+                        payload = json.loads(payload_json)
+                    except Exception:
+                        continue
+                    for value in (payload or {}).get("visit_ids") or []:
+                        try:
+                            known_visit_ids.add(int(value))
+                        except Exception:
+                            pass
+        except Exception:
+            return 0
+
+    cutoff = datetime.now() - timedelta(hours=max(1, min(int(hours or 6), 24)))
+    today = datetime.now().date()
+    rebuilt = 0
+    local_db = None
+    try:
+        local_db = core.LocalSessionLocal()
+        visits = list(
+            local_db.scalars(
+                core.select(core.Visit)
+                .where(
+                    core.Visit.fecha == today,
+                    core.Visit.created_at >= cutoff,
+                )
+                .order_by(core.Visit.id.asc())
+            )
+        )
+        for visit in visits:
+            visit_id = int(getattr(visit, "id", 0) or 0)
+            if not visit_id or visit_id in known_visit_ids:
+                continue
+            if str(getattr(visit, "procedimiento", "") or "").strip():
+                continue
+            patient = local_db.get(core.Patient, int(getattr(visit, "patient_id", 0) or 0))
+            if patient is None:
+                continue
+            type_code = str(getattr(visit, "tipo", "") or "").strip().upper()
+            patient_status = {"N": "Nuevo", "S": "Subsecuente"}.get(type_code, "")
+            birth = getattr(patient, "fecha_nacimiento", None)
+            try:
+                historia_bridge.queue_attention(
+                    reception_patient_id=int(patient.id),
+                    display_name=str(getattr(patient, "nombre", "") or "Paciente"),
+                    identification=str(getattr(patient, "cedula", "") or ""),
+                    attention_type="Consulta",
+                    patient_status=patient_status,
+                    reception_turn=_local_consultation_turn(local_db, visit),
+                    visit_ids=[visit_id],
+                    birth_date=str(birth or ""),
+                    phone=str(getattr(patient, "celular", "") or ""),
+                    email=str(getattr(patient, "correo", "") or ""),
+                    address=str(getattr(patient, "lugar", "") or ""),
+                )
+                known_visit_ids.add(visit_id)
+                rebuilt += 1
+            except Exception:
+                continue
+    except Exception:
+        return rebuilt
+    finally:
+        try:
+            if local_db is not None:
+                local_db.close()
+        except Exception:
+            pass
+    return rebuilt
+
+
 def _startup_reconcile_worker() -> None:
-    # Da tiempo al monitor LAN para descubrir la PC del doctor. El evento local
-    # queda marcado cancelado de todos modos y el transporte reintenta si hace falta.
+    # Da tiempo al monitor LAN para descubrir la PC del doctor.
     time.sleep(2.0)
-    # Primero restaura de forma idempotente todo handoff reciente cuya visita
-    # siga viva localmente. Esto incluye event_id reutilizados tras borrar/recrear.
+    # Primero restaura de forma idempotente handoffs existentes cuya visita siga viva.
     restore_recent_live_handoffs()
-    # Después reconcilia únicamente handoffs realmente ausentes local + nube.
+    # Luego crea el handoff que falte para una consulta local reciente.
+    rebuild_missing_recent_consultation_handoffs()
+    # Por último cancela únicamente handoffs realmente ausentes local + nube.
     reconcile_recent_deleted_handoffs()
 
 
@@ -418,6 +529,7 @@ def history_cancel_health(user=core.Depends(core.current_user)):
         "startup_false_cancel_self_heal": True,
         "startup_live_handoff_idempotent_restore": True,
         "reused_event_id_cancel_recovery": True,
+        "startup_missing_recent_consultation_handoff_rebuild": True,
         "signed_history_protected": True,
         "database_schema_changes": False,
     }
