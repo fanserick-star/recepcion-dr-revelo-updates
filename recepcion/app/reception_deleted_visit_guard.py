@@ -190,14 +190,13 @@ def _candidate_matches(visit, patient, spec: dict) -> bool:
         return False
 
     wanted_pid = int(spec.get("patient_id") or 0)
-    if direct and wanted_pid and int(getattr(visit, "patient_id", 0) or 0) == wanted_pid:
-        return True
-
     wanted_name = _norm_name(spec.get("patient_name"))
     if wanted_name:
         if patient is None or _norm_name(getattr(patient, "nombre", "")) != wanted_name:
             return False
     elif wanted_pid and int(getattr(visit, "patient_id", 0) or 0) != wanted_pid:
+        return False
+    elif not direct:
         return False
 
     wanted_created = spec.get("created_at")
@@ -596,7 +595,7 @@ if _OLD_BILLING_NEXT is not None:
             )
         )
         if hidden:
-            stmt = stmt.where(core.Visit.id.not_in(sorted(hidden)))
+            stmt = stmt.where(core.Visit.id.notin_(sorted(hidden)))
         target = db.execute(
             stmt.group_by(core.Visit.patient_id, core.Visit.fecha)
             .order_by(core.Visit.fecha.asc(), core.func.min(core.Visit.id).asc())
