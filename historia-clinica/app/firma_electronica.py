@@ -558,7 +558,7 @@ def install(app, context: dict) -> None:
         preview_url = base_url + preview_path
         now = datetime.now()
         dest_dir = _paths(root)["signed_dir"] / now.strftime("%Y") / now.strftime("%m")
-        final_pdf = dest_dir / f"{kind}_{doc_id}_{now.strftime('%Y%m%d_%H%M%S')}_firmado.pdf"
+        final_pdf = dest_dir / f"{kind}_{doc_id}_{now.strftime('%Y%m%d_%H%M%S_%f')}_firmado.pdf"
         temp_fd, temp_name = tempfile.mkstemp(prefix="historia_unsigned_", suffix=".pdf")
         os.close(temp_fd)
         temp_pdf = Path(temp_name)
