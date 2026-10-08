@@ -24,11 +24,12 @@ print("RECEPTION_REPORTS_STATIC_OK", version)
 # Billing history: verified read-only paging, today first, historical recovery.
 history = (ROOT / "recepcion/app/reception_billing_history.py").read_text(encoding="utf-8")
 history_ast = ast.parse(history)
-function_names = {"_issued_page_keys", "_issued_archive_key"}
+function_names = {"_issued_page_keys", "_issued_archive_key", "_issued_local_stamp"}
 functions = [node for node in ast.walk(history_ast)
              if isinstance(node, ast.FunctionDef) and node.name in function_names]
-assert len(functions) == 2
-namespace = {}
+assert len(functions) == 3
+from datetime import datetime, timedelta
+namespace = {"_datetime": datetime, "_timedelta": timedelta}
 exec(compile(ast.Module(body=functions, type_ignores=[]), "billing-paging-functions", "exec"), namespace)
 page_keys = namespace["_issued_page_keys"]
 
@@ -57,6 +58,9 @@ route = history.split("def billing_issued_page(", 1)[1].split(
 assert "@app.get('/api/billing/issued-page')" in history
 assert "scope not in {'today', 'previous'}" in route
 assert "_issued_group_query(hidden, scope)" in route
+assert "_issued_scope_condition(scope)" in route
+assert "bill_dict['issued_date']" in route
+assert "_issued_local_stamp" in history
 assert ".limit(page * ISSUED_PAGE_SIZE)" in route
 assert "ISSUED_PAGE_SIZE = 20" in history
 assert "include_cancelled_visits=True" in history
