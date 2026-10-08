@@ -45,7 +45,7 @@ def test_historia_cannot_link() -> None:
     confirm = function_source(app, "_v132_mark_queue_confirmed")
     assert "INSERT OR REPLACE INTO meta" in confirm
     assert "patient_links" not in confirm
-    cleanup = function_source(app, "cleanup_duplicate_patient_cards")
+    cleanup = function_source(app, "merge_safe_duplicate_patients")
     assert "UPDATE patient_links" not in cleanup
 
     lan_enrich = function_source(lan_file, "_v132_enrich_new_patient")
@@ -55,7 +55,6 @@ def test_historia_cannot_link() -> None:
     assert "UPDATE patient_links" not in lan_enrich
     assert "SELECT id FROM patients WHERE national_id_search=?" not in lan_enrich
 
-    push = function_source(HIST / "cloud_sync.py", "_push") if False else cloud
     assert 'if table == "patient_links":' in cloud
     assert cloud.index('if table == "patient_links":') < cloud.index('if table not in ALL_SYNC_TABLES:')
     assert 'for table, pk in BIDIRECTIONAL_TABLES.items():' in cloud
