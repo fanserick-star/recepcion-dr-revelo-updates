@@ -256,10 +256,80 @@ def test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss(
         lan.LAN_OUTBOX_DB = old_outbox
         lan._set_state(**old_state)
 
+
+def test_exam_review_linked_chart_and_tv_label() -> None:
+    """Isolated real doctor queue + privacy-safe TV state + Reception TV service."""
+    sys.path.insert(0, str(HISTORIA))
+    import lan_bridge as doctor_lan
+    import tv_turn_bridge as doctor_tv
+    from reception_tv_turns import ClinicTVTurnService
+
+    with tempfile.TemporaryDirectory() as td:
+        folder = Path(td)
+        doctor_db = folder / "historia_exam_review.db"
+        with sqlite3.connect(doctor_db) as conn:
+            conn.executescript(
+                """
+                CREATE TABLE waiting_queue(
+                  id TEXT PRIMARY KEY,reception_event_id TEXT UNIQUE,
+                  reception_patient_id TEXT, clinical_patient_id TEXT,
+                  display_name TEXT,identification TEXT,attention_type TEXT,
+                  patient_status TEXT,reception_turn INTEGER,
+                  queued_at TEXT,status TEXT,source TEXT,created_at TEXT,
+                  updated_at TEXT,started_at TEXT,completed_at TEXT
+                );
+                """
+            )
+        doctor = doctor_lan.LanService(folder, doctor_db, "1.4.7")
+        from historia_bridge import _event_id
+        event_id = _event_id(77, [401])
+        result = doctor.accept_handoff({
+            "event_id": event_id,
+            "reception_patient_id": "77",
+            "clinical_patient_id": "ficha-confirmada-77",
+            "display_name": "APELLIDO PRUEBA",
+            "identification": "0988888888",
+            "attention_type": "Revisión de exámenes",
+            "patient_status": "Subsecuente",
+            "reception_turn": 5,
+            "visit_ids": ["401"],
+        }, "127.0.0.1")
+        assert result["ok"]
+        with sqlite3.connect(doctor_db) as conn:
+            row = conn.execute(
+                "SELECT clinical_patient_id,attention_type,reception_turn,status "
+                "FROM waiting_queue WHERE reception_event_id=?", (event_id,),
+            ).fetchone()
+            assert row == ("ficha-confirmada-77", "Revisión de exámenes", 5, "waiting")
+        snapshot = doctor_tv._snapshot(doctor_db)
+        assert snapshot["waiting_count"] == 1
+        assert snapshot["waiting"][0]["turn"] == 5
+        assert snapshot["waiting"][0]["exam_review"] is True
+        assert "APELLIDO PRUEBA" not in json.dumps(snapshot)
+        assert "0988888888" not in json.dumps(snapshot)
+
+        tv = ClinicTVTurnService()
+        tv.apply_history({"host": "testdoctor", **snapshot})
+        assert tv.live["next_waiting_turn"] == 5
+        assert tv.live["next_waiting_exam_review"] is True
+
+        with sqlite3.connect(doctor_db) as conn:
+            conn.execute(
+                "UPDATE waiting_queue SET status='in_consultation' WHERE reception_event_id=?",
+                (event_id,),
+            )
+            conn.commit()
+        now_current = doctor_tv._snapshot(doctor_db)
+        tv.apply_history({"host": "testdoctor", **now_current})
+        assert tv.live["mode"] == "attending"  # direct open never calls the TV
+        assert tv.live["exam_review"] is True
+        assert tv.live["turn"] == 5
+
 if __name__ == "__main__":
     test_source_contracts()
     test_cancelled_handoff_cannot_revive()
     test_control_retry_is_persistent()
     test_tv_completed_vs_cancelled()
     test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss()
+    test_exam_review_linked_chart_and_tv_label()
     print("RECEPTION/HISTORIA/TV CONTRACT OK")
