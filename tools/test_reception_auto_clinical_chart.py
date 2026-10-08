@@ -115,6 +115,42 @@ def test_new_patient_route_autocreates_at_registration() -> None:
     )[0]
 
 
+def test_conservative_name_duplicate_guard() -> None:
+    import re
+    import unicodedata
+    from datetime import date
+    def norm(text):
+        raw = unicodedata.normalize("NFD", str(text or ""))
+        raw = "".join(c for c in raw if unicodedata.category(c) != "Mn")
+        return re.sub(r"\s+", " ", raw).strip().upper().replace("Z", "S")
+    def ident(text):
+        raw = re.sub(r"[^A-Z0-9]", "", norm(text))
+        return raw if len(raw) >= 6 else ""
+    def phone(text):
+        return re.sub(r"\D", "", str(text or ""))
+    def birth(text):
+        return str(text or "")[:10]
+
+    src = text("recepcion/app/reception_history_identity_consolidated.py")
+    fn = fn_node(src, "_auto_creation_maybe_existing_chart")
+    scope = {"_fuzzy_text": norm, "_usable_id": ident,
+             "_norm_phone": phone, "_iso_date": birth}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]),
+                 "reception_identity_duplicate_guard", "exec"), scope)
+    might = scope[fn.name]
+    demo = {"name": "GARCIA PEREZ ANA MARIA", "national_id": "0911111111",
+            "phone": "", "birth_date": ""}
+    assert not might(demo, {"name": "GARCIA RUIZ CARLOS MIGUEL",
+                            "national_id": "0922222222"})
+    assert might(demo, {"name": "PEREZ GARCIA ANA", "national_id": "0922222222"})
+    assert might(demo, {"name": "PEREZ GARCIA LUIS", "national_id": "0922222222"})
+    assert might(demo, {"name": "OTROS APELLIDOS", "national_id": "0911111111"})
+    assert not might(demo, {"name": "PEREZ RUIZ JORGE", "national_id": "0922222222"})
+    demo["phone"] = "0987654321"
+    assert might(demo, {"name": "PEREZ RUIZ JORGE",
+                        "national_id": "", "phone": "0987654321"})
+
+
 def test_identity_autocreate_guards_and_idempotency() -> None:
     identity = text("recepcion/app/reception_history_identity_consolidated.py")
     create = identity.split('def historia_identity_create_from_reception(', 1)[1].split(
@@ -125,7 +161,10 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert '"verified"' in create
     assert 'national_id_search=%s AND deleted_at IS NULL' in create
     assert '_search_candidates(cur, demo, name, 20)' in create
-    assert '"Hay fichas clínicas parecidas' in create
+    assert '"Hay una ficha clínica con identidad o apellidos coincidentes' in create
+    assert '"Encontré una ficha con los dos apellidos del paciente' in create
+    assert "_auto_creation_maybe_existing_chart(demo, r)" in create
+    assert "LIMIT 1" in create
     assert "ON CONFLICT(reception_patient_id) DO NOTHING" in create
     assert "conn.rollback()" in create
     assert '"reception_created_verified"' in create
@@ -157,6 +196,7 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
 
 if __name__ == "__main__":
     test_safe_auto_creation_returns_status_without_deleting_admin_patient()
+    test_conservative_name_duplicate_guard()
     test_new_patient_route_autocreates_at_registration()
     test_identity_autocreate_guards_and_idempotency()
     print("RECEPTION_AUTO_CLINICAL_CHART_OK")
