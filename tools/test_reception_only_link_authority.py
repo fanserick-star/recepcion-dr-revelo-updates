@@ -53,7 +53,8 @@ def test_historia_cannot_link() -> None:
     assert "if not reception_patient_id or not is_new or not patient_id:" in lan_enrich
     assert "INSERT INTO patient_links" not in lan_enrich
     assert "UPDATE patient_links" not in lan_enrich
-    assert "SELECT id FROM patients WHERE national_id_search=?" not in lan_enrich
+    assert "patient_id = str(exact[0]" not in lan_enrich
+    assert "Identificación clínica en conflicto" in lan_enrich
 
     assert 'if table == "patient_links":' in cloud
     assert cloud.index('if table == "patient_links":') < cloud.index('if table not in ALL_SYNC_TABLES:')
