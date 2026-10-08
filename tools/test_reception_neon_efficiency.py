@@ -18,24 +18,26 @@ deploy = (ROOT / ".github/workflows/deploy-whatsapp.yml").read_text(encoding="ut
 front = (ROOT / "recepcion/app/static/app.js").read_text(encoding="utf-8")
 
 # Still schedule reminders around the clock, not just during office hours.
-assert schedule["triggers"]["crons"] == ["*/30 * * * *"]
-assert "assert crons == ['*/30 * * * *'], crons" in deploy
-assert "Verificar cron 24/7 cada 30 minutos" in deploy
+assert "triggers" not in schedule or not schedule["triggers"].get("crons")
+assert schedule["durable_objects"]["bindings"][0]["name"] == "WHATSAPP_ALARMS"
+assert "assert crons == [], crons" in deploy
+assert "Verificar que NO quedan cron triggers" in deploy
 assert "async scheduled(_controller, env, ctx)" in worker
-assert "ctx.waitUntil(runScheduler(env));" in worker
+assert "async scheduled(_controller, env, ctx)" not in worker
+assert "refreshWhatsappAlarm(env)" in worker
 assert "async function runScheduler(env)" in worker
 assert "return withClient(env, async (client) => {" in worker.split("async function runScheduler(env)", 1)[1][:350]
 assert "finally" in worker.split("async function withClient(env, fn)", 1)[1][:350]
 assert "await c.end();" in worker.split("async function withClient(env, fn)", 1)[1][:350]
 
 # Booking confirmations are event-driven immediately, NOT delayed 30 minutes.
-assert "ctx.waitUntil(runScheduler(env).catch((e) => console.error(\"booking_confirmation_background_failed\", e)))" in worker
-assert "ctx.waitUntil(runScheduler(env).catch(e => console.error(\"autoagenda_confirmation_background_failed\", e)))" in worker
+assert "ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error(\"booking_alarm_registration_failed\", e)))" in worker
+assert "ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error(\"autoagenda_alarm_registration_failed\", e)))" in worker
 assert "when kind='cita_agendada'" not in worker.lower() or "interval '12 hours'" in worker
 assert "interval '4 hours'" in worker  # missed cron window cannot lose reminders
 assert "case when kind='cita_agendada'" in worker.lower() or "CASE WHEN kind='cita_agendada'" in worker
 assert 'booking_cache_seconds: 60' in worker  # public booking still cached
-assert '"worker_cycle_minutes": 30' in source
+assert '"worker_cycle_minutes": 0' in source  # tests wake an alarm, not a cron
 
 # Both agenda fetchers are throttled; do not revert either to 5 seconds.
 assert "def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=60.0)" in agenda
