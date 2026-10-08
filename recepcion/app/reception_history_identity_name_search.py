@@ -25,7 +25,7 @@ def _candidate_score_name_first(row, demo, query):
     score = 0
     reasons = []
 
-    row_name = identity._fuzzy_text(row.get("name_search") or row.get("name"))
+    row_name = identity._fuzzy_text(row.get("name") or row.get("name_search"))
     typed_name = identity._fuzzy_text(query)
     patient_name = identity._fuzzy_text(demo.get("name"))
     basis = typed_name if any(ch.isalpha() for ch in typed_name) else patient_name
@@ -88,96 +88,122 @@ def _candidate_score_name_first(row, demo, query):
 
 
 def _search_candidates_name_first(cur, demo, query, limit):
-    ident = identity._usable_id(query)
-    phone = identity._norm_phone(query)
-    q_norm = identity._fuzzy_text(query)
-    q_tokens = [t for t in q_norm.split() if len(t) >= 2]
-    demo_tokens = _name_tokens(demo.get("name"))
-    birth = identity._iso_date(demo.get("birth_date"))
-    demo_id = identity._usable_id(demo.get("national_id"))
-    demo_phone = identity._norm_phone(demo.get("phone"))
+    """Fetch full surname matches before any broad, recency-truncated candidates.
 
-    where = []
-    params = []
+    The doctor types names in arbitrary order. Never mix an explicit manual
+    name with the Reception patient's other name tokens in the SQL prefilter.
+    Results are suggestions only: linking still requires manual confirmation.
+    """
+    raw_query = str(query or "").strip()
+    q_norm = identity._fuzzy_text(raw_query)
+    is_name_query = any(ch.isalpha() for ch in q_norm)
+    query_name = q_norm if is_name_query else identity._fuzzy_text(demo.get("name"))
+    tokens = list(dict.fromkeys(t for t in query_name.split() if len(t) >= 2))[:8]
+
+    # Do not turn "PICO VELIZ" into a fake alphanumeric cédula.
+    is_identifier_query = (
+        not is_name_query
+        and bool(re.search(r"\d", raw_query))
+        and bool(re.fullmatch(r"[\sA-Za-z0-9.-]+", raw_query))
+    )
+    manual_id = identity._usable_id(raw_query) if is_identifier_query else ""
+    demo_id = identity._usable_id(demo.get("national_id"))
+    digits = identity._norm_phone(raw_query) if is_identifier_query else ""
+    demo_phone = identity._norm_phone(demo.get("phone"))
+    birth = identity._iso_date(demo.get("birth_date"))
+
     name_expr = (
-        "TRANSLATE(UPPER(COALESCE(p.name_search,p.name,'')),"
+        "TRANSLATE(UPPER(CONCAT_WS(' ',"
+        "NULLIF(COALESCE(p.name_search,''),''),"
+        "NULLIF(COALESCE(p.name,''),''))),"
         "'ÁÉÍÓÚÜÑZ','AEIOUUNS')"
     )
+    name_parts = [name_expr + " LIKE %s" for _ in tokens]
+    name_params = ["%" + token + "%" for token in tokens]
 
-    # El nombre es la entrada principal. Basta con una palabra para mostrar una
-    # lista; la puntuación posterior coloca arriba las coincidencias más completas.
-    tokens = q_tokens or demo_tokens
-    if tokens:
-        name_parts = []
-        for token in tokens[:8]:
-            name_parts.append(name_expr + " LIKE %s")
-            params.append("%" + token + "%")
-        where.append("(" + " OR ".join(name_parts) + ")")
-
-    # Cédula, celular y nacimiento siguen siendo señales fuertes de confirmación,
-    # pero ya no son el punto de entrada obligatorio para encontrar la ficha.
-    for value in (ident, demo_id):
-        if value:
-            where.append("p.national_id_search=%s")
-            params.append(value)
-    for value in (phone, demo_phone):
-        if value and len(value) >= 7:
-            where.append("regexp_replace(COALESCE(p.phone,''),'[^0-9]','','g') LIKE %s")
-            params.append("%" + value[-9:] + "%")
+    extras, extra_params = [], []
+    for identifier in dict.fromkeys((manual_id, demo_id)):
+        if identifier:
+            extras.append("p.national_id_search=%s")
+            extra_params.append(identifier)
+    for phone in dict.fromkeys((digits, demo_phone)):
+        if phone and len(phone) >= 7:
+            extras.append("regexp_replace(COALESCE(p.phone,''),'[^0-9]','','g') LIKE %s")
+            extra_params.append("%" + phone[-9:] + "%")
     if birth:
-        where.append("p.birth_date=%s")
-        params.append(birth)
+        extras.append("p.birth_date=%s")
+        extra_params.append(birth)
 
-    if not where:
-        return []
-
-    sql_limit = max(40, min(90, int(limit or 30) * 3))
-    cur.execute(
-        """
+    limit = max(1, min(int(limit or 30), 40))
+    sql_limit = max(100, min(200, limit * 5))
+    select_sql = """
         SELECT p.id,p.name,p.name_search,p.national_id,p.national_id_search,
                p.birth_date,p.phone,p.email,p.address,p.merged_into_patient_id,
-               COALESCE(h.history_date_count,0) AS history_date_count,
-               h.last_history_date
+               (SELECT COUNT(DISTINCT e.encounter_date)
+                  FROM public.encounters e
+                 WHERE e.patient_id=p.id
+                   AND e.deleted_at IS NULL
+                   AND COALESCE(e.note_status,'signed') <> 'draft'
+                   AND NULLIF(TRIM(COALESCE(e.encounter_date,'')),'') IS NOT NULL
+               ) AS history_date_count,
+               (SELECT MAX(e.encounter_date)
+                  FROM public.encounters e
+                 WHERE e.patient_id=p.id
+                   AND e.deleted_at IS NULL
+                   AND COALESCE(e.note_status,'signed') <> 'draft'
+               ) AS last_history_date
         FROM public.patients p
-        LEFT JOIN (
-          SELECT e.patient_id,
-                 COUNT(DISTINCT CASE
-                   WHEN e.deleted_at IS NULL
-                    AND COALESCE(e.note_status,'signed') <> 'draft'
-                    AND NULLIF(TRIM(COALESCE(e.encounter_date,'')),'') IS NOT NULL
-                   THEN e.encounter_date END) AS history_date_count,
-                 MAX(CASE
-                   WHEN e.deleted_at IS NULL
-                    AND COALESCE(e.note_status,'signed') <> 'draft'
-                   THEN e.encounter_date END) AS last_history_date
-          FROM public.encounters e
-          GROUP BY e.patient_id
-        ) h ON h.patient_id=p.id
         WHERE p.deleted_at IS NULL
-          AND COALESCE(p.merged_into_patient_id,'')=''
-          AND ("""
-        + " OR ".join(where)
-        + """)
-        ORDER BY COALESCE(p.updated_at,p.created_at,'') DESC
+          AND ({where})
+        ORDER BY p.name ASC, p.id
         LIMIT %s
-        """,
-        tuple(params + [sql_limit]),
-    )
+    """
 
-    rows = []
-    seen = set()
-    for raw in cur.fetchall() or []:
-        row = identity._dict_row(cur, raw)
-        pid = identity._clean(row.get("id"), 120)
-        if not pid or pid in seen:
+    def fetch_candidates(condition, params):
+        if not condition:
+            return []
+        cur.execute(select_sql.format(where=condition), tuple(params + [sql_limit]))
+        return [identity._dict_row(cur, raw) for raw in (cur.fetchall() or [])]
+
+    # The old OR query could return 90 newer single-surname records and never
+    # even fetch a matching older chart. A complete multi-surname match wins.
+    matches = []
+    if name_parts:
+        matches = fetch_candidates("(" + " AND ".join(name_parts) + ")", name_params)
+
+    if not matches:
+        fallback = []
+        params = []
+        if name_parts:
+            fallback.append("(" + " OR ".join(name_parts) + ")")
+            params.extend(name_params)
+        fallback.extend(extras)
+        params.extend(extra_params)
+        matches = fetch_candidates(" OR ".join(fallback), params)
+
+    rows, seen = [], set()
+    for row in matches:
+        if not row:
             continue
-        score, reasons = _candidate_score_name_first(row, demo, query)
+        canonical_id = identity._clean(row.get("merged_into_patient_id"), 120) or identity._clean(row.get("id"), 120)
+        if not canonical_id or canonical_id in seen:
+            continue
+        if canonical_id != identity._clean(row.get("id"), 120):
+            canonical = identity._patient_row(cur, canonical_id)
+            if canonical:
+                row = canonical
+            else:
+                continue
+        name = str(row.get("name") or "").strip()
+        if not name or not any(ch.isalpha() for ch in name):
+            continue
+        score, reasons = _candidate_score_name_first(row, demo, raw_query)
         if score <= 0:
             continue
         row["match_score"] = int(score)
         row["match_reasons"] = reasons
         rows.append(row)
-        seen.add(pid)
+        seen.add(str(row["id"]))
 
     rows.sort(
         key=lambda r: (
@@ -187,7 +213,7 @@ def _search_candidates_name_first(cur, demo, query, limit):
         ),
         reverse=True,
     )
-    return rows[: max(1, min(int(limit or 30), 40))]
+    return rows[:limit]
 
 
 # Las rutas existentes usan estos nombres globales al ejecutar cada petición.
