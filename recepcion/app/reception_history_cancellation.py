@@ -74,10 +74,38 @@ def _cancel_visit_source_aware(endpoint, visit_id: int, db, user):
     local_db = None
     try:
         local_db = core.LocalSessionLocal()
+        # This is explicitly a local SQLite session. Without this flag,
+        # delete_visit() treats it as a cloud session and never queues visit.cancel.
+        local_db.info["offline"] = True
+        local_db.info["local_first"] = True
         local_visit = core.get_visit_any_state(local_db, int(visit_id))
         if local_visit is not None:
+            # A previously cancelled local row might have missed cloud sync in
+            # older versions. A repeated delete must repair its pending tombstone.
+            was_cancelled = str(getattr(local_visit, "estado", "ACTIVA") or "").upper() == "CANCELADA"
             captured = _capture_visit(local_db, visit_id)
             result = endpoint(int(visit_id), local_db, user)
+            if was_cancelled:
+                queued = local_db.scalar(core.select(core.OfflineQueue.id).where(
+                    core.OfflineQueue.operation.in_(("visit.cancel", "visit.delete")),
+                    core.OfflineQueue.local_entity_id == int(visit_id),
+                ).limit(1))
+                if queued is None:
+                    core.add_queue(
+                        local_db, "visit.cancel", "visit",
+                        {"visit_id": int(visit_id), "cloud_visit_id": core.get_id_map(local_db, "visit", int(visit_id))},
+                        str(getattr(user, "username", "") or "admin"), int(visit_id),
+                    )
+                    local_db.commit()
+            # Event-driven sync, never a polling loop. If offline, the durable
+            # SQLite queue remains until connectivity resumes.
+            try:
+                core.threading.Thread(
+                    target=core.process_offline_queue,
+                    name="rp-visit-cancel-sync", daemon=True,
+                ).start()
+            except Exception:
+                pass
             return result, captured, "local"
     finally:
         try:
