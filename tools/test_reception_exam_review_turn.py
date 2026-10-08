@@ -69,7 +69,7 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert "api('/api/visits/batch-payment'" not in free_handler
     assert "saveAttention(" not in free_handler
     assert "const fecha=" in free_handler
-    assert "no se creará factura" in free_handler.lower()
+    assert "sin cobro ni factura" in free_handler.lower() or "no se cobrará ni se creará factura" in free_handler.lower()
     assert 'if(r?.exam_review_no_charge)' in js
     assert "&&!v.exam_review_no_charge" in js
     assert "&&!r?.exam_review_no_charge" in js
