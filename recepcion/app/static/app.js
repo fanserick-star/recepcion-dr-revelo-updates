@@ -2229,6 +2229,9 @@ function billingTotal(g){return g.items.reduce((sum,x)=>sum+Number(x.visit.valor
 function billingInvoiceNumber(g){return g.items.map(x=>x.billing.numero_factura).find(Boolean)||''}
 function billingCardHtml(g){
   const state=billingGroupStatus(g), missing=billingMissingFields(g.patient), total=billingTotal(g), invoice=billingInvoiceNumber(g), alt=billingRecipientDraft(g.patient.id,g.fecha);
+  const issuedDay=String(g.items.find(x=>x.billing?.issued_date)?.billing?.issued_date||g.fecha);
+  const displayDay=state==='EMITIDA'?issuedDay:g.fecha;
+  const dateLabel=state==='EMITIDA'?'Emisión':'Fecha';
   let actions='';
   const recipientButton=`<button onclick="openBillingRecipientEditor(${g.patient.id},'${g.fecha}')">👤 ${alt?.alternate?'Editar datos de factura':'Facturar con otros datos'}</button>`;
   if(state==='PENDIENTE'){
@@ -2241,7 +2244,7 @@ function billingCardHtml(g){
   }
   const warn=missing.length&&!alt?.alternate?`<div class="billing-warning">⚠ Falta ${esc(missing.join(' y '))} para aprobar con los datos del paciente. También puedes facturar con otros datos.</div>`:'';
   const emitted=invoice?`<div class="billing-invoice-number"><span>Factura</span><b>${esc(invoice)}</b></div>`:'';
-  return `<article class="billing-card ${String(state).toLowerCase()}"><div class="billing-card-head"><div><div class="billing-patient-name">${esc(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${esc(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${esc(g.patient.correo||'Sin correo')}</span><span><b>Fecha:</b> ${fmtDate(g.fecha)}</span></div></div>${billingStatusBadge(state)}</div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div><div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${emitted}<div class="billing-actions">${actions}</div></div></article>`;
+  return `<article class="billing-card ${String(state).toLowerCase()}"><div class="billing-card-head"><div><div class="billing-patient-name">${esc(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${esc(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${esc(g.patient.correo||'Sin correo')}</span><span><b>${dateLabel}:</b> ${fmtDate(displayDay)}</span></div></div>${billingStatusBadge(state)}</div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div><div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${emitted}<div class="billing-actions">${actions}</div></div></article>`;
 }
 let billingIssuedScope='today';
 let billingIssuedPage=1;
