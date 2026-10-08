@@ -200,7 +200,7 @@ def cleanup_active_queue_duplicates():
                 or raw.startswith("PROCEDIMIENTO ")
                 or (
                     raw
-                    and raw not in {"CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}
+                    and raw not in {"CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE", "REVISIÓN DE EXÁMENES", "REVISION DE EXAMENES"}
                     and not raw.startswith("CONSULTA")
                 )
             )
