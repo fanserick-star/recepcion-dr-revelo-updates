@@ -6956,6 +6956,39 @@ export class WhatsappAlarmCoordinator {
     }
   }
 }
+
+async function serveAdminAgendaAlarmHint(request, env) {
+  if (request.method === "OPTIONS") return bookingOptions(request);
+  if (request.method !== "POST") return bookingJson(request, { ok: false, error: "Method not allowed" }, 405);
+  // This is exclusively for the signed-in admin agenda on GitHub Pages.
+  if (request.headers.get("Origin") !== BOOKING_ALLOWED_ORIGIN) {
+    return bookingJson(request, { ok: false, error: "Forbidden origin" }, 403);
+  }
+  if (!env.DATABASE_URL) return bookingJson(request, { ok: false, error: "Neon unavailable" }, 503);
+  let body;
+  try { body = await request.json(); }
+  catch { return bookingJson(request, { ok: false, error: "Invalid payload" }, 400); }
+  const token = String(body?.token || "");
+  if (token.length < 20 || token.length > 1024) return bookingJson(request, { ok: false, error: "Invalid token" }, 403);
+  try {
+    // Existing agenda_web_role security-definer database function remains the sole
+    // authority. A public or doctor-only link cannot trigger this write-side hint.
+    const allowed = await withClient(env, async client => {
+      const r = await client.query("SELECT public.agenda_web_role($1::text) AS role", [token]);
+      return String(r.rows?.[0]?.role || "") === "reception";
+    });
+    if (!allowed) return bookingJson(request, { ok: false, error: "Not authorized" }, 403);
+    // No patient data or date is supplied; Neon remains the only source of truth.
+    // This merely recomputes the alarm, it cannot send WhatsApp itself.
+    const response = await refreshWhatsappAlarm(env);
+    if (!response.ok) throw new Error("Alarm coordinator unavailable");
+    return bookingJson(request, { ok: true, alarm_scheduled: true }, 200, { "cache-control": "no-store" });
+  } catch (e) {
+    console.error("web_admin_alarm_hint_failed", String(e?.name || "Error"));
+    return bookingJson(request, { ok: false, error: "No se pudo programar el recordatorio; reintenta actualizar la agenda." }, 503);
+  }
+}
+
 async function verifyReceptionAlarmHint(request, env) {
   if (!env.DATABASE_URL) return false;
   const ts = Number(request.headers.get("x-revelo-timestamp") || 0);
@@ -6999,6 +7032,7 @@ var whatsapp_worker_v2_6_responses_default = {
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       return whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
     }
+    if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
     if (u.pathname === "/alarms/notify" && request.method === "POST") {
       if (!await verifyReceptionAlarmHint(request, env)) return text("Forbidden", 403);
       const response = await refreshWhatsappAlarm(env);
