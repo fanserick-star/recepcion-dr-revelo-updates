@@ -262,7 +262,28 @@ def test_exam_review_linked_chart_and_tv_label() -> None:
     sys.path.insert(0, str(HISTORIA))
     import lan_bridge as doctor_lan
     import tv_turn_bridge as doctor_tv
-    from reception_tv_turns import ClinicTVTurnService
+    # CI validates the real TV-turn implementation without starting FastAPI.
+    import types
+    stub = types.ModuleType("core_runtime")
+    stub.V460_OVERLAY_CSS = ""
+    stub.V460_OVERLAY_JS = ""
+    stub.Depends = lambda _value: None
+    stub.current_user = lambda: None
+    class DummyRoutes:
+        def on_event(self, *_args, **_kwargs):
+            return lambda func: func
+        def get(self, *_args, **_kwargs):
+            return lambda func: func
+    stub.app = DummyRoutes()
+    previous = sys.modules.get("core_runtime")
+    sys.modules["core_runtime"] = stub
+    try:
+        from reception_tv_turns import ClinicTVTurnService
+    finally:
+        if previous is not None:
+            sys.modules["core_runtime"] = previous
+        else:
+            sys.modules.pop("core_runtime", None)
 
     with tempfile.TemporaryDirectory() as td:
         folder = Path(td)
