@@ -5865,11 +5865,17 @@ def create_exam_review_turn(
         # Visit stays saved and is safe to retry; do not claim LAN delivery.
         handoff_error = f"{type(exc).__name__}: {str(exc)[:160]}"
 
+    try:
+        historia_online = bool(historia_bridge.bridge_status().get("lan_online"))
+    except Exception:
+        historia_online = False
+
     return {
         "ok": True,
         "created": created,
         "visit": v_dict(visit),
         "turn": reception_turn,
+        "historia_online": historia_online,
         "exam_review_no_charge": True,
         "billing_created": False,
         "handoff_queued": not bool(handoff_error),
