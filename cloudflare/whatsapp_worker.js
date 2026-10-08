@@ -5739,7 +5739,7 @@ async function dueCandidates(client, env) {
 WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,p.nombre patient_name,p.celular phone,a.fecha,a.hora,a.created_at,a.estado,a.origen,NULL::text source_hash
   FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ','REAGENDADA') AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ') AND a.origen <> 'CONFIRMAFY_ATENDIDO'
     AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
   SELECT 'staged'::text,c.id,c.nombre,c.celular,c.fecha,c.hora,c.created_at,'PENDIENTE'::text,'MOVIL'::text,c.source_hash::text
@@ -6816,7 +6816,7 @@ WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,a.fecha,a.hora,
          a.created_at,NULL::text source_hash,p.celular phone
   FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ','REAGENDADA')
+  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
     AND a.origen <> 'CONFIRMAFY_ATENDIDO'
     AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
