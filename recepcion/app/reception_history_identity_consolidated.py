@@ -827,7 +827,24 @@ def historia_identity_create_from_reception(
                 stamp, stamp,
             ),
         )
-        _upsert_link(cur, patient.id, clinical_id, "reception_created_verified")
+        # Atomic, collision-safe: never overwrite another receptionist's link
+        # if two sessions attempted to create the same chart concurrently.
+        cur.execute(
+            """
+            INSERT INTO public.patient_links(
+              reception_patient_id,clinical_patient_id,matched_by,verified,
+              verified_at,created_at,updated_at,deleted_at,cloud_updated_at
+            ) VALUES(%s,%s,%s,1,%s,%s,%s,NULL,now())
+            ON CONFLICT(reception_patient_id) DO NOTHING
+            RETURNING clinical_patient_id
+            """,
+            (str(patient.id), clinical_id, "reception_created_verified", stamp, stamp, stamp),
+        )
+        created_link = cur.fetchone()
+        if not created_link or str(created_link[0] or "") != clinical_id:
+            raise core.HTTPException(
+                409, "Otra sesión ya vinculó una ficha a este paciente. Revisa el vínculo actual."
+            )
         conn.commit()
         linked = _linked_patient(cur, patient.id)
         if not linked or str(linked.get("id") or "") != clinical_id:
@@ -1151,8 +1168,8 @@ V4613_JS = r"""
   async function renderHost(host,force=false){
     const pid=pidFrom(host);if(!pid)return;
     const attentionModal=host.matches('.attention-form-modal');
-    const attentionIsSubsequent=attentionModal&&(()=>{try{return typeof currentDetectedStatus==='function'&&norm(currentDetectedStatus())==='S'}catch(_e){return false}})();
-    if(attentionModal&&!attentionIsSubsequent){host.querySelector(':scope > .v4613-history-card')?.remove();return}
+    // All encounters—including NEW patients and free exam reviews—must show
+    // the link/create control in Reception, not just subsequents.
     let card=host.querySelector(':scope > .v4613-history-card');
     if(!card){card=document.createElement('div');card.className='v4613-history-card';place(host,card)}
     if(Number(card.dataset.pid||0)===pid&&card.dataset.busy==='1')return;
