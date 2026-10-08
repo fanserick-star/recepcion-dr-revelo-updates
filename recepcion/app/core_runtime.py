@@ -5749,6 +5749,52 @@ class ExamReviewTurnIn(BaseModel):
     observacion: Optional[str] = None
 
 
+def _verified_exam_review_clinical_id(reception_patient_id: int) -> str:
+    """Fail closed: no medical review ticket without a verified, active chart.
+
+    Reads ONLY the dedicated Historia Neon public.patient_links/patients.
+    Does not modify identities, notes, visits, invoices, or the doctor queue.
+    """
+    try:
+        import reception_history_identity_consolidated as identity
+
+        conn = identity._connect_public()
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT l.clinical_patient_id
+                  FROM public.patient_links l
+                  JOIN public.patients p ON p.id=l.clinical_patient_id
+                 WHERE l.reception_patient_id=%s
+                   AND l.deleted_at IS NULL
+                   AND l.verified=1
+                   AND p.deleted_at IS NULL
+                   AND (p.merged_into_patient_id IS NULL
+                        OR TRIM(CAST(p.merged_into_patient_id AS TEXT))='')
+                 LIMIT 1
+                """,
+                (str(int(reception_patient_id)),),
+            )
+            row = cur.fetchone()
+            clinical_id = str(row[0] or "").strip() if row else ""
+        finally:
+            conn.close()
+    except Exception as exc:
+        raise HTTPException(
+            503,
+            "No se pudo comprobar el vínculo con Historia Clínica. "
+            "Revisa la conexión con Neon; no se registró turno ni ticket.",
+        ) from exc
+    if not clinical_id:
+        raise HTTPException(
+            409,
+            "Revisión de exámenes: primero vincula y confirma la ficha "
+            "del paciente en Historia Clínica. No se creó ningún turno.",
+        )
+    return clinical_id
+
+
 @app.post("/api/visits/exam-review")
 def create_exam_review_turn(
     data: ExamReviewTurnIn,
@@ -5765,6 +5811,10 @@ def create_exam_review_turn(
     patient = db.get(Patient, data.patient_id)
     if not patient:
         raise HTTPException(404, "Paciente no encontrado")
+
+    # Mandatory even for an existing review: no ticket or LAN handoff is
+    # created without a verified Historia link. Fail BEFORE any local write.
+    clinical_patient_id = _verified_exam_review_clinical_id(patient.id)
 
     existing = db.scalar(
         select(Visit)
@@ -5852,6 +5902,7 @@ def create_exam_review_turn(
             reception_patient_id=int(patient.id),
             display_name=str(patient.nombre or "Paciente"),
             identification=str(patient.cedula or ""),
+            clinical_patient_id=clinical_patient_id,
             attention_type="Revisión de exámenes",
             patient_status="Subsecuente" if visit.tipo == "S" else "Nuevo",
             reception_turn=reception_turn,
@@ -5895,6 +5946,8 @@ def _exam_review_ticket_data(visit_id: int) -> dict:
         patient = db.get(Patient, int(visit.patient_id))
         if not patient:
             raise HTTPException(404, "Paciente no encontrado")
+        # Also enforce the prerequisite on old review visits and reprints.
+        _verified_exam_review_clinical_id(patient.id)
         from reception_history_bridge import _reception_turn_for_visit
         turn = _reception_turn_for_visit(db, visit.id)
         if not isinstance(turn, int) or turn < 1:
