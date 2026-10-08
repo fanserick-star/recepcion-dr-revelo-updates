@@ -5852,7 +5852,7 @@ def create_exam_review_turn(
             reception_patient_id=int(patient.id),
             display_name=str(patient.nombre or "Paciente"),
             identification=str(patient.cedula or ""),
-            attention_type="Consulta",
+            attention_type="Revisión de exámenes",
             patient_status="Subsecuente" if visit.tipo == "S" else "Nuevo",
             reception_turn=reception_turn,
             visit_ids=[visit.id],
@@ -5882,6 +5882,109 @@ def create_exam_review_turn(
         "handoff_error": handoff_error,
         "offline": offline,
     }
+
+
+def _exam_review_ticket_data(visit_id: int) -> dict:
+    """Local source of truth: read only, no billing or clinical writes."""
+    with LocalSessionLocal() as db:
+        visit = db.get(Visit, int(visit_id))
+        if not visit or not is_exam_review_no_charge(visit):
+            raise HTTPException(404, "No existe un turno gratuito de revisión con ese identificador.")
+        if str(getattr(visit, "estado", "ACTIVA") or "").upper() != "ACTIVA":
+            raise HTTPException(409, "El turno fue cancelado; no puede imprimirse.")
+        patient = db.get(Patient, int(visit.patient_id))
+        if not patient:
+            raise HTTPException(404, "Paciente no encontrado")
+        from reception_history_bridge import _reception_turn_for_visit
+        turn = _reception_turn_for_visit(db, visit.id)
+        if not isinstance(turn, int) or turn < 1:
+            raise HTTPException(409, "No se pudo verificar el número de turno; no se imprimió.")
+        return {
+            "ok": True,
+            "visit_id": int(visit.id),
+            "patient_id": int(patient.id),
+            "patient_name": str(patient.nombre or ""),
+            "fecha": visit.fecha.isoformat(),
+            "turn": turn,
+            "service": "REVISIÓN DE EXÁMENES",
+            "paid": False,
+            "billing": False,
+        }
+
+
+def _print_exam_review_ticket_windows(ticket: dict, printer_name: str = "") -> str:
+    """Windows thermal ticket on the SAME installed printer as consultation receipts."""
+    if os.name != "nt":
+        raise RuntimeError("La impresión directa necesita Windows.")
+    import clr  # type: ignore
+    clr.AddReference("System.Drawing")
+    from System.Drawing import Font, FontStyle, Brushes, StringFormat, StringAlignment, RectangleF  # type: ignore
+    from System.Drawing.Printing import PrintDocument, PrinterSettings, PaperSize, Margins  # type: ignore
+
+    printers = [str(p) for p in PrinterSettings.InstalledPrinters]
+    selected = str(printer_name or "").strip() or str(PrinterSettings().PrinterName or "")
+    if not selected or (printers and selected not in printers):
+        raise RuntimeError("La impresora térmica configurada no está disponible.")
+    doc = PrintDocument()
+    doc.PrinterSettings.PrinterName = selected
+    if not doc.PrinterSettings.IsValid:
+        raise RuntimeError("Windows no reconoce la impresora seleccionada.")
+    doc.DocumentName = "Turno - Revisión de exámenes (sin cobro)"
+    doc.OriginAtMargins = True
+    doc.DefaultPageSettings.PaperSize = PaperSize("Ticket revisión 80mm", 315, 440)
+    doc.DefaultPageSettings.Margins = Margins(8, 8, 8, 8)
+
+    font_title = Font("Arial", 10, FontStyle.Bold)
+    font_turn = Font("Arial", 47, FontStyle.Bold)
+    font_label = Font("Arial", 11, FontStyle.Bold)
+    font_normal = Font("Arial", 8, FontStyle.Regular)
+    center = StringFormat()
+    center.Alignment = StringAlignment.Center
+    center.LineAlignment = StringAlignment.Near
+
+    def draw(_sender, e):
+        g = e.Graphics
+        w = float(e.MarginBounds.Width)
+        g.DrawString("DR. ARMANDO REVELO", font_title, Brushes.Black, RectangleF(0, 8, w, 25), center)
+        g.DrawString("TURNO N.º", font_label, Brushes.Black, RectangleF(0, 42, w, 24), center)
+        g.DrawString(str(ticket["turn"]), font_turn, Brushes.Black, RectangleF(0, 68, w, 99), center)
+        g.DrawString("REVISIÓN DE EXÁMENES", font_label, Brushes.Black, RectangleF(0, 181, w, 27), center)
+        g.DrawString("SIN COBRO · SIN FACTURA", font_normal, Brushes.Black, RectangleF(0, 217, w, 20), center)
+        g.DrawString(str(ticket["fecha"]), font_normal, Brushes.Black, RectangleF(0, 249, w, 20), center)
+        g.DrawString("Espere el llamado de su turno", font_normal, Brushes.Black, RectangleF(0, 279, w, 32), center)
+        e.HasMorePages = False
+
+    doc.PrintPage += draw
+    try:
+        doc.Print()
+    finally:
+        try:
+            doc.PrintPage -= draw
+            font_title.Dispose()
+            font_turn.Dispose()
+            font_label.Dispose()
+            font_normal.Dispose()
+            center.Dispose()
+            doc.Dispose()
+        except Exception:
+            pass
+    return selected
+
+
+@app.get("/api/visits/exam-review/{visit_id}/ticket")
+def exam_review_ticket_data(visit_id: int, user: User = Depends(current_user)):
+    return _exam_review_ticket_data(visit_id)
+
+
+@app.post("/api/visits/exam-review/{visit_id}/print")
+def print_exam_review_ticket(visit_id: int, user: User = Depends(current_user)):
+    ticket = _exam_review_ticket_data(visit_id)
+    prefs = _app_preferences()
+    try:
+        used = _print_exam_review_ticket_windows(ticket, str(prefs.get("printer") or ""))
+    except Exception as exc:
+        raise HTTPException(500, f"No se pudo imprimir el ticket de revisión: {exc}")
+    return {"ok": True, "printed": True, "printer": used, "visit_id": int(visit_id), "turn": ticket["turn"]}
 
 
 @app.delete("/api/visits/{visit_id}")
