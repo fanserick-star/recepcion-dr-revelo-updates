@@ -42,7 +42,7 @@ assert.doesNotMatch(worker, /ctx\.waitUntil\(runScheduler\(env\)\)/);
 assert.match(worker, /ON CONFLICT\(event_key\)/); // idempotent Meta sending retained
 assert.match(worker, /AND e\.appointment_date=ev\.fecha/);
 assert.match(worker, /interval '2 hours'/); // stale test events cannot be replayed
-assert.match(reception, /def _whatsapp_alarm_notify_async\(\)/);
+assert.match(reception, /def _whatsapp_alarm_notify_async\(\*, source_type: str/);
 assert.match(reception, /hmac\.new\(key\.encode\("utf-8"\)/);
 assert.match(reception, /_WA_ALARM_NOTIFY_URL = "https:\/\/dr-revelo-whatsapp-cloud/);
 assert.match(reception, /if alarm_relevant_change:\s*_whatsapp_alarm_notify_async\(\)/);
