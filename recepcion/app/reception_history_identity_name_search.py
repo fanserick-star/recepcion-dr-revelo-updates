@@ -67,8 +67,10 @@ def _candidate_score_name_first(row, demo, query):
             score += 460
             reasons.append("misma identificación")
         else:
-            score -= 500
-            reasons.append("identificación diferente")
+            # A different cédula must be visibly flagged, never hidden when
+            # both typed surnames match. The doctor still confirms manually.
+            score -= 90
+            reasons.append("⚠ identificación diferente: verificar antes de vincular")
 
     wanted_phone = identity._norm_phone(demo.get("phone"))
     row_phone = identity._norm_phone(row.get("phone"))
