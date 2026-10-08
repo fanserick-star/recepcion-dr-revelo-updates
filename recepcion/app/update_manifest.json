@@ -170,7 +170,7 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.8: las facturas EMITIDAS muestran primero las de hoy y permiten consultar todas las anteriores por páginas de 20 grupos paciente/fecha desde un endpoint de solo lectura. La consulta limita filas y renderizado, cuenta sin reconstruir toda la lista, conserva el historial fiscal de pacientes eliminados y las atenciones canceladas con factura. PENDIENTE conserva su comportamiento y no tiene filtro de fechas; emisión AZUR, SRI, PDF/XML, turnos, Historia y TV no cambian.",
+    "purpose": "Recepción 4.8.8: Emitidas muestra inicialmente las facturas efectivamente emitidas hoy según marca de emisión UTC convertida a hora de Ecuador, no según fecha de la atención; Ver anteriores muestra toda la historia en páginas de 20 grupos paciente/fecha. La ruta paginada es de solo lectura, conserva las facturas de pacientes eliminados y las visitas canceladas facturadas. Las pendientes y la integración de emisión AZUR/SRI, PDF/XML, Historia y TV no se modifican.",
     "previous_version": "4.8.7",
     "production_status": "stable",
     "consolidated_runtime": true,
@@ -498,7 +498,10 @@
     "billing_issued_page_query_read_only": true,
     "billing_issued_archived_deleted_patient_preserved": true,
     "billing_issued_cancelled_visit_preserved": true,
-    "billing_display_changes": true
+    "billing_display_changes": true,
+    "billing_issued_uses_emitted_at": true,
+    "billing_issued_utc_to_ecuador_hours": -5,
+    "billing_issued_legacy_without_emitted_at_fallback_visit_date": true
   },
   "channel": "launcher-v1-stable"
 }
