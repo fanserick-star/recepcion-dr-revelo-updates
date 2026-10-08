@@ -165,6 +165,11 @@ jobs:
           print('RECEPTION TV STATE MACHINE OK')
           PY
 
+      - name: Verify emitted invoice pagination with real SQLite queries
+        run: |
+          python -m pip install --disable-pip-version-check 'SQLAlchemy>=2.0,<3'
+          python tools/test_reception_billing_issued_paging_sql.py
+
       - name: Block new versioned Reception folders under updates
         shell: bash
         run: |
