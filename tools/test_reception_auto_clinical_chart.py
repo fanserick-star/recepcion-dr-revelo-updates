@@ -194,9 +194,82 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert '(cloud_reception_id,)' in lookup
 
 
+def test_retry_marker_is_durable_idempotent_and_nonblocking() -> None:
+    from typing import Optional
+    core = text("recepcion/app/core_runtime.py")
+    fn = fn_node(core, "_remember_clinical_chart_retry")
+    marker_state = {}
+    sessions = []
+
+    class FakeMeta:
+        def __init__(self, key, value):
+            self.key, self.value = key, value
+
+    class FakeLocalSession:
+        def __init__(self):
+            self.commits = 0
+            self.closed = False
+            sessions.append(self)
+        def get(self, klass, key):
+            return marker_state.get(key)
+        def add(self, record):
+            marker_state[record.key] = record
+        def commit(self):
+            self.commits += 1
+        def close(self):
+            self.closed = True
+
+    scope = {
+        "Optional": Optional, "Session": object, "CacheMeta": FakeMeta,
+        "LocalSessionLocal": FakeLocalSession,
+        "CLINICAL_CHART_RETRY_PREFIX": "clinical_chart_retry:",
+    }
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[fn], type_ignores=[])),
+                 "clinical_chart_retry_marker", "exec"), scope)
+    remember = scope[fn.name]
+    remember(901)
+    remember(901)
+    assert list(marker_state) == ["clinical_chart_retry:901"]
+    assert marker_state["clinical_chart_retry:901"].value == "pending"
+    assert len(sessions) == 2 and all(x.commits == 1 and x.closed for x in sessions)
+
+    local_db = FakeLocalSession()
+    remember(902, local_db)
+    assert local_db.commits == 0 and not local_db.closed
+    assert marker_state["clinical_chart_retry:902"].value == "pending"
+
+    sync = core.split("def process_offline_queue(", 1)[1].split("V4425_AUTOBOOK_CSS", 1)[0]
+    assert 'clinical.get("status") == "pending_connection"' in sync
+    assert "_remember_clinical_chart_retry(patient_in_cloud.id, ldb)" in sync
+    assert sync.index("_remember_clinical_chart_retry(patient_in_cloud.id, ldb)") < sync.index("ldb.delete(q)")
+    assert "_schedule_clinical_chart_retry()" in sync
+
+    create = core.split('@app.post("/api/patients")', 1)[1].split(
+        '@app.put("/api/patients/{pid}")', 1
+    )[0]
+    assert 'result["clinical_chart"].get("status") == "pending_connection"' in create
+    assert "_remember_clinical_chart_retry(p.id)" in create
+
+    retry = core.split("def _retry_pending_clinical_charts(", 1)[1].split(
+        "def _schedule_clinical_chart_retry(", 1
+    )[0]
+    assert 'CacheMeta.value == "pending"' in retry
+    assert 'status in {"linked", "needs_link", "missing"}' in retry
+    assert 'marker.value = "needs_link"' in retry
+    assert "ldb.delete(marker)" in retry
+    assert "cdb.delete(" not in retry and "UPDATE public." not in retry
+    assert "CloudSessionLocal()" in retry
+    assert "User(username=\"admin\")" in retry
+    assert "_clinical_chart_retry_lock.acquire(blocking=False)" in core
+    assert "if online:" in core.split('def leave_power_idle(', 1)[1].split(
+        'def ', 1
+    )[0]
+
+
 if __name__ == "__main__":
     test_safe_auto_creation_returns_status_without_deleting_admin_patient()
     test_conservative_name_duplicate_guard()
     test_new_patient_route_autocreates_at_registration()
     test_identity_autocreate_guards_and_idempotency()
+    test_retry_marker_is_durable_idempotent_and_nonblocking()
     print("RECEPTION_AUTO_CLINICAL_CHART_OK")
