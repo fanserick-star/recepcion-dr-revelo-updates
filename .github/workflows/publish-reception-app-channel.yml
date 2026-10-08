@@ -30,6 +30,7 @@ jobs:
           python tools/test_reception_reports.py
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
+          python tools/test_reception_exam_review_turn.py
 
       - name: Generate channel from exact canonical Git blobs
         env:
