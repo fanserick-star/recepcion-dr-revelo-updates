@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.3",
-  "app_version": "4.8.3",
-  "runtime_version": "4.8.3",
+  "version": "4.8.4",
+  "app_version": "4.8.4",
+  "runtime_version": "4.8.4",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.3: ticket exclusivo de REVISIÓN DE EXÁMENES con turno grande en impresora térmica de 80 mm, impresión directa con impresora configurada o vista previa, y reimpresión desde Inicio. Envia etiqueta explícita y vínculo clínico verificado a Historia 1.4.7; TV distingue turno de revisión en pantalla y anuncio de voz sin mostrar identidad personal. Conserva número único de consultas y no crea facturas, cobros o recibos de consulta.",
-    "previous_version": "4.8.2",
+    "purpose": "Recepción 4.8.4: revisión de exámenes requiere ficha clínica de Historia vinculada y verificada antes de generar atención, número de turno, ticket o entrega LAN; desde el botón gratuito se abre búsqueda manual de ficha y tras confirmar se reanuda el flujo con una nueva confirmación. La API y la reimpresión también rechazan fichas sin vínculo; si Neon no responde se bloquea esta revisión sin afectar consultas cobradas. Envía a la PC médica el clinical_patient_id verificado sin depender de una segunda lectura de nube.",
+    "previous_version": "4.8.3",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -448,7 +448,19 @@
     "exam_review_same_number_ticket_historia_tv": true,
     "exam_review_tv_javascript_validation": true,
     "exam_review_connected_history_tv_test": true,
-    "exam_review_procedure_classification_unchanged_for_real_procedures": true
+    "exam_review_procedure_classification_unchanged_for_real_procedures": true,
+    "exam_review_manual_chart_link_required": true,
+    "exam_review_auto_open_link_dialog_if_unlinked": true,
+    "exam_review_manual_confirm_before_save": true,
+    "exam_review_verified_neon_patient_links_required": true,
+    "exam_review_backend_fail_closed_before_visit_create": true,
+    "exam_review_ticket_reprint_requires_verified_link": true,
+    "exam_review_offline_neon_blocks_new_reviews": true,
+    "exam_review_lan_explicit_verified_clinical_id": true,
+    "exam_review_no_automatic_matching_or_merging": true,
+    "exam_review_no_billing": true,
+    "fiscal_records_preserved": true,
+    "history_waiting_queue_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }
