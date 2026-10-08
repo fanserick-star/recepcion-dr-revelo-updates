@@ -534,12 +534,8 @@ def merge_safe_duplicate_patients() -> dict:
 
             for dup in duplicates:
                 dup_id = str(dup["id"])
-                # Todo vínculo operativo pasa a la ficha con historia.
-                conn.execute(
-                    "UPDATE patient_links SET clinical_patient_id=?,updated_at=? "
-                    "WHERE clinical_patient_id=?",
-                    (canonical_id, stamp, dup_id),
-                )
+                # Sólo Recepción puede cambiar vínculos administrativos.
+                # Los vínculos a fichas consolidadas deben corregirse desde Recepción.
                 conn.execute(
                     "UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? "
                     "WHERE clinical_patient_id=?",
@@ -1646,6 +1642,7 @@ def _queue_turn_number(conn, queue_id: str) -> int | None:
     return None
 
 def _create_new_patient_from_queue(conn, row) -> str:
+    raise ValueError("La creación y vinculación desde la cola está deshabilitada: gestionar desde Recepción.")
     """
     Crea una ficha mínima y segura para un turno marcado como Nuevo.
     Si Recepción envió identificación y ya existe exactamente esa identificación,
@@ -1750,35 +1747,8 @@ def _create_new_patient_from_queue(conn, row) -> str:
 
 
 def _link_queue_patient(conn, row, patient_id: str, matched_by: str):
-    stamp = now_iso()
-    conn.execute(
-        "UPDATE waiting_queue SET clinical_patient_id=?,updated_at=? WHERE id=?",
-        (patient_id, stamp, row["id"]),
-    )
-    conn.execute(
-        """
-        INSERT INTO patient_links(
-          reception_patient_id,clinical_patient_id,matched_by,verified,
-          verified_at,created_at,updated_at
-        ) VALUES(?,?,?,?,?,?,?)
-        ON CONFLICT(reception_patient_id) DO UPDATE SET
-          clinical_patient_id=excluded.clinical_patient_id,
-          matched_by=excluded.matched_by,
-          verified=1,
-          verified_at=excluded.verified_at,
-          updated_at=excluded.updated_at
-        """,
-        (
-            str(row["reception_patient_id"]),
-            patient_id,
-            matched_by,
-            1,
-            stamp,
-            stamp,
-            stamp,
-        ),
-    )
-    conn.commit()
+    """Deshabilitado: Historia no verifica, crea ni corrige vínculos administrativos."""
+    raise ValueError("Solo Recepción puede vincular fichas clínicas.")
 
 
 def _queue_validated_link(conn, row):
@@ -1801,7 +1771,7 @@ def _queue_validated_link(conn, row):
         if canonical:
             linked_id = str(canonical["id"])
             linked = canonical
-            _link_queue_patient(conn, row, linked_id, "repair_merged_patient")
+            # No corregir vínculos desde Historia. Recepción debe actualizar la ficha.
     identification = _queue_identification_key(row["identification"] or "")
     linked_ident = _queue_identification_key(linked["national_id_search"] or "")
     if identification and linked_ident and linked_ident != identification:
@@ -1896,20 +1866,10 @@ def attend_from_queue(queue_id: str):
 
 @app.get("/cola/{queue_id}/vincular/{patient_id}")
 def link_and_attend_queue(queue_id: str, patient_id: str):
-    _v1373_reconcile_signed_queue_items()
-    cleanup_stale_waiting_queue()
-    with db() as conn:
-        row = conn.execute(
-            "SELECT * FROM waiting_queue WHERE id=? AND status IN ('waiting','in_consultation') LIMIT 1",
-            (queue_id,),
-        ).fetchone()
-        patient = conn.execute("SELECT id FROM patients WHERE id=? LIMIT 1", (patient_id,)).fetchone()
-        if not row or not patient:
-            raise HTTPException(status_code=404, detail="Turno o paciente no encontrado")
-        _link_queue_patient(conn, row, patient_id, "manual_doctor")
-    return RedirectResponse(
-        f"/paciente/{patient_id}?queue_id={queue_id}",
-        status_code=303,
+    """No GET nor manual doctor interaction is permitted to change patient_links."""
+    raise HTTPException(
+        status_code=403,
+        detail="Solo Recepción puede vincular fichas clínicas. Confirme el vínculo en Recepción y regrese a la lista de espera.",
     )
 
 
@@ -2009,10 +1969,8 @@ def home():
                 action_label = "Ver ficha"
             elif r["clinical_patient_id"]:
                 action_label = "Abrir ficha"
-            elif is_new:
-                action_label = "Revisar ficha"
             else:
-                action_label = "Esperando Recepción"
+                action_label = "Pendiente de Recepción"
             attention_key = normalize_search(attention_label).lower().replace(" ", "-") or "consulta"
             procedure_name = _v1373_procedure_label(r) if is_procedure else ""
             exam_review = normalize_search(str(r["attention_type"] or "")).upper().strip() == "REVISION DE EXAMENES"
@@ -2027,7 +1985,7 @@ def home():
             last_label = _v1373_last_attention_label(r["last_encounter_date"] if "last_encounter_date" in r.keys() else "")
             patient_meta = " · ".join(x for x in ((f"{age} años" if age else ""), last_label) if x)
             queued = e((r["queued_at"] or "")[-8:-3])
-            can_open = bool(r["clinical_patient_id"]) or is_new or r["status"] == "in_consultation"
+            can_open = bool(r["clinical_patient_id"]) or r["status"] == "in_consultation"
             href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
             parts.append(
                 f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'}'>"
@@ -2050,7 +2008,7 @@ def home():
         r for r in queue
         if r["status"] == "in_consultation"
         or bool(r["clinical_patient_id"])
-        or _queue_display_type(r) == "Nuevo"
+        or bool(r["clinical_patient_id"])
     ]
     next_row = next((r for r in eligible_queue if r["status"] == "waiting"), None)
     if next_row is None:
@@ -4229,64 +4187,37 @@ def _v132_remove_route(path: str, method: str):
 
 
 def _v132_queue_confirmed(conn, row) -> bool:
+    """La confirmación clínica no crea vínculos con Recepción."""
     if not row or not _queue_is_new(row):
         return True
-    reception_id = str(row["reception_patient_id"] or "").strip()
-    patient_id = str(row["clinical_patient_id"] or "").strip()
-    if not reception_id or not patient_id:
+    patient_id = _queue_validated_link(conn, row)
+    if not patient_id:
         return False
-    link = conn.execute(
-        """SELECT matched_by,clinical_patient_id
-           FROM patient_links
-           WHERE reception_patient_id=? LIMIT 1""",
-        (reception_id,),
+    key = "new_patient_details_confirmed:" + str(row["id"] or "") + ":" + patient_id
+    local_confirmation = conn.execute(
+        "SELECT value FROM meta WHERE key=? LIMIT 1", (key,),
     ).fetchone()
-    if bool(
-        link
-        and str(link["clinical_patient_id"] or "") == patient_id
-        and str(link["matched_by"] or "") == "doctor_confirmed_new"
-    ):
-        return True
-    # Si el mismo turno ya produjo una consulta firmada, la ficha existe y no
-    # se vuelve a ofrecer crearla, aunque matched_by sea lan_new_demographics.
-    return _v1373_queue_has_signed_encounter(conn, row, patient_id)
+    return bool(local_confirmation and str(local_confirmation[0] or "") == "1") or _v1373_queue_has_signed_encounter(
+        conn, row, patient_id
+    )
 
 
 def _v132_mark_queue_confirmed(conn, row, patient_id: str) -> None:
-    stamp = now_iso()
-    reception_id = str(row["reception_patient_id"] or "").strip()
-    if not reception_id:
-        return
+    """Only marks the doctor-reviewed details; Reception owns patient_links."""
+    confirmed_id = _queue_validated_link(conn, row)
+    if not confirmed_id or confirmed_id != str(patient_id):
+        raise ValueError("La ficha no está vinculada desde Recepción.")
+    key = "new_patient_details_confirmed:" + str(row["id"] or "") + ":" + str(patient_id)
     conn.execute(
-        """
-        INSERT INTO patient_links(
-          reception_patient_id,clinical_patient_id,matched_by,verified,
-          verified_at,created_at,updated_at
-        ) VALUES(?,?,?,?,?,?,?)
-        ON CONFLICT(reception_patient_id) DO UPDATE SET
-          clinical_patient_id=excluded.clinical_patient_id,
-          matched_by=excluded.matched_by,
-          verified=1,
-          verified_at=excluded.verified_at,
-          updated_at=excluded.updated_at
-        """,
-        (
-            reception_id, patient_id, "doctor_confirmed_new", 1,
-            stamp, stamp, stamp,
-        ),
-    )
-    conn.execute(
-        """UPDATE waiting_queue
-           SET clinical_patient_id=?,updated_at=?
-           WHERE id=?""",
-        (patient_id, stamp, row["id"]),
+        "INSERT OR REPLACE INTO meta(key,value) VALUES(?,?)",
+        (key, "1"),
     )
     audit(
         conn,
         "confirm_new_patient_demographics",
         "patient",
         patient_id,
-        {"queue_id": str(row["id"]), "reception_patient_id": reception_id},
+        {"queue_id": str(row["id"]), "reception_patient_id": str(row["reception_patient_id"] or "")},
     )
     conn.commit()
 
@@ -4339,6 +4270,20 @@ for _path, _method in (
     _v132_remove_route(_path, _method)
 
 
+def _queue_needs_reception_link(row) -> HTMLResponse:
+    """Read-only waiting page; no doctor-side patient selection or linking."""
+    title = e(str(row["display_name"] or "Paciente"))
+    body = (
+        "<section class='page-head'><span class='eyebrow'>Pendiente de Recepción</span>"
+        f"<h1>{title}</h1>"
+        "<p>Este paciente todavía no tiene una ficha clínica vinculada y verificada "
+        "desde Recepción. Solicite a Recepción que busque o cree la ficha correcta "
+        "y confirme el vínculo. Después puede volver a abrir este mismo turno.</p>"
+        "</section><p><a class='secondary btn-link' href='/'>Volver a pacientes en espera</a></p>"
+    )
+    return HTMLResponse(base("Esperando vínculo de Recepción", body, "inicio"), status_code=409)
+
+
 @app.get("/cola/{queue_id}/atender")
 def attend_from_queue_v132(queue_id: str):
     with db() as conn:
@@ -4351,34 +4296,17 @@ def attend_from_queue_v132(queue_id: str):
         if not row:
             raise HTTPException(status_code=404, detail="Turno no encontrado")
 
-        if not _queue_is_new(row):
-            patient_id = _queue_validated_link(conn, row)
-            if not patient_id:
-                candidates, reason = _queue_strong_candidates(conn, row)
-                # Recepción es la autoridad del vínculo. Aunque exista un único
-                # candidato, Historia no lo selecciona silenciosamente.
-                pass
-            if patient_id:
-                return RedirectResponse(
-                    f"/paciente/{patient_id}?queue_id={queue_id}",
-                    status_code=303,
-                )
-            # Si hay ambigüedad, reutilizamos la pantalla segura de selección.
-            return _v132_attend_original(queue_id)
-
-        # Nunca aceptar a ciegas el clinical_patient_id de un turno nuevo:
-        # puede venir de un vínculo viejo/duplicado. La lógica v1.3.20+ valida
-        # identificación, existencia local y ambigüedad de nombre.
         patient_id = _queue_validated_link(conn, row)
         if not patient_id:
-            try:
-                patient_id = _create_new_patient_from_queue(conn, row)
-            except ValueError:
-                return _v132_attend_original(queue_id)
-            row = conn.execute(
-                "SELECT * FROM waiting_queue WHERE id=? LIMIT 1",
-                (queue_id,),
-            ).fetchone()
+            # No usar candidatos ni crear fichas desde Historia: Recepción
+            # identifica, crea y vincula antes de que el doctor abra la ficha.
+            return _queue_needs_reception_link(row)
+
+        if not _queue_is_new(row):
+            return RedirectResponse(
+                f"/paciente/{patient_id}?queue_id={queue_id}",
+                status_code=303,
+            )
 
         turn = _queue_turn_number(conn, queue_id)
         if _v132_queue_confirmed(conn, row):
