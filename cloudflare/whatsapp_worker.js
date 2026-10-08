@@ -5739,7 +5739,7 @@ async function dueCandidates(client, env) {
 WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,p.nombre patient_name,p.celular phone,a.fecha,a.hora,a.created_at,a.estado,a.origen,NULL::text source_hash
   FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO') AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ','REAGENDADA') AND a.origen <> 'CONFIRMAFY_ATENDIDO'
     AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
   SELECT 'staged'::text,c.id,c.nombre,c.celular,c.fecha,c.hora,c.created_at,'PENDIENTE'::text,'MOVIL'::text,c.source_hash::text
@@ -6229,6 +6229,7 @@ async function receiveWebhook(request, env, ctx) {
         }
       }
       await logButtonInbound(env, m2, p2, result);
+      if (responseWasApplied(result) && ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error("response_alarm_registration_failed", e)));
       continue;
     }
     if (m2?.type === "text" || m2?.type === "audio") {
@@ -6815,7 +6816,7 @@ WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,a.fecha,a.hora,
          a.created_at,NULL::text source_hash,p.celular phone
   FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO')
+  WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ','REAGENDADA')
     AND a.origen <> 'CONFIRMAFY_ATENDIDO'
     AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
@@ -6886,7 +6887,7 @@ SELECT min(GREATEST(
   now()+interval '2 seconds'
 )) AS next_due
 FROM pending
-WHERE coalesce(status,'') NOT IN ('SENT','DELIVERED','READ','SENDING','CANCELLED')
+WHERE coalesce(status,'') NOT IN ('SENT','DELIVERED','READ','SENDING','CANCELLED','FAILED')
   AND NOT (status='ERROR' AND attempts>=5)`;
     const params = [
       enabled(env.ENABLE_RECORDATORIO_CITA),
@@ -7028,7 +7029,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.26", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.27", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       return whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
     }
