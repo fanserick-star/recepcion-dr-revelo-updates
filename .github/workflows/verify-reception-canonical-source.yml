@@ -61,6 +61,7 @@ jobs:
           node tools/test_tv_display_javascript.mjs
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
+          node tools/test_whatsapp_reception_alarm_signature.mjs
           python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
           python - <<'PY'
