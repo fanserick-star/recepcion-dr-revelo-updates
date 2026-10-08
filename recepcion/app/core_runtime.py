@@ -3763,6 +3763,14 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                     cdb.commit()
                     if q.operation == "patient.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "patient", int(q.local_entity_id), int(result_id))
+                        # Create clinical chart only with the definitive cloud
+                        # Reception ID, never the temporary offline SQLite ID.
+                        patient_in_cloud = cdb.get(Patient, int(result_id))
+                        if patient_in_cloud is not None:
+                            _auto_create_clinical_chart_for_new_reception_patient(
+                                cdb, patient_in_cloud.id,
+                                User(username=str(q.username or "admin")),
+                            )
                     if q.operation == "visit.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "visit", int(q.local_entity_id), int(result_id))
                     if q.operation == "appointment.create" and q.local_entity_id is not None and result_id is not None:
@@ -5158,6 +5166,43 @@ def link_historical_to_patient(pid: int, hid: int, db: Session = Depends(get_db)
     }
 
 
+def _auto_create_clinical_chart_for_new_reception_patient(
+    db: Session, patient_id: int, user: User, *, offline: bool = False,
+) -> dict:
+    """Create/link a new Historia medical chart only from Reception.
+
+    A known or possibly pre-existing clinical chart prevents auto-creation;
+    cloud errors never roll back the saved Reception registration.
+    """
+    if offline or is_offline_db(db):
+        return {
+            "status": "pending_connection",
+            "linked": False,
+            "message": "Paciente guardado en Recepción. La ficha clínica queda pendiente de sincronización.",
+        }
+    try:
+        import reception_history_identity_consolidated as identity
+        result = identity.historia_identity_create_from_reception(
+            identity._HistoryCreateFromReceptionIn(reception_patient_id=int(patient_id)),
+            db=db, user=user,
+        )
+        if bool(result.get("linked")):
+            return {
+                "status": "linked",
+                "linked": True,
+                "created": bool(result.get("created")),
+                "clinical_patient_id": str((result.get("clinical_patient") or {}).get("id") or ""),
+            }
+        return {"status": "needs_link", "linked": False,
+                "message": "No se pudo verificar la ficha clínica; vincúlala desde Recepción."}
+    except HTTPException as exc:
+        kind = "needs_link" if exc.status_code in (400, 404, 409) else "pending_connection"
+        return {"status": kind, "linked": False, "message": str(exc.detail or "")[:240]}
+    except Exception:
+        return {"status": "pending_connection", "linked": False,
+                "message": "Paciente guardado. Historia Clínica no respondió; no se creó una ficha clínica sin verificar."}
+
+
 @app.post("/api/patients")
 def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     values = normalize_patient_payload(data)
@@ -5176,12 +5221,20 @@ def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = 
         db.commit()
         result = p_dict(p)
         result["offline"] = True
+        result["clinical_chart"] = _auto_create_clinical_chart_for_new_reception_patient(
+            db, p.id, user, offline=True
+        )
         return result
     audit(db, user, "crear_paciente", f"Paciente {p.id}: {p.nombre}")
     db.commit()
     mirror_patient_to_local(p)
     result = p_dict(p)
     result["offline"] = False
+    # Patient is already durable in Reception; clinical chart creation is safe
+    # to retry and NEVER deletes or changes an existing medical history.
+    result["clinical_chart"] = _auto_create_clinical_chart_for_new_reception_patient(
+        db, p.id, user
+    )
     return result
 
 
