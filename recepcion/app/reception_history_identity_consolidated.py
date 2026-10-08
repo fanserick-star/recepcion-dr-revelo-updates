@@ -897,11 +897,14 @@ V4613_JS = r"""
     return activePid||0;
   }
   function labelFrom(host){
-    return text(
-      host.querySelector('.v4413-profile-identity b')?.textContent||
+    // La cédula NO es el nombre: el selector anterior tomaba primero
+    // .v4413-profile-identity b y llenaba la búsqueda con el número.
+    const name=text(
       host.querySelector('.v4413-profile-name h2')?.textContent||
-      host.querySelector('h2')?.textContent||''
+      host.querySelector('.attention-patient-name')?.textContent||
+      host.querySelector('.patient-profile-name')?.textContent||''
     );
+    return /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(name)?name:'';
   }
   function place(host,card){
     const attentionStatus=host.querySelector('#attentionStatus');
@@ -944,7 +947,18 @@ V4613_JS = r"""
     overlay.querySelector('.v4613-close').onclick=closeSearch;
     overlay.addEventListener('click',e=>{if(e.target===overlay)closeSearch()});
     const input=overlay.querySelector('input'),go=overlay.querySelector('.v4613-search button'),results=overlay.querySelector('.v4613-results');
-    input.value=text(initial);
+    // El nombre oficial viene de la ficha de Recepción, nunca de su cédula.
+    // Sirve también cuando el botón se abre desde Nueva atención sin título
+    // de paciente visible en el DOM.
+    const typedInitial=text(initial);
+    input.value=/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(typedInitial)?typedInitial:'';
+    if(!input.value){
+      try{
+        const receptionPatient=await call('/api/patients/'+encodeURIComponent(pid));
+        const officialName=text(receptionPatient?.nombre||'');
+        if(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(officialName))input.value=officialName;
+      }catch(_e){}
+    }
 
     const run=async()=>{
       const q=text(input.value);
