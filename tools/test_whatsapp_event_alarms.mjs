@@ -45,7 +45,7 @@ assert.match(worker, /interval '2 hours'/); // stale test events cannot be repla
 assert.match(reception, /def _whatsapp_alarm_notify_async\(\)/);
 assert.match(reception, /hmac\.new\(key\.encode\("utf-8"\)/);
 assert.match(reception, /_WA_ALARM_NOTIFY_URL = "https:\/\/dr-revelo-whatsapp-cloud/);
-assert.match(reception, /if alarm_relevant_change and pending == 0:\s*_whatsapp_alarm_notify_async\(\)/);
+assert.match(reception, /if alarm_relevant_change:\s*_whatsapp_alarm_notify_async\(\)/);
 assert.match(reception, /_whatsapp_alarm_notify_async\(\)\s*return \{"queued": queued\}/);
 assert.match(reception, /def process_offline_queue\(/);
 assert.match(reception, /def schedule_whatsapp_for_contact\(/);
