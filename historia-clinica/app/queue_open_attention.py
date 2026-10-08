@@ -25,6 +25,8 @@ def _now() -> str:
 
 def _is_procedure(value: object) -> bool:
     raw = " ".join(str(value or "").strip().upper().split())
+    if raw in {"REVISIÓN DE EXÁMENES", "REVISION DE EXAMENES"}:
+        return False
     return bool(raw in {"P", "X", "PROCEDIMIENTO"} or raw.startswith("PROCEDIMIENTO "))
 
 
