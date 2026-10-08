@@ -164,7 +164,9 @@ def test_conservative_name_duplicate_guard() -> None:
                                "national_id": "", "phone": antonio["phone"]})
 
     demo["phone"] = "0987654321"
-    assert might(demo, {"name": "PEREZ RUIZ JORGE",
+    assert not might(demo, {"name": "PEREZ RUIZ JORGE",
+                            "national_id": "", "phone": "0987654321"})
+    assert might(demo, {"name": "PEREZ RUIZ ANA",
                         "national_id": "", "phone": "0987654321"})
 
 
