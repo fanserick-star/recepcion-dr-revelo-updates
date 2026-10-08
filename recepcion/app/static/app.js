@@ -591,9 +591,11 @@ async function openSmartAlerts(){
       'No fue posible verificar los mensajes de WhatsApp Cloud: '+String(data.cloud_error||'sin conexión');
     const status=problems
       ?line('⚠ '+problems+' situación(es) para revisar','Estos avisos NO reenvían mensajes ni modifican citas.','bad')
-      :line('✓ Sin incidencias detectadas en esta revisión','La ausencia de avisos no sustituye la confirmación de entrega de Meta.');
+      :data.cloud_checked
+      ?line('✓ Sin incidencias detectadas en esta revisión','La ausencia de avisos no sustituye la confirmación de entrega de Meta.')
+      :line('⚠ WhatsApp Cloud sin comprobar','No interpretes la falta de datos como una entrega confirmada.','bad');
     const hint=data.alarm_hint||{};
-    const hintText=hint.status==='failed'?line('⚠ Aviso al Worker falló',
+    const hintText=hint.status==='fallido'?line('⚠ Aviso al Worker falló',
       String(hint.last_error||'Recepción no pudo confirmar la programación de alarmas.'),'bad'):'';
     openModal('<div style="max-width:750px;display:grid;gap:9px"><h2>🔔 Centro de alertas</h2><p class="muted">'+esc(connection)+'</p>'+status+
       line('Sincronización local',Number(data.pending_sync||0)>0?data.pending_sync+' operación(es) pendientes de subir.':'Sin operaciones pendientes en la cola local.',Number(data.pending_sync||0)>0?'bad':'normal')+
