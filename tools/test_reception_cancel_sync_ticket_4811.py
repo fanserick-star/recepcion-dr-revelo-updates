@@ -70,7 +70,7 @@ def test_cloud_replay_matches_exact_local_row():
     match = executable_function(
         "core_runtime.py",
         "_visit_cloud_matches_local",
-        {"date": date},
+        {"date": date, "Visit": object},
     )
     old = SimpleNamespace(patient_id=429, fecha=date(2026, 10, 8),
                           procedimiento="CISTOSCOPIA", valor=140.0)
