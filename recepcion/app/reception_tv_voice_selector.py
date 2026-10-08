@@ -52,7 +52,8 @@ DISPLAY_VOICE_SCRIPT = r"""
     voiceTimer=setTimeout(()=>{
       try{
         const synth=window.speechSynthesis;synth.cancel();
-        const u=new SpeechSynthesisUtterance('Turno número '+n+', por favor pasar a consulta.');
+        const isExamReview=!!(state&&state.exam_review&&state.display_mode!=='test');
+        const u=new SpeechSynthesisUtterance('Turno número '+n+(isExamReview?', revisión de exámenes. Por favor pasar al consultorio.':', por favor pasar a consulta.'));
         const v=configuredVoice(cfg);if(v){u.voice=v;u.lang=v.lang||'es-EC'}else u.lang='es-EC';
         const rate=Number(cfg&&cfg.rate);u.rate=Number.isFinite(rate)?Math.max(.6,Math.min(1.3,rate)):.9;
         const pitch=Number(cfg&&cfg.pitch);u.pitch=Number.isFinite(pitch)?Math.max(.7,Math.min(1.3,pitch)):1;
