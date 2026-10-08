@@ -427,8 +427,16 @@ try:
             .join(core.Patient, core.Patient.id == core.Visit.patient_id)
             .where(*filters)
             .group_by(core.Visit.patient_id, core.Visit.fecha)
-            .order_by(core.func.max(core.BillingRecord.emitted_at).desc(),
-                      core.Visit.fecha.desc(), core.func.max(core.Visit.id).desc())
+            # Same sort as _issued_page_keys: issuance timestamp first; legacy
+            # invoices without emitted_at sort by their visit date instead.
+            .order_by(
+                core.func.coalesce(
+                    core.func.max(core.BillingRecord.emitted_at),
+                    core.func.max(core.Visit.fecha),
+                ).desc(),
+                core.func.max(core.Visit.id).desc(),
+                core.Visit.patient_id.desc(),
+            )
             .execution_options(include_cancelled_visits=True)
         )
 
