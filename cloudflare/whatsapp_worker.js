@@ -6888,7 +6888,7 @@ SELECT min(GREATEST(
 )) AS next_due
 FROM pending
 WHERE coalesce(status,'') NOT IN ('SENT','DELIVERED','READ','SENDING','CANCELLED','FAILED')
-  AND NOT (status='ERROR' AND attempts>=5)`;
+  AND NOT (coalesce(status,'')='ERROR' AND coalesce(attempts,0)>=5)`;
     const params = [
       enabled(env.ENABLE_RECORDATORIO_CITA),
       enabled(env.ENABLE_RECORDATORIO_HOY),
