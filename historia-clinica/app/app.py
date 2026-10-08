@@ -1642,108 +1642,11 @@ def _queue_turn_number(conn, queue_id: str) -> int | None:
     return None
 
 def _create_new_patient_from_queue(conn, row) -> str:
-    raise ValueError("La creación y vinculación desde la cola está deshabilitada: gestionar desde Recepción.")
-    """
-    Crea una ficha mínima y segura para un turno marcado como Nuevo.
-    Si Recepción envió identificación y ya existe exactamente esa identificación,
-    reutiliza la ficha existente para no duplicarla.
-    """
-    identification = _queue_identification_key(row["identification"] or "")
-    if identification:
-        exact = conn.execute(
-            "SELECT id FROM patients WHERE national_id_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 2",
-            (identification,),
-        ).fetchall()
-        if len(exact) == 1:
-            patient_id = str(exact[0]["id"])
-            _link_queue_patient(conn, row, patient_id, "auto_identification_new")
-            return patient_id
-        if len(exact) > 1:
-            raise ValueError("La identificación coincide con más de una ficha existente.")
-
-    name = re.sub(r"\s+", " ", str(row["display_name"] or "")).strip().upper()
-    if not name:
-        raise ValueError("El turno no tiene un nombre válido para crear la ficha.")
-
-    # Si Recepción marcó "Nuevo" pero no envió identificación, no creamos otra
-    # ficha a ciegas si ya existe exactamente ese nombre. Obligamos a revisar y
-    # seleccionar la ficha correcta; así evitamos triplicados por reingresos.
-    if not identification:
-        same_name = conn.execute(
-            "SELECT id,name,national_id FROM patients WHERE name_search=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 4",
-            (normalize_search(name),),
-        ).fetchall()
-        if same_name:
-            raise ValueError(
-                "Ya existe una o más fichas con exactamente ese nombre. "
-                "Seleccione la ficha correcta antes de crear otra."
-            )
-
-    # Recepción y Historia deben hablar de UNA SOLA ficha para un paciente
-    # nuevo. El puente de Recepción ya usa este UUID determinístico en Neon.
-    # Historia reutiliza exactamente el mismo ID aunque la sincronización aún
-    # no haya alcanzado a bajar esa fila; así dos procesos nunca crean dos PK.
-    reception_patient_id = str(row["reception_patient_id"] or "").strip()
-    linked_id = str(row["clinical_patient_id"] or "").strip()
-    if linked_id:
-        patient_id = linked_id
-    elif reception_patient_id:
-        patient_id = str(uuid.uuid5(
-            uuid.NAMESPACE_URL,
-            "historia-reception-patient:" + reception_patient_id,
-        ))
-    else:
-        patient_id = new_id()
-
-    existing_same_id = conn.execute(
-        "SELECT id,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
-        (patient_id,),
-    ).fetchone()
-    if existing_same_id:
-        canonical_id = str(existing_same_id["merged_into_patient_id"] or "").strip() or patient_id
-        _link_queue_patient(conn, row, canonical_id, "reuse_reception_patient_id")
-        return canonical_id
-
-    stamp = now_iso()
-    raw_id = str(row["identification"] or "").strip() if identification else ""
-    digest = hashlib.sha256(
-        f"{patient_id}|{name}|{raw_id}|{stamp}|reception_new".encode("utf-8")
-    ).hexdigest()
-
-    conn.execute(
-        """INSERT INTO patients(
-             id,legacy_patient_id,name,name_search,birth_date,sex,civil_status,
-             address,phone,next_appointment_legacy,national_id,national_id_search,
-             legacy_notes,legacy_photo,legacy_alert,email,insurer,
-             legacy_no_depurable,source,source_record_hash,created_at,updated_at
-           ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            patient_id, None, name, normalize_search(name), None, None, None,
-            None, None, None, raw_id or None, identification if raw_id else "",
-            None, None, None, None, None, 0, "reception_new", digest, stamp, stamp,
-        ),
+    """Legacy queue creation disabled. Reception must create and verify links."""
+    raise ValueError(
+        "Historia Clínica no crea ni vincula fichas desde la cola. "
+        "Solicita a Recepción que cree o vincule la ficha correcta."
     )
-    audit(
-        conn,
-        "create_from_reception",
-        "patient",
-        patient_id,
-        {
-            "name": name,
-            "reception_patient_id": str(row["reception_patient_id"] or ""),
-            "queue_id": str(row["id"]),
-            "attention_type": _queue_display_type(row),
-        },
-    )
-    conn.commit()
-
-    # Vincula en una segunda operación reutilizando la lógica auditada existente.
-    fresh_row = conn.execute(
-        "SELECT * FROM waiting_queue WHERE id=? LIMIT 1",
-        (row["id"],),
-    ).fetchone()
-    _link_queue_patient(conn, fresh_row or row, patient_id, "auto_new_from_reception")
-    return patient_id
 
 
 def _link_queue_patient(conn, row, patient_id: str, matched_by: str):
@@ -1756,6 +1659,19 @@ def _queue_validated_link(conn, row):
     linked_id = str(row["clinical_patient_id"] or "").strip()
     if not linked_id:
         return ""
+    # If the local cloud mirror already has a Reception-confirmed link,
+    # never open another patient chart from a stale queue entry.
+    reception_id = str(row["reception_patient_id"] or "").strip()
+    if reception_id:
+        confirmed = conn.execute(
+            "SELECT clinical_patient_id,verified FROM patient_links "
+            "WHERE reception_patient_id=? LIMIT 1", (reception_id,),
+        ).fetchone()
+        if confirmed and (
+            str(confirmed["clinical_patient_id"] or "") != linked_id
+            or int(confirmed["verified"] or 0) != 1
+        ):
+            return ""
     linked = conn.execute(
         "SELECT id,name,name_search,national_id_search,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
         (linked_id,),
