@@ -5778,6 +5778,23 @@ def create_exam_review_turn(
     )
     created = existing is None
     offline = is_offline_db(db)
+    if not existing:
+        # One consultation-shaped turn per patient/day: prevent a second
+        # number when the patient already has a normal consultation today.
+        other_turn = db.scalar(
+            select(Visit.id).where(
+                Visit.patient_id == data.patient_id,
+                Visit.fecha == data.fecha,
+                Visit.procedimiento.is_(None),
+                Visit.estado == "ACTIVA",
+            ).limit(1)
+        )
+        if other_turn is not None:
+            raise HTTPException(
+                409,
+                "Este paciente ya tiene una consulta o turno activo hoy. "
+                "No se creó un turno duplicado.",
+            )
     if existing:
         visit = existing
     else:
