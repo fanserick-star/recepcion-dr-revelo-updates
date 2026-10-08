@@ -48,7 +48,7 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.27"',
+            'worker_version: "2.6.28"',
             'alarm_mode: "durable_object_event_driven"',
             'alarm_delivery_policy: "preserve_24x7"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
@@ -93,6 +93,7 @@ jobs:
           node --check /tmp/whatsapp_worker.mjs
           node --check cloudflare/whatsapp_alarm_time.mjs
           node tools/test_whatsapp_event_alarms.mjs
+          node tools/test_whatsapp_single_confirmation_policy.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
           node tools/test_whatsapp_reception_alarm_signature.mjs
 
@@ -138,7 +139,7 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.27', d
+          assert d.get('worker_version') == '2.6.28', d
           assert d.get('alarm_mode') == 'durable_object_event_driven', d
           assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
@@ -219,27 +220,9 @@ jobs:
           print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
           PY
 
-      - name: Recuperar programador anterior si falló un control de producción
+      - name: Avisar fallo sin restaurar cron de vigilancia
         if: ${{ failure() && steps.deploy_alarm_worker.outcome == 'success' }}
         shell: bash
         run: |
-          set -euo pipefail
-          # Safe rollback to the existing 30-minute backup cron, while retaining
-          # the Durable Object migration. No database tables or records touched.
-          python - <<'PY'
-          import json, pathlib
-          p=pathlib.Path('cloudflare/wrangler.whatsapp.jsonc')
-          config=json.loads(p.read_text(encoding='utf-8'))
-          config['triggers']={'crons':['*/30 * * * *']}
-          p.write_text(json.dumps(config,indent=2)+'\n',encoding='utf-8')
-          p=pathlib.Path('cloudflare/whatsapp_worker.js')
-          s=p.read_text(encoding='utf-8')
-          marker='// No scheduled() callback: Durable Object alarms replace cron surveillance.'
-          assert marker in s
-          s=s.replace(marker, '''async scheduled(_controller, env, ctx) {
-            ctx.waitUntil(runScheduler(env));
-          }''')
-          p.write_text(s,encoding='utf-8')
-          print('FALLBACK_30_MINUTE_CRON_RESTORED')
-          PY
-          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
+          echo "::error::Verificación de producción falló. Revisar y revertir manualmente si corresponde. Nunca reactivar cron ni reenviar mensajes."
+          echo "Fallback automático de cron deshabilitado para conservar alarmas por evento."
