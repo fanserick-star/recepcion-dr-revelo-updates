@@ -33,7 +33,7 @@ assert "CloudSessionLocal" not in segment and "_connect_public()" not in segment
 assert "core.LocalSessionLocal()" in segment
 assert "core.is_exam_review_no_charge(v)" in segment
 assert "def _waitlist_4816_date_time(" in src
-assert "def mountAgendaWaitlistShortcut()" in front
+assert "function mountAgendaWaitlistShortcut()" in front
 assert "function loadHomeDaySummary(" in front
 assert "async function openWaitlistBoard()" in front
 assert "async function addWaitlistEntry()" in front
