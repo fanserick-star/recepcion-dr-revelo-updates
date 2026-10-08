@@ -45,6 +45,10 @@ def test_marker_and_no_billing() -> None:
     assert 'attention_type="Revisión de exámenes"' in free_route
     assert 'historia_bridge.queue_attention(' in free_route
     assert '"billing_created": False' in free_route
+    # Verify before creating an attention or handing it off to Historia.
+    assert "clinical_patient_id = _verified_exam_review_clinical_id(patient.id)" in free_route
+    assert free_route.index("_verified_exam_review_clinical_id(patient.id)") < free_route.index("db.add(visit)")
+    assert "clinical_patient_id=clinical_patient_id" in free_route
     assert '"handoff_queued": not bool(handoff_error)' in free_route
 
     sync = source.split('elif q.operation == "visit.create":', 1)[1].split(
@@ -58,6 +62,67 @@ def test_marker_and_no_billing() -> None:
     assert '"exam_review_no_charge": is_exam_review_no_charge(v)' in source
 
 
+
+def test_verified_link_gate_fails_closed_without_writes() -> None:
+    """Exercise the actual backend link-guard with fully isolated fake Neon."""
+    import sys
+    import types
+
+    source = text("recepcion/app/core_runtime.py")
+    fn = next(
+        f for f in ast.parse(source).body
+        if isinstance(f, ast.FunctionDef) and f.name == "_verified_exam_review_clinical_id"
+    )
+
+    class FakeHttpException(Exception):
+        def __init__(self, status_code, detail):
+            super().__init__(detail)
+            self.status_code = status_code
+
+    def call_with(result=None, failed=False):
+        query_log = []
+        class Cursor:
+            def execute(self, sql, values):
+                query_log.append((sql, values))
+            def fetchone(self):
+                return result
+        class Connection:
+            def cursor(self):
+                return Cursor()
+            def close(self):
+                query_log.append(("closed", None))
+        def connector():
+            if failed:
+                raise OSError("Neon offline")
+            return Connection()
+        fake = types.ModuleType("reception_history_identity_consolidated")
+        fake._connect_public = connector
+        old = sys.modules.get(fake.__name__)
+        sys.modules[fake.__name__] = fake
+        try:
+            scope = {"HTTPException": FakeHttpException}
+            exec(compile(ast.Module(body=[fn], type_ignores=[]), "<guard>", "exec"), scope)
+            try:
+                value = scope["_verified_exam_review_clinical_id"](27)
+                return value, None, query_log
+            except FakeHttpException as exc:
+                return "", exc.status_code, query_log
+        finally:
+            if old is None:
+                sys.modules.pop(fake.__name__, None)
+            else:
+                sys.modules[fake.__name__] = old
+
+    assert call_with(("clinical-27",))[0] == "clinical-27"
+    missing, status_missing, queries = call_with()
+    assert not missing and status_missing == 409
+    assert "l.verified=1" in queries[0][0]
+    assert "JOIN public.patients" in queries[0][0]
+    assert "p.deleted_at IS NULL" in queries[0][0]
+    assert queries[0][1] == ("27",)
+    unavailable, status_unavailable, _ = call_with(failed=True)
+    assert not unavailable and status_unavailable == 503
+
 def test_separate_free_button_and_no_receipt() -> None:
     js = text("recepcion/app/static/app.js")
     assert 'onclick="saveExamReviewTurn(' in js
@@ -69,7 +134,10 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert "api('/api/visits/batch-payment'" not in free_handler
     assert "saveAttention(" not in free_handler
     assert "const fecha=" in free_handler
-    assert "sin cobro ni factura" in free_handler.lower() or "no se cobrará ni se creará factura" in free_handler.lower()
+    assert "SIN COBRO" in free_handler
+    assert "api('/api/historia-identity/status/'" in free_handler
+    assert "openExamReviewHistoryLink" in free_handler
+    assert free_handler.index("'/api/historia-identity/status/'") < free_handler.index("api('/api/visits/exam-review'")
     assert 'if(r?.exam_review_no_charge)' in js
     assert "&&!v.exam_review_no_charge" in js
     assert "const receiptActions=r?.exam_review_no_charge?" in js
@@ -84,6 +152,12 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert 'onclick="showExamReviewTicket(' in js
     assert ".exam-review-ticket-modal" in css
     assert 'REVISIÓN DE EXÁMENES' in js
+    manual = text("recepcion/app/reception_history_identity_consolidated.py")
+    assert "window.openExamReviewHistoryLink=function(pid,initial='')" in manual
+    assert "async function searchDialog(pid,initial='',afterLink=null)" in manual
+    assert "if(typeof afterLink==='function')" in manual
+    assert "Confirmar vínculo" in manual
+
 
 
 
@@ -110,6 +184,7 @@ def test_cross_system_and_fiscal_safety() -> None:
     assert 'getattr(visit, "estado", "ACTIVA")' in ticket_reader
     assert "LocalSessionLocal()" in ticket_reader
     assert '"billing": False' in ticket_reader
+    assert "_verified_exam_review_clinical_id(patient.id)" in ticket_reader
     assert "BillingRecord(" not in ticket_reader
     assert '@app.post("/api/visits/exam-review/{visit_id}/print")' in source
     assert '@app.get("/api/visits/exam-review/{visit_id}/ticket")' in source
@@ -135,6 +210,7 @@ def test_cross_system_and_fiscal_safety() -> None:
 
 if __name__ == "__main__":
     test_marker_and_no_billing()
+    test_verified_link_gate_fails_closed_without_writes()
     test_separate_free_button_and_no_receipt()
     test_cross_system_and_fiscal_safety()
     print("RECEPTION_EXAM_REVIEW_TURN_OK")
