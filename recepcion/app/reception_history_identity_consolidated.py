@@ -757,8 +757,11 @@ def historia_identity_search(
 
 
 def _auto_creation_maybe_existing_chart(demo: dict, candidate: dict) -> bool:
-    """Conservative duplicate protection without blocking a new family member
-    merely for sharing one common surname."""
+    """Block likely same-person charts, not unrelated people sharing surnames.
+
+    Two surnames alone (and even a shared family phone) are insufficient to
+    prevent a new chart. Actual identity/forename overlap is required.
+    """
     wanted_id = _usable_id(demo.get("national_id"))
     existing_id = _usable_id(candidate.get("national_id_search") or candidate.get("national_id"))
     if wanted_id and existing_id and wanted_id == existing_id:
@@ -767,9 +770,28 @@ def _auto_creation_maybe_existing_chart(demo: dict, candidate: dict) -> bool:
     wanted_tokens = list(dict.fromkeys(
         token for token in _fuzzy_text(demo.get("name")).split() if len(token) >= 2
     ))
-    other_tokens = set(_fuzzy_text(candidate.get("name") or candidate.get("name_search")).split())
+    other_tokens = set(
+        _fuzzy_text(candidate.get("name") or candidate.get("name_search")).split()
+    )
+    if not wanted_tokens or not other_tokens:
+        return False
+
     overlap = sum(1 for token in wanted_tokens if token in other_tokens)
-    if not overlap:
+    if overlap == 0:
+        return False
+
+    # Identical full names still require a human check, even with differing IDs.
+    if len(wanted_tokens) >= 3 and len(wanted_tokens) == len(other_tokens) \
+            and set(wanted_tokens) == other_tokens:
+        return True
+
+    # The first two fields are the surnames in the Reception registration.
+    # These may be reordered in the old clinical data. Do not mistake
+    # PEREZ QUINTERO LUIS for PEREZ QUINTERO DIEGO.
+    surnames = set(wanted_tokens[:2])
+    given_names = set(wanted_tokens[2:])
+    shared_given_name = bool(given_names.intersection(other_tokens - surnames))
+    if not shared_given_name:
         return False
 
     wanted_phone = _norm_phone(demo.get("phone"))
@@ -779,13 +801,12 @@ def _auto_creation_maybe_existing_chart(demo: dict, candidate: dict) -> bool:
 
     wanted_birth = _iso_date(demo.get("birth_date"))
     existing_birth = _iso_date(candidate.get("birth_date"))
-    if wanted_birth and existing_birth and wanted_birth == existing_birth and overlap >= 2:
+    if wanted_birth and existing_birth and wanted_birth == existing_birth:
         return True
 
-    if len(wanted_tokens) >= 2 and all(token in other_tokens for token in wanted_tokens[:2]):
-        return True  # two matching surnames, including reordered clinical names
-    return overlap >= max(2, len(wanted_tokens) - 1)
-
+    if len(surnames) == 2 and surnames.issubset(other_tokens):
+        return True
+    return overlap >= max(3, len(wanted_tokens) - 1)
 
 class _HistoryCreateFromReceptionIn(core.BaseModel):
     reception_patient_id: int
@@ -848,32 +869,40 @@ def historia_identity_create_from_reception(
                 "Hay una ficha clínica con identidad o apellidos coincidentes. "
                 "Comprueba si es el mismo paciente y vincula desde Recepción.",
             )
-        # Independently check the two surnames across ALL live clinical cards:
-        # the human-search candidate list is intentionally capped for speed,
-        # and must not be used as the sole duplicate guard before an INSERT.
-        surname_tokens = list(dict.fromkeys(
+        # Independently scan live clinical cards beyond the human-search top 20.
+        # Requiring at least one given name here avoids false blocks for family
+        # members who share both surnames but are different people.
+        name_parts = list(dict.fromkeys(
             t for t in _fuzzy_text(name).split() if len(t) >= 2
-        ))[:2]
-        if len(surname_tokens) == 2:
+        ))
+        surname_tokens = name_parts[:2]
+        given_tokens = name_parts[2:6]
+        if len(surname_tokens) == 2 and given_tokens:
             name_expr = (
                 "TRANSLATE(UPPER(CONCAT_WS(' ',"
                 "NULLIF(COALESCE(p.name_search,''),''),"
                 "NULLIF(COALESCE(p.name,''),''))),"
                 "'ÁÉÍÓÚÜÑZ','AEIOUUNS')"
             )
+            given_conditions = " OR ".join(
+                f"{name_expr} LIKE %s" for _ in given_tokens
+            )
             cur.execute(
-                "SELECT p.id FROM public.patients p "
+                "SELECT p.id,p.name,p.name_search,p.national_id,p.national_id_search,"
+                "p.birth_date,p.phone FROM public.patients p "
                 "WHERE p.deleted_at IS NULL "
                 f"AND {name_expr} LIKE %s AND {name_expr} LIKE %s "
-                "LIMIT 1",
-                ("%" + surname_tokens[0] + "%", "%" + surname_tokens[1] + "%"),
+                f"AND ({given_conditions}) LIMIT 120",
+                tuple("%" + t + "%" for t in surname_tokens + given_tokens),
             )
-            if cur.fetchone():
-                raise core.HTTPException(
-                    409,
-                    "Encontré una ficha con los dos apellidos del paciente. "
-                    "Verifica la existente en Recepción antes de crear otra.",
-                )
+            for raw in cur.fetchall() or []:
+                existing = _dict_row(cur, raw)
+                if _auto_creation_maybe_existing_chart(demo, existing):
+                    raise core.HTTPException(
+                        409,
+                        "Encontré una ficha con los dos apellidos del paciente. "
+                        "Verifica la existente en Recepción antes de crear otra.",
+                    )
         clinical_id = str(uuid.uuid4())
         stamp = datetime.now().isoformat(timespec="seconds")
         cur.execute(

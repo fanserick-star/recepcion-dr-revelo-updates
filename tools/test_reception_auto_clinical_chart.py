@@ -143,11 +143,30 @@ def test_conservative_name_duplicate_guard() -> None:
     assert not might(demo, {"name": "GARCIA RUIZ CARLOS MIGUEL",
                             "national_id": "0922222222"})
     assert might(demo, {"name": "PEREZ GARCIA ANA", "national_id": "0922222222"})
-    assert might(demo, {"name": "PEREZ GARCIA LUIS", "national_id": "0922222222"})
+    assert not might(demo, {"name": "PEREZ GARCIA LUIS", "national_id": "0922222222"})
     assert might(demo, {"name": "OTROS APELLIDOS", "national_id": "0911111111"})
     assert not might(demo, {"name": "PEREZ RUIZ JORGE", "national_id": "0922222222"})
+    # Regression: the doctor's earlier unrelated family member must not
+    # prevent a genuinely new person with the same two surnames from enrolling.
+    antonio = {"name": "PEREZ QUINTERO LUIS ALBERTO",
+               "national_id": "0912345678", "phone": "0999999999",
+               "birth_date": "1977-02-06"}
+    alfonso = {"name": "PEREZ QUINTERO DIEGO MANUEL",
+               "national_id": "", "phone": "", "birth_date": ""}
+    assert not might(antonio, alfonso)
+    # But still prevent a duplicate when the national ID, or both surnames
+    # plus a given name, agree (including reordered clinical surnames).
+    assert might(antonio, {"name": "QUINTERO PEREZ LUIS",
+                           "national_id": ""})
+    assert might(antonio, {"name": "OTRO NOMBRE",
+                           "national_id": antonio["national_id"]})
+    assert not might(antonio, {"name": "PEREZ QUINTERO DIEGO MANUEL",
+                               "national_id": "", "phone": antonio["phone"]})
+
     demo["phone"] = "0987654321"
-    assert might(demo, {"name": "PEREZ RUIZ JORGE",
+    assert not might(demo, {"name": "PEREZ RUIZ JORGE",
+                            "national_id": "", "phone": "0987654321"})
+    assert might(demo, {"name": "PEREZ RUIZ ANA",
                         "national_id": "", "phone": "0987654321"})
 
 
@@ -163,8 +182,10 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert '_search_candidates(cur, demo, name, 20)' in create
     assert '"Hay una ficha clínica con identidad o apellidos coincidentes' in create
     assert '"Encontré una ficha con los dos apellidos del paciente' in create
+    assert "given_conditions" in create and "given_tokens" in create
+    assert "if _auto_creation_maybe_existing_chart(demo, existing)" in create
     assert "_auto_creation_maybe_existing_chart(demo, r)" in create
-    assert "LIMIT 1" in create
+    assert "LIMIT 120" in create
     assert "ON CONFLICT(reception_patient_id) DO NOTHING" in create
     assert "conn.rollback()" in create
     assert '"reception_created_verified"' in create
@@ -179,6 +200,9 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert 'clinical.status===\'needs_link\'' in registration
     assert 'clinical.status===\'pending_connection\'' in registration
     assert "api('/api/patients',{method:'POST'" in registration
+    assert "if(clinical.linked===true)await attentionFor(p.id)" in registration
+    assert "else await openPatient(p.id,'patients')" in registration
+    assert r"\\n\\n" not in registration.split("if(clinical.status==='needs_link')",1)[1].split("}else if(",1)[0]
     assert "create-new" not in registration
     assert "Crear ficha clínica nueva" not in registration
 
