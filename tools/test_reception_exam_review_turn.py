@@ -72,7 +72,7 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert "sin cobro ni factura" in free_handler.lower() or "no se cobrará ni se creará factura" in free_handler.lower()
     assert 'if(r?.exam_review_no_charge)' in js
     assert "&&!v.exam_review_no_charge" in js
-    assert "&&!r?.exam_review_no_charge" in js
+    assert "const receiptActions=r?.exam_review_no_charge?" in js
     assert "receiptDataFromHome" in js
     assert '.filter(v=>!String(v.procedimiento||\'\').trim()&&!v.exam_review_no_charge)' in js
     css = text("recepcion/app/static/style.css")
