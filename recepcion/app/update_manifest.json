@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.5",
-  "app_version": "4.8.5",
-  "runtime_version": "4.8.5",
+  "version": "4.8.6",
+  "app_version": "4.8.6",
+  "runtime_version": "4.8.6",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.5: autoridad exclusiva de los vínculos entre Recepción e Historia. La pantalla de vinculación se muestra también para pacientes nuevos. Si el paciente de verdad no tiene historia, Recepción permite crear una ficha clínica con confirmación manual y control conservador de posibles duplicados, y crea de manera atómica el vínculo verificado en Neon sin sobrescribir un vínculo concurrente. Historia 1.4.8 consume dicho vínculo sin poder crearlo, cambiarlo ni subir vínculos propios. Los turnos gratuitos de revisión siguen exigiendo vínculo previo y las consultas e impresiones existentes no cambian.",
-    "previous_version": "4.8.4",
+    "purpose": "Recepción 4.8.6: al crear un paciente nuevo en Recepción se intenta automáticamente crear y vincular su ficha clínica en Historia Neon, sin preguntas ni clics adicionales, exclusivamente desde Recepción. No crea duplicados si la identificación o los dos apellidos apuntan a fichas previas: esas identidades quedan pendientes de vinculación manual en Recepción. Las altas realizadas offline conservan la ficha administrativa y crean la ficha clínica al sincronizar usando el ID definitivo de nube. El fallo de la nube no pierde pacientes; Historia sigue sin permiso para vincular, y facturación, turnos y cola permanecen intactos.",
+    "previous_version": "4.8.5",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -473,7 +473,22 @@
     "billing_unmodified": true,
     "patient_records_preserved": true,
     "clinical_history_preserved": true,
-    "reception_only_link_authority_regression_test": true
+    "reception_only_link_authority_regression_test": true,
+    "reception_new_patient_auto_clinical_create": true,
+    "receptionist_no_second_create_confirmation": true,
+    "clinical_chart_created_at_patient_registration": true,
+    "neon_clinical_chart_created_only_by_reception": true,
+    "clinical_identity_idempotent": true,
+    "clinical_duplicate_exact_id_guard": true,
+    "clinical_duplicate_two_surname_guard": true,
+    "clinical_single_surname_only_not_blocking": true,
+    "clinical_offline_queue_replay_auto_create": true,
+    "clinical_offline_uses_final_cloud_patient_id": true,
+    "clinical_unreachable_pending_without_data_loss": true,
+    "doctor_patient_link_authority_disabled": true,
+    "history_unmodified": true,
+    "clinical_history_no_destructive_changes": true,
+    "clinical_auto_create_regression_tests": true
   },
   "channel": "launcher-v1-stable"
 }
