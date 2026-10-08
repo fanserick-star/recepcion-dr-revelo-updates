@@ -118,9 +118,148 @@ def test_tv_completed_vs_cancelled() -> None:
     assert int(cancelled.live["event_id"])==before_cancel
 
 
+
+def test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss() -> None:
+    """Real doctor-side handlers with simulated online LAN, isolated in temp SQLite."""
+    import time
+
+    sys.path.insert(0, str(HISTORIA))
+    import lan_bridge as doctor_lan
+    import tv_turn_bridge as doctor_tv
+
+    old_outbox = lan.LAN_OUTBOX_DB
+    old_http = lan._http_json
+    old_state = lan._snapshot()
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            folder = Path(td)
+            lan.LAN_OUTBOX_DB = folder / "recepcion_lan_outbox.db"
+            doctor_db = folder / "historia_test.db"
+            with sqlite3.connect(doctor_db) as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE waiting_queue(
+                      id TEXT PRIMARY KEY,
+                      reception_event_id TEXT UNIQUE,
+                      reception_patient_id TEXT,
+                      clinical_patient_id TEXT,
+                      display_name TEXT,
+                      identification TEXT,
+                      attention_type TEXT,
+                      patient_status TEXT,
+                      reception_turn INTEGER,
+                      queued_at TEXT,
+                      status TEXT,
+                      source TEXT,
+                      created_at TEXT,
+                      updated_at TEXT,
+                      started_at TEXT,
+                      completed_at TEXT
+                    );
+                    CREATE TABLE encounters(
+                      id TEXT PRIMARY KEY,
+                      queue_id TEXT,
+                      note_status TEXT,
+                      updated_at TEXT
+                    );
+                    CREATE TABLE audit_log(
+                      occurred_at TEXT, actor TEXT, action TEXT,
+                      entity_type TEXT, entity_id TEXT, details_json TEXT
+                    );
+                    """
+                )
+            doctor = doctor_lan.LanService(folder, doctor_db, "1.4.5")
+
+            event_id = lan._cloud._event_id("88", ["901"])
+            payload = {
+                "event_id": event_id,
+                "reception_patient_id": "88",
+                "display_name": "PACIENTE DE PRUEBA",
+                "identification": "",
+                "attention_type": "Consulta",
+                "patient_status": "Nuevo",
+                "reception_turn": 8,
+                "visit_ids": ["901"],
+            }
+            response = doctor.accept_handoff(payload, "127.0.0.1")
+            assert response["ok"]
+            before = doctor_tv._snapshot(doctor_db)
+            assert before["waiting_count"] == 1
+            assert before["waiting"][0]["turn"] == 8
+
+            lan._lan_outbox_put(payload)
+            lan._lan_outbox_mark(event_id, sent=True)
+
+            def online_lan_http(host, path, *, method="GET", payload=None, token="", timeout=0.8):
+                assert host == "online-doctor-pc"
+                assert token == "mock-lan-token"
+                assert method == "POST" and path == "/cancel"
+                return doctor.accept_cancel(payload, "127.0.0.1")
+
+            lan._http_json = online_lan_http
+            lan._set_state(
+                lan_online=True,
+                lan_host="online-doctor-pc",
+                token="mock-lan-token",
+                token_host="online-doctor-pc",
+            )
+            matched = lan.hybrid_cancel_attention(
+                visit_id="901",
+                reception_patient_id="88",
+            )
+            assert matched == [event_id]
+            deadline = time.monotonic() + 3
+            while time.monotonic() < deadline:
+                if lan._lan_control_pending_count() == 0:
+                    break
+                time.sleep(0.02)
+            assert lan._lan_control_pending_count() == 0, "Online cancellation not acknowledged"
+
+            with sqlite3.connect(doctor_db) as conn:
+                status = conn.execute(
+                    "SELECT status FROM waiting_queue WHERE reception_event_id=?",
+                    (event_id,),
+                ).fetchone()[0]
+            assert status == "cancelled"
+            after = doctor_tv._snapshot(doctor_db)
+            assert after["waiting_count"] == 0
+            assert after["current"] is None
+            assert not after["waiting"]
+
+            # A signed encounter may not be erased/cancelled by Reception.
+            signed_event = lan._cloud._event_id("89", ["902"])
+            signed_payload = dict(
+                payload,
+                event_id=signed_event,
+                reception_patient_id="89",
+                reception_turn=9,
+                visit_ids=["902"],
+            )
+            signed = doctor.accept_handoff(signed_payload, "127.0.0.1")
+            with sqlite3.connect(doctor_db) as conn:
+                conn.execute(
+                    "INSERT INTO encounters(id,queue_id,note_status) VALUES(?,?,?)",
+                    ("signed-1", signed["queue_id"], "signed"),
+                )
+            protected = doctor.accept_cancel(
+                {"event_id": signed_event},
+                "127.0.0.1",
+            )
+            assert protected["protected_signed_history"] is True
+            assert protected["cancelled"] is False
+            with sqlite3.connect(doctor_db) as conn:
+                assert conn.execute(
+                    "SELECT note_status FROM encounters WHERE id='signed-1'"
+                ).fetchone()[0] == "signed"
+    finally:
+        lan._http_json = old_http
+        lan.LAN_OUTBOX_DB = old_outbox
+        lan._set_state(**old_state)
+
 if __name__ == "__main__":
     test_source_contracts()
     test_cancelled_handoff_cannot_revive()
     test_control_retry_is_persistent()
     test_tv_completed_vs_cancelled()
+    test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss()
     print("RECEPTION/HISTORIA/TV CONTRACT OK")
