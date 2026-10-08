@@ -232,77 +232,13 @@ def _candidate_rows(queue_id: str, query: str = "", limit: int = 15) -> dict:
 
 
 def _helper_markup(queue_id: str, initial: str) -> str:
-    qid_js = json.dumps(str(queue_id), ensure_ascii=False)
-    initial_js = json.dumps(str(initial or ""), ensure_ascii=False)
-    return f"""
-<style id="v1393-link-style">
-.v1393-link{{margin:14px 0;padding:15px;border:1px solid #cbdceb;border-radius:14px;background:#f8fbff}}
-.v1393-link h2{{margin:0 0 5px;color:#173b66;font-size:18px}}
-.v1393-link p{{margin:0 0 12px;color:#60758a;font-size:12px}}
-.v1393-search{{display:flex;gap:8px;margin-bottom:12px}}
-.v1393-search input{{flex:1;min-width:0;border:1px solid #b9c9d8;border-radius:10px;padding:10px 12px;font-size:14px;font-weight:750}}
-.v1393-search button{{border:0;border-radius:10px;background:#246fae;color:#fff;padding:10px 16px;font-weight:850;cursor:pointer}}
-.v1393-list{{display:grid;gap:8px}}
-.v1393-card{{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:11px 12px;border:1px solid #d8e3ec;border-radius:11px;background:#fff}}
-.v1393-card.warn{{border-color:#e8c980;background:#fffaf0}}
-.v1393-card b{{display:block;color:#173b66;font-size:14px}}
-.v1393-card strong{{display:inline-block;margin-top:3px;color:#162b3f;font-size:13px}}
-.v1393-card small{{display:block;margin-top:3px;color:#6a7c8d;font-size:11px}}
-.v1393-card a{{text-decoration:none;border-radius:9px;background:#2475d0;color:#fff;padding:9px 11px;font-weight:850;white-space:nowrap}}
-.v1393-empty{{padding:12px;border:1px dashed #cbd5e1;border-radius:10px;color:#6b7d90;background:#fff}}
-@media(max-width:680px){{.v1393-search{{flex-direction:column}}.v1393-card{{grid-template-columns:1fr}}}}
-</style>
-<section id="v1393-link-helper" class="v1393-link">
-  <h2>Buscar y vincular ficha</h2>
-  <p>La búsqueda usa primero la cédula y además tolera nombres incompletos o con errores de escritura.</p>
-  <div class="v1393-search">
-    <input id="v1393-link-q" autocomplete="off" placeholder="Cédula o parte del nombre">
-    <button id="v1393-link-go" type="button">Buscar</button>
-  </div>
-  <div id="v1393-link-list" class="v1393-list"><div class="v1393-empty">Buscando fichas posibles…</div></div>
+    """Read-only notice. Reception exclusively links patient identities."""
+    return """
+<section id="v1393-link-helper" style="margin:14px 0;padding:18px;border:1px solid #e2cbaa;border-radius:13px;background:#fff8e9">
+  <h2 style="margin:0 0 7px">Pendiente de vinculación en Recepción</h2>
+  <p>El doctor no puede vincular ni elegir fichas desde Historia Clínica.
+  Solicite a Recepción que confirme la ficha correcta y vuelva a abrir este turno.</p>
 </section>
-<script>
-(()=>{{
-  const qid={qid_js},initial={initial_js};
-  const input=document.getElementById('v1393-link-q');
-  const list=document.getElementById('v1393-link-list');
-  const btn=document.getElementById('v1393-link-go');
-  if(!input||!list||!btn)return;
-  input.value=initial;
-  const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[m]));
-  const hideLegacy=()=>{{
-    document.querySelectorAll('.queue-link-choice').forEach(a=>{{const p=a.closest('.panel');if(p)p.style.display='none'}});
-    document.querySelectorAll("a.btn-link[href^='/pacientes?q=']").forEach(a=>{{const p=a.closest('p');if(p)p.style.display='none'}});
-  }};
-  const render=rows=>{{
-    if(!rows.length){{list.innerHTML='<div class="v1393-empty">No encontré una coincidencia segura. Puedes cambiar la cédula o escribir parte del nombre.</div>';return}}
-    hideLegacy();
-    list.innerHTML=rows.map(r=>{{
-      const id=r.national_id?'<strong>Cédula: '+esc(r.national_id)+'</strong>':'<strong>Sin cédula registrada en Historia</strong>';
-      const hist=(Number(r.history_count||0)===1?'1 historia':Number(r.history_count||0)+' historias')+(r.last_history_date?' · Última: '+esc(r.last_history_date):'');
-      const birth=r.birth_date?' · Nac. '+esc(r.birth_date):'';
-      const warn=r.id_conflict?'<small>⚠ La cédula de esta ficha es diferente. Revísala antes de vincular.</small>':'';
-      const cls=r.id_conflict?'v1393-card warn':'v1393-card';
-      return '<div class="'+cls+'"><div><b>'+esc(r.name||'SIN NOMBRE')+'</b>'+id+'<small>'+esc(hist)+birth+'</small>'+warn+'</div><a href="/cola/'+encodeURIComponent(qid)+'/vincular/'+encodeURIComponent(r.id)+'"'+(r.id_conflict?' data-conflict="1"':'')+'>Vincular esta ficha</a></div>';
-    }}).join('');
-    list.querySelectorAll('a[data-conflict="1"]').forEach(a=>a.addEventListener('click',ev=>{{
-      if(!confirm('La cédula de esta ficha es diferente a la enviada por Recepción. ¿Está seguro de que es la ficha correcta?'))ev.preventDefault();
-    }}));
-  }};
-  const run=async()=>{{
-    list.innerHTML='<div class="v1393-empty">Buscando fichas…</div>';
-    try{{
-      const r=await fetch('/api/v1393/queue-link-candidates/'+encodeURIComponent(qid)+'?q='+encodeURIComponent(input.value||'')+'&limit=15',{{cache:'no-store'}});
-      const d=await r.json();
-      if(!r.ok||d.ok===false)throw new Error(d.error||'No se pudo buscar');
-      render(Array.isArray(d.results)?d.results:[]);
-    }}catch(err){{list.innerHTML='<div class="v1393-empty">'+esc(err.message||'No se pudo buscar')+'</div>'}}
-  }};
-  btn.addEventListener('click',run);
-  input.addEventListener('keydown',e=>{{if(e.key==='Enter'){{e.preventDefault();run()}}}});
-  run();
-}})();
-</script>
 """
 
 
@@ -365,7 +301,7 @@ def _install_on_app(app: FastAPI) -> None:
             "search_prefers_identification": True,
             "fuzzy_name_candidates": True,
             "multiple_candidates": True,
-            "legacy_link_route_preserved": True,
+            "legacy_link_route_preserved": False,
             "patient_data_writes": False,
         }
 
