@@ -374,6 +374,38 @@ try:
     # con varias líneas en dos páginas diferentes.
     ISSUED_PAGE_SIZE = 20
 
+    def _issued_local_stamp(value, fallback_day) -> str:
+        """Emission UTC timestamp as Ecuador local time; old records use visit date."""
+        if value:
+            try:
+                moment = value if isinstance(value, _datetime) else _datetime.fromisoformat(
+                    str(value).strip().replace('Z', '+00:00')
+                )
+                if moment.tzinfo:
+                    offset = moment.utcoffset() or _timedelta()
+                    moment = moment.replace(tzinfo=None) - offset
+                # Ecuador continental is UTC−05:00, no daylight saving time.
+                return (moment - _timedelta(hours=5)).isoformat(timespec='seconds')
+            except (TypeError, ValueError, OverflowError):
+                pass
+        return str(fallback_day or '')[:10] + 'T00:00:00'
+
+    def _issued_scope_condition(scope: str):
+        """Use the invoice issuance date, not the earlier consultation date."""
+        start_utc = _datetime.combine(_date.today(), _datetime.min.time()) + _timedelta(hours=5)
+        if scope == 'today':
+            return core.or_(
+                (core.BillingRecord.emitted_at >= start_utc) &
+                (core.BillingRecord.emitted_at < start_utc + _timedelta(days=1)),
+                (core.BillingRecord.emitted_at.is_(None)) & (core.Visit.fecha == _date.today()),
+            )
+        if scope == 'previous':
+            return core.or_(
+                core.BillingRecord.emitted_at < start_utc,
+                (core.BillingRecord.emitted_at.is_(None)) & (core.Visit.fecha < _date.today()),
+            )
+        return None
+
     def _issued_group_query(hidden: set[int], scope: str):
         filters = [
             core.BillingRecord.estado == 'EMITIDA',
@@ -381,21 +413,22 @@ try:
         ]
         if hidden:
             filters.append(~core.Visit.patient_id.in_(sorted(hidden)))
-        if scope == 'today':
-            filters.append(core.Visit.fecha == _date.today())
-        elif scope == 'previous':
-            filters.append(core.Visit.fecha < _date.today())
+        scope_condition = _issued_scope_condition(scope)
+        if scope_condition is not None:
+            filters.append(scope_condition)
         return (
             core.select(
                 core.Visit.patient_id.label('patient_id'),
                 core.Visit.fecha.label('fecha'),
                 core.func.max(core.Visit.id).label('last_visit'),
+                core.func.max(core.BillingRecord.emitted_at).label('last_emitted_at'),
             )
             .join(core.BillingRecord, core.BillingRecord.visit_id == core.Visit.id)
             .join(core.Patient, core.Patient.id == core.Visit.patient_id)
             .where(*filters)
             .group_by(core.Visit.patient_id, core.Visit.fecha)
-            .order_by(core.Visit.fecha.desc(), core.func.max(core.Visit.id).desc(), core.Visit.patient_id.desc())
+            .order_by(core.func.max(core.BillingRecord.emitted_at).desc(),
+                      core.Visit.fecha.desc(), core.func.max(core.Visit.id).desc())
             .execution_options(include_cancelled_visits=True)
         )
 
@@ -415,17 +448,22 @@ try:
         return pid, str(visit.get('fecha') or '')[:10]
 
     def _issued_page_keys(regular_keys, archived: list[dict], page: int, page_size: int = 20) -> list[tuple[int, str]]:
-        """Merge newest grouped keys before slicing; keep archived invoices visible."""
+        """Group invoice lines, order by actual issuance, then slice to 20 groups."""
         ranking = {}
-        for patient_id, day, visit_id in regular_keys:
+        for row in regular_keys:
+            patient_id, day, visit_id = row[:3]
+            last_emitted_at = row[3] if len(row) > 3 else None
             key = (int(patient_id), str(day)[:10])
-            ranking[key] = max(ranking.get(key, 0), int(visit_id or 0))
+            stamp = _issued_local_stamp(last_emitted_at, day)
+            ranking[key] = max(ranking.get(key, ('', 0)), (stamp, int(visit_id or 0)))
         for item in archived:
             key = _issued_archive_key(item)
             if key[0] and key[1]:
                 visit = item.get('visit') or {}
-                ranking[key] = max(ranking.get(key, 0), int(visit.get('id') or 0))
-        ordered = sorted(ranking, key=lambda key: (key[1], ranking[key], key[0]), reverse=True)
+                billing = item.get('billing') or {}
+                stamp = _issued_local_stamp(billing.get('emitted_at'), key[1])
+                ranking[key] = max(ranking.get(key, ('', 0)), (stamp, int(visit.get('id') or 0)))
+        ordered = sorted(ranking, key=lambda key: (ranking[key][0], ranking[key][1], key[0]), reverse=True)
         start = (page - 1) * page_size
         return ordered[start:start + page_size]
 
@@ -450,8 +488,11 @@ try:
         archived_all = _archived_emitted_items(db, desde=_date(1900, 1, 1))
         archived = [
             item for item in archived_all
-            if (_issued_archive_key(item)[1] == today.isoformat() if scope == 'today'
-                else _issued_archive_key(item)[1] < today.isoformat())
+            if ((_issued_local_stamp((item.get('billing') or {}).get('emitted_at'),
+                                     (item.get('visit') or {}).get('fecha'))[:10] == today.isoformat())
+                if scope == 'today' else
+                (_issued_local_stamp((item.get('billing') or {}).get('emitted_at'),
+                                     (item.get('visit') or {}).get('fecha'))[:10] < today.isoformat()))
         ]
         archive_groups = {_issued_archive_key(item) for item in archived}
         all_archive_groups = {_issued_archive_key(item) for item in archived_all}
@@ -467,6 +508,10 @@ try:
         for item in archived:
             key = _issued_archive_key(item)
             if key in grouped:
+                archived_billing = item.get('billing') or {}
+                archived_billing['issued_date'] = _issued_local_stamp(
+                    archived_billing.get('emitted_at'), key[1]
+                )[:10]
                 grouped[key].append(item)
 
         regular_keys = [key for key in keys if key not in archive_groups]
@@ -479,8 +524,9 @@ try:
                 core.select(core.BillingRecord, core.Visit, core.Patient)
                 .join(core.Visit, core.BillingRecord.visit_id == core.Visit.id)
                 .join(core.Patient, core.Patient.id == core.Visit.patient_id)
-                .where(core.BillingRecord.estado == 'EMITIDA', core.or_(*pairs))
-                .order_by(core.Visit.fecha.desc(), core.Visit.id.desc())
+                .where(core.BillingRecord.estado == 'EMITIDA', core.or_(*pairs),
+                       _issued_scope_condition(scope))
+                .order_by(core.BillingRecord.emitted_at.desc(), core.Visit.id.desc())
                 .execution_options(include_cancelled_visits=True)
             ).all()
             azur_pairs = [
@@ -503,8 +549,10 @@ try:
                 )
                 if azur is None:
                     azur = next((x for x in options if str(x.estado or '').upper() == 'AUTORIZADA'), None)
+                bill_dict = core.billing_dict(billing)
+                bill_dict['issued_date'] = _issued_local_stamp(billing.emitted_at, visit.fecha)[:10]
                 grouped[key].append({
-                    'billing': core.billing_dict(billing),
+                    'billing': bill_dict,
                     'visit': core.v_dict(visit),
                     'patient': core.p_dict(patient),
                     'azur': core.azur_emission_dict(azur) if azur else None,
