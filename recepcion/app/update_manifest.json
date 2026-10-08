@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.6",
-  "app_version": "4.8.6",
-  "runtime_version": "4.8.6",
+  "version": "4.8.7",
+  "app_version": "4.8.7",
+  "runtime_version": "4.8.7",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,15 +170,15 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.6: al crear un paciente nuevo en Recepción se intenta automáticamente crear y vincular su ficha clínica en Historia Neon, sin preguntas ni clics adicionales, exclusivamente desde Recepción. No crea duplicados si la identificación o los dos apellidos apuntan a fichas previas: esas identidades quedan pendientes de vinculación manual en Recepción. Las altas realizadas offline conservan la ficha administrativa y crean la ficha clínica al sincronizar usando el ID definitivo de nube. El fallo de la nube no pierde pacientes; Historia sigue sin permiso para vincular, y facturación, turnos y cola permanecen intactos.",
-    "previous_version": "4.8.5",
+    "purpose": "Recepción 4.8.7: corrección conservadora de altas clínicas automáticas. Si falla temporalmente Neon Historia, persiste en SQLite local un marcador de reintento con el ID definitivo de Recepción nube; tras sincronizar una ficha creada offline, no descarta el reintento si Historia falló. Al iniciar, reconectar o sincronizar se reintenta sin bloquear la cola de facturas, atenciones ni agenda; ante identidad dudosa queda pendiente para vinculación manual exclusiva de Recepción. Ninguna historia existente se borra, reemplaza o fusiona automáticamente.",
+    "previous_version": "4.8.6",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
-    "database_schema_changes": true,
+    "database_schema_changes": false,
     "patient_data_changes": true,
     "patient_data_destructive_changes": false,
-    "billing_logic_changes": true,
+    "billing_logic_changes": false,
     "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
     "whatsapp_send_schedule_changes": false,
@@ -488,7 +488,10 @@
     "doctor_patient_link_authority_disabled": true,
     "history_unmodified": true,
     "clinical_history_no_destructive_changes": true,
-    "clinical_auto_create_regression_tests": true
+    "clinical_auto_create_regression_tests": true,
+    "clinical_chart_retry_persisted": true,
+    "clinical_chart_retry_offline_queue_independent": true,
+    "clinical_chart_retry_no_destructive_changes": true
   },
   "channel": "launcher-v1-stable"
 }
