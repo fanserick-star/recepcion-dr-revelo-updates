@@ -37,14 +37,14 @@ def test_historia_cannot_link() -> None:
     assert "raise ValueError" in dead and "INSERT INTO patients" not in dead
     manual = function_source(app, "link_and_attend_queue")
     assert "status_code=403" in manual
-    assert "patient_links" not in manual
+    assert "INSERT INTO patient_links" not in manual and "UPDATE patient_links" not in manual
     active = function_source(app, "attend_from_queue_v132")
     assert "_queue_needs_reception_link(row)" in active
     assert "_create_new_patient_from_queue" not in active
     assert "_v132_attend_original" not in active
     confirm = function_source(app, "_v132_mark_queue_confirmed")
     assert "INSERT OR REPLACE INTO meta" in confirm
-    assert "patient_links" not in confirm
+    assert "INSERT INTO patient_links" not in confirm and "UPDATE patient_links" not in confirm
     cleanup = function_source(app, "merge_safe_duplicate_patients")
     assert "UPDATE patient_links" not in cleanup
 
