@@ -9,6 +9,8 @@ on:
       - 'cloudflare/wrangler.whatsapp.jsonc'
       - 'recepcion/app/core_runtime.py'
       - 'tools/test_whatsapp_event_alarms.mjs'
+      - 'tools/test_whatsapp_admin_alarm_integration.mjs'
+      - 'agenda/index.html'
       - '.github/workflows/deploy-whatsapp.yml'
       - '.github/workflows/verify-whatsapp-event-alarms.yml'
   workflow_dispatch:
