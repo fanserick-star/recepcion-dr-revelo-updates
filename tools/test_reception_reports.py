@@ -38,7 +38,7 @@ archive_today = [
     {"patient": {"id": 777}, "visit": {"id": 99, "fecha": today}},
 ]
 regular_today = [(i, today, i) for i in range(1, 26)]
-first = page_keys(regular_today[:20], archive_today, 1, 20)
+first = page_keys(regular_today[-20:], archive_today, 1, 20)
 second = page_keys(regular_today, archive_today, 2, 20)
 assert len(first) == 20 and len(second) == 6
 assert len(set(first + second)) == 26
