@@ -10178,7 +10178,8 @@ def whatsapp_cloud_test(payload: dict, request: Request, user: User = Depends(cu
             source_id = int(item.id)
     except Exception as exc:
         raise HTTPException(503, f"No se pudo registrar la prueba en Cloud: {str(exc)[:180]}")
-    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 30, "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker enviará únicamente la plantilla elegida."}
+    _whatsapp_alarm_notify_async()
+    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 0, "message": "Prueba registrada en Cloud. Se programó una alarma; durante 20:00-08:00 Ecuador los mensajes se mantienen en espera, sin envíos nocturnos."}
 
 @app.get("/api/whatsapp/cloud-test/{test_id}")
 def whatsapp_cloud_test_status(test_id: int, token: str, user: User = Depends(current_user)):
