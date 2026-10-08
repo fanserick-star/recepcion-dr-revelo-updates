@@ -136,7 +136,7 @@ jobs:
           assert d.get('ok') is True, d
           assert d.get('worker_version') == '2.6.26', d
           assert d.get('alarm_mode') == 'durable_object_event_driven', d
-          assert d.get('alarm_quiet_hours_ecuador') == '20:00-08:00', d
+          assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
           assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
           assert d.get('scheduler_booking_grace') == '12h_v1', d
