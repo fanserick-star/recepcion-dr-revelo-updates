@@ -10,7 +10,20 @@ import historia_link_helper as helper
 PATCH_VERSION = "1.3.98"
 
 
+def _human_name(value: object) -> str:
+    """A reception ID is not a display name, even if stored in display_name."""
+    name = " ".join(str(value or "").strip().split())
+    words = re.findall(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]{2,}", name)
+    if not words:
+        return ""
+    compact = helper._norm_id(name)
+    if compact in helper._ID_PLACEHOLDERS or compact.startswith(("CEDULA", "IDENTIFICACION", "DNI")):
+        return ""
+    return name
+
+
 def _queue_initial_name_first(queue_id: str) -> str:
+    """Show an actual patient's name, never a raw ID masquerading as one."""
     try:
         with sqlite3.connect(helper.DB_PATH, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
@@ -20,15 +33,46 @@ def _queue_initial_name_first(queue_id: str) -> str:
             ).fetchone()
             if not row:
                 return ""
-            name = str(row["display_name"] or "").strip()
-            if name and helper._norm_id(name) not in helper._ID_PLACEHOLDERS:
+            name = _human_name(row["display_name"])
+            if name:
                 return name
-            return helper._usable_identification(row["identification"] or "")
-    except Exception:
+            # Legacy handoffs sometimes put the cédula in display_name itself.
+            identity = helper._usable_identification(row["identification"] or row["display_name"])
+            linked = str(row["clinical_patient_id"] or "").strip()
+            if linked:
+                patient = conn.execute(
+                    """SELECT name,national_id,national_id_search FROM patients
+                       WHERE id=? AND COALESCE(merged_into_patient_id,'')='' LIMIT 1""",
+                    (linked,),
+                ).fetchone()
+                if patient:
+                    actual_id = helper._usable_identification(patient["national_id_search"] or patient["national_id"])
+                    if not identity or not actual_id or identity == actual_id:
+                        valid = _human_name(patient["name"])
+                        if valid:
+                            return valid
+            if identity and len(identity) >= 6:
+                candidates = conn.execute(
+                    """SELECT name FROM patients
+                       WHERE COALESCE(merged_into_patient_id,'')=''
+                         AND (national_id_search=? OR national_id=?)
+                       LIMIT 2""", (identity, identity),
+                ).fetchall()
+                if len(candidates) == 1:
+                    return _human_name(candidates[0]["name"])
+            # No verified name: don't prefill a misleading numeric value.
+            return ""
+    except (sqlite3.Error, OSError):
         return ""
 
 
 def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) -> dict:
+    """Rank names typed by the doctor first; never link automatically.
+
+    Search complete surname combinations before any broad/fuzzy search.
+    A legacy queue ID cannot dilute the manual name query or displace the right
+    record from a LIMIT ordered by last modification.
+    """
     if not helper.DB_PATH.is_file():
         return {"ok": False, "results": [], "error": "Base local de Historia no disponible"}
 
@@ -38,56 +82,24 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
             """SELECT id,display_name,identification,clinical_patient_id,status
                FROM waiting_queue
                WHERE id=? AND status IN ('waiting','in_consultation')
-               LIMIT 1""",
-            (str(queue_id),),
+               LIMIT 1""", (str(queue_id),),
         ).fetchone()
         if not queue:
             return {"ok": False, "results": [], "error": "Turno no encontrado"}
 
-        queue_name = str(queue["display_name"] or "").strip()
-        queue_ident = helper._usable_identification(queue["identification"] or "")
+        queue_name = _human_name(queue["display_name"])
+        queue_ident = helper._usable_identification(queue["identification"] or queue["display_name"])
+        initial = _queue_initial_name_first(queue_id)
         manual = str(query or "").strip()
-        manual_has_letters = bool(re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]", manual))
-        name_basis = manual if manual_has_letters else queue_name
-        manual_ident = helper._usable_identification(manual) if not manual_has_letters else ""
-
-        wanted_tokens = helper._tokens(name_basis)
-        queue_tokens = helper._tokens(queue_name)
-        pool_tokens = []
-        for token in wanted_tokens + queue_tokens:
-            if token not in pool_tokens:
-                pool_tokens.append(token)
-        pool_tokens = pool_tokens[:8]
-
+        manual_name = _human_name(manual)
+        manual_ident = helper._usable_identification(manual) if not manual_name else ""
+        name_basis = manual_name or initial
+        wanted_tokens = list(dict.fromkeys(
+            token for token in helper._tokens(name_basis) if re.search(r"[A-Z]", token)
+        ))[:8]
         linked_id = str(queue["clinical_patient_id"] or "").strip()
-        match_parts = []
-        params = []
-        # La ficha ya vinculada desde Recepción siempre entra en la lista de revisión.
-        # No se abre a ciegas si hay conflicto de identidad: se muestra al doctor.
-        if linked_id:
-            match_parts.append("p.id=?")
-            params.append(linked_id)
-        # Nombre primero: basta una parte para construir una lista amplia.
-        for token in pool_tokens:
-            match_parts.append("UPPER(COALESCE(p.name_search,p.name,'')) LIKE ?")
-            params.append("%" + token + "%")
-        # Identificación queda como refuerzo cuando realmente existe.
-        for ident in (manual_ident, queue_ident):
-            if ident and len(ident) >= 6:
-                match_parts.append("COALESCE(p.national_id_search,'')=?")
-                params.append(ident)
 
-        if not match_parts:
-            return {
-                "ok": True,
-                "queue_id": str(queue_id),
-                "initial_query": queue_name or queue_ident,
-                "queue_name": queue_name,
-                "queue_identification": str(queue["identification"] or "").strip(),
-                "results": [],
-            }
-
-        sql = f"""
+        select_sql = """
             SELECT p.id,p.name,p.name_search,p.national_id,p.national_id_search,
                    p.birth_date,p.sex,
                    (SELECT COUNT(*) FROM encounters e
@@ -100,101 +112,140 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
                        AND COALESCE(e.deleted_at,'')='') AS last_history_date
             FROM patients p
             WHERE COALESCE(p.merged_into_patient_id,'')=''
-              AND ({' OR '.join(match_parts)})
-            ORDER BY COALESCE(p.updated_at,p.created_at,'') DESC
-            LIMIT 120
+              AND ({where})
+            LIMIT 650
         """
-        rows = conn.execute(sql, params).fetchall()
+        def token_clause(token: str) -> tuple[str, list[str]]:
+            # Legacy name_search may be missing or stale; consult name too.
+            return (
+                "(UPPER(COALESCE(p.name_search,'')) LIKE ? OR UPPER(COALESCE(p.name,'')) LIKE ?)",
+                ["%" + token + "%", "%" + token + "%"],
+            )
 
-    q_name_norm = helper._norm_text(name_basis)
+        collected: dict[str, sqlite3.Row] = {}
+        def fetch(where: str, params: list[object]) -> int:
+            if not where:
+                return 0
+            n = 0
+            for row in conn.execute(select_sql.format(where=where), params).fetchall():
+                if str(row["id"]) not in collected:
+                    collected[str(row["id"])] = row
+                    n += 1
+            return n
+
+        exact_parts, exact_params = [], []
+        for token in wanted_tokens:
+            fragment, params = token_clause(token)
+            exact_parts.append(fragment)
+            exact_params.extend(params)
+
+        # Phase 1: all manually entered surname/name fragments must appear.
+        strong_count = fetch(" AND ".join(exact_parts), exact_params) if exact_parts else 0
+
+        # Phase 2: fuzzy recovery ONLY if there are no complete name matches.
+        # Otherwise don't contaminate the first screen with partial names.
+        if wanted_tokens and strong_count == 0:
+            fetch(" OR ".join(exact_parts), exact_params)
+
+        # Exact identification / verified link are optional fallback candidates.
+        # They may not outrank an explicit complete surname match.
+        if not collected or not wanted_tokens or not manual_name:
+            id_parts, id_params = [], []
+            if linked_id:
+                id_parts.append("p.id=?")
+                id_params.append(linked_id)
+            for ident in (manual_ident, queue_ident):
+                if ident and len(ident) >= 6:
+                    id_parts.append("(p.national_id_search=? OR p.national_id=?)")
+                    id_params.extend([ident, ident])
+            if id_parts:
+                fetch(" OR ".join(id_parts), id_params)
+
     results = []
-    for row in rows:
-        cand_name = str(row["name"] or "").strip()
+    q_name_norm = helper._norm_text(name_basis)
+    for row in collected.values():
+        cand_name = _human_name(row["name"])
+        if not cand_name:
+            continue
         cand_name_norm = helper._norm_text(row["name_search"] or cand_name)
         cand_tokens = helper._tokens(cand_name_norm)
+        # Some imported name_search fields do not match their visible names.
+        cand_tokens = list(dict.fromkeys(cand_tokens + helper._tokens(cand_name)))
         cand_ident = helper._usable_identification(row["national_id_search"] or row["national_id"] or "")
-
-        score = 0
-        reasons = []
-        matched_tokens = 0
         reception_linked = bool(linked_id and str(row["id"]) == linked_id)
-        if reception_linked:
-            score += 520
-            reasons.append("ficha vinculada en Recepción")
-        if q_name_norm and cand_name_norm == q_name_norm:
-            score += 700
-            reasons.append("mismo nombre completo")
+        ratios = [
+            max((difflib.SequenceMatcher(None, token, c).ratio() for c in cand_tokens), default=0)
+            for token in wanted_tokens
+        ]
+        matched = sum(r >= 0.74 for r in ratios)
+        complete = bool(wanted_tokens and len(ratios) == matched)
+        exact = sum(r >= 0.999 for r in ratios)
+        id_exact = bool(
+            cand_ident and (
+                (manual_ident and cand_ident == manual_ident)
+                or (queue_ident and cand_ident == queue_ident)
+            )
+        )
+        # With an explicit name query, never show an unrelated linked/ID row
+        # ahead of the actual surname matches.
+        if manual_name and not complete:
+            if strong_count or matched < (1 if len(wanted_tokens) == 1 else max(1, len(wanted_tokens)-1)):
+                continue
+        elif wanted_tokens and not complete and not id_exact and not reception_linked:
+            if matched < (1 if len(wanted_tokens) == 1 else max(1, len(wanted_tokens)-1)):
+                continue
+
+        reasons = []
+        score = 0
+        if complete:
+            score += 1100 + 65 * len(wanted_tokens) + exact * 35
+            reasons.append("coinciden todos los apellidos/nombres escritos")
         else:
-            for token in wanted_tokens or queue_tokens:
-                if not cand_tokens:
-                    continue
-                ratio = max(difflib.SequenceMatcher(None, token, c).ratio() for c in cand_tokens)
-                if ratio >= 0.999:
-                    score += 115
-                    matched_tokens += 1
-                elif ratio >= 0.86:
-                    score += 82
-                    matched_tokens += 1
-                elif ratio >= 0.74:
-                    score += 46
-                    matched_tokens += 1
-            total = len(wanted_tokens or queue_tokens)
-            if total and matched_tokens == total:
-                score += 180
-                reasons.append("nombre coincide aunque esté en otro orden")
-            elif matched_tokens >= max(2, total - 1):
-                score += 90
-                reasons.append("nombre muy parecido")
-            elif matched_tokens:
+            score += matched * 100 + exact * 25
+            if matched:
                 reasons.append("nombre parcialmente parecido")
-
-        if manual_ident and cand_ident and cand_ident == manual_ident:
-            score += 460
-            reasons.append("misma identificación buscada")
+        if q_name_norm and helper._norm_text(cand_name) == q_name_norm:
+            score += 400
+            reasons.append("nombre completo exacto")
+        if manual_ident and cand_ident == manual_ident:
+            score += 1200
+            reasons.append("misma cédula buscada")
+        if reception_linked:
+            score += 90 if manual_name else 300
+            reasons.append("ficha vinculada en Recepción")
         if queue_ident and cand_ident:
-            if cand_ident == queue_ident:
-                score += 460
-                reasons.append("misma identificación")
+            if queue_ident == cand_ident:
+                score += 90 if manual_name else 300
+                reasons.append("misma cédula enviada")
             else:
-                score -= 500
-                reasons.append("identificación diferente")
-
+                score -= 300
+                reasons.append("cédula distinta")
         history_count = int(row["history_count"] or 0)
         score += min(history_count, 20)
         if score <= 0:
             continue
-
-        id_conflict = bool(queue_ident and cand_ident and cand_ident != queue_ident)
-        results.append(
-            {
-                "id": str(row["id"]),
-                "name": cand_name or "SIN NOMBRE",
-                "national_id": (
-                    str(row["national_id"] or "").strip()
-                    if helper._usable_identification(row["national_id_search"] or row["national_id"] or "")
-                    else ""
-                ),
-                "birth_date": helper._fmt_date(row["birth_date"]),
-                "history_count": history_count,
-                "last_history_date": helper._fmt_date(row["last_history_date"]),
-                "score": int(score),
-                "reasons": reasons,
-                "id_conflict": id_conflict,
-                "reception_linked": reception_linked,
-            }
-        )
-
-    results.sort(
-        key=lambda x: (x["score"], x["history_count"], x["last_history_date"]),
-        reverse=True,
-    )
+        results.append({
+            "id": str(row["id"]),
+            "name": cand_name,
+            "national_id": (
+                str(row["national_id"] or "").strip() if cand_ident else ""
+            ),
+            "birth_date": helper._fmt_date(row["birth_date"]),
+            "history_count": history_count,
+            "last_history_date": helper._fmt_date(row["last_history_date"]),
+            "score": int(score),
+            "reasons": reasons,
+            "id_conflict": bool(queue_ident and cand_ident and cand_ident != queue_ident),
+            "reception_linked": reception_linked,
+        })
+    results.sort(key=lambda x: (x["score"], x["history_count"], x["last_history_date"]), reverse=True)
     return {
         "ok": True,
         "queue_id": str(queue_id),
-        "initial_query": queue_name or queue_ident,
-        "queue_name": queue_name,
+        "initial_query": initial,
+        "queue_name": queue_name or initial,
         "queue_identification": str(queue["identification"] or "").strip(),
-        "results": results[: max(1, min(int(limit or 15), 20))],
+        "results": results[:max(1, min(int(limit or 15), 20))],
     }
 
 
@@ -223,10 +274,10 @@ def _helper_markup_name_first(queue_id: str, initial: str) -> str:
 </style>
 <section id="v1393-link-helper" class="v1393-link">
   <h2>Buscar y vincular ficha por nombre</h2>
-  <p>Escribe nombres o apellidos. La lista se actualiza automáticamente; la cédula se usa como refuerzo cuando existe.</p>
+  <p>Busca por uno o dos apellidos, en cualquier orden. El nombre se muestra primero; la cédula sirve para verificar la identidad.</p>
   <div class="v1393-live">Búsqueda en vivo · no necesitas presionar Buscar</div>
   <div class="v1393-search">
-    <input id="v1393-link-q" autocomplete="off" placeholder="Nombre o apellido del paciente">
+    <input id="v1393-link-q" autocomplete="off" placeholder="Ej.: VELIZ PICO o MERO IZQUIERDO">
     <button id="v1393-link-go" type="button">Buscar ahora</button>
   </div>
   <div id="v1393-link-list" class="v1393-list"><div class="v1393-empty">Buscando fichas posibles…</div></div>
@@ -239,14 +290,15 @@ def _helper_markup_name_first(queue_id: str, initial: str) -> str:
   const btn=document.getElementById('v1393-link-go');
   if(!input||!list||!btn)return;
   input.value=initial;
+  // El mismo campo nunca se prellena con una cédula legada.
   const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[m]));
   const hideLegacy=()=>{{
     document.querySelectorAll('.queue-link-choice').forEach(a=>{{const p=a.closest('.panel');if(p)p.style.display='none'}});
     document.querySelectorAll("a.btn-link[href^='/pacientes?q=']").forEach(a=>{{const p=a.closest('p');if(p)p.style.display='none'}});
   }};
   const render=rows=>{{
-    if(!rows.length){{list.innerHTML='<div class="v1393-empty">No encontré fichas con ese nombre. Prueba con un apellido, otro nombre o la cédula si la conoces.</div>';return}}
     hideLegacy();
+    if(!rows.length){{list.innerHTML='<div class="v1393-empty">No encontré fichas con ese nombre. Prueba con un apellido, otro nombre o la cédula si la conoces.</div>';return}}
     list.innerHTML=rows.map(r=>{{
       const id=r.national_id?'<strong>Cédula: '+esc(r.national_id)+'</strong>':'<strong>Sin cédula registrada</strong>';
       const hist=(Number(r.history_count||0)===1?'1 historia':Number(r.history_count||0)+' historias')+(r.last_history_date?' · Última: '+esc(r.last_history_date):'');
@@ -279,6 +331,33 @@ def _helper_markup_name_first(queue_id: str, initial: str) -> str:
 """
 
 
+# The original /cola screen was rendered from the legacy display_name, which
+# may contain only a cédula. Replace its heading only when it is not a real name.
+_original_inject_link = helper._inject_link_helper
+
+
+def _inject_link_name(text: str, queue_id: str, initial: str) -> str:
+    output = _original_inject_link(text, queue_id, initial)
+    if re.search(r"<section class='page-head'>", output):
+        import html
+        def replace_heading(match):
+            old = match.group("title")
+            from html import unescape
+            if _human_name(unescape(old)):
+                return match.group(0)
+            title = html.escape(_human_name(initial) or "Paciente por vincular")
+            return match.group("prefix") + title + "</h1>"
+        output = re.sub(
+            r"(?P<prefix><section class='page-head'>.{0,240}?<h1>)(?P<title>[^<]+)</h1>",
+            replace_heading,
+            output,
+            count=1,
+            flags=re.S,
+        )
+    return output
+
+
+helper._inject_link_helper = _inject_link_name
 helper._queue_initial = _queue_initial_name_first
 helper._candidate_rows = _candidate_rows_name_first
 helper._helper_markup = _helper_markup_name_first
