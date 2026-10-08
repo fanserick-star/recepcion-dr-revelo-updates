@@ -37,6 +37,7 @@ jobs:
           node --check /tmp/revelo_whatsapp_worker.mjs
           node --check cloudflare/whatsapp_alarm_time.mjs
           node tools/test_whatsapp_event_alarms.mjs
+          node tools/test_whatsapp_admin_alarm_integration.mjs
       - name: Dry-run Cloudflare Durable Object build without deployment
         run: |
           set -euo pipefail
