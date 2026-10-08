@@ -453,6 +453,99 @@ def reception_4814_alerts(user=core.Depends(core.current_user)):
     return result
 
 
+
+# 4.8.15 — Auditoría de identidad de solo lectura, a petición de Recepción.
+# No crea pacientes, no modifica historias, no fusiona ni verifica enlaces.
+@app.get('/api/ops/clinical-integrity')
+def reception_4815_integrity(user=core.Depends(core.current_user)):
+    from datetime import date, datetime, timedelta
+    import re
+    result = {
+        'ok': False, 'history_checked': False, 'checked': 0, 'issues': [],
+        'missing_links': 0, 'data_discrepancies': 0, 'invalid_links': 0,
+        'message': '', 'no_mutations': True, 'manual_only': True,
+    }
+    try:
+        since_day = date.today() - timedelta(days=7)
+        with core.LocalSessionLocal() as local_db:
+            rows = list(local_db.scalars(
+                core.select(core.Patient)
+                .where(core.or_(
+                    core.Patient.created_at >= datetime.utcnow() - timedelta(days=7),
+                    core.Patient.id.in_(core.select(core.Visit.patient_id).where(core.Visit.fecha >= since_day)),
+                ))
+                .order_by(core.Patient.id.desc())
+                .limit(60)
+            ))
+    except Exception:
+        result['message'] = 'No se pudo leer la copia local de pacientes.'
+        return result
+    if not rows:
+        result.update(ok=True, history_checked=False,
+                      message='No hay pacientes recientes para revisar.')
+        return result
+    result['checked'] = len(rows)
+    try:
+        import reception_history_identity_consolidated as identity
+        conn = identity._connect_public()
+        try:
+            cursor = conn.cursor()
+            values = [str(int(p.id)) for p in rows]
+            placeholders = ','.join('%s' for _ in values)
+            cursor.execute(
+                'SELECT l.reception_patient_id,l.clinical_patient_id,l.verified,'
+                'p.name,p.national_id_search,p.birth_date,p.deleted_at '
+                'FROM public.patient_links l LEFT JOIN public.patients p '
+                'ON p.id=l.clinical_patient_id '
+                'WHERE l.deleted_at IS NULL '
+                'AND l.reception_patient_id IN (' + placeholders + ')',
+                tuple(values),
+            )
+            names = [str(col[0]) for col in cursor.description]
+            linked = {str(d['reception_patient_id']): d for raw in cursor.fetchall()
+                      for d in [dict(zip(names, raw))]}
+        finally:
+            conn.close()
+    except Exception:
+        result['message'] = 'No se pudo consultar Historia. Ninguna ficha fue modificada.'
+        return result
+
+    def normalized_id(value):
+        return re.sub(r'[^A-Z0-9]', '', str(value or '').upper())
+
+    issues = []
+    for patient in rows:
+        reception_id = int(patient.id)
+        name = str(patient.nombre or '')
+        record = linked.get(str(reception_id))
+        if not record:
+            result['missing_links'] += 1
+            issues.append({'kind': 'unlinked', 'patient_id': reception_id,
+                           'patient': name, 'description': 'Ficha sin vínculo verificado en Historia.'})
+            continue
+        if record.get('name') is None or record.get('deleted_at') is not None or int(record.get('verified') or 0) != 1:
+            result['invalid_links'] += 1
+            issues.append({'kind': 'invalid_link', 'patient_id': reception_id,
+                           'patient': name, 'description': 'El vínculo clínico necesita revisión.'})
+            continue
+        reception_ident = normalized_id(patient.cedula)
+        clinical_ident = normalized_id(record.get('national_id_search'))
+        reception_birth = str(patient.fecha_nacimiento or '')[:10]
+        clinical_birth = str(record.get('birth_date') or '')[:10]
+        mismatches = []
+        if reception_ident and clinical_ident and reception_ident != clinical_ident:
+            mismatches.append('identificación')
+        if reception_birth and clinical_birth and reception_birth != clinical_birth:
+            mismatches.append('fecha de nacimiento')
+        if mismatches:
+            result['data_discrepancies'] += 1
+            issues.append({'kind': 'data_difference', 'patient_id': reception_id,
+                           'patient': name, 'description': 'Diferencia de ' + ' y '.join(mismatches) + '.'})
+    result.update(ok=True, history_checked=True, issues=issues[:60],
+                  message='Auditoría completa. Los vínculos y datos existentes permanecen intactos.')
+    return result
+
+
 @app.get('/api/v4501/health')
 def v4501_health(user=core.Depends(core.current_user)):
     return {'ok': PATCH_BOOT_OK, 'version': APP_VERSION, 'error': PATCH_BOOT_ERROR, 'stable_runtime_chain': True, 'experimental_runtime_consolidation': False, 'redundant_js_blocks_removed': REMOVED_REDUNDANT_JS_BLOCKS, 'redundant_timeouts_removed': REMOVED_REDUNDANT_TIMEOUTS, 'new_mutation_observers': 0, 'persistent_timers_added': 0, 'maintenance_tab': True, 'printer_test': True, 'safe_cleanup': True, 'database_changes': False, 'neon_writes_added': False, 'receipt_layout_version': '4.4.69', 'payment_proof_layout_version': '4.4.88', 'billing_form_layout_version': '4.4.91'}

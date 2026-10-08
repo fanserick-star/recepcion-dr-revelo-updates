@@ -604,10 +604,38 @@ async function openSmartAlerts(){
       (missing.length?'<h3>Confirmaciones sin registro ('+missing.length+')</h3>'+missingHTML:'')+
       (errors.length?'<h3>Mensajes con error ('+errors.length+')</h3>'+errorHTML:'')+
       '<small style="color:#74879a">Consulta manual · Sin vigilancia periódica de Neon · No envía ni reenvía WhatsApp.</small>'+
-      '<div class="actions"><button type="button" onclick="closeModal();openSmartAlerts()">↻ Volver a comprobar</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+      '<div class="actions"><button type="button" onclick="closeModal();openClinicalIntegrityReview()">🪪 Revisar fichas</button><button type="button" onclick="closeModal();openSmartAlerts()">↻ Volver a comprobar</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
   }catch(error){alert('No se pudieron consultar las alertas: '+String(error.message||error))}
   finally{if(btn){btn.disabled=false;btn.textContent=old}}
 }
+// 4.8.15: Historia se consulta exclusivamente al pulsar este botón.
+async function openClinicalIntegrityReview(){
+  const btn=$('#homeSmartAlertsButton'),previous=btn?.textContent||'🔔 Revisar alertas del consultorio';
+  try{
+    if(btn){btn.disabled=true;btn.textContent='🔎 Revisando fichas…'}
+    const r=await api('/api/ops/clinical-integrity');
+    const issues=Array.isArray(r.issues)?r.issues:[];
+    const desc=r.history_checked?
+      'Revisé '+Number(r.checked||0)+' pacientes registrados o atendidos recientemente.':
+      'No pude completar la revisión de Historia. No significa que las fichas estén correctas.';
+    const body=issues.map(p=>{
+      const id=Number(p.patient_id)||0;
+      return '<article style="padding:10px;border:1px solid #dfe7ef;background:#fff;border-radius:11px;margin-top:7px">'+
+        '<b>'+esc(p.patient||'Paciente')+'</b><small style="display:block;margin:5px 0;color:#718296">'+esc(p.description||'Pendiente de revisión')+'</small>'+
+        '<button type="button" onclick="closeModal();openPatient('+id+',\'patients\')">Abrir en Recepción</button></article>';
+    }).join('');
+    openModal('<div style="max-width:700px;display:grid;gap:10px"><h2>🪪 Integridad de fichas</h2>'+
+      '<p class="muted">'+esc(desc)+'</p>'+
+      '<div class="wa-delivery-summary"><span class="wa-stat"><b>'+Number(r.missing_links||0)+'</b>Sin vínculo</span>'+
+      '<span class="wa-stat"><b>'+Number(r.data_discrepancies||0)+'</b>Datos diferentes</span>'+
+      '<span class="wa-stat"><b>'+Number(r.invalid_links||0)+'</b>Vínculos por revisar</span></div>'+
+      (r.history_checked?(body||'<p>No se detectaron incidencias entre los pacientes revisados.</p>'):'<p>'+esc(r.message||'Historia no disponible')+'</p>')+
+      '<small>Consulta manual de hasta 60 pacientes recientes. Nunca fusiona, crea ni modifica fichas clínicas.</small>'+
+      '<div class="actions"><button type="button" onclick="closeModal();openSmartAlerts()">← Alertas</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+  }catch(err){alert('No se pudieron revisar las fichas: '+String(err.message||err))}
+  finally{if(btn){btn.disabled=false;btn.textContent=previous}}
+}
+
 async function goHomeToday(){
   const iso=toISO(new Date());
   currentHomeAnchor=iso;
