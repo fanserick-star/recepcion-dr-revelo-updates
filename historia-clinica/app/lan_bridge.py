@@ -695,51 +695,46 @@ def _v132_name_search(value: str) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip().upper())
 
 def _v132_enrich_new_patient(self, payload: dict) -> str:
+    """Import the NEW patient's minimal medical card only with a Reception link.
+
+    Does not match by identification, invent a link or modify patient_links.
+    Reception provides clinical_patient_id after its manual verification.
+    """
     reception_patient_id = _clean(payload.get("reception_patient_id"), 120)
-    patient_status = _clean(payload.get("patient_status"), 40)
-    is_new = _v132_is_new_attention(patient_status) if patient_status else _v132_is_new_attention(payload.get("attention_type"))
-    if not reception_patient_id or not is_new:
+    status = _clean(payload.get("patient_status"), 40)
+    is_new = _v132_is_new_attention(status) if status else _v132_is_new_attention(payload.get("attention_type"))
+    patient_id = _clean(payload.get("clinical_patient_id"), 120)
+    if not reception_patient_id or not is_new or not patient_id:
         return ""
 
     name = re.sub(r"\s+", " ", _clean(payload.get("display_name"), 260)).strip().upper()
     if not name:
         return ""
-
     identification = _clean(payload.get("identification"), 120)
     ident_search = _normalize_id(identification)
     birth_date = _clean(payload.get("birth_date"), 20)
     phone = _clean(payload.get("phone"), 80)
     email = _clean(payload.get("email"), 180).lower()
     address = _clean(payload.get("address"), 360)
-    event_id = _clean(payload.get("event_id"), 180)
     stamp = _now()
 
     with sqlite3.connect(self.db_path, timeout=10) as conn:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON")
-
-        link = conn.execute(
-            "SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=? LIMIT 1",
-            (reception_patient_id,),
-        ).fetchone()
-        patient_id = str(link["clinical_patient_id"] or "").strip() if link else ""
-
-        if not patient_id and ident_search:
-            exact = conn.execute(
-                "SELECT id FROM patients WHERE national_id_search=? LIMIT 2",
-                (ident_search,),
+        # If the doctor already knows a different clinical identity with that
+        # national ID, stop. No updates to either chart and no link writes.
+        if ident_search:
+            conflicts = conn.execute(
+                "SELECT id FROM patients WHERE national_id_search=? AND id<>? "
+                "AND COALESCE(merged_into_patient_id,'')='' LIMIT 2",
+                (ident_search, patient_id),
             ).fetchall()
-            if len(exact) == 1:
-                patient_id = str(exact[0]["id"])
-
-        if not patient_id:
-            patient_id = _v132_patient_id(reception_patient_id)
-
+            if conflicts:
+                raise ValueError("Identificación clínica en conflicto: resolver en Recepción.")
         source_hash = uuid.uuid5(
             uuid.NAMESPACE_URL,
             "historia-reception-demographics:" + reception_patient_id,
         ).hex
-
         conn.execute(
             """INSERT OR IGNORE INTO patients(
                  id,legacy_patient_id,name,name_search,birth_date,address,phone,
@@ -772,35 +767,6 @@ def _v132_enrich_new_patient(self, payload: dict) -> str:
                 stamp, patient_id,
             ),
         )
-        conn.execute(
-            """
-            INSERT INTO patient_links(
-              reception_patient_id,clinical_patient_id,matched_by,verified,
-              verified_at,created_at,updated_at
-            ) VALUES(?,?,?,?,?,?,?)
-            ON CONFLICT(reception_patient_id) DO UPDATE SET
-              clinical_patient_id=excluded.clinical_patient_id,
-              matched_by=CASE
-                WHEN patient_links.matched_by='doctor_confirmed_new'
-                THEN patient_links.matched_by
-                ELSE excluded.matched_by
-              END,
-              verified=1,
-              verified_at=excluded.verified_at,
-              updated_at=excluded.updated_at
-            """,
-            (
-                reception_patient_id, patient_id, "lan_new_demographics", 1,
-                stamp, stamp, stamp,
-            ),
-        )
-        if event_id:
-            conn.execute(
-                """UPDATE waiting_queue
-                   SET clinical_patient_id=?,display_name=?,identification=?,updated_at=?
-                   WHERE reception_event_id=?""",
-                (patient_id, name, identification or None, stamp, event_id),
-            )
         conn.commit()
 
     try:
@@ -810,6 +776,7 @@ def _v132_enrich_new_patient(self, payload: dict) -> str:
     except Exception:
         pass
     return patient_id
+
 
 def _v132_accept_handoff(self, payload: dict, remote_ip: str) -> dict:
     result = _v132_accept_handoff_original(self, payload, remote_ip)
