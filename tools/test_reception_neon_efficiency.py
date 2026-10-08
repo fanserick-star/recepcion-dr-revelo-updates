@@ -17,7 +17,7 @@ schedule = json.loads((ROOT / "cloudflare/wrangler.whatsapp.jsonc").read_text(en
 deploy = (ROOT / ".github/workflows/deploy-whatsapp.yml").read_text(encoding="utf-8")
 front = (ROOT / "recepcion/app/static/app.js").read_text(encoding="utf-8")
 
-# No periodic Neon wakeups; messages obey the documented Ecuador quiet hours.
+# No periodic Neon wakeups; tests cannot contact Meta or send WhatsApp.
 assert "triggers" not in schedule or not schedule["triggers"].get("crons")
 assert schedule["durable_objects"]["bindings"][0]["name"] == "WHATSAPP_ALARMS"
 assert "assert crons == [], crons" in deploy
