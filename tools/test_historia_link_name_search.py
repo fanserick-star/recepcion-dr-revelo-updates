@@ -139,7 +139,10 @@ def main() -> None:
         )
         assert "<h1>VELIZ PICO SAUL AARON</h1>" in html
         assert '<h1>0912345678</h1>' not in html
-        assert "Vincular esta ficha" in search._helper_markup_name_first("q1", "VELIZ PICO SAUL AARON")
+        notice = search._helper_markup_name_first("q1", "VELIZ PICO SAUL AARON")
+        assert "Pendiente de vinculación en Recepción" in notice
+        assert "/vincular/" not in notice
+        assert "Vincular esta ficha" not in notice
 
         general = isolated_search_functions()
         with sqlite3.connect(db_path) as conn:
