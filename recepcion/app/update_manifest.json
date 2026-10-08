@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.2",
-  "app_version": "4.8.2",
-  "runtime_version": "4.8.2",
+  "version": "4.8.3",
+  "app_version": "4.8.3",
+  "runtime_version": "4.8.3",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.2: agrega botón independiente para dar turno gratuito de REVISIÓN DE EXÁMENES. Se registra una atención clínica de valor $0, no se genera BillingRecord ni factura pendiente, y la cola LAN/Historia y TV reutilizan la numeración existente. Se evita un segundo turno activo el mismo día para el mismo paciente. El guardado es SQLite-first con sincronización futura a Neon que también conserva la exclusión de facturación. No se modifica la emisión de facturas, las consultas pagadas ni los procedimientos.",
-    "previous_version": "4.8.1",
+    "purpose": "Recepción 4.8.3: ticket exclusivo de REVISIÓN DE EXÁMENES con turno grande en impresora térmica de 80 mm, impresión directa con impresora configurada o vista previa, y reimpresión desde Inicio. Envia etiqueta explícita y vínculo clínico verificado a Historia 1.4.7; TV distingue turno de revisión en pantalla y anuncio de voz sin mostrar identidad personal. Conserva número único de consultas y no crea facturas, cobros o recibos de consulta.",
+    "previous_version": "4.8.2",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -433,7 +433,22 @@
     "exam_review_local_first": true,
     "exam_review_regression_tests": true,
     "invoice_records_preserved": true,
-    "clinical_records_preserved": true
+    "clinical_records_preserved": true,
+    "exam_review_thermal_ticket": true,
+    "exam_review_80mm_direct_print": true,
+    "exam_review_preview_print": true,
+    "exam_review_ticket_reprint_from_home": true,
+    "exam_review_ticket_validates_non_billable_visit": true,
+    "exam_review_print_no_invoice": true,
+    "exam_review_lan_type": "Revisión de exámenes",
+    "exam_review_verified_clinical_chart": true,
+    "exam_review_tv_review_label": true,
+    "exam_review_tv_review_voice": true,
+    "exam_review_tv_no_identity": true,
+    "exam_review_same_number_ticket_historia_tv": true,
+    "exam_review_tv_javascript_validation": true,
+    "exam_review_connected_history_tv_test": true,
+    "exam_review_procedure_classification_unchanged_for_real_procedures": true
   },
   "channel": "launcher-v1-stable"
 }
