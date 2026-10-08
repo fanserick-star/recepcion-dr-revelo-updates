@@ -6821,23 +6821,23 @@ WITH base AS (
   SELECT 'staged'::text,c.id,c.fecha,c.hora,c.created_at,c.source_hash::text,c.celular
   FROM public.confirmafy_agenda_items c
   WHERE coalesce(c.source_hash,'') <> ''
-    AND coalesce(c.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
     AND c.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
 ), ev AS (
  SELECT b.*, 'recordatorio_cita'::text kind,
    GREATEST(((b.fecha-1) + $4::time) AT TIME ZONE 'America/Guayaquil',
             b.created_at AT TIME ZONE 'UTC') due_at
- FROM base b WHERE $1::boolean
+ FROM base b WHERE $1::boolean AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
  UNION ALL
  SELECT b.*, 'recordatorio_hoy'::text,
    ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
       - ($5::text||' hours')::interval
- FROM base b WHERE $2::boolean
+ FROM base b WHERE $2::boolean AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
  UNION ALL
  SELECT b.*, 'cita_agendada'::text,
    b.created_at AT TIME ZONE 'UTC'
  FROM base b
  WHERE $3::boolean
+   AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
    AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
    AND (
       coalesce(b.source_hash,'') LIKE 'mobile:autoagenda:%'
@@ -6847,6 +6847,15 @@ WITH base AS (
         AND ((b.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date < (b.fecha-1)
       )
    )
+ UNION ALL
+ SELECT b.*, CASE
+   WHEN b.source_hash LIKE 'mobile:whatsapp-cloud-test:cita_agendada:%' THEN 'cita_agendada'
+   WHEN b.source_hash LIKE 'mobile:whatsapp-cloud-test:recordatorio_hoy:%' THEN 'recordatorio_hoy'
+   ELSE 'recordatorio_cita' END::text,
+   b.created_at AT TIME ZONE 'UTC'
+ FROM base b WHERE b.source_type='staged'
+   AND b.source_hash LIKE 'mobile:whatsapp-cloud-test:%'
+   AND b.created_at AT TIME ZONE 'UTC' > now() - interval '2 hours'
 ), pending AS (
  SELECT ev.kind,ev.due_at,e.status,e.attempts,e.updated_at error_updated_at
  FROM ev
