@@ -250,7 +250,8 @@ def _install_on_app(app: FastAPI) -> None:
             "ok": True,
             "version": PATCH_VERSION,
             "open_chart_starts_attention": True,
-            "link_then_open_starts_attention": True,
+            "link_then_open_starts_attention": False,
+            "doctor_link_url_forbidden": True,
             "idempotent": True,
             "search_patient_open_unchanged": True,
             "parallel_consultation_confirmation": True,
@@ -263,10 +264,18 @@ def _install_on_app(app: FastAPI) -> None:
         path = request.url.path
         open_match = _OPEN_RE.fullmatch(path)
         link_match = _LINK_RE.fullmatch(path)
-        match = open_match or link_match
-        if not match:
+        if link_match:
+            # Even old browser bookmarks must never ask the doctor to bind a
+            # Reception identity or start a consultation by a link URL.
+            return HTMLResponse(
+                "<h2>Vínculo gestionado en Recepción</h2>"
+                "<p>Solicite a Recepción que vincule la ficha y vuelva al Inicio de Historia Clínica.</p>",
+                status_code=403,
+            )
+        if not open_match:
             return await call_next(request)
 
+        match = open_match
         queue_id = match.group(1)
         confirmed = str(request.query_params.get(_CONFIRM_PARAM) or "").strip() == "1"
 
