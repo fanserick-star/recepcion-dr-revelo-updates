@@ -754,6 +754,7 @@ function serviceTone(name){
   return 'procedure-neutral';
 }
 function serviceBadge(r){
+  if(r?.exam_review_no_charge)return '<span class="service-badge consultation">REVISIÓN DE EXÁMENES · SIN COBRO</span>';
   const raw=serviceKey(r?.procedimiento||'');
   if(!raw)return '<span class="service-badge consultation">CONSULTA</span>';
   return `<span class="service-badge procedure ${serviceTone(raw)}">${esc(serviceLabel(raw))}</span>`;
@@ -785,7 +786,7 @@ function patientDayNumber(fecha,patientId){
   return idx>=0?groups.length-idx:null;
 }
 function homeReceiptButtons(g,fecha,dayNumber){
-  const hasConsultation=(g.visits||[]).some(v=>!String(v.procedimiento||'').trim());
+  const hasConsultation=(g.visits||[]).some(v=>!String(v.procedimiento||'').trim()&&!v.exam_review_no_charge);
   if(!hasConsultation)return '';
   const pid=Number(g.patient?.id||0);
   return `<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`;
@@ -796,7 +797,7 @@ function simpleHomeTable(rows){
     const descendingNumber=(rows||[]).length-idx;
     const fecha=String(r?.fecha||selectedHomeDate||'').slice(0,10);
     const pid=Number(r?.patient?.id||r?.patient_id||0);
-    const receiptActions=!String(r?.procedimiento||'').trim()?`<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`:'';
+    const receiptActions=!String(r?.procedimiento||'').trim()&&!r?.exam_review_no_charge?`<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`:'';
     const actions=`${receiptActions}${homeDeleteButton(r)}`;
     return `<tr><td class="row-number">${descendingNumber}.</td><td class="patient-cell">${patientNameCell(r,true,r?.tipo==='N')}</td><td>${serviceBadge(r)}</td><td class="money-cell"><span class="money-pill">${money(r?.valor)}</span></td><td class="home-action-cell">${actions}</td></tr>`;
   }).join('');
@@ -1465,7 +1466,7 @@ async function attentionFor(id,draft=null){
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
   const cancelAction=Number(draft?.stagedId||0)?`attendConfirmafyStaged(${Number(draft.stagedId)},'${esc(fecha)}')`:`openPatient(${id},currentPatientSource)`;
-  openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
+  openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="exam-review-turn-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Dar turno · Revisión de exámenes (gratis)</button><small>Sin cobro, sin factura y sin recibo. Se envía a la espera del doctor y a los turnos de TV.</small></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
   renderAttentionStatus();
   renderSelectedServiceValues();
 }
@@ -1488,6 +1489,42 @@ function renderAttentionStatus(){
   }
 }
 function toggleLegacySubsequent(){if(!attentionContext||attentionContext.patient.suggested_type==='S')return;attentionContext.manualSubsequent=!attentionContext.manualSubsequent;renderAttentionStatus()}
+async function saveExamReviewTurn(id){
+  if(attentionSaveInFlight)return;
+  const fecha=$('#aFecha')?.value||toISO(new Date());
+  if(fecha!==toISO(new Date())){alert('El turno gratuito de revisión se entrega solo para hoy.');return}
+  const name=attentionContext?.patient?.nombre||'este paciente';
+  if(!confirm('¿Dar turno gratuito de revisión de exámenes a '+name+'?\n\nNo se cobrará ni se creará factura o recibo.'))return;
+  const btn=$('.exam-review-turn-btn');
+  attentionSaveInFlight=true;
+  if(btn){btn.disabled=true;btn.textContent='Registrando turno…'}
+  try{
+    const result=await api('/api/visits/exam-review',{method:'POST',body:JSON.stringify({
+      patient_id:id,fecha,observacion:$('#aObs')?.value||null
+    })});
+    const stagedId=Number(attentionContext?.stagedId||0);
+    if(stagedId){
+      try{
+        await api('/api/agenda/confirmafy-staged/'+stagedId+'/attended',{
+          method:'POST',body:JSON.stringify({patient_id:id})
+        });
+        confirmafyStagedById.delete(stagedId);
+      }catch(e){console.warn('No se pudo marcar la cita externa como atendida:',e)}
+    }
+    invalidateAttentionWeekCache();
+    closeModal();
+    await loadWeek(fecha,fecha);
+    show('inicio');
+    const turn=result?.turn?'N.º '+String(result.turn):'registrado';
+    const warning=result?.handoff_queued?'':'\nAtención: no se pudo confirmar el envío a Historia. Revisa su conexión antes de llamarlo.';
+    alert('Revisión de exámenes: turno '+turn+'.\nSin cobro ni factura.'+warning);
+  }catch(e){alert(e.message)}
+  finally{
+    attentionSaveInFlight=false;
+    if(btn?.isConnected){btn.disabled=false;btn.textContent='🎫 Dar turno · Revisión de exámenes (gratis)'}
+  }
+}
+
 async function saveAttention(id){
   if(attentionSaveInFlight)return;
   const saveBtn=$('#saveAttentionBtn');
@@ -1660,7 +1697,7 @@ function receiptDataFromHome(patientId,fecha){
   const index=groups.findIndex(g=>Number(g.patient?.id)===Number(patientId));
   if(index<0)return null;
   const g=groups[index];
-  const consultations=g.visits.filter(v=>!String(v.procedimiento||'').trim());
+  const consultations=g.visits.filter(v=>!String(v.procedimiento||'').trim()&&!v.exam_review_no_charge);
   const primary=consultations[0];
   if(!primary)return null;
   const receiptVisit={...primary,tipo:g.isNew?'N':'S'};

@@ -3057,7 +3057,7 @@ def _prefer_local_read(request: Request) -> bool:
 
 # v4.6.8: guardar una atención nunca espera a Neon. Se confirma primero en
 # SQLite y la cola offline ya existente la replica después a la nube.
-LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment"}
+LOCAL_FIRST_WRITE_PATHS = {"/api/visits/batch", "/api/visits/batch-payment", "/api/visits/exam-review"}
 LOCAL_FIRST_POST_PREFIXES = ("/api/v4470/print-visit/",)
 
 
@@ -3179,8 +3179,21 @@ def p_dict(p: Patient):
     }
 
 
+EXAM_REVIEW_NO_CHARGE_SOURCE_ROW = -480210
+
+
+def is_exam_review_no_charge(visit) -> bool:
+    """Durable, unambiguous marker: a zero-cost review isn't an invoice."""
+    return (
+        getattr(visit, "source_row", None) == EXAM_REVIEW_NO_CHARGE_SOURCE_ROW
+        and not str(getattr(visit, "procedimiento", "") or "").strip()
+        and float(getattr(visit, "valor", 0) or 0) == 0.0
+    )
+
+
 def v_dict(v: Visit):
     return {
+        "exam_review_no_charge": is_exam_review_no_charge(v),
         "id": v.id, "patient_id": v.patient_id, "fecha": v.fecha, "tipo": v.tipo,
         "procedimiento": v.procedimiento,
         "valor": float(v.valor) if v.valor is not None else None,
@@ -3531,6 +3544,12 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
         if not p:
             raise RuntimeError(f"No se encontró paciente {cloud_patient_id} para sincronizar la atención")
         fecha_val = date.fromisoformat(str(payload["fecha"])[:10])
+        free_review = payload.get("exam_review_no_charge") is True
+        if free_review and (
+            payload.get("procedimiento")
+            or float(payload.get("valor") or 0) != 0.0
+        ):
+            raise RuntimeError("Revisión gratuita con datos de cobro inválidos")
         v = Visit(
             patient_id=cloud_patient_id,
             fecha=fecha_val,
@@ -3538,12 +3557,15 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
             procedimiento=(payload.get("procedimiento") or None),
             valor=payload.get("valor"),
             observacion=payload.get("observacion") or None,
+            source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW if free_review else None,
         )
         cdb.add(v)
         cdb.flush()
         result_id = v.id
-        cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
-        audit(cdb, q.username, "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
+        # Never create a pending invoice for an exam-review ticket.
+        if not free_review:
+            cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
+        audit(cdb, q.username, "sincronizar_revision_examenes_sin_cobro" if free_review else "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
 
     elif q.operation in {"visit.cancel", "visit.delete"}:
         local_id = int(payload["visit_id"])
@@ -5718,6 +5740,124 @@ def create_visit_batch(data: VisitBatchIn, db: Session = Depends(get_db), user: 
         "items": [v_dict(v) for v in created],
         "offline": offline,
         "pending": pending_summary_local,
+    }
+
+
+class ExamReviewTurnIn(BaseModel):
+    patient_id: int
+    fecha: date = date.today()
+    observacion: Optional[str] = None
+
+
+@app.post("/api/visits/exam-review")
+def create_exam_review_turn(
+    data: ExamReviewTurnIn,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Non-billable medical turn; local-first, idempotent per patient/day.
+
+    It is intentionally a consultation-shaped Visit for the existing LAN and TV
+    numbering, but contains no BillingRecord and never enters the payment API.
+    """
+    if data.fecha != date.today():
+        raise HTTPException(400, "Los turnos de revisión de exámenes se emiten únicamente para hoy.")
+    patient = db.get(Patient, data.patient_id)
+    if not patient:
+        raise HTTPException(404, "Paciente no encontrado")
+
+    existing = db.scalar(
+        select(Visit)
+        .where(
+            Visit.patient_id == data.patient_id,
+            Visit.fecha == data.fecha,
+            Visit.source_row == EXAM_REVIEW_NO_CHARGE_SOURCE_ROW,
+            Visit.estado == "ACTIVA",
+        )
+        .order_by(Visit.id.desc())
+    )
+    created = existing is None
+    offline = is_offline_db(db)
+    if existing:
+        visit = existing
+    else:
+        prior = db.scalar(
+            select(func.count(Visit.id)).where(Visit.patient_id == patient.id)
+        ) or 0
+        historical = bool(not prior and historical_summary_for_patient(patient))
+        tipo = "S" if prior or historical else "N"
+        visit = Visit(
+            patient_id=data.patient_id,
+            fecha=data.fecha,
+            tipo=tipo,
+            procedimiento=None,
+            valor=0.0,
+            observacion=(str(data.observacion or "").strip()[:800] or None),
+            source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW,
+            estado="ACTIVA",
+        )
+        db.add(visit)
+        db.flush()
+        if offline:
+            add_queue(
+                db,
+                "visit.create",
+                "visit",
+                {
+                    "patient_id": int(data.patient_id),
+                    "fecha": data.fecha.isoformat(),
+                    "tipo": tipo,
+                    "procedimiento": None,
+                    "valor": 0.0,
+                    "observacion": visit.observacion,
+                    "exam_review_no_charge": True,
+                },
+                user.username,
+                visit.id,
+            )
+        audit(
+            db, user, "revision_examenes_sin_cobro",
+            f"Turno sin facturación: visita {visit.id}, paciente {patient.id}",
+        )
+        # No BillingRecord is created, either locally or when later synced.
+        db.commit()
+        if not offline:
+            mirror_visit_to_local(visit)
+
+    # Existing consultation numbering and LAN delivery, no second queue system.
+    from reception_history_bridge import _reception_turn_for_visit
+    import historia_bridge
+
+    reception_turn = _reception_turn_for_visit(db, visit.id)
+    handoff_error = ""
+    try:
+        historia_bridge.queue_attention(
+            reception_patient_id=int(patient.id),
+            display_name=str(patient.nombre or "Paciente"),
+            identification=str(patient.cedula or ""),
+            attention_type="Consulta",
+            patient_status="Subsecuente" if visit.tipo == "S" else "Nuevo",
+            reception_turn=reception_turn,
+            visit_ids=[visit.id],
+            birth_date=str(patient.fecha_nacimiento or ""),
+            phone=str(patient.celular or ""),
+            email=str(patient.correo or ""),
+            address=str(patient.lugar or ""),
+        )
+    except Exception as exc:
+        # Visit stays saved and is safe to retry; do not claim LAN delivery.
+        handoff_error = f"{type(exc).__name__}: {str(exc)[:160]}"
+
+    return {
+        "ok": True,
+        "created": created,
+        "visit": v_dict(visit),
+        "turn": reception_turn,
+        "exam_review_no_charge": True,
+        "billing_created": False,
+        "handoff_queued": not bool(handoff_error),
+        "handoff_error": handoff_error,
+        "offline": offline,
     }
 
 

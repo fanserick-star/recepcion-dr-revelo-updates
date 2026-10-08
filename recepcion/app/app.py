@@ -302,6 +302,9 @@ if _V466_BASE_PRINT is None:
 
 @app.post('/api/v4470/print-visit/{visit_id}')
 def v466_print_visit_local_first(visit_id: int, data: _V4544PrintVisitIn, db=core.Depends(_v466_local_attention_db), user=core.Depends(core.current_user)):
+    visit = db.get(core.Visit, visit_id)
+    if visit is not None and core.is_exam_review_no_charge(visit):
+        raise core.HTTPException(409, 'La revisión gratuita de exámenes no genera recibo de consulta.')
     return _V466_BASE_PRINT(visit_id, data, db, user)
 _V466_OLD_BUSY = 'Guardando atención e imprimiendo recibo…'
 _V466_NEW_BUSY = 'Guardando atención…'
