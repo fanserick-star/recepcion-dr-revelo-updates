@@ -1436,6 +1436,8 @@ def _queue_is_new(row) -> bool:
 def _queue_is_procedure(row) -> bool:
     """Un procedimiento aparece en la cola, pero no consume número de turno."""
     raw = normalize_search(str(row["attention_type"] or "")).upper().strip()
+    if raw in {"REVISION DE EXAMENES", "REVISIÓN DE EXÁMENES"}:
+        return False
     if raw in {"P", "X", "PROCEDIMIENTO"} or raw.startswith("PROCEDIMIENTO "):
         return True
     if raw in {"", "CONSULTA", "N", "NUEVO", "S", "SUBSECUENTE"}:
@@ -2013,9 +2015,13 @@ def home():
                 action_label = "Esperando Recepción"
             attention_key = normalize_search(attention_label).lower().replace(" ", "-") or "consulta"
             procedure_name = _v1373_procedure_label(r) if is_procedure else ""
+            exam_review = normalize_search(str(r["attention_type"] or "")).upper().strip() == "REVISION DE EXAMENES"
             service_tag = (
-                f"<span class='queue-procedure-chip'><span>PROCEDIMIENTO</span><b>{e(procedure_name)}</b></span>"
-                if is_procedure else ""
+                "<span class='queue-procedure-chip'><span>REVISIÓN</span><b>DE EXÁMENES</b></span>"
+                if exam_review else (
+                    f"<span class='queue-procedure-chip'><span>PROCEDIMIENTO</span><b>{e(procedure_name)}</b></span>"
+                    if is_procedure else ""
+                )
             )
             age = age_from_birth(r["patient_birth_date"]) if "patient_birth_date" in r.keys() else ""
             last_label = _v1373_last_attention_label(r["last_encounter_date"] if "last_encounter_date" in r.keys() else "")
