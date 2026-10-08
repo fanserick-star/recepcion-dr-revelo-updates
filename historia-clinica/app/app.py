@@ -1057,8 +1057,14 @@ def search_patients(conn, raw_query, limit=100):
     if not tokens and not digits and not birth_iso:
         return []
 
-    name_where = " AND ".join("p.name_search LIKE ?" for _ in tokens) if tokens else "0"
-    params = [f"%{t}%" for t in tokens]
+    # Apellidos completos o parciales, en cualquier orden. Algunos registros
+    # históricos tienen name_search vacío/desactualizado: usar también name.
+    # Cada palabra escrita debe aparecer en la misma ficha.
+    name_where = " AND ".join(
+        "(UPPER(COALESCE(p.name_search,'')) LIKE ? OR UPPER(COALESCE(p.name,'')) LIKE ?)"
+        for _ in tokens
+    ) if tokens else "0"
+    params = [pattern for token in tokens for pattern in (f"%{token}%", f"%{token}%")]
     extra = []
     if digits:
         extra.extend([
@@ -1081,7 +1087,7 @@ def search_patients(conn, raw_query, limit=100):
         FROM patients p
         WHERE COALESCE(p.merged_into_patient_id,'')=''
           AND ({where})
-        LIMIT 350
+        LIMIT 2500
     """, params).fetchall()
 
     def score(r):
