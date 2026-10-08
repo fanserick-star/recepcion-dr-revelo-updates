@@ -8,6 +8,7 @@ on:
       - "launcher-v1/app-channel-source.json"
       - "tools/build_reception_app_channel.py"
       - "tools/test_reception_canonical_source.py"
+      - "tools/test_reception_history_tv_contract.py"
       - "tools/validate_reception_runtime_layout.py"
       - "updates/**"
       - "releases/reception/**"
