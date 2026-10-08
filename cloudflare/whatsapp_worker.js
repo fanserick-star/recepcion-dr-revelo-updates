@@ -6802,7 +6802,9 @@ function whatsappAlarmStub(env) {
   return env.WHATSAPP_ALARMS.get(env.WHATSAPP_ALARMS.idFromName(WHATSAPP_ALARM_OBJECT_NAME));
 }
 async function refreshWhatsappAlarm(env, initOnly = false) {
-  return whatsappAlarmStub(env).fetch("https://alarm.internal/" + (initOnly ? "init" : "refresh"), { method: "POST" });
+  const response = await whatsappAlarmStub(env).fetch("https://alarm.internal/" + (initOnly ? "init" : "refresh"), { method: "POST" });
+  if (!response.ok) throw new Error("Durable Object reminder scheduling rejected");
+  return response;
 }
 async function nextWhatsappReminderTimestamp(env) {
   if (!env.DATABASE_URL) throw new Error("Neon DATABASE_URL is missing");
@@ -6810,13 +6812,13 @@ async function nextWhatsappReminderTimestamp(env) {
     const q = `
 WITH base AS (
   SELECT 'appointment'::text source_type,a.id source_id,a.fecha,a.hora,
-         a.created_at,NULL::text source_hash
-  FROM public.appointments a
+         a.created_at,NULL::text source_hash,p.celular phone
+  FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
   WHERE upper(coalesce(a.estado,'')) NOT IN ('CANCELADA','CANCELADO')
     AND a.origen <> 'CONFIRMAFY_ATENDIDO'
     AND a.fecha >= ((now() AT TIME ZONE 'America/Guayaquil')::date - 1)
   UNION ALL
-  SELECT 'staged'::text,c.id,c.fecha,c.hora,c.created_at,c.source_hash::text
+  SELECT 'staged'::text,c.id,c.fecha,c.hora,c.created_at,c.source_hash::text,c.celular
   FROM public.confirmafy_agenda_items c
   WHERE coalesce(c.source_hash,'') <> ''
     AND coalesce(c.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
@@ -6858,7 +6860,8 @@ WITH base AS (
        WHEN 'recordatorio_hoy' THEN $7::text ELSE $8::text END
    ORDER BY e.id DESC LIMIT 1
  ) e ON TRUE
- WHERE ((ev.fecha+ev.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+ WHERE length(regexp_replace(coalesce(ev.phone,''),'[^0-9]','','g')) BETWEEN 10 AND 15
+   AND ((ev.fecha+ev.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
    AND (
      (ev.source_type='staged' AND coalesce(ev.source_hash,'') NOT LIKE 'mobile:%'
        AND ev.kind='recordatorio_cita'
@@ -6911,8 +6914,12 @@ export class WhatsappAlarmCoordinator {
     return { ok: true, next_alarm_utc: new Date(at).toISOString() };
   }
   async fetch(request) {
-    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
     const pathname = new URL(request.url).pathname;
+    if (pathname === "/status" && request.method === "GET") return Response.json({ ok: true,
+      mode: "durable_object_event_driven", initialized: !!(await this.state.storage.get("bootstrapped_v1")),
+      next_alarm_utc: (await this.state.storage.getAlarm()) === null ? null :
+        new Date(await this.state.storage.getAlarm()).toISOString() });
+    if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
     if (pathname !== "/refresh" && pathname !== "/init") return new Response("Not found", { status: 404 });
     try {
       if (pathname === "/init" && await this.state.storage.get("bootstrapped_v1")) {
@@ -6982,7 +6989,10 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.25", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_quiet_hours_ecuador: "20:00-08:00", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.26", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "business_window_30m", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_quiet_hours_ecuador: "20:00-08:00", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/alarms/status" && request.method === "GET") {
+      return whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
+    }
     if (u.pathname === "/alarms/notify" && request.method === "POST") {
       if (!await verifyReceptionAlarmHint(request, env)) return text("Forbidden", 403);
       const response = await refreshWhatsappAlarm(env);
