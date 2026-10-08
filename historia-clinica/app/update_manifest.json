@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.7",
-  "app_version": "1.4.7",
-  "runtime_version": "1.4.7",
+  "version": "1.4.8",
+  "app_version": "1.4.8",
+  "runtime_version": "1.4.8",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.7: reconoce turnos de REVISIÓN DE EXÁMENES como consultas sin cobro en la cola, muestran una etiqueta propia al doctor y abren la ficha clínica ya vinculada desde Recepción cuando existe identidad verificada. La TV recibe una marca booleana sin datos personales, no confunde revisiones con procedimientos, y el control de turnos duplicados las trata como consultas. No se modifican historias, facturas ni pacientes.",
-    "previous_version": "1.4.6",
+    "purpose": "Historia Clínica 1.4.8: exclusivamente Recepción crea, verifica y cambia vínculos de pacientes con fichas clínicas. Historia conserva consulta, edición y atención médica pero bloquea el antiguo botón y la ruta /cola/.../vincular. El alta automática por cola y confirmaciones del doctor ya no escriben patient_links; la sincronización desde Historia sólo descarga los enlaces del Neon administrado por Recepción. Nuevos pacientes se importan por LAN solamente cuando Recepción suministró el ID clínico verificado; los pacientes sin ficha aparecen pendientes de Recepción. No se borran fichas, atenciones ni historias firmadas.",
+    "previous_version": "1.4.7",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -193,6 +193,17 @@
     "exam_review_queue_label": true,
     "exam_review_tv_privacy_flag": true,
     "exam_review_procedure_exclusion_fixed": true,
-    "clinical_record_destructive_changes": false
+    "clinical_record_destructive_changes": false,
+    "reception_only_patient_links": true,
+    "doctor_link_route_disabled": true,
+    "doctor_link_ui_removed": true,
+    "new_patient_doctor_details_confirmation_only": true,
+    "doctor_link_neon_push_disabled": true,
+    "doctor_auto_link_lan_disabled": true,
+    "new_patient_requires_reception_link": true,
+    "clinical_records_preserved": true,
+    "waiting_queue_preserved": true,
+    "fiscal_records_unchanged": true,
+    "reception_authority_regression_test": true
   }
 }
