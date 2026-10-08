@@ -6858,7 +6858,7 @@ WITH base AS (
      AND e.template_name=CASE ev.kind
        WHEN 'recordatorio_cita' THEN $6::text
        WHEN 'recordatorio_hoy' THEN $7::text ELSE $8::text END
-   ORDER BY e.id DESC LIMIT 1
+   ORDER BY e.updated_at DESC LIMIT 1
  ) e ON TRUE
  WHERE length(regexp_replace(coalesce(ev.phone,''),'[^0-9]','','g')) BETWEEN 10 AND 15
    AND ((ev.fecha+ev.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
