@@ -11,6 +11,7 @@ on:
       - "tools/test_historia_canonical_source.py"
       - "tools/test_historia_1395_blindaje.py"
       - "tools/test_historia_link_name_search.py"
+      - "tools/test_reception_only_link_authority.py"
       - "tools/test_historia_firma_pades.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
@@ -24,6 +25,7 @@ on:
       - "tools/test_historia_canonical_source.py"
       - "tools/test_historia_1395_blindaje.py"
       - "tools/test_historia_link_name_search.py"
+      - "tools/test_reception_only_link_authority.py"
       - "tools/test_historia_firma_pades.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
@@ -60,6 +62,7 @@ jobs:
       - name: Validate clinical surname search and linked identity
         run: |
           python tools/test_historia_link_name_search.py
+          python tools/test_reception_only_link_authority.py
 
       - name: Install exact Historia runtime dependencies
         run: |
