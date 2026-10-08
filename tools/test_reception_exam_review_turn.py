@@ -81,7 +81,7 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert "async function printExamReviewTicket(visitId)" in js
     assert "function examReviewTicketMarkup(ticket)" in js
     assert "function printExamReviewInBrowser(ticket)" in js
-    assert "onclick=\\"showExamReviewTicket(" in js
+    assert 'onclick="showExamReviewTicket(' in js
     assert ".exam-review-ticket-modal" in css
     assert 'REVISIÓN DE EXÁMENES' in js
 
