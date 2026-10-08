@@ -939,7 +939,7 @@ V4613_JS = r"""
     return d;
   }
 
-  async function searchDialog(pid,initial=''){
+  async function searchDialog(pid,initial='',afterLink=null){
     closeSearch();
     const overlay=document.createElement('div');overlay.className='v4613-overlay';
     overlay.innerHTML=`<div class="v4613-dialog"><div class="v4613-head"><div><h3>Buscar ficha en Historia Clínica</h3><p>Recepción compara identificación, celular, fecha de nacimiento y nombres. Los nombres parecidos se muestran para confirmación manual; nunca se autovinculan solos.</p></div><button class="v4613-close" type="button">×</button></div><div class="v4613-search"><input autocomplete="off" placeholder="Cédula, apellidos y nombres o celular"><button type="button">Buscar</button></div><div class="v4613-results"><div class="v4613-empty">Buscando candidatos del paciente…</div></div></div>`;
@@ -987,6 +987,13 @@ V4613_JS = r"""
               statusCache.set(Number(pid),{at:Date.now(),data:linked});closeSearch();
               for(const host of modalRoots()){const c=host.querySelector(':scope > .v4613-history-card');if(c&&Number(c.dataset.pid||0)===Number(pid))c.dataset.settled='0'}
               renderAll(false);
+              // Review workflow stays pending until a human confirms this
+              // exact chart. Never issue a ticket just from fuzzy results.
+              if(typeof afterLink==='function'){
+                setTimeout(()=>{Promise.resolve(afterLink(linked)).catch(
+                  e=>console.warn('No se pudo reanudar revisión después de vincular:',e)
+                )},0);
+              }
               if(typeof window.rpAlert==='function'){
                 const correction=linked?.reception_identification_corrected||{};
                 const msg=correction.after
@@ -1115,6 +1122,16 @@ V4613_JS = r"""
     wrapped.__v4614Base=base;
     window[name]=wrapped;
   }
+
+  // Used only by the review-exams button in Recepción. The same manually
+  // confirmed linkage window is reused; no duplicate patient-identity flow.
+  window.openExamReviewHistoryLink=function(pid,initial=''){
+    return searchDialog(pid,initial,()=>{
+      if(typeof window.saveExamReviewTurn==='function'){
+        return window.saveExamReviewTurn(Number(pid));
+      }
+    });
+  };
 
   let timer=0;
   function boot(){
