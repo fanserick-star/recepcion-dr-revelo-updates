@@ -27,6 +27,7 @@ jobs:
           python tools/test_historia_canonical_source.py
           python tools/validate_historia_runtime.py historia-clinica/app
           python tools/test_historia_link_name_search.py
+          python tools/test_reception_only_link_authority.py
 
       - name: Generate channel from exact canonical Git blobs
         env:
