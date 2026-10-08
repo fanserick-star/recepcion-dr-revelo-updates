@@ -10,6 +10,7 @@ on:
       - "tools/test_reception_canonical_source.py"
       - "tools/test_reception_history_identity_search.py"
       - "tools/test_reception_exam_review_turn.py"
+      - "tools/test_reception_only_link_authority.py"
       - "tools/test_tv_display_javascript.mjs"
       - "tools/test_reception_history_tv_contract.py"
       - "tools/validate_reception_runtime_layout.py"
@@ -51,6 +52,7 @@ jobs:
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
           python tools/test_reception_exam_review_turn.py
+          python tools/test_reception_only_link_authority.py
           node --check recepcion/app/static/app.js
           node tools/test_tv_display_javascript.mjs
           python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
