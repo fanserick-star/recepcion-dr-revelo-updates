@@ -55,7 +55,7 @@ assert "CLOUD_CHECK_SECONDS = 600.0" in source
 assert "pool_size=1" in source and "max_overflow=1" in source
 assert 'cloud_engine.dispose()' in source
 assert '"/api/power/idle"' in source and '"/api/power/wake"' in source
-assert "if method==='GET' && inflightGets.has(url)" in front
+assert "if(method==='GET' && inflightGets.has(url))" in front
 assert "connectivityTimer=setInterval(()=>updateConnectivity(false),PASSIVE_CONNECTIVITY_MS)" in front
 assert "if configured and force:" in source  # passive status never polls Neon
 assert "if queue_count() > 0:" in source
