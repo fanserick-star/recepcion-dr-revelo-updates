@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
 
-      - name: Verificar cron 24/7 cada 5 minutos
+      - name: Verificar cron 24/7 cada 30 minutos
         shell: bash
         run: |
           set -euo pipefail
