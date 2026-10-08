@@ -113,7 +113,7 @@ jobs:
           d=json.load(open('/tmp/schedules.json','r',encoding='utf-8'))
           assert d.get('success') is True, d
           crons=sorted(x.get('cron') for x in d.get('result',{}).get('schedules',[]))
-          assert crons == ['*/5 * * * *'], crons
+          assert crons == ['*/30 * * * *'], crons
           print('WHATSAPP_CRON_CANONICAL_OK', crons)
           PY
 
