@@ -223,7 +223,7 @@ try:
     _v4445_cloud_agenda_lock = core.threading.Lock()
     _v4445_cloud_agenda_at = {}
 
-    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=5.0) -> int:
+    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=60.0) -> int:
         normalized = []
         for value in dates or []:
             try:
