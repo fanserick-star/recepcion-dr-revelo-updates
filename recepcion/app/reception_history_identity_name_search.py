@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import re
 
 import reception_history_identity_consolidated as identity
 
