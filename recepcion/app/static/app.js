@@ -547,6 +547,66 @@ async function init(){
 function loadDashboard(){
   // v3.9: Inicio deja de usar un dashboard grande. Solo conserva pendientes operativos.
   renderHomePendingStrip();
+  mountSmartAlertsShortcut();
+}
+// 4.8.14: el Centro de alertas SOLO consulta Neon por iniciativa del usuario.
+// No hay intervalos, observadores ni notificaciones que envíen WhatsApp.
+function mountSmartAlertsShortcut(){
+  const strip=$('#homePendingStrip');
+  if(!strip||$('#homeSmartAlertsButton'))return;
+  const btn=document.createElement('button');
+  btn.id='homeSmartAlertsButton';
+  btn.type='button';
+  btn.textContent='🔔 Revisar alertas del consultorio';
+  btn.title='Comprobar mensajes sin registrar, sincronización y respaldo. No envía WhatsApp.';
+  btn.style.cssText='display:block;margin:8px 0 13px;padding:9px 13px;border:1px solid #d7e2ee;border-radius:11px;background:#f8fbff;color:#2e567d;font-size:11px;font-weight:800;cursor:pointer;text-align:left;';
+  btn.addEventListener('click',openSmartAlerts);
+  strip.after(btn);
+}
+async function openSmartAlerts(){
+  const btn=$('#homeSmartAlertsButton');
+  const old=btn?.textContent||'🔔 Revisar alertas del consultorio';
+  try{
+    if(btn){btn.disabled=true;btn.textContent='🔎 Comprobando alertas…'}
+    const data=await api('/api/ops/alerts');
+    const missing=Array.isArray(data.missing_confirmations)?data.missing_confirmations:[];
+    const errors=Array.isArray(data.delivery_errors)?data.delivery_errors:[];
+    const problems=missing.length+errors.length+Number(data.pending_sync||0);
+    const line=(title,description,tone='normal')=>'<article style="border:1px solid #e1e8f1;background:'+
+      (tone==='bad'?'#fff7f4':'#f8fbff')+
+      ';border-radius:11px;padding:10px 12px;display:grid;gap:4px;margin-top:8px"><b style="font-size:12px">'+
+      esc(title)+'</b><small style="color:#566f88;font-size:10px">'+esc(description)+'</small></article>';
+    const missingHTML=missing.map(item=>{
+      const id=Number(item.appointment_id)||0,pid=Number(item.patient_id)||0;
+      const date=String(item.date||'').replace(/[^0-9-]/g,'').slice(0,10);
+      const open=id?'<button type="button" onclick="closeModal();openLinkedAgendaDetail('+id+','+pid+',\''+date+'\')" style="padding:7px 11px;margin-top:5px">Abrir cita</button>':'';
+      return '<article style="border:1px solid #efcc9a;border-radius:10px;padding:9px 11px;margin-top:7px;background:#fffaf0"><b>'+
+        esc(item.patient||'Paciente')+'</b><small style="display:block;color:#78624b;margin:3px 0">Cita '+esc(item.date||'')+' '+esc(item.time||'')+' · No hay registro de envío en Neon</small>'+open+'</article>';
+    }).join('');
+    const errorHTML=errors.map(item=>line(
+      (item.patient||'Paciente')+' · '+(item.template||'WhatsApp'),
+      'Estado: '+(item.status||'error')+(item.error_code?' · Código '+item.error_code:''),
+      'bad')).join('');
+    const connection=data.cloud_checked?'Consulta de WhatsApp Cloud completada.':
+      'No fue posible verificar los mensajes de WhatsApp Cloud: '+String(data.cloud_error||'sin conexión');
+    const status=problems
+      ?line('⚠ '+problems+' situación(es) para revisar','Estos avisos NO reenvían mensajes ni modifican citas.','bad')
+      :data.cloud_checked
+      ?line('✓ Sin incidencias detectadas en esta revisión','La ausencia de avisos no sustituye la confirmación de entrega de Meta.')
+      :line('⚠ WhatsApp Cloud sin comprobar','No interpretes la falta de datos como una entrega confirmada.','bad');
+    const hint=data.alarm_hint||{};
+    const hintText=hint.status==='fallido'?line('⚠ Aviso al Worker falló',
+      String(hint.last_error||'Recepción no pudo confirmar la programación de alarmas.'),'bad'):'';
+    openModal('<div style="max-width:750px;display:grid;gap:9px"><h2>🔔 Centro de alertas</h2><p class="muted">'+esc(connection)+'</p>'+status+
+      line('Sincronización local',Number(data.pending_sync||0)>0?data.pending_sync+' operación(es) pendientes de subir.':'Sin operaciones pendientes en la cola local.',Number(data.pending_sync||0)>0?'bad':'normal')+
+      line('Respaldo local',data.backup_ok?'Existe un respaldo registrado.':'No hay respaldo registrado; compruébalo en Mantenimiento.',data.backup_ok?'normal':'bad')+
+      hintText+
+      (missing.length?'<h3>Confirmaciones sin registro ('+missing.length+')</h3>'+missingHTML:'')+
+      (errors.length?'<h3>Mensajes con error ('+errors.length+')</h3>'+errorHTML:'')+
+      '<small style="color:#74879a">Consulta manual · Sin vigilancia periódica de Neon · No envía ni reenvía WhatsApp.</small>'+
+      '<div class="actions"><button type="button" onclick="closeModal();openSmartAlerts()">↻ Volver a comprobar</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+  }catch(error){alert('No se pudieron consultar las alertas: '+String(error.message||error))}
+  finally{if(btn){btn.disabled=false;btn.textContent=old}}
 }
 async function goHomeToday(){
   const iso=toISO(new Date());
