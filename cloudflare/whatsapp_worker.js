@@ -5788,6 +5788,7 @@ WITH base AS (
          true::boolean is_test
   FROM base b
   WHERE b.source_type='staged' AND b.source_hash LIKE 'mobile:whatsapp-cloud-test:%'
+    AND b.created_at AT TIME ZONE 'UTC' > now() - interval '2 hours'
 )
 SELECT source_type,source_id,patient_name,phone,fecha::text appointment_date,hora::text appointment_time,kind,due_at,is_test
 FROM ev
