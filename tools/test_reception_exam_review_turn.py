@@ -42,7 +42,7 @@ def test_marker_and_no_billing() -> None:
     assert '"exam_review_no_charge": True' in free_route
     assert '"visit.create"' in free_route
     assert "BillingRecord(" not in free_route
-    assert 'attention_type="Consulta"' in free_route
+    assert 'attention_type="Revisión de exámenes"' in free_route
     assert 'historia_bridge.queue_attention(' in free_route
     assert '"billing_created": False' in free_route
     assert '"handoff_queued": not bool(handoff_error)' in free_route
@@ -77,6 +77,14 @@ def test_separate_free_button_and_no_receipt() -> None:
     assert '.filter(v=>!String(v.procedimiento||\'\').trim()&&!v.exam_review_no_charge)' in js
     css = text("recepcion/app/static/style.css")
     assert ".exam-review-turn-btn" in css
+    assert "async function showExamReviewTicket(visitId,autoDirectPrint=false)" in js
+    assert "async function printExamReviewTicket(visitId)" in js
+    assert "function examReviewTicketMarkup(ticket)" in js
+    assert "function printExamReviewInBrowser(ticket)" in js
+    assert "onclick=\\"showExamReviewTicket(" in js
+    assert ".exam-review-ticket-modal" in css
+    assert 'REVISIÓN DE EXÁMENES' in js
+
 
 
 def test_cross_system_and_fiscal_safety() -> None:
@@ -93,6 +101,36 @@ def test_cross_system_and_fiscal_safety() -> None:
     assert "review" not in text("recepcion/app/reception_payment_terminal.py").split(
         "PAYMENT_SENTINELS =", 1
     )[1].split("\n", 1)[0].lower()
+
+    source = text("recepcion/app/core_runtime.py")
+    ticket_reader = source.split("def _exam_review_ticket_data(", 1)[1].split(
+        "def _print_exam_review_ticket_windows(", 1
+    )[0]
+    assert "is_exam_review_no_charge(visit)" in ticket_reader
+    assert 'getattr(visit, "estado", "ACTIVA")' in ticket_reader
+    assert "LocalSessionLocal()" in ticket_reader
+    assert '"billing": False' in ticket_reader
+    assert "BillingRecord(" not in ticket_reader
+    assert '@app.post("/api/visits/exam-review/{visit_id}/print")' in source
+    assert '@app.get("/api/visits/exam-review/{visit_id}/ticket")' in source
+    assert '"TURNO N.º"' in source and '"REVISIÓN DE EXÁMENES"' in source
+    assert "La impresora térmica configurada" in source
+
+    queue = text("historia-clinica/app/app.py")
+    assert "if exam_review else (" in queue
+    assert '"REVISION DE EXAMENES"' in queue
+    queue_open = text("historia-clinica/app/queue_open_attention.py")
+    assert '"REVISION DE EXAMENES"' in queue_open
+    snapshot = text("historia-clinica/app/tv_turn_bridge.py")
+    assert '"exam_review": _is_exam_review(row["attention_type"])' in snapshot
+    tv = text("recepcion/app/reception_tv_turns.py")
+    assert 'self.live["exam_review"]' in tv
+    assert '"next_waiting_exam_review"' in tv
+    tv_html = text("recepcion/app/tv_display.html")
+    assert "REVISIÓN DE EXÁMENES" in tv_html
+    tv_voice = text("recepcion/app/reception_tv_voice_selector.py")
+    assert "state.exam_review" in tv_voice
+
 
 
 if __name__ == "__main__":
