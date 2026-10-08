@@ -335,7 +335,7 @@ try:
     _v4449_cloud_bg_guard = core.threading.Lock()
     _v4449_cloud_bg_keys: set[str] = set()
 
-    def _v4449_cloud_sync_background(dates, min_interval: float=5.0) -> int:
+    def _v4449_cloud_sync_background(dates, min_interval: float=60.0) -> int:
         normalized = []
         for value in dates or []:
             try:
