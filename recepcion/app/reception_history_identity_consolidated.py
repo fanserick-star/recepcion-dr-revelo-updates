@@ -756,6 +756,37 @@ def historia_identity_search(
         }
 
 
+def _auto_creation_maybe_existing_chart(demo: dict, candidate: dict) -> bool:
+    """Conservative duplicate protection without blocking a new family member
+    merely for sharing one common surname."""
+    wanted_id = _usable_id(demo.get("national_id"))
+    existing_id = _usable_id(candidate.get("national_id_search") or candidate.get("national_id"))
+    if wanted_id and existing_id and wanted_id == existing_id:
+        return True
+
+    wanted_tokens = list(dict.fromkeys(
+        token for token in _fuzzy_text(demo.get("name")).split() if len(token) >= 2
+    ))
+    other_tokens = set(_fuzzy_text(candidate.get("name") or candidate.get("name_search")).split())
+    overlap = sum(1 for token in wanted_tokens if token in other_tokens)
+    if not overlap:
+        return False
+
+    wanted_phone = _norm_phone(demo.get("phone"))
+    existing_phone = _norm_phone(candidate.get("phone"))
+    if wanted_phone and existing_phone and wanted_phone[-9:] == existing_phone[-9:]:
+        return True
+
+    wanted_birth = _iso_date(demo.get("birth_date"))
+    existing_birth = _iso_date(candidate.get("birth_date"))
+    if wanted_birth and existing_birth and wanted_birth == existing_birth and overlap >= 2:
+        return True
+
+    if len(wanted_tokens) >= 2 and all(token in other_tokens for token in wanted_tokens[:2]):
+        return True  # two matching surnames, including reordered clinical names
+    return overlap >= max(2, len(wanted_tokens) - 1)
+
+
 class _HistoryCreateFromReceptionIn(core.BaseModel):
     reception_patient_id: int
 
@@ -811,12 +842,38 @@ def historia_identity_create_from_reception(
         # If any plausible existing chart is present, refuse creation and let
         # Reception search/confirm it manually, preventing duplicate histories.
         candidates = _search_candidates(cur, demo, name, 20)
-        if candidates:
+        if any(_auto_creation_maybe_existing_chart(demo, r) for r in candidates):
             raise core.HTTPException(
                 409,
-                "Hay fichas clínicas parecidas; comprueba y vincula una existente "
-                "desde Recepción. No se creó una nueva.",
+                "Hay una ficha clínica con identidad o apellidos coincidentes. "
+                "Comprueba si es el mismo paciente y vincula desde Recepción.",
             )
+        # Independently check the two surnames across ALL live clinical cards:
+        # the human-search candidate list is intentionally capped for speed,
+        # and must not be used as the sole duplicate guard before an INSERT.
+        surname_tokens = list(dict.fromkeys(
+            t for t in _fuzzy_text(name).split() if len(t) >= 2
+        ))[:2]
+        if len(surname_tokens) == 2:
+            name_expr = (
+                "TRANSLATE(UPPER(CONCAT_WS(' ',"
+                "NULLIF(COALESCE(p.name_search,''),''),"
+                "NULLIF(COALESCE(p.name,''),''))),"
+                "'ÁÉÍÓÚÜÑZ','AEIOUUNS')"
+            )
+            cur.execute(
+                "SELECT p.id FROM public.patients p "
+                "WHERE p.deleted_at IS NULL "
+                f"AND {name_expr} LIKE %s AND {name_expr} LIKE %s "
+                "LIMIT 1",
+                ("%" + surname_tokens[0] + "%", "%" + surname_tokens[1] + "%"),
+            )
+            if cur.fetchone():
+                raise core.HTTPException(
+                    409,
+                    "Encontré una ficha con los dos apellidos del paciente. "
+                    "Verifica la existente en Recepción antes de crear otra.",
+                )
         clinical_id = str(uuid.uuid4())
         stamp = datetime.now().isoformat(timespec="seconds")
         cur.execute(
