@@ -2614,6 +2614,8 @@ _WA_ALARM_NOTIFY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/al
 _wa_alarm_hint_lock = threading.Lock()
 _wa_alarm_hint_pending = False
 _wa_alarm_hint_active = False
+# Estado local de la última señal; nunca contiene datos de pacientes ni secretos.
+_wa_alarm_hint_diag = {"status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "", "last_error": ""}
 
 
 def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
@@ -2655,6 +2657,9 @@ def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -
                     if not _wa_alarm_hint_pending:
                         break
                     _wa_alarm_hint_pending = False
+                with _wa_alarm_hint_lock:
+                    _wa_alarm_hint_diag["status"] = "enviando"
+                    _wa_alarm_hint_diag["last_attempt_at"] = datetime.utcnow().isoformat(timespec="seconds")
                 try:
                     key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
                     if len(key) < 12:
@@ -2676,8 +2681,14 @@ def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -
                     with urllib.request.urlopen(req, timeout=7) as response:
                         if response.status != 200:
                             raise RuntimeError("Alarm notification not accepted")
+                    with _wa_alarm_hint_lock:
+                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
                 except Exception as e:
-                    print("WHATSAPP_ALARM_NOTIFY_PENDING", type(e).__name__)
+                    http_code = str(getattr(e, "code", "") or "")
+                    error_label = type(e).__name__ + ((" HTTP " + http_code) if http_code else "")
+                    print("WHATSAPP_ALARM_NOTIFY_PENDING", error_label)
+                    with _wa_alarm_hint_lock:
+                        _wa_alarm_hint_diag.update(status="fallido", last_error=error_label)
                     # Event retry, not polling Neon. No direct Meta sends.
                     with _wa_alarm_hint_lock:
                         _wa_alarm_hint_pending = True
@@ -2696,7 +2707,8 @@ def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -
                             with urllib.request.urlopen(req, timeout=7) as response:
                                 if response.status == 200:
                                     with _wa_alarm_hint_lock:
-                                        _wa_alarm_hint_pending = False
+                                        # Una cita registrada DURANTE el reintento no debe perder su señal.
+                                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
                                     break
                         except Exception:
                             time.sleep(8.0)
