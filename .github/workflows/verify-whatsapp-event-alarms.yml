@@ -1,0 +1,48 @@
+name: Verify WhatsApp Event Alarms (No Live Messages)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cloudflare/whatsapp_worker.js'
+      - 'cloudflare/whatsapp_alarm_time.mjs'
+      - 'cloudflare/wrangler.whatsapp.jsonc'
+      - 'recepcion/app/core_runtime.py'
+      - 'tools/test_whatsapp_event_alarms.mjs'
+      - 'tools/test_whatsapp_admin_alarm_integration.mjs'
+      - 'tools/test_whatsapp_reception_alarm_signature.mjs'
+      - 'agenda/index.html'
+      - '.github/workflows/deploy-whatsapp.yml'
+      - '.github/workflows/verify-whatsapp-event-alarms.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate code without sending WhatsApp or modifying Neon
+        run: |
+          set -euo pipefail
+          python -m py_compile recepcion/app/core_runtime.py
+          cp cloudflare/whatsapp_worker.js /tmp/revelo_whatsapp_worker.mjs
+          node --check /tmp/revelo_whatsapp_worker.mjs
+          node --check cloudflare/whatsapp_alarm_time.mjs
+          node tools/test_whatsapp_event_alarms.mjs
+          node tools/test_whatsapp_admin_alarm_integration.mjs
+          node tools/test_whatsapp_reception_alarm_signature.mjs
+      - name: Dry-run Cloudflare Durable Object build without deployment
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars --dry-run --outdir /tmp/revelo-alarms-dryrun
+          test -n "$(find /tmp/revelo-alarms-dryrun -type f -print -quit)"
+          echo WHATSAPP_ALARMS_DRY_RUN_OK

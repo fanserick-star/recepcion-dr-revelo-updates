@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'cloudflare/whatsapp_worker.js'
+      - 'cloudflare/whatsapp_alarm_time.mjs'
       - 'cloudflare/wrangler.whatsapp.jsonc'
       - '.github/workflows/deploy-whatsapp.yml'
   workflow_dispatch:
@@ -47,7 +48,9 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.25"',
+            'worker_version: "2.6.27"',
+            'alarm_mode: "durable_object_event_driven"',
+            'alarm_delivery_policy: "preserve_24x7"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
@@ -66,6 +69,8 @@ jobs:
             'autoagenda_recovery: "one_time_reclaim_v1"',
             'autoagenda_authorization_mode: "env_or_db_v2"',
             'autoagenda_forward: "authorized_v1"',
+            "serveAdminAgendaAlarmHint(request, env)",
+            "scheduler: \"alarm_no_cron\"",
             'autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1"',
             'autoagenda_overlap_guard: "interval_20m_v1"',
             'public_booking_overlap_guard: "interval_20m_v1"',
@@ -86,6 +91,10 @@ jobs:
 
           cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
           node --check /tmp/whatsapp_worker.mjs
+          node --check cloudflare/whatsapp_alarm_time.mjs
+          node tools/test_whatsapp_event_alarms.mjs
+          node tools/test_whatsapp_admin_alarm_integration.mjs
+          node tools/test_whatsapp_reception_alarm_signature.mjs
 
       - name: Dry-run canónico
         shell: bash
@@ -94,13 +103,14 @@ jobs:
           npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars --dry-run --outdir /tmp/cf-dry
           test -n "$(find /tmp/cf-dry -type f -print -quit)"
 
-      - name: Desplegar Worker y cron canónicos
+      - name: Desplegar Worker y alarmas canónicas
+        id: deploy_alarm_worker
         shell: bash
         run: |
           set -euo pipefail
           npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
 
-      - name: Verificar cron 24/7 cada 30 minutos
+      - name: Verificar que NO quedan cron triggers
         shell: bash
         run: |
           set -euo pipefail
@@ -113,8 +123,8 @@ jobs:
           d=json.load(open('/tmp/schedules.json','r',encoding='utf-8'))
           assert d.get('success') is True, d
           crons=sorted(x.get('cron') for x in d.get('result',{}).get('schedules',[]))
-          assert crons == ['*/30 * * * *'], crons
-          print('WHATSAPP_CRON_CANONICAL_OK', crons)
+          assert crons == [], crons
+          print('WHATSAPP_NO_CRON_TRIGGERS_OK', crons)
           PY
 
       - name: Verificar producción
@@ -128,7 +138,9 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.25', d
+          assert d.get('worker_version') == '2.6.27', d
+          assert d.get('alarm_mode') == 'durable_object_event_driven', d
+          assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
           assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
           assert d.get('scheduler_booking_grace') == '12h_v1', d
@@ -157,6 +169,30 @@ jobs:
           test "$OK" = "1"
           cat /tmp/health.json
 
+      - name: Comprobar alarmas inicializadas sin enviar WhatsApp
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 15 "$WORKER_URL/alarms/status" -o /tmp/alarms.json; then
+              if python - <<'PY'
+          import json
+          d=json.load(open('/tmp/alarms.json',encoding='utf-8'))
+          assert d.get('ok') is True, d
+          assert d.get('mode') == 'durable_object_event_driven', d
+          assert d.get('initialized') is True, d
+          print('WHATSAPP_ALARMS_INITIALIZED_WITHOUT_SENDING_OK')
+          PY
+              then break; fi
+            fi
+            sleep 2
+          done
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/alarms.json',encoding='utf-8'))
+          assert d.get('initialized') is True, d
+          PY
+
       - name: Probar disponibilidad pública
         shell: bash
         run: |
@@ -182,3 +218,28 @@ jobs:
           assert '14:00' in wed and '17:00' in wed, wed
           print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
           PY
+
+      - name: Recuperar programador anterior si falló un control de producción
+        if: ${{ failure() && steps.deploy_alarm_worker.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Safe rollback to the existing 30-minute backup cron, while retaining
+          # the Durable Object migration. No database tables or records touched.
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('cloudflare/wrangler.whatsapp.jsonc')
+          config=json.loads(p.read_text(encoding='utf-8'))
+          config['triggers']={'crons':['*/30 * * * *']}
+          p.write_text(json.dumps(config,indent=2)+'\n',encoding='utf-8')
+          p=pathlib.Path('cloudflare/whatsapp_worker.js')
+          s=p.read_text(encoding='utf-8')
+          marker='// No scheduled() callback: Durable Object alarms replace cron surveillance.'
+          assert marker in s
+          s=s.replace(marker, '''async scheduled(_controller, env, ctx) {
+            ctx.waitUntil(runScheduler(env));
+          }''')
+          p.write_text(s,encoding='utf-8')
+          print('FALLBACK_30_MINUTE_CRON_RESTORED')
+          PY
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars

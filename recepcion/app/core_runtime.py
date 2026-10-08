@@ -2605,6 +2605,110 @@ def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, templat
         return False
 
 
+
+# Only Recepcion notifies Cloudflare after a real cloud appointment change.
+# No WhatsApp is sent here, and a failed hint never rolls back saved clinical data.
+# Auth is derived from the existing Neon role password: no additional .env/API
+# configuration required, and that password is never sent over the network.
+_WA_ALARM_NOTIFY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/alarms/notify"
+_wa_alarm_hint_lock = threading.Lock()
+_wa_alarm_hint_pending = False
+_wa_alarm_hint_active = False
+
+
+def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
+    """Signal a single event-driven alarm recomputation after cloud persistence.
+
+    A short burst of appointments is coalesced into one request. The notification
+    carries no patient names, phone numbers, appointment IDs, or DB credentials.
+    """
+    global _wa_alarm_hint_pending, _wa_alarm_hint_active
+    if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
+        return
+    # An offline appointment must NEVER be signalled as already persisted.
+    # But unrelated queued writes (invoices/visits) must not suppress a real
+    # online appointment notification.
+    if source_type and int(source_id or 0) and queue_count() > 0:
+        entity = "confirmafy_staged" if source_type == "staged" else source_type
+        try:
+            with LocalSessionLocal() as ldb:
+                pending_this_event = ldb.scalar(select(OfflineQueue.id).where(
+                    OfflineQueue.entity == entity,
+                    OfflineQueue.local_entity_id == int(source_id),
+                ).limit(1))
+            if pending_this_event is not None:
+                return
+        except Exception:
+            return
+    with _wa_alarm_hint_lock:
+        _wa_alarm_hint_pending = True
+        if _wa_alarm_hint_active:
+            return
+        _wa_alarm_hint_active = True
+
+    def task():
+        global _wa_alarm_hint_pending, _wa_alarm_hint_active
+        try:
+            while True:
+                time.sleep(1.0)
+                with _wa_alarm_hint_lock:
+                    if not _wa_alarm_hint_pending:
+                        break
+                    _wa_alarm_hint_pending = False
+                try:
+                    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
+                    if len(key) < 12:
+                        raise ValueError("Neon role credential unavailable")
+                    ts = str(int(time.time()))
+                    body = b"agenda_changed_v1"
+                    mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
+                    req = urllib.request.Request(
+                        _WA_ALARM_NOTIFY_URL,
+                        data=body,
+                        headers={
+                            "Content-Type": "text/plain",
+                            "X-Revelo-Timestamp": ts,
+                            "X-Revelo-Signature": mac,
+                        },
+                        method="POST",
+                    )
+                    # Network I/O in daemon thread; never blocks front desk UI.
+                    with urllib.request.urlopen(req, timeout=7) as response:
+                        if response.status != 200:
+                            raise RuntimeError("Alarm notification not accepted")
+                except Exception as e:
+                    print("WHATSAPP_ALARM_NOTIFY_PENDING", type(e).__name__)
+                    # Event retry, not polling Neon. No direct Meta sends.
+                    with _wa_alarm_hint_lock:
+                        _wa_alarm_hint_pending = True
+                    time.sleep(8.0)
+                    # Only three bounded retries per event burst.
+                    for _ in range(2):
+                        try:
+                            ts = str(int(time.time()))
+                            body = b"agenda_changed_v1"
+                            mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
+                            req = urllib.request.Request(
+                                _WA_ALARM_NOTIFY_URL, data=body,
+                                headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts, "X-Revelo-Signature": mac},
+                                method="POST",
+                            )
+                            with urllib.request.urlopen(req, timeout=7) as response:
+                                if response.status == 200:
+                                    with _wa_alarm_hint_lock:
+                                        _wa_alarm_hint_pending = False
+                                    break
+                        except Exception:
+                            time.sleep(8.0)
+                    # Never spin forever after a network outage.
+                    break
+        finally:
+            with _wa_alarm_hint_lock:
+                _wa_alarm_hint_active = False
+
+    threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
+
+
 def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str, phone: str,
                                   fecha: date, hora: str) -> dict:
     """Prepara los tres mensajes. No hace ninguna llamada a Meta por sí sola."""
@@ -2659,6 +2763,7 @@ def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str
             template_name=WHATSAPP_TEMPLATE_RECORDATORIO_HOY, fecha=fecha, hora=hora, due_at=today_at,
             body_params=[clean_name, time_text], header_required=True,
         ))
+    _whatsapp_alarm_notify_async(source_type=source_type, source_id=source_id)
     return {"queued": queued}
 
 
@@ -3752,6 +3857,7 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
         return {"ok": True, "online": True, "processed": 0, "pending": queue_count(), "syncing": True, "errors": queue_errors()}
 
     processed = 0
+    alarm_relevant_change = False
     try:
         if not ensure_cloud_initialized():
             return {"ok": False, "online": False, "processed": 0, "pending": queue_count(), "errors": ["No se pudo preparar la conexión con la nube"]}
@@ -3764,6 +3870,8 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                 try:
                     result_id = sync_one_operation(q, ldb, cdb)
                     cdb.commit()
+                    if q.operation.startswith(("appointment.", "confirmafy_staged.")):
+                        alarm_relevant_change = True
                     if q.operation == "patient.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "patient", int(q.local_entity_id), int(result_id))
                         # Create clinical chart only with the definitive cloud
@@ -3809,6 +3917,8 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                     ldb.execute(delete(OfflineIdMap))
                     ldb.commit()
         _schedule_clinical_chart_retry()
+        if alarm_relevant_change:
+            _whatsapp_alarm_notify_async()
         return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
     finally:
         _sync_lock.release()
@@ -7242,6 +7352,7 @@ def mobile_delete_unlinked(item_id: int, request: Request):
         if not item or not _mobile_unlinked(item):
             raise HTTPException(404, "Cita móvil no encontrada")
         db.delete(item); db.commit(); mirror_delete_confirmafy_agenda_local(item_id); _whatsapp_cancel_pending("staged", item_id)
+        _whatsapp_alarm_notify_async(source_type="staged", source_id=item_id)
         return {"ok": True}
     finally:
         db.close()
@@ -7276,6 +7387,7 @@ def mobile_delete_linked(appointment_id: int, request: Request):
         if not a or a.origen == CONFIRMAFY_ATTENDED_ORIGIN:
             raise HTTPException(404, "Cita no encontrada")
         db.delete(a); db.commit(); mirror_delete_appointment_local(appointment_id); _whatsapp_cancel_pending("appointment", appointment_id)
+        _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
         return {"ok": True}
     finally:
         db.close()
@@ -7907,6 +8019,7 @@ def agenda_delete(appointment_id: int, db: Session = Depends(get_db), user: User
     db.commit()
     mirror_delete_appointment_local(appointment_id)
     _whatsapp_cancel_pending("appointment", appointment_id)
+    _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
     return {"ok": True, "offline": False, "deleted": True}
 
 
@@ -10081,7 +10194,8 @@ def whatsapp_cloud_test(payload: dict, request: Request, user: User = Depends(cu
             source_id = int(item.id)
     except Exception as exc:
         raise HTTPException(503, f"No se pudo registrar la prueba en Cloud: {str(exc)[:180]}")
-    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 30, "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker enviará únicamente la plantilla elegida."}
+    _whatsapp_alarm_notify_async()
+    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 0, "message": "Prueba registrada en Cloud. El envío de prueba se programa por alarma sin cron. No se envía ningún WhatsApp durante las verificaciones técnicas."}
 
 @app.get("/api/whatsapp/cloud-test/{test_id}")
 def whatsapp_cloud_test_status(test_id: int, token: str, user: User = Depends(current_user)):

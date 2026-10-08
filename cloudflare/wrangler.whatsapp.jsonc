@@ -8,9 +8,20 @@
   "ai": {
     "binding": "AI"
   },
-  "triggers": {
-    "crons": [
-      "*/30 * * * *"
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "WHATSAPP_ALARMS",
+        "class_name": "WhatsappAlarmCoordinator"
+      }
     ]
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v1-whatsapp-event-alarm",
+      "new_sqlite_classes": [
+        "WhatsappAlarmCoordinator"
+      ]
+    }
+  ]
 }
