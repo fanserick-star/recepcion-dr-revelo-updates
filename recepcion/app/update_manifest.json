@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.0",
-  "app_version": "4.8.0",
-  "runtime_version": "4.8.0",
+  "version": "4.8.1",
+  "app_version": "4.8.1",
+  "runtime_version": "4.8.1",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.0: limpieza arquitectónica de Recepción↔Historia↔TV. Se eliminan reparadores cloud obsoletos de arranque y fuentes muertas; Historia usa un solo monitor LAN; las cancelaciones/restauraciones exactas quedan persistidas y se reintentan cuando la PC del doctor vuelve; un handoff cancelado no puede reactivarse por un reenvío duplicado; TV reutiliza el estado LAN compartido y reduce sondeos cuando Historia está desconectada. No se modifican facturas, pacientes ni historias clínicas.",
-    "previous_version": "4.7.1",
+    "purpose": "Recepción 4.8.1: corrige el modal de vinculación de fichas con Historia para mostrar el nombre real del paciente en vez de la cédula y buscar correctamente por uno o dos apellidos en cualquier orden. Primero recupera los nombres que coinciden con todas las palabras introducidas y solo usa búsquedas amplias si no los encuentra. No cambia la cola LAN, turnos, facturas, atenciones ni historias clínicas, y mantiene la confirmación manual.",
+    "previous_version": "4.8.0",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -410,7 +410,15 @@
     "tv_shared_lan_discovery": true,
     "tv_offline_poll_backoff_seconds": 3,
     "cross_system_contract_test": true,
-    "stale_repository_runtime_files_removed": true
+    "stale_repository_runtime_files_removed": true,
+    "reception_history_link_name_prefill_from_patient": true,
+    "reception_history_link_surname_and_filter_first": true,
+    "reception_history_link_all_names_before_fuzzy": true,
+    "reception_history_link_stale_name_search_fallback": true,
+    "reception_history_link_no_recency_truncation": true,
+    "reception_history_link_clinical_identity_manually_confirmed": true,
+    "reception_history_link_no_clinical_writes": true,
+    "reception_history_link_regression_tests": true
   },
   "channel": "launcher-v1-stable"
 }
