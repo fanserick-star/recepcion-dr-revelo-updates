@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.7",
-  "app_version": "4.8.7",
-  "runtime_version": "4.8.7",
+  "version": "4.8.8",
+  "app_version": "4.8.8",
+  "runtime_version": "4.8.8",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.7: corrección conservadora de altas clínicas automáticas. Si falla temporalmente Neon Historia, persiste en SQLite local un marcador de reintento con el ID definitivo de Recepción nube; tras sincronizar una ficha creada offline, no descarta el reintento si Historia falló. Al iniciar, reconectar o sincronizar se reintenta sin bloquear la cola de facturas, atenciones ni agenda; ante identidad dudosa queda pendiente para vinculación manual exclusiva de Recepción. Ninguna historia existente se borra, reemplaza o fusiona automáticamente.",
-    "previous_version": "4.8.6",
+    "purpose": "Recepción 4.8.8: Emitidas muestra inicialmente las facturas efectivamente emitidas hoy según marca de emisión UTC convertida a hora de Ecuador, no según fecha de la atención; Ver anteriores muestra toda la historia en páginas de 20 grupos paciente/fecha. La ruta paginada es de solo lectura, conserva las facturas de pacientes eliminados y las visitas canceladas facturadas. Las pendientes y la integración de emisión AZUR/SRI, PDF/XML, Historia y TV no se modifican.",
+    "previous_version": "4.8.7",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -491,7 +491,17 @@
     "clinical_auto_create_regression_tests": true,
     "clinical_chart_retry_persisted": true,
     "clinical_chart_retry_offline_queue_independent": true,
-    "clinical_chart_retry_no_destructive_changes": true
+    "clinical_chart_retry_no_destructive_changes": true,
+    "billing_issued_today_first": true,
+    "billing_issued_previous_paginated": true,
+    "billing_issued_page_size": 20,
+    "billing_issued_page_query_read_only": true,
+    "billing_issued_archived_deleted_patient_preserved": true,
+    "billing_issued_cancelled_visit_preserved": true,
+    "billing_display_changes": true,
+    "billing_issued_uses_emitted_at": true,
+    "billing_issued_utc_to_ecuador_hours": -5,
+    "billing_issued_legacy_without_emitted_at_fallback_visit_date": true
   },
   "channel": "launcher-v1-stable"
 }

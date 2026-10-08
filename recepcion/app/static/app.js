@@ -2229,6 +2229,9 @@ function billingTotal(g){return g.items.reduce((sum,x)=>sum+Number(x.visit.valor
 function billingInvoiceNumber(g){return g.items.map(x=>x.billing.numero_factura).find(Boolean)||''}
 function billingCardHtml(g){
   const state=billingGroupStatus(g), missing=billingMissingFields(g.patient), total=billingTotal(g), invoice=billingInvoiceNumber(g), alt=billingRecipientDraft(g.patient.id,g.fecha);
+  const issuedDay=String(g.items.find(x=>x.billing?.issued_date)?.billing?.issued_date||g.fecha);
+  const displayDay=state==='EMITIDA'?issuedDay:g.fecha;
+  const dateLabel=state==='EMITIDA'?'Emisión':'Fecha';
   let actions='';
   const recipientButton=`<button onclick="openBillingRecipientEditor(${g.patient.id},'${g.fecha}')">👤 ${alt?.alternate?'Editar datos de factura':'Facturar con otros datos'}</button>`;
   if(state==='PENDIENTE'){
@@ -2241,24 +2244,82 @@ function billingCardHtml(g){
   }
   const warn=missing.length&&!alt?.alternate?`<div class="billing-warning">⚠ Falta ${esc(missing.join(' y '))} para aprobar con los datos del paciente. También puedes facturar con otros datos.</div>`:'';
   const emitted=invoice?`<div class="billing-invoice-number"><span>Factura</span><b>${esc(invoice)}</b></div>`:'';
-  return `<article class="billing-card ${String(state).toLowerCase()}"><div class="billing-card-head"><div><div class="billing-patient-name">${esc(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${esc(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${esc(g.patient.correo||'Sin correo')}</span><span><b>Fecha:</b> ${fmtDate(g.fecha)}</span></div></div>${billingStatusBadge(state)}</div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div><div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${emitted}<div class="billing-actions">${actions}</div></div></article>`;
+  return `<article class="billing-card ${String(state).toLowerCase()}"><div class="billing-card-head"><div><div class="billing-patient-name">${esc(g.patient.nombre)}</div><div class="billing-meta"><span><b>Cédula:</b> ${esc(g.patient.cedula||'Sin cédula')}</span><span><b>Correo:</b> ${esc(g.patient.correo||'Sin correo')}</span><span><b>${dateLabel}:</b> ${fmtDate(displayDay)}</span></div></div>${billingStatusBadge(state)}</div>${billingRecipientSummary(g)}${warn}<div class="billing-lines">${billingServicesHtml(g)}</div><div class="billing-card-foot"><div class="billing-total"><span>Total</span><strong>${money(total)}</strong></div>${emitted}<div class="billing-actions">${actions}</div></div></article>`;
+}
+let billingIssuedScope='today';
+let billingIssuedPage=1;
+let billingLoadRequest=0;
+function issuedBillingToolbar(meta={}){
+  const scope=meta.scope==='previous'?'previous':'today';
+  const page=Math.max(1,Number(meta.page)||1);
+  const pages=Math.max(1,Number(meta.pages)||1);
+  const count=Number(meta.total)||0;
+  const start=count?(page-1)*20+1:0;
+  const end=Math.min(page*20,count);
+  return '<section class="issued-billing-toolbar" aria-label="Historial de facturas emitidas">'+
+    '<div class="issued-billing-header"><div><b>'+(scope==='today'?'Facturas emitidas hoy':'Facturas de días anteriores')+'</b>'+
+    '<small>'+(scope==='today'?'Primero aparecen los comprobantes del día.':'El historial completo permanece disponible.')+'</small></div>'+
+    '<div class="issued-billing-tabs">'+
+    '<button type="button" class="'+(scope==='today'?'selected':'')+'" onclick="setBillingIssuedScope(&quot;today&quot;)">Hoy</button>'+
+    '<button type="button" class="'+(scope==='previous'?'selected':'')+'" onclick="setBillingIssuedScope(&quot;previous&quot;)">Ver anteriores</button>'+
+    '</div></div>'+
+    '<div class="issued-billing-pagination"><span>'+ (count?('Mostrando '+start+'–'+end+' de '+count):'Sin facturas en este período') +'</span>'+
+    '<div class="issued-billing-page-buttons">'+
+    '<button type="button" '+(page<=1?'disabled':'')+' onclick="changeBillingIssuedPage('+(page-1)+')">‹ Anterior</button>'+
+    '<span>Página '+page+' de '+pages+'</span>'+
+    '<button type="button" '+(page>=pages?'disabled':'')+' onclick="changeBillingIssuedPage('+(page+1)+')">Siguiente ›</button>'+
+    '</div></div></section>';
+}
+async function setBillingIssuedScope(scope){
+  billingIssuedScope=scope==='previous'?'previous':'today';
+  billingIssuedPage=1;
+  if($('#bEstado'))$('#bEstado').value='EMITIDA';
+  return loadBilling();
+}
+async function changeBillingIssuedPage(page){
+  const next=Math.max(1,Number(page)||1);
+  if(next===billingIssuedPage)return;
+  billingIssuedPage=next;
+  return loadBilling();
 }
 async function loadBilling(){
+  const request=++billingLoadRequest;
   try{
-    const params=new URLSearchParams();
     const estado=$('#bEstado')?.value||'PENDIENTE';
-    params.set('estado',estado);
-    const d=await api('/api/billing?'+params.toString());
+    const issued=estado==='EMITIDA';
+    const params=new URLSearchParams();
+    let url='/api/billing';
+    if(issued){
+      params.set('scope',billingIssuedScope);
+      params.set('page',String(billingIssuedPage));
+      url='/api/billing/issued-page';
+      if($('#billingList'))$('#billingList').innerHTML='<div class="panel muted">Cargando facturas emitidas…</div>';
+    }else{
+      params.set('estado',estado);
+    }
+    const d=await api(url+'?'+params.toString());
+    if(request!==billingLoadRequest)return;
     billingPreferencesCache={...billingPreferencesCache,...(d.billing_preferences||{})};
     const groups=billingGroupRows(d.items||[]);
     billingGroupsCache=groups;
     $('#billingSummary').innerHTML=`<button onclick="setBillingStatus('PENDIENTE')"><b>${d.counts?.PENDIENTE||0}</b><span>Pendientes</span></button><button onclick="setBillingStatus('APROBADA')"><b>${d.counts?.APROBADA||0}</b><span>Aprobadas</span></button><button onclick="setBillingStatus('EMITIDA')"><b>${d.counts?.EMITIDA||0}</b><span>Emitidas</span></button>`;
     setBillingPendingSummary({billing:Number(d.counts?.PENDIENTE||0)+Number(d.counts?.APROBADA||0),billing_pending:Number(d.counts?.PENDIENTE||0),billing_approved:Number(d.counts?.APROBADA||0)});
-    $('#billingList').innerHTML=groups.map(billingCardHtml).join('')||'<div class="panel muted">No hay facturaciones en este estado.</div>';
-  }catch(e){$('#billingList').innerHTML=`<div class="panel err">${esc(e.message)}</div>`}
+    const cards=groups.map(billingCardHtml).join('');
+    if(issued){
+      const meta=d.pagination||{};
+      const empty=billingIssuedScope==='today'?'Hoy no hay facturas emitidas. Pulsa «Ver anteriores» para consultar el historial.':'No se encontraron facturas anteriores.';
+      $('#billingList').innerHTML=issuedBillingToolbar(meta)+(cards||'<div class="panel muted">'+empty+'</div>');
+    }else{
+      $('#billingList').innerHTML=cards||'<div class="panel muted">No hay facturaciones en este estado.</div>';
+    }
+  }catch(e){
+    if(request===billingLoadRequest && $('#billingList'))$('#billingList').innerHTML=`<div class="panel err">${esc(e.message)}</div>`;
+  }
 }
 async function setBillingStatus(state){
-  if($('#bEstado'))$('#bEstado').value=state;await loadBilling();
+  if(state==='EMITIDA'){billingIssuedScope='today';billingIssuedPage=1}
+  if($('#bEstado'))$('#bEstado').value=state;
+  await loadBilling();
 }
 async function reviewNextBilling(){
   try{

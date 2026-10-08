@@ -211,7 +211,12 @@ def _archived_emitted_items(db, desde=None, hasta=None) -> list[dict]:
     hidden = _active_trashed_patient_ids()
     if not hidden:
         return []
-    emissions = list(db.scalars(core.select(core.AzurEmission).where(core.AzurEmission.patient_id.in_(sorted(hidden))).order_by(core.AzurEmission.fecha.desc(), core.AzurEmission.id.desc())))
+    emission_query = core.select(core.AzurEmission).where(core.AzurEmission.patient_id.in_(sorted(hidden)))
+    if desde:
+        emission_query = emission_query.where(core.AzurEmission.fecha >= desde)
+    if hasta:
+        emission_query = emission_query.where(core.AzurEmission.fecha <= hasta)
+    emissions = list(db.scalars(emission_query.order_by(core.AzurEmission.fecha.desc(), core.AzurEmission.id.desc())))
     by_patient_date = {}
     for emission in emissions:
         by_patient_date.setdefault((int(emission.patient_id), emission.fecha.isoformat()), []).append(emission)
@@ -363,6 +368,246 @@ try:
         result['v4476_deleted_patients_filtered'] = True
         result['v4476_archived_emitted_history'] = bool(archived)
         return result
+
+    # Historial de facturas: consulta de solo lectura, separada de emisión AZUR.
+    # Las páginas representan grupos paciente/fecha para no partir una factura
+    # con varias líneas en dos páginas diferentes.
+    ISSUED_PAGE_SIZE = 20
+
+    def _issued_local_stamp(value, fallback_day) -> str:
+        """Emission UTC timestamp as Ecuador local time; old records use visit date."""
+        if value:
+            try:
+                moment = value if isinstance(value, _datetime) else _datetime.fromisoformat(
+                    str(value).strip().replace('Z', '+00:00')
+                )
+                if moment.tzinfo:
+                    offset = moment.utcoffset() or _timedelta()
+                    moment = moment.replace(tzinfo=None) - offset
+                # Ecuador continental is UTC−05:00, no daylight saving time.
+                return (moment - _timedelta(hours=5)).isoformat(timespec='seconds')
+            except (TypeError, ValueError, OverflowError):
+                pass
+        return str(fallback_day or '')[:10] + 'T00:00:00'
+
+    def _issued_scope_condition(scope: str):
+        """Use the invoice issuance date, not the earlier consultation date."""
+        start_utc = _datetime.combine(_date.today(), _datetime.min.time()) + _timedelta(hours=5)
+        if scope == 'today':
+            return core.or_(
+                (core.BillingRecord.emitted_at >= start_utc) &
+                (core.BillingRecord.emitted_at < start_utc + _timedelta(days=1)),
+                (core.BillingRecord.emitted_at.is_(None)) & (core.Visit.fecha == _date.today()),
+            )
+        if scope == 'previous':
+            return core.or_(
+                core.BillingRecord.emitted_at < start_utc,
+                (core.BillingRecord.emitted_at.is_(None)) & (core.Visit.fecha < _date.today()),
+            )
+        return None
+
+    def _issued_group_query(hidden: set[int], scope: str):
+        filters = [
+            core.BillingRecord.estado == 'EMITIDA',
+            core.Visit.fecha >= core.BILLING_QUEUE_START_DATE,
+        ]
+        if hidden:
+            filters.append(~core.Visit.patient_id.in_(sorted(hidden)))
+        scope_condition = _issued_scope_condition(scope)
+        if scope_condition is not None:
+            filters.append(scope_condition)
+        return (
+            core.select(
+                core.Visit.patient_id.label('patient_id'),
+                core.Visit.fecha.label('fecha'),
+                core.func.max(core.Visit.id).label('last_visit'),
+                core.func.max(core.BillingRecord.emitted_at).label('last_emitted_at'),
+            )
+            .join(core.BillingRecord, core.BillingRecord.visit_id == core.Visit.id)
+            .join(core.Patient, core.Patient.id == core.Visit.patient_id)
+            .where(*filters)
+            .group_by(core.Visit.patient_id, core.Visit.fecha)
+            # Same sort as _issued_page_keys: issuance timestamp first; legacy
+            # invoices without emitted_at sort by their visit date instead.
+            .order_by(
+                core.func.coalesce(
+                    core.func.max(core.BillingRecord.emitted_at),
+                    core.func.max(core.Visit.fecha),
+                ).desc(),
+                core.func.max(core.Visit.id).desc(),
+                core.Visit.patient_id.desc(),
+            )
+            .execution_options(include_cancelled_visits=True)
+        )
+
+    def _issued_count_groups(db, statement) -> int:
+        return int(db.scalar(
+            core.select(core.func.count()).select_from(statement.order_by(None).subquery())
+            .execution_options(include_cancelled_visits=True)
+        ) or 0)
+
+    def _issued_archive_key(entry: dict) -> tuple[int, str]:
+        patient = entry.get('patient') or {}
+        visit = entry.get('visit') or {}
+        try:
+            pid = int(patient.get('id') or visit.get('patient_id') or 0)
+        except (TypeError, ValueError):
+            pid = 0
+        return pid, str(visit.get('fecha') or '')[:10]
+
+    def _issued_page_keys(regular_keys, archived: list[dict], page: int, page_size: int = 20) -> list[tuple[int, str]]:
+        """Group invoice lines, order by actual issuance, then slice to 20 groups."""
+        ranking = {}
+        for row in regular_keys:
+            patient_id, day, visit_id = row[:3]
+            last_emitted_at = row[3] if len(row) > 3 else None
+            key = (int(patient_id), str(day)[:10])
+            stamp = _issued_local_stamp(last_emitted_at, day)
+            ranking[key] = max(ranking.get(key, ('', 0)), (stamp, int(visit_id or 0)))
+        for item in archived:
+            key = _issued_archive_key(item)
+            if key[0] and key[1]:
+                visit = item.get('visit') or {}
+                billing = item.get('billing') or {}
+                stamp = _issued_local_stamp(billing.get('emitted_at'), key[1])
+                ranking[key] = max(ranking.get(key, ('', 0)), (stamp, int(visit.get('id') or 0)))
+        ordered = sorted(ranking, key=lambda key: (ranking[key][0], ranking[key][1], key[0]), reverse=True)
+        start = (page - 1) * page_size
+        return ordered[start:start + page_size]
+
+    @app.get('/api/billing/issued-page')
+    def billing_issued_page(scope: str = 'today', page: int = 1, db=core.Depends(core.get_db),
+                            user=core.Depends(core.current_user)):
+        """20 emitted invoice groups per page; no AZUR calls and no fiscal writes.
+
+        TODAY is the initial view. PREVIOUS contains every older invoice,
+        including protected snapshots of deleted patients, without date cut-off.
+        Pending invoices continue to use the original /api/billing endpoint.
+        """
+        if scope not in {'today', 'previous'}:
+            raise core.HTTPException(400, 'Período de facturas no válido')
+        if page < 1 or page > 10000:
+            raise core.HTTPException(400, 'Página de facturas no válida')
+
+        today = _date.today()
+        hidden = _active_trashed_patient_ids()
+        # This archive lookup is read-only and preserves the historical deleted-
+        # patient snapshots that the original issued list shows.
+        archived_all = _archived_emitted_items(db, desde=_date(1900, 1, 1))
+        archived = [
+            item for item in archived_all
+            if ((_issued_local_stamp((item.get('billing') or {}).get('emitted_at'),
+                                     (item.get('visit') or {}).get('fecha'))[:10] == today.isoformat())
+                if scope == 'today' else
+                (_issued_local_stamp((item.get('billing') or {}).get('emitted_at'),
+                                     (item.get('visit') or {}).get('fecha'))[:10] < today.isoformat()))
+        ]
+        archive_groups = {_issued_archive_key(item) for item in archived}
+        all_archive_groups = {_issued_archive_key(item) for item in archived_all}
+
+        normal = _issued_group_query(hidden, scope)
+        normal_total = _issued_count_groups(db, normal)
+        total = normal_total + len(archive_groups)
+        # Fetch only enough keys to form this page after merging archived rows.
+        # In particular, TODAY never loads all historical visits and patients.
+        key_rows = db.execute(normal.limit(page * ISSUED_PAGE_SIZE)).all()
+        keys = _issued_page_keys(key_rows, archived, page, ISSUED_PAGE_SIZE)
+        grouped = {key: [] for key in keys}
+        for item in archived:
+            key = _issued_archive_key(item)
+            if key in grouped:
+                archived_billing = item.get('billing') or {}
+                archived_billing['issued_date'] = _issued_local_stamp(
+                    archived_billing.get('emitted_at'), key[1]
+                )[:10]
+                grouped[key].append(item)
+
+        regular_keys = [key for key in keys if key not in archive_groups]
+        if regular_keys:
+            pairs = [
+                (core.Visit.patient_id == pid) & (core.Visit.fecha == _date.fromisoformat(day))
+                for pid, day in regular_keys
+            ]
+            found = db.execute(
+                core.select(core.BillingRecord, core.Visit, core.Patient)
+                .join(core.Visit, core.BillingRecord.visit_id == core.Visit.id)
+                .join(core.Patient, core.Patient.id == core.Visit.patient_id)
+                .where(core.BillingRecord.estado == 'EMITIDA', core.or_(*pairs),
+                       _issued_scope_condition(scope))
+                .order_by(core.BillingRecord.emitted_at.desc(), core.Visit.id.desc())
+                .execution_options(include_cancelled_visits=True)
+            ).all()
+            azur_pairs = [
+                (core.AzurEmission.patient_id == pid) & (core.AzurEmission.fecha == _date.fromisoformat(day))
+                for pid, day in regular_keys
+            ]
+            emission_map = {}
+            for emission in db.scalars(
+                core.select(core.AzurEmission).where(core.or_(*azur_pairs))
+                .order_by(core.AzurEmission.updated_at.desc(), core.AzurEmission.id.desc())
+            ):
+                emission_map.setdefault((int(emission.patient_id), emission.fecha.isoformat()), []).append(emission)
+
+            for billing, visit, patient in found:
+                key = (int(patient.id), visit.fecha.isoformat())
+                options = emission_map.get(key, [])
+                azur = next(
+                    (x for x in options if billing.numero_factura and
+                     str(x.numero_factura or '') == str(billing.numero_factura)), None
+                )
+                if azur is None:
+                    azur = next((x for x in options if str(x.estado or '').upper() == 'AUTORIZADA'), None)
+                bill_dict = core.billing_dict(billing)
+                bill_dict['issued_date'] = _issued_local_stamp(billing.emitted_at, visit.fecha)[:10]
+                grouped[key].append({
+                    'billing': bill_dict,
+                    'visit': core.v_dict(visit),
+                    'patient': core.p_dict(patient),
+                    'azur': core.azur_emission_dict(azur) if azur else None,
+                    'billing_group_key': f'{int(patient.id)}:{visit.fecha.isoformat()}:EMITIDA',
+                })
+
+        items = [item for key in keys for item in grouped.get(key, [])]
+        visible_patient_ids = sorted({key[0] for key in regular_keys})
+        preferences = list(db.scalars(
+            core.select(core.BillingPreference).where(
+                core.BillingPreference.patient_id.in_(visible_patient_ids),
+                core.BillingPreference.enabled == 1,
+            )
+        )) if visible_patient_ids else []
+
+        pending_filters = [
+            core.Visit.fecha >= core.BILLING_QUEUE_START_DATE,
+            core.BillingRecord.estado.in_(['PENDIENTE', 'APROBADA']),
+            core.or_(core.Visit.estado == 'ACTIVA', core.Visit.estado.is_(None)),
+        ]
+        if hidden:
+            pending_filters.append(~core.Visit.patient_id.in_(sorted(hidden)))
+        pending_groups = (
+            core.select(core.Visit.patient_id, core.Visit.fecha)
+            .join(core.BillingRecord, core.BillingRecord.visit_id == core.Visit.id)
+            .where(*pending_filters)
+            .group_by(core.Visit.patient_id, core.Visit.fecha)
+        )
+        pending_count = int(db.scalar(
+            core.select(core.func.count()).select_from(pending_groups.subquery())
+        ) or 0)
+        all_emitted = _issued_count_groups(db, _issued_group_query(hidden, 'all')) + len(all_archive_groups)
+        rejected_stmt = core.select(core.func.count(core.AzurEmission.id)).where(core.AzurEmission.estado == 'RECHAZADA')
+        if hidden:
+            rejected_stmt = rejected_stmt.where(~core.AzurEmission.patient_id.in_(sorted(hidden)))
+        rejected_count = int(db.scalar(rejected_stmt) or 0)
+        return {
+            'items': items,
+            'counts': {'PENDIENTE': pending_count, 'APROBADA': 0, 'EMITIDA': all_emitted,
+                       'RECHAZADA': rejected_count},
+            'billing_preferences': {str(x.patient_id): core.billing_preference_dict(x) for x in preferences},
+            'pagination': {'scope': scope, 'page': page, 'page_size': ISSUED_PAGE_SIZE,
+                           'total': total, 'pages': max(1, (total + ISSUED_PAGE_SIZE - 1) // ISSUED_PAGE_SIZE),
+                           'today': today.isoformat()},
+            'read_only': True,
+        }
+
     _stable_safe_delete_patient = core.ops_safe_delete_patient
     _remove_api_route('/api/safety/patients/{pid}', 'DELETE')
 

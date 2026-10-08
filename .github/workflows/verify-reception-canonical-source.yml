@@ -49,6 +49,7 @@ jobs:
       - name: Verify canonical source contract
         run: |
           python tools/test_reception_canonical_source.py
+          python tools/test_reception_reports.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
@@ -163,6 +164,11 @@ jobs:
           assert service.display_snapshot()['display_mode'] == 'live'
           print('RECEPTION TV STATE MACHINE OK')
           PY
+
+      - name: Verify emitted invoice pagination with real SQLite queries
+        run: |
+          python -m pip install --disable-pip-version-check 'SQLAlchemy>=2.0,<3'
+          python tools/test_reception_billing_issued_paging_sql.py
 
       - name: Block new versioned Reception folders under updates
         shell: bash
