@@ -245,7 +245,7 @@ try:
             return 0
         try:
             last = float(_v4445_cloud_agenda_at.get(key) or 0.0)
-            if last and now - last < max(1.0, float(min_interval or 5.0)):
+            if last and now - last < max(1.0, float(min_interval or 60.0)):
                 return 0
             if not core.check_cloud(force=False):
                 return 0
