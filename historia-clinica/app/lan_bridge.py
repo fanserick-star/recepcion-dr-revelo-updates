@@ -90,7 +90,7 @@ class LanService:
         """Only consume a link already created by Reception/cloud sync."""
         try:
             row = conn.execute(
-                "SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=? LIMIT 1",
+                "SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=? AND verified=1 LIMIT 1",
                 (reception_patient_id,),
             ).fetchone()
             if row and row[0]:
