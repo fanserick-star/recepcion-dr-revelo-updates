@@ -636,6 +636,7 @@ seed_local_historical_registry()
 TOKENS: dict[str, str] = {}
 _state_lock = threading.RLock()
 _sync_lock = threading.Lock()
+_clinical_chart_retry_lock = threading.Lock()
 _cache_refresh_lock = threading.Lock()
 _agenda_status_sync_lock = threading.Lock()
 _agenda_status_sync_at: dict[str, float] = {}
@@ -2461,6 +2462,8 @@ ensure_local_performance_ready()
 def _deferred_cloud_init():
     time.sleep(1.0)
     initialize_cloud_if_possible()
+    if '_schedule_clinical_chart_retry' in globals():
+        _schedule_clinical_chart_retry()
 
 
 if cloud_configured() and not FORCE_OFFLINE:
@@ -3767,10 +3770,13 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                         # Reception ID, never the temporary offline SQLite ID.
                         patient_in_cloud = cdb.get(Patient, int(result_id))
                         if patient_in_cloud is not None:
-                            _auto_create_clinical_chart_for_new_reception_patient(
+                            clinical = _auto_create_clinical_chart_for_new_reception_patient(
                                 cdb, patient_in_cloud.id,
                                 User(username=str(q.username or "admin")),
                             )
+                            if clinical.get("status") == "pending_connection":
+                                # Persist the cloud ID before removing this offline operation.
+                                _remember_clinical_chart_retry(patient_in_cloud.id, ldb)
                     if q.operation == "visit.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "visit", int(q.local_entity_id), int(result_id))
                     if q.operation == "appointment.create" and q.local_entity_id is not None and result_id is not None:
@@ -3802,6 +3808,7 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                 with LocalSessionLocal() as ldb:
                     ldb.execute(delete(OfflineIdMap))
                     ldb.commit()
+        _schedule_clinical_chart_retry()
         return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
     finally:
         _sync_lock.release()
@@ -4404,6 +4411,8 @@ def connectivity(force: bool = False, lite: bool = False):
             _state["client_idle"] = False
             _state["last_activity"] = time.time()
         online = check_cloud(force=True)
+        if online:
+            _schedule_clinical_chart_retry()
         if online and queue_count() == 0:
             schedule_local_cache_refresh(force=False, cloud_already_checked=True)
     else:
@@ -4459,6 +4468,8 @@ def leave_power_idle(user: User = Depends(current_user)):
     if online and pending > 0:
         sync_result = process_offline_queue(cloud_already_checked=True)
         pending = queue_count()
+    if online:
+        _schedule_clinical_chart_retry()
     refresh_scheduled = False
     refresh_kind = "none"
     if online and pending == 0 and idle_for >= REMOTE_REFRESH_IDLE_SECONDS:
@@ -5203,6 +5214,93 @@ def _auto_create_clinical_chart_for_new_reception_patient(
                 "message": "Paciente guardado. Historia Clínica no respondió; no se creó una ficha clínica sin verificar."}
 
 
+CLINICAL_CHART_RETRY_PREFIX = "clinical_chart_retry:"
+
+
+def _remember_clinical_chart_retry(cloud_patient_id: int, local_db: Optional[Session] = None) -> None:
+    """Persist definitive cloud Reception ID; do not touch the normal offline queue."""
+    key = f"{CLINICAL_CHART_RETRY_PREFIX}{int(cloud_patient_id)}"
+    own = local_db is None
+    db = local_db if local_db is not None else LocalSessionLocal()
+    try:
+        if db.get(CacheMeta, key) is None:
+            db.add(CacheMeta(key=key, value="pending"))
+        if own:
+            db.commit()
+    finally:
+        if own:
+            db.close()
+
+
+def _retry_pending_clinical_charts() -> dict:
+    """Retry safely on reconnect; an ambiguous identity is never auto-merged."""
+    checked = resolved = needs_link = 0
+    with LocalSessionLocal() as ldb:
+        keys = list(ldb.scalars(
+            select(CacheMeta.key).where(
+                CacheMeta.key.like(CLINICAL_CHART_RETRY_PREFIX + "%"),
+                CacheMeta.value == "pending",
+            ).order_by(CacheMeta.key).limit(12)
+        ))
+    for key in keys:
+        try:
+            cloud_id = int(str(key).removeprefix(CLINICAL_CHART_RETRY_PREFIX))
+            with CloudSessionLocal() as cdb:
+                patient = cdb.get(Patient, cloud_id)
+                if patient is None:
+                    status = "missing"
+                else:
+                    result = _auto_create_clinical_chart_for_new_reception_patient(
+                        cdb, cloud_id, User(username="admin")
+                    )
+                    status = str(result.get("status") or "")
+            checked += 1
+            if status in {"linked", "needs_link", "missing"}:
+                with LocalSessionLocal() as ldb:
+                    marker = ldb.get(CacheMeta, key)
+                    if marker is not None and marker.value == "pending":
+                        if status == "needs_link":
+                            marker.value = "needs_link"
+                            needs_link += 1
+                        else:
+                            ldb.delete(marker)
+                            resolved += 1
+                        ldb.commit()
+        except Exception:
+            # Keep pending marker for the next connection; no patient is deleted.
+            continue
+    return {"checked": checked, "linked_or_removed": resolved, "needs_link": needs_link}
+
+
+def _schedule_clinical_chart_retry() -> bool:
+    """Only online startup, manual sync and reconnection trigger clinical retries."""
+    if not cloud_configured() or not _clinical_chart_retry_lock.acquire(blocking=False):
+        return False
+    try:
+        with LocalSessionLocal() as ldb:
+            has_pending = ldb.scalar(
+                select(CacheMeta.key).where(
+                    CacheMeta.key.like(CLINICAL_CHART_RETRY_PREFIX + "%"),
+                    CacheMeta.value == "pending",
+                ).limit(1)
+            )
+        if not has_pending:
+            _clinical_chart_retry_lock.release()
+            return False
+
+        def worker():
+            try:
+                _retry_pending_clinical_charts()
+            finally:
+                _clinical_chart_retry_lock.release()
+
+        threading.Thread(target=worker, daemon=True, name="rp-clinical-chart-retry").start()
+        return True
+    except Exception:
+        _clinical_chart_retry_lock.release()
+        return False
+
+
 @app.post("/api/patients")
 def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
     values = normalize_patient_payload(data)
@@ -5235,6 +5333,14 @@ def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = 
     result["clinical_chart"] = _auto_create_clinical_chart_for_new_reception_patient(
         db, p.id, user
     )
+    if result["clinical_chart"].get("status") == "pending_connection":
+        try:
+            _remember_clinical_chart_retry(p.id)
+        except Exception:
+            result["clinical_chart"]["message"] = (
+                "Paciente guardado. No se pudo registrar el reintento automático; "
+                "revisa su vínculo clínico desde Recepción cuando vuelva la conexión."
+            )
     return result
 
 
