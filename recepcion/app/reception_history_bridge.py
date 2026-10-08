@@ -32,6 +32,18 @@ def _reception_turn_for_visit(db, visit_id: object):
         visit = None
     if visit is None or str(getattr(visit, "procedimiento", "") or "").strip():
         return None
+    # Review tickets must keep their ORIGINAL number even if unrelated visits
+    # are cancelled or a cloud cache refresh changes the visible list.
+    review_cache_key = None
+    if core.is_exam_review_no_charge(visit):
+        review_cache_key = f"exam_review_turn:{str(visit.fecha).replace('-', '')}:{int(visit.patient_id)}"
+        try:
+            with core.LocalSessionLocal() as ldb:
+                cached = ldb.get(core.CacheMeta, review_cache_key)
+                if cached and 0 < int(cached.value or 0) < 10000:
+                    return int(cached.value)
+        except (TypeError, ValueError):
+            pass
     try:
         rows = list(
             db.scalars(
@@ -53,9 +65,21 @@ def _reception_turn_for_visit(db, visit_id: object):
         seen.add(pid)
         ordered_patients.append(pid)
     try:
-        return ordered_patients.index(int(visit.patient_id)) + 1
+        turn = ordered_patients.index(int(visit.patient_id)) + 1
     except Exception:
         return None
+    if review_cache_key:
+        try:
+            with core.LocalSessionLocal() as ldb:
+                cached = ldb.get(core.CacheMeta, review_cache_key)
+                if cached and 0 < int(cached.value or 0) < 10000:
+                    return int(cached.value)
+                core.cache_meta_set(ldb, review_cache_key, str(turn))
+                ldb.commit()
+        except Exception:
+            # Preserve existing consultation flow on a transient SQLite issue.
+            pass
+    return turn
 
 
 def _handoff_item(patient, item: dict, fallback_type: object = "", db=None) -> None:
