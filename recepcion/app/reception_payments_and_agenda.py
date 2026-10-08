@@ -223,7 +223,7 @@ try:
     _v4445_cloud_agenda_lock = core.threading.Lock()
     _v4445_cloud_agenda_at = {}
 
-    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=5.0) -> int:
+    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=60.0) -> int:
         normalized = []
         for value in dates or []:
             try:
@@ -245,7 +245,7 @@ try:
             return 0
         try:
             last = float(_v4445_cloud_agenda_at.get(key) or 0.0)
-            if last and now - last < max(1.0, float(min_interval or 5.0)):
+            if last and now - last < max(1.0, float(min_interval or 60.0)):
                 return 0
             if not core.check_cloud(force=False):
                 return 0
@@ -335,7 +335,7 @@ try:
     _v4449_cloud_bg_guard = core.threading.Lock()
     _v4449_cloud_bg_keys: set[str] = set()
 
-    def _v4449_cloud_sync_background(dates, min_interval: float=5.0) -> int:
+    def _v4449_cloud_sync_background(dates, min_interval: float=60.0) -> int:
         normalized = []
         for value in dates or []:
             try:

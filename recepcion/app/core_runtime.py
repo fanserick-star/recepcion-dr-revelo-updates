@@ -7512,7 +7512,7 @@ def agenda_appointment_detail(appointment_id: int, db: Session = Depends(get_db)
 
 
 
-def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 5.0) -> int:
+def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 60.0) -> int:
     """Trae solo el estado de las citas visibles desde Neon.
 
     WhatsApp Cloud actualiza Neon aunque la PC del consultorio esté apagada. La
@@ -10081,7 +10081,7 @@ def whatsapp_cloud_test(payload: dict, request: Request, user: User = Depends(cu
             source_id = int(item.id)
     except Exception as exc:
         raise HTTPException(503, f"No se pudo registrar la prueba en Cloud: {str(exc)[:180]}")
-    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 5, "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker enviará únicamente la plantilla elegida."}
+    return {"ok": True, "mode": "cloud", "test_id": source_id, "token": token, "to": phone, "template": template_key, "worker_cycle_minutes": 30, "message": "Prueba registrada en Cloud. No se usó ningún token de Meta en esta PC. El worker enviará únicamente la plantilla elegida."}
 
 @app.get("/api/whatsapp/cloud-test/{test_id}")
 def whatsapp_cloud_test_status(test_id: int, token: str, user: User = Depends(current_user)):
