@@ -69,5 +69,5 @@ ast.parse(source)
 ast.parse(agenda)
 version = json.loads((ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))
 manifest = json.loads((ROOT / "recepcion/app/update_manifest.json").read_text(encoding="utf-8"))
-assert version["version"] == manifest["version"] == "4.8.9"
+assert version["version"] == manifest["version"] == "4.8.10"
 print("RECEPTION_NEON_EFFICIENCY_SLEEP_SAFE_OK", version["version"])
