@@ -10,6 +10,7 @@ on:
       - 'recepcion/app/core_runtime.py'
       - 'tools/test_whatsapp_event_alarms.mjs'
       - 'tools/test_whatsapp_admin_alarm_integration.mjs'
+      - 'tools/test_whatsapp_reception_alarm_signature.mjs'
       - 'agenda/index.html'
       - '.github/workflows/deploy-whatsapp.yml'
       - '.github/workflows/verify-whatsapp-event-alarms.yml'
