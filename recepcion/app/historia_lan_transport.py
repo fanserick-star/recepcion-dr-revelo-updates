@@ -496,6 +496,15 @@ def _cloud_link_id(reception_patient_id: object) -> str:
     """Reads only the verified patient link from Historia Neon."""
     try:
         import reception_history_identity_consolidated as identity
+        import core_runtime as core
+        cloud_reception_id = str(reception_patient_id)
+        try:
+            with core.LocalSessionLocal() as ldb:
+                mapped = core.get_id_map(ldb, "patient", int(reception_patient_id))
+                if mapped is not None:
+                    cloud_reception_id = str(mapped)
+        except Exception:
+            pass
         conn = identity._connect_public()
         try:
             cur = conn.cursor()
@@ -509,7 +518,7 @@ def _cloud_link_id(reception_patient_id: object) -> str:
                   AND l.deleted_at IS NULL AND p.deleted_at IS NULL
                 LIMIT 1
                 """,
-                (str(reception_patient_id),),
+                (cloud_reception_id,),
             )
             row = cur.fetchone()
             return _clean(row[0], 120) if row and row[0] else ""
