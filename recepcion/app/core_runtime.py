@@ -3844,6 +3844,7 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
         return {"ok": True, "online": True, "processed": 0, "pending": queue_count(), "syncing": True, "errors": queue_errors()}
 
     processed = 0
+    alarm_relevant_change = False
     try:
         if not ensure_cloud_initialized():
             return {"ok": False, "online": False, "processed": 0, "pending": queue_count(), "errors": ["No se pudo preparar la conexión con la nube"]}
@@ -3856,6 +3857,8 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                 try:
                     result_id = sync_one_operation(q, ldb, cdb)
                     cdb.commit()
+                    if q.operation.startswith(("appointment.", "confirmafy_staged.")):
+                        alarm_relevant_change = True
                     if q.operation == "patient.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "patient", int(q.local_entity_id), int(result_id))
                         # Create clinical chart only with the definitive cloud
@@ -3901,7 +3904,7 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                     ldb.execute(delete(OfflineIdMap))
                     ldb.commit()
         _schedule_clinical_chart_retry()
-        if processed and pending == 0:
+        if alarm_relevant_change and pending == 0:
             _whatsapp_alarm_notify_async()
         return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
     finally:
