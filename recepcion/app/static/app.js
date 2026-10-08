@@ -1491,6 +1491,10 @@ function renderAttentionStatus(){
 function toggleLegacySubsequent(){if(!attentionContext||attentionContext.patient.suggested_type==='S')return;attentionContext.manualSubsequent=!attentionContext.manualSubsequent;renderAttentionStatus()}
 async function saveExamReviewTurn(id){
   if(attentionSaveInFlight)return;
+  if(selectedServices.size){
+    alert('Desmarca la consulta o los procedimientos seleccionados. La revisión gratuita se registra por separado.');
+    return;
+  }
   const fecha=$('#aFecha')?.value||toISO(new Date());
   if(fecha!==toISO(new Date())){alert('El turno gratuito de revisión se entrega solo para hoy.');return}
   const name=attentionContext?.patient?.nombre||'este paciente';
@@ -1516,7 +1520,9 @@ async function saveExamReviewTurn(id){
     await loadWeek(fecha,fecha);
     show('inicio');
     const turn=result?.turn?'N.º '+String(result.turn):'registrado';
-    const warning=result?.handoff_queued?'':'\nAtención: no se pudo confirmar el envío a Historia. Revisa su conexión antes de llamarlo.';
+    const warning=!result?.handoff_queued
+      ?'\nAtención: no se pudo guardar el envío a Historia. Revisa su conexión.'
+      :(!result?.historia_online?'\nHistoria desconectada: el turno quedará pendiente hasta que se conecte la PC del doctor.':'');
     alert('Revisión de exámenes: turno '+turn+'.\nSin cobro ni factura.'+warning);
   }catch(e){alert(e.message)}
   finally{
