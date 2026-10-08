@@ -796,14 +796,17 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
                            patient_status: object = "", reception_turn: object = None,
                            visit_ids: list[object] | None = None,
                            birth_date: object = "", phone: object = "",
-                           email: object = "", address: object = "") -> str:
+                           email: object = "", address: object = "",
+                           clinical_patient_id: object = "") -> str:
     label = _clean(attention_type, 180).upper()
     is_procedure = label == "PROCEDIMIENTO" or label.startswith("PROCEDIMIENTO ")
     event_id = _cloud._event_id(reception_patient_id, visit_ids)
     payload = {
         "event_id": event_id,
         "reception_patient_id": str(reception_patient_id),
-        "clinical_patient_id": _cloud_link_id(reception_patient_id),
+        # Exam reviews pass a chart ID already checked against the verified
+        # Historia link. Regular consultations keep their existing resolver.
+        "clinical_patient_id": _clean(clinical_patient_id, 120) or _cloud_link_id(reception_patient_id),
         "display_name": _clean(display_name, 260) or "Paciente",
         "identification": _clean(identification, 120),
         "attention_type": _clean(attention_type, 180) or "Consulta",
