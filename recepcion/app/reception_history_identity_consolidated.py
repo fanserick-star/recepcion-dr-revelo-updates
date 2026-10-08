@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 import re
 import ssl
 import threading
@@ -755,6 +756,108 @@ def historia_identity_search(
         }
 
 
+class _HistoryCreateFromReceptionIn(core.BaseModel):
+    reception_patient_id: int
+
+
+@app.post("/api/historia-identity/create-new")
+def historia_identity_create_from_reception(
+    data: _HistoryCreateFromReceptionIn,
+    db=core.Depends(core.get_db),
+    user=core.Depends(core.current_user),
+):
+    """Reception-only explicit chart creation; never auto-triggered by Historia.
+
+    A receptionist must search first and explicitly confirm a new chart.
+    Both patient and verified link are committed atomically to Historia Neon.
+    """
+    patient = _reception_patient(db, data.reception_patient_id)
+    demo = _demographics(patient)
+    name = _clean(demo.get("name"), 260)
+    if len([word for word in name.split() if len(word) >= 2]) < 3:
+        raise core.HTTPException(
+            409, "Completa primero apellidos y nombres en Recepción."
+        )
+    identification = _usable_id(demo.get("national_id"))
+    conn = _connect_public()
+    try:
+        cur = conn.cursor()
+        if _linked_patient(cur, patient.id):
+            raise core.HTTPException(409, "Ya hay una ficha clínica vinculada. No se creó otra.")
+        if identification:
+            cur.execute(
+                "SELECT id FROM public.patients "
+                "WHERE national_id_search=%s AND deleted_at IS NULL LIMIT 2",
+                (identification,),
+            )
+            if cur.fetchall():
+                raise core.HTTPException(
+                    409, "Ya existe una ficha con esta identificación. Vincula la existente."
+                )
+        # A name is never sufficient for an automatic merge or match.
+        # If any plausible existing chart is present, refuse creation and let
+        # Reception search/confirm it manually, preventing duplicate histories.
+        candidates = _search_candidates(cur, demo, name, 20)
+        if candidates:
+            raise core.HTTPException(
+                409,
+                "Hay fichas clínicas parecidas; comprueba y vincula una existente "
+                "desde Recepción. No se creó una nueva.",
+            )
+        clinical_id = str(uuid.uuid4())
+        stamp = datetime.now().isoformat(timespec="seconds")
+        cur.execute(
+            """
+            INSERT INTO public.patients(
+              id,name,name_search,birth_date,address,phone,email,
+              national_id,national_id_search,source,source_record_hash,
+              created_at,updated_at,cloud_updated_at,deleted_at
+            ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),NULL)
+            """,
+            (
+                clinical_id, name, _norm_text(name),
+                demo.get("birth_date") or None,
+                demo.get("address") or None,
+                demo.get("phone") or None,
+                demo.get("email") or None,
+                demo.get("national_id") or None,
+                identification,
+                "reception_new",
+                uuid.uuid5(uuid.NAMESPACE_URL, "historia-reception-patient:" + str(patient.id)).hex,
+                stamp, stamp,
+            ),
+        )
+        _upsert_link(cur, patient.id, clinical_id, "reception_created_verified")
+        conn.commit()
+        linked = _linked_patient(cur, patient.id)
+        if not linked or str(linked.get("id") or "") != clinical_id:
+            raise RuntimeError("La creación de ficha no pudo verificarse")
+        try:
+            core.audit(
+                db, user, "historia_identity_reception_create",
+                json.dumps({"reception_patient_id": int(patient.id),
+                            "clinical_patient_id": clinical_id}, ensure_ascii=False),
+            )
+            db.commit()
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "reachable": True,
+            "linked": True,
+            "created": True,
+            "reception_patient_id": int(patient.id),
+            "clinical_patient": linked,
+            "history_date_count": 0,
+            "last_history_date": "",
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 @app.post("/api/historia-identity/link")
 def historia_identity_link(
     data: _HistoryLinkIn,
@@ -967,7 +1070,41 @@ V4613_JS = r"""
         const out=await call('/api/historia-identity/search?reception_patient_id='+encodeURIComponent(pid)+'&q='+encodeURIComponent(q)+'&limit=30');
         if(out?.ok===false)throw Error(out.error||'No se pudo consultar Historia');
         const rows=Array.isArray(out?.results)?out.results:[];
-        if(!rows.length){results.innerHTML='<div class="v4613-empty">No encontré una ficha candidata. Revise el nombre o busque con otro dato.</div>';return}
+        if(!rows.length){
+          results.innerHTML='<div class="v4613-empty"><b>No encontré una ficha candidata.</b><p>Comprueba los apellidos y la cédula. Si se trata de un paciente realmente nuevo, Recepción puede crear y vincular su ficha clínica.</p><button type="button" class="v4613-btn" id="v4613-create-clinical">Crear ficha clínica nueva</button></div>';
+          const createButton=results.querySelector('#v4613-create-clinical');
+          createButton.onclick=async()=>{
+            if(!confirm('Confirma que el paciente NO tiene una ficha previa en Historia Clínica.\n\n¿Crear y vincular una ficha nueva desde Recepción?'))return;
+            createButton.disabled=true;
+            createButton.textContent='Creando ficha clínica…';
+            try{
+              const linked=await call('/api/historia-identity/create-new',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({reception_patient_id:Number(pid)})
+              });
+              if(!linked?.linked)throw Error('No se pudo verificar la nueva ficha clínica.');
+              statusCache.set(Number(pid),{at:Date.now(),data:linked});
+              closeSearch();
+              for(const host of modalRoots()){
+                const c=host.querySelector(':scope > .v4613-history-card');
+                if(c&&Number(c.dataset.pid||0)===Number(pid))c.dataset.settled='0';
+              }
+              renderAll(false);
+              if(typeof window.rpAlert==='function')window.rpAlert('Ficha clínica creada y vinculada desde Recepción.','Historia Clínica');
+              if(typeof afterLink==='function'){
+                setTimeout(()=>Promise.resolve(afterLink(linked)).catch(
+                  e=>console.warn('No se pudo continuar después de crear la ficha:',e)
+                ),0);
+              }
+            }catch(err){
+              createButton.disabled=false;
+              createButton.textContent='Crear ficha clínica nueva';
+              alert(String(err.message||'No se pudo crear la ficha'));
+            }
+          };
+          return;
+        }
         results.innerHTML='';
         for(const r of rows){
           const card=document.createElement('div');card.className='v4613-result';
