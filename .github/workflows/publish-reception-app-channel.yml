@@ -32,6 +32,7 @@ jobs:
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
           python tools/test_reception_exam_review_turn.py
+          python tools/test_reception_cancel_sync_ticket_4811.py
           python tools/test_reception_only_link_authority.py
           python tools/test_reception_auto_clinical_chart.py
           node --check recepcion/app/static/app.js
