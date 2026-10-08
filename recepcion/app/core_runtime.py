@@ -3598,6 +3598,19 @@ def resolve_cloud_id(ldb: Session, entity: str, local_id: int) -> int:
     return get_id_map(ldb, entity, local_id) or int(local_id)
 
 
+def _visit_cloud_matches_local(existing: Visit, payload: dict, cloud_patient_id: int) -> bool:
+    """Only a mapping for the exact same local visit may suppress a replay."""
+    try:
+        return (
+            int(existing.patient_id) == int(cloud_patient_id)
+            and existing.fecha == date.fromisoformat(str(payload["fecha"])[:10])
+            and str(existing.procedimiento or "").strip().upper() == str(payload.get("procedimiento") or "").strip().upper()
+            and abs(float(existing.valor or 0) - float(payload.get("valor") or 0)) < 0.005
+        )
+    except (TypeError, ValueError, KeyError):
+        return False
+
+
 def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[int]:
     already = cdb.get(SyncOperation, q.token)
     if already:
@@ -3658,22 +3671,34 @@ def sync_one_operation(q: OfflineQueue, ldb: Session, cdb: Session) -> Optional[
             or float(payload.get("valor") or 0) != 0.0
         ):
             raise RuntimeError("Revisión gratuita con datos de cobro inválidos")
-        v = Visit(
-            patient_id=cloud_patient_id,
-            fecha=fecha_val,
-            tipo=str(payload["tipo"]),
-            procedimiento=(payload.get("procedimiento") or None),
-            valor=payload.get("valor"),
-            observacion=payload.get("observacion") or None,
-            source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW if free_review else None,
-        )
-        cdb.add(v)
-        cdb.flush()
-        result_id = v.id
-        # Never create a pending invoice for an exam-review ticket.
-        if not free_review:
-            cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
-        audit(cdb, q.username, "sincronizar_revision_examenes_sin_cobro" if free_review else "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
+
+        # A local row must never produce two cloud visits under two different
+        # queue tokens. The ID map lasts until the entire queue is reconciled.
+        local_visit_id = int(q.local_entity_id or 0)
+        previous_cloud_id = get_id_map(ldb, "visit", local_visit_id) if local_visit_id else None
+        if previous_cloud_id is not None:
+            existing_cloud_visit = get_visit_any_state(cdb, int(previous_cloud_id))
+            if not existing_cloud_visit or not _visit_cloud_matches_local(existing_cloud_visit, payload, cloud_patient_id):
+                raise RuntimeError("Conflicto de ID al sincronizar atención; se conservaron ambas copias para revisión.")
+            result_id = int(existing_cloud_visit.id)
+            audit(cdb, q.username, "sincronizar_atencion_ya_existente", f"Atención local {local_visit_id} ya existe en nube {result_id}")
+        else:
+            v = Visit(
+                patient_id=cloud_patient_id,
+                fecha=fecha_val,
+                tipo=str(payload["tipo"]),
+                procedimiento=(payload.get("procedimiento") or None),
+                valor=payload.get("valor"),
+                observacion=payload.get("observacion") or None,
+                source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW if free_review else payload.get("source_row"),
+            )
+            cdb.add(v)
+            cdb.flush()
+            result_id = v.id
+            # Never bill exam reviews or replayed visits.
+            if not free_review:
+                cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))
+            audit(cdb, q.username, "sincronizar_revision_examenes_sin_cobro" if free_review else "sincronizar_atencion_offline", f"Atención local {q.local_entity_id} -> nube {result_id}")
 
     elif q.operation in {"visit.cancel", "visit.delete"}:
         local_id = int(payload["visit_id"])
@@ -6298,15 +6323,31 @@ def exam_review_ticket_data(visit_id: int, user: User = Depends(current_user)):
     return _exam_review_ticket_data(visit_id)
 
 
+# A physical print is never automatically retried within a short window.
+_EXAM_REVIEW_PRINT_LOCK = threading.Lock()
+_EXAM_REVIEW_PRINT_RECENT: dict[int, float] = {}
+
+
 @app.post("/api/visits/exam-review/{visit_id}/print")
 def print_exam_review_ticket(visit_id: int, user: User = Depends(current_user)):
     ticket = _exam_review_ticket_data(visit_id)
+    key = int(ticket["visit_id"])
+    with _EXAM_REVIEW_PRINT_LOCK:
+        now = time.monotonic()
+        for old_id, printed_ts in list(_EXAM_REVIEW_PRINT_RECENT.items()):
+            if now - printed_ts > 30:
+                _EXAM_REVIEW_PRINT_RECENT.pop(old_id, None)
+        if now - _EXAM_REVIEW_PRINT_RECENT.get(key, -1e9) < 12:
+            return {"ok": True, "printed": False, "duplicate_suppressed": True, "visit_id": key, "turn": ticket["turn"]}
+        _EXAM_REVIEW_PRINT_RECENT[key] = now
     prefs = _app_preferences()
     try:
         used = _print_exam_review_ticket_windows(ticket, str(prefs.get("printer") or ""))
     except Exception as exc:
+        with _EXAM_REVIEW_PRINT_LOCK:
+            _EXAM_REVIEW_PRINT_RECENT.pop(key, None)
         raise HTTPException(500, f"No se pudo imprimir el ticket de revisión: {exc}")
-    return {"ok": True, "printed": True, "printer": used, "visit_id": int(visit_id), "turn": ticket["turn"]}
+    return {"ok": True, "printed": True, "printer": used, "visit_id": key, "turn": ticket["turn"]}
 
 
 @app.delete("/api/visits/{visit_id}")
@@ -12441,7 +12482,7 @@ V440_OPS_JS = r""";(()=>{
  const opsDateTime=v=>{if(!v)return '';const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};
  const actionLabels={crear_paciente:'Paciente creado',crear_paciente_offline:'Paciente creado',editar_paciente:'Paciente editado',editar_paciente_offline:'Paciente editado',borrar_paciente:'Paciente eliminado',borrar_paciente_offline:'Paciente eliminado',crear_atencion:'Atención registrada',crear_atencion_offline:'Atención registrada',borrar_atencion:'Atención eliminada',borrar_atencion_offline:'Atención eliminada',eliminar_cita:'Cita eliminada',crear_cita:'Cita creada',editar_cita:'Cita editada',reagendar_cita:'Cita reagendada',restaurar_desde_papelera:'Elemento restaurado',guardar_en_papelera:'Guardado en Papelera',vaciar_elemento_papelera:'Eliminado definitivamente',aprobar_factura:'Factura aprobada',emitir_factura:'Factura emitida',marcar_factura_emitida:'Factura emitida'};
  function actionLabel(a){return actionLabels[a]||String(a||'Actividad').replace(/_/g,' ').replace(/\b\w/g,m=>m.toUpperCase())} function actionIcon(a){const x=String(a||'');if(x.includes('paciente'))return '👤';if(x.includes('atencion'))return '✚';if(x.includes('cita')||x.includes('agenda'))return '▣';if(x.includes('factura')||x.includes('azur'))return '$';if(x.includes('papelera')||x.includes('restaur'))return '↶';return '•'}
- function ensureOpsUI(){const nav=document.querySelector('.side-nav');const configBtn=nav?.querySelector('[data-section="config"]');if(nav&&configBtn&&!nav.querySelector('[data-section="actividad"]'))configBtn.insertAdjacentHTML('beforebegin','<button class="nav-btn" data-section="actividad" onclick="show(\'actividad\')"><span class="nav-icon ops-nav-icon">◷</span><span>Actividad</span></button>');const config=document.querySelector('#config');if(config&&!document.querySelector('#actividad')){const section=document.createElement('section');section.id='actividad';section.className='hidden';section.innerHTML=`<div class="ops-page-head"><div><h1>Actividad</h1><p class="muted">Cambios importantes del consultorio y elementos recuperables.</p></div></div><div class="ops-tabs"><button id="opsActivityTab" class="active" onclick="switchOpsTab('activity')">Actividad</button><button id="opsTrashTab" onclick="switchOpsTab('trash')">Papelera</button></div><div id="opsActivityPane"><div class="ops-toolbar"><input id="opsActivitySearch" class="uppercase-search" placeholder="BUSCAR EN ACTIVIDAD" oninput="scheduleOpsActivitySearch()"><button onclick="loadOpsActivity()">↻ Actualizar</button></div><div id="opsActivityList" class="ops-list"><div class="ops-empty">Cargando actividad…</div></div></div><div id="opsTrashPane" class="hidden"><div class="ops-toolbar"><span class="muted">Los elementos eliminados pueden restaurarse durante 7 días.</span><button onclick="loadOpsTrash()">↻ Actualizar</button></div><div id="opsTrashList" class="ops-list"><div class="ops-empty">Cargando Papelera…</div></div></div>`;config.insertAdjacentElement('beforebegin',section)}ensureDiagnosticsCard()}
+ function ensureOpsUI(){const nav=document.querySelector('.side-nav');const configBtn=nav?.querySelector('[data-section="config"]');if(nav&&configBtn&&!nav.querySelector('[data-section="actividad"]'))configBtn.insertAdjacentHTML('beforebegin','<button class="nav-btn" data-section="actividad" onclick="show(\'actividad\')"><span class="nav-icon ops-nav-icon">◷</span><span>Actividad</span></button>');const config=document.querySelector('#config');if(config&&!document.querySelector('#actividad')){const section=document.createElement('section');section.id='actividad';section.className='hidden';section.innerHTML=`<div class="ops-page-head"><div><h1>Actividad</h1><p class="muted">Registro de cambios del consultorio.</p></div></div><div id="opsActivityPane"><div class="ops-toolbar"><input id="opsActivitySearch" class="uppercase-search" placeholder="BUSCAR EN ACTIVIDAD" oninput="scheduleOpsActivitySearch()"><button onclick="loadOpsActivity()">↻ Actualizar</button></div><div id="opsActivityList" class="ops-list"><div class="ops-empty">Cargando actividad…</div></div></div>`;config.insertAdjacentElement('beforebegin',section)}ensureDiagnosticsCard()}
  function switchOpsTab(tab){const activity=tab!=='trash';$('#opsActivityTab')?.classList.toggle('active',activity);$('#opsTrashTab')?.classList.toggle('active',!activity);$('#opsActivityPane')?.classList.toggle('hidden',!activity);$('#opsTrashPane')?.classList.toggle('hidden',activity);if(activity)loadOpsActivity();else loadOpsTrash()}window.switchOpsTab=switchOpsTab;
  let opsSearchTimer=null;window.scheduleOpsActivitySearch=()=>{clearTimeout(opsSearchTimer);opsSearchTimer=setTimeout(loadOpsActivity,220)};
  async function loadOpsActivity(){const box=$('#opsActivityList');if(!box)return;box.innerHTML='<div class="ops-empty">Cargando actividad…</div>';try{const q=String($('#opsActivitySearch')?.value||'').trim();const rows=await api('/api/ops/activity?limit=160'+(q?'&q='+encodeURIComponent(q):''));box.innerHTML=rows.map(r=>`<article class="ops-card"><div class="ops-card-icon">${actionIcon(r.action)}</div><div class="ops-card-copy"><b>${opsEsc(actionLabel(r.action))}</b><span>${opsEsc(r.detail||'Sin detalle adicional')}</span><small>${opsEsc(opsDateTime(r.ts))} · <span class="ops-origin">${opsEsc(r.origin||'PC')}</span></small></div><div></div></article>`).join('')||'<div class="ops-empty">Todavía no hay actividad registrada.</div>'}catch(e){box.innerHTML=`<div class="ops-empty">${opsEsc(e.message)}</div>`}}window.loadOpsActivity=loadOpsActivity;
@@ -12452,11 +12493,11 @@ V440_OPS_JS = r""";(()=>{
  function showUndoToast(data){if(!data?.trash_id)return;document.querySelector('.ops-toast')?.remove();const t=document.createElement('div');t.className='ops-toast';t.innerHTML=`<div class="ops-toast-copy"><b>Elemento enviado a Papelera</b><small>${opsEsc(data.trash_label||'Puedes recuperarlo durante 7 días.')}</small></div><button onclick="undoTrashFromToast(${Number(data.trash_id)})">Deshacer</button><button class="ops-toast-close" onclick="this.parentElement.remove()">×</button>`;document.body.appendChild(t);setTimeout(()=>t.remove(),9000)}
  async function undoTrashFromToast(id){try{await api(`/api/ops/trash/${id}/restore`,{method:'POST'});document.querySelector('.ops-toast')?.remove();try{invalidateAttentionWeekCache()}catch{}try{invalidateAgendaSlotCache()}catch{}try{await refreshVisibleSectionLocal()}catch{}if(!$('#agenda')?.classList.contains('hidden'))await loadAgenda()}catch(e){alert(e.message)}}window.undoTrashFromToast=undoTrashFromToast;
  function ensureDiagnosticsCard(){const sys=document.querySelector('[data-config-section="sistema"]'),panel=sys?.querySelector('.system-status-panel');if(!panel||panel.querySelector('#opsDiagnosticControls'))return;panel.querySelector('#opsDiagnosticPanel')?.remove();const head=panel.querySelector('.config-panel-head h3');if(head)head.textContent='Resumen de datos y servicios';const grid=panel.querySelector('#systemStatusGrid');const wrap=document.createElement('div');wrap.id='opsDiagnosticControls';wrap.className='ops-diagnostic-integrated';wrap.innerHTML='<div class="diag-actions"><button class="primary-soft" onclick="runOpsDiagnostics()">🔧 Revisar sistema</button><button id="copyOpsDiagnosticsBtn" class="hidden" onclick="copyOpsDiagnostics()">Copiar diagnóstico</button></div><div id="opsDiagnosticGrid" class="ops-diagnostic-grid hidden"></div>';if(grid)grid.insertAdjacentElement('afterend',wrap);else panel.appendChild(wrap)}let lastSafeDiagnostic='';async function runOpsDiagnostics(){const box=$('#opsDiagnosticGrid');if(!box)return;box.classList.remove('hidden');box.innerHTML='<div class="muted">Comprobando servicios…</div>';try{const d=await api('/api/ops/diagnostics');lastSafeDiagnostic=d.safe_text||'';const order=['local','neon','azur','whatsapp','mensajes','agenda','updates'];box.innerHTML=order.map(k=>{const x=d.services?.[k]||{},state=String(x.status||x.state||'').toUpperCase(),cls=['ONLINE','OK','READY','ACTIVO'].some(v=>state.includes(v))?'ok':['OFFLINE','ERROR','FAILED'].some(v=>state.includes(v))?'bad':'warn';return `<div class="diag-item ${cls}"><span class="diag-dot"></span><div class="diag-copy"><b>${opsEsc(x.name||k)}</b><span>${opsEsc(x.detail||x.message||state||'Sin detalle')}</span></div></div>`}).join('');$('#copyOpsDiagnosticsBtn')?.classList.remove('hidden')}catch(e){box.innerHTML=`<div class="muted">${opsEsc(e.message)}</div>`}}window.runOpsDiagnostics=runOpsDiagnostics;async function copyOpsDiagnostics(){if(!lastSafeDiagnostic)return;try{await navigator.clipboard.writeText(lastSafeDiagnostic);alert('Diagnóstico copiado.')}catch{prompt('Copia este diagnóstico:',lastSafeDiagnostic)}}window.copyOpsDiagnostics=copyOpsDiagnostics;
- window.deletePatient=async function(id,visitCount){const extra=visitCount?` También se eliminarán ${visitCount} atención${visitCount===1?'':'es'} asociada${visitCount===1?'':'s'}.`:'';if(!confirmDeletion(`¿Borrar este paciente?${extra}\n\nPodrás recuperarlo desde Actividad > Papelera durante 7 días.`))return;try{await singleFlightMutation(`patient:delete:${id}`,async()=>{const d=await api('/api/safety/patients/'+id,{method:'DELETE'});closeModal();show('pacientes');await searchPatients();await Promise.all([loadWeek(selectedHomeDate||toISO(new Date())),refreshPendingBadges()]);showUndoToast(d)},'Borrando…')}catch(e){alert(e.message)}};
- window.deleteVisit=async function(visitId,patientId){if(!confirmDeletion('¿Borrar esta atención? Se enviará a Papelera durante 7 días.'))return;try{await singleFlightMutation(`visit:delete:${visitId}`,async()=>{const d=await api('/api/safety/visits/'+visitId,{method:'DELETE'});invalidateAttentionWeekCache();await fullOpenPatient(patientId,'patients');await Promise.all([loadWeek(selectedHomeDate||toISO(new Date())),refreshPendingBadges()]);showUndoToast(d)},'Borrando…')}catch(e){alert(e.message)}};
- window.deleteVisitFromHome=async function(visitId,fecha){if(!confirmDeletion('¿Borrar esta atención? Se enviará a Papelera durante 7 días y se quitará su pre-factura asociada.'))return;try{await singleFlightMutation(`visit:delete:${visitId}`,async()=>{const d=await api('/api/safety/visits/'+visitId,{method:'DELETE'});invalidateAttentionWeekCache();await Promise.all([loadWeek(fecha||selectedHomeDate||toISO(new Date()),fecha||selectedHomeDate),refreshPendingBadges()]);showUndoToast(d)},'Borrando…')}catch(e){alert(e.message)}};
- window.deleteAgendaAppointment=async function(id){if(!confirmDeletion('¿Eliminar esta cita y liberar el horario? La ficha del paciente no se borrará y podrás restaurar la cita durante 7 días.'))return;try{await singleFlightMutation(`appointment:delete:${id}`,async()=>{const d=await api(`/api/safety/appointments/${id}`,{method:'DELETE'});invalidateAgendaSlotCache();invalidateAttentionWeekCache();closeModal();await loadAgenda();showUndoToast(d)},'Eliminando…')}catch(e){alert(e.message)}};
- window.deleteUnlinkedAppointment=async function(itemId){if(!confirmDeletion('¿Eliminar esta cita y liberar el horario? Podrás recuperarla desde Papelera durante 7 días.'))return;try{const d=await api(`/api/safety/unlinked/${Number(itemId)}`,{method:'DELETE'});closeModal();invalidateAgendaSlotCache();invalidateAttentionWeekCache();await loadAgenda();showUndoToast(d)}catch(e){alert(e.message)}};
+ window.deletePatient=async function(id,visitCount){const extra=visitCount?` También se eliminarán ${visitCount} atención${visitCount===1?'':'es'} asociada${visitCount===1?'':'s'}.`:'';if(!confirmDeletion(`¿Borrar este paciente?${extra}\n\nEl historial fiscal no será modificado.`))return;try{await singleFlightMutation(`patient:delete:${id}`,async()=>{const d=await api('/api/safety/patients/'+id,{method:'DELETE'});closeModal();show('pacientes');await searchPatients();await Promise.all([loadWeek(selectedHomeDate||toISO(new Date())),refreshPendingBadges()]);void d},'Borrando…')}catch(e){alert(e.message)}};
+ window.deleteVisit=async function(visitId,patientId){if(!confirmDeletion('¿Retirar esta atención del consultorio? Sus facturas se conservarán.'))return;try{await singleFlightMutation(`visit:delete:${visitId}`,async()=>{const d=await api('/api/safety/visits/'+visitId,{method:'DELETE'});invalidateAttentionWeekCache();await fullOpenPatient(patientId,'patients');await Promise.all([loadWeek(selectedHomeDate||toISO(new Date())),refreshPendingBadges()]);void d},'Borrando…')}catch(e){alert(e.message)}};
+ window.deleteVisitFromHome=async function(visitId,fecha){if(!confirmDeletion('¿Retirar esta atención del consultorio? Se conservará cualquier factura emitida.'))return;try{await singleFlightMutation(`visit:delete:${visitId}`,async()=>{const d=await api('/api/safety/visits/'+visitId,{method:'DELETE'});invalidateAttentionWeekCache();await Promise.all([loadWeek(fecha||selectedHomeDate||toISO(new Date()),fecha||selectedHomeDate),refreshPendingBadges()]);void d},'Borrando…')}catch(e){alert(e.message)}};
+ window.deleteAgendaAppointment=async function(id){if(!confirmDeletion('¿Eliminar esta cita y liberar el horario? La ficha del paciente no se borrará.'))return;try{await singleFlightMutation(`appointment:delete:${id}`,async()=>{const d=await api(`/api/safety/appointments/${id}`,{method:'DELETE'});invalidateAgendaSlotCache();invalidateAttentionWeekCache();closeModal();await loadAgenda();void d},'Eliminando…')}catch(e){alert(e.message)}};
+ window.deleteUnlinkedAppointment=async function(itemId){if(!confirmDeletion('¿Eliminar esta cita y liberar el horario?'))return;try{const d=await api(`/api/safety/unlinked/${Number(itemId)}`,{method:'DELETE'});closeModal();invalidateAgendaSlotCache();invalidateAttentionWeekCache();await loadAgenda();void d}catch(e){alert(e.message)}};
  const oldShow=window.show;if(typeof oldShow==='function')window.show=function(id,configTab=null){const r=oldShow(id,configTab);if(id==='actividad')setTimeout(()=>switchOpsTab('activity'),0);if(id==='config')setTimeout(ensureDiagnosticsCard,0);return r};
 function init(){ensureOpsUI()}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else setTimeout(init,0);
 })();"""

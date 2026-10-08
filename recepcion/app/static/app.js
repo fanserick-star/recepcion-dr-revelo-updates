@@ -1545,15 +1545,28 @@ function printExamReviewInBrowser(ticket){
   },160);
 }
 
+const examReviewPrintingIds=new Set();
+const examReviewLastPrintedAt=new Map();
 async function printExamReviewTicket(visitId){
+  const key=Number(visitId);
+  if(!Number.isInteger(key)||key<1)return;
+  if(examReviewPrintingIds.has(key))return;
+  // Guard simultaneous clicks/automatic print while still allowing later reprint.
+  if(Date.now()-(examReviewLastPrintedAt.get(key)||0)<12000)return;
+  examReviewPrintingIds.add(key);
   try{
-    const ticket=await api('/api/visits/exam-review/'+Number(visitId)+'/ticket');
+    const ticket=await api('/api/visits/exam-review/'+key+'/ticket');
     if(String(appPreferences?.print_mode||'').toUpperCase()==='DIRECT'){
-      const result=await api('/api/visits/exam-review/'+Number(visitId)+'/print',{method:'POST',body:'{}'});
-      if(result?.printed) return;
+      const result=await api('/api/visits/exam-review/'+key+'/print',{method:'POST',body:'{}'});
+      if(result?.printed||result?.duplicate_suppressed){
+        examReviewLastPrintedAt.set(key,Date.now());
+        return;
+      }
     }
     printExamReviewInBrowser(ticket);
+    examReviewLastPrintedAt.set(key,Date.now());
   }catch(e){alert('El ticket no se imprimió: '+String(e.message||e)+'. Verifica la impresora.')}
+  finally{examReviewPrintingIds.delete(key)}
 }
 
 async function showExamReviewTicket(visitId,autoDirectPrint=false){

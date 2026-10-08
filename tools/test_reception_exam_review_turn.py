@@ -57,7 +57,7 @@ def test_marker_and_no_billing() -> None:
     assert 'free_review = payload.get("exam_review_no_charge") is True' in sync
     assert 'if not free_review:' in sync
     assert 'cdb.add(BillingRecord(visit_id=v.id, estado="PENDIENTE"))' in sync
-    assert 'source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW if free_review else None' in sync
+    assert 'source_row=EXAM_REVIEW_NO_CHARGE_SOURCE_ROW if free_review else payload.get("source_row")' in sync
     assert '"/api/visits/exam-review"' in source
     assert '"exam_review_no_charge": is_exam_review_no_charge(v)' in source
 
