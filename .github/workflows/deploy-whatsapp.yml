@@ -100,6 +100,7 @@ jobs:
           test -n "$(find /tmp/cf-dry -type f -print -quit)"
 
       - name: Desplegar Worker y alarmas canónicas
+        id: deploy_alarm_worker
         shell: bash
         run: |
           set -euo pipefail
@@ -213,3 +214,28 @@ jobs:
           assert '14:00' in wed and '17:00' in wed, wed
           print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
           PY
+
+      - name: Recuperar programador anterior si falló un control de producción
+        if: ${{ failure() && steps.deploy_alarm_worker.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Safe rollback to the existing 30-minute backup cron, while retaining
+          # the Durable Object migration. No database tables or records touched.
+          python - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('cloudflare/wrangler.whatsapp.jsonc')
+          config=json.loads(p.read_text(encoding='utf-8'))
+          config['triggers']={'crons':['*/30 * * * *']}
+          p.write_text(json.dumps(config,indent=2)+'\n',encoding='utf-8')
+          p=pathlib.Path('cloudflare/whatsapp_worker.js')
+          s=p.read_text(encoding='utf-8')
+          marker='// No scheduled() callback: Durable Object alarms replace cron surveillance.'
+          assert marker in s
+          s=s.replace(marker, '''async scheduled(_controller, env, ctx) {
+            ctx.waitUntil(runScheduler(env));
+          }''')
+          p.write_text(s,encoding='utf-8')
+          print('FALLBACK_30_MINUTE_CRON_RESTORED')
+          PY
+          npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
