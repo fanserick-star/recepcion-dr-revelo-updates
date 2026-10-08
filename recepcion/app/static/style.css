@@ -1024,3 +1024,21 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .exam-review-turn-btn:hover{background:#195839}
 .exam-review-turn-btn:disabled{opacity:.55;cursor:wait}
 .exam-review-turn-action small{font-size:11px;color:#41604b;line-height:1.4}
+
+/* Ticket físico de turno: separado del recibo de consulta y de Facturación. */
+.exam-review-ticket-modal{width:min(480px,100%);margin:0 auto}
+.exam-review-ticket-modal>h2{font-size:20px;margin:0 0 6px;color:#183d50}
+.exam-review-ticket-modal>p{font-size:12px;color:#637786;margin:0 0 14px}
+.exam-review-ticket-modal .exam-ticket-printable{
+  margin:0 auto 16px;padding:22px 14px;width:min(300px,100%);
+  border:1px dashed #9aadb9;border-radius:8px;background:#fff;
+  text-align:center;color:#111;font-family:Arial,sans-serif
+}
+.exam-review-ticket-modal .exam-ticket-printable header{padding:0 0 11px;border-bottom:2px solid #172b36}
+.exam-review-ticket-modal .exam-ticket-printable header b{font-size:14px}
+.exam-review-ticket-modal .ticket-title{margin-top:16px;font-weight:800;font-size:18px}
+.exam-review-ticket-modal .ticket-number{font-size:88px;line-height:1.1;font-weight:900}
+.exam-review-ticket-modal .ticket-service{font-size:17px;font-weight:900;padding-top:8px;border-top:2px solid #172b36}
+.exam-review-ticket-modal .ticket-free{margin-top:12px;font-weight:800;font-size:12px}
+.exam-review-ticket-modal .ticket-date{margin-top:10px;font-size:12px}
+.exam-review-ticket-modal .exam-ticket-printable p{margin:12px 0 2px;font-size:12px;color:#111}
