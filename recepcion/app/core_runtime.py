@@ -6291,14 +6291,22 @@ def _print_exam_review_ticket_windows(ticket: dict, printer_name: str = "") -> s
 
     def draw(_sender, e):
         g = e.Graphics
+        # POS-80C: center the text on the physical 80 mm paper rather than
+        # trusting the driver's printable area's asymmetric origin. The small
+        # left correction (about 1.8 mm) addresses the offset of the existing
+        # thermal layout; unlike scaling, it does not distort the text.
         w = float(e.MarginBounds.Width)
-        g.DrawString("DR. ARMANDO REVELO", font_title, Brushes.Black, RectangleF(0, 8, w, 25), center)
-        g.DrawString("TURNO N.º", font_label, Brushes.Black, RectangleF(0, 42, w, 24), center)
-        g.DrawString(str(ticket["turn"]), font_turn, Brushes.Black, RectangleF(0, 68, w, 99), center)
-        g.DrawString("REVISIÓN DE EXÁMENES", font_label, Brushes.Black, RectangleF(0, 181, w, 27), center)
-        g.DrawString("SIN COBRO · SIN FACTURA", font_normal, Brushes.Black, RectangleF(0, 217, w, 20), center)
-        g.DrawString(str(ticket["fecha"]), font_normal, Brushes.Black, RectangleF(0, 249, w, 20), center)
-        g.DrawString("Espere el llamado de su turno", font_normal, Brushes.Black, RectangleF(0, 279, w, 32), center)
+        paper_center = float(e.PageBounds.Width) / 2.0 - float(e.MarginBounds.Left)
+        left = paper_center - w / 2.0 - 7.0
+        def centered_line(y, height):
+            return RectangleF(left, float(y), w, float(height))
+        g.DrawString("DR. ARMANDO REVELO", font_title, Brushes.Black, centered_line(8, 25), center)
+        g.DrawString("TURNO N.º", font_label, Brushes.Black, centered_line(42, 24), center)
+        g.DrawString(str(ticket["turn"]), font_turn, Brushes.Black, centered_line(68, 99), center)
+        g.DrawString("REVISIÓN DE EXÁMENES", font_label, Brushes.Black, centered_line(181, 27), center)
+        g.DrawString("SIN COBRO · SIN FACTURA", font_normal, Brushes.Black, centered_line(217, 20), center)
+        g.DrawString(str(ticket["fecha"]), font_normal, Brushes.Black, centered_line(249, 20), center)
+        g.DrawString("Espere el llamado de su turno", font_normal, Brushes.Black, centered_line(279, 32), center)
         e.HasMorePages = False
 
     doc.PrintPage += draw

@@ -208,9 +208,79 @@ def test_cross_system_and_fiscal_safety() -> None:
 
 
 
+def test_automatic_review_ticket_and_thermal_centering() -> None:
+    """No preview on save, one direct job, and centered Win32 coordinates."""
+    source_js = text("recepcion/app/static/app.js")
+    save = source_js.split("async function saveExamReviewTurn(id){", 1)[1].split(
+        "async function saveAttention(id){", 1
+    )[0]
+    direct = source_js.split("async function sendExamReviewTicketDirect(visitId){", 1)[1].split(
+        "async function printExamReviewTicket(visitId){", 1
+    )[0]
+    assert "sendExamReviewTicketDirect(reviewId)" in save
+    assert save.index("sendExamReviewTicketDirect(reviewId)") < save.index("await loadWeek(fecha,fecha)")
+    assert "if(!ticketPrint.ok)" in save
+    assert "if(reviewId)await showExamReviewTicket(reviewId);" in save
+    assert "showExamReviewTicket(reviewId,true)" not in save
+    assert "'/api/visits/exam-review/'+key+'/print'" in direct
+    assert "appPreferences" not in direct
+    assert "printExamReviewInBrowser" not in direct
+    assert "result?.printed||result?.duplicate_suppressed" in direct
+
+    # Run just the real nested drawing function with a fake Windows graphics
+    # object; this works on Linux without a POS printer or pythonnet.
+    core = ast.parse(text("recepcion/app/core_runtime.py"))
+    printer = next(
+        node for node in core.body
+        if isinstance(node, ast.FunctionDef)
+        and node.name == "_print_exam_review_ticket_windows"
+    )
+    draw = next(
+        node for node in printer.body
+        if isinstance(node, ast.FunctionDef) and node.name == "draw"
+    )
+
+    class Graphics:
+        def __init__(self):
+            self.draws = []
+
+        def DrawString(self, label, font, brush, rectangle, fmt):
+            self.draws.append((label, rectangle))
+
+    class PaperEvent:
+        def __init__(self):
+            self.Graphics = Graphics()
+            self.MarginBounds = SimpleNamespace(Width=299, Left=8)
+            self.PageBounds = SimpleNamespace(Width=315)
+            self.HasMorePages = True
+
+    scope = {
+        "RectangleF": lambda x, y, width, height: (x, y, width, height),
+        "ticket": {"turn": 2, "fecha": "2026-10-08"},
+        "center": object(),
+        "Brushes": SimpleNamespace(Black=object()),
+        **{name: object() for name in ("font_title", "font_turn", "font_label", "font_normal")},
+    }
+    exec(compile(ast.Module(body=[draw], type_ignores=[]), "<draw>", "exec"), scope)
+    event = PaperEvent()
+    scope["draw"](None, event)
+    assert len(event.Graphics.draws) == 7
+    assert event.HasMorePages is False
+    assert [row[0] for row in event.Graphics.draws] == [
+        "DR. ARMANDO REVELO", "TURNO N.º", "2",
+        "REVISIÓN DE EXÁMENES", "SIN COBRO · SIN FACTURA",
+        "2026-10-08", "Espere el llamado de su turno",
+    ]
+    for _, (left, y, width, height) in event.Graphics.draws:
+        assert width == 299
+        assert left + width / 2 == 315 / 2 - 8 - 7
+        assert height > 0
+
+
 if __name__ == "__main__":
     test_marker_and_no_billing()
     test_verified_link_gate_fails_closed_without_writes()
     test_separate_free_button_and_no_receipt()
     test_cross_system_and_fiscal_safety()
+    test_automatic_review_ticket_and_thermal_centering()
     print("RECEPTION_EXAM_REVIEW_TURN_OK")

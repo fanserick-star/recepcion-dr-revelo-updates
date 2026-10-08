@@ -1547,41 +1547,60 @@ function printExamReviewInBrowser(ticket){
 
 const examReviewPrintingIds=new Set();
 const examReviewLastPrintedAt=new Map();
-async function printExamReviewTicket(visitId){
+
+// A free exam-review ticket uses the configured Windows thermal printer
+// immediately. Saving never opens a preview or asks for another click.
+async function sendExamReviewTicketDirect(visitId){
   const key=Number(visitId);
-  if(!Number.isInteger(key)||key<1)return;
-  if(examReviewPrintingIds.has(key))return;
-  // Guard simultaneous clicks/automatic print while still allowing later reprint.
-  if(Date.now()-(examReviewLastPrintedAt.get(key)||0)<12000)return;
+  if(!Number.isInteger(key)||key<1){
+    return {ok:false,message:'Identificador de turno inválido.'};
+  }
+  if(examReviewPrintingIds.has(key)){
+    return {ok:true,duplicate_suppressed:true};
+  }
+  if(Date.now()-(examReviewLastPrintedAt.get(key)||0)<12000){
+    return {ok:true,duplicate_suppressed:true};
+  }
   examReviewPrintingIds.add(key);
   try{
-    const ticket=await api('/api/visits/exam-review/'+key+'/ticket');
-    if(String(appPreferences?.print_mode||'').toUpperCase()==='DIRECT'){
-      const result=await api('/api/visits/exam-review/'+key+'/print',{method:'POST',body:'{}'});
-      if(result?.printed||result?.duplicate_suppressed){
-        examReviewLastPrintedAt.set(key,Date.now());
-        return;
-      }
+    const result=await api('/api/visits/exam-review/'+key+'/print',{method:'POST',body:'{}'});
+    if(result?.printed||result?.duplicate_suppressed){
+      examReviewLastPrintedAt.set(key,Date.now());
+      return {ok:true,printed:Boolean(result?.printed),duplicate_suppressed:Boolean(result?.duplicate_suppressed)};
     }
-    printExamReviewInBrowser(ticket);
-    examReviewLastPrintedAt.set(key,Date.now());
-  }catch(e){alert('El ticket no se imprimió: '+String(e.message||e)+'. Verifica la impresora.')}
-  finally{examReviewPrintingIds.delete(key)}
+    return {ok:false,message:'La impresora no confirmó la impresión del ticket.'};
+  }catch(e){
+    return {ok:false,message:String(e?.message||e||'No se pudo imprimir el ticket.')};
+  }finally{
+    examReviewPrintingIds.delete(key);
+  }
+}
+
+async function printExamReviewTicket(visitId){
+  // Explicit user-requested reprint from Inicio.
+  const printed=await sendExamReviewTicketDirect(visitId);
+  if(printed.ok)return;
+  // A browser fallback is manual only, never automatic after a network error:
+  // the direct-print job may have reached Windows before the API timed out.
+  if(confirm('No se pudo imprimir directamente: '+printed.message+'\n\n¿Deseas imprimir desde el navegador?')){
+    try{
+      const ticket=await api('/api/visits/exam-review/'+Number(visitId)+'/ticket');
+      printExamReviewInBrowser(ticket);
+    }catch(e){alert('No se pudo preparar el ticket: '+String(e?.message||e))}
+  }
 }
 
 async function showExamReviewTicket(visitId,autoDirectPrint=false){
   try{
     const ticket=await api('/api/visits/exam-review/'+Number(visitId)+'/ticket');
     openModal('<div class="exam-review-ticket-modal"><h2>Ticket · Revisión de exámenes</h2>'
-      +'<p>Entrega este ticket al paciente. El número es el mismo de Historia y de la TV.</p>'
+      +'<p>El turno se imprime automáticamente al registrarlo. Usa este botón solo para reimprimirlo.</p>'
       +examReviewTicketMarkup(ticket)
       +'<div class="actions form-actions">'
       +'<button class="cancel-btn" onclick="closeModal()">Cerrar</button>'
-      +'<button class="primary" onclick="printExamReviewTicket('+Number(ticket.visit_id)+')">🖨 Imprimir ticket</button>'
+      +'<button class="primary" onclick="printExamReviewTicket('+Number(ticket.visit_id)+')">🖨 Reimprimir ticket</button>'
       +'</div></div>');
-    if(autoDirectPrint && String(appPreferences?.print_mode||'').toUpperCase()==='DIRECT'){
-      await printExamReviewTicket(ticket.visit_id);
-    }
+    if(autoDirectPrint)await sendExamReviewTicketDirect(ticket.visit_id);
   }catch(e){alert('No se pudo abrir el ticket: '+String(e.message||e))}
 }
 
@@ -1621,6 +1640,11 @@ async function saveExamReviewTurn(id){
     const result=await api('/api/visits/exam-review',{method:'POST',body:JSON.stringify({
       patient_id:id,fecha,observacion:$('#aObs')?.value||null
     })});
+    // Start printing immediately without waiting for the agenda refresh.
+    const reviewId=Number(result?.visit?.id||0);
+    const printJob=reviewId>0
+      ?sendExamReviewTicketDirect(reviewId)
+      :Promise.resolve({ok:false,message:'No se recibió el identificador del turno.'});
     const stagedId=Number(attentionContext?.stagedId||0);
     if(stagedId){
       try{
@@ -1637,10 +1661,13 @@ async function saveExamReviewTurn(id){
     const warning=!result?.handoff_queued
       ?'No se pudo guardar el envío a Historia. Revisa su conexión.'
       :(!result?.historia_online?'Historia desconectada: el turno queda pendiente de entrega.':'');
+    const ticketPrint=await printJob;
+    if(!ticketPrint.ok){
+      alert('El turno quedó registrado, pero no se imprimió automáticamente: '
+        +ticketPrint.message+'\nPuedes reimprimirlo desde Inicio.');
+      if(reviewId)await showExamReviewTicket(reviewId);
+    }
     if(warning)alert(warning);
-    const reviewId=Number(result?.visit?.id||0);
-    if(reviewId)await showExamReviewTicket(reviewId,true);
-    else alert('Turno registrado, pero no se devolvió el identificador para imprimir.');
   }catch(e){
     const message=String(e?.message||e||'Error al registrar el turno');
     if(message.includes('primero vincula')&&typeof window.openExamReviewHistoryLink==='function'){
