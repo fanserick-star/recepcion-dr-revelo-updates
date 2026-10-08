@@ -48,9 +48,9 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.26"',
+            'worker_version: "2.6.27"',
             'alarm_mode: "durable_object_event_driven"',
-            'alarm_quiet_hours_ecuador: "20:00-08:00"',
+            'alarm_delivery_policy: "preserve_24x7"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
@@ -69,6 +69,8 @@ jobs:
             'autoagenda_recovery: "one_time_reclaim_v1"',
             'autoagenda_authorization_mode: "env_or_db_v2"',
             'autoagenda_forward: "authorized_v1"',
+            "serveAdminAgendaAlarmHint(request, env)",
+            "scheduler: \"alarm_no_cron\"",
             'autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1"',
             'autoagenda_overlap_guard: "interval_20m_v1"',
             'public_booking_overlap_guard: "interval_20m_v1"',
@@ -91,6 +93,7 @@ jobs:
           node --check /tmp/whatsapp_worker.mjs
           node --check cloudflare/whatsapp_alarm_time.mjs
           node tools/test_whatsapp_event_alarms.mjs
+          node tools/test_whatsapp_admin_alarm_integration.mjs
 
       - name: Dry-run canónico
         shell: bash
@@ -134,7 +137,7 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.26', d
+          assert d.get('worker_version') == '2.6.27', d
           assert d.get('alarm_mode') == 'durable_object_event_driven', d
           assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
