@@ -1088,12 +1088,22 @@ async function saveNewPatient(action=false){
     if(sameName&&(lastPatientSimilarity.matches||[]).length){const names=lastPatientSimilarity.matches.slice(0,3).map(x=>x.nombre).join('\n• ');if(!confirm(`Encontramos una ficha parecida:\n\n• ${names}\n\n¿Confirmas que este sí es un paciente distinto y deseas crearlo?`))return}
     await singleFlightMutation('patient:create',async()=>{
       const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});
+      // Reception creates and verifies the new medical card on save.
+      // Only possible duplicates or cloud outages require subsequent action.
+      const clinical=p?.clinical_chart||{};
       if(action===true){await attentionFor(p.id)}
       else if(action==='agenda'){
         const slot=pendingNewPatientAgendaSlot;pendingNewPatientAgendaSlot=null;
         await openAgendaPatient(p.id,null,slot?.date||null,slot?.time||null);
       }else{await openPatient(p.id,'patients')}
       await searchPatients();
+      if(clinical.status==='needs_link'){
+        alert('Paciente guardado en Recepción. No se creó otra ficha médica porque Historia encontró una posible coincidencia.\\n\\nBusca y vincula la ficha correcta desde Recepción antes de enviarlo al doctor.\\n'+String(clinical.message||''));
+      }else if(clinical.status==='pending_connection'){
+        const msg='Paciente guardado. Ficha médica pendiente de sincronización; no se creó un duplicado.';
+        if(typeof window.rpNotice==='function')window.rpNotice(msg);
+        else console.warn(msg);
+      }
     },action===true?'Guardando…':action==='agenda'?'Guardando y abriendo Agenda…':'Guardando paciente…');
   }catch(e){alert(e.message)}
 }
