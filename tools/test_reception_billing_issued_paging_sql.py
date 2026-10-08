@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import ast
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -36,6 +36,7 @@ class BillingRecord(Base):
     visit_id = Column(Integer)
     estado = Column(String)
     numero_factura = Column(String)
+    emitted_at = Column(DateTime, nullable=True)
 
 
 class AzurEmission(Base):
@@ -69,6 +70,7 @@ class FakeApp:
 def install_functions(archived):
     source = (APP / "reception_billing_history.py").read_text(encoding="utf-8")
     names = {
+        "_issued_scope_condition", "_issued_local_stamp",
         "_issued_group_query", "_issued_count_groups", "_issued_archive_key",
         "_issued_page_keys", "billing_issued_page",
     }
@@ -95,7 +97,8 @@ def install_functions(archived):
         billing_preference_dict=lambda p: {"patient_id": p.patient_id},
     )
     ns = dict(
-        core=core, app=FakeApp(), _date=date, ISSUED_PAGE_SIZE=20,
+        core=core, app=FakeApp(), _date=date, _datetime=datetime, _timedelta=timedelta,
+        ISSUED_PAGE_SIZE=20,
         _active_trashed_patient_ids=lambda: {999},
         _archived_emitted_items=lambda db, desde=None: archived,
     )
@@ -119,17 +122,21 @@ def main():
          "azur": {"estado": "AUTORIZADA"}, "archived_deleted_patient": True},
     ]
     with Session(engine) as db:
-        def add_invoice(pid, day, visit_id, *, estado="ACTIVA", bill="EMITIDA"):
+        def add_invoice(pid, day, visit_id, *, estado="ACTIVA", bill="EMITIDA", issued_day=None):
             if db.get(Patient, pid) is None:
                 db.add(Patient(id=pid, nombre="PACIENTE %s" % pid))
                 db.flush()
             db.add(Visit(id=visit_id, patient_id=pid, fecha=day, estado=estado))
+            emission_day = issued_day or day
+            issued_at = (datetime.combine(emission_day, time(12, 0)) + timedelta(hours=5)) if bill == "EMITIDA" else None
             db.add(BillingRecord(id=visit_id, visit_id=visit_id, estado=bill,
-                                 numero_factura="F-%s" % visit_id if bill == "EMITIDA" else None))
+                                 numero_factura="F-%s" % visit_id if bill == "EMITIDA" else None,
+                                 emitted_at=issued_at))
 
         for i in range(1, 26):
             add_invoice(i, today, 100 + i, estado="CANCELADA" if i == 2 else "ACTIVA")
         add_invoice(1, today, 400)  # Multiple services, same fiscal group.
+        add_invoice(201, yesterday, 703, issued_day=today)  # Yesterday's visit invoiced today.
         for i in range(101, 136):
             add_invoice(i, yesterday, i + 400)
         add_invoice(999, yesterday, 700)  # Hidden, supplied only by archive.
@@ -152,19 +159,21 @@ def main():
         first = route(scope="today", page=1, db=db)
         second = route(scope="today", page=2, db=db)
         keys = lambda result: {(x["patient"]["id"], x["visit"]["fecha"]) for x in result["items"]}
-        assert first["pagination"]["total"] == 26, first["pagination"]
+        assert first["pagination"]["total"] == 27, first["pagination"]
         assert first["pagination"]["pages"] == 2
         assert len(keys(first)) == 20, keys(first)
-        assert len(keys(second)) == 6, keys(second)
+        assert len(keys(second)) == 7, keys(second)
         assert keys(first).isdisjoint(keys(second))
         assert (999, today.isoformat()) in keys(first) | keys(second)
         assert (8888, today.isoformat()) not in keys(first) | keys(second)
-        assert any(x["visit"]["estado"] == "CANCELADA" for x in first["items"] + second["items"])
+        assert (201, yesterday.isoformat()) in keys(first) | keys(second)
+        assert any(x['billing'].get('issued_date') == today.isoformat() for x in first['items'] + second['items'] if x['patient']['id'] == 201)
+        assert any(x["visit"].get("estado") == "CANCELADA" for x in first["items"] + second["items"])
         group1 = [x for x in first["items"] + second["items"] if x["patient"]["id"] == 1]
         assert len(group1) == 2, group1
         assert any(x.get("azur", {}).get("estado") == "AUTORIZADA"
                    for x in group1 if x.get("azur"))
-        assert first["counts"]["EMITIDA"] == 62, first["counts"]
+        assert first["counts"]["EMITIDA"] == 63, first["counts"]
         assert first["counts"]["PENDIENTE"] == 2, first["counts"]
         assert first["counts"]["RECHAZADA"] == 1
 
@@ -173,8 +182,9 @@ def main():
         assert older1["pagination"]["total"] == 36
         assert len(keys(older1)) == 20 and len(keys(older2)) == 16
         assert keys(older1).isdisjoint(keys(older2))
+        assert (201, yesterday.isoformat()) not in keys(older1) | keys(older2)
         assert (999, yesterday.isoformat()) in keys(older1) | keys(older2)
-        assert all(x["visit"]["fecha"] < today.isoformat()
+        assert all(x["billing"]["issued_date"] < today.isoformat()
                    for x in older1["items"] + older2["items"])
         assert route(scope="previous", page=3, db=db)["items"] == []
 
