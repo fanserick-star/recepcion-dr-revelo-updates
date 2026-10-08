@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.9",
-  "app_version": "4.8.9",
-  "runtime_version": "4.8.9",
+  "version": "4.8.10",
+  "app_version": "4.8.10",
+  "runtime_version": "4.8.10",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.9 — ahorro de CU-h Neon: la agenda reduce la frecuencia mínima de las dos comprobaciones remotas de 5 a 60 segundos sin quitar confirmaciones WhatsApp, agenda web ni cache SQLite; WhatsApp Cloud conserva 24/7, agrupa recordatorios con cron cada 30 minutos y mantiene el disparo inmediato de confirmación en altas de cita. Se preservan cola offline, emisión AZUR, pacientes, facturas, historial, TV, turnos y sincronización de Historia. La suspensión Neon se configura exclusivamente en el servicio, no en este manifiesto.",
-    "previous_version": "4.8.8",
+    "purpose": "Recepción 4.8.10 — despierta WhatsApp Cloud por eventos de agenda; Durable Objects gestionan alarmas persistentes de recordatorios sin cron de vigilancia; protecciones nocturnas Ecuador 20:00-08:00. La cita se confirma en Neon antes de avisar y el aviso no envía mensajes por sí mismo. No tocar facturas/turnos/Historias/TV. Preservar cola offline y trazabilidad en whatsapp_cloud.events.",
+    "previous_version": "4.8.9",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -507,7 +507,17 @@
     "whatsapp_cloud_cron_minutes": 30,
     "whatsapp_cloud_event_driven_confirmation_preserved": true,
     "tv_logic_changes": false,
-    "neon_no_database_schema_changes": true
+    "neon_no_database_schema_changes": true,
+    "whatsapp_scheduler_event_driven": "durable_object_alarms_v1",
+    "whatsapp_cron_triggers": 0,
+    "whatsapp_reception_event_signature": "neon_role_password_hmac_sha256_timestamp",
+    "whatsapp_no_new_env_required": true,
+    "whatsapp_local_offline_queue_preserved": true,
+    "whatsapp_automatic_quiet_hours_ecuador": "20:00-08:00",
+    "whatsapp_cloud_booking_confirmation": "alarms_as_soon_as_allowed",
+    "whatsapp_scheduled_reminders": "database_truth_alarm",
+    "whatsapp_neon_no_polling": true,
+    "whatsapp_no_new_database_tables": true
   },
   "channel": "launcher-v1-stable"
 }
