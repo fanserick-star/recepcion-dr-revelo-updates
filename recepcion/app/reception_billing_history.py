@@ -392,6 +392,7 @@ try:
                 core.func.max(core.Visit.id).label('last_visit'),
             )
             .join(core.BillingRecord, core.BillingRecord.visit_id == core.Visit.id)
+            .join(core.Patient, core.Patient.id == core.Visit.patient_id)
             .where(*filters)
             .group_by(core.Visit.patient_id, core.Visit.fecha)
             .order_by(core.Visit.fecha.desc(), core.func.max(core.Visit.id).desc(), core.Visit.patient_id.desc())
