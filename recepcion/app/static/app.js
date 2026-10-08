@@ -605,7 +605,7 @@ async function openSmartAlerts(){
       (missing.length?'<h3>Confirmaciones sin registro ('+missing.length+')</h3>'+missingHTML:'')+
       (errors.length?'<h3>Mensajes con error ('+errors.length+')</h3>'+errorHTML:'')+
       '<small style="color:#74879a">Consulta manual · Sin vigilancia periódica de Neon · No envía ni reenvía WhatsApp.</small>'+
-      '<div class="actions"><button type="button" onclick="closeModal();openClinicalIntegrityReview()">🪪 Revisar fichas</button><button type="button" onclick="closeModal();openSmartAlerts()">↻ Volver a comprobar</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+      '<div class="actions"><button type="button" onclick="closeModal();openClinicalIntegrityReview()">🪪 Revisar fichas</button><button type="button" onclick="closeModal();openBackupIntegrityReview()">🔎 Verificar respaldo</button><button type="button" onclick="closeModal();openSmartAlerts()">↻ Volver a comprobar</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
   }catch(error){alert('No se pudieron consultar las alertas: '+String(error.message||error))}
   finally{if(btn){btn.disabled=false;btn.textContent=old}}
 }
@@ -743,6 +743,33 @@ async function markWaitlistServed(id){
   if(!confirm('¿Marcar esta solicitud como resuelta? Se conserva en el historial local.'))return;
   try{await api('/api/ops/waitlist/'+Number(id)+'/close',{method:'POST',body:'{}'});await refreshWaitlistRows()}
   catch(e){alert(e.message)}
+}
+
+// 4.8.17: verifica solo al solicitarlo; no restaura ni reescribe SQLite.
+async function openBackupIntegrityReview(deep=false){
+  const btn=$('#homeSmartAlertsButton'),previous=btn?.textContent||'🔔 Revisar alertas del consultorio';
+  try{
+    if(btn){btn.disabled=true;btn.textContent='🔎 Comprobando respaldo…'}
+    const d=await api('/api/ops/backup-integrity?deep='+(deep?'true':'false'));
+    const backup=d.backup||{};
+    const found=!!d.backup_found,valid=!!d.backup_valid;
+    const icon=valid?'✓':found?'⚠':'✕';
+    const note=valid?'El archivo pasó '+(deep?'la comprobación completa':'la comprobación rápida')+' de SQLite.':
+      String(d.message||'No fue posible verificar el respaldo.');
+    const age=d.age_hours!=null?Number(d.age_hours).toFixed(1)+' horas':'Sin fecha disponible';
+    const stamp=found
+      ?'<p><b>Archivo:</b> '+esc(backup.file_name||'Respaldo')+'</p>'+
+       '<p><b>Antigüedad:</b> '+esc(age)+(d.older_than_72h?' ⚠ Respaldo antiguo':'')+'</p>'+
+       '<p><b>Tamaño:</b> '+Math.round(Number(backup.size_bytes||0)/1024)+' KB</p>':'';
+    openModal('<div style="max-width:700px;display:grid;gap:9px">'+
+      '<h2>'+icon+' Diagnóstico de respaldo</h2><p>'+esc(note)+'</p>'+
+      stamp+'<p>Operaciones pendientes de sincronizar: <b>'+Number(d.pending_sync||0)+'</b></p>'+
+      '<small>Consulta local en modo de solo lectura. No restaura datos ni demuestra por sí sola que el respaldo esté completo y actualizado.</small>'+
+      '<div class="actions">'+(found&&!deep?'<button type="button" onclick="closeModal();openBackupIntegrityReview(true)">Comprobar a fondo</button>':'')+
+      '<button type="button" onclick="closeModal();openSmartAlerts()">← Alertas</button>'+
+      '<button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+  }catch(error){alert('No se pudo comprobar el respaldo: '+String(error.message||error))}
+  finally{if(btn){btn.disabled=false;btn.textContent=previous}}
 }
 
 async function goHomeToday(){
