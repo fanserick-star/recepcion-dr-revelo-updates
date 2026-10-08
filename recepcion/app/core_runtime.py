@@ -7512,7 +7512,7 @@ def agenda_appointment_detail(appointment_id: int, db: Session = Depends(get_db)
 
 
 
-def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 5.0) -> int:
+def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 60.0) -> int:
     """Trae solo el estado de las citas visibles desde Neon.
 
     WhatsApp Cloud actualiza Neon aunque la PC del consultorio esté apagada. La
