@@ -23,5 +23,8 @@
         "WhatsappAlarmCoordinator"
       ]
     }
-  ]
+  ],
+  "triggers": {
+    "crons": []
+  }
 }
