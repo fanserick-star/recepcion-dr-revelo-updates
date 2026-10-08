@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.6",
-  "app_version": "1.4.6",
-  "runtime_version": "1.4.6",
+  "version": "1.4.7",
+  "app_version": "1.4.7",
+  "runtime_version": "1.4.7",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.6: corrige búsqueda y vinculación de fichas por uno o dos apellidos en cualquier orden. El buscador prioriza todas las palabras escritas antes de candidatos parciales, no sustituye el nombre por una cédula en turnos legados y consulta también el nombre real de fichas antiguas con name_search vacío/desactualizado. No se crean fichas, no se modifican atenciones ni historias y se conserva el bloqueo de cédulas diferentes.",
-    "previous_version": "1.4.5",
+    "purpose": "Historia 1.4.7: reconoce turnos de REVISIÓN DE EXÁMENES como consultas sin cobro en la cola, muestran una etiqueta propia al doctor y abren la ficha clínica ya vinculada desde Recepción cuando existe identidad verificada. La TV recibe una marca booleana sin datos personales, no confunde revisiones con procedimientos, y el control de turnos duplicados las trata como consultas. No se modifican historias, facturas ni pacientes.",
+    "previous_version": "1.4.6",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -186,6 +186,13 @@
     "history_general_name_fallback_search": true,
     "history_link_manual_selection_only": true,
     "history_link_no_patient_writes": true,
-    "history_link_no_queue_writes": true
+    "history_link_no_queue_writes": true,
+    "exam_review_turn_is_consultation": true,
+    "exam_review_deduplication_active": true,
+    "exam_review_patient_chart_from_verified_link": true,
+    "exam_review_queue_label": true,
+    "exam_review_tv_privacy_flag": true,
+    "exam_review_procedure_exclusion_fixed": true,
+    "clinical_record_destructive_changes": false
   }
 }
