@@ -787,9 +787,11 @@ function patientDayNumber(fecha,patientId){
 }
 function homeReceiptButtons(g,fecha,dayNumber){
   const hasConsultation=(g.visits||[]).some(v=>!String(v.procedimiento||'').trim()&&!v.exam_review_no_charge);
-  if(!hasConsultation)return '';
+  const review=(g.visits||[]).find(v=>v.exam_review_no_charge);
+  const reviewButton=review?`<div class="home-receipt-actions"><button class="home-print-receipt" onclick="showExamReviewTicket(${Number(review.id)})">🎫 Ticket de revisión</button></div>`:'';
+  if(!hasConsultation)return reviewButton;
   const pid=Number(g.patient?.id||0);
-  return `<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`;
+  return `<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`+reviewButton;
 }
 function simpleHomeTable(rows){
   const head='<tr><th class="number-col">N.º</th><th>Paciente</th><th>Atención</th><th>Valor</th><th class="home-actions-col">Acciones</th></tr>';
@@ -797,7 +799,7 @@ function simpleHomeTable(rows){
     const descendingNumber=(rows||[]).length-idx;
     const fecha=String(r?.fecha||selectedHomeDate||'').slice(0,10);
     const pid=Number(r?.patient?.id||r?.patient_id||0);
-    const receiptActions=!String(r?.procedimiento||'').trim()&&!r?.exam_review_no_charge?`<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`:'';
+    const receiptActions=r?.exam_review_no_charge?`<div class="home-receipt-actions"><button class="home-print-receipt" onclick="showExamReviewTicket(${Number(r.id)})">🎫 Ticket de revisión</button></div>`:(!String(r?.procedimiento||'').trim()?`<div class="home-receipt-actions"><button class="home-view-receipt" onclick="viewReceiptFromHome(${pid},'${esc(fecha)}')">👁 Ver recibo</button><button class="home-print-receipt" onclick="reprintReceiptFromHome(${pid},'${esc(fecha)}')">🖨 Reimprimir</button></div>`:'');
     const actions=`${receiptActions}${homeDeleteButton(r)}`;
     return `<tr><td class="row-number">${descendingNumber}.</td><td class="patient-cell">${patientNameCell(r,true,r?.tipo==='N')}</td><td>${serviceBadge(r)}</td><td class="money-cell"><span class="money-pill">${money(r?.valor)}</span></td><td class="home-action-cell">${actions}</td></tr>`;
   }).join('');
@@ -1489,6 +1491,77 @@ function renderAttentionStatus(){
   }
 }
 function toggleLegacySubsequent(){if(!attentionContext||attentionContext.patient.suggested_type==='S')return;attentionContext.manualSubsequent=!attentionContext.manualSubsequent;renderAttentionStatus()}
+function examReviewTicketMarkup(ticket){
+  const number=String(ticket.turn||'--');
+  const date=fmtDate(ticket.fecha||'');
+  return '<div class="exam-ticket-printable">'
+    +'<header><b>DR. ARMANDO REVELO</b></header>'
+    +'<div class="ticket-title">TURNO N.º</div>'
+    +'<div class="ticket-number">'+esc(number)+'</div>'
+    +'<div class="ticket-service">REVISIÓN DE EXÁMENES</div>'
+    +'<div class="ticket-free">SIN COBRO · SIN FACTURA</div>'
+    +'<div class="ticket-date">'+esc(date)+'</div>'
+    +'<p>Espere el llamado de su turno</p>'
+    +'</div>';
+}
+
+function printExamReviewInBrowser(ticket){
+  const iframe=document.createElement('iframe');
+  iframe.title='Ticket de revisión de exámenes';
+  iframe.setAttribute('aria-hidden','true');
+  iframe.style.cssText='position:fixed;left:-9999px;top:0;width:80mm;height:100mm;border:0;visibility:hidden';
+  document.body.appendChild(iframe);
+  const doc=iframe.contentDocument||iframe.contentWindow?.document;
+  if(!doc){iframe.remove();throw Error('No se pudo preparar el ticket.')}
+  doc.open();
+  doc.write('<!doctype html><html lang="es"><head><meta charset="utf-8"><style>'
+    +'@page{size:80mm 100mm;margin:0}*{box-sizing:border-box}body{margin:0;padding:7mm 4mm;width:80mm;text-align:center;color:#000;font-family:Arial,sans-serif}'
+    +'header{font-size:14px;padding:4px 0 9px;border-bottom:2px solid #000}'
+    +'.ticket-title{font-weight:800;font-size:20px;margin-top:13px}'
+    +'.ticket-number{font-weight:900;font-size:85px;line-height:1.15}'
+    +'.ticket-service{font-size:18px;font-weight:900;border-top:2px solid #000;padding-top:7px}'
+    +'.ticket-free{font-size:13px;margin:10px 0}'
+    +'.ticket-date{font-size:12px;margin-top:8px}'
+    +'p{font-size:12px;margin-top:12px}</style></head><body>'
+    +examReviewTicketMarkup(ticket)+'</body></html>');
+  doc.close();
+  let printed=false;
+  const done=()=>setTimeout(()=>iframe.remove(),600);
+  iframe.contentWindow?.addEventListener('afterprint',done,{once:true});
+  setTimeout(()=>{
+    if(printed)return;printed=true;
+    try{iframe.contentWindow.focus();iframe.contentWindow.print()}catch(e){iframe.remove();alert('No se pudo imprimir: '+e.message)}
+    setTimeout(()=>iframe.remove(),120000);
+  },160);
+}
+
+async function printExamReviewTicket(visitId){
+  try{
+    const ticket=await api('/api/visits/exam-review/'+Number(visitId)+'/ticket');
+    if(String(appPreferences?.print_mode||'').toUpperCase()==='DIRECT'){
+      const result=await api('/api/visits/exam-review/'+Number(visitId)+'/print',{method:'POST',body:'{}'});
+      if(result?.printed) return;
+    }
+    printExamReviewInBrowser(ticket);
+  }catch(e){alert('El ticket no se imprimió: '+String(e.message||e)+'. Verifica la impresora.')}
+}
+
+async function showExamReviewTicket(visitId,autoDirectPrint=false){
+  try{
+    const ticket=await api('/api/visits/exam-review/'+Number(visitId)+'/ticket');
+    openModal('<div class="exam-review-ticket-modal"><h2>Ticket · Revisión de exámenes</h2>'
+      +'<p>Entrega este ticket al paciente. El número es el mismo de Historia y de la TV.</p>'
+      +examReviewTicketMarkup(ticket)
+      +'<div class="actions form-actions">'
+      +'<button class="cancel-btn" onclick="closeModal()">Cerrar</button>'
+      +'<button class="primary" onclick="printExamReviewTicket('+Number(ticket.visit_id)+')">🖨 Imprimir ticket</button>'
+      +'</div></div>');
+    if(autoDirectPrint && String(appPreferences?.print_mode||'').toUpperCase()==='DIRECT'){
+      await printExamReviewTicket(ticket.visit_id);
+    }
+  }catch(e){alert('No se pudo abrir el ticket: '+String(e.message||e))}
+}
+
 async function saveExamReviewTurn(id){
   if(attentionSaveInFlight)return;
   if(selectedServices.size){
@@ -1521,9 +1594,12 @@ async function saveExamReviewTurn(id){
     show('inicio');
     const turn=result?.turn?'N.º '+String(result.turn):'registrado';
     const warning=!result?.handoff_queued
-      ?'\nAtención: no se pudo guardar el envío a Historia. Revisa su conexión.'
-      :(!result?.historia_online?'\nHistoria desconectada: el turno quedará pendiente hasta que se conecte la PC del doctor.':'');
-    alert('Revisión de exámenes: turno '+turn+'.\nSin cobro ni factura.'+warning);
+      ?'No se pudo guardar el envío a Historia. Revisa su conexión.'
+      :(!result?.historia_online?'Historia desconectada: el turno queda pendiente de entrega.':'');
+    if(warning)alert(warning);
+    const reviewId=Number(result?.visit?.id||0);
+    if(reviewId)await showExamReviewTicket(reviewId,true);
+    else alert('Turno '+turn+' registrado, pero no se devolvió el identificador para imprimir.');
   }catch(e){alert(e.message)}
   finally{
     attentionSaveInFlight=false;
