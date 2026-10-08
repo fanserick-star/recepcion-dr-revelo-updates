@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.4",
-  "app_version": "4.8.4",
-  "runtime_version": "4.8.4",
+  "version": "4.8.5",
+  "app_version": "4.8.5",
+  "runtime_version": "4.8.5",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.4: revisión de exámenes requiere ficha clínica de Historia vinculada y verificada antes de generar atención, número de turno, ticket o entrega LAN; desde el botón gratuito se abre búsqueda manual de ficha y tras confirmar se reanuda el flujo con una nueva confirmación. La API y la reimpresión también rechazan fichas sin vínculo; si Neon no responde se bloquea esta revisión sin afectar consultas cobradas. Envía a la PC médica el clinical_patient_id verificado sin depender de una segunda lectura de nube.",
-    "previous_version": "4.8.3",
+    "purpose": "Recepción 4.8.5: autoridad exclusiva de los vínculos entre Recepción e Historia. La pantalla de vinculación se muestra también para pacientes nuevos. Si el paciente de verdad no tiene historia, Recepción permite crear una ficha clínica con confirmación manual y control conservador de posibles duplicados, y crea de manera atómica el vínculo verificado en Neon sin sobrescribir un vínculo concurrente. Historia 1.4.8 consume dicho vínculo sin poder crearlo, cambiarlo ni subir vínculos propios. Los turnos gratuitos de revisión siguen exigiendo vínculo previo y las consultas e impresiones existentes no cambian.",
+    "previous_version": "4.8.4",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -460,7 +460,20 @@
     "exam_review_no_automatic_matching_or_merging": true,
     "exam_review_no_billing": true,
     "fiscal_records_preserved": true,
-    "history_waiting_queue_unchanged": true
+    "history_waiting_queue_unchanged": true,
+    "reception_only_link_authority": true,
+    "new_patient_link_panel_visible_in_reception": true,
+    "receptionist_manual_new_clinical_chart_create": true,
+    "new_clinical_chart_neon_duplicate_guard": true,
+    "new_clinical_chart_link_atomic_no_overwrite": true,
+    "new_clinical_chart_manual_confirmation": true,
+    "history_never_links": true,
+    "exam_review_requires_confirmed_link": true,
+    "cloud_offline_free_review_block_preserved": true,
+    "billing_unmodified": true,
+    "patient_records_preserved": true,
+    "clinical_history_preserved": true,
+    "reception_only_link_authority_regression_test": true
   },
   "channel": "launcher-v1-stable"
 }
