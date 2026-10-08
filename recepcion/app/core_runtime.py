@@ -2616,7 +2616,7 @@ _wa_alarm_hint_pending = False
 _wa_alarm_hint_active = False
 
 
-def _whatsapp_alarm_notify_async() -> None:
+def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
     """Signal a single event-driven alarm recomputation after cloud persistence.
 
     A short burst of appointments is coalesced into one request. The notification
@@ -2625,8 +2625,21 @@ def _whatsapp_alarm_notify_async() -> None:
     global _wa_alarm_hint_pending, _wa_alarm_hint_active
     if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
         return
-    if queue_count() > 0:
-        return
+    # An offline appointment must NEVER be signalled as already persisted.
+    # But unrelated queued writes (invoices/visits) must not suppress a real
+    # online appointment notification.
+    if source_type and int(source_id or 0) and queue_count() > 0:
+        entity = "confirmafy_staged" if source_type == "staged" else source_type
+        try:
+            with LocalSessionLocal() as ldb:
+                pending_this_event = ldb.scalar(select(OfflineQueue.id).where(
+                    OfflineQueue.entity == entity,
+                    OfflineQueue.local_entity_id == int(source_id),
+                ).limit(1))
+            if pending_this_event is not None:
+                return
+        except Exception:
+            return
     with _wa_alarm_hint_lock:
         _wa_alarm_hint_pending = True
         if _wa_alarm_hint_active:
@@ -2750,7 +2763,7 @@ def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str
             template_name=WHATSAPP_TEMPLATE_RECORDATORIO_HOY, fecha=fecha, hora=hora, due_at=today_at,
             body_params=[clean_name, time_text], header_required=True,
         ))
-    _whatsapp_alarm_notify_async()
+    _whatsapp_alarm_notify_async(source_type=source_type, source_id=source_id)
     return {"queued": queued}
 
 
@@ -3904,7 +3917,7 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                     ldb.execute(delete(OfflineIdMap))
                     ldb.commit()
         _schedule_clinical_chart_retry()
-        if alarm_relevant_change and pending == 0:
+        if alarm_relevant_change:
             _whatsapp_alarm_notify_async()
         return {"ok": pending == 0, "online": True, "processed": processed, "pending": pending, "errors": queue_errors()}
     finally:
@@ -7339,6 +7352,7 @@ def mobile_delete_unlinked(item_id: int, request: Request):
         if not item or not _mobile_unlinked(item):
             raise HTTPException(404, "Cita móvil no encontrada")
         db.delete(item); db.commit(); mirror_delete_confirmafy_agenda_local(item_id); _whatsapp_cancel_pending("staged", item_id)
+        _whatsapp_alarm_notify_async(source_type="staged", source_id=item_id)
         return {"ok": True}
     finally:
         db.close()
@@ -7373,6 +7387,7 @@ def mobile_delete_linked(appointment_id: int, request: Request):
         if not a or a.origen == CONFIRMAFY_ATTENDED_ORIGIN:
             raise HTTPException(404, "Cita no encontrada")
         db.delete(a); db.commit(); mirror_delete_appointment_local(appointment_id); _whatsapp_cancel_pending("appointment", appointment_id)
+        _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
         return {"ok": True}
     finally:
         db.close()
@@ -8004,6 +8019,7 @@ def agenda_delete(appointment_id: int, db: Session = Depends(get_db), user: User
     db.commit()
     mirror_delete_appointment_local(appointment_id)
     _whatsapp_cancel_pending("appointment", appointment_id)
+    _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
     return {"ok": True, "offline": False, "deleted": True}
 
 
