@@ -17,10 +17,17 @@ def _now() -> str:
 
 def _is_procedure(value: object) -> bool:
     raw = " ".join(str(value or "").strip().upper().split())
+    if raw in {"REVISIÓN DE EXÁMENES", "REVISION DE EXAMENES"}:
+        return False
     return bool(
         raw in {"P", "X", "PROCEDIMIENTO"}
         or raw.startswith("PROCEDIMIENTO ")
     )
+
+
+def _is_exam_review(value: object) -> bool:
+    raw = " ".join(str(value or "").strip().upper().split())
+    return raw in {"REVISIÓN DE EXÁMENES", "REVISION DE EXAMENES"}
 
 
 def _safe_turn(value: object):
@@ -66,6 +73,7 @@ def _snapshot(db_path) -> dict:
         current = {
             "queue_id": str(row["id"]),
             "turn": _safe_turn(row["reception_turn"]),
+            "exam_review": _is_exam_review(row["attention_type"]),
             "status": "in_consultation",
             "started_at": str(row["started_at"] or row["updated_at"] or ""),
             "updated_at": str(row["updated_at"] or ""),
@@ -85,6 +93,7 @@ def _snapshot(db_path) -> dict:
             {
                 "queue_id": str(row["id"]),
                 "turn": _safe_turn(row["reception_turn"]),
+            "exam_review": _is_exam_review(row["attention_type"]),
                 "status": "waiting",
                 "queued_at": str(row["queued_at"] or ""),
                 "updated_at": str(row["updated_at"] or ""),
@@ -96,6 +105,7 @@ def _snapshot(db_path) -> dict:
             {
                 "queue_id": str(row["id"]),
                 "turn": _safe_turn(row["reception_turn"]),
+            "exam_review": _is_exam_review(row["attention_type"]),
                 "status": str(row["status"] or ""),
                 "updated_at": str(row["updated_at"] or ""),
                 "completed_at": str(row["completed_at"] or ""),
