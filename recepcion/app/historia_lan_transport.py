@@ -501,9 +501,12 @@ def _cloud_link_id(reception_patient_id: object) -> str:
             cur = conn.cursor()
             cur.execute(
                 """
-                SELECT clinical_patient_id
-                FROM public.patient_links
-                WHERE reception_patient_id=%s AND deleted_at IS NULL
+                SELECT l.clinical_patient_id
+                FROM public.patient_links l
+                JOIN public.patients p ON p.id=l.clinical_patient_id
+                WHERE l.reception_patient_id=%s
+                  AND l.verified=1
+                  AND l.deleted_at IS NULL AND p.deleted_at IS NULL
                 LIMIT 1
                 """,
                 (str(reception_patient_id),),
