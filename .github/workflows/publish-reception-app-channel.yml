@@ -36,6 +36,11 @@ jobs:
           node --check recepcion/app/static/app.js
           node tools/test_tv_display_javascript.mjs
 
+      - name: Validate real issued-invoice pagination before publication
+        run: |
+          python -m pip install --disable-pip-version-check 'SQLAlchemy>=2.0,<3'
+          python tools/test_reception_billing_issued_paging_sql.py
+
       - name: Generate channel from exact canonical Git blobs
         env:
           RELEASE_SHA: ${{ github.sha }}
