@@ -1042,3 +1042,19 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .exam-review-ticket-modal .ticket-free{margin-top:12px;font-weight:800;font-size:12px}
 .exam-review-ticket-modal .ticket-date{margin-top:10px;font-size:12px}
 .exam-review-ticket-modal .exam-ticket-printable p{margin:12px 0 2px;font-size:12px;color:#111}
+
+/* Historial AZUR: hoy primero, páginas de 20; sin cambiar tarjetas fiscales */
+.issued-billing-toolbar{grid-column:1/-1;display:grid;gap:12px;padding:15px 17px;
+  border-radius:15px;border:1px solid #dce6f0;background:#f8fbff}
+.issued-billing-header,.issued-billing-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.issued-billing-header b{display:block;font-size:15px;color:#274461}
+.issued-billing-header small{display:block;margin-top:4px;font-size:11px;color:#61758a}
+.issued-billing-tabs,.issued-billing-page-buttons{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.issued-billing-tabs button,.issued-billing-page-buttons button{border:1px solid #c8d9e8;
+  background:#fff;color:#315475;border-radius:9px;padding:9px 12px;font-weight:800;cursor:pointer}
+.issued-billing-tabs button.selected{background:#e4f0fa;border-color:#7aaccd;color:#174b72}
+.issued-billing-page-buttons button:disabled{opacity:.4;cursor:default}
+.issued-billing-pagination{padding-top:9px;border-top:1px solid #e2eaf1;color:#596d80;font-size:12px}
+.issued-billing-page-buttons span{padding:0 5px;font-weight:800}
+@media(max-width:620px){.issued-billing-header,.issued-billing-pagination{align-items:stretch;flex-direction:column}
+  .issued-billing-tabs button{flex:1}.issued-billing-page-buttons{justify-content:space-between}}
