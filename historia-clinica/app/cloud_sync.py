@@ -934,6 +934,11 @@ class CloudSyncService:
             """).fetchall()
             for item in items:
                 table, key = item["table_name"], item["row_key"]
+                if table == "patient_links":
+                    # Reception is the ONLY authority for link writes in Neon.
+                    # Existing doctor-side dirty rows must never be uploaded.
+                    completed.append((table, key))
+                    continue
                 if table not in ALL_SYNC_TABLES:
                     completed.append((table,key)); continue
                 if table not in set(
