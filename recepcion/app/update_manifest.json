@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.7",
-  "app_version": "4.8.7",
-  "runtime_version": "4.8.7",
+  "version": "4.8.8",
+  "app_version": "4.8.8",
+  "runtime_version": "4.8.8",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.7: corrección conservadora de altas clínicas automáticas. Si falla temporalmente Neon Historia, persiste en SQLite local un marcador de reintento con el ID definitivo de Recepción nube; tras sincronizar una ficha creada offline, no descarta el reintento si Historia falló. Al iniciar, reconectar o sincronizar se reintenta sin bloquear la cola de facturas, atenciones ni agenda; ante identidad dudosa queda pendiente para vinculación manual exclusiva de Recepción. Ninguna historia existente se borra, reemplaza o fusiona automáticamente.",
-    "previous_version": "4.8.6",
+    "purpose": "Recepción 4.8.8: las facturas EMITIDAS muestran primero las de hoy y permiten consultar todas las anteriores por páginas de 20 grupos paciente/fecha desde un endpoint de solo lectura. La consulta limita filas y renderizado, cuenta sin reconstruir toda la lista, conserva el historial fiscal de pacientes eliminados y las atenciones canceladas con factura. PENDIENTE conserva su comportamiento y no tiene filtro de fechas; emisión AZUR, SRI, PDF/XML, turnos, Historia y TV no cambian.",
+    "previous_version": "4.8.7",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -491,7 +491,14 @@
     "clinical_auto_create_regression_tests": true,
     "clinical_chart_retry_persisted": true,
     "clinical_chart_retry_offline_queue_independent": true,
-    "clinical_chart_retry_no_destructive_changes": true
+    "clinical_chart_retry_no_destructive_changes": true,
+    "billing_issued_today_first": true,
+    "billing_issued_previous_paginated": true,
+    "billing_issued_page_size": 20,
+    "billing_issued_page_query_read_only": true,
+    "billing_issued_archived_deleted_patient_preserved": true,
+    "billing_issued_cancelled_visit_preserved": true,
+    "billing_display_changes": true
   },
   "channel": "launcher-v1-stable"
 }
