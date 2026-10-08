@@ -1010,3 +1010,17 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 @media(max-width:900px){
   .native-schedule{min-width:920px;grid-template-columns:68px repeat(4,minmax(205px,1fr))}
 }
+
+/* Turno no facturable para revisión de exámenes; apartado del cobro Bendo. */
+.exam-review-turn-action{
+  display:flex;flex-direction:column;gap:6px;margin:12px 0;
+  padding:12px;border:1px solid #b6d9c5;border-radius:12px;background:#f1faf5;
+}
+.exam-review-turn-btn{
+  min-height:46px;padding:10px 14px;border:1px solid #4e9b70;
+  border-radius:10px;background:#236b49;color:#fff;font-size:14px;
+  font-weight:850;cursor:pointer;text-align:center;
+}
+.exam-review-turn-btn:hover{background:#195839}
+.exam-review-turn-btn:disabled{opacity:.55;cursor:wait}
+.exam-review-turn-action small{font-size:11px;color:#41604b;line-height:1.4}
