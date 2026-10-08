@@ -46,7 +46,7 @@ assert.match(reception, /def _whatsapp_alarm_notify_async\(\*, source_type: str/
 assert.match(reception, /hmac\.new\(key\.encode\("utf-8"\)/);
 assert.match(reception, /_WA_ALARM_NOTIFY_URL = "https:\/\/dr-revelo-whatsapp-cloud/);
 assert.match(reception, /if alarm_relevant_change:\s*_whatsapp_alarm_notify_async\(\)/);
-assert.match(reception, /_whatsapp_alarm_notify_async\(\)\s*return \{"queued": queued\}/);
+assert.match(reception, /_whatsapp_alarm_notify_async\(source_type=source_type, source_id=source_id\)\s*return \{"queued": queued\}/);
 assert.match(reception, /def process_offline_queue\(/);
 assert.match(reception, /def schedule_whatsapp_for_contact\(/);
 assert.match(reception, /@app\.get\("\/api\/agenda\/week"\)/);
