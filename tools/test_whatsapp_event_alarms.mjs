@@ -27,6 +27,9 @@ assert.match(worker, /async alarm\(\)/);
 assert.match(worker, /setAlarm\(alarmAtLeastNow/);
 assert.match(worker, /async function nextWhatsappReminderTimestamp\(env\)/);
 assert.match(worker, /ORDER BY e.updated_at DESC LIMIT 1/);
+// SQL NULL must not discard a new appointment that has never been messaged.
+assert.match(worker, /AND NOT \(coalesce\(status,\x27\x27\)=\x27ERROR\x27 AND coalesce\(attempts,0\)>=5\)/);
+assert.doesNotMatch(worker, /AND NOT \(status=\x27ERROR\x27 AND attempts>=5\)/);
 assert.match(worker, /bootstrapped_v1/);
 assert.match(worker, /"\/alarms\/notify"/);
 assert.match(worker, /verifyReceptionAlarmHint/);
