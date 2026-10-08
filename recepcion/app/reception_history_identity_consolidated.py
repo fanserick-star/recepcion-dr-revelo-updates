@@ -766,10 +766,11 @@ def historia_identity_create_from_reception(
     db=core.Depends(core.get_db),
     user=core.Depends(core.current_user),
 ):
-    """Reception-only explicit chart creation; never auto-triggered by Historia.
+    """Create/link an actually new clinical chart directly from Reception.
 
-    A receptionist must search first and explicitly confirm a new chart.
-    Both patient and verified link are committed atomically to Historia Neon.
+    For new Reception patients this is invoked automatically at registration,
+    without extra clicks. Any possible preexisting clinical chart forces
+    manual Reception linkage. Historia can never create the link itself.
     """
     patient = _reception_patient(db, data.reception_patient_id)
     demo = _demographics(patient)
@@ -782,8 +783,20 @@ def historia_identity_create_from_reception(
     conn = _connect_public()
     try:
         cur = conn.cursor()
-        if _linked_patient(cur, patient.id):
-            raise core.HTTPException(409, "Ya hay una ficha clínica vinculada. No se creó otra.")
+        current = _linked_patient(cur, patient.id)
+        if current:
+            if str(current.get("verified") or "").lower() not in ("1", "true"):
+                raise core.HTTPException(409, "La ficha anterior no está verificada. Revísala en Recepción.")
+            return {
+                "ok": True,
+                "reachable": True,
+                "linked": True,
+                "created": False,
+                "reception_patient_id": int(patient.id),
+                "clinical_patient": current,
+                "history_date_count": int(current.get("history_date_count") or 0),
+                "last_history_date": current.get("last_history_date") or "",
+            }
         if identification:
             cur.execute(
                 "SELECT id FROM public.patients "
