@@ -28,6 +28,7 @@ jobs:
           python tools/test_reception_canonical_source.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_reports.py
+          python tools/test_reception_neon_efficiency.py
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
           python tools/test_reception_exam_review_turn.py
