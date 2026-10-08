@@ -546,6 +546,171 @@ def reception_4815_integrity(user=core.Depends(core.current_user)):
     return result
 
 
+
+# 4.8.16 — Resumen local y lista de espera exclusivamente administrativa.
+# La nueva tabla SQLite es aislada; nunca escribe en Neon ni toca facturas,
+# turnos, citas existentes o expedientes clínicos.
+_WAITLIST_4816_READY = False
+_WAITLIST_4816_LOCK = core.threading.Lock()
+_WAITLIST_4816_DDL = """
+CREATE TABLE IF NOT EXISTS reception_waitlist_4816 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    patient_id INTEGER NOT NULL,
+    desired_date TEXT NOT NULL DEFAULT '',
+    desired_time TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'OPEN',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)
+"""
+
+def _waitlist_4816_init(db):
+    global _WAITLIST_4816_READY
+    if _WAITLIST_4816_READY:
+        return
+    with _WAITLIST_4816_LOCK:
+        if not _WAITLIST_4816_READY:
+            db.execute(core.text(_WAITLIST_4816_DDL))
+            db.commit()
+            _WAITLIST_4816_READY = True
+
+
+def _waitlist_4816_date_time(desired_date, desired_time):
+    from datetime import date
+    date_text = str(desired_date or '').strip()
+    time_text = str(desired_time or '').strip()
+    if date_text:
+        try:
+            if date.fromisoformat(date_text).isoformat() != date_text:
+                raise ValueError()
+        except ValueError:
+            raise core.HTTPException(400, 'La fecha deseada no es válida.')
+    if time_text:
+        parts = time_text.split(':')
+        if (len(parts) != 2 or len(parts[0]) != 2 or len(parts[1]) != 2
+            or not all(p.isdigit() for p in parts)
+            or int(parts[0]) > 23 or int(parts[1]) > 59):
+            raise core.HTTPException(400, 'La hora deseada debe ser HH:MM.')
+    return date_text, time_text
+
+
+@app.get('/api/ops/today')
+def reception_4816_today(user=core.Depends(core.current_user)):
+    """Solo SQLite local, activada al abrir Inicio; cero consultas Neon."""
+    from datetime import date
+    today = date.today()
+    with core.LocalSessionLocal() as db:
+        visits = list(db.scalars(core.select(core.Visit).where(core.Visit.fecha == today).limit(600)))
+        appointments = list(db.scalars(core.select(core.Appointment).where(
+            core.Appointment.fecha == today,
+            core.Appointment.origen != core.CONFIRMAFY_ATTENDED_ORIGIN,
+        ).limit(600)))
+        external = list(db.scalars(core.select(core.ConfirmafyAgendaItem).where(
+            core.ConfirmafyAgendaItem.fecha == today
+        ).limit(600)))
+    valid_visits = [v for v in visits if str(getattr(v,'estado','') or '').upper()
+                    not in {'CANCELADA','CANCELADO'}]
+    reviews = sum(1 for v in valid_visits if core.is_exam_review_no_charge(v))
+    consultations = sum(1 for v in valid_visits if not str(getattr(v,'procedimiento','') or '').strip()
+                        and not core.is_exam_review_no_charge(v))
+    scheduled = sum(1 for a in appointments if str(getattr(a,'estado','') or '').upper()
+                    not in {'CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ'})
+    return {'ok': True, 'date': today.isoformat(), 'consultations': consultations,
+            'exam_reviews': reviews, 'scheduled_today': scheduled+len(external),
+            'source': 'local_sqlite', 'no_cloud_queries': True}
+
+
+class ReceptionWaitlist4816In(core.BaseModel):
+    patient_id: int
+    desired_date: str = ''
+    desired_time: str = ''
+    note: str = ''
+
+
+@app.get('/api/ops/waitlist')
+def reception_4816_waitlist_list(
+    date_filter: str = '', time_filter: str = '', include_closed: bool = False,
+    user=core.Depends(core.current_user),
+):
+    desired_date, desired_time = _waitlist_4816_date_time(date_filter, time_filter)
+    filters = [] if include_closed else ["status='OPEN'"]
+    params = {}
+    if desired_date:
+        filters.append("(desired_date='' OR desired_date=:desired_date)")
+        params['desired_date'] = desired_date
+    if desired_time:
+        filters.append("(desired_time='' OR desired_time=:desired_time)")
+        params['desired_time'] = desired_time
+    where = ' WHERE ' + ' AND '.join(filters) if filters else ''
+    with core.LocalSessionLocal() as db:
+        _waitlist_4816_init(db)
+        raw = db.execute(core.text(
+            "SELECT id,patient_id,desired_date,desired_time,note,status,created_at "
+            "FROM reception_waitlist_4816" + where + " ORDER BY id DESC LIMIT 80"
+        ), params).mappings().all()
+        patient_ids = sorted({int(r['patient_id']) for r in raw})
+        people = {}
+        if patient_ids:
+            people = {int(p.id): str(p.nombre or '') for p in db.scalars(
+                core.select(core.Patient).where(core.Patient.id.in_(patient_ids))
+            )}
+        items = [dict(r) | {'patient': people.get(int(r['patient_id']), 'Paciente no encontrado')}
+                 for r in raw]
+    return {'ok': True, 'items': items, 'count': len(items),
+            'source': 'local_sqlite', 'no_messages_sent': True}
+
+
+@app.post('/api/ops/waitlist')
+def reception_4816_waitlist_add(
+    data: ReceptionWaitlist4816In, user=core.Depends(core.current_user),
+):
+    from datetime import date
+    desired_date, desired_time = _waitlist_4816_date_time(data.desired_date, data.desired_time)
+    if desired_date and date.fromisoformat(desired_date) < date.today():
+        raise core.HTTPException(400, 'No registres una fecha ya vencida.')
+    note = ' '.join(str(data.note or '').split())[:220]
+    patient_id = int(data.patient_id)
+    if patient_id <= 0:
+        raise core.HTTPException(400, 'Selecciona un paciente válido.')
+    with core.LocalSessionLocal() as db:
+        if not db.get(core.Patient, patient_id):
+            raise core.HTTPException(404, 'Paciente no encontrado en Recepción.')
+        # Un paciente recién creado offline debe sincronizar su ID antes.
+        in_queue = db.scalar(core.select(core.OfflineQueue.id).where(
+            core.OfflineQueue.entity == 'patient',
+            core.OfflineQueue.local_entity_id == patient_id
+        ).limit(1))
+        if in_queue is not None:
+            raise core.HTTPException(409, 'Espera a sincronizar este paciente antes de agregarlo.')
+        _waitlist_4816_init(db)
+        found = db.execute(core.text(
+            "SELECT id FROM reception_waitlist_4816 WHERE patient_id=:pid "
+            "AND desired_date=:day AND desired_time=:hour AND status='OPEN' LIMIT 1"
+        ), {'pid': patient_id, 'day': desired_date, 'hour': desired_time}).scalar()
+        if found is not None:
+            return {'ok': True, 'id': int(found), 'already_exists': True}
+        row_id = db.execute(core.text(
+            "INSERT INTO reception_waitlist_4816(patient_id,desired_date,desired_time,note) "
+            "VALUES(:pid,:day,:hour,:note) RETURNING id"
+        ), {'pid':patient_id,'day':desired_date,'hour':desired_time,'note':note}).scalar_one()
+        db.commit()
+    return {'ok': True, 'id': int(row_id), 'already_exists': False, 'no_messages_sent': True}
+
+
+@app.post('/api/ops/waitlist/{waitlist_id}/close')
+def reception_4816_waitlist_close(waitlist_id: int, user=core.Depends(core.current_user)):
+    with core.LocalSessionLocal() as db:
+        _waitlist_4816_init(db)
+        changed = db.execute(core.text(
+            "UPDATE reception_waitlist_4816 SET status='CLOSED',updated_at=datetime('now') "
+            "WHERE id=:id AND status='OPEN'"
+        ), {'id':int(waitlist_id)})
+        db.commit()
+    return {'ok': True, 'updated': int(changed.rowcount or 0),
+            'history_kept': True, 'no_messages_sent': True}
+
+
 @app.get('/api/v4501/health')
 def v4501_health(user=core.Depends(core.current_user)):
     return {'ok': PATCH_BOOT_OK, 'version': APP_VERSION, 'error': PATCH_BOOT_ERROR, 'stable_runtime_chain': True, 'experimental_runtime_consolidation': False, 'redundant_js_blocks_removed': REMOVED_REDUNDANT_JS_BLOCKS, 'redundant_timeouts_removed': REMOVED_REDUNDANT_TIMEOUTS, 'new_mutation_observers': 0, 'persistent_timers_added': 0, 'maintenance_tab': True, 'printer_test': True, 'safe_cleanup': True, 'database_changes': False, 'neon_writes_added': False, 'receipt_layout_version': '4.4.69', 'payment_proof_layout_version': '4.4.88', 'billing_form_layout_version': '4.4.91'}

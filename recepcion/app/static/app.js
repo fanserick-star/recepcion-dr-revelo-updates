@@ -494,7 +494,7 @@ function show(id,configTab=null){
   closeGlobalSearchResults();
   if(id==='inicio')loadDashboard();
   if(id==='pacientes')resetPatientsView();
-  if(id==='agenda')loadAgenda();
+  if(id==='agenda'){loadAgenda();mountAgendaWaitlistShortcut()}
   if(id==='facturacion')loadBilling();
   if(id==='reportes')loadReport();
   if(id==='whatsappRespuestas')loadWhatsappResponses('review',true);
@@ -548,6 +548,7 @@ function loadDashboard(){
   // v3.9: Inicio deja de usar un dashboard grande. Solo conserva pendientes operativos.
   renderHomePendingStrip();
   mountSmartAlertsShortcut();
+  loadHomeDaySummary();
 }
 // 4.8.14: el Centro de alertas SOLO consulta Neon por iniciativa del usuario.
 // No hay intervalos, observadores ni notificaciones que envíen WhatsApp.
@@ -634,6 +635,114 @@ async function openClinicalIntegrityReview(){
       '<div class="actions"><button type="button" onclick="closeModal();openSmartAlerts()">← Alertas</button><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
   }catch(err){alert('No se pudieron revisar las fichas: '+String(err.message||err))}
   finally{if(btn){btn.disabled=false;btn.textContent=previous}}
+}
+
+// 4.8.16: diario y lista de espera locales, sin nuevos sondeos de Neon.
+let homeDaySummaryCache=null,homeDaySummaryAt=0,waitlistSelectedPatient=null;
+function mountAgendaWaitlistShortcut(){
+  const toolbar=$('#agendaWhatsappToolbar');
+  if(!toolbar||$('#agendaWaitlistShortcut'))return;
+  const btn=document.createElement('button');btn.id='agendaWaitlistShortcut';
+  btn.type='button';btn.textContent='📋 Lista de espera';btn.className='agenda-wa-refresh';
+  btn.title='Pacientes interesados en adelantar cita; contacto siempre manual.';
+  btn.addEventListener('click',openWaitlistBoard);
+  toolbar.appendChild(btn);
+}
+async function loadHomeDaySummary(force=false){
+  let host=$('#homeDaySummary4816');
+  const anchor=$('#homeSmartAlertsButton')||$('#homePendingStrip');
+  if(!anchor)return;
+  if(!host){host=document.createElement('div');host.id='homeDaySummary4816';anchor.after(host)}
+  if(!force&&homeDaySummaryCache&&Date.now()-homeDaySummaryAt<60000){
+    renderHomeDaySummary(homeDaySummaryCache);return;
+  }
+  try{
+    const d=await api('/api/ops/today');
+    if(!d?.ok)return;
+    homeDaySummaryCache=d;homeDaySummaryAt=Date.now();renderHomeDaySummary(d);
+  }catch{host.textContent='El resumen local no está disponible.'}
+}
+function renderHomeDaySummary(data={}){
+  const host=$('#homeDaySummary4816');if(!host)return;
+  host.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:8px 0;border:1px solid #e2e9f0;border-radius:12px;background:#fbfdff;padding:10px 13px">'+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;color:#37536e;font-size:12px">'+
+    '<strong>Hoy '+esc(fmtDate(data.date||''))+'</strong>'+
+    '<span>Consultas: <b>'+Number(data.consultations||0)+'</b></span>'+
+    '<span>Revisiones: <b>'+Number(data.exam_reviews||0)+'</b></span>'+
+    '<span>Citas para hoy: <b>'+Number(data.scheduled_today||0)+'</b></span></div>'+
+    '<button type="button" onclick="openWaitlistBoard()" style="min-height:32px">📋 Lista de espera</button></div>';
+}
+function waitlistRowHtml(item){
+  const id=Number(item.id)||0,pid=Number(item.patient_id)||0;
+  const wanted=String(item.desired_date||'').trim()||'Cualquier fecha';
+  const time=String(item.desired_time||'').trim()||'Cualquier horario';
+  return '<article style="border:1px solid #e0e9f2;border-radius:11px;padding:10px;margin-top:8px;display:grid;gap:5px">'+
+    '<b>'+esc(item.patient||'Paciente')+'</b><small style="color:#728298">'+esc(wanted)+' · '+esc(time)+
+    (item.note?' · '+esc(item.note):'')+'</small><div class="actions">'+
+    '<button type="button" onclick="closeModal();openPatient('+pid+',\'patients\')">Abrir ficha</button>'+
+    '<button type="button" onclick="markWaitlistServed('+id+')">Marcar resuelto</button></div></article>';
+}
+async function openWaitlistBoard(){
+  waitlistSelectedPatient=null;
+  openModal('<div style="max-width:760px;display:grid;gap:11px"><h2>📋 Lista de espera de citas</h2>'+
+    '<p class="muted">Registra pacientes que deseen adelantar una cita. Esta lista es local y nunca envía WhatsApp automáticamente.</p>'+
+    '<div class="patient-search-bar"><input id="waitlistPatientQuery" placeholder="Buscar paciente por nombre o cédula"><button type="button" onclick="lookupWaitlistPatient()">Buscar paciente</button></div>'+
+    '<div id="waitlistSearchResults"></div><div id="waitlistPickedPatient" style="font-weight:850;color:#1d5a87">Selecciona un paciente.</div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap"><label>Fecha deseada (opcional)<input type="date" id="waitlistPreferredDate"></label>'+
+    '<label>Hora deseada (opcional)<input type="time" id="waitlistPreferredTime"></label></div>'+
+    '<label>Observación<input id="waitlistNote" placeholder="Ej. Prefiere si se libera una cita temprano" maxlength="220"></label>'+
+    '<div class="actions"><button type="button" class="primary" onclick="addWaitlistEntry()">＋ Agregar a espera</button></div>'+
+    '<hr><h3>Pacientes en espera</h3><div style="display:flex;align-items:end;gap:8px;flex-wrap:wrap">'+
+    '<label>Filtrar fecha<input type="date" id="waitlistFilterDate"></label><label>Hora<input type="time" id="waitlistFilterTime"></label>'+
+    '<button type="button" onclick="refreshWaitlistRows()">Buscar candidatos</button></div>'+
+    '<div id="waitlistRows" style="max-height:340px;overflow:auto">Cargando…</div>'+
+    '<div class="actions"><button type="button" onclick="closeModal()">Cerrar</button></div></div>');
+  await refreshWaitlistRows();
+}
+async function lookupWaitlistPatient(){
+  const q=String($('#waitlistPatientQuery')?.value||'').trim();
+  if(q.length<2){alert('Escribe al menos dos caracteres.');return}
+  try{
+    const rows=await api('/api/patients?q='+encodeURIComponent(q)+'&limit=8');
+    const box=$('#waitlistSearchResults');
+    if(!box)return;
+    const choices=(Array.isArray(rows)?rows:[]).filter(p=>Number(p.id)>0&&!p.historical);
+    box.innerHTML=choices.length?choices.map(p=>
+      '<button type="button" onclick="selectWaitlistPatient('+Number(p.id)+',this)" data-wait-name="'+esc(p.nombre||'')+
+      '" style="margin:4px;padding:7px 11px">'+esc(p.nombre||'Paciente')+'</button>').join(''):
+      '<small>No encontré una ficha activa. Registra primero al paciente.</small>';
+  }catch(e){alert(e.message)}
+}
+function selectWaitlistPatient(id,button){
+  waitlistSelectedPatient=Number(id)||null;
+  const title=String(button?.getAttribute('data-wait-name')||'');
+  const picked=$('#waitlistPickedPatient');if(picked)picked.textContent=title?'✓ '+title:'Paciente seleccionado';
+}
+async function addWaitlistEntry(){
+  if(!waitlistSelectedPatient){alert('Primero selecciona una ficha de paciente.');return}
+  try{
+    await singleFlightMutation('waitlist:add',()=>api('/api/ops/waitlist',{
+      method:'POST',body:JSON.stringify({patient_id:waitlistSelectedPatient,
+        desired_date:$('#waitlistPreferredDate')?.value||'',desired_time:$('#waitlistPreferredTime')?.value||'',
+        note:$('#waitlistNote')?.value||''})
+    }),'Guardando…');
+    const note=$('#waitlistNote');if(note)note.value='';
+    await refreshWaitlistRows();
+  }catch(e){alert(e.message)}
+}
+async function refreshWaitlistRows(){
+  const box=$('#waitlistRows');if(!box)return;
+  const day=$('#waitlistFilterDate')?.value||'',time=$('#waitlistFilterTime')?.value||'';
+  try{
+    const res=await api('/api/ops/waitlist?date_filter='+encodeURIComponent(day)+'&time_filter='+encodeURIComponent(time));
+    box.innerHTML=Array.isArray(res.items)&&res.items.length
+      ?res.items.map(waitlistRowHtml).join(''):'<p class="muted">No hay pacientes en espera para este filtro.</p>';
+  }catch(e){box.textContent='No se pudo cargar la lista: '+e.message}
+}
+async function markWaitlistServed(id){
+  if(!confirm('¿Marcar esta solicitud como resuelta? Se conserva en el historial local.'))return;
+  try{await api('/api/ops/waitlist/'+Number(id)+'/close',{method:'POST',body:'{}'});await refreshWaitlistRows()}
+  catch(e){alert(e.message)}
 }
 
 async function goHomeToday(){

@@ -6,7 +6,7 @@ status = (ROOT/"recepcion/app/reception_system_status.py").read_text(encoding="u
 front = (ROOT/"recepcion/app/static/app.js").read_text(encoding="utf-8")
 ast.parse(status)
 head = status.index("def reception_4815_integrity(")
-tail = status.index("@app.get('/api/v4501/health')",head)
+tail = status.index("# 4.8.16",head) if "# 4.8.16" in status[head:] else status.index("@app.get('/api/v4501/health')",head)
 function = status[head:tail]
 assert "@app.get('/api/ops/clinical-integrity')" in status
 assert "core.LocalSessionLocal()" in function
