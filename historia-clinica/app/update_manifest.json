@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.5",
-  "app_version": "1.4.5",
-  "runtime_version": "1.4.5",
+  "version": "1.4.6",
+  "app_version": "1.4.6",
+  "runtime_version": "1.4.6",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia 1.4.5: corrige la lectura de las fechas de vigencia del certificado X.509 para que el QR incorpore emisión y expiración reales. La página pública también acepta QR generados por 1.4.4 sin fechas y muestra sus datos disponibles sin invalidar el PDF. Se corrige la validación JavaScript del timestamp.",
-    "previous_version": "1.4.4",
+    "purpose": "Historia 1.4.6: corrige búsqueda y vinculación de fichas por uno o dos apellidos en cualquier orden. El buscador prioriza todas las palabras escritas antes de candidatos parciales, no sustituye el nombre por una cédula en turnos legados y consulta también el nombre real de fichas antiguas con name_search vacío/desactualizado. No se crean fichas, no se modifican atenciones ni historias y se conserva el bloqueo de cédulas diferentes.",
+    "previous_version": "1.4.5",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -175,6 +175,17 @@
     "electronic_signature_certificate_validity_read_fixed": true,
     "electronic_signature_qr_requires_certificate_dates_in_ci": true,
     "electronic_signature_public_page_legacy_144_compatible": true,
-    "electronic_signature_public_page_timestamp_validation_fixed": true
+    "electronic_signature_public_page_timestamp_validation_fixed": true,
+    "history_link_surname_multiword_priority": true,
+    "history_link_manual_name_not_mixed_with_queue_name": true,
+    "history_link_numeric_display_name_ignored": true,
+    "history_link_initial_prefers_verified_name": true,
+    "history_link_exact_match_before_fuzzy": true,
+    "history_link_merged_patients_excluded": true,
+    "history_link_regression_test": true,
+    "history_general_name_fallback_search": true,
+    "history_link_manual_selection_only": true,
+    "history_link_no_patient_writes": true,
+    "history_link_no_queue_writes": true
   }
 }
