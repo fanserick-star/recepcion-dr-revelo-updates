@@ -9,6 +9,7 @@ on:
       - "tools/build_reception_app_channel.py"
       - "tools/test_reception_canonical_source.py"
       - "tools/test_reception_history_identity_search.py"
+      - "tools/test_reception_exam_review_turn.py"
       - "tools/test_reception_history_tv_contract.py"
       - "tools/validate_reception_runtime_layout.py"
       - "updates/**"
@@ -48,6 +49,7 @@ jobs:
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
+          python tools/test_reception_exam_review_turn.py
           python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
           python - <<'PY'
