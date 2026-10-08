@@ -31,6 +31,8 @@ class ClinicTVTurnService(TVTurnService):
         self.tv_voice_reported_epoch = 0.0
         self.voice_test_id = 0
         self.voice_test_turn = 6
+        self.live["exam_review"] = False
+        self.live["next_waiting_exam_review"] = False
 
     @staticmethod
     def _valid_waiting(payload: dict) -> list[dict]:
@@ -77,6 +79,7 @@ class ClinicTVTurnService(TVTurnService):
                 return
             self.live["mode"] = "calling"
             self.live["turn"] = next_turn
+            self.live["exam_review"] = bool(nxt.get("exam_review"))
             self.live["current_queue_id"] = ""
             self.live["called_queue_id"] = next_id
             self.live["call_before_attending_id"] = ""
@@ -118,6 +121,16 @@ class ClinicTVTurnService(TVTurnService):
             self._clear_finish_pending()
 
         super().apply_history(payload)
+        # Only queue_id/turn kind crosses to the TV; never names or cedulas.
+        kinds = {
+            str(item.get("queue_id") or ""): bool(item.get("exam_review"))
+            for item in [*(payload.get("waiting") or []), *(([current] if current else []))]
+            if isinstance(item, dict)
+        }
+        with self.lock:
+            active_id = str(self.live.get("called_queue_id") or self.live.get("current_queue_id") or "")
+            self.live["exam_review"] = bool(kinds.get(active_id, False)) if active_id else False
+            self.live["next_waiting_exam_review"] = bool(waiting and waiting[0].get("exam_review"))
 
         if direct_open_without_call:
             with self.lock:
