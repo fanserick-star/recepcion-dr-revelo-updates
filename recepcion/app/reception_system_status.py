@@ -361,6 +361,98 @@ try:
 except Exception as exc:
     PATCH_BOOT_ERROR = f'{type(exc).__name__}: {exc}'
 
+
+# 4.8.14 — Centro de alertas bajo demanda, sin sondeo periódico de Neon.
+# No envía mensajes, no toca las historias y nunca cambia las facturas.
+@app.get('/api/ops/alerts')
+def reception_4814_alerts(user=core.Depends(core.current_user)):
+    pending_sync = 0
+    try:
+        pending_sync = int(core.queue_count())
+    except Exception:
+        pass
+    backup = _backup_status()
+    result = {
+        'ok': True, 'cloud_checked': False, 'cloud_error': '',
+        'pending_sync': pending_sync, 'backup_ok': bool(backup.get('ok')),
+        'missing_confirmations': [], 'delivery_errors': [],
+        'missing_count': 0, 'delivery_error_count': 0,
+        'alarm_hint': {},
+        'no_message_sent': True, 'automatic_neon_polling': False,
+    }
+    lock = getattr(core, '_wa_alarm_hint_lock', None)
+    if lock is not None:
+        with lock:
+            result['alarm_hint'] = dict(getattr(core, '_wa_alarm_hint_diag', {}) or {})
+    if not core.cloud_configured() or not core.CloudSessionLocal or core.FORCE_OFFLINE:
+        result['cloud_error'] = 'Neon no disponible. Se muestran solo alertas locales.'
+        return result
+    try:
+        with core.CloudSessionLocal() as db:
+            # New local Reception appointments eligible for immediate confirmation
+            # with NO cloud event. Never assume Meta has sent a message.
+            # The 12h window matches the Worker's expiration policy: no replay
+            # of old registrations and no accidental backfill on this GET.
+            missing = db.execute(core.text("""
+                SELECT a.id, a.patient_id, p.nombre, a.fecha::text AS fecha,
+                       a.hora, a.created_at
+                FROM public.appointments a
+                JOIN public.patients p ON p.id = a.patient_id
+                WHERE a.created_at AT TIME ZONE 'UTC' >= now() - interval '12 hours'
+                  AND a.created_at AT TIME ZONE 'UTC' <= now() - interval '3 minutes'
+                  AND a.fecha >= (now() AT TIME ZONE 'America/Guayaquil')::date
+                  AND upper(coalesce(a.estado,'')) NOT IN
+                      ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
+                  AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+                  AND ((a.fecha + a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+                  AND ((a.fecha + a.hora::time) AT TIME ZONE 'America/Guayaquil')
+                      - (a.created_at AT TIME ZONE 'UTC') >= interval '24 hours'
+                  AND ((a.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'America/Guayaquil')::date
+                      < (a.fecha - 1)
+                  AND length(regexp_replace(coalesce(p.celular,''),'[^0-9]','','g'))
+                      BETWEEN 10 AND 15
+                  AND NOT EXISTS (
+                      SELECT 1 FROM whatsapp_cloud.events e
+                      WHERE e.source_type = 'appointment' AND e.source_id = a.id
+                        AND e.template_name = 'cita_agendada'
+                        AND e.appointment_date = a.fecha
+                        AND left(e.appointment_time::text,5) = left(a.hora,5)
+                  )
+                ORDER BY a.created_at DESC LIMIT 30
+            """)).mappings().all()
+            delivery = db.execute(core.text("""
+                SELECT e.patient_name,e.template_name,e.status,
+                       e.appointment_date::text AS fecha,
+                       e.appointment_time AS hora,e.error_code
+                FROM whatsapp_cloud.events e
+                WHERE e.updated_at >= now() - interval '24 hours'
+                  AND (
+                      e.status IN ('ERROR','FAILED')
+                      OR (e.status='SENDING' AND e.updated_at < now()-interval '10 minutes')
+                  )
+                ORDER BY e.updated_at DESC LIMIT 30
+            """)).mappings().all()
+        result['cloud_checked'] = True
+        result['missing_count'] = len(missing)
+        result['delivery_error_count'] = len(delivery)
+        result['missing_confirmations'] = [{
+            'appointment_id': int(r['id']), 'patient_id': int(r['patient_id']),
+            'patient': str(r['nombre'] or ''), 'date': str(r['fecha'] or '')[:10],
+            'time': str(r['hora'] or '')[:5],
+            'problem': 'Sin evento de cita agendada en WhatsApp Cloud',
+        } for r in missing]
+        result['delivery_errors'] = [{
+            'patient': str(r['patient_name'] or ''),
+            'template': str(r['template_name'] or ''),
+            'date': str(r['fecha'] or '')[:10], 'time': str(r['hora'] or '')[:5],
+            'status': str(r['status'] or ''), 'error_code': str(r['error_code'] or '')[:70],
+        } for r in delivery]
+    except Exception as exc:
+        # Never expose DB credentials or raw exception details to the UI.
+        result['cloud_error'] = type(exc).__name__ + ': no se pudo consultar WhatsApp Cloud.'
+    return result
+
+
 @app.get('/api/v4501/health')
 def v4501_health(user=core.Depends(core.current_user)):
     return {'ok': PATCH_BOOT_OK, 'version': APP_VERSION, 'error': PATCH_BOOT_ERROR, 'stable_runtime_chain': True, 'experimental_runtime_consolidation': False, 'redundant_js_blocks_removed': REMOVED_REDUNDANT_JS_BLOCKS, 'redundant_timeouts_removed': REMOVED_REDUNDANT_TIMEOUTS, 'new_mutation_observers': 0, 'persistent_timers_added': 0, 'maintenance_tab': True, 'printer_test': True, 'safe_cleanup': True, 'database_changes': False, 'neon_writes_added': False, 'receipt_layout_version': '4.4.69', 'payment_proof_layout_version': '4.4.88', 'billing_form_layout_version': '4.4.91'}
