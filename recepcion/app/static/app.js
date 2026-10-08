@@ -1468,7 +1468,7 @@ async function attentionFor(id,draft=null){
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
   const cancelAction=Number(draft?.stagedId||0)?`attendConfirmafyStaged(${Number(draft.stagedId)},'${esc(fecha)}')`:`openPatient(${id},currentPatientSource)`;
-  openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="exam-review-turn-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Dar turno · Revisión de exámenes (gratis)</button><small>Sin cobro, sin factura y sin recibo. Se envía a la espera del doctor y a los turnos de TV.</small></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
+  openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="exam-review-turn-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Dar turno · Revisión de exámenes (gratis)</button><small>Obligatorio: ficha de Historia Clínica vinculada y confirmada. Sin cobro ni factura; se envía al doctor y a la TV.</small></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
   renderAttentionStatus();
   renderSelectedServiceValues();
 }
@@ -1571,11 +1571,30 @@ async function saveExamReviewTurn(id){
   const fecha=$('#aFecha')?.value||toISO(new Date());
   if(fecha!==toISO(new Date())){alert('El turno gratuito de revisión se entrega solo para hoy.');return}
   const name=attentionContext?.patient?.nombre||'este paciente';
-  if(!confirm('¿Dar turno gratuito de revisión de exámenes a '+name+'?\n\nNo se cobrará ni se creará factura o recibo.'))return;
   const btn=$('.exam-review-turn-btn');
   attentionSaveInFlight=true;
-  if(btn){btn.disabled=true;btn.textContent='Registrando turno…'}
+  if(btn){btn.disabled=true;btn.textContent='Verificando ficha de Historia…'}
   try{
+    // Review exams always need a VERIFIED Historia chart before any visit is
+    // saved. The backend repeats this check to cover direct API calls.
+    const status=await api('/api/historia-identity/status/'+Number(id));
+    if(status?.ok===false||status?.reachable===false){
+      throw Error('No se puede verificar la ficha en Historia Clínica. Revisa la conexión con Neon. No se creó el turno.');
+    }
+    const flag=String(status?.clinical_patient?.verified??'').toLowerCase();
+    if(!status?.linked || !['true','1'].includes(flag)){
+      if(typeof window.openExamReviewHistoryLink!=='function'){
+        throw Error('El buscador de fichas no está disponible. Cierra y abre Recepción para actualizar.');
+      }
+      alert('Para revisión de exámenes debes vincular primero la ficha de Historia Clínica. Busca al paciente y confirma la ficha correcta.');
+      await window.openExamReviewHistoryLink(id,name);
+      return;
+    }
+    const clinicalName=String(status.clinical_patient?.name||'').trim();
+    if(!confirm('Revisión de exámenes · SIN COBRO\n\nPaciente: '+name
+       +(clinicalName?'\nFicha clínica vinculada: '+clinicalName:'')
+       +'\n\n¿Generar el turno y su ticket?'))return;
+    if(btn)btn.textContent='Registrando turno…';
     const result=await api('/api/visits/exam-review',{method:'POST',body:JSON.stringify({
       patient_id:id,fecha,observacion:$('#aObs')?.value||null
     })});
@@ -1592,16 +1611,20 @@ async function saveExamReviewTurn(id){
     closeModal();
     await loadWeek(fecha,fecha);
     show('inicio');
-    const turn=result?.turn?'N.º '+String(result.turn):'registrado';
     const warning=!result?.handoff_queued
       ?'No se pudo guardar el envío a Historia. Revisa su conexión.'
       :(!result?.historia_online?'Historia desconectada: el turno queda pendiente de entrega.':'');
     if(warning)alert(warning);
     const reviewId=Number(result?.visit?.id||0);
     if(reviewId)await showExamReviewTicket(reviewId,true);
-    else alert('Turno '+turn+' registrado, pero no se devolvió el identificador para imprimir.');
-  }catch(e){alert(e.message)}
-  finally{
+    else alert('Turno registrado, pero no se devolvió el identificador para imprimir.');
+  }catch(e){
+    const message=String(e?.message||e||'Error al registrar el turno');
+    if(message.includes('primero vincula')&&typeof window.openExamReviewHistoryLink==='function'){
+      alert(message);
+      await window.openExamReviewHistoryLink(id,name);
+    }else alert(message);
+  }finally{
     attentionSaveInFlight=false;
     if(btn?.isConnected){btn.disabled=false;btn.textContent='🎫 Dar turno · Revisión de exámenes (gratis)'}
   }
