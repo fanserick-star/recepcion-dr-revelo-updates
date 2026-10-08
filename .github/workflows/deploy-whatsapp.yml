@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'cloudflare/whatsapp_worker.js'
+      - 'cloudflare/whatsapp_alarm_time.mjs'
       - 'cloudflare/wrangler.whatsapp.jsonc'
       - '.github/workflows/deploy-whatsapp.yml'
   workflow_dispatch:
@@ -47,7 +48,9 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.25"',
+            'worker_version: "2.6.26"',
+            'alarm_mode: "durable_object_event_driven"',
+            'alarm_quiet_hours_ecuador: "20:00-08:00"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
@@ -86,6 +89,8 @@ jobs:
 
           cp cloudflare/whatsapp_worker.js /tmp/whatsapp_worker.mjs
           node --check /tmp/whatsapp_worker.mjs
+          node --check cloudflare/whatsapp_alarm_time.mjs
+          node tools/test_whatsapp_event_alarms.mjs
 
       - name: Dry-run canónico
         shell: bash
@@ -94,13 +99,13 @@ jobs:
           npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars --dry-run --outdir /tmp/cf-dry
           test -n "$(find /tmp/cf-dry -type f -print -quit)"
 
-      - name: Desplegar Worker y cron canónicos
+      - name: Desplegar Worker y alarmas canónicas
         shell: bash
         run: |
           set -euo pipefail
           npx --yes wrangler@4 deploy --config cloudflare/wrangler.whatsapp.jsonc --keep-vars
 
-      - name: Verificar cron 24/7 cada 30 minutos
+      - name: Verificar que NO quedan cron triggers
         shell: bash
         run: |
           set -euo pipefail
@@ -113,8 +118,8 @@ jobs:
           d=json.load(open('/tmp/schedules.json','r',encoding='utf-8'))
           assert d.get('success') is True, d
           crons=sorted(x.get('cron') for x in d.get('result',{}).get('schedules',[]))
-          assert crons == ['*/30 * * * *'], crons
-          print('WHATSAPP_CRON_CANONICAL_OK', crons)
+          assert crons == [], crons
+          print('WHATSAPP_NO_CRON_TRIGGERS_OK', crons)
           PY
 
       - name: Verificar producción
@@ -128,7 +133,9 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.25', d
+          assert d.get('worker_version') == '2.6.26', d
+          assert d.get('alarm_mode') == 'durable_object_event_driven', d
+          assert d.get('alarm_quiet_hours_ecuador') == '20:00-08:00', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
           assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
           assert d.get('scheduler_booking_grace') == '12h_v1', d
@@ -156,6 +163,30 @@ jobs:
           done
           test "$OK" = "1"
           cat /tmp/health.json
+
+      - name: Comprobar alarmas inicializadas sin enviar WhatsApp
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 15 "$WORKER_URL/alarms/status" -o /tmp/alarms.json; then
+              if python - <<'PY'
+          import json
+          d=json.load(open('/tmp/alarms.json',encoding='utf-8'))
+          assert d.get('ok') is True, d
+          assert d.get('mode') == 'durable_object_event_driven', d
+          assert d.get('initialized') is True, d
+          print('WHATSAPP_ALARMS_INITIALIZED_WITHOUT_SENDING_OK')
+          PY
+              then break; fi
+            fi
+            sleep 2
+          done
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/alarms.json',encoding='utf-8'))
+          assert d.get('initialized') is True, d
+          PY
 
       - name: Probar disponibilidad pública
         shell: bash
