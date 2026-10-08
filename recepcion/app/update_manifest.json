@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.1",
-  "app_version": "4.8.1",
-  "runtime_version": "4.8.1",
+  "version": "4.8.2",
+  "app_version": "4.8.2",
+  "runtime_version": "4.8.2",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.1: corrige el modal de vinculación de fichas con Historia para mostrar el nombre real del paciente en vez de la cédula y buscar correctamente por uno o dos apellidos en cualquier orden. Primero recupera los nombres que coinciden con todas las palabras introducidas y solo usa búsquedas amplias si no los encuentra. No cambia la cola LAN, turnos, facturas, atenciones ni historias clínicas, y mantiene la confirmación manual.",
-    "previous_version": "4.8.0",
+    "purpose": "Recepción 4.8.2: agrega botón independiente para dar turno gratuito de REVISIÓN DE EXÁMENES. Se registra una atención clínica de valor $0, no se genera BillingRecord ni factura pendiente, y la cola LAN/Historia y TV reutilizan la numeración existente. Se evita un segundo turno activo el mismo día para el mismo paciente. El guardado es SQLite-first con sincronización futura a Neon que también conserva la exclusión de facturación. No se modifica la emisión de facturas, las consultas pagadas ni los procedimientos.",
+    "previous_version": "4.8.1",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -418,7 +418,22 @@
     "reception_history_link_no_recency_truncation": true,
     "reception_history_link_clinical_identity_manually_confirmed": true,
     "reception_history_link_no_clinical_writes": true,
-    "reception_history_link_regression_tests": true
+    "reception_history_link_regression_tests": true,
+    "exam_review_no_charge_turn": true,
+    "exam_review_no_billing_record": true,
+    "exam_review_cloud_sync_preserves_no_billing": true,
+    "exam_review_durable_source_row_marker": -480210,
+    "exam_review_existing_tv_queue": true,
+    "exam_review_no_additional_turn_service": true,
+    "exam_review_no_pending_invoice": true,
+    "exam_review_no_consultation_receipt": true,
+    "exam_review_separate_from_payment_and_bendo": true,
+    "exam_review_prevent_same_day_duplicate_turn": true,
+    "exam_review_lan_disconnected_warning": true,
+    "exam_review_local_first": true,
+    "exam_review_regression_tests": true,
+    "invoice_records_preserved": true,
+    "clinical_records_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
