@@ -31,6 +31,7 @@ jobs:
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
           python tools/test_reception_exam_review_turn.py
+          python tools/test_reception_only_link_authority.py
           node --check recepcion/app/static/app.js
           node tools/test_tv_display_javascript.mjs
 
