@@ -170,7 +170,7 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.10 — despierta WhatsApp Cloud por eventos de agenda; Durable Objects gestionan alarmas persistentes de recordatorios sin cron de vigilancia; protecciones nocturnas Ecuador 20:00-08:00. La cita se confirma en Neon antes de avisar y el aviso no envía mensajes por sí mismo. No tocar facturas/turnos/Historias/TV. Preservar cola offline y trazabilidad en whatsapp_cloud.events.",
+    "purpose": "Recepción 4.8.10 — despierta WhatsApp Cloud al registrar cambios de agenda y usa Durable Objects con alarmas persistentes de recordatorios. Sin cron periódico. Confirmaciones de la agenda web y Autoagenda conservan el procesamiento 24/7; NO se debe activar ni desplegar a horas nocturnas durante la migración. La notificación de Recepción no envía mensajes por sí misma y solo sigue a persistencia Neon. Se preservan cola offline, AZUR, facturas, Historia Clínica, TV, turnos y fichas.",
     "previous_version": "4.8.9",
     "production_status": "stable",
     "consolidated_runtime": true,
@@ -513,11 +513,11 @@
     "whatsapp_reception_event_signature": "neon_role_password_hmac_sha256_timestamp",
     "whatsapp_no_new_env_required": true,
     "whatsapp_local_offline_queue_preserved": true,
-    "whatsapp_automatic_quiet_hours_ecuador": "20:00-08:00",
     "whatsapp_cloud_booking_confirmation": "alarms_as_soon_as_allowed",
     "whatsapp_scheduled_reminders": "database_truth_alarm",
     "whatsapp_neon_no_polling": true,
-    "whatsapp_no_new_database_tables": true
+    "whatsapp_no_new_database_tables": true,
+    "whatsapp_alarm_preserves_24x7_messages": true
   },
   "channel": "launcher-v1-stable"
 }
