@@ -711,6 +711,92 @@ def reception_4816_waitlist_close(waitlist_id: int, user=core.Depends(core.curre
             'history_kept': True, 'no_messages_sent': True}
 
 
+
+# 4.8.17 — Verificación de copias SQLite en MODO SOLO LECTURA.
+# No inicia restauraciones ni sobrescribe los datos administrativos.
+def _verify_backup_file_4817(file_path, *, deep=False):
+    import sqlite3
+    path = Path(file_path)
+    outcome = {
+        'checked': False, 'valid': False, 'file_name': path.name,
+        'size_bytes': 0, 'test': 'integrity_check' if deep else 'quick_check',
+        'reason': '', 'mode': 'read_only',
+    }
+    try:
+        if not path.is_file() or path.is_symlink():
+            outcome['reason'] = 'La copia no existe o no es un archivo regular.'
+            return outcome
+        size = int(path.stat().st_size)
+        outcome['size_bytes'] = size
+        if not size:
+            outcome['reason'] = 'El archivo de respaldo está vacío.'
+            return outcome
+        if size > 250 * 1024 * 1024:
+            outcome['reason'] = 'Copia demasiado grande para revisarla automáticamente en esta PC.'
+            return outcome
+        # URI mode=ro prevents SQLite creating or changing the backup file.
+        # query_only=ON is a second independent protection against writes.
+        uri = path.resolve().as_uri() + '?mode=ro'
+        con = sqlite3.connect(uri, uri=True, timeout=5)
+        try:
+            con.execute('PRAGMA query_only=ON')
+            test_name = 'integrity_check' if deep else 'quick_check'
+            lines = [str(row[0]) for row in con.execute('PRAGMA ' + test_name).fetchmany(12)]
+            outcome['checked'] = True
+            outcome['valid'] = lines == ['ok']
+            if not outcome['valid']:
+                outcome['reason'] = 'La comprobación SQLite detectó inconsistencias.'
+        finally:
+            con.close()
+    except (OSError, sqlite3.DatabaseError) as exc:
+        outcome['reason'] = 'No se pudo leer la copia: ' + type(exc).__name__
+    except Exception as exc:
+        outcome['reason'] = 'Comprobación no disponible: ' + type(exc).__name__
+    return outcome
+
+
+@app.get('/api/ops/backup-integrity')
+def reception_4817_backup_integrity(
+    deep: bool = False, user=core.Depends(core.current_user)
+):
+    backup_dir = Path(str(getattr(
+        core, 'BACKUP_DIR', Path(str(core.DATA_DIR)) / 'backups'
+    )))
+    try:
+        files = sorted(
+            backup_dir.glob('recepcion_backup_*.db'),
+            key=lambda p: p.stat().st_mtime, reverse=True,
+        )
+    except Exception:
+        files = []
+    if not files:
+        return {
+            'ok': False, 'backup_found': False, 'backup_valid': False,
+            'message': 'No encontré un respaldo de Recepción para comprobar.',
+            'mode': 'read_only', 'restored': False, 'no_cloud_queries': True,
+            'pending_sync': int(core.queue_count()),
+        }
+    latest = files[0]
+    integrity = _verify_backup_file_4817(latest, deep=bool(deep))
+    try:
+        age_hours = round(max(0.0, time.time()-latest.stat().st_mtime)/3600.0, 1)
+    except Exception:
+        age_hours = None
+    too_old = age_hours is not None and age_hours > 72
+    return {
+        'ok': integrity['valid'], 'backup_found': True, 'backup_valid': integrity['valid'],
+        'backup_checked': integrity['checked'], 'backup': integrity,
+        'backup_count': len(files), 'age_hours': age_hours,
+        'older_than_72h': bool(too_old),
+        'pending_sync': int(core.queue_count()),
+        'message': (
+            'La última copia superó la comprobación SQLite.'
+            if integrity['valid'] else integrity['reason']
+        ),
+        'mode': 'read_only', 'restored': False, 'no_cloud_queries': True,
+    }
+
+
 @app.get('/api/v4501/health')
 def v4501_health(user=core.Depends(core.current_user)):
     return {'ok': PATCH_BOOT_OK, 'version': APP_VERSION, 'error': PATCH_BOOT_ERROR, 'stable_runtime_chain': True, 'experimental_runtime_consolidation': False, 'redundant_js_blocks_removed': REMOVED_REDUNDANT_JS_BLOCKS, 'redundant_timeouts_removed': REMOVED_REDUNDANT_TIMEOUTS, 'new_mutation_observers': 0, 'persistent_timers_added': 0, 'maintenance_tab': True, 'printer_test': True, 'safe_cleanup': True, 'database_changes': False, 'neon_writes_added': False, 'receipt_layout_version': '4.4.69', 'payment_proof_layout_version': '4.4.88', 'billing_form_layout_version': '4.4.91'}
