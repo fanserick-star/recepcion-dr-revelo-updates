@@ -88,7 +88,9 @@ def _candidate_rows_name_first(queue_id: str, query: str = "", limit: int = 15) 
             return {"ok": False, "results": [], "error": "Turno no encontrado"}
 
         queue_name = _human_name(queue["display_name"])
-        queue_ident = helper._usable_identification(queue["identification"] or queue["display_name"])
+        queue_ident = helper._usable_identification(queue["identification"])
+        if not queue_ident and not _human_name(queue["display_name"]):
+            queue_ident = helper._usable_identification(queue["display_name"])
         initial = _queue_initial_name_first(queue_id)
         manual = str(query or "").strip()
         manual_name = _human_name(manual)
