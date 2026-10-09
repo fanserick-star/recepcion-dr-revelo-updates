@@ -5769,7 +5769,10 @@ WITH base AS (
   FROM base b
   WHERE $3::boolean
     AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
-    AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
+    AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'
+       -- Solo citas rápidas creadas tras el corte: NUNCA recuperar envíos antiguos.
+       OR (b.source_type='staged' AND coalesce(b.source_hash,'') LIKE 'pc:quick:%'
+           AND b.created_at >= TIMESTAMP '2026-10-10 00:00:00'))
     -- Autoagenda follows the same rule: send only the day-before
     -- confirmation if the initial booking is made too close to the visit.
     AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
@@ -6863,7 +6866,10 @@ WITH base AS (
  FROM base b
  WHERE $3::boolean
    AND coalesce(b.source_hash,'') NOT LIKE 'mobile:whatsapp-cloud-test:%'
-   AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%')
+   AND (b.source_type='appointment' OR coalesce(b.source_hash,'') LIKE 'mobile:%'
+       -- Solo citas rápidas creadas tras el corte: NUNCA recuperar envíos antiguos.
+       OR (b.source_type='staged' AND coalesce(b.source_hash,'') LIKE 'pc:quick:%'
+           AND b.created_at >= TIMESTAMP '2026-10-10 00:00:00'))
    -- Keep exactly the same eligibility as dueCandidates().
    AND ((b.fecha + b.hora::time) AT TIME ZONE 'America/Guayaquil')
          - (b.created_at AT TIME ZONE 'UTC') >= interval '24 hours'

@@ -43,6 +43,11 @@ for(const [label,sql] of [["sender",scheduler],["alarm",doAlarm]]){
   assert.ok(confirmation,label+": confirmation policy missing");
   assert.match(confirmation,/b\.fecha > \(now\(\) AT TIME ZONE 'America\/Guayaquil'\)::date/);
   assert.match(sql,/NOT LIKE 'mobile:whatsapp-cloud-test:%'/);
+  // Quick reception bookings are stored as staged, not public.appointments.
+  // The exact same cutover protects the sender and the Durable Object.
+  assert.ok(booking.includes("b.source_type='staged' AND coalesce(b.source_hash,'') LIKE 'pc:quick:%'"),label+": pc:quick missing");
+  assert.ok(booking.includes("b.created_at >= TIMESTAMP '2026-10-10 00:00:00'"),label+": cutover missing");
+  assert.ok(sql.includes("kind='cita_agendada' THEN interval '3 minutes'"),label+": 3-minute limit missing");
 }
 assert.match(worker,/ON CONFLICT\(event_key\)/,"Do not break idempotent event claims");
 assert.match(worker,/worker_version: "2\.6\.30"/);
@@ -63,4 +68,25 @@ for(const [name,created,appointment,wantBooking,wantConfirm] of cases){
  assert.equal(bookingAllowed(created,appointment),wantBooking,name+": cita_agendada");
  assert.equal(isDayBefore(created,appointment),wantConfirm,name+": confirmation day");
 }
-console.log("WHATSAPP_SINGLE_CONFIRMATION_POLICY_NO_SEND_OK 4 scenarios; sender=alarm matched");
+// Forward-only migration: Luis (9 Oct) must never receive a delayed
+// initial message. New, eligible quick bookings after 19:00 Ecuador may be sent.
+const startUtc=Date.parse('2026-10-10T00:00:00Z');
+const quickCases=[
+  ['Luis prior to rollout', '2026-10-09T22:16:47.233Z',false],
+  ['Another earlier booking', '2026-10-09T23:59:59.999Z',false],
+  ['New reception booking at cutover', '2026-10-10T00:00:00.000Z',true],
+  ['New reception booking later', '2026-10-10T00:10:00.000Z',true]
+];
+for(const [name,created,expected] of quickCases){
+  assert.equal(Date.parse(created)>=startUtc,expected,name);
+}
+const quickSourceAllowed=(type,hash,created)=>
+  type==='appointment' || String(hash).startsWith('mobile:') ||
+  (type==='staged' && String(hash).startsWith('pc:quick:') && Date.parse(created)>=startUtc);
+assert.equal(quickSourceAllowed('staged','pc:quick:example','2026-10-09T22:16:47.233Z'),false);
+assert.equal(quickSourceAllowed('staged','pc:quick:example','2026-10-10T00:00:00Z'),true);
+assert.equal(quickSourceAllowed('staged','confirmafy:legacy','2026-10-10T01:00:00Z'),false);
+assert.equal(quickSourceAllowed('staged','mobile:booking','2026-10-09T20:00:00Z'),true);
+assert.equal(quickSourceAllowed('appointment','', '2026-10-09T20:00:00Z'),true);
+assert.match(worker,/ON CONFLICT\(event_key\)/); // No duplicate Meta sends.
+console.log("WHATSAPP_SINGLE_CONFIRMATION_POLICY_NO_SEND_OK 4 booking + 4 forward-only scenarios; sender=alarm matched");
