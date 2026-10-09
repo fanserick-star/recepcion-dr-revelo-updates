@@ -72,7 +72,8 @@ def test_historia_cannot_link() -> None:
     assert 'def historia_identity_link(' in reception
     create = function_source(REC / "reception_history_identity_consolidated.py", "historia_identity_create_from_reception")
     assert "ON CONFLICT(reception_patient_id) DO NOTHING" in create
-    assert "_search_candidates(cur, demo, name, 20)" in create
+    assert "_search_candidates(cur, demo, name, 20)" not in create
+    assert "national_id_search=%s AND deleted_at IS NULL" in create
     assert "conn.rollback()" in create
     assert "reception_created_verified" in create
     assert "Crear ficha clínica nueva" in reception
