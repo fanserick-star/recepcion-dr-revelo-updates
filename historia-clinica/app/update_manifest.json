@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.8",
-  "app_version": "1.4.8",
-  "runtime_version": "1.4.8",
+  "version": "1.4.9",
+  "app_version": "1.4.9",
+  "runtime_version": "1.4.9",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.8: exclusivamente Recepción crea, verifica y cambia vínculos de pacientes con fichas clínicas. Historia conserva consulta, edición y atención médica pero bloquea el antiguo botón y la ruta /cola/.../vincular. El alta automática por cola y confirmaciones del doctor ya no escriben patient_links; la sincronización desde Historia sólo descarga los enlaces del Neon administrado por Recepción. Nuevos pacientes se importan por LAN solamente cuando Recepción suministró el ID clínico verificado; los pacientes sin ficha aparecen pendientes de Recepción. No se borran fichas, atenciones ni historias firmadas.",
-    "previous_version": "1.4.7",
+    "purpose": "Historia Clínica 1.4.9: activar firma electrónica dentro del editor del certificado médico o de reposo, sin salir de la pantalla ni borrar texto si falta configurar o desbloquear la firma. El PDF firmado comprueba la firma ANTES de guardar; cancelar deja la edición intacta. Botón explícito Guardar e imprimir y reimpresión en la lista de certificados. Se conserva el guardado únicamente por acciones explícitas, los formatos actuales, la base clínica y la sincronización previa con Recepción.",
+    "previous_version": "1.4.8",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -103,7 +103,7 @@
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
     "cloud_status_write_failure_nonfatal": true,
-    "printing_changes": false,
+    "printing_changes": true,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
     "consentimiento_encounter_autosave_before_open": true,
@@ -204,6 +204,11 @@
     "clinical_records_preserved": true,
     "waiting_queue_preserved": true,
     "fiscal_records_unchanged": true,
-    "reception_authority_regression_test": true
+    "reception_authority_regression_test": true,
+    "electronic_signature_inline_activation": true,
+    "electronic_signature_edit_preserved_if_cancelled": true,
+    "certificate_save_print_explicit": true,
+    "certificate_reprint_available": true,
+    "certificate_background_autosave": false
   }
 }

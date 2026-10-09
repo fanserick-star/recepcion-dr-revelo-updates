@@ -530,6 +530,78 @@ def _styles() -> str:
 """
 
 
+
+def _inline_signature_activation_dialog() -> str:
+    """Activación local de firma sin abandonar el editor o guardar el documento."""
+    return """
+<style>
+.hcs-backdrop[hidden]{display:none!important}
+.hcs-backdrop{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#10223699;padding:16px}
+.hcs-dialog{width:min(100%,520px);max-height:90vh;overflow:auto;box-sizing:border-box;background:#fff;border-radius:16px;padding:22px;box-shadow:0 20px 65px #173b6655;color:#173b66}
+.hcs-dialog h2{font-size:21px;margin:0 0 8px}.hcs-dialog p{line-height:1.5}
+.hcs-dialog label{display:block;font-weight:800;margin-top:16px}
+.hcs-dialog input{width:100%;box-sizing:border-box;margin-top:6px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px}
+.hcs-dialog button{padding:10px 14px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:#edf3f9;color:#173b66}
+.hcs-dialog button:disabled{opacity:.65}.hcs-dialog .hcs-primary{background:#2b6aa7;color:#fff}
+.hcs-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
+#hcs-message{min-height:22px;color:#a12e2a;margin-top:12px;font-size:13px}
+</style>
+<div class="hcs-backdrop" id="hcs-backdrop" hidden>
+ <div class="hcs-dialog" role="dialog" aria-modal="true" aria-labelledby="hcs-title">
+  <h2 id="hcs-title">Activar firma electrónica</h2>
+  <p id="hcs-help">El certificado permanece abierto sin perder lo que ha escrito.</p>
+  <button id="hcs-select" type="button">Seleccionar certificado .p12 / .pfx</button>
+  <label>Contraseña del certificado<input id="hcs-password" type="password" autocomplete="off"></label>
+  <div class="hcs-buttons">
+   <button type="button" id="hcs-cancel">Volver al certificado</button>
+   <button type="button" id="hcs-activate" class="hcs-primary">Activar y continuar</button>
+  </div>
+  <div id="hcs-message" role="status" aria-live="polite"></div>
+ </div>
+</div>
+<script>
+window.historiaEnsureSignatureReady=async function(){
+ const resp=await fetch('/api/firma/status?t='+Date.now(),{cache:'no-store'});
+ const status=await resp.json().catch(()=>({}));
+ if(!resp.ok||!status.ok)throw new Error(status.error||'No se pudo comprobar la firma electrónica.');
+ if(status.configured&&status.unlocked)return true;
+ return new Promise(resolve=>{
+  const overlay=document.getElementById('hcs-backdrop'),pass=document.getElementById('hcs-password');
+  const message=document.getElementById('hcs-message'),choose=document.getElementById('hcs-select');
+  const activate=document.getElementById('hcs-activate'),cancel=document.getElementById('hcs-cancel');
+  const previous=document.activeElement;let busy=false;
+  overlay.hidden=false;pass.value='';message.textContent='';
+  document.getElementById('hcs-help').textContent=status.configured?
+   'La firma está configurada, pero bloqueada. Ingrese su contraseña sin salir del certificado.':
+   'Seleccione el certificado .p12 o .pfx y active su firma aquí. El texto del certificado no se perderá.';
+  choose.textContent=status.configured?'Cambiar certificado .p12 / .pfx':'Seleccionar certificado .p12 / .pfx';
+  pass.focus();
+  function setBusy(value){busy=value;choose.disabled=value;activate.disabled=value;cancel.disabled=value;}
+  function done(ok){if(busy)return;overlay.hidden=true;pass.value='';choose.onclick=null;activate.onclick=null;cancel.onclick=null;pass.onkeydown=null;if(previous&&previous.focus)previous.focus();resolve(ok);}
+  cancel.onclick=()=>done(false);
+  pass.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();activate.click();}};
+  choose.onclick=async()=>{
+   if(busy)return;setBusy(true);message.textContent='Seleccionando certificado…';
+   try{const r=await fetch('/api/firma/seleccionar-certificado',{method:'POST'});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!j.ok)throw new Error(j.error||'No se pudo seleccionar el certificado.');
+    message.textContent='Archivo seleccionado. Ingrese la contraseña.';pass.focus();
+   }catch(e){message.textContent=e.message||'Error al seleccionar el archivo.';}finally{setBusy(false);}
+  };
+  activate.onclick=async()=>{
+   if(busy)return;if(!pass.value){message.textContent='Ingrese la contraseña.';pass.focus();return;}
+   setBusy(true);message.textContent='Activando firma…';
+   try{const r=await fetch('/api/firma/desbloquear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass.value})});
+    const j=await r.json().catch(()=>({}));pass.value='';
+    if(!r.ok||!j.ok)throw new Error(j.error||'No se pudo activar la firma.');
+    setBusy(false);done(true);
+   }catch(e){message.textContent=e.message||'Contraseña incorrecta.';setBusy(false);pass.focus();}
+  };
+ });
+};
+</script>
+"""
+
 def install(app, context: dict) -> None:
     db_path = Path(context["DB_PATH"])
     base = context["base"]
@@ -627,7 +699,7 @@ def install(app, context: dict) -> None:
             f"<tr><td>{_e(r['issued_at'][:16].replace('T',' '))}</td>"
             f"<td>{_e(r['name'])}</td><td>{_e(r['series_no'])}</td>"
             f"<td>{_e(r['diagnosis'])}</td>"
-            f"<td><a href='/recetas/{_e(r['id'])}/vista' target='_blank'>Ver</a> · <a href='/recetas/{_e(r['id'])}/vista?print_now=1' target='_blank'>Imprimir</a></td></tr>"
+            f"<td><a href='/recetas/{_e(r['id'])}/vista' target='_blank'>Ver</a> · <a href='/recetas/{_e(r['id'])}/vista?print_now=1' target='_blank'>Reimprimir</a></td></tr>"
             for r in rows
         ) or "<tr><td colspan='5'>No hay recetas emitidas.</td></tr>"
         body = f"""
@@ -1040,7 +1112,7 @@ footer{{
             f"<tr><td>{_e(r['issued_at'][:16].replace('T',' '))}</td><td>{_e(r['name'])}</td>"
             f"<td>{'Reposo / aislamiento' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else 'Certificado médico'}</td>"
             f"<td>{_e(r['diagnosis'])}</td><td>{_e(r['rest_days'])}</td>"
-            f"<td><a href='{'/certificados/reposo/'+_e(r['id'])+'/vista' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista'}' target='_blank'>Ver</a> · <a href='{'/certificados/reposo/'+_e(r['id'])+'/vista?print_now=1' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista?print_now=1'}' target='_blank'>Imprimir</a></td></tr>"
+            f"<td><a href='{'/certificados/reposo/'+_e(r['id'])+'/vista' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista'}' target='_blank'>Ver</a> · <a href='{'/certificados/reposo/'+_e(r['id'])+'/vista?print_now=1' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista?print_now=1'}' target='_blank'>Reimprimir</a></td></tr>"
             for r in rows
         ) or "<tr><td colspan='6'>No hay certificados emitidos.</td></tr>"
         body = f"""{_styles()}<section class='docs-wrap'><div class='docs-head'><div>
@@ -1081,8 +1153,9 @@ footer{{
         <label>Desde<input id='cert-from' type='date' value='{today}'></label><label>Hasta<input id='cert-to' type='date' value='{today}'></label>
         </div></div></div>
         <div class='docs-card'><label>Texto del certificado (se puede editar)<textarea id='cert-body' rows='12'>{_e(text)}</textarea></label></div>
-        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Imprimir</button><button class='doc-light' id='cert-pdf'>PDF firmado</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.close()'>Cancelar</button></div>
+        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Guardar e imprimir</button><button class='doc-light' id='cert-pdf'>PDF firmado</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.close()'>Cancelar</button></div>
         </section>
+        {_inline_signature_activation_dialog()}
         <script>
         const patientId={json.dumps(patient_id)}, queueId={json.dumps(queue_id)}, encounterDate={json.dumps(encounter_date)}, encounterTime={json.dumps(encounter_time)}, fromConsultation={"true" if from_consultation else "false"};
         let encounterId={json.dumps(encounter_id)}, certificateId=null;
@@ -1200,6 +1273,7 @@ footer{{
         }}
         async function openCert(mode='preview'){{
           try{{
+            if(mode==='pdf' && !(await window.historiaEnsureSignatureReady()))return;
             const j=await saveCert(false);
             if(mode==='print'){{
               try{{
@@ -1555,12 +1629,13 @@ footer{{
           <div class='doc-actions'>
             <button class='doc-primary' id='rest-save'>Guardar</button>
             <button class='doc-light' id='rest-preview'>Vista previa</button>
-            <button class='doc-primary' id='rest-print'>Imprimir</button>
+            <button class='doc-primary' id='rest-print'>Guardar e imprimir</button>
             <button class='doc-light' id='rest-pdf'>PDF firmado</button>
             <span class='doc-save-state' id='rest-state'>Sin guardar</span>
             <button class='doc-muted' type='button' onclick='window.close()'>Cancelar</button>
           </div>
         </section>
+        {_inline_signature_activation_dialog()}
         <script>
         const patientId={json.dumps(patient_id)}, queueId={json.dumps(queue_id)}, encounterDate={json.dumps(encounter_date)}, encounterTime={json.dumps(encounter_time)}, fromConsultation={"true" if from_consultation else "false"};
         let encounterId={json.dumps(encounter_id)}, certificateId=null;
@@ -1642,6 +1717,7 @@ footer{{
         }}
         async function openRest(mode='preview'){{
           try{{
+            if(mode==='pdf' && !(await window.historiaEnsureSignatureReady()))return;
             const j=await saveRest(false);
             if(mode==='print'){{
               try{{
