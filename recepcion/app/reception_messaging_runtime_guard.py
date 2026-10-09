@@ -202,8 +202,10 @@ def _local_intention_state(item: dict, *, cloud_available: bool) -> dict:
     except (ValueError, TypeError):
         lag_seconds = 0
     if lag_seconds > 180:
+        planned_at = str(event.get("due_at") or "")[:16].replace("T", " ")
         event.update(status="NO_CLOUD_EVENT", status_label="Sin constancia de envío",
-                     tone="error", error="La hora prevista pasó, pero Meta Cloud no registró el envío. No se reenvía.")
+                     tone="error", due_at="",
+                     error="Previsto para " + planned_at + " (hora Ecuador), pero no existe registro de envío en Meta Cloud. No se reenvía.")
     elif lag_seconds >= 0:
         event.update(status="AWAITING", status_label="Pendiente de envío",
                      tone="planned", error="Todavía no existe un envío confirmado por Meta.")
@@ -211,6 +213,13 @@ def _local_intention_state(item: dict, *, cloud_available: bool) -> dict:
         event.update(status="SCHEDULED_LOCAL", status_label="Programado",
                      tone="planned", error="")
     return event
+
+
+def _pending_signal_safe() -> bool:
+    try:
+        return bool(core._wa_alarm_signal_state().get("pending"))
+    except Exception:
+        return False
 
 
 def _history_payload(*, source_type: str, source_id: int, fecha: date | None, hora: str, patient_name: str) -> dict:
@@ -244,7 +253,7 @@ def _history_payload(*, source_type: str, source_id: int, fecha: date | None, ho
         "events": events,
         "message_source": "whatsapp_cloud.events_and_local_intentions",
         "active_messaging_panel": "4.8.22",
-        "alarm_signal_pending": bool(core._wa_alarm_signal_state().get("pending")),
+        "alarm_signal_pending": _pending_signal_safe(),
     }
 
 
