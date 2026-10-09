@@ -1308,8 +1308,7 @@ function newPatient(continueToAttention=false,agendaSlot=null){
 async function saveNewPatient(action=false){
   try{
     const data=getPatientForm();
-    const sameName=String(lastPatientSimilarity.name||'').trim().toUpperCase()===String(data.nombre||'').trim().toUpperCase();
-    if(sameName&&(lastPatientSimilarity.matches||[]).length){const names=lastPatientSimilarity.matches.slice(0,3).map(x=>x.nombre).join('\n• ');if(!confirm(`Encontramos una ficha parecida:\n\n• ${names}\n\n¿Confirmas que este sí es un paciente distinto y deseas crearlo?`))return}
+    // Las sugerencias por parecido son orientativas: nunca frenan el alta.
     await singleFlightMutation('patient:create',async()=>{
       const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});
       // Reception creates and verifies the new medical card on save.
@@ -1934,6 +1933,9 @@ async function saveAttention(id){
     const stagedId=Number(attentionContext?.stagedId||0);
     if(stagedId){
       try{await api(`/api/agenda/confirmafy-staged/${stagedId}/attended`,{method:'POST',body:JSON.stringify({patient_id:id})});confirmafyStagedById.delete(stagedId);invalidateAttentionWeekCache()}catch(e){console.warn('No se pudo marcar la cita externa como atendida:',e)}
+    }
+    if(saved?.clinical_handoff_pending===true){
+      alert('Atención guardada correctamente, pero NO se envió al doctor porque falta vincular la ficha clínica.\n\nRecepción conservará el turno pendiente. Al verificar la ficha se enviará sin crear otra atención.');
     }
     closeModal();
     if(saved?.pending){
