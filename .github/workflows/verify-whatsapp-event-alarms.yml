@@ -35,6 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile recepcion/app/core_runtime.py
+          python tools/test_reception_alarm_durable_4821.py
           cp cloudflare/whatsapp_worker.js /tmp/revelo_whatsapp_worker.mjs
           node --check /tmp/revelo_whatsapp_worker.mjs
           node --check cloudflare/whatsapp_alarm_time.mjs
