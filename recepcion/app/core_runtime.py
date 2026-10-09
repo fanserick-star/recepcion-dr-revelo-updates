@@ -3916,8 +3916,10 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                         try:
                             import historia_lan_transport as lan
                             lan.remap_pending_patient_id(q.local_entity_id, result_id)
-                        except Exception:
-                            pass  # El cobro/atención offline no se pierde por la LAN.
+                        except Exception as exc:
+                            # No consumir la operación offline ni perder el mapa
+                            # local→Neon si el outbox está temporalmente bloqueado.
+                            raise RuntimeError("No se pudo preservar el vínculo LAN pendiente") from exc
                         # Create clinical chart only with the definitive cloud
                         # Reception ID, never the temporary offline SQLite ID.
                         patient_in_cloud = cdb.get(Patient, int(result_id))
