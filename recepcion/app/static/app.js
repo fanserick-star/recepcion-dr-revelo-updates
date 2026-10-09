@@ -2885,6 +2885,10 @@ async function loadWhatsappStatus(){
     const d=await api('/api/whatsapp/status');
     if(pill){pill.textContent=d.cloud_mode?'Cloud 24/7':(d.enabled?'Activo':'Pendiente');pill.classList.toggle('ready',!!(d.cloud_mode||d.enabled))}
     if(text){const rc=d.templates?.recordatorio_cita||{},ca=d.templates?.cita_agendada||{},rh=d.templates?.recordatorio_hoy||{};text.textContent=`${d.message||''} · ${rc.name||'recordatorio_cita'}: ${rc.language||'es_ES'} · ${ca.name||'cita_agendada'}: ${ca.language||'es_EC'} · ${rh.name||'recordatorio_hoy'}: ${rh.language||'es_EC'}.`}
+    if(text && d.alarm_notification?.status==='fallido'){
+      text.textContent+=' ⚠ La última señal de alarma a Cloudflare falló ('+
+        String(d.alarm_notification.last_error||'sin detalle')+'). La cita está guardada; revisa el estado de envío.';
+    }
     if(testPill){const ready=!!d.manual_test?.ready;testPill.textContent=ready?'LISTA PARA PROBAR':'FALTA CONFIGURAR';testPill.classList.toggle('ready',ready)}
     const dateInput=$('#waTestDate');if(dateInput&&!dateInput.value){const x=new Date();x.setDate(x.getDate()+1);dateInput.value=toISO(x)}
     const phone=$('#waTestPhone');if(phone&&!phone.value){phone.value=localStorage.getItem('revelo_wa_test_phone')||d.manual_test?.default_phone||''}if(phone&&!phone.dataset.persist){phone.dataset.persist='1';phone.addEventListener('input',()=>localStorage.setItem('revelo_wa_test_phone',phone.value.trim()))}
