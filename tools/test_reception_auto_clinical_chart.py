@@ -162,6 +162,13 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert r"\\n\\n" not in registration.split("if(clinical.status==='needs_link')",1)[1].split("}else if(",1)[0]
     assert "Encontramos una ficha parecida" not in registration
     assert "create-new" not in registration
+    for route in ("saveNewPatientFromConfirmafy", "saveNewPatientFromStaged", "saveIdentityAndContinue"):
+        assert route in js
+    assert "stagedDifferentPerson" not in js
+    assert "identityDifferentPerson" not in js
+    assert "Hay una ficha parecida. Pulsa" not in js
+    assert "if(patientNameWords(p.nombre||'').length<3)" not in js
+
     assert "Crear ficha clínica nueva" not in registration
 
     name_search = text("recepcion/app/reception_history_identity_name_search.py")
