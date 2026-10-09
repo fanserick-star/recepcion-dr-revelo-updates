@@ -2612,24 +2612,154 @@ def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, templat
 # configuration required, and that password is never sent over the network.
 _WA_ALARM_NOTIFY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/alarms/notify"
 _wa_alarm_hint_lock = threading.Lock()
-_wa_alarm_hint_pending = False
 _wa_alarm_hint_active = False
-# Estado local de la última señal; nunca contiene datos de pacientes ni secretos.
+# No se guarda ningún ID, teléfono, nombre o token en este registro.
 _wa_alarm_hint_diag = {"status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "", "last_error": ""}
 
 
-def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
-    """Signal a single event-driven alarm recomputation after cloud persistence.
+def _wa_alarm_signal_state() -> dict:
+    """Lee una única fila SQLite: no toca Neon ni Cloudflare."""
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS whatsapp_alarm_signal (
+            id INTEGER PRIMARY KEY CHECK (id=1), generation INTEGER NOT NULL DEFAULT 0,
+            pending INTEGER NOT NULL DEFAULT 0, updated_at TEXT, acknowledged_at TEXT,
+            last_attempt_at TEXT, last_error TEXT
+        )""")
+        row = conn.execute("""SELECT generation,pending,updated_at,acknowledged_at,
+                                     last_attempt_at,last_error
+                              FROM whatsapp_alarm_signal WHERE id=1""").fetchone()
+    if row is None:
+        return {"generation": 0, "pending": False, "updated_at": "",
+                "acknowledged_at": "", "last_attempt_at": "", "last_error": ""}
+    return dict(zip(("generation", "pending", "updated_at", "acknowledged_at",
+                     "last_attempt_at", "last_error"),
+                    (int(row[0]), bool(row[1]), row[2] or "", row[3] or "",
+                     row[4] or "", row[5] or "")))
 
-    A short burst of appointments is coalesced into one request. The notification
-    carries no patient names, phone numbers, appointment IDs, or DB credentials.
-    """
-    global _wa_alarm_hint_pending, _wa_alarm_hint_active
+
+def _wa_alarm_signal_enqueue() -> None:
+    # Una señal persistente y coalescida por ráfaga de cambios de Agenda.
+    _wa_alarm_signal_state()  # crear tabla en instalaciones anteriores
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        conn.execute("""INSERT INTO whatsapp_alarm_signal
+                        (id,generation,pending,updated_at,last_error)
+                        VALUES (1,1,1,datetime('now'),'')
+                        ON CONFLICT(id) DO UPDATE SET
+                        generation=generation+1,pending=1,
+                        updated_at=datetime('now'),last_error=''""")
+        conn.commit()
+
+
+def _wa_alarm_signal_mark(generation: int, *, acknowledged: bool, error: str = "") -> bool:
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        if acknowledged:
+            updated = conn.execute("""UPDATE whatsapp_alarm_signal
+                SET pending=0, acknowledged_at=datetime('now'),last_error='',
+                    last_attempt_at=datetime('now')
+                WHERE id=1 AND generation=?""", (int(generation),))
+        else:
+            updated = conn.execute("""UPDATE whatsapp_alarm_signal
+                SET last_attempt_at=datetime('now'),last_error=?
+                WHERE id=1 AND generation=?""", (str(error)[:120], int(generation)))
+        conn.commit()
+        return bool(updated.rowcount)
+
+
+def _wa_alarm_hint_post_once() -> dict:
+    """Solo REPROGRAMA la próxima alarma; jamás solicita un envío a Meta."""
+    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
+    if len(key) < 12:
+        raise ValueError("Neon role credential unavailable")
+    ts = str(int(time.time()))
+    body = b"agenda_changed_v1"
+    mac = hmac.new(key.encode("utf-8"),
+                   ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
+    request = urllib.request.Request(
+        _WA_ALARM_NOTIFY_URL, data=body,
+        headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                 "X-Revelo-Signature": mac}, method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=7) as response:
+        if response.status != 200:
+            raise RuntimeError("Alarm notification not accepted")
+        payload = json.loads(response.read(8192).decode("utf-8"))
+    if payload.get("ok") is not True:
+        raise RuntimeError("Alarm coordinator did not acknowledge scheduling")
+    return payload
+
+
+def _wa_alarm_hint_start() -> None:
+    """Arranca solo por cambio, reconexión o apertura. Sin cron ni sondeos."""
+    global _wa_alarm_hint_active
     if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
         return
-    # An offline appointment must NEVER be signalled as already persisted.
-    # But unrelated queued writes (invoices/visits) must not suppress a real
-    # online appointment notification.
+    with _wa_alarm_hint_lock:
+        if _wa_alarm_hint_active:
+            return
+        _wa_alarm_hint_active = True
+
+    def task():
+        global _wa_alarm_hint_active
+        try:
+            while True:
+                try:
+                    state = _wa_alarm_signal_state()
+                    if not state["pending"]:
+                        break
+                    generation = int(state["generation"])
+                    # Se reintenta solo unas veces por evento y queda durable
+                    # para la siguiente apertura/sincronización si falla todo.
+                    for attempt in range(3):
+                        with _wa_alarm_hint_lock:
+                            _wa_alarm_hint_diag["status"] = "enviando"
+                            _wa_alarm_hint_diag["last_attempt_at"] = datetime.utcnow().isoformat(timespec="seconds")
+                        try:
+                            response = _wa_alarm_hint_post_once()
+                            accepted = _wa_alarm_signal_mark(generation, acknowledged=True)
+                            with _wa_alarm_hint_lock:
+                                _wa_alarm_hint_diag.update(
+                                    status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                    last_error="", next_alarm_utc=str(response.get("next_alarm_utc") or ""),
+                                )
+                            # Si apareció otra cita mientras esperábamos HTTP,
+                            # su nueva generación exige un nuevo aviso.
+                            if accepted:
+                                break
+                        except Exception as exc:
+                            http_code = str(getattr(exc, "code", "") or "")
+                            label = type(exc).__name__ + (" HTTP " + http_code if http_code else "")
+                            print("WHATSAPP_ALARM_NOTIFY_PENDING", label)
+                            _wa_alarm_signal_mark(generation, acknowledged=False, error=label)
+                            with _wa_alarm_hint_lock:
+                                _wa_alarm_hint_diag.update(status="fallido", last_error=label)
+                            if attempt < 2:
+                                time.sleep(4 if attempt == 0 else 9)
+                    else:
+                        # Reintentos agotados: nunca vigilar ni reenviar en bucle.
+                        break
+                    if accepted:
+                        continue
+                    # Generación reemplazada durante el envío: procesar la nueva.
+                    continue
+                except Exception as exc:
+                    with _wa_alarm_hint_lock:
+                        _wa_alarm_hint_diag.update(status="fallido", last_error=type(exc).__name__)
+                    break
+        finally:
+            with _wa_alarm_hint_lock:
+                _wa_alarm_hint_active = False
+
+    threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
+
+
+def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
+    """Cita persistida -> señal DURABLE -> ack del coordinador Cloudflare.
+
+    Al reabrir la app solo se recuperan señales surgidas desde esta versión,
+    y el Worker descarta confirmaciones iniciales que ya vencieron.
+    """
+    if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
+        return
     if source_type and int(source_id or 0) and queue_count() > 0:
         entity = "confirmafy_staged" if source_type == "staged" else source_type
         try:
@@ -2642,83 +2772,22 @@ def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -
                 return
         except Exception:
             return
-    with _wa_alarm_hint_lock:
-        _wa_alarm_hint_pending = True
-        if _wa_alarm_hint_active:
-            return
-        _wa_alarm_hint_active = True
+    try:
+        _wa_alarm_signal_enqueue()
+        _wa_alarm_hint_start()
+    except Exception as exc:
+        with _wa_alarm_hint_lock:
+            _wa_alarm_hint_diag.update(status="fallido", last_error=type(exc).__name__)
 
-    def task():
-        global _wa_alarm_hint_pending, _wa_alarm_hint_active
-        try:
-            while True:
-                time.sleep(1.0)
-                with _wa_alarm_hint_lock:
-                    if not _wa_alarm_hint_pending:
-                        break
-                    _wa_alarm_hint_pending = False
-                with _wa_alarm_hint_lock:
-                    _wa_alarm_hint_diag["status"] = "enviando"
-                    _wa_alarm_hint_diag["last_attempt_at"] = datetime.utcnow().isoformat(timespec="seconds")
-                try:
-                    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
-                    if len(key) < 12:
-                        raise ValueError("Neon role credential unavailable")
-                    ts = str(int(time.time()))
-                    body = b"agenda_changed_v1"
-                    mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
-                    req = urllib.request.Request(
-                        _WA_ALARM_NOTIFY_URL,
-                        data=body,
-                        headers={
-                            "Content-Type": "text/plain",
-                            "X-Revelo-Timestamp": ts,
-                            "X-Revelo-Signature": mac,
-                        },
-                        method="POST",
-                    )
-                    # Network I/O in daemon thread; never blocks front desk UI.
-                    with urllib.request.urlopen(req, timeout=7) as response:
-                        if response.status != 200:
-                            raise RuntimeError("Alarm notification not accepted")
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
-                except Exception as e:
-                    http_code = str(getattr(e, "code", "") or "")
-                    error_label = type(e).__name__ + ((" HTTP " + http_code) if http_code else "")
-                    print("WHATSAPP_ALARM_NOTIFY_PENDING", error_label)
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_diag.update(status="fallido", last_error=error_label)
-                    # Event retry, not polling Neon. No direct Meta sends.
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_pending = True
-                    time.sleep(8.0)
-                    # Only three bounded retries per event burst.
-                    for _ in range(2):
-                        try:
-                            ts = str(int(time.time()))
-                            body = b"agenda_changed_v1"
-                            mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
-                            req = urllib.request.Request(
-                                _WA_ALARM_NOTIFY_URL, data=body,
-                                headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts, "X-Revelo-Signature": mac},
-                                method="POST",
-                            )
-                            with urllib.request.urlopen(req, timeout=7) as response:
-                                if response.status == 200:
-                                    with _wa_alarm_hint_lock:
-                                        # Una cita registrada DURANTE el reintento no debe perder su señal.
-                                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
-                                    break
-                        except Exception:
-                            time.sleep(8.0)
-                    # Never spin forever after a network outage.
-                    break
-        finally:
-            with _wa_alarm_hint_lock:
-                _wa_alarm_hint_active = False
 
-    threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
+def _wa_alarm_hint_resume() -> None:
+    """Al abrir Recepción, recuperar SOLO una señal ya pendiente."""
+    try:
+        state = _wa_alarm_signal_state()
+        if state["pending"]:
+            _wa_alarm_hint_start()
+    except Exception:
+        pass
 
 
 def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str, phone: str,
@@ -4075,6 +4144,8 @@ async def _limit_worker_threads_for_old_pc():
     # El worker de WhatsApp arranca después de que FastAPI ya está listo y solo
     # cuando WHATSAPP_ENABLED=1. En la preparación actual permanece apagado.
     start_whatsapp_worker_if_enabled()
+    # Ningún envío directo: solo recuperar una señal de alarma persistida.
+    _wa_alarm_hint_resume()
     # v4.3.34: la Agenda 24/7 vive en GitHub Pages + Neon Data API.
     # Ya no arrancamos Cloudflare Tunnel ni ningún proceso adicional. Si quedó
     # uno de una versión anterior, lo cerramos para liberar RAM/CPU.
@@ -10500,7 +10571,9 @@ def whatsapp_status(user: User = Depends(current_user)):
     return {
         "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
         "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
-        "alarm_notification": dict(_wa_alarm_hint_diag),
+        "alarm_notification": dict(_wa_alarm_hint_diag, **{
+            "persisted": _wa_alarm_signal_state(),
+        }),
         "state": "CLOUD_24_7" if WHATSAPP_CLOUD_MODE else ("ACTIVO" if WHATSAPP_ENABLED and ready else ("CONFIGURACION_INCOMPLETA" if WHATSAPP_ENABLED else "PENDIENTE_APROBACION")),
         "ready": ready, "missing": missing,
         "templates": {
