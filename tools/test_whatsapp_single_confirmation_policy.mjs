@@ -45,7 +45,7 @@ for(const [label,sql] of [["sender",scheduler],["alarm",doAlarm]]){
   assert.match(sql,/NOT LIKE 'mobile:whatsapp-cloud-test:%'/);
 }
 assert.match(worker,/ON CONFLICT\(event_key\)/,"Do not break idempotent event claims");
-assert.match(worker,/worker_version: "2\.6\.28"/);
+assert.match(worker,/worker_version: "2\.6\.29"/);
 const ecu=(stamp)=>new Date(new Date(stamp).getTime()-5*3600e3).toISOString().slice(0,10);
 const dayBefore=(date)=>new Date(Date.parse(date+"T00:00:00Z")-86400e3).toISOString().slice(0,10);
 const bookingAllowed=(created,appointment)=>{
