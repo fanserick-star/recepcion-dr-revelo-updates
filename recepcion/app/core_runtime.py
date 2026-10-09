@@ -7576,7 +7576,7 @@ def _wa_timeline_defs(fecha: date, hora: str, created_at: Optional[datetime] = N
         {
             "key": "cita_agendada", "label": "Cita agendada", "template": WHATSAPP_TEMPLATE_CITA_AGENDADA,
             "approved": bool(WHATSAPP_APPROVED_CITA_AGENDADA), "automatic": bool(WHATSAPP_AUTO_CITA_AGENDADA),
-            "due_at": (created_at or datetime.now()).isoformat(),
+            "due_at": _wa_created_at_ec(created_at).isoformat(),
             "planned": "Al guardar la cita",
         },
         {
@@ -7655,13 +7655,26 @@ def _wa_timeline_for_source(*, source_type: str, source_id: int, fecha: date, ho
             item.update({"status": "META_PENDING", "status_label": "Pendiente de Meta", "tone": "muted", "timestamp": None, "error": ""})
         elif not node["automatic"]:
             item.update({"status": "NOT_AUTOMATIC", "status_label": "No automático", "tone": "muted", "timestamp": None, "error": ""})
+        elif cloud_error or not cloud_configured() or FORCE_OFFLINE:
+            item.update({"status": "UNAVAILABLE", "status_label": "No verificable", "tone": "muted",
+                         "timestamp": None, "error": "No se pudo consultar el historial de WhatsApp Cloud."})
         else:
+            # Un horario planificado no es prueba de que WhatsApp haya enviado.
+            # Y jamás volver a enviar solo porque no hay constancia en Cloud.
             try:
                 due = datetime.fromisoformat(str(node["due_at"]))
-                label = "Programado" if due > now else "Esperando worker"
             except Exception:
-                label = "Programado"
-            item.update({"status": "SCHEDULED", "status_label": label, "tone": "info", "timestamp": None, "error": ""})
+                due = now
+            if due > now:
+                item.update({"status": "SCHEDULED", "status_label": "Programado", "tone": "info",
+                             "timestamp": None, "error": ""})
+            elif (now - due).total_seconds() < 180:
+                item.update({"status": "AWAITING", "status_label": "Pendiente de envío", "tone": "info",
+                             "timestamp": None, "error": "Todavía no consta una aceptación de Meta."})
+            else:
+                item.update({"status": "NO_CLOUD_EVENT", "status_label": "Sin constancia de envío",
+                             "tone": "danger", "timestamp": None,
+                             "error": "El horario ya pasó, pero no hay evento registrado por WhatsApp Cloud. No se reenviará automáticamente."})
         if node["key"] == "recordatorio_cita":
             if appointment_state in {"CONFIRMADA", "CONFIRMADO"}:
                 item["response"] = "Paciente confirmó la cita"
@@ -10200,9 +10213,23 @@ def _whatsapp_cloud_test_approved(template_key: str) -> bool:
     return bool(WHATSAPP_APPROVED_RECORDATORIO_CITA)
 
 
+def _wa_created_at_ec(created_at: Optional[datetime]) -> datetime:
+    """Citas guardan created_at como UTC sin tz: convertir a hora de Ecuador.
+
+    Mostrar la hora UTC como si fuera local retrasaba visualmente los estados.
+    Una lectura no provoca ningún envío a Meta ni despierta el scheduler.
+    """
+    if created_at is None:
+        return datetime.now()
+    from datetime import timezone
+    from zoneinfo import ZoneInfo
+    stamp = created_at if created_at.tzinfo else created_at.replace(tzinfo=timezone.utc)
+    return stamp.astimezone(ZoneInfo("America/Guayaquil")).replace(tzinfo=None)
+
+
 def _wa_cita_agendada_allowed(fecha: date, hora: str, created_at: Optional[datetime]) -> bool:
     # No se envía con menos de 24 h ni si ya es el día de confirmación.
-    created = created_at or datetime.now()
+    created = _wa_created_at_ec(created_at)
     try:
         hh, mm = [int(x) for x in str(hora or "00:00")[:5].split(":")]
         appointment_at = datetime(fecha.year, fecha.month, fecha.day, hh, mm)
