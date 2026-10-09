@@ -37,7 +37,7 @@ for(const [label,sql] of [["sender",scheduler],["alarm",doAlarm]]){
   assert.doesNotMatch(sql,/coalesce\(b\.source_hash,''\) LIKE 'mobile:autoagenda:%'/);
   const booking=sql.match(/SELECT b\.\*, 'cita_agendada'::text[\s\S]*?(?=UNION ALL)/)?.[0];
   assert.ok(booking,label+": booking policy missing");
-  assert.ok(booking.includes("b.created_at >= TIMESTAMP '2026-10-10 00:00:00'"),label+": cutover missing");
+  assert.match(booking,/b\.created_at AT TIME ZONE 'UTC'\) >= interval '24 hours'/);
   assert.match(booking,/AT TIME ZONE 'America\/Guayaquil'\)::date < \(b\.fecha\s*-\s*1\)/);
   const confirmation=sql.match(/SELECT b\.\*, 'recordatorio_cita'::text[\s\S]*?(?=UNION ALL)/)?.[0];
   assert.ok(confirmation,label+": confirmation policy missing");
