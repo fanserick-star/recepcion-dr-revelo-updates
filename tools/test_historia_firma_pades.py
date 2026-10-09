@@ -127,6 +127,37 @@ def main() -> None:
         fe._session_clear()
         assert fe._status(root)["unlocked"] is False
 
+    # La activación debe funcionar dentro de ambos editores sin almacenar
+    # la contraseña ni guardar por la acción de abrir el diálogo.
+    import documentos_clinicos as documents
+
+    dialog = documents._inline_signature_activation_dialog()
+    assert 'id="hcs-backdrop"' in dialog
+    assert 'id="hcs-cancel"' in dialog
+    assert "/api/firma/seleccionar-certificado" in dialog
+    assert "/api/firma/desbloquear" in dialog
+    assert "input.value=''" not in dialog  # La contraseña se manipula solo en memoria del campo local.
+    assert "pass.value=''" in dialog
+    assert "localStorage" not in dialog and "sessionStorage" not in dialog
+    assert "saveCert(" not in dialog and "saveRest(" not in dialog
+    assert "location.href" not in dialog and "window.close()" not in dialog
+
+    clinical_source = (
+        Path(__file__).resolve().parents[1]
+        / "historia-clinica" / "app" / "documentos_clinicos.py"
+    ).read_text(encoding="utf-8")
+    assert clinical_source.count("{_inline_signature_activation_dialog()}") == 2
+    for action, explicit_save in (
+        ("openCert", "saveCert"),
+        ("openRest", "saveRest"),
+    ):
+        marker = "async function " + action + "(mode='preview')"
+        section = clinical_source.split(marker, 1)[1][:420]
+        assert "window.historiaEnsureSignatureReady()" in section
+        assert section.index("historiaEnsureSignatureReady()") < section.index(explicit_save + "(false)")
+    assert clinical_source.count(">Guardar e imprimir</button>") >= 2
+    assert "Reimprimir</a>" in clinical_source
+
     print("HISTORIA_PADES_SMOKE_OK")
 
 
