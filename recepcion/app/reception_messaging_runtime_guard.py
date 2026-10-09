@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 import time
 
 import core_runtime as core
@@ -171,6 +171,61 @@ def _cloud_history(*, source_type: str, source_id: int, fecha: date | None, hora
         return [], f"{type(exc).__name__}: {str(exc)[:220]}"
 
 
+def _local_intention_state(item: dict, *, cloud_available: bool) -> dict:
+    """La cola SQLite es intención de envío, nunca aceptación de Meta.
+
+    Cloud disponible + hora vencida + ausencia de evento = SIN CONSTANCIA.
+    Cloud desconectado = NO VERIFICABLE. No ejecutar alarmas ni reenviar.
+    """
+    event = dict(item)
+    event["source"] = "local_schedule_only"
+    raw = str(event.get("status") or "").upper()
+    if raw in {"PENDING", "QUEUED", "SCHEDULED", "PROCESSING", "SENDING"}:
+        # El timestamp local de creación está en UTC y la hora prevista en
+        # Ecuador. Mostrar la hora prevista, no un falso 18:05.
+        event["timestamp"] = str(event.get("due_at") or event.get("timestamp") or "")
+    if raw in {"CANCELLED", "CANCELED", "EXPIRED"}:
+        return event
+    if raw in {"FAILED", "ERROR"}:
+        event["status_label"], event["tone"] = "Error local", "error"
+        return event
+    if raw in {"SENT", "DELIVERED", "READ"}:
+        # Un estado local tampoco garantiza confirmación en Meta.
+        event["status_label"], event["tone"] = "Enviado local · Meta sin comprobar", "planned"
+        return event
+    if not cloud_available:
+        event.update(status="UNVERIFIED", status_label="No verificable",
+                     tone="muted", error="No se pudo consultar WhatsApp Cloud.")
+        return event
+    try:
+        due = datetime.fromisoformat(str(event.get("due_at") or "").replace("Z", "+00:00"))
+        ec = timezone(timedelta(hours=-5))
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=ec)
+        lag_seconds = (datetime.now(ec) - due.astimezone(ec)).total_seconds()
+    except (ValueError, TypeError):
+        lag_seconds = 0
+    if lag_seconds > 180:
+        planned_at = str(event.get("due_at") or "")[:16].replace("T", " ")
+        event.update(status="NO_CLOUD_EVENT", status_label="Sin constancia de envío",
+                     tone="error", due_at="",
+                     error="Previsto para " + planned_at + " (hora Ecuador), pero no existe registro de envío en Meta Cloud. No se reenvía.")
+    elif lag_seconds >= 0:
+        event.update(status="AWAITING", status_label="Pendiente de envío",
+                     tone="planned", error="Todavía no existe un envío confirmado por Meta.")
+    else:
+        event.update(status="SCHEDULED_LOCAL", status_label="Programado",
+                     tone="planned", error="")
+    return event
+
+
+def _pending_signal_safe() -> bool:
+    try:
+        return bool(core._wa_alarm_signal_state().get("pending"))
+    except Exception:
+        return False
+
+
 def _history_payload(*, source_type: str, source_id: int, fecha: date | None, hora: str, patient_name: str) -> dict:
     events, cloud_error = _cloud_history(
         source_type=source_type,
@@ -178,11 +233,18 @@ def _history_payload(*, source_type: str, source_id: int, fecha: date | None, ho
         fecha=fecha,
         hora=hora,
     )
-    if not events:
-        # Fallback local solo para envíos; evita perder el estado cuando Neon no
-        # responde, sin despertar la nube ni duplicar eventos Cloud.
-        local = messaging._local_outbox_history(source_type, source_id)
-        events = sorted(local, key=lambda item: str(item.get("timestamp") or item.get("due_at") or "9999"))
+    # El panel real utiliza /api/messaging/*, NO /whatsapp-timeline.
+    # Completar cada plantilla SIN evento Cloud con el plan administrativo,
+    # pero nunca presentar PENDING local como estado de entrega.
+    cloud_templates = {
+        str(item.get("template") or "") for item in events
+        if item.get("direction") == "outbound" and not item.get("local_fallback")
+    }
+    for local in messaging._local_outbox_history(source_type, source_id):
+        if str(local.get("template") or "") in cloud_templates:
+            continue
+        events.append(_local_intention_state(local, cloud_available=not bool(cloud_error)))
+    events.sort(key=lambda item: str(item.get("timestamp") or item.get("due_at") or "9999"))
     return {
         "available": not bool(cloud_error) or bool(events),
         "cloud_available": not bool(cloud_error),
@@ -193,6 +255,9 @@ def _history_payload(*, source_type: str, source_id: int, fecha: date | None, ho
         "outbound_count": sum(1 for item in events if item.get("direction") == "outbound"),
         "inbound_count": sum(1 for item in events if item.get("direction") == "inbound"),
         "events": events,
+        "message_source": "whatsapp_cloud.events_and_local_intentions",
+        "active_messaging_panel": "4.8.22",
+        "alarm_signal_pending": _pending_signal_safe(),
     }
 
 

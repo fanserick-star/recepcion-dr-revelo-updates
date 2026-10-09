@@ -14,6 +14,7 @@ on:
       - "tools/test_reception_auto_clinical_chart.py"
       - "tools/test_reception_whatsapp_timeline_4820.py"
       - "tools/test_reception_alarm_durable_4821.py"
+      - "tools/test_reception_active_messaging_panel_4822.py"
       - "tools/test_tv_display_javascript.mjs"
       - "tools/test_reception_history_tv_contract.py"
       - "tools/validate_reception_runtime_layout.py"
@@ -62,6 +63,7 @@ jobs:
           python tools/test_reception_auto_clinical_chart.py
           python tools/test_reception_whatsapp_timeline_4820.py
           python tools/test_reception_alarm_durable_4821.py
+          python tools/test_reception_active_messaging_panel_4822.py
           python tools/test_reception_smart_alerts_4814.py
           python tools/test_reception_integrity_4815.py
           python tools/test_reception_day_waitlist_4816.py
