@@ -54,4 +54,21 @@ assert.match(reception, /def process_offline_queue\(/);
 assert.match(reception, /def schedule_whatsapp_for_contact\(/);
 assert.match(reception, /@app\.get\("\/api\/agenda\/week"\)/);
 assert.match(reception, /@app\.post\("\/api\/agenda\/appointments"\)/);
+// No real messages: verify that Meta callbacks advance statuses monotonically.
+const statusCode = worker.split("async function updateStatuses(env, statuses) {",2)[1]?.split("async function serveInboundAudio(",1)[0] || "";
+assert.match(statusCode, /"sent", "delivered", "read", "failed"/);
+assert.match(statusCode, /status='READ'/);
+assert.match(statusCode, /status='DELIVERED'/);
+assert.match(statusCode, /status='FAILED'/);
+assert.match(statusCode, /read_at=COALESCE/);
+assert.match(statusCode, /delivered_at=COALESCE/);
+assert.match(statusCode, /status IN \('READ','DELIVERED','FAILED'\)/);
+assert.match(statusCode, /status NOT IN \('READ','DELIVERED','CANCELLED'\)/);
+assert.match(worker, /CASE WHEN kind='cita_agendada' THEN interval '3 minutes' ELSE interval '4 hours' END/);
+assert.match(worker, /WHEN ev.kind='cita_agendada' THEN interval '3 minutes'/);
+assert.doesNotMatch(worker, /interval '12 hours'/); // no replay of stale booking notices
+const detailCode = reception.split('@app.get("/api/whatsapp/appointment-delivery/{appointment_id}")',2)[1]?.split('@app.get("/api/whatsapp/cloud-status")',1)[0] || "";
+assert.match(detailCode, /whatsapp_cloud.events/);
+assert.match(detailCode, /SIN_REGISTRO/);
+assert.doesNotMatch(detailCode, /_whatsapp_alarm_notify_async|send_whatsapp|schedule_whatsapp_for_contact/);
 console.log("WHATSAPP_EVENT_ALARMS_24X7_NO_CRON_NO_SEND_IN_TESTS_OK");
