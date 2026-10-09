@@ -180,6 +180,10 @@ def _local_intention_state(item: dict, *, cloud_available: bool) -> dict:
     event = dict(item)
     event["source"] = "local_schedule_only"
     raw = str(event.get("status") or "").upper()
+    if raw in {"PENDING", "QUEUED", "SCHEDULED", "PROCESSING", "SENDING"}:
+        # El timestamp local de creación está en UTC y la hora prevista en
+        # Ecuador. Mostrar la hora prevista, no un falso 18:05.
+        event["timestamp"] = str(event.get("due_at") or event.get("timestamp") or "")
     if raw in {"CANCELLED", "CANCELED", "EXPIRED"}:
         return event
     if raw in {"FAILED", "ERROR"}:
