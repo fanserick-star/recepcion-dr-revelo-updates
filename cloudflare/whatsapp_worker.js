@@ -6930,6 +6930,9 @@ export class WhatsappAlarmCoordinator {
   }
   async updateNextAlarm() {
     const next = await nextWhatsappReminderTimestamp(this.env);
+    // Observabilidad SIN datos personales ni consultas recurrentes a Neon.
+    await this.state.storage.put("last_refresh_at", new Date().toISOString());
+    await this.state.storage.delete("last_refresh_error");
     const current = await this.state.storage.getAlarm();
     if (next === null) {
       if (current !== null) await this.state.storage.deleteAlarm();
@@ -6948,7 +6951,12 @@ export class WhatsappAlarmCoordinator {
     if (pathname === "/status" && request.method === "GET") return Response.json({ ok: true,
       mode: "durable_object_event_driven", initialized: !!(await this.state.storage.get("bootstrapped_v1")),
       next_alarm_utc: (await this.state.storage.getAlarm()) === null ? null :
-        new Date(await this.state.storage.getAlarm()).toISOString() });
+        new Date(await this.state.storage.getAlarm()).toISOString(),
+      last_refresh_at: (await this.state.storage.get("last_refresh_at")) || null,
+      last_refresh_error: (await this.state.storage.get("last_refresh_error")) || null,
+      last_alarm_at: (await this.state.storage.get("last_alarm_at")) || null,
+      last_alarm_sent: (await this.state.storage.get("last_alarm_sent")) ?? null,
+      last_alarm_error: (await this.state.storage.get("last_alarm_error")) || null });
     if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
     if (pathname !== "/refresh" && pathname !== "/init") return new Response("Not found", { status: 404 });
     try {
@@ -6958,17 +6966,22 @@ export class WhatsappAlarmCoordinator {
       return Response.json(await this.updateNextAlarm());
     } catch (err) {
       console.error("whatsapp_alarm_schedule_failed", String(err));
+      await this.state.storage.put("last_refresh_error", String(err?.name || "SchedulerError").slice(0,80));
       return Response.json({ ok: false, error: "scheduler_unavailable" }, { status: 503 });
     }
   }
   async alarm() {
+    await this.state.storage.put("last_alarm_at", new Date().toISOString());
     try {
       const result = await runScheduler(this.env);
       if (!result?.ok) throw new Error(String(result?.reason || "scheduler_unavailable"));
+      await this.state.storage.put("last_alarm_sent", Number(result.sent || 0));
+      await this.state.storage.delete("last_alarm_error");
       await this.updateNextAlarm();
       await this.state.storage.delete("alarm_retry_count");
     } catch (err) {
       console.error("whatsapp_alarm_execution_failed", String(err));
+      await this.state.storage.put("last_alarm_error", String(err?.name || "AlarmExecutionError").slice(0,80));
       const attempts = Number(await this.state.storage.get("alarm_retry_count") || 0) + 1;
       await this.state.storage.put("alarm_retry_count", attempts);
       await this.state.storage.setAlarm(alarmAtLeastNow(Date.now() +
@@ -7048,7 +7061,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.29", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.30", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);

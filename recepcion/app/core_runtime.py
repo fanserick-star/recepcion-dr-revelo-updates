@@ -2612,24 +2612,164 @@ def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, templat
 # configuration required, and that password is never sent over the network.
 _WA_ALARM_NOTIFY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/alarms/notify"
 _wa_alarm_hint_lock = threading.Lock()
-_wa_alarm_hint_pending = False
 _wa_alarm_hint_active = False
-# Estado local de la última señal; nunca contiene datos de pacientes ni secretos.
+# No se guarda ningún ID, teléfono, nombre o token en este registro.
 _wa_alarm_hint_diag = {"status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "", "last_error": ""}
 
 
-def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
-    """Signal a single event-driven alarm recomputation after cloud persistence.
+def _wa_alarm_signal_state() -> dict:
+    """Lee una única fila SQLite: no toca Neon ni Cloudflare."""
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS whatsapp_alarm_signal (
+            id INTEGER PRIMARY KEY CHECK (id=1), generation INTEGER NOT NULL DEFAULT 0,
+            pending INTEGER NOT NULL DEFAULT 0, updated_at TEXT, acknowledged_at TEXT,
+            last_attempt_at TEXT, last_error TEXT
+        )""")
+        row = conn.execute("""SELECT generation,pending,updated_at,acknowledged_at,
+                                     last_attempt_at,last_error
+                              FROM whatsapp_alarm_signal WHERE id=1""").fetchone()
+    if row is None:
+        return {"generation": 0, "pending": False, "updated_at": "",
+                "acknowledged_at": "", "last_attempt_at": "", "last_error": ""}
+    return dict(zip(("generation", "pending", "updated_at", "acknowledged_at",
+                     "last_attempt_at", "last_error"),
+                    (int(row[0]), bool(row[1]), row[2] or "", row[3] or "",
+                     row[4] or "", row[5] or "")))
 
-    A short burst of appointments is coalesced into one request. The notification
-    carries no patient names, phone numbers, appointment IDs, or DB credentials.
-    """
-    global _wa_alarm_hint_pending, _wa_alarm_hint_active
+
+def _wa_alarm_signal_enqueue() -> None:
+    # Una señal persistente y coalescida por ráfaga de cambios de Agenda.
+    _wa_alarm_signal_state()  # crear tabla en instalaciones anteriores
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        conn.execute("""INSERT INTO whatsapp_alarm_signal
+                        (id,generation,pending,updated_at,last_error)
+                        VALUES (1,1,1,datetime('now'),'')
+                        ON CONFLICT(id) DO UPDATE SET
+                        generation=generation+1,pending=1,
+                        updated_at=datetime('now'),last_error=''""")
+        conn.commit()
+
+
+def _wa_alarm_signal_mark(generation: int, *, acknowledged: bool, error: str = "") -> bool:
+    with sqlite3.connect(OFFLINE_DB_PATH, timeout=5) as conn:
+        if acknowledged:
+            updated = conn.execute("""UPDATE whatsapp_alarm_signal
+                SET pending=0, acknowledged_at=datetime('now'),last_error='',
+                    last_attempt_at=datetime('now')
+                WHERE id=1 AND generation=?""", (int(generation),))
+        else:
+            updated = conn.execute("""UPDATE whatsapp_alarm_signal
+                SET last_attempt_at=datetime('now'),last_error=?
+                WHERE id=1 AND generation=?""", (str(error)[:120], int(generation)))
+        conn.commit()
+        return bool(updated.rowcount)
+
+
+def _wa_alarm_hint_post_once() -> dict:
+    """Solo REPROGRAMA la próxima alarma; jamás solicita un envío a Meta."""
+    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
+    if len(key) < 12:
+        raise ValueError("Neon role credential unavailable")
+    ts = str(int(time.time()))
+    body = b"agenda_changed_v1"
+    mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
+    request = urllib.request.Request(
+        _WA_ALARM_NOTIFY_URL, data=body,
+        headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                 "X-Revelo-Signature": mac}, method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=7) as response:
+        if response.status != 200:
+            raise RuntimeError("Alarm notification not accepted")
+        payload = json.loads(response.read(8192).decode("utf-8"))
+    if payload.get("ok") is not True:
+        raise RuntimeError("Alarm coordinator did not acknowledge scheduling")
+    return payload
+
+
+def _wa_alarm_hint_start() -> None:
+    """Arranca solo por cambio, reconexión o apertura. Sin cron ni sondeos."""
+    global _wa_alarm_hint_active
     if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
         return
-    # An offline appointment must NEVER be signalled as already persisted.
-    # But unrelated queued writes (invoices/visits) must not suppress a real
-    # online appointment notification.
+    with _wa_alarm_hint_lock:
+        if _wa_alarm_hint_active:
+            return
+        _wa_alarm_hint_active = True
+
+    def task():
+        global _wa_alarm_hint_active
+        failed_generation = None
+        try:
+            while True:
+                try:
+                    state = _wa_alarm_signal_state()
+                    if not state["pending"]:
+                        break
+                    generation = int(state["generation"])
+                    # Se reintenta solo unas veces por evento y queda durable
+                    # para la siguiente apertura/sincronización si falla todo.
+                    for attempt in range(3):
+                        with _wa_alarm_hint_lock:
+                            _wa_alarm_hint_diag["status"] = "enviando"
+                            _wa_alarm_hint_diag["last_attempt_at"] = datetime.utcnow().isoformat(timespec="seconds")
+                        try:
+                            response = _wa_alarm_hint_post_once()
+                            accepted = _wa_alarm_signal_mark(generation, acknowledged=True)
+                            with _wa_alarm_hint_lock:
+                                _wa_alarm_hint_diag.update(
+                                    status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"),
+                                    last_error="", next_alarm_utc=str(response.get("next_alarm_utc") or ""),
+                                )
+                            # Tras cualquier respuesta válida se revisa la
+                            # generación actual en SQLite, sin duplicar HTTP.
+                            break
+                        except Exception as exc:
+                            http_code = str(getattr(exc, "code", "") or "")
+                            label = type(exc).__name__ + (" HTTP " + http_code if http_code else "")
+                            print("WHATSAPP_ALARM_NOTIFY_PENDING", label)
+                            _wa_alarm_signal_mark(generation, acknowledged=False, error=label)
+                            with _wa_alarm_hint_lock:
+                                _wa_alarm_hint_diag.update(status="fallido", last_error=label)
+                            if attempt < 2:
+                                time.sleep(4 if attempt == 0 else 9)
+                    else:
+                        # Sin bucles. Dejar pendiente hasta la próxima apertura
+                        # o hasta que otra cita requiera una nueva señal.
+                        failed_generation = generation
+                        break
+                    if accepted:
+                        continue
+                    # Generación reemplazada durante el envío: procesar la nueva.
+                    continue
+                except Exception as exc:
+                    with _wa_alarm_hint_lock:
+                        _wa_alarm_hint_diag.update(status="fallido", last_error=type(exc).__name__)
+                    break
+        finally:
+            with _wa_alarm_hint_lock:
+                _wa_alarm_hint_active = False
+            # Cerrar la pequeña carrera entre la última consulta SQLite y
+            # el aviso de una nueva cita mientras este hilo terminaba.
+            try:
+                last = _wa_alarm_signal_state()
+                if last["pending"] and (failed_generation is None
+                                        or last["generation"] != failed_generation):
+                    _wa_alarm_hint_start()
+            except Exception:
+                pass
+
+    threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
+
+
+def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
+    """Cita persistida -> señal DURABLE -> ack del coordinador Cloudflare.
+
+    Al reabrir la app solo se recuperan señales surgidas desde esta versión,
+    y el Worker descarta confirmaciones iniciales que ya vencieron.
+    """
+    if not WHATSAPP_CLOUD_MODE or not CONFIGURED_DB_URL or FORCE_OFFLINE:
+        return
     if source_type and int(source_id or 0) and queue_count() > 0:
         entity = "confirmafy_staged" if source_type == "staged" else source_type
         try:
@@ -2642,83 +2782,22 @@ def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -
                 return
         except Exception:
             return
-    with _wa_alarm_hint_lock:
-        _wa_alarm_hint_pending = True
-        if _wa_alarm_hint_active:
-            return
-        _wa_alarm_hint_active = True
+    try:
+        _wa_alarm_signal_enqueue()
+        _wa_alarm_hint_start()
+    except Exception as exc:
+        with _wa_alarm_hint_lock:
+            _wa_alarm_hint_diag.update(status="fallido", last_error=type(exc).__name__)
 
-    def task():
-        global _wa_alarm_hint_pending, _wa_alarm_hint_active
-        try:
-            while True:
-                time.sleep(1.0)
-                with _wa_alarm_hint_lock:
-                    if not _wa_alarm_hint_pending:
-                        break
-                    _wa_alarm_hint_pending = False
-                with _wa_alarm_hint_lock:
-                    _wa_alarm_hint_diag["status"] = "enviando"
-                    _wa_alarm_hint_diag["last_attempt_at"] = datetime.utcnow().isoformat(timespec="seconds")
-                try:
-                    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
-                    if len(key) < 12:
-                        raise ValueError("Neon role credential unavailable")
-                    ts = str(int(time.time()))
-                    body = b"agenda_changed_v1"
-                    mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
-                    req = urllib.request.Request(
-                        _WA_ALARM_NOTIFY_URL,
-                        data=body,
-                        headers={
-                            "Content-Type": "text/plain",
-                            "X-Revelo-Timestamp": ts,
-                            "X-Revelo-Signature": mac,
-                        },
-                        method="POST",
-                    )
-                    # Network I/O in daemon thread; never blocks front desk UI.
-                    with urllib.request.urlopen(req, timeout=7) as response:
-                        if response.status != 200:
-                            raise RuntimeError("Alarm notification not accepted")
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
-                except Exception as e:
-                    http_code = str(getattr(e, "code", "") or "")
-                    error_label = type(e).__name__ + ((" HTTP " + http_code) if http_code else "")
-                    print("WHATSAPP_ALARM_NOTIFY_PENDING", error_label)
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_diag.update(status="fallido", last_error=error_label)
-                    # Event retry, not polling Neon. No direct Meta sends.
-                    with _wa_alarm_hint_lock:
-                        _wa_alarm_hint_pending = True
-                    time.sleep(8.0)
-                    # Only three bounded retries per event burst.
-                    for _ in range(2):
-                        try:
-                            ts = str(int(time.time()))
-                            body = b"agenda_changed_v1"
-                            mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
-                            req = urllib.request.Request(
-                                _WA_ALARM_NOTIFY_URL, data=body,
-                                headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts, "X-Revelo-Signature": mac},
-                                method="POST",
-                            )
-                            with urllib.request.urlopen(req, timeout=7) as response:
-                                if response.status == 200:
-                                    with _wa_alarm_hint_lock:
-                                        # Una cita registrada DURANTE el reintento no debe perder su señal.
-                                        _wa_alarm_hint_diag.update(status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"), last_error="")
-                                    break
-                        except Exception:
-                            time.sleep(8.0)
-                    # Never spin forever after a network outage.
-                    break
-        finally:
-            with _wa_alarm_hint_lock:
-                _wa_alarm_hint_active = False
 
-    threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
+def _wa_alarm_hint_resume() -> None:
+    """Al abrir Recepción, recuperar SOLO una señal ya pendiente."""
+    try:
+        state = _wa_alarm_signal_state()
+        if state["pending"]:
+            _wa_alarm_hint_start()
+    except Exception:
+        pass
 
 
 def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str, phone: str,
@@ -4075,6 +4154,8 @@ async def _limit_worker_threads_for_old_pc():
     # El worker de WhatsApp arranca después de que FastAPI ya está listo y solo
     # cuando WHATSAPP_ENABLED=1. En la preparación actual permanece apagado.
     start_whatsapp_worker_if_enabled()
+    # Ningún envío directo: solo recuperar una señal de alarma persistida.
+    _wa_alarm_hint_resume()
     # v4.3.34: la Agenda 24/7 vive en GitHub Pages + Neon Data API.
     # Ya no arrancamos Cloudflare Tunnel ni ningún proceso adicional. Si quedó
     # uno de una versión anterior, lo cerramos para liberar RAM/CPU.
@@ -7681,7 +7762,11 @@ def _wa_timeline_for_source(*, source_type: str, source_id: int, fecha: date, ho
             elif appointment_state == "NO_ASISTIRA":
                 item["response"] = "Paciente indicó que no asistirá"
         final.append(item)
-    return {"available": not bool(cloud_error), "cloud_error": cloud_error, "items": final}
+    alarm_diagnostic = _wa_alarm_signal_state()
+    return {"available": not bool(cloud_error), "cloud_error": cloud_error, "items": final,
+            "alarm_signal_pending": bool(alarm_diagnostic["pending"]),
+            "alarm_signal_error": str(alarm_diagnostic["last_error"] or "")[:90],
+            "runtime_version": "4.8.21"}
 
 
 @app.get("/api/agenda/appointments/{appointment_id}/whatsapp-timeline")
@@ -10500,7 +10585,9 @@ def whatsapp_status(user: User = Depends(current_user)):
     return {
         "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
         "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
-        "alarm_notification": dict(_wa_alarm_hint_diag),
+        "alarm_notification": dict(_wa_alarm_hint_diag, **{
+            "persisted": _wa_alarm_signal_state(),
+        }),
         "state": "CLOUD_24_7" if WHATSAPP_CLOUD_MODE else ("ACTIVO" if WHATSAPP_ENABLED and ready else ("CONFIGURACION_INCOMPLETA" if WHATSAPP_ENABLED else "PENDIENTE_APROBACION")),
         "ready": ready, "missing": missing,
         "templates": {
@@ -10719,7 +10806,7 @@ def v458_settings_js():
 # v4.3.59 — Estado en pestaña + prueba Cloud + timeline por cita
 # ---------------------------------------------------------------------------
 V459_SETTINGS_CSS = "/* v4.3.59 — Estado en pestaña + timeline WhatsApp por cita */\n#config.v458-settings .v459-services-section .v458-service-panel{margin:0!important}\n.v459-whatsapp-timeline{margin:14px 0 4px;padding:13px 14px;border:1px solid #dfe6ef;border-radius:13px;background:#fbfcfe}\n.v459-whatsapp-timeline h3{font-size:14px;margin:0 0 11px;color:#253a57}\n.v459-wa-flow{position:relative;display:flex;flex-direction:column;gap:0}\n.v459-wa-step{position:relative;display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;min-height:64px;padding-bottom:10px}\n.v459-wa-step:last-child{min-height:44px;padding-bottom:0}\n.v459-wa-step:not(:last-child):before{content:'';position:absolute;left:10px;top:22px;bottom:-2px;width:2px;background:#dce4ee}\n.v459-wa-dot{width:21px;height:21px;border-radius:50%;display:grid;place-items:center;background:#eef2f7;border:2px solid #cbd5e2;color:#718096;font-size:10px;font-weight:900;z-index:1}\n.v459-wa-step.success .v459-wa-dot{background:#e6f7ec;border-color:#8ed1a6;color:#187342}.v459-wa-step.info .v459-wa-dot{background:#eaf2ff;border-color:#9cbcf0;color:#2e61a4}.v459-wa-step.danger .v459-wa-dot{background:#ffeceb;border-color:#e6a29d;color:#a03a34}\n.v459-wa-copy{display:flex;flex-direction:column;gap:3px}.v459-wa-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.v459-wa-title b{font-size:13px;color:#273b56}.v459-wa-badge{font-size:9px;font-weight:800;border-radius:999px;padding:3px 7px;background:#eef2f6;color:#66768b;white-space:nowrap}.v459-wa-step.success .v459-wa-badge{background:#e6f7ec;color:#187342}.v459-wa-step.info .v459-wa-badge{background:#eaf2ff;color:#2e61a4}.v459-wa-step.danger .v459-wa-badge{background:#ffeceb;color:#a03a34}.v459-wa-copy small{font-size:11px;line-height:1.35;color:#728095}.v459-wa-response{font-size:11px;font-weight:700;color:#2c6f49;margin-top:2px}\n.v459-timeline-loading{font-size:12px;color:#738198;padding:8px 0}\n.v459-cloud-test-note{margin-top:8px;padding:9px 10px;border-radius:9px;background:#eef6ff;color:#45627e;font-size:12px;line-height:1.4}\n#v459FinishCloudTest{margin-left:7px}\n@media(max-width:760px){.v459-wa-title{align-items:flex-start;flex-direction:column;gap:4px}}\n"
-V459_SETTINGS_JS = '(()=>{\n\'use strict\';\nconst V=\'4.3.59\';\nconst q=(s,r=document)=>r.querySelector(s), qa=(s,r=document)=>[...r.querySelectorAll(s)];\nconst eh=v=>String(v??\'\').replace(/[&<>"\']/g,c=>({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[c]));\nconst call=async(url,opt={})=>{if(typeof window.api===\'function\')return window.api(url,opt);const r=await fetch(url,{headers:{\'Content-Type\':\'application/json\',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||d.message||\'Error\');return d};\nconst lower=v=>String(v||\'\').trim().toLowerCase();\n\nfunction moveServicesToTab(){\n const config=q(\'#config\'),tabs=q(\'.config-tabs\',config),panel=q(\'#v458ServicePanel\',config);if(!config||!tabs||!panel)return;\n let sec=q(\'[data-config-section="services"]\',config);if(!sec){sec=document.createElement(\'div\');sec.dataset.configSection=\'services\';sec.className=\'config-section hidden v459-services-section\';const general=q(\'[data-config-section="general"]\',config);general?.after(sec)||config.appendChild(sec)}\n sec.appendChild(panel);\n let btn=q(\'[data-config-tab="services"]\',tabs);if(!btn){btn=document.createElement(\'button\');btn.type=\'button\';btn.dataset.configTab=\'services\';btn.textContent=\'Estado de servicios\';const generalBtn=q(\'[data-config-tab="general"]\',tabs);generalBtn?.after(btn)||tabs.prepend(btn);btn.onclick=()=>window.showConfigTab?.(\'services\',btn)}\n const badge=q(\'#currentVersionBadge\');if(badge)badge.textContent=\'v\'+V;\n}\n\nfunction cleanWhatsappConfig(){\n const sec=q(\'[data-config-section="whatsapp"]\');if(!sec)return;\n q(\'#v458Delivery\',sec)?.remove();\n const over=q(\'#v458WaOverview\',sec);if(over){const p=q(\'.config-panel-head p\',over);if(p)p.textContent=\'Conexión Cloud y estado de las plantillas. El historial de cada paciente se consulta directamente desde Agenda.\'}\n qa(\'.panel\',sec).forEach(p=>{const h=lower(q(\'h1,h2,h3,h4\',p)?.textContent);if(h===\'mensajes de whatsapp\'||h.startsWith(\'mensajes de whatsapp \'))p.remove()});\n const test=q(\'.whatsapp-test-panel\',sec);if(test){const h=q(\'h3\',test);if(h)h.textContent=\'Prueba Cloud controlada\';const p=q(\'.config-panel-head p\',test);if(p)p.textContent=\'Prueba el mismo worker 24/7 sin guardar tokens de Meta en esta PC.\';const note=q(\'.config-info-note span\',test);if(note)note.textContent=\'La solicitud viaja por Neon y el worker Cloud. No crea pacientes ni modifica citas reales. Puede tardar hasta 5 minutos porque usa el ciclo real del worker.\'}\n}\n\nfunction fmtStamp(v){if(!v)return\'\';try{return new Date(v).toLocaleString(\'es-EC\',{day:\'2-digit\',month:\'2-digit\',hour:\'2-digit\',minute:\'2-digit\'})}catch{return\'\'}}\nfunction timelineHtml(data){\n const items=data?.items||[];if(!items.length)return \'<div class="v459-timeline-loading">Sin información de mensajes para esta cita.</div>\';\n return `<div class="v459-wa-flow">${items.map((x,i)=>{const detail=x.error?`Error: ${eh(x.error)}`:(x.timestamp?fmtStamp(x.timestamp):(x.planned||\'\'));return `<div class="v459-wa-step ${eh(x.tone||\'muted\')}"><span class="v459-wa-dot">${i+1}</span><div class="v459-wa-copy"><div class="v459-wa-title"><b>${eh(x.label)}</b><span class="v459-wa-badge">${eh(x.status_label||\'—\')}</span></div><small>${eh(detail)}</small>${x.response?`<div class="v459-wa-response">${eh(x.response)}</div>`:\'\'}</div></div>`}).join(\'\')}</div>`\n}\nasync function loadTimeline(source,id,host){try{const d=await call(source===\'appointment\'?`/api/agenda/appointments/${id}/whatsapp-timeline`:`/api/agenda/confirmafy-staged/${id}/whatsapp-timeline`);host.innerHTML=timelineHtml(d)}catch(e){host.innerHTML=`<div class="v459-timeline-loading">No se pudo consultar el estado Cloud: ${eh(e.message||e)}</div>`}}\n\nwindow.openLinkedAgendaDetail=async function(appointmentId,patientId,fecha){\n try{const row=await call(`/api/agenda/appointments/${Number(appointmentId)}`),a=row.appointment||{},p=row.patient||{},state=String(a.estado||\'PENDIENTE\').toUpperCase();let status=\'Pendiente\',cls=\'pending\';if([\'CONFIRMADA\',\'CONFIRMADO\'].includes(state)){status=\'Confirmada\';cls=\'confirmed\'}else if([\'NO_ASISTIRA\',\'CANCELADA\',\'CANCELADO\'].includes(state)){status=\'No asistirá\';cls=\'cancelled\'}else if(state===\'REAGENDADA\'){status=\'Reagendada\';cls=\'rescheduled\'};\n  const date=typeof window.fmtDate===\'function\'?window.fmtDate(a.fecha):String(a.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(a.hora):String(a.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading v467-agenda-heading"><h2>${eh(p.nombre||\'Paciente\')}</h2><div class="v467-agenda-meta"><span>${eh(date)} · ${eh(time)}</span>${p.celular?`<span class="v467-agenda-phone">Tel. ${eh(p.celular)}</span>`:\'\'}</div></div><div class="native-detail-status ${cls}">${eh(status)}</div>${a.nota?`<div class="native-detail-note">${eh(a.nota)}</div>`:\'\'}<section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button onclick="openPatient(${Number(p.id)},\'patients\')">Ver paciente</button><button onclick="attendFromAgenda(${Number(p.id)},\'${String(fecha||a.fecha).slice(0,10)}\')">✓ Atender</button><button onclick="openAgendaPatient(${Number(p.id)},${Number(a.id)})">✎ Editar cita</button><button class="danger ghost" onclick="deleteAgendaAppointment(${Number(a.id)})">Eliminar cita</button></div></div>`);\n  requestAnimationFrame(()=>{const x=q(\'.native-appointment-detail\'),body=x?.parentElement,outer=x?.closest(\'.modal-content,.modal-card,[role="dialog"]\')||body?.parentElement;body?.classList.add(\'v467-agenda-modal-shell\');outer?.classList.add(\'v471-agenda-outer\')});\n   const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'appointment\',Number(a.id),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\nwindow.openUnlinkedAgendaDetail=async function(itemId,fecha){\n try{const d=await call(`/api/agenda/confirmafy-staged/${Number(itemId)}`),st=d.staged||{},date=typeof window.fmtDate===\'function\'?window.fmtDate(st.fecha):String(st.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(st.hora):String(st.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading v467-agenda-heading"><h2>${eh(st.nombre||\'Paciente\')}</h2><div class="v467-agenda-meta"><span>${eh(date)} · ${eh(time)}</span>${st.celular?`<span class="v467-agenda-phone">Tel. ${eh(st.celular)}</span>`:\'\'}</div></div><div class="native-detail-status pending">Pendiente · sin ficha vinculada</div><p class="muted">La identidad se resolverá cuando el paciente sea atendido.</p><section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button class="primary" onclick="attendConfirmafyStaged(${Number(itemId)},\'${String(fecha||st.fecha).slice(0,10)}\')">✓ Atender</button><button class="danger ghost" onclick="deleteUnlinkedAppointment(${Number(itemId)})">Eliminar cita</button></div></div>`);\n  requestAnimationFrame(()=>{const x=q(\'.native-appointment-detail\'),body=x?.parentElement,outer=x?.closest(\'.modal-content,.modal-card,[role="dialog"]\')||body?.parentElement;body?.classList.add(\'v467-agenda-modal-shell\');outer?.classList.add(\'v471-agenda-outer\')});\n   const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'staged\',Number(itemId),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\n\nlet cloudTest=null,cloudTestTimer=null,cloudTestNotified=false;\nfunction testTemplate(){return window.__v464WaTemplateValue||q(\'#waTestTemplate\')?.value||\'recordatorio_cita\'}\nasync function pollCloudTest(){if(!cloudTest)return;try{const d=await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`),r=q(\'#whatsappTestResult\');if(r){const extra=d.timestamp?\' · \'+fmtStamp(d.timestamp):\'\';r.textContent=`${d.status_label||d.status}${extra}${d.error?\' · \'+d.error:\'\'}`};if(d.terminal){clearInterval(cloudTestTimer);cloudTestTimer=null;if(d.ok&&!cloudTestNotified){cloudTestNotified=true;window.rpNotice(\'✅ El worker Cloud procesó la prueba.\\n\\nRevisa WhatsApp en el teléfono destino. Puedes probar los botones Sí / No y luego pulsar “Finalizar prueba”.\')}}}catch(e){const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'No se pudo consultar la prueba: \'+(e.message||e)}}\nwindow.finishWhatsappCloudTest=async function(){if(!cloudTest)return;try{await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`,{method:\'DELETE\'});cloudTest=null;clearInterval(cloudTestTimer);cloudTestTimer=null;const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'Prueba finalizada. La fila técnica fue retirada de la agenda Cloud.\';q(\'#v459FinishCloudTest\')?.remove()}catch(e){window.rpNotice(e.message||e)}};\nwindow.sendWhatsappTest=async function(){\n const phone=(q(\'#waTestPhone\')?.value||\'\').trim(),name=(q(\'#waTestName\')?.value||\'Prueba\').trim(),date=q(\'#waTestDate\')?.value||\'\',time=q(\'#waTestTime\')?.value||\'\',template=testTemplate(),result=q(\'#whatsappTestResult\'),btn=q(\'#waTestSendBtn\');\n if(!phone){window.rpNotice(\'Ingresa el número que recibirá la prueba.\');return}if(!date||!time){window.rpNotice(\'Selecciona fecha y hora para mostrar en el mensaje.\');return}if(![\'recordatorio_cita\',\'cita_agendada\',\'recordatorio_hoy\'].includes(template)){window.rpNotice(\'Plantilla de prueba no válida.\');return}\n if(!(await window.rpConfirm(`¿Enviar UNA prueba Cloud a ${phone}?\\n\\nNo se usará ningún token de Meta de esta PC y no se tocará ningún paciente real.`,\'Confirmar prueba WhatsApp\')))return;\n try{if(btn){btn.disabled=true;btn.textContent=\'Registrando en Cloud…\'}if(result)result.textContent=\'Registrando prueba técnica en Neon…\';const d=await call(\'/api/whatsapp/cloud-test\',{method:\'POST\',body:JSON.stringify({phone,name,date,time,template})});cloudTest={id:d.test_id,token:d.token};cloudTestNotified=false;if(result)result.textContent=\'✅ Solicitud registrada. Esperando al worker Cloud (ciclo de hasta 5 minutos)…\';let finish=q(\'#v459FinishCloudTest\');if(!finish&&btn){finish=document.createElement(\'button\');finish.id=\'v459FinishCloudTest\';finish.type=\'button\';finish.textContent=\'Finalizar prueba\';finish.onclick=window.finishWhatsappCloudTest;btn.after(finish)}clearInterval(cloudTestTimer);cloudTestTimer=setInterval(pollCloudTest,5000);pollCloudTest()}catch(e){if(result)result.textContent=\'❌ \'+(e.message||e);window.rpNotice(e.message||e)}finally{if(btn){btn.disabled=false;btn.textContent=\'☁ Enviar prueba por Cloud\'}}\n};\n\nwindow.loadWhatsappStatus=async function(){\n const pill=q(\'#whatsappStatusPill\'),text=q(\'#whatsappStatusText\'),testPill=q(\'#whatsappTestPill\');\n try{const d=await call(\'/api/whatsapp/status\');if(pill){pill.textContent=d.cloud_mode?\'ONLINE 24/7\':(d.enabled?\'ACTIVO\':\'LOCAL APAGADO\');pill.classList.toggle(\'ready\',!!(d.cloud_mode||d.enabled))}if(text)text.innerHTML=d.cloud_mode?\'<b>WhatsApp Cloud 24/7 activo.</b> Las credenciales de Meta permanecen en Cloudflare; esta PC no necesita token local. Las respuestas Sí / No se sincronizan mediante Neon.\':eh(d.message||\'\');\n  if(typeof window.renderTemplateCards===\'function\')window.renderTemplateCards(d);else{const grid=q(\'#v458TemplateGrid\');if(grid){const defs=[[\'recordatorio_cita\',\'Confirmación de cita\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio del día\']];grid.innerHTML=defs.map(([k,l])=>{const x=d.templates?.[k]||{},ok=!!x.approved;return `<div class="v458-template-card"><div class="top"><b>${eh(l)}</b><span class="v458-template-badge ${ok?\'approved\':\'\'}">${ok?\'APROBADA\':\'EN ESPERA\'}</span></div><code>${eh(x.name||k)} · ${eh(x.language||\'\')}</code><small>${ok?(x.automatic?\'Activa en la automatización 24/7.\':\'Aprobada, no automática.\'):\'No se usa hasta que Meta la apruebe.\'}</small></div>`}).join(\'\')}}\n  if(testPill){const ready=!!d.manual_test?.ready;testPill.textContent=ready?\'CLOUD LISTO\':\'NO DISPONIBLE\';testPill.classList.toggle(\'ready\',ready)}const dateInput=q(\'#waTestDate\');if(dateInput&&!dateInput.value){const x=new Date();x.setDate(x.getDate()+1);dateInput.value=x.toISOString().slice(0,10)}const btn=q(\'#waTestSendBtn\');if(btn)btn.textContent=\'☁ Enviar prueba por Cloud\';const sel=q(\'#waTestTemplate\');if(sel){[...sel.options].forEach(o=>{const k=o.value||\'\';o.disabled=k!==\'recordatorio_cita\'});sel.value=\'recordatorio_cita\'}\n }catch(e){if(text)text.textContent=e.message||e}\n};\n\nfunction upgrade(){moveServicesToTab();cleanWhatsappConfig();const sub=q(\'.config-title-row .muted\',\'#config\');if(sub)sub.textContent=\'Preferencias, servicios, agenda y conexiones organizadas por pestañas.\';setTimeout(()=>window.loadWhatsappStatus?.(),50)}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',()=>setTimeout(upgrade,20),{once:true});else setTimeout(upgrade,20);setTimeout(upgrade,350);\n})();\n;(()=>{\n  function installV464TemplatePicker(){\n    const sel=document.querySelector(\'#waTestTemplate\');\n    if(!sel||sel.dataset.v464Picker===\'1\')return;\n    sel.dataset.v464Picker=\'1\';\n    sel.style.display=\'none\';\n    const current=window.__v464WaTemplateValue||sel.value||\'recordatorio_cita\';\n    window.__v464WaTemplateValue=current;\n    const wrap=document.createElement(\'div\');wrap.className=\'v464-template-picker\';wrap.setAttribute(\'role\',\'group\');wrap.setAttribute(\'aria-label\',\'Mensaje a probar\');\n    const defs=[[\'recordatorio_cita\',\'Confirmación\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio de hoy\']];\n    const paint=()=>wrap.querySelectorAll(\'button\').forEach(b=>b.classList.toggle(\'active\',b.dataset.template===window.__v464WaTemplateValue));\n    defs.forEach(([value,label])=>{const b=document.createElement(\'button\');b.type=\'button\';b.dataset.template=value;b.textContent=label;b.addEventListener(\'click\',()=>{window.__v464WaTemplateValue=value;sel.value=value;paint();});wrap.appendChild(b)});\n    sel.insertAdjacentElement(\'afterend\',wrap);paint();\n  }\n  function installV464PickerStyle(){if(document.getElementById(\'v464PickerStyle\'))return;const st=document.createElement(\'style\');st.id=\'v464PickerStyle\';st.textContent=`.v464-template-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}.v464-template-picker button{border:1px solid #cfd9e6;background:#fff;color:#38516f;border-radius:11px;padding:10px 9px;font-weight:800;cursor:pointer}.v464-template-picker button.active{background:#2767ad;color:#fff;border-color:#2767ad;box-shadow:0 4px 14px rgba(39,103,173,.18)}@media(max-width:850px){.v464-template-picker{grid-template-columns:1fr}}`;document.head.appendChild(st)}\n  function boot(){installV464PickerStyle();installV464TemplatePicker()}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',boot,{once:true});else boot();\n  setTimeout(boot,250);setTimeout(boot,900);\n  let v472PickerTimer=0;new MutationObserver(()=>{if(v472PickerTimer)return;v472PickerTimer=setTimeout(()=>{v472PickerTimer=0;installV464TemplatePicker()},160)}).observe(document.documentElement,{childList:true,subtree:true});\n})();\n'
+V459_SETTINGS_JS = '(()=>{\n\'use strict\';\nconst V=\'4.3.59\';\nconst q=(s,r=document)=>r.querySelector(s), qa=(s,r=document)=>[...r.querySelectorAll(s)];\nconst eh=v=>String(v??\'\').replace(/[&<>"\']/g,c=>({\'&\':\'&amp;\',\'<\':\'&lt;\',\'>\':\'&gt;\',\'"\':\'&quot;\',"\'":\'&#39;\'}[c]));\nconst call=async(url,opt={})=>{if(typeof window.api===\'function\')return window.api(url,opt);const r=await fetch(url,{headers:{\'Content-Type\':\'application/json\',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||d.message||\'Error\');return d};\nconst lower=v=>String(v||\'\').trim().toLowerCase();\n\nfunction moveServicesToTab(){\n const config=q(\'#config\'),tabs=q(\'.config-tabs\',config),panel=q(\'#v458ServicePanel\',config);if(!config||!tabs||!panel)return;\n let sec=q(\'[data-config-section="services"]\',config);if(!sec){sec=document.createElement(\'div\');sec.dataset.configSection=\'services\';sec.className=\'config-section hidden v459-services-section\';const general=q(\'[data-config-section="general"]\',config);general?.after(sec)||config.appendChild(sec)}\n sec.appendChild(panel);\n let btn=q(\'[data-config-tab="services"]\',tabs);if(!btn){btn=document.createElement(\'button\');btn.type=\'button\';btn.dataset.configTab=\'services\';btn.textContent=\'Estado de servicios\';const generalBtn=q(\'[data-config-tab="general"]\',tabs);generalBtn?.after(btn)||tabs.prepend(btn);btn.onclick=()=>window.showConfigTab?.(\'services\',btn)}\n const badge=q(\'#currentVersionBadge\');if(badge)badge.textContent=\'v\'+V;\n}\n\nfunction cleanWhatsappConfig(){\n const sec=q(\'[data-config-section="whatsapp"]\');if(!sec)return;\n q(\'#v458Delivery\',sec)?.remove();\n const over=q(\'#v458WaOverview\',sec);if(over){const p=q(\'.config-panel-head p\',over);if(p)p.textContent=\'Conexión Cloud y estado de las plantillas. El historial de cada paciente se consulta directamente desde Agenda.\'}\n qa(\'.panel\',sec).forEach(p=>{const h=lower(q(\'h1,h2,h3,h4\',p)?.textContent);if(h===\'mensajes de whatsapp\'||h.startsWith(\'mensajes de whatsapp \'))p.remove()});\n const test=q(\'.whatsapp-test-panel\',sec);if(test){const h=q(\'h3\',test);if(h)h.textContent=\'Prueba Cloud controlada\';const p=q(\'.config-panel-head p\',test);if(p)p.textContent=\'Prueba el mismo worker 24/7 sin guardar tokens de Meta en esta PC.\';const note=q(\'.config-info-note span\',test);if(note)note.textContent=\'La solicitud viaja por Neon y el worker Cloud. No crea pacientes ni modifica citas reales. Puede tardar hasta 5 minutos porque usa el ciclo real del worker.\'}\n}\n\nfunction fmtStamp(v){if(!v)return\'\';try{return new Date(v).toLocaleString(\'es-EC\',{day:\'2-digit\',month:\'2-digit\',hour:\'2-digit\',minute:\'2-digit\'})}catch{return\'\'}}\nfunction timelineHtml(data){\n const alarmWarning=data?.alarm_signal_pending?\'<div class="v459-timeline-loading" style="color:#a33">Aviso de alarma sin confirmar. Reintento pendiente: no se reenvían mensajes antiguos.</div>\':\'\';\n const items=data?.items||[];if(!items.length)return \'<div class="v459-timeline-loading">Sin información de mensajes para esta cita.</div>\';\n return `<small style="display:block;color:#64748b">Estado Meta Cloud · Recepción ${eh(data.runtime_version||'')}</small>${alarmWarning}<div class="v459-wa-flow">${items.map((x,i)=>{const detail=x.error?`Error: ${eh(x.error)}`:(x.timestamp?fmtStamp(x.timestamp):(x.planned||\'\'));return `<div class="v459-wa-step ${eh(x.tone||\'muted\')}"><span class="v459-wa-dot">${i+1}</span><div class="v459-wa-copy"><div class="v459-wa-title"><b>${eh(x.label)}</b><span class="v459-wa-badge">${eh(x.status_label||\'—\')}</span></div><small>${eh(detail)}</small>${x.response?`<div class="v459-wa-response">${eh(x.response)}</div>`:\'\'}</div></div>`}).join(\'\')}</div>`\n}\nasync function loadTimeline(source,id,host){try{const d=await call(source===\'appointment\'?`/api/agenda/appointments/${id}/whatsapp-timeline`:`/api/agenda/confirmafy-staged/${id}/whatsapp-timeline`);host.innerHTML=timelineHtml(d)}catch(e){host.innerHTML=`<div class="v459-timeline-loading">No se pudo consultar el estado Cloud: ${eh(e.message||e)}</div>`}}\n\nwindow.openLinkedAgendaDetail=async function(appointmentId,patientId,fecha){\n try{const row=await call(`/api/agenda/appointments/${Number(appointmentId)}`),a=row.appointment||{},p=row.patient||{},state=String(a.estado||\'PENDIENTE\').toUpperCase();let status=\'Pendiente\',cls=\'pending\';if([\'CONFIRMADA\',\'CONFIRMADO\'].includes(state)){status=\'Confirmada\';cls=\'confirmed\'}else if([\'NO_ASISTIRA\',\'CANCELADA\',\'CANCELADO\'].includes(state)){status=\'No asistirá\';cls=\'cancelled\'}else if(state===\'REAGENDADA\'){status=\'Reagendada\';cls=\'rescheduled\'};\n  const date=typeof window.fmtDate===\'function\'?window.fmtDate(a.fecha):String(a.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(a.hora):String(a.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading v467-agenda-heading"><h2>${eh(p.nombre||\'Paciente\')}</h2><div class="v467-agenda-meta"><span>${eh(date)} · ${eh(time)}</span>${p.celular?`<span class="v467-agenda-phone">Tel. ${eh(p.celular)}</span>`:\'\'}</div></div><div class="native-detail-status ${cls}">${eh(status)}</div>${a.nota?`<div class="native-detail-note">${eh(a.nota)}</div>`:\'\'}<section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button onclick="openPatient(${Number(p.id)},\'patients\')">Ver paciente</button><button onclick="attendFromAgenda(${Number(p.id)},\'${String(fecha||a.fecha).slice(0,10)}\')">✓ Atender</button><button onclick="openAgendaPatient(${Number(p.id)},${Number(a.id)})">✎ Editar cita</button><button class="danger ghost" onclick="deleteAgendaAppointment(${Number(a.id)})">Eliminar cita</button></div></div>`);\n  requestAnimationFrame(()=>{const x=q(\'.native-appointment-detail\'),body=x?.parentElement,outer=x?.closest(\'.modal-content,.modal-card,[role="dialog"]\')||body?.parentElement;body?.classList.add(\'v467-agenda-modal-shell\');outer?.classList.add(\'v471-agenda-outer\')});\n   const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'appointment\',Number(a.id),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\nwindow.openUnlinkedAgendaDetail=async function(itemId,fecha){\n try{const d=await call(`/api/agenda/confirmafy-staged/${Number(itemId)}`),st=d.staged||{},date=typeof window.fmtDate===\'function\'?window.fmtDate(st.fecha):String(st.fecha||\'\'),time=typeof window.fmtTime===\'function\'?window.fmtTime(st.hora):String(st.hora||\'\');\n  window.openModal(`<div class="native-appointment-detail"><div class="modal-form-heading v467-agenda-heading"><h2>${eh(st.nombre||\'Paciente\')}</h2><div class="v467-agenda-meta"><span>${eh(date)} · ${eh(time)}</span>${st.celular?`<span class="v467-agenda-phone">Tel. ${eh(st.celular)}</span>`:\'\'}</div></div><div class="native-detail-status pending">Pendiente · sin ficha vinculada</div><p class="muted">La identidad se resolverá cuando el paciente sea atendido.</p><section class="v459-whatsapp-timeline"><h3>Mensajes de WhatsApp</h3><div id="v459TimelineHost" class="v459-timeline-loading">Consultando estado Cloud…</div></section><div class="actions wrap-actions"><button class="primary" onclick="attendConfirmafyStaged(${Number(itemId)},\'${String(fecha||st.fecha).slice(0,10)}\')">✓ Atender</button><button class="danger ghost" onclick="deleteUnlinkedAppointment(${Number(itemId)})">Eliminar cita</button></div></div>`);\n  requestAnimationFrame(()=>{const x=q(\'.native-appointment-detail\'),body=x?.parentElement,outer=x?.closest(\'.modal-content,.modal-card,[role="dialog"]\')||body?.parentElement;body?.classList.add(\'v467-agenda-modal-shell\');outer?.classList.add(\'v471-agenda-outer\')});\n   const host=q(\'#v459TimelineHost\');if(host)loadTimeline(\'staged\',Number(itemId),host)\n }catch(e){window.rpNotice(e.message||e)}\n};\n\nlet cloudTest=null,cloudTestTimer=null,cloudTestNotified=false;\nfunction testTemplate(){return window.__v464WaTemplateValue||q(\'#waTestTemplate\')?.value||\'recordatorio_cita\'}\nasync function pollCloudTest(){if(!cloudTest)return;try{const d=await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`),r=q(\'#whatsappTestResult\');if(r){const extra=d.timestamp?\' · \'+fmtStamp(d.timestamp):\'\';r.textContent=`${d.status_label||d.status}${extra}${d.error?\' · \'+d.error:\'\'}`};if(d.terminal){clearInterval(cloudTestTimer);cloudTestTimer=null;if(d.ok&&!cloudTestNotified){cloudTestNotified=true;window.rpNotice(\'✅ El worker Cloud procesó la prueba.\\n\\nRevisa WhatsApp en el teléfono destino. Puedes probar los botones Sí / No y luego pulsar “Finalizar prueba”.\')}}}catch(e){const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'No se pudo consultar la prueba: \'+(e.message||e)}}\nwindow.finishWhatsappCloudTest=async function(){if(!cloudTest)return;try{await call(`/api/whatsapp/cloud-test/${cloudTest.id}?token=${encodeURIComponent(cloudTest.token)}`,{method:\'DELETE\'});cloudTest=null;clearInterval(cloudTestTimer);cloudTestTimer=null;const r=q(\'#whatsappTestResult\');if(r)r.textContent=\'Prueba finalizada. La fila técnica fue retirada de la agenda Cloud.\';q(\'#v459FinishCloudTest\')?.remove()}catch(e){window.rpNotice(e.message||e)}};\nwindow.sendWhatsappTest=async function(){\n const phone=(q(\'#waTestPhone\')?.value||\'\').trim(),name=(q(\'#waTestName\')?.value||\'Prueba\').trim(),date=q(\'#waTestDate\')?.value||\'\',time=q(\'#waTestTime\')?.value||\'\',template=testTemplate(),result=q(\'#whatsappTestResult\'),btn=q(\'#waTestSendBtn\');\n if(!phone){window.rpNotice(\'Ingresa el número que recibirá la prueba.\');return}if(!date||!time){window.rpNotice(\'Selecciona fecha y hora para mostrar en el mensaje.\');return}if(![\'recordatorio_cita\',\'cita_agendada\',\'recordatorio_hoy\'].includes(template)){window.rpNotice(\'Plantilla de prueba no válida.\');return}\n if(!(await window.rpConfirm(`¿Enviar UNA prueba Cloud a ${phone}?\\n\\nNo se usará ningún token de Meta de esta PC y no se tocará ningún paciente real.`,\'Confirmar prueba WhatsApp\')))return;\n try{if(btn){btn.disabled=true;btn.textContent=\'Registrando en Cloud…\'}if(result)result.textContent=\'Registrando prueba técnica en Neon…\';const d=await call(\'/api/whatsapp/cloud-test\',{method:\'POST\',body:JSON.stringify({phone,name,date,time,template})});cloudTest={id:d.test_id,token:d.token};cloudTestNotified=false;if(result)result.textContent=\'✅ Solicitud registrada. Esperando al worker Cloud (ciclo de hasta 5 minutos)…\';let finish=q(\'#v459FinishCloudTest\');if(!finish&&btn){finish=document.createElement(\'button\');finish.id=\'v459FinishCloudTest\';finish.type=\'button\';finish.textContent=\'Finalizar prueba\';finish.onclick=window.finishWhatsappCloudTest;btn.after(finish)}clearInterval(cloudTestTimer);cloudTestTimer=setInterval(pollCloudTest,5000);pollCloudTest()}catch(e){if(result)result.textContent=\'❌ \'+(e.message||e);window.rpNotice(e.message||e)}finally{if(btn){btn.disabled=false;btn.textContent=\'☁ Enviar prueba por Cloud\'}}\n};\n\nwindow.loadWhatsappStatus=async function(){\n const pill=q(\'#whatsappStatusPill\'),text=q(\'#whatsappStatusText\'),testPill=q(\'#whatsappTestPill\');\n try{const d=await call(\'/api/whatsapp/status\');if(pill){pill.textContent=d.cloud_mode?\'ONLINE 24/7\':(d.enabled?\'ACTIVO\':\'LOCAL APAGADO\');pill.classList.toggle(\'ready\',!!(d.cloud_mode||d.enabled))}if(text)text.innerHTML=d.cloud_mode?\'<b>WhatsApp Cloud 24/7 activo.</b> Las credenciales de Meta permanecen en Cloudflare; esta PC no necesita token local. Las respuestas Sí / No se sincronizan mediante Neon.\':eh(d.message||\'\');\n  if(typeof window.renderTemplateCards===\'function\')window.renderTemplateCards(d);else{const grid=q(\'#v458TemplateGrid\');if(grid){const defs=[[\'recordatorio_cita\',\'Confirmación de cita\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio del día\']];grid.innerHTML=defs.map(([k,l])=>{const x=d.templates?.[k]||{},ok=!!x.approved;return `<div class="v458-template-card"><div class="top"><b>${eh(l)}</b><span class="v458-template-badge ${ok?\'approved\':\'\'}">${ok?\'APROBADA\':\'EN ESPERA\'}</span></div><code>${eh(x.name||k)} · ${eh(x.language||\'\')}</code><small>${ok?(x.automatic?\'Activa en la automatización 24/7.\':\'Aprobada, no automática.\'):\'No se usa hasta que Meta la apruebe.\'}</small></div>`}).join(\'\')}}\n  if(testPill){const ready=!!d.manual_test?.ready;testPill.textContent=ready?\'CLOUD LISTO\':\'NO DISPONIBLE\';testPill.classList.toggle(\'ready\',ready)}const dateInput=q(\'#waTestDate\');if(dateInput&&!dateInput.value){const x=new Date();x.setDate(x.getDate()+1);dateInput.value=x.toISOString().slice(0,10)}const btn=q(\'#waTestSendBtn\');if(btn)btn.textContent=\'☁ Enviar prueba por Cloud\';const sel=q(\'#waTestTemplate\');if(sel){[...sel.options].forEach(o=>{const k=o.value||\'\';o.disabled=k!==\'recordatorio_cita\'});sel.value=\'recordatorio_cita\'}\n }catch(e){if(text)text.textContent=e.message||e}\n};\n\nfunction upgrade(){moveServicesToTab();cleanWhatsappConfig();const sub=q(\'.config-title-row .muted\',\'#config\');if(sub)sub.textContent=\'Preferencias, servicios, agenda y conexiones organizadas por pestañas.\';setTimeout(()=>window.loadWhatsappStatus?.(),50)}\nif(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',()=>setTimeout(upgrade,20),{once:true});else setTimeout(upgrade,20);setTimeout(upgrade,350);\n})();\n;(()=>{\n  function installV464TemplatePicker(){\n    const sel=document.querySelector(\'#waTestTemplate\');\n    if(!sel||sel.dataset.v464Picker===\'1\')return;\n    sel.dataset.v464Picker=\'1\';\n    sel.style.display=\'none\';\n    const current=window.__v464WaTemplateValue||sel.value||\'recordatorio_cita\';\n    window.__v464WaTemplateValue=current;\n    const wrap=document.createElement(\'div\');wrap.className=\'v464-template-picker\';wrap.setAttribute(\'role\',\'group\');wrap.setAttribute(\'aria-label\',\'Mensaje a probar\');\n    const defs=[[\'recordatorio_cita\',\'Confirmación\'],[\'cita_agendada\',\'Cita agendada\'],[\'recordatorio_hoy\',\'Recordatorio de hoy\']];\n    const paint=()=>wrap.querySelectorAll(\'button\').forEach(b=>b.classList.toggle(\'active\',b.dataset.template===window.__v464WaTemplateValue));\n    defs.forEach(([value,label])=>{const b=document.createElement(\'button\');b.type=\'button\';b.dataset.template=value;b.textContent=label;b.addEventListener(\'click\',()=>{window.__v464WaTemplateValue=value;sel.value=value;paint();});wrap.appendChild(b)});\n    sel.insertAdjacentElement(\'afterend\',wrap);paint();\n  }\n  function installV464PickerStyle(){if(document.getElementById(\'v464PickerStyle\'))return;const st=document.createElement(\'style\');st.id=\'v464PickerStyle\';st.textContent=`.v464-template-picker{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:4px}.v464-template-picker button{border:1px solid #cfd9e6;background:#fff;color:#38516f;border-radius:11px;padding:10px 9px;font-weight:800;cursor:pointer}.v464-template-picker button.active{background:#2767ad;color:#fff;border-color:#2767ad;box-shadow:0 4px 14px rgba(39,103,173,.18)}@media(max-width:850px){.v464-template-picker{grid-template-columns:1fr}}`;document.head.appendChild(st)}\n  function boot(){installV464PickerStyle();installV464TemplatePicker()}\n  if(document.readyState===\'loading\')document.addEventListener(\'DOMContentLoaded\',boot,{once:true});else boot();\n  setTimeout(boot,250);setTimeout(boot,900);\n  let v472PickerTimer=0;new MutationObserver(()=>{if(v472PickerTimer)return;v472PickerTimer=setTimeout(()=>{v472PickerTimer=0;installV464TemplatePicker()},160)}).observe(document.documentElement,{childList:true,subtree:true});\n})();\n'
 
 
 @app.get("/v459/settings.css")

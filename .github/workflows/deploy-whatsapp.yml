@@ -48,7 +48,7 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.29"',
+            'worker_version: "2.6.30"',
             'alarm_mode: "durable_object_event_driven"',
             'alarm_delivery_policy: "preserve_24x7"',
             'booking_schedule: "wed_10_17_break_1230_1400_v1"',
@@ -139,7 +139,7 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.29', d
+          assert d.get('worker_version') == '2.6.30', d
           assert d.get('alarm_mode') == 'durable_object_event_driven', d
           assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d

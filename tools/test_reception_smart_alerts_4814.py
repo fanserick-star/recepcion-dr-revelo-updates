@@ -24,8 +24,9 @@ assert "api('/api/ops/alerts')" in js
 assert "No envía ni reenvía WhatsApp." in js
 assert "setInterval(" not in js.split("async function openSmartAlerts()", 1)[1].split("function ", 1)[0]
 assert "_wa_alarm_hint_diag" in runtime
-assert '_wa_alarm_hint_diag.update(status="ok"' in runtime
-assert '_wa_alarm_hint_diag.update(status="fallido"' in runtime
+assert 'status="ok", last_ok_at=' in runtime
+assert '_wa_alarm_hint_diag.update(status="fallido", last_error=label)' in runtime
+assert "_wa_alarm_signal_mark(generation, acknowledged=True)" in runtime
 
 fn = next(n for n in ast.parse(status).body if isinstance(n, ast.FunctionDef)
           and n.name == "reception_4814_alerts")
