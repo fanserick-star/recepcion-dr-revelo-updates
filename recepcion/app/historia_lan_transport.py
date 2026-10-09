@@ -250,6 +250,9 @@ def probe_once() -> dict:
 
 
 def send_lan(payload: dict) -> bool:
+    # Defensa final: ni un handoff con ficha ausente puede salir por la LAN.
+    if not _clean(payload.get("clinical_patient_id"), 120):
+        return False
     state = _snapshot()
     host = str(state.get("lan_host") or "")
     token = str(state.get("token") or "")
@@ -379,6 +382,16 @@ def _lan_outbox_put(payload: dict) -> None:
               last_error=CASE WHEN events.cancelled=0 THEN NULL ELSE events.last_error END
             """,
             (event_id, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), _now()),
+        )
+        conn.commit()
+
+
+def _update_lan_outbox_payload(event_id: str, payload: dict) -> None:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        conn.execute(
+            "UPDATE events SET payload_json=? WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+            (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), str(event_id)),
         )
         conn.commit()
 
@@ -544,6 +557,20 @@ def _flush_lan_outbox(max_items: int = 30) -> None:
     for event_id, payload_json in rows:
         try:
             payload = json.loads(payload_json)
+            if not _clean(payload.get("clinical_patient_id"), 120):
+                # Evento local DURABLE, pero jamás entregarlo sin vínculo.
+                # No consultar Neon cada 20 s: lo despierta el alta, el enlace
+                # manual o una recuperación de conexión.
+                _lan_outbox_mark(str(event_id), error="Ficha clínica sin vincular en Recepción")
+                continue
+            verified_id = _cloud_link_id(payload.get("reception_patient_id"))
+            if not verified_id:
+                # También rechazar vínculos eliminados o cloud temporalmente caída.
+                _lan_outbox_mark(str(event_id), error="Ficha clínica sin vínculo verificado")
+                continue
+            if verified_id != _clean(payload.get("clinical_patient_id"), 120):
+                payload["clinical_patient_id"] = verified_id
+                _update_lan_outbox_payload(event_id, payload)
             if send_lan(payload):
                 _lan_outbox_mark(str(event_id), sent=True)
             else:
@@ -552,6 +579,84 @@ def _flush_lan_outbox(max_items: int = 30) -> None:
         except Exception as exc:
             _lan_outbox_mark(str(event_id), error=f"{type(exc).__name__}: {str(exc)[:180]}")
             break
+
+
+def remap_pending_patient_id(local_id: object, cloud_id: object) -> int:
+    """Conserva el ID real de Neon antes de limpiar el mapa SQLite offline."""
+    local, remote = str(local_id), str(cloud_id)
+    if not local or not remote or local == remote:
+        return 0
+    _ensure_lan_outbox()
+    changed = 0
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute(
+            "SELECT event_id,payload_json FROM events WHERE sent_at IS NULL AND cancelled=0"
+        ).fetchall()
+        for event_id, raw in rows:
+            try:
+                payload = json.loads(raw)
+                if str(payload.get("reception_patient_id")) != local:
+                    continue
+                payload["reception_patient_id"] = remote
+                conn.execute(
+                    "UPDATE events SET payload_json=? WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+                    (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), event_id),
+                )
+                changed += 1
+            except (TypeError, ValueError):
+                continue
+        conn.commit()
+    return changed
+
+
+def resume_pending_for_patient(reception_patient_id: object) -> int:
+    """Desbloquea envíos locales después de un enlace clínico confirmado."""
+    pid = str(reception_patient_id or "").strip()
+    if not pid:
+        return 0
+    verified = _cloud_link_id(pid)
+    if not verified:
+        return 0
+    _ensure_lan_outbox()
+    resumed = 0
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute(
+            "SELECT event_id,payload_json FROM events WHERE sent_at IS NULL AND cancelled=0"
+        ).fetchall()
+        for event_id, raw in rows:
+            try:
+                payload = json.loads(raw)
+                if str(payload.get("reception_patient_id") or "") != pid:
+                    continue
+                payload["clinical_patient_id"] = verified
+                conn.execute(
+                    "UPDATE events SET payload_json=?,last_error=NULL WHERE event_id=? "
+                    "AND sent_at IS NULL AND cancelled=0",
+                    (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), event_id),
+                )
+                resumed += 1
+            except (TypeError, ValueError):
+                continue
+        conn.commit()
+    if resumed and _snapshot().get("lan_online"):
+        _flush_lan_outbox()
+    return resumed
+
+
+def handoff_waiting_for_chart(event_id: object) -> bool:
+    """Permite a Recepción avisar sin consultar otra vez Neon."""
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        row = conn.execute(
+            "SELECT payload_json FROM events WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+            (str(event_id),),
+        ).fetchone()
+    if not row:
+        return False
+    try:
+        return not bool(_clean(json.loads(row[0]).get("clinical_patient_id"), 120))
+    except (ValueError, TypeError):
+        return True
 
 
 def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "") -> list[str]:
@@ -813,12 +918,17 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
     label = _clean(attention_type, 180).upper()
     is_procedure = label == "PROCEDIMIENTO" or label.startswith("PROCEDIMIENTO ")
     event_id = _cloud._event_id(reception_patient_id, visit_ids)
+    verified_id = _cloud_link_id(reception_patient_id)
+    # Aunque otra ruta proponga un ID, solo el enlace de Recepción verificado
+    # puede autorizar el envío. Las revisiones gratuitas quedan igualmente seguras.
+    if clinical_patient_id and _clean(clinical_patient_id, 120) != verified_id:
+        verified_id = ""
     payload = {
         "event_id": event_id,
         "reception_patient_id": str(reception_patient_id),
         # Exam reviews pass a chart ID already checked against the verified
         # Historia link. Regular consultations keep their existing resolver.
-        "clinical_patient_id": _clean(clinical_patient_id, 120) or _cloud_link_id(reception_patient_id),
+        "clinical_patient_id": verified_id,
         "display_name": _clean(display_name, 260) or "Paciente",
         "identification": _clean(identification, 120),
         "attention_type": _clean(attention_type, 180) or "Consulta",
@@ -832,6 +942,9 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
         "queued_at": _now(),
     }
     _lan_outbox_put(payload)
+    if not verified_id:
+        _lan_outbox_mark(event_id, error="Ficha clínica pendiente de vinculación en Recepción")
+        return event_id
     if send_lan(payload):
         _lan_outbox_mark(event_id, sent=True)
     else:

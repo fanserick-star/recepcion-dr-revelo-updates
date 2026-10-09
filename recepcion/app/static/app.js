@@ -1258,7 +1258,7 @@ function renderPatientSimilarity(data={},excludeId=0){
   }
   if(actionBox){
     if(!matches.length){actionBox.innerHTML='<div class="identity-no-match">✓ No encontramos otra ficha parecida.</div>';return}
-    actionBox.innerHTML=`<div class="identity-match-warning"><div><b>⚠ Encontramos una ficha parecida</b><small>Revísala antes de crear o modificar otra ficha. Así evitamos duplicados.</small></div>${matches.slice(0,5).map(item=>`<article class="identity-match-row">${patientSimilaritySummary(item)}<div>${item.historical?`<button type="button" onclick="linkIdentityHistorical(${Number(excludeId)},${Number(item.historical_id)})">Vincular histórico</button>`:`<button type="button" onclick="linkIdentityCurrent(${Number(excludeId)},${Number(item.id)})">Vincular y usar</button>`}</div></article>`).join('')}<label class="identity-different-confirm"><input id="identityDifferentPerson" type="checkbox"> Confirmo que es otra persona</label></div>`;
+    actionBox.innerHTML=`<div class="identity-match-warning"><div><b>⚠ Encontramos una ficha parecida</b><small>Revísala antes de crear o modificar otra ficha. Así evitamos duplicados.</small></div>${matches.slice(0,5).map(item=>`<article class="identity-match-row">${patientSimilaritySummary(item)}<div>${item.historical?`<button type="button" onclick="linkIdentityHistorical(${Number(excludeId)},${Number(item.historical_id)})">Vincular histórico</button>`:`<button type="button" onclick="linkIdentityCurrent(${Number(excludeId)},${Number(item.id)})">Vincular y usar</button>`}</div></article>`).join('')}</div>`;
   }
 }
 function schedulePatientSimilarity(excludeId=0){
@@ -1308,8 +1308,7 @@ function newPatient(continueToAttention=false,agendaSlot=null){
 async function saveNewPatient(action=false){
   try{
     const data=getPatientForm();
-    const sameName=String(lastPatientSimilarity.name||'').trim().toUpperCase()===String(data.nombre||'').trim().toUpperCase();
-    if(sameName&&(lastPatientSimilarity.matches||[]).length){const names=lastPatientSimilarity.matches.slice(0,3).map(x=>x.nombre).join('\n• ');if(!confirm(`Encontramos una ficha parecida:\n\n• ${names}\n\n¿Confirmas que este sí es un paciente distinto y deseas crearlo?`))return}
+    // Las sugerencias por parecido son orientativas: nunca frenan el alta.
     await singleFlightMutation('patient:create',async()=>{
       const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});
       // Reception creates and verifies the new medical card on save.
@@ -1639,10 +1638,7 @@ function openIdentityReview(p,draft=null){
 async function saveIdentityAndContinue(id){
   try{
     const data=getPatientForm();
-    const words=patientNameWords(data.nombre).length;
-    if(words<3){setPatientFieldError('fNombre','Completa al menos dos apellidos y un nombre, o vincula la ficha correcta.');throw Error('El nombre sigue demasiado corto para confirmar la atención.');}
-    const sameName=String(lastPatientSimilarity.name||'').trim().toUpperCase()===String(data.nombre||'').trim().toUpperCase();
-    if(sameName&&(lastPatientSimilarity.matches||[]).length&&!$('#identityDifferentPerson')?.checked){throw Error('Encontramos una ficha parecida. Vincúlala o marca “Confirmo que es otra persona” antes de continuar.');}
+    if(!String(data.nombre||'').trim()){setPatientFieldError('fNombre','Ingresa el nombre del paciente.');throw Error('Falta el nombre.');}
     await api('/api/patients/'+id,{method:'PUT',body:JSON.stringify(data)});
     const draft={...(identityReviewDraft||{}),identityReviewed:true};identityReviewDraft=null;identityReviewSourceId=0;
     await attentionFor(id,draft);
@@ -1697,7 +1693,7 @@ async function returnToAttention(id){
 }
 async function attentionFor(id,draft=null){
   const p=await api('/api/patients/'+id);
-  if(!draft?.identityReviewed&&patientNameWords(p.nombre||'').length<3){openIdentityReview(p,draft);return}
+  // No imponer número de apellidos/nombres para permitir el registro legítimo.
   if(!procedures.length)procedures=await api('/api/procedures');
   const draftServices=Array.isArray(draft?.selectedServices)?draft.selectedServices:(draft?.selectedService?[draft.selectedService]:[]);
   selectedServices=new Set(draftServices.map(serviceKey).filter(Boolean));
@@ -1935,6 +1931,9 @@ async function saveAttention(id){
     if(stagedId){
       try{await api(`/api/agenda/confirmafy-staged/${stagedId}/attended`,{method:'POST',body:JSON.stringify({patient_id:id})});confirmafyStagedById.delete(stagedId);invalidateAttentionWeekCache()}catch(e){console.warn('No se pudo marcar la cita externa como atendida:',e)}
     }
+    if(saved?.clinical_handoff_pending===true){
+      alert('Atención guardada correctamente, pero NO se envió al doctor porque falta vincular la ficha clínica.\n\nRecepción conservará el turno pendiente. Al verificar la ficha se enviará sin crear otra atención.');
+    }
     closeModal();
     if(saved?.pending){
       setBillingPendingSummary(saved.pending);
@@ -2160,11 +2159,11 @@ async function activateHistoricalForConfirmafy(line,hid){
 function newPatientFromConfirmafy(line){
   const item=confirmafyUnmatchedByLine.get(Number(line));if(!item)return;
   const seed={nombre:item.name||'',celular:item.phone||''};
-  openModal(`<div class="patient-form-modal"><div class="modal-form-heading"><h2>Crear paciente</h2><p>Creación manual para vincular la cita de Confirmafy. Completa el nombre y revisa cualquier coincidencia antes de guardar.</p></div>${patientForm(seed)}<div class="confirmafy-create-warning">Si aparece una ficha parecida, vuelve a <b>Buscar y vincular</b> en lugar de crear otra.</div><div class="actions form-actions"><button class="cancel-btn" onclick="openConfirmafyPatientLinker(${Number(line)})">Buscar y vincular</button><button class="primary" onclick="saveNewPatientFromConfirmafy(${Number(line)})">Guardar y vincular</button></div></div>`);
+  openModal(`<div class="patient-form-modal"><div class="modal-form-heading"><h2>Crear paciente</h2><p>Creación manual para vincular la cita de Confirmafy. Completa el nombre y revisa cualquier coincidencia antes de guardar.</p></div>${patientForm(seed)}<div class="confirmafy-create-warning">Las coincidencias de nombres son solo sugerencias; no impiden registrar a una persona distinta.</div><div class="actions form-actions"><button class="cancel-btn" onclick="openConfirmafyPatientLinker(${Number(line)})">Buscar y vincular</button><button class="primary" onclick="saveNewPatientFromConfirmafy(${Number(line)})">Guardar y vincular</button></div></div>`);
   setTimeout(()=>schedulePatientSimilarity(0),0);
 }
 async function saveNewPatientFromConfirmafy(line){
-  try{const data=getPatientForm();if(patientNameWords(data.nombre).length<3)throw Error('Completa al menos dos apellidos y un nombre antes de crear la ficha.');if((lastPatientSimilarity.matches||[]).length)throw Error('Hay una ficha parecida. Pulsa “Buscar y vincular” y revisa esa coincidencia antes de crear un paciente nuevo.');const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});confirmafyPatientLinks[String(Number(line))]=Number(p.id);await previewConfirmafyImport(null)}catch(e){alert(e.message)}
+  try{const data=getPatientForm();if(!String(data.nombre||'').trim())throw Error('Ingresa el nombre del paciente.');const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});confirmafyPatientLinks[String(Number(line))]=Number(p.id);await previewConfirmafyImport(null)}catch(e){alert(e.message)}
 }
 
 async function confirmConfirmafyImport(){
@@ -2350,8 +2349,8 @@ function openSubsequentStagedSearch(itemId,fecha){const staged=currentStagedReso
 async function searchStagedPatient(itemId,fecha,immediate=false){clearTimeout(stagedResolveSearchTimer);const run=async()=>{const q=String($('#stagedPatientSearch')?.value||'').trim().toUpperCase(),box=$('#stagedPatientResults');if(!box)return;if(q.length<2){box.innerHTML='<div class="muted">Escribe al menos 2 caracteres.</div>';return}try{const rows=await api('/api/patients?q='+encodeURIComponent(q)+'&limit=22');box.innerHTML=(rows||[]).slice(0,18).map(p=>isHistoricalPatient(p)?`<article class="confirmafy-link-row historical-result"><div><b>${esc(p.nombre)}</b><small>HISTÓRICO ${esc(historicalYears(p))}</small></div><button onclick="useHistoricalForStaged(${Number(itemId)},${Number(p.historical_id)},'${fecha}')">Usar esta ficha</button></article>`:`<article class="confirmafy-link-row"><div><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}</small></div><button onclick="usePatientForStaged(${Number(itemId)},${Number(p.id)},'${fecha}')">Usar esta ficha</button></article>`).join('')||'<div class="muted">No encontramos coincidencias. Vuelve y elige Nuevo paciente si corresponde.</div>'}catch(e){box.innerHTML=`<div class="err">${esc(e.message)}</div>`}};if(immediate)return run();stagedResolveSearchTimer=setTimeout(run,180)}
 async function usePatientForStaged(itemId,patientId,fecha){const target=String(fecha||toISO(new Date())).slice(0,10);if(target!==toISO(new Date())&&!confirm(`Esta cita corresponde al ${fmtDate(target)}. ¿Registrar la atención con esa fecha?`))return;await attentionFor(Number(patientId),{fecha:target,stagedId:Number(itemId)})}
 async function useHistoricalForStaged(itemId,hid,fecha){try{const p=await api(`/api/historical/${Number(hid)}/activate`,{method:'POST'});invalidateAttentionWeekCache();await usePatientForStaged(Number(itemId),Number(p.id),fecha)}catch(e){alert(e.message)}}
-async function newPatientFromStaged(itemId,fecha){try{const staged=currentStagedResolve?.id===Number(itemId)?currentStagedResolve:await getConfirmafyStagedRow(itemId);const seed={nombre:staged.nombre||'',celular:staged.celular||''};lastPatientSimilarity={name:'',matches:[]};openModal(`<div class="patient-form-modal"><div class="modal-form-heading"><h2>Crear paciente nuevo</h2><p>Completa la ficha con el paciente presente.</p></div>${patientForm(seed)}<label class="identity-different-confirm staged-different-confirm"><input id="stagedDifferentPerson" type="checkbox"> Si aparece una coincidencia parecida, confirmo que esta persona es distinta</label><div class="actions form-actions"><button class="cancel-btn" onclick="attendConfirmafyStaged(${Number(itemId)},'${fecha}')">Volver</button><button class="primary" onclick="saveNewPatientFromStaged(${Number(itemId)},'${fecha}')">Guardar y continuar</button></div></div>`);setTimeout(()=>schedulePatientSimilarity(0),0)}catch(e){alert(e.message)}}
-async function saveNewPatientFromStaged(itemId,fecha){try{const data=getPatientForm();const sameName=String(lastPatientSimilarity.name||'').trim().toUpperCase()===String(data.nombre||'').trim().toUpperCase();if(sameName&&(lastPatientSimilarity.matches||[]).length&&!$('#stagedDifferentPerson')?.checked)throw Error('Encontramos una ficha parecida. Si realmente es otra persona, marca la confirmación antes de crearla.');const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});await attentionFor(Number(p.id),{fecha:String(fecha||toISO(new Date())).slice(0,10),stagedId:Number(itemId),identityReviewed:true})}catch(e){alert(e.message)}}
+async function newPatientFromStaged(itemId,fecha){try{const staged=currentStagedResolve?.id===Number(itemId)?currentStagedResolve:await getConfirmafyStagedRow(itemId);const seed={nombre:staged.nombre||'',celular:staged.celular||''};lastPatientSimilarity={name:'',matches:[]};openModal(`<div class="patient-form-modal"><div class="modal-form-heading"><h2>Crear paciente nuevo</h2><p>Completa la ficha con el paciente presente.</p></div>${patientForm(seed)}<div class="actions form-actions"><button class="cancel-btn" onclick="attendConfirmafyStaged(${Number(itemId)},'${fecha}')">Volver</button><button class="primary" onclick="saveNewPatientFromStaged(${Number(itemId)},'${fecha}')">Guardar y continuar</button></div></div>`);setTimeout(()=>schedulePatientSimilarity(0),0)}catch(e){alert(e.message)}}
+async function saveNewPatientFromStaged(itemId,fecha){try{const data=getPatientForm();const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});await attentionFor(Number(p.id),{fecha:String(fecha||toISO(new Date())).slice(0,10),stagedId:Number(itemId),identityReviewed:true})}catch(e){alert(e.message)}}
 async function attendFromAgenda(patientId,fecha){const today=toISO(new Date()),target=String(fecha||today).slice(0,10);if(target!==today&&!confirm(`Esta cita corresponde al ${fmtDate(target)}. ¿Registrar la atención con esa fecha?`))return;await attentionFor(patientId,{fecha:target})}
 async function openAgendaPatient(id,appointmentId=null,preferredDate=null,preferredTime=null){
   try{let p=agendaPatientById.get(Number(id));if(!p){p=await api('/api/patients/'+id);agendaPatientById.set(Number(id),p)}if(!agendaPhoneOk(p)){alert('Este paciente no tiene celular registrado. Completa el campo Celular antes de agendar.');await editPatient(Number(id),'patients');return}agendaPatientCache=p;let dateValue=preferredDate||nextClinicDate(),timeValue=preferredTime||'',note='';if(appointmentId){let row=agendaAppointmentById.get(Number(appointmentId));if(!row){try{row=await api(`/api/agenda/appointments/${appointmentId}`)}catch{}}if(row){dateValue=String(row.appointment.fecha).slice(0,10);timeValue=row.appointment.hora||'';note=row.appointment.nota||''}}agendaSelectedTime=timeValue;openModal(`<div class="agenda-modal"><h2>${appointmentId?'Editar cita':'Nueva cita'}</h2><div class="agenda-person"><b>${esc(p.nombre)}</b><span>${esc(p.cedula||'Sin cédula registrada')}</span></div><label class="agenda-date-label">Fecha<input id="agendaDate" type="date" value="${esc(dateValue)}" onchange="agendaDateChanged(${appointmentId||'null'})"></label><div class="agenda-time-section"><div class="agenda-time-head"><div><b>Hora</b><span>Bloques de 20 minutos.</span></div><strong id="agendaSelectedTimeLabel">${timeValue?esc(fmtTime(timeValue)):'Sin seleccionar'}</strong></div><input id="agendaTime" type="hidden" value="${esc(timeValue)}"><div id="agendaTimeSlots" class="agenda-time-slots"><div class="agenda-time-loading">Cargando horarios…</div></div></div><div class="agenda-fixed-row"><div class="agenda-fixed-duration"><small>Duración</small><b>20 minutos</b></div><label>Nota (opcional)<input id="agendaNote" maxlength="80" value="${esc(note)}" placeholder="Ej. Control"></label></div><div class="agenda-native-note"><b>Agenda propia</b><span>La cita queda guardada directamente en Recepción.</span></div><div class="actions"><button onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveAgendaAppointment(${appointmentId||'null'})">Guardar cita</button></div></div>`);await loadAgendaTimeSlots(appointmentId,timeValue)}catch(e){alert(e.message)}}

@@ -115,59 +115,18 @@ def test_new_patient_route_autocreates_at_registration() -> None:
     )[0]
 
 
-def test_conservative_name_duplicate_guard() -> None:
-    import re
-    import unicodedata
-    from datetime import date
-    def norm(text):
-        raw = unicodedata.normalize("NFD", str(text or ""))
-        raw = "".join(c for c in raw if unicodedata.category(c) != "Mn")
-        return re.sub(r"\s+", " ", raw).strip().upper().replace("Z", "S")
-    def ident(text):
-        raw = re.sub(r"[^A-Z0-9]", "", norm(text))
-        return raw if len(raw) >= 6 else ""
-    def phone(text):
-        return re.sub(r"\D", "", str(text or ""))
-    def birth(text):
-        return str(text or "")[:10]
-
+def test_similar_names_never_block_autocreate() -> None:
     src = text("recepcion/app/reception_history_identity_consolidated.py")
-    fn = fn_node(src, "_auto_creation_maybe_existing_chart")
-    scope = {"_fuzzy_text": norm, "_usable_id": ident,
-             "_norm_phone": phone, "_iso_date": birth}
-    exec(compile(ast.Module(body=[fn], type_ignores=[]),
-                 "reception_identity_duplicate_guard", "exec"), scope)
-    might = scope[fn.name]
-    demo = {"name": "GARCIA PEREZ ANA MARIA", "national_id": "0911111111",
-            "phone": "", "birth_date": ""}
-    assert not might(demo, {"name": "GARCIA RUIZ CARLOS MIGUEL",
-                            "national_id": "0922222222"})
-    assert might(demo, {"name": "PEREZ GARCIA ANA", "national_id": "0922222222"})
-    assert not might(demo, {"name": "PEREZ GARCIA LUIS", "national_id": "0922222222"})
-    assert might(demo, {"name": "OTROS APELLIDOS", "national_id": "0911111111"})
-    assert not might(demo, {"name": "PEREZ RUIZ JORGE", "national_id": "0922222222"})
-    # Regression: the doctor's earlier unrelated family member must not
-    # prevent a genuinely new person with the same two surnames from enrolling.
-    antonio = {"name": "PEREZ QUINTERO LUIS ALBERTO",
-               "national_id": "0912345678", "phone": "0999999999",
-               "birth_date": "1977-02-06"}
-    alfonso = {"name": "PEREZ QUINTERO DIEGO MANUEL",
-               "national_id": "", "phone": "", "birth_date": ""}
-    assert not might(antonio, alfonso)
-    # But still prevent a duplicate when the national ID, or both surnames
-    # plus a given name, agree (including reordered clinical surnames).
-    assert might(antonio, {"name": "QUINTERO PEREZ LUIS",
-                           "national_id": ""})
-    assert might(antonio, {"name": "OTRO NOMBRE",
-                           "national_id": antonio["national_id"]})
-    assert not might(antonio, {"name": "PEREZ QUINTERO DIEGO MANUEL",
-                               "national_id": "", "phone": antonio["phone"]})
-
-    demo["phone"] = "0987654321"
-    assert not might(demo, {"name": "PEREZ RUIZ JORGE",
-                            "national_id": "", "phone": "0987654321"})
-    assert might(demo, {"name": "PEREZ RUIZ ANA",
-                        "national_id": "", "phone": "0987654321"})
+    creation = src.split("def historia_identity_create_from_reception(", 1)[1].split(
+        '@app.post("/api/historia-identity/link")', 1
+    )[0]
+    assert "_auto_creation_maybe_existing_chart" not in creation
+    assert "_search_candidates(cur, demo, name, 20)" not in creation
+    assert "given_conditions" not in creation
+    assert "surname_tokens" not in creation
+    assert "Ya existe una ficha con esta identificación" in creation
+    assert "ON CONFLICT(reception_patient_id) DO NOTHING" in creation
+    assert "if not name:" in creation
 
 
 def test_identity_autocreate_guards_and_idempotency() -> None:
@@ -179,13 +138,11 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert '"created": False' in create
     assert '"verified"' in create
     assert 'national_id_search=%s AND deleted_at IS NULL' in create
-    assert '_search_candidates(cur, demo, name, 20)' in create
-    assert '"Hay una ficha clínica con identidad o apellidos coincidentes' in create
-    assert '"Encontré una ficha con los dos apellidos del paciente' in create
-    assert "given_conditions" in create and "given_tokens" in create
-    assert "if _auto_creation_maybe_existing_chart(demo, existing)" in create
-    assert "_auto_creation_maybe_existing_chart(demo, r)" in create
-    assert "LIMIT 120" in create
+    assert '_search_candidates(cur, demo, name, 20)' not in create
+    assert "_auto_creation_maybe_existing_chart" not in create
+    assert "given_conditions" not in create
+    assert "surname_tokens" not in create
+    assert "_resume_pending_reception_handoffs(patient.id)" in create
     assert "ON CONFLICT(reception_patient_id) DO NOTHING" in create
     assert "conn.rollback()" in create
     assert '"reception_created_verified"' in create
@@ -203,7 +160,15 @@ def test_identity_autocreate_guards_and_idempotency() -> None:
     assert "if(clinical.linked===true)await attentionFor(p.id)" in registration
     assert "else await openPatient(p.id,'patients')" in registration
     assert r"\\n\\n" not in registration.split("if(clinical.status==='needs_link')",1)[1].split("}else if(",1)[0]
+    assert "Encontramos una ficha parecida" not in registration
     assert "create-new" not in registration
+    for route in ("saveNewPatientFromConfirmafy", "saveNewPatientFromStaged", "saveIdentityAndContinue"):
+        assert route in js
+    assert "stagedDifferentPerson" not in js
+    assert "identityDifferentPerson" not in js
+    assert "Hay una ficha parecida. Pulsa" not in js
+    assert "if(patientNameWords(p.nombre||'').length<3)" not in js
+
     assert "Crear ficha clínica nueva" not in registration
 
     name_search = text("recepcion/app/reception_history_identity_name_search.py")
@@ -290,10 +255,93 @@ def test_retry_marker_is_durable_idempotent_and_nonblocking() -> None:
     )[0]
 
 
+
+def test_unlinked_handoff_is_deferred_and_released_only_after_link() -> None:
+    import json
+    import sqlite3
+    import tempfile
+
+    sys.path.insert(0, str(RECEPTION))
+    import historia_lan_transport as lan
+
+    original_db = lan.LAN_OUTBOX_DB
+    original_lookup = lan._cloud_link_id
+    original_sender = lan.send_lan
+    original_snapshot = lan._snapshot
+    sent = []
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            lan.LAN_OUTBOX_DB = Path(td) / "handoff.db"
+            lan._cloud_link_id = lambda _pid: ""
+            lan._snapshot = lambda: {"lan_online": False}
+            lan.send_lan = lambda payload: sent.append(dict(payload)) or True
+            event = lan.hybrid_queue_attention(
+                reception_patient_id=1001,
+                display_name="PRUEBA PACIENTE NUEVO",
+                attention_type="Consulta",
+                patient_status="Nuevo",
+                visit_ids=[2001],
+                clinical_patient_id="unverified-forged-id",
+            )
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                row = conn.execute(
+                    "SELECT payload_json,sent_at,cancelled FROM events WHERE event_id=?",
+                    (event,),
+                ).fetchone()
+            assert row is not None
+            assert not json.loads(row[0])["clinical_patient_id"]
+            assert row[1] is None and row[2] == 0
+            lan._flush_lan_outbox()
+            assert sent == []  # ni el primer envío ni los reintentos sin vínculo
+
+            lan._cloud_link_id = lambda _pid: "clinical-verified-1001"
+            assert lan.resume_pending_for_patient(1001) == 1
+            lan._flush_lan_outbox()
+            assert len(sent) == 1
+            assert sent[0]["clinical_patient_id"] == "clinical-verified-1001"
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                assert conn.execute(
+                    "SELECT sent_at FROM events WHERE event_id=?", (event,)
+                ).fetchone()[0] is not None
+
+            lan._cloud_link_id = lambda _pid: ""
+            cancelled = lan.hybrid_queue_attention(
+                reception_patient_id=1002,
+                display_name="PRUEBA PACIENTE CANCELADO",
+                attention_type="Consulta",
+                patient_status="Nuevo",
+                visit_ids=[2002],
+            )
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                conn.execute("UPDATE events SET cancelled=1 WHERE event_id=?", (cancelled,))
+                conn.commit()
+            lan._cloud_link_id = lambda _pid: "clinical-verified-1002"
+            assert lan.resume_pending_for_patient(1002) == 0
+            lan._flush_lan_outbox()
+            assert len(sent) == 1  # nunca resucitar turnos cancelados
+    finally:
+        lan.LAN_OUTBOX_DB = original_db
+        lan._cloud_link_id = original_lookup
+        lan.send_lan = original_sender
+        lan._snapshot = original_snapshot
+
+
+def test_sender_rejects_missing_chart_before_network() -> None:
+    sys.path.insert(0, str(RECEPTION))
+    import historia_lan_transport as lan
+    assert lan.send_lan({"event_id": "test:no-chart", "clinical_patient_id": ""}) is False
+    bridge = text("recepcion/app/historia_lan_transport.py")
+    assert 'if not _clean(payload.get("clinical_patient_id"), 120):' in bridge
+    assert "def resume_pending_for_patient(" in bridge
+    assert "def remap_pending_patient_id(" in bridge
+
+
 if __name__ == "__main__":
     test_safe_auto_creation_returns_status_without_deleting_admin_patient()
-    test_conservative_name_duplicate_guard()
+    test_similar_names_never_block_autocreate()
     test_new_patient_route_autocreates_at_registration()
     test_identity_autocreate_guards_and_idempotency()
     test_retry_marker_is_durable_idempotent_and_nonblocking()
+    test_unlinked_handoff_is_deferred_and_released_only_after_link()
+    test_sender_rejects_missing_chart_before_network()
     print("RECEPTION_AUTO_CLINICAL_CHART_OK")

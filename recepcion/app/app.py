@@ -126,7 +126,10 @@ def v4535_create_visit_batch_payment(data: _dep_history_bridge.payment_core.V450
                 consultation_visit = next((v for v in sorted(created_visits, key=lambda x: int(x.id)) if not str(getattr(v, 'procedimiento', '') or '').strip()), None)
                 reception_turn = _v4541_consultation_turn(consultation_visit)
             birth = getattr(patient, 'fecha_nacimiento', None)
-            historia_bridge.queue_attention(reception_patient_id=int(patient.id), display_name=str(getattr(patient, 'nombre', '') or 'Paciente'), identification=str(getattr(patient, 'cedula', '') or ''), attention_type=attention_type, patient_status=patient_status, reception_turn=reception_turn, visit_ids=visit_ids, birth_date=str(birth or ''), phone=str(getattr(patient, 'celular', '') or ''), email=str(getattr(patient, 'correo', '') or ''), address=str(getattr(patient, 'lugar', '') or ''))
+            handoff_event_id = historia_bridge.queue_attention(reception_patient_id=int(patient.id), display_name=str(getattr(patient, 'nombre', '') or 'Paciente'), identification=str(getattr(patient, 'cedula', '') or ''), attention_type=attention_type, patient_status=patient_status, reception_turn=reception_turn, visit_ids=visit_ids, birth_date=str(birth or ''), phone=str(getattr(patient, 'celular', '') or ''), email=str(getattr(patient, 'correo', '') or ''), address=str(getattr(patient, 'lugar', '') or ''))
+            if isinstance(result, dict):
+                import historia_lan_transport as lan
+                result['clinical_handoff_pending'] = lan.handoff_waiting_for_chart(handoff_event_id)
     except Exception as exc:
         try:
             core.audit(db, user, 'historia_bridge_pending', f'Puente Historia Clínica pendiente: {type(exc).__name__}')
