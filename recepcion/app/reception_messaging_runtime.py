@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import core_runtime as core
@@ -157,6 +157,20 @@ def _cloud_history(source_type: str, source_id: int) -> tuple[list[dict], list[d
 
 
 def _local_outbox_history(source_type: str, source_id: int) -> list[dict]:
+    """Estado local administrativo; NO es prueba de envío por Meta.
+
+    SQLite guarda created_at/sent_at como UTC sin tz y due_at en hora local.
+    Normalizamos ambas para no mostrar 18:05 en una cita creada a las 13:05 EC.
+    """
+    utc = timezone.utc
+    ecuador = timezone(timedelta(hours=-5))
+    def stamp(value, tz):
+        if value is None:
+            return ""
+        if isinstance(value, datetime):
+            return (value if value.tzinfo else value.replace(tzinfo=tz)).isoformat()
+        return _iso(value)
+
     rows: list[dict] = []
     try:
         with core.LocalSessionLocal() as db:
@@ -180,12 +194,12 @@ def _local_outbox_history(source_type: str, source_id: int) -> list[dict]:
                     "status": str(item.status or ""),
                     "status_label": status_label,
                     "tone": tone,
-                    "created_at": _iso(item.created_at),
-                    "due_at": _iso(item.due_at),
-                    "sent_at": _iso(item.sent_at),
+                    "created_at": stamp(item.created_at, utc),
+                    "due_at": stamp(item.due_at, ecuador),
+                    "sent_at": stamp(item.sent_at, utc),
                     "delivered_at": "",
                     "read_at": "",
-                    "timestamp": _iso(item.sent_at or item.created_at or item.due_at),
+                    "timestamp": (stamp(item.sent_at, utc) if item.sent_at else stamp(item.due_at, ecuador)),
                     "error": str(item.last_error or "")[:300],
                     "appointment_date": "",
                     "appointment_time": "",
