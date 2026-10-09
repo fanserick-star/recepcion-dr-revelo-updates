@@ -2722,10 +2722,9 @@ def _wa_alarm_hint_start() -> None:
                                     status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"),
                                     last_error="", next_alarm_utc=str(response.get("next_alarm_utc") or ""),
                                 )
-                            # Si apareció otra cita mientras esperábamos HTTP,
-                            # su nueva generación exige un nuevo aviso.
-                            if accepted:
-                                break
+                            # Tras cualquier respuesta válida se revisa la
+                            # generación actual en SQLite, sin duplicar HTTP.
+                            break
                         except Exception as exc:
                             http_code = str(getattr(exc, "code", "") or "")
                             label = type(exc).__name__ + (" HTTP " + http_code if http_code else "")
