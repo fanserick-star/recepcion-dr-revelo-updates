@@ -2700,6 +2700,7 @@ def _wa_alarm_hint_start() -> None:
 
     def task():
         global _wa_alarm_hint_active
+        failed_generation = None
         try:
             while True:
                 try:
@@ -2735,7 +2736,9 @@ def _wa_alarm_hint_start() -> None:
                             if attempt < 2:
                                 time.sleep(4 if attempt == 0 else 9)
                     else:
-                        # Reintentos agotados: nunca vigilar ni reenviar en bucle.
+                        # Sin bucles. Dejar pendiente hasta la próxima apertura
+                        # o hasta que otra cita requiera una nueva señal.
+                        failed_generation = generation
                         break
                     if accepted:
                         continue
@@ -2748,6 +2751,15 @@ def _wa_alarm_hint_start() -> None:
         finally:
             with _wa_alarm_hint_lock:
                 _wa_alarm_hint_active = False
+            # Cerrar la pequeña carrera entre la última consulta SQLite y
+            # el aviso de una nueva cita mientras este hilo terminaba.
+            try:
+                last = _wa_alarm_signal_state()
+                if last["pending"] and (failed_generation is None
+                                        or last["generation"] != failed_generation):
+                    _wa_alarm_hint_start()
+            except Exception:
+                pass
 
     threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
 
