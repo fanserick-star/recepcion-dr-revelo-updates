@@ -1,6 +1,6 @@
 """Actual appointment messaging window: offline, no Meta calls, no Neon writes."""
 import ast
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -37,7 +37,7 @@ def test_overdue_unconfirmed():
     assert missing["status"]=="UNVERIFIED" and missing["status_label"]=="No verificable"
 
 def test_combined_cloud_and_local():
-    ns={"datetime":datetime,"timedelta":timedelta,"timezone":timezone,"date":datetime.now().date}
+    ns={"datetime":datetime,"timedelta":timedelta,"timezone":timezone,"date":date}
     ns["_cloud_history"]=lambda **kw:([{"direction":"outbound","template":"recordatorio_hoy",
                                              "status":"DELIVERED","status_label":"Entregado",
                                              "timestamp":now.isoformat()}],"")
