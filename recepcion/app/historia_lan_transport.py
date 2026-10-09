@@ -643,6 +643,22 @@ def resume_pending_for_patient(reception_patient_id: object) -> int:
     return resumed
 
 
+def handoff_waiting_for_chart(event_id: object) -> bool:
+    """Permite a Recepción avisar sin consultar otra vez Neon."""
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        row = conn.execute(
+            "SELECT payload_json FROM events WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+            (str(event_id),),
+        ).fetchone()
+    if not row:
+        return False
+    try:
+        return not bool(_clean(json.loads(row[0]).get("clinical_patient_id"), 120))
+    except (ValueError, TypeError):
+        return True
+
+
 def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "") -> list[str]:
     _ensure_lan_outbox()
     wanted_visit = str(visit_id or "").strip()
