@@ -248,10 +248,93 @@ def test_retry_marker_is_durable_idempotent_and_nonblocking() -> None:
     )[0]
 
 
+
+def test_unlinked_handoff_is_deferred_and_released_only_after_link() -> None:
+    import json
+    import sqlite3
+    import tempfile
+
+    sys.path.insert(0, str(RECEPTION))
+    import historia_lan_transport as lan
+
+    original_db = lan.LAN_OUTBOX_DB
+    original_lookup = lan._cloud_link_id
+    original_sender = lan.send_lan
+    original_snapshot = lan._snapshot
+    sent = []
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            lan.LAN_OUTBOX_DB = Path(td) / "handoff.db"
+            lan._cloud_link_id = lambda _pid: ""
+            lan._snapshot = lambda: {"lan_online": False}
+            lan.send_lan = lambda payload: sent.append(dict(payload)) or True
+            event = lan.hybrid_queue_attention(
+                reception_patient_id=1001,
+                display_name="PRUEBA PACIENTE NUEVO",
+                attention_type="Consulta",
+                patient_status="Nuevo",
+                visit_ids=[2001],
+                clinical_patient_id="unverified-forged-id",
+            )
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                row = conn.execute(
+                    "SELECT payload_json,sent_at,cancelled FROM events WHERE event_id=?",
+                    (event,),
+                ).fetchone()
+            assert row is not None
+            assert not json.loads(row[0])["clinical_patient_id"]
+            assert row[1] is None and row[2] == 0
+            lan._flush_lan_outbox()
+            assert sent == []  # ni el primer envío ni los reintentos sin vínculo
+
+            lan._cloud_link_id = lambda _pid: "clinical-verified-1001"
+            assert lan.resume_pending_for_patient(1001) == 1
+            lan._flush_lan_outbox()
+            assert len(sent) == 1
+            assert sent[0]["clinical_patient_id"] == "clinical-verified-1001"
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                assert conn.execute(
+                    "SELECT sent_at FROM events WHERE event_id=?", (event,)
+                ).fetchone()[0] is not None
+
+            lan._cloud_link_id = lambda _pid: ""
+            cancelled = lan.hybrid_queue_attention(
+                reception_patient_id=1002,
+                display_name="PRUEBA PACIENTE CANCELADO",
+                attention_type="Consulta",
+                patient_status="Nuevo",
+                visit_ids=[2002],
+            )
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                conn.execute("UPDATE events SET cancelled=1 WHERE event_id=?", (cancelled,))
+                conn.commit()
+            lan._cloud_link_id = lambda _pid: "clinical-verified-1002"
+            assert lan.resume_pending_for_patient(1002) == 0
+            lan._flush_lan_outbox()
+            assert len(sent) == 1  # nunca resucitar turnos cancelados
+    finally:
+        lan.LAN_OUTBOX_DB = original_db
+        lan._cloud_link_id = original_lookup
+        lan.send_lan = original_sender
+        lan._snapshot = original_snapshot
+
+
+def test_sender_rejects_missing_chart_before_network() -> None:
+    sys.path.insert(0, str(RECEPTION))
+    import historia_lan_transport as lan
+    assert lan.send_lan({"event_id": "test:no-chart", "clinical_patient_id": ""}) is False
+    bridge = text("recepcion/app/historia_lan_transport.py")
+    assert 'if not _clean(payload.get("clinical_patient_id"), 120):' in bridge
+    assert "def resume_pending_for_patient(" in bridge
+    assert "def remap_pending_patient_id(" in bridge
+
+
 if __name__ == "__main__":
     test_safe_auto_creation_returns_status_without_deleting_admin_patient()
     test_similar_names_never_block_autocreate()
     test_new_patient_route_autocreates_at_registration()
     test_identity_autocreate_guards_and_idempotency()
     test_retry_marker_is_durable_idempotent_and_nonblocking()
+    test_unlinked_handoff_is_deferred_and_released_only_after_link()
+    test_sender_rejects_missing_chart_before_network()
     print("RECEPTION_AUTO_CLINICAL_CHART_OK")
