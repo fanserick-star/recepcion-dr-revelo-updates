@@ -58,7 +58,7 @@ assert.match(reception, /@app\.post\("\/api\/agenda\/appointments"\)/);
 const statusCode = worker.split("async function updateStatuses(env, statuses) {",2)[1]?.split("async function serveInboundAudio(",1)[0] || "";
 assert.match(statusCode, /"sent", "delivered", "read", "failed"/);
 assert.match(statusCode, /status='READ'/);
-assert.match(statusCode, /status='DELIVERED'/);
+assert.match(statusCode, /ELSE 'DELIVERED' END/);
 assert.match(statusCode, /status='FAILED'/);
 assert.match(statusCode, /read_at=COALESCE/);
 assert.match(statusCode, /delivered_at=COALESCE/);
