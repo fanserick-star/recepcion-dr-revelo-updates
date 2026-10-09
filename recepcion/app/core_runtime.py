@@ -2672,8 +2672,7 @@ def _wa_alarm_hint_post_once() -> dict:
         raise ValueError("Neon role credential unavailable")
     ts = str(int(time.time()))
     body = b"agenda_changed_v1"
-    mac = hmac.new(key.encode("utf-8"),
-                   ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
+    mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
     request = urllib.request.Request(
         _WA_ALARM_NOTIFY_URL, data=body,
         headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
@@ -7763,7 +7762,11 @@ def _wa_timeline_for_source(*, source_type: str, source_id: int, fecha: date, ho
             elif appointment_state == "NO_ASISTIRA":
                 item["response"] = "Paciente indicó que no asistirá"
         final.append(item)
-    return {"available": not bool(cloud_error), "cloud_error": cloud_error, "items": final}
+    alarm_diagnostic = _wa_alarm_signal_state()
+    return {"available": not bool(cloud_error), "cloud_error": cloud_error, "items": final,
+            "alarm_signal_pending": bool(alarm_diagnostic["pending"]),
+            "alarm_signal_error": str(alarm_diagnostic["last_error"] or "")[:90],
+            "runtime_version": "4.8.21"}
 
 
 @app.get("/api/agenda/appointments/{appointment_id}/whatsapp-timeline")
