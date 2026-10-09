@@ -3911,6 +3911,13 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                         alarm_relevant_change = True
                     if q.operation == "patient.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "patient", int(q.local_entity_id), int(result_id))
+                        # El evento LAN puede haberse creado con un ID offline.
+                        # Remapearlo antes de borrar la tabla de equivalencias.
+                        try:
+                            import historia_lan_transport as lan
+                            lan.remap_pending_patient_id(q.local_entity_id, result_id)
+                        except Exception:
+                            pass  # El cobro/atención offline no se pierde por la LAN.
                         # Create clinical chart only with the definitive cloud
                         # Reception ID, never the temporary offline SQLite ID.
                         patient_in_cloud = cdb.get(Patient, int(result_id))
@@ -3922,6 +3929,12 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                             if clinical.get("status") == "pending_connection":
                                 # Persist the cloud ID before removing this offline operation.
                                 _remember_clinical_chart_retry(patient_in_cloud.id, ldb)
+                            elif clinical.get("status") == "linked":
+                                try:
+                                    import historia_lan_transport as lan
+                                    lan.resume_pending_for_patient(patient_in_cloud.id)
+                                except Exception:
+                                    pass
                     if q.operation == "visit.create" and q.local_entity_id is not None and result_id is not None:
                         set_id_map(ldb, "visit", int(q.local_entity_id), int(result_id))
                     if q.operation == "appointment.create" and q.local_entity_id is not None and result_id is not None:
@@ -5402,6 +5415,12 @@ def _retry_pending_clinical_charts() -> dict:
                     )
                     status = str(result.get("status") or "")
             checked += 1
+            if status == "linked":
+                try:
+                    import historia_lan_transport as lan
+                    lan.resume_pending_for_patient(cloud_id)
+                except Exception:
+                    pass
             if status in {"linked", "needs_link", "missing"}:
                 with LocalSessionLocal() as ldb:
                     marker = ldb.get(CacheMeta, key)
