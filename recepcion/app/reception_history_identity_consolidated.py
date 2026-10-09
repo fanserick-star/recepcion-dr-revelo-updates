@@ -756,57 +756,19 @@ def historia_identity_search(
         }
 
 
-def _auto_creation_maybe_existing_chart(demo: dict, candidate: dict) -> bool:
-    """Block likely same-person charts, not unrelated people sharing surnames.
+# Las semejanzas de nombres, apellidos, teléfonos y fechas no impiden el alta
+# automática de una nueva ficha. Solo el enlace existente o la identificación
+# exacta previenen duplicaciones; la búsqueda por parecido es informativa.
 
-    Two surnames alone (and even a shared family phone) are insufficient to
-    prevent a new chart. Actual identity/forename overlap is required.
-    """
-    wanted_id = _usable_id(demo.get("national_id"))
-    existing_id = _usable_id(candidate.get("national_id_search") or candidate.get("national_id"))
-    if wanted_id and existing_id and wanted_id == existing_id:
-        return True
+def _resume_pending_reception_handoffs(reception_patient_id: int) -> None:
+    """Reactiva exclusivamente los envíos LAN pendientes tras vínculo verificado."""
+    try:
+        import historia_lan_transport as lan
+        lan.resume_pending_for_patient(reception_patient_id)
+    except Exception:
+        # El vínculo ya se confirmó en Neon; un error LAN no lo revierte.
+        pass
 
-    wanted_tokens = list(dict.fromkeys(
-        token for token in _fuzzy_text(demo.get("name")).split() if len(token) >= 2
-    ))
-    other_tokens = set(
-        _fuzzy_text(candidate.get("name") or candidate.get("name_search")).split()
-    )
-    if not wanted_tokens or not other_tokens:
-        return False
-
-    overlap = sum(1 for token in wanted_tokens if token in other_tokens)
-    if overlap == 0:
-        return False
-
-    # Identical full names still require a human check, even with differing IDs.
-    if len(wanted_tokens) >= 3 and len(wanted_tokens) == len(other_tokens) \
-            and set(wanted_tokens) == other_tokens:
-        return True
-
-    # The first two fields are the surnames in the Reception registration.
-    # These may be reordered in the old clinical data. Do not mistake
-    # PEREZ QUINTERO LUIS for PEREZ QUINTERO DIEGO.
-    surnames = set(wanted_tokens[:2])
-    given_names = set(wanted_tokens[2:])
-    shared_given_name = bool(given_names.intersection(other_tokens - surnames))
-    if not shared_given_name:
-        return False
-
-    wanted_phone = _norm_phone(demo.get("phone"))
-    existing_phone = _norm_phone(candidate.get("phone"))
-    if wanted_phone and existing_phone and wanted_phone[-9:] == existing_phone[-9:]:
-        return True
-
-    wanted_birth = _iso_date(demo.get("birth_date"))
-    existing_birth = _iso_date(candidate.get("birth_date"))
-    if wanted_birth and existing_birth and wanted_birth == existing_birth:
-        return True
-
-    if len(surnames) == 2 and surnames.issubset(other_tokens):
-        return True
-    return overlap >= max(3, len(wanted_tokens) - 1)
 
 class _HistoryCreateFromReceptionIn(core.BaseModel):
     reception_patient_id: int
@@ -821,16 +783,14 @@ def historia_identity_create_from_reception(
     """Create/link an actually new clinical chart directly from Reception.
 
     For new Reception patients this is invoked automatically at registration,
-    without extra clicks. Any possible preexisting clinical chart forces
-    manual Reception linkage. Historia can never create the link itself.
+    without extra clicks. Name similarity NEVER blocks creation; an exact ID
+    collision or existing Reception link does. Historia never creates the link.
     """
     patient = _reception_patient(db, data.reception_patient_id)
     demo = _demographics(patient)
     name = _clean(demo.get("name"), 260)
-    if len([word for word in name.split() if len(word) >= 2]) < 3:
-        raise core.HTTPException(
-            409, "Completa primero apellidos y nombres en Recepción."
-        )
+    if not name:
+        raise core.HTTPException(409, "El nombre del paciente es obligatorio.")
     identification = _usable_id(demo.get("national_id"))
     conn = _connect_public()
     try:
@@ -859,50 +819,8 @@ def historia_identity_create_from_reception(
                 raise core.HTTPException(
                     409, "Ya existe una ficha con esta identificación. Vincula la existente."
                 )
-        # A name is never sufficient for an automatic merge or match.
-        # If any plausible existing chart is present, refuse creation and let
-        # Reception search/confirm it manually, preventing duplicate histories.
-        candidates = _search_candidates(cur, demo, name, 20)
-        if any(_auto_creation_maybe_existing_chart(demo, r) for r in candidates):
-            raise core.HTTPException(
-                409,
-                "Hay una ficha clínica con identidad o apellidos coincidentes. "
-                "Comprueba si es el mismo paciente y vincula desde Recepción.",
-            )
-        # Independently scan live clinical cards beyond the human-search top 20.
-        # Requiring at least one given name here avoids false blocks for family
-        # members who share both surnames but are different people.
-        name_parts = list(dict.fromkeys(
-            t for t in _fuzzy_text(name).split() if len(t) >= 2
-        ))
-        surname_tokens = name_parts[:2]
-        given_tokens = name_parts[2:6]
-        if len(surname_tokens) == 2 and given_tokens:
-            name_expr = (
-                "TRANSLATE(UPPER(CONCAT_WS(' ',"
-                "NULLIF(COALESCE(p.name_search,''),''),"
-                "NULLIF(COALESCE(p.name,''),''))),"
-                "'ÁÉÍÓÚÜÑZ','AEIOUUNS')"
-            )
-            given_conditions = " OR ".join(
-                f"{name_expr} LIKE %s" for _ in given_tokens
-            )
-            cur.execute(
-                "SELECT p.id,p.name,p.name_search,p.national_id,p.national_id_search,"
-                "p.birth_date,p.phone FROM public.patients p "
-                "WHERE p.deleted_at IS NULL "
-                f"AND {name_expr} LIKE %s AND {name_expr} LIKE %s "
-                f"AND ({given_conditions}) LIMIT 120",
-                tuple("%" + t + "%" for t in surname_tokens + given_tokens),
-            )
-            for raw in cur.fetchall() or []:
-                existing = _dict_row(cur, raw)
-                if _auto_creation_maybe_existing_chart(demo, existing):
-                    raise core.HTTPException(
-                        409,
-                        "Encontré una ficha con los dos apellidos del paciente. "
-                        "Verifica la existente en Recepción antes de crear otra.",
-                    )
+        # No bloquear por nombres o apellidos parecidos: esto daba falsos
+        # positivos en pacientes nuevos. Se conserva la colisión de cédula.
         clinical_id = str(uuid.uuid4())
         stamp = datetime.now().isoformat(timespec="seconds")
         cur.execute(
@@ -948,6 +866,7 @@ def historia_identity_create_from_reception(
         linked = _linked_patient(cur, patient.id)
         if not linked or str(linked.get("id") or "") != clinical_id:
             raise RuntimeError("La creación de ficha no pudo verificarse")
+        _resume_pending_reception_handoffs(patient.id)
         try:
             core.audit(
                 db, user, "historia_identity_reception_create",
@@ -1007,6 +926,7 @@ def historia_identity_link(
         changes, warnings = _sync_demographics(cur, target["id"], demo)
         conn.commit()
         linked = _linked_patient(cur, patient.id)
+        _resume_pending_reception_handoffs(patient.id)
 
         try:
             core.audit(
