@@ -32,7 +32,7 @@ assert "await c.end();" in worker.split("async function withClient(env, fn)", 1)
 # Booking confirmations are event-driven immediately, NOT delayed 30 minutes.
 assert "ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error(\"booking_alarm_registration_failed\", e)))" in worker
 assert "ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error(\"autoagenda_alarm_registration_failed\", e)))" in worker
-assert "when kind='cita_agendada'" not in worker.lower() or "interval '12 hours'" in worker
+assert "when kind='cita_agendada'" not in worker.lower() or "interval '3 minutes'" in worker
 assert "interval '4 hours'" in worker  # missed cron window cannot lose reminders
 assert "case when kind='cita_agendada'" in worker.lower() or "CASE WHEN kind='cita_agendada'" in worker
 assert 'booking_cache_seconds: 60' in worker  # public booking still cached
@@ -70,5 +70,5 @@ ast.parse(source)
 ast.parse(agenda)
 version = json.loads((ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))
 manifest = json.loads((ROOT / "recepcion/app/update_manifest.json").read_text(encoding="utf-8"))
-assert version["version"] == manifest["version"] == "4.8.18"
+assert version["version"] == manifest["version"] == "4.8.19"
 print("RECEPTION_NEON_EFFICIENCY_SLEEP_SAFE_OK", version["version"])

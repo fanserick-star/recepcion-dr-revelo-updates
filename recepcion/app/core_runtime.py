@@ -10376,6 +10376,50 @@ def whatsapp_test_recordatorio_cita(payload: dict, user: User = Depends(current_
     return whatsapp_test_message(data, user)
 
 
+@app.get("/api/whatsapp/appointment-delivery/{appointment_id}")
+def whatsapp_appointment_delivery(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Lectura puntual por cita; NUNCA arma alarmas ni envía mensajes."""
+    appointment = db.get(Appointment, appointment_id)
+    if not appointment:
+        raise HTTPException(404, "Cita no encontrada")
+    if is_offline_db(db):
+        return {"available": False, "message": "Cita pendiente de sincronizar; aún no puede verificarse con WhatsApp Cloud.", "items": []}
+    if not cloud_configured() or not CloudSessionLocal:
+        return {"available": False, "message": "No hay conexión a WhatsApp Cloud desde Recepción.", "items": []}
+    try:
+        with CloudSessionLocal() as cdb:
+            rows = cdb.execute(text("""
+                SELECT template_name,status,sent_at,delivered_at,read_at,error_code,error_text,updated_at
+                FROM whatsapp_cloud.events
+                WHERE source_type='appointment' AND source_id=:source_id
+                  AND appointment_date=:fecha
+                  AND LEFT(appointment_time::text,5)=:hora
+                ORDER BY updated_at DESC LIMIT 12
+            """), {"source_id": int(appointment.id), "fecha": appointment.fecha, "hora": str(appointment.hora or "")[:5]}).mappings().all()
+    except Exception:
+        return {"available": False, "message": "No se pudo consultar el estado de entrega. La cita permanece guardada.", "items": []}
+    templates = ("cita_agendada", "recordatorio_cita", "recordatorio_hoy")
+    labels = {"cita_agendada": "Cita agendada", "recordatorio_cita": "Confirmación de cita", "recordatorio_hoy": "Recordatorio del día"}
+    by_template = {}
+    for row in rows:
+        t = str(row.get("template_name") or "")
+        if t in templates and t not in by_template:
+            by_template[t] = row
+    items = []
+    for t in templates:
+        row = by_template.get(t)
+        items.append({
+            "template": t, "label": labels[t],
+            "status": str(row.get("status") or "").upper() if row else "SIN_REGISTRO",
+            "sent_at": row["sent_at"].isoformat() if row and row.get("sent_at") else None,
+            "delivered_at": row["delivered_at"].isoformat() if row and row.get("delivered_at") else None,
+            "read_at": row["read_at"].isoformat() if row and row.get("read_at") else None,
+            "error": str(row.get("error_text") or "")[:220] if row else "",
+        })
+    return {"available": True, "source": "whatsapp_cloud.events", "items": items,
+            "message": "Sin registro no significa que Meta haya confirmado el envío o la entrega."}
+
+
 @app.get("/api/whatsapp/cloud-status")
 def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
     """Resumen bajo demanda de entregas cloud. No crea hilos ni sondeos de fondo."""
@@ -10429,6 +10473,7 @@ def whatsapp_status(user: User = Depends(current_user)):
     return {
         "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
         "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
+        "alarm_notification": dict(_wa_alarm_hint_diag),
         "state": "CLOUD_24_7" if WHATSAPP_CLOUD_MODE else ("ACTIVO" if WHATSAPP_ENABLED and ready else ("CONFIGURACION_INCOMPLETA" if WHATSAPP_ENABLED else "PENDIENTE_APROBACION")),
         "ready": ready, "missing": missing,
         "templates": {

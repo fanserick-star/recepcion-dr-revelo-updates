@@ -5800,7 +5800,7 @@ WHERE ((fecha + hora::time) AT TIME ZONE 'America/Guayaquil') > now()
       AND kind='recordatorio_cita'
       AND fecha = ((now() AT TIME ZONE 'America/Guayaquil')::date + 1)
     )
-    OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '12 hours' ELSE interval '4 hours' END
+    OR due_at > now() - CASE WHEN kind='cita_agendada' THEN interval '3 minutes' ELSE interval '4 hours' END
   )
 ORDER BY is_test DESC,due_at
 LIMIT 50`;
@@ -5903,12 +5903,36 @@ async function applyResponse(env, p2, messageId, phone) {
   });
 }
 async function updateStatuses(env, statuses) {
-  const failed = (statuses || []).filter((s) => String(s?.status || "").toLowerCase() === "failed" && String(s?.id || "").trim());
-  if (!failed.length) return;
+  // Los webhooks de Meta son la fuente de verdad. Persistir entregado/leído
+  // además de fallido y NUNCA degradar un estado posterior con un evento tardío.
+  const valid = (statuses || []).filter(s =>
+    ["sent", "delivered", "read", "failed"].includes(String(s?.status || "").toLowerCase())
+    && String(s?.id || "").trim());
+  if (!valid.length) return;
   await withClient(env, async (client) => {
-    for (const s of failed) {
-      const mid = String(s.id || "").trim(), err = s.errors?.[0] || {};
-      await client.query(`UPDATE whatsapp_cloud.events SET status='FAILED',error_code=$2,error_text=$3,updated_at=now() WHERE message_id=$1`, [mid, String(err.code || ""), String(err.title || err.message || "Meta report\xF3 fallo").slice(0, 1500)]);
+    for (const s of valid) {
+      const mid = String(s.id).trim();
+      const status = String(s.status).toLowerCase();
+      if (status === "read") {
+        await client.query(`UPDATE whatsapp_cloud.events SET status='READ',
+          read_at=COALESCE(read_at,now()),delivered_at=COALESCE(delivered_at,now()),updated_at=now()
+          WHERE message_id=$1 AND status NOT IN ('CANCELLED')`, [mid]);
+      } else if (status === "delivered") {
+        await client.query(`UPDATE whatsapp_cloud.events SET
+          status=CASE WHEN status='READ' THEN 'READ' ELSE 'DELIVERED' END,
+          delivered_at=COALESCE(delivered_at,now()),updated_at=now()
+          WHERE message_id=$1 AND status NOT IN ('CANCELLED')`, [mid]);
+      } else if (status === "sent") {
+        await client.query(`UPDATE whatsapp_cloud.events SET
+          status=CASE WHEN status IN ('READ','DELIVERED','FAILED') THEN status ELSE 'SENT' END,
+          updated_at=now() WHERE message_id=$1 AND status NOT IN ('CANCELLED')`, [mid]);
+      } else {
+        const err = s.errors?.[0] || {};
+        await client.query(`UPDATE whatsapp_cloud.events SET
+          status='FAILED',error_code=$2,error_text=$3,updated_at=now()
+          WHERE message_id=$1 AND status NOT IN ('READ','DELIVERED','CANCELLED')`,
+          [mid, String(err.code || ""), String(err.title || err.message || "Meta reportó fallo").slice(0, 1500)]);
+      }
     }
   });
 }
@@ -6872,7 +6896,7 @@ WITH base AS (
      (ev.source_type='staged' AND coalesce(ev.source_hash,'') NOT LIKE 'mobile:%'
        AND ev.kind='recordatorio_cita'
        AND ev.fecha=((now() AT TIME ZONE 'America/Guayaquil')::date+1))
-     OR ev.due_at > now() - CASE WHEN ev.kind='cita_agendada' THEN interval '12 hours'
+     OR ev.due_at > now() - CASE WHEN ev.kind='cita_agendada' THEN interval '3 minutes'
        ELSE interval '4 hours' END
    )
 )
@@ -7024,7 +7048,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.28", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "failed_only", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.29", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);
