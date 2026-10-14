@@ -3623,6 +3623,7 @@ def normalize_patient_payload(data) -> dict:
     values = data.model_dump() if hasattr(data, "model_dump") else dict(data)
     marker_present = "extranjero" in values
     extranjero = bool(values.pop("extranjero", False))
+    values.pop("clinical_registration_kind", None)  # UI-only, no columna en pacientes
     values["nombre"] = (values.get("nombre") or "").strip().upper()
 
     raw_id = str(values.get("cedula") or "").strip()
@@ -4177,6 +4178,8 @@ class PatientIn(BaseModel):
     lugar: Optional[str] = None
     notas: Optional[str] = None
     extranjero: bool = False
+    # Registro administrativo: N crea ficha clínica; S espera vínculo a historia antigua.
+    clinical_registration_kind: Optional[str] = None
 
 
 class VisitIn(BaseModel):
@@ -5552,6 +5555,10 @@ def _schedule_clinical_chart_retry() -> bool:
 
 @app.post("/api/patients")
 def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    clinical_kind = str(data.clinical_registration_kind or "").strip().upper()
+    if clinical_kind not in ("", "N", "S"):
+        raise HTTPException(400, "Tipo de paciente inválido: Nuevo o Subsecuente")
+    needs_old_chart = clinical_kind == "S"
     values = normalize_patient_payload(data)
     if not values["nombre"]:
         raise HTTPException(400, "El nombre es obligatorio")
@@ -5568,8 +5575,12 @@ def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = 
         db.commit()
         result = p_dict(p)
         result["offline"] = True
-        result["clinical_chart"] = _auto_create_clinical_chart_for_new_reception_patient(
-            db, p.id, user, offline=True
+        result["clinical_chart"] = (
+            {"status": "needs_link", "linked": False,
+             "message": "Paciente subsecuente registrado. Vincula su historia antigua desde Recepción."}
+            if needs_old_chart else _auto_create_clinical_chart_for_new_reception_patient(
+                db, p.id, user, offline=True
+            )
         )
         return result
     audit(db, user, "crear_paciente", f"Paciente {p.id}: {p.nombre}")
@@ -5579,8 +5590,12 @@ def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = 
     result["offline"] = False
     # Patient is already durable in Reception; clinical chart creation is safe
     # to retry and NEVER deletes or changes an existing medical history.
-    result["clinical_chart"] = _auto_create_clinical_chart_for_new_reception_patient(
-        db, p.id, user
+    result["clinical_chart"] = (
+        {"status": "needs_link", "linked": False,
+         "message": "Paciente subsecuente registrado. Busca y confirma su historia anterior; no se creó ficha clínica nueva."}
+        if needs_old_chart else _auto_create_clinical_chart_for_new_reception_patient(
+            db, p.id, user
+        )
     )
     if result["clinical_chart"].get("status") == "pending_connection":
         try:
