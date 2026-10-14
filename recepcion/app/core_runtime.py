@@ -4003,7 +4003,10 @@ def process_offline_queue(cloud_already_checked: bool = False) -> dict:
                         # Create clinical chart only with the definitive cloud
                         # Reception ID, never the temporary offline SQLite ID.
                         patient_in_cloud = cdb.get(Patient, int(result_id))
-                        if patient_in_cloud is not None:
+                        # Si se registró SUBSECUENTE sin conexión, JAMÁS
+                        # crear ficha médica nueva durante la sincronización.
+                        saved_kind = str(json.loads(q.payload or "{}").get("clinical_registration_kind") or "").strip().upper()
+                        if patient_in_cloud is not None and saved_kind != "S":
                             clinical = _auto_create_clinical_chart_for_new_reception_patient(
                                 cdb, patient_in_cloud.id,
                                 User(username=str(q.username or "admin")),
@@ -5570,7 +5573,7 @@ def create_patient(data: PatientIn, db: Session = Depends(get_db), user: User = 
     db.add(p)
     db.flush()
     if is_offline_db(db):
-        add_queue(db, "patient.create", "patient", {"extranjero": bool(data.extranjero), **values}, user.username, p.id)
+        add_queue(db, "patient.create", "patient", {"extranjero": bool(data.extranjero), "clinical_registration_kind": clinical_kind, **values}, user.username, p.id)
         audit(db, user, "crear_paciente_offline", f"Paciente local {p.id}: {p.nombre}")
         db.commit()
         result = p_dict(p)
