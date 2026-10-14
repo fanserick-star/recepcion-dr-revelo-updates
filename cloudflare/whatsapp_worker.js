@@ -6973,10 +6973,7 @@ export class WhatsappAlarmCoordinator {
     if (pathname !== "/refresh" && pathname !== "/init") return new Response("Not found", { status: 404 });
     try {
       if (pathname === "/init" && await this.state.storage.get("bootstrapped_v1")) {
-        // Reinicios y cambios de despliegue pueden dejar la alarma sin programar.
-        // Solo recuperar si falta: no hay cron y jamás envía mensajes desde /init.
-        const scheduled = await this.state.storage.getAlarm();
-        if (scheduled !== null) return Response.json({ ok: true, initialized: true });
+        return Response.json({ ok: true, initialized: true });
       }
       return Response.json(await this.updateNextAlarm());
     } catch (err) {
