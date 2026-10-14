@@ -25,6 +25,8 @@ subprocess.run(["node", "--check", str(root / "recepcion/app/static/app.js")], c
 
 assert 'values.pop("clinical_registration_kind", None)' in core
 assert 'needs_old_chart = clinical_kind == "S"' in core
+assert '"clinical_registration_kind": clinical_kind' in core
+assert 'saved_kind != "S"' in core
 assert '"status": "needs_link"' in core
 assert "clinical_registration_kind" in front
 assert "Antes de registrar, indica si el paciente es Nuevo o Subsecuente" in front
