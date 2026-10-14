@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.23",
-  "app_version": "4.8.23",
-  "runtime_version": "4.8.23",
+  "version": "4.8.24",
+  "app_version": "4.8.24",
+  "runtime_version": "4.8.24",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.23: selección obligatoria Nuevo/Subsecuente al registrar un paciente; subsecuentes se vinculan a Historia antigua sin crear otra ficha clínica. Se elimina la corrección manual de Subsecuente en Nueva atención y se calcula desde historia confirmada; cambio de vínculo corrige turnos todavía en espera y se reentrega por LAN sin duplicar. Respeta trabajo del doctor, facturación, AZUR, WhatsApp, agenda y turnos.",
-    "previous_version": "4.8.22",
+    "purpose": "Recepción 4.8.24: refuerzo seguro de alarmas WhatsApp sin cron: la notificación a Cloudflare exige un ACK estructurado; ante fallos transitorios conserva el aviso pendiente y realiza dos reintentos finitos por evento. No envía mensajes desde Recepción ni reenvía avisos antiguos. Conserva facturas, agenda 24/7, turnos e historias clínicas.",
+    "previous_version": "4.8.23",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -522,7 +522,11 @@
     "registration_subsequent_no_auto_duplicate": true,
     "waiting_link_change_only_before_start": true,
     "waiting_lan_same_event_id": true,
-    "offline_subsequent_no_auto_duplicate": true
+    "offline_subsequent_no_auto_duplicate": true,
+    "whatsapp_alarm_ack_required": true,
+    "whatsapp_alarm_event_bounded_retry_count": 2,
+    "whatsapp_alarm_no_periodic_polling": true,
+    "whatsapp_outbound_no_automatic_stale_replay": true
   },
   "channel": "launcher-v1-stable"
 }
