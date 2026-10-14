@@ -2613,6 +2613,10 @@ def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, templat
 _WA_ALARM_NOTIFY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/alarms/notify"
 _wa_alarm_hint_lock = threading.Lock()
 _wa_alarm_hint_active = False
+# Dos reintentos finitos por evento tras los intentos HTTP inmediatos.
+# No hay cron, ni sondeo de Neon, ni generación de mensajes desde Recepción.
+_wa_alarm_deferred_generation = -1
+_wa_alarm_deferred_count = 0
 # No se guarda ningún ID, teléfono, nombre o token en este registro.
 _wa_alarm_hint_diag = {"status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "", "last_error": ""}
 
@@ -2682,9 +2686,40 @@ def _wa_alarm_hint_post_once() -> dict:
         if response.status != 200:
             raise RuntimeError("Alarm notification not accepted")
         payload = json.loads(response.read(8192).decode("utf-8"))
-    if payload.get("ok") is not True:
-        raise RuntimeError("Alarm coordinator did not acknowledge scheduling")
+    if payload.get("ok") is not True or "next_alarm_utc" not in payload:
+        # Un HTTP 200 sin confirmación explícita del estado de la alarma
+        # NO debe limpiar la señal durable de Recepción.
+        raise RuntimeError("Alarm coordinator did not confirm next alarm state")
     return payload
+
+
+def _wa_alarm_hint_defer_once(generation: int) -> None:
+    """Dos reintentos por señal, sin consultas repetitivas ni cron.
+
+    Recupera fallos temporales de HTTP de la notificación. Tras el límite,
+    conserva pending=1 visible en Configuración para intervención manual.
+    """
+    global _wa_alarm_deferred_generation, _wa_alarm_deferred_count
+    with _wa_alarm_hint_lock:
+        if _wa_alarm_deferred_generation != generation:
+            _wa_alarm_deferred_generation = generation
+            _wa_alarm_deferred_count = 0
+        if _wa_alarm_deferred_count >= 2:
+            return
+        _wa_alarm_deferred_count += 1
+        delay = 35 if _wa_alarm_deferred_count == 1 else 60
+
+    def resume():
+        try:
+            state = _wa_alarm_signal_state()
+            if state["pending"] and int(state["generation"]) == generation:
+                _wa_alarm_hint_start()
+        except Exception:
+            pass
+
+    timer = threading.Timer(delay, resume)
+    timer.daemon = True
+    timer.start()
 
 
 def _wa_alarm_hint_start() -> None:
@@ -2749,6 +2784,8 @@ def _wa_alarm_hint_start() -> None:
         finally:
             with _wa_alarm_hint_lock:
                 _wa_alarm_hint_active = False
+            if failed_generation is not None:
+                _wa_alarm_hint_defer_once(failed_generation)
             # Cerrar la pequeña carrera entre la última consulta SQLite y
             # el aviso de una nueva cita mientras este hilo terminaba.
             try:
