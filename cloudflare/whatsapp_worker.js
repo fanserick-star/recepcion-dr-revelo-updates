@@ -6462,10 +6462,13 @@ function autoagendaSenderAuthorized(env, phone) {
 }
 function autoagendaLooksLikeCommand(raw) {
   const lines = String(raw || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  if (lines.length !== 3) return false;
+  // Formato clásico 3 líneas y reenvío natural de 4 líneas.
+  if (lines.length !== 3 && lines.length !== 4) return false;
   const first = autoagendaNormalizeText(lines[0]).toLowerCase();
-  const startsDay = [...AUTOAGENDA_WEEKDAYS.keys()].some(d => first.startsWith(d + " "));
-  const digits = String(lines[2] || "").replace(/\D/g, "");
+  const startsDay = [...AUTOAGENDA_WEEKDAYS.keys()].some(d =>
+    first === d || first.startsWith(d + " ")
+  );
+  const digits = String(lines[lines.length - 1] || "").replace(/\D/g, "");
   return startsDay && digits.length >= 9;
 }
 function autoagendaClockParts() {
@@ -6491,38 +6494,77 @@ function autoagendaNextDate(targetDow, time) {
   const next = new Date(base.getTime() + delta * 86400000);
   return autoagendaIsoDate(next);
 }
+const AUTOAGENDA_MONTHS = new Map([
+  ["ene",1],["enero",1],["feb",2],["febrero",2],["mar",3],["marzo",3],
+  ["abr",4],["abril",4],["may",5],["mayo",5],["jun",6],["junio",6],
+  ["jul",7],["julio",7],["ago",8],["agosto",8],["sep",9],["sept",9],
+  ["septiembre",9],["setiembre",9],["oct",10],["octubre",10],
+  ["nov",11],["noviembre",11],["dic",12],["diciembre",12]
+]);
+function autoagendaExplicitDate(suffix, weekday) {
+  const raw = autoagendaNormalizeText(suffix).toLowerCase().replace(/\s+/g," ").trim();
+  if (!raw) return { ok:true, date:"" };
+  // Ejemplos: "23 oct", "23 octubre 2026", "23/10", "23/10/2026".
+  const m = /^(\d{1,2})(?:\s*[\/-]\s*|\s+)([a-z]+|\d{1,2})(?:\s*[\/-]\s*|\s+(\s*))?(\d{4})?$/.exec(raw);
+  if (!m) return { ok:false, error:"Fecha no reconocida. Usa, por ejemplo, Viernes 23 oct." };
+  const day=Number(m[1]), month=/^\d+$/.test(m[2])?Number(m[2]):AUTOAGENDA_MONTHS.get(m[2]);
+  if (!month || month<1 || month>12 || day<1 || day>31) return {ok:false,error:"La fecha indicada no es válida."};
+  const currentYear=Number(autoagendaClockParts().today.slice(0,4));
+  let year=m[4]?Number(m[4]):currentYear;
+  const build= y => {
+    const iso=String(y)+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
+    const parsed=bookingDateObj(iso);
+    return parsed && parsed.getUTCFullYear()===y && parsed.getUTCMonth()===month-1 &&
+      parsed.getUTCDate()===day ? {iso,parsed}:null;
+  };
+  let result=build(year);
+  if (!result) return {ok:false,error:"La fecha indicada no existe en el calendario."};
+  if (!m[4] && result.iso<autoagendaClockParts().today) {
+    year+=1;
+    result=build(year);
+  }
+  if (!result || result.parsed.getUTCDay()!==weekday) {
+    return {ok:false,error:"El día de la semana no coincide con la fecha. Comprueba el mensaje antes de agendar."};
+  }
+  return {ok:true,date:result.iso};
+}
 function parseAutoagendaForward(raw) {
   const lines = String(raw || "").split(/\r?\n/).map(x => x.trim()).filter(Boolean);
-  if (lines.length !== 3) return { ok: false, error: "El mensaje debe tener exactamente 3 líneas: día/hora, paciente y celular." };
+  if (lines.length !== 3 && lines.length !== 4) {
+    return { ok: false, error: "Usa 3 líneas (día y hora, nombre, celular) o 4 (día/fecha, nombre, hora, celular)." };
+  }
   const first = autoagendaNormalizeText(lines[0]).toLowerCase().replace(/\s+/g, " ");
-  // Acepta los formatos históricos (9y20, 9:20, 9.20) y también AM/PM:
-  // 11am, 11 am, 11a.m., 11:00am, 3pm, 3:20 pm, etc.
-  const m = /^(domingo|lunes|martes|miercoles|jueves|viernes|sabado)\s+(\d{1,2})(?:\s*(?:y|:|\.)\s*(\d{1,2}))?\s*(?:(a|p)\s*\.?\s*m\.?)?$/.exec(first);
-  if (!m) return { ok: false, error: "No pude entender el día y la hora. Ejemplos: Jueves 9y20 o Jueves 11am." };
-  const dow = AUTOAGENDA_WEEKDAYS.get(m[1]);
-  let hour = Number(m[2]);
-  const minute = m[3] == null ? 0 : Number(m[3]);
-  const meridiem = m[4] || "";
-  if (!Number.isInteger(hour) || !Number.isInteger(minute) || minute < 0 || minute > 59) return { ok: false, error: "La hora no es válida." };
+  const matchDay = /^(domingo|lunes|martes|miercoles|jueves|viernes|sabado)(?:\s+(.*))?$/.exec(first);
+  if (!matchDay) return {ok:false,error:"Primero indica el día. Ejemplo: Viernes 23 oct."};
+  const weekday=matchDay[1], dow=AUTOAGENDA_WEEKDAYS.get(weekday);
+  // 3 líneas: "Viernes 9am | Nombre | Celular".
+  // 4 líneas: "Viernes 23 oct | Nombre | 9am | Celular", o solo "Viernes".
+  const timePart=lines.length===4 ? autoagendaNormalizeText(lines[2]).toLowerCase().replace(/\s+/g," ") :
+    String(matchDay[2]||"").trim();
+  const m=/^(\d{1,2})(?:\s*(?:y|:|\.)\s*(\d{1,2}))?\s*(?:(a|p)\s*\.?\s*m\.?)?$/.exec(timePart);
+  if (!m) return {ok:false,error:"No pude entender la hora. Ejemplos: 9am, 9:20am o 15:30."};
+  let hour=Number(m[1]);
+  const minute=m[2]==null?0:Number(m[2]);
+  const meridiem=m[3]||"";
+  if (!Number.isInteger(hour)||!Number.isInteger(minute)||minute<0||minute>59) return {ok:false,error:"La hora no es válida."};
   if (meridiem) {
-    if (hour < 1 || hour > 12) return { ok: false, error: "La hora con AM/PM debe estar entre 1 y 12." };
-    if (meridiem === "a") hour = hour === 12 ? 0 : hour;
-    else hour = hour === 12 ? 12 : hour + 12;
-  } else {
-    // Conserva exactamente el comportamiento anterior para mensajes sin AM/PM.
-    if (hour >= 1 && hour <= 5) hour += 12;
+    if(hour<1||hour>12) return {ok:false,error:"La hora con AM/PM debe estar entre 1 y 12."};
+    if(meridiem==="a") hour=hour===12?0:hour;
+    else hour=hour===12?12:hour+12;
+  } else if (hour>=1&&hour<=5) hour+=12;
+  if (hour<0||hour>23) return {ok:false,error:"La hora no es válida."};
+  const time=String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");
+  const declared=lines.length===4?autoagendaExplicitDate(matchDay[2]||"",dow):{ok:true,date:""};
+  if (!declared.ok) return declared;
+  const date=declared.date||autoagendaNextDate(dow,time);
+  const name=bookingCleanName(lines[1]);
+  const phone=bookingCleanPhone(lines[lines.length-1]);
+  if(name.length<5)return {ok:false,error:"No pude identificar correctamente el nombre del paciente."};
+  if(!phone)return {ok:false,error:"El celular del paciente debe tener 10 dígitos y comenzar con 09."};
+  if(!date||!bookingValidDay(date)||!bookingDateWithinHorizon(date)||!bookingTimeWithinSchedule(date,time)){
+    return {ok:false,error:"El horario "+weekday+" "+date+" "+time+" no está habilitado en la agenda."};
   }
-  if (hour < 0 || hour > 23) return { ok: false, error: "La hora no es válida." };
-  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  const date = autoagendaNextDate(dow, time);
-  const name = bookingCleanName(lines[1]);
-  const phone = bookingCleanPhone(lines[2]);
-  if (name.length < 5) return { ok: false, error: "No pude identificar correctamente el nombre del paciente." };
-  if (!phone) return { ok: false, error: "El celular del paciente debe tener 10 dígitos y comenzar con 09." };
-  if (!date || !bookingValidDay(date) || !bookingDateWithinHorizon(date) || !bookingTimeWithinSchedule(date, time)) {
-    return { ok: false, error: `El horario ${m[1]} ${time} no está habilitado en la agenda.` };
-  }
-  return { ok: true, weekday: m[1], name, phone, date, time };
+  return {ok:true,weekday,name,phone,date,time};
 }
 function autoagendaReply(parsed, status) {
   const detail = `${parsed.name}\n${dateLabel(parsed.date)}\n${timeLabel(parsed.time)}\n${parsed.phone}`;
