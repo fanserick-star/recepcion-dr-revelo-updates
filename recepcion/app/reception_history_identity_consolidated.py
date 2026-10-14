@@ -924,9 +924,34 @@ def historia_identity_link(
             cur, patient.id, target["id"], "reception_manual_verified"
         )
         changes, warnings = _sync_demographics(cur, target["id"], demo)
+        # Corregir en el mismo commit los turnos todavía pendientes. Nunca
+        # cambiar en este flujo la identidad de una consulta ya iniciada.
+        cur.execute(
+            """
+            UPDATE public.waiting_queue
+               SET clinical_patient_id=%s,updated_at=%s,cloud_updated_at=now()
+             WHERE reception_patient_id=%s
+               AND status='waiting'
+               AND started_at IS NULL AND completed_at IS NULL
+               AND deleted_at IS NULL
+               AND clinical_patient_id IS DISTINCT FROM %s
+            RETURNING reception_event_id
+            """,
+            (target["id"], datetime.now().isoformat(timespec="seconds"),
+             str(patient.id), target["id"]),
+        )
+        corrected_events = [str(row[0]) for row in (cur.fetchall() or []) if row and row[0]]
         conn.commit()
         linked = _linked_patient(cur, patient.id)
         _resume_pending_reception_handoffs(patient.id)
+        # Un evento ya entregado requiere un nuevo handoff: solo el vínculo
+        # cloud verificado autoriza reenviarlo; el mismo event_id evita duplicados.
+        if corrected_events:
+            try:
+                import historia_lan_transport as lan
+                lan.refresh_sent_waiting_handoffs_after_link(patient.id, corrected_events)
+            except Exception:
+                pass  # El cambio cloud está guardado; el sincronizador podrá recuperarlo.
 
         try:
             core.audit(
@@ -960,6 +985,7 @@ def historia_identity_link(
             "history_date_count": int((linked or {}).get("history_date_count") or 0),
             "last_history_date": _clean((linked or {}).get("last_history_date"), 20),
             "reception_identification_corrected": reception_correction,
+            "waiting_turns_updated": len(corrected_events),
             "warnings": warnings,
         }
     finally:
@@ -1298,6 +1324,9 @@ V4613_JS = r"""
 
   // Used only by the review-exams button in Recepción. The same manually
   // confirmed linkage window is reused; no duplicate patient-identity flow.
+  window.openRegistrationHistoryLink=function(pid,initial='',afterLink=null){
+    return searchDialog(Number(pid),initial,afterLink);
+  };
   window.openExamReviewHistoryLink=function(pid,initial=''){
     return searchDialog(pid,initial,()=>{
       if(typeof window.saveExamReviewTurn==='function'){
