@@ -643,6 +643,50 @@ def resume_pending_for_patient(reception_patient_id: object) -> int:
     return resumed
 
 
+def refresh_sent_waiting_handoffs_after_link(reception_patient_id: object, event_ids: list[str]) -> int:
+    """Reentrega el MISMO turno solo si Recepción corrigió una espera activa.
+
+    El cambio de ficha ya fue confirmado en Neon por Recepción. No crea turno
+    nuevo, no modifica el estado de una consulta iniciada ni toca facturación.
+    """
+    pid = str(reception_patient_id or "").strip()
+    events = {str(x).strip() for x in (event_ids or []) if str(x).strip()}
+    if not pid or not events:
+        return 0
+    verified = _cloud_link_id(pid)
+    if not verified:
+        return 0
+    _ensure_lan_outbox()
+    changed = 0
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        rows = conn.execute(
+            "SELECT event_id,payload_json FROM events WHERE cancelled=0"
+        ).fetchall()
+        for event_id, raw in rows:
+            if str(event_id) not in events:
+                continue
+            try:
+                payload = json.loads(raw)
+                if str(payload.get("reception_patient_id") or "") != pid:
+                    continue
+                if str(payload.get("clinical_patient_id") or "") == verified:
+                    continue
+                payload["clinical_patient_id"] = verified
+                conn.execute(
+                    "UPDATE events SET payload_json=?,sent_at=NULL,last_error=NULL "
+                    "WHERE event_id=? AND cancelled=0",
+                    (json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                     str(event_id)),
+                )
+                changed += 1
+            except (ValueError, TypeError):
+                continue
+        conn.commit()
+    if changed:
+        _flush_lan_outbox()
+    return changed
+
+
 def handoff_waiting_for_chart(event_id: object) -> bool:
     """Permite a Recepción avisar sin consultar otra vez Neon."""
     _ensure_lan_outbox()
