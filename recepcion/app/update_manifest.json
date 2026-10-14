@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.22",
-  "app_version": "4.8.22",
-  "runtime_version": "4.8.22",
+  "version": "4.8.23",
+  "app_version": "4.8.23",
+  "runtime_version": "4.8.23",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.10 — despierta WhatsApp Cloud al registrar cambios de agenda y usa Durable Objects con alarmas persistentes de recordatorios. Sin cron periódico. Confirmaciones de la agenda web y Autoagenda conservan el procesamiento 24/7; NO se debe activar ni desplegar a horas nocturnas durante la migración. La notificación de Recepción no envía mensajes por sí misma y solo sigue a persistencia Neon. Se preservan cola offline, AZUR, facturas, Historia Clínica, TV, turnos y fichas.",
-    "previous_version": "4.8.9",
+    "purpose": "Recepción 4.8.23: selección obligatoria Nuevo/Subsecuente al registrar un paciente; subsecuentes se vinculan a Historia antigua sin crear otra ficha clínica. Se elimina la corrección manual de Subsecuente en Nueva atención y se calcula desde historia confirmada; cambio de vínculo corrige turnos todavía en espera y se reentrega por LAN sin duplicar. Respeta trabajo del doctor, facturación, AZUR, WhatsApp, agenda y turnos.",
+    "previous_version": "4.8.22",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -517,7 +517,12 @@
     "whatsapp_scheduled_reminders": "database_truth_alarm",
     "whatsapp_neon_no_polling": true,
     "whatsapp_no_new_database_tables": true,
-    "whatsapp_alarm_preserves_24x7_messages": true
+    "whatsapp_alarm_preserves_24x7_messages": true,
+    "registration_new_subsequent_choice": true,
+    "registration_subsequent_no_auto_duplicate": true,
+    "waiting_link_change_only_before_start": true,
+    "waiting_lan_same_event_id": true,
+    "offline_subsequent_no_auto_duplicate": true
   },
   "channel": "launcher-v1-stable"
 }

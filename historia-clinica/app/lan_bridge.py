@@ -146,7 +146,7 @@ class LanService:
                         """
                         UPDATE waiting_queue SET
                           reception_patient_id=?,
-                          clinical_patient_id=COALESCE(clinical_patient_id,?),
+                          clinical_patient_id=CASE WHEN status='waiting' AND started_at IS NULL AND ?<>'' THEN ? ELSE clinical_patient_id END,
                           display_name=?,
                           identification=?,
                           attention_type=?,
@@ -157,6 +157,7 @@ class LanService:
                         """,
                         (
                             reception_patient_id,
+                            clinical_id,
                             clinical_id,
                             display_name,
                             identification or None,
@@ -172,7 +173,7 @@ class LanService:
                         """
                         UPDATE waiting_queue SET
                           reception_patient_id=?,
-                          clinical_patient_id=COALESCE(clinical_patient_id,?),
+                          clinical_patient_id=CASE WHEN status='waiting' AND started_at IS NULL AND ?<>'' THEN ? ELSE clinical_patient_id END,
                           display_name=?,
                           identification=?,
                           attention_type=?,
@@ -182,6 +183,7 @@ class LanService:
                         """,
                         (
                             reception_patient_id,
+                            clinical_id,
                             clinical_id,
                             display_name,
                             identification or None,
@@ -196,7 +198,7 @@ class LanService:
                         """
                         UPDATE waiting_queue SET
                           reception_patient_id=?,
-                          clinical_patient_id=COALESCE(clinical_patient_id,?),
+                          clinical_patient_id=CASE WHEN status='waiting' AND started_at IS NULL AND ?<>'' THEN ? ELSE clinical_patient_id END,
                           display_name=?,
                           identification=?,
                           attention_type=?,
@@ -205,6 +207,7 @@ class LanService:
                         """,
                         (
                             reception_patient_id,
+                            clinical_id,
                             clinical_id,
                             display_name,
                             identification or None,

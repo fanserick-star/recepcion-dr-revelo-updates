@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.9",
-  "app_version": "1.4.9",
-  "runtime_version": "1.4.9",
+  "version": "1.4.10",
+  "app_version": "1.4.10",
+  "runtime_version": "1.4.10",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -78,8 +78,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.9: activar firma electrónica dentro del editor del certificado médico o de reposo, sin salir de la pantalla ni borrar texto si falta configurar o desbloquear la firma. El PDF firmado comprueba la firma ANTES de guardar; cancelar deja la edición intacta. Botón explícito Guardar e imprimir y reimpresión en la lista de certificados. Se conserva el guardado únicamente por acciones explícitas, los formatos actuales, la base clínica y la sincronización previa con Recepción.",
-    "previous_version": "1.4.8",
+    "purpose": "Historia Clínica 1.4.10: aceptar cambios de vinculación enviados desde Recepción solo cuando el turno permanezca esperando y el doctor no haya iniciado la consulta. Se conserva el evento y número de turno, consultas en curso, historiales, certificados, firmas electrónicas y sincronización; sin cambios destructivos.",
+    "previous_version": "1.4.9",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -209,6 +209,8 @@
     "electronic_signature_edit_preserved_if_cancelled": true,
     "certificate_save_print_explicit": true,
     "certificate_reprint_available": true,
-    "certificate_background_autosave": false
+    "certificate_background_autosave": false,
+    "waiting_relinked_only_before_start": true,
+    "existing_consultation_unchanged": true
   }
 }

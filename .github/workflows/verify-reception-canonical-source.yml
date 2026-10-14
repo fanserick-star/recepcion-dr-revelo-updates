@@ -61,6 +61,7 @@ jobs:
           python tools/test_reception_cancel_sync_ticket_4811.py
           python tools/test_reception_only_link_authority.py
           python tools/test_reception_auto_clinical_chart.py
+          python tools/test_reception_prior_history_registration.py
           python tools/test_reception_whatsapp_timeline_4820.py
           python tools/test_reception_alarm_durable_4821.py
           python tools/test_reception_active_messaging_panel_4822.py

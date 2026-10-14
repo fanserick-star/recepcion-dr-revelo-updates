@@ -1274,7 +1274,8 @@ function schedulePatientSimilarity(excludeId=0){
 }
 function patientForm(p={}){
   const foreign=isForeignIdentificationValue(p.cedula||'');
-  return `<div class="patient-form-shell"><div class="patient-form-grid">
+  const registrationChoice=p.id?'':`<fieldset id="clinicalRegistrationKind" style="margin:0 0 12px;border:1px solid #cbdae9;border-radius:12px;padding:12px;background:#f6faff"><legend style="font-size:13px;font-weight:900;color:#28465f">¿Ya fue atendido anteriormente por el doctor?</legend><div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;min-width:140px;padding:10px;border:1px solid #d5e1ee;border-radius:9px;background:#fff;cursor:pointer"><input type="radio" name="clinicalRegistrationChoice" value="N"> <b>Nuevo</b><small style="display:block">Nunca fue atendido</small></label><label style="flex:1;min-width:140px;padding:10px;border:1px solid #d5e1ee;border-radius:9px;background:#fff;cursor:pointer"><input type="radio" name="clinicalRegistrationChoice" value="S"> <b>Subsecuente</b><small style="display:block">Tiene historia clínica anterior</small></label></div><small style="display:block;margin-top:8px">Si es subsecuente, se vincula su historia anterior sin crear una ficha duplicada.</small></fieldset>`;
+  return `<div class="patient-form-shell">${registrationChoice}<div class="patient-form-grid">
     <div class="form-field identification-field"><div class="field-label-row"><label for="fCedula">Cédula o identificación</label><label class="foreign-toggle" title="Usar para pasaporte u otra identificación"><input id="fForeign" type="checkbox" ${foreign?'checked':''} onchange="toggleForeignIdentification()"><span>Extranjero</span></label></div><input id="fCedula" type="text" inputmode="${foreign?'text':'numeric'}" autocomplete="off" maxlength="${foreign?30:10}" placeholder="${foreign?'Pasaporte o identificación':'Ingrese 10 dígitos'}" value="${esc(p.cedula||'')}" oninput="identificationInput(this)"><small id="fCedulaHelp" class="field-help">${foreign?'Se permite otro formato de identificación.':'Cédula ecuatoriana: exactamente 10 dígitos.'}</small><small id="fCedulaError" class="field-error hidden"></small></div>
     <div class="form-field patient-name-field"><label for="fNombre">Apellidos y nombres</label><input id="fNombre" class="uppercase-name" autocapitalize="characters" autocomplete="off" placeholder="2 APELLIDOS Y NOMBRES" value="${esc(String(p.nombre||'').toUpperCase())}" oninput="upperNameInput(this);clearPatientFieldError('fNombre');schedulePatientSimilarity(${Number(p.id||0)})"><small class="field-help">Ideal: dos apellidos y dos nombres. Con 1–2 palabras se pedirá confirmar la identidad antes de atender.</small><small id="fNombreError" class="field-error hidden"></small></div>
     <div class="form-field"><label for="fNac">Fecha de nacimiento</label><input type="date" id="fNac" value="${esc(p.fecha_nacimiento||'')}"></div>
@@ -1294,7 +1295,10 @@ function getPatientForm(){
   if(cedula&&!extranjero){if(cedula.length!==10){setPatientFieldError('fCedula','La cédula debe tener exactamente 10 dígitos.');throw Error('La cédula debe tener exactamente 10 dígitos.');}if(!validEcuadorianCedula(cedula)){setPatientFieldError('fCedula','La cédula no es válida. Revisa si se digitó correctamente.');throw Error('La cédula ecuatoriana no es válida.');}}
   if(cedula&&extranjero&&cedula.length>30){setPatientFieldError('fCedula','La identificación no puede superar 30 caracteres.');throw Error('La identificación extranjera es demasiado larga.');}
   if(correo&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)){setPatientFieldError('fMail','Revisa el formato del correo.');throw Error('El correo no tiene un formato válido.');}
-  return {cedula:cedula||null,nombre,fecha_nacimiento:$('#fNac').value||null,celular:($('#fCel').value||'').replace(/\D/g,'')||null,correo:correo||null,lugar:$('#fLugar').value||null,notas:$('#fNotas').value||null,extranjero};
+  const picker=$('#clinicalRegistrationKind');
+  const clinical_registration_kind=picker?.querySelector('input[name="clinicalRegistrationChoice"]:checked')?.value||'';
+  if(picker&&!clinical_registration_kind)throw Error('Antes de registrar, indica si el paciente es Nuevo o Subsecuente.');
+  return {cedula:cedula||null,nombre,fecha_nacimiento:$('#fNac').value||null,celular:($('#fCel').value||'').replace(/\D/g,'')||null,correo:correo||null,lugar:$('#fLugar').value||null,notas:$('#fNotas').value||null,extranjero,...(clinical_registration_kind?{clinical_registration_kind}:{})};
 }
 let pendingNewPatientAgendaSlot=null;
 function newPatient(continueToAttention=false,agendaSlot=null){
@@ -1314,6 +1318,20 @@ async function saveNewPatient(action=false){
       // Reception creates and verifies the new medical card on save.
       // Only possible duplicates or cloud outages require subsequent action.
       const clinical=p?.clinical_chart||{};
+      if(data.clinical_registration_kind==='S'){
+        const slot=pendingNewPatientAgendaSlot;
+        pendingNewPatientAgendaSlot=null;
+        await openPatient(p.id,'patients');
+        await searchPatients();
+        if(typeof window.openRegistrationHistoryLink==='function'){
+          await window.openRegistrationHistoryLink(p.id,data.nombre,async()=>{
+            if(action===true)await attentionFor(p.id);
+            else if(action==='agenda')await openAgendaPatient(p.id,null,slot?.date||null,slot?.time||null);
+            else await openPatient(p.id,'patients');
+          });
+        }else alert('Paciente subsecuente guardado. Abre su ficha para buscar y vincular su historia anterior.');
+        return;
+      }
       if(action===true){
         // A saved Reception registration is not a verified clinical identity.
         // Keep ambiguous/offline patients on their profile until Reception links them.
@@ -1699,33 +1717,39 @@ async function attentionFor(id,draft=null){
   selectedServices=new Set(draftServices.map(serviceKey).filter(Boolean));
   attentionServiceValues={...(draft?.procedureValues||{})};
   if(draft?.selectedService&&draft?.valorProc!==undefined&&draft?.selectedService!=='CONSULTA')attentionServiceValues[serviceKey(draft.selectedService)]=draft.valorProc;
-  attentionContext={patient:p,manualSubsequent:!!draft?.manualSubsequent,stagedId:Number(draft?.stagedId||0)};
+  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,stagedId:Number(draft?.stagedId||0)};
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
   const cancelAction=Number(draft?.stagedId||0)?`attendConfirmafyStaged(${Number(draft.stagedId)},'${esc(fecha)}')`:`openPatient(${id},currentPatientSource)`;
   openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="exam-review-turn-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Dar turno · Revisión de exámenes (gratis)</button><small>Obligatorio: ficha de Historia Clínica vinculada y confirmada. Sin cobro ni factura; se envía al doctor y a la TV.</small></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
   renderAttentionStatus();
   renderSelectedServiceValues();
+  void refreshAttentionClinicalHistory(id);
+}
+async function refreshAttentionClinicalHistory(id){
+  try{
+    const status=await api('/api/historia-identity/status/'+Number(id));
+    if(Number(attentionContext?.patient?.id||0)!==Number(id))return;
+    if(status?.ok===false||status?.reachable===false)return;
+    attentionContext.clinicalLink=!!status.linked;
+    attentionContext.clinicalHistoryCount=Number(status.history_date_count||0);
+    renderAttentionStatus();
+  }catch(_e){/* Recepción conserva sus visitas registradas cuando Neon está desconectado. */}
 }
 function currentDetectedStatus(){
   if(!attentionContext)return 'N';
   if(attentionContext.patient.suggested_type==='S')return 'S';
-  return attentionContext.manualSubsequent?'S':'N';
+  return Number(attentionContext.clinicalHistoryCount||0)>0?'S':'N';
 }
 function renderAttentionStatus(){
   const box=$('#attentionStatus');if(!box||!attentionContext)return;
-  const original=attentionContext.patient.suggested_type;
-  const current=currentDetectedStatus();
-  const last=attentionContext.patient.ultima_atencion;
-  if(current==='S'){
-    const corrected=original==='N'&&attentionContext.manualSubsequent;
-    const hist=attentionContext.patient.historical;
-    box.innerHTML=`<div class="detected-status subsequent"><div><span>Tipo de paciente detectado</span><strong>SUBSECUENTE</strong>${last?`<small>Última atención registrada: ${fmtDate(last)}</small>`:hist?`<small>${esc(historicalLastLabel(attentionContext.patient))}</small>`:corrected?'<small>Marcado manualmente por historial anterior no disponible.</small>':''}</div>${corrected?'<button type="button" onclick="toggleLegacySubsequent()">Deshacer corrección</button>':''}</div>`;
+  const kind=currentDetectedStatus(),last=attentionContext.patient.ultima_atencion;
+  if(attentionContext.clinicalLink===false){
+    box.innerHTML='<div class="detected-status"><div><span>Historia clínica</span><strong>PENDIENTE DE VINCULAR</strong><small>Confirma la ficha desde Recepción antes de atender.</small></div></div>';
   }else{
-    box.innerHTML=`<div class="legacy-subsequent-inline"><div><b>¿Paciente de años anteriores?</b><small>Si ya se atendía antes y ese historial no está en la base, puedes corregirlo.</small></div><button type="button" class="legacy-button" onclick="toggleLegacySubsequent()">Marcar como subsecuente</button></div>`;
+    box.innerHTML=`<div class="detected-status ${kind==='S'?'subsequent':''}"><div><span>Tipo de paciente · automático</span><strong>${kind==='S'?'SUBSECUENTE':'NUEVO'}</strong>${last?'<small>Última atención en Recepción: '+fmtDate(last)+'</small>':''}</div></div>`;
   }
 }
-function toggleLegacySubsequent(){if(!attentionContext||attentionContext.patient.suggested_type==='S')return;attentionContext.manualSubsequent=!attentionContext.manualSubsequent;renderAttentionStatus()}
 function examReviewTicketMarkup(ticket){
   const number=String(ticket.turn||'--');
   const date=fmtDate(ticket.fecha||'');
@@ -1924,7 +1948,21 @@ async function saveAttention(id){
       const valor=Number(raw);if(Number.isNaN(valor)||valor<0)throw Error(`El valor de ${serviceLabel(name)} no es válido.`);
       return {procedimiento:name,valor};
     });
-    const tipo=(attentionContext?.patient?.suggested_type==='N'&&attentionContext?.manualSubsequent)?'S':null;
+    // El historial clínico confirmado sustituye el botón manual de Subsecuente.
+    let tipo=null;
+    try{
+      const clinical=await api('/api/historia-identity/status/'+Number(id));
+      if(clinical?.ok!==false&&clinical?.reachable!==false){
+        if(!clinical.linked){
+          if(typeof window.openRegistrationHistoryLink==='function')void window.openRegistrationHistoryLink(id,patient.nombre);
+          throw Error('Primero vincula la ficha de Historia Clínica desde Recepción. No se guardó la atención.');
+        }
+        tipo=Number(clinical.history_date_count||0)>0?'S':null;
+      }
+    }catch(err){
+      if(String(err?.message||'').includes('Primero vincula'))throw err;
+      // Sin conexión se conserva el tipo calculado a partir de las visitas locales.
+    }
     const saved=await api('/api/visits/batch',{method:'POST',body:JSON.stringify({patient_id:id,fecha,tipo,services,observacion:$('#aObs').value||null})});
     completed=true;
     const stagedId=Number(attentionContext?.stagedId||0);
@@ -2163,7 +2201,12 @@ function newPatientFromConfirmafy(line){
   setTimeout(()=>schedulePatientSimilarity(0),0);
 }
 async function saveNewPatientFromConfirmafy(line){
-  try{const data=getPatientForm();if(!String(data.nombre||'').trim())throw Error('Ingresa el nombre del paciente.');const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});confirmafyPatientLinks[String(Number(line))]=Number(p.id);await previewConfirmafyImport(null)}catch(e){alert(e.message)}
+  try{const data=getPatientForm();if(!String(data.nombre||'').trim())throw Error('Ingresa el nombre del paciente.');const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});confirmafyPatientLinks[String(Number(line))]=Number(p.id);await previewConfirmafyImport(null);
+    if(data.clinical_registration_kind==='S'){
+      if(typeof window.openRegistrationHistoryLink==='function')await window.openRegistrationHistoryLink(p.id,data.nombre);
+      else alert('Paciente subsecuente registrado. Vincula su historia clínica antigua antes de atenderlo.');
+    }
+  }catch(e){alert(e.message)}
 }
 
 async function confirmConfirmafyImport(){
@@ -2350,7 +2393,16 @@ async function searchStagedPatient(itemId,fecha,immediate=false){clearTimeout(st
 async function usePatientForStaged(itemId,patientId,fecha){const target=String(fecha||toISO(new Date())).slice(0,10);if(target!==toISO(new Date())&&!confirm(`Esta cita corresponde al ${fmtDate(target)}. ¿Registrar la atención con esa fecha?`))return;await attentionFor(Number(patientId),{fecha:target,stagedId:Number(itemId)})}
 async function useHistoricalForStaged(itemId,hid,fecha){try{const p=await api(`/api/historical/${Number(hid)}/activate`,{method:'POST'});invalidateAttentionWeekCache();await usePatientForStaged(Number(itemId),Number(p.id),fecha)}catch(e){alert(e.message)}}
 async function newPatientFromStaged(itemId,fecha){try{const staged=currentStagedResolve?.id===Number(itemId)?currentStagedResolve:await getConfirmafyStagedRow(itemId);const seed={nombre:staged.nombre||'',celular:staged.celular||''};lastPatientSimilarity={name:'',matches:[]};openModal(`<div class="patient-form-modal"><div class="modal-form-heading"><h2>Crear paciente nuevo</h2><p>Completa la ficha con el paciente presente.</p></div>${patientForm(seed)}<div class="actions form-actions"><button class="cancel-btn" onclick="attendConfirmafyStaged(${Number(itemId)},'${fecha}')">Volver</button><button class="primary" onclick="saveNewPatientFromStaged(${Number(itemId)},'${fecha}')">Guardar y continuar</button></div></div>`);setTimeout(()=>schedulePatientSimilarity(0),0)}catch(e){alert(e.message)}}
-async function saveNewPatientFromStaged(itemId,fecha){try{const data=getPatientForm();const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});await attentionFor(Number(p.id),{fecha:String(fecha||toISO(new Date())).slice(0,10),stagedId:Number(itemId),identityReviewed:true})}catch(e){alert(e.message)}}
+async function saveNewPatientFromStaged(itemId,fecha){try{const data=getPatientForm();const p=await api('/api/patients',{method:'POST',body:JSON.stringify(data)});
+  const draft={fecha:String(fecha||toISO(new Date())).slice(0,10),stagedId:Number(itemId),identityReviewed:true};
+  if(data.clinical_registration_kind==='S'){
+    await openPatient(Number(p.id),'patients');
+    if(typeof window.openRegistrationHistoryLink==='function')await window.openRegistrationHistoryLink(p.id,data.nombre,()=>attentionFor(Number(p.id),draft));
+    else alert('Paciente subsecuente guardado. Vincula su historia antigua desde Recepción.');
+    return;
+  }
+  await attentionFor(Number(p.id),draft);
+}catch(e){alert(e.message)}}
 async function attendFromAgenda(patientId,fecha){const today=toISO(new Date()),target=String(fecha||today).slice(0,10);if(target!==today&&!confirm(`Esta cita corresponde al ${fmtDate(target)}. ¿Registrar la atención con esa fecha?`))return;await attentionFor(patientId,{fecha:target})}
 async function openAgendaPatient(id,appointmentId=null,preferredDate=null,preferredTime=null){
   try{let p=agendaPatientById.get(Number(id));if(!p){p=await api('/api/patients/'+id);agendaPatientById.set(Number(id),p)}if(!agendaPhoneOk(p)){alert('Este paciente no tiene celular registrado. Completa el campo Celular antes de agendar.');await editPatient(Number(id),'patients');return}agendaPatientCache=p;let dateValue=preferredDate||nextClinicDate(),timeValue=preferredTime||'',note='';if(appointmentId){let row=agendaAppointmentById.get(Number(appointmentId));if(!row){try{row=await api(`/api/agenda/appointments/${appointmentId}`)}catch{}}if(row){dateValue=String(row.appointment.fecha).slice(0,10);timeValue=row.appointment.hora||'';note=row.appointment.nota||''}}agendaSelectedTime=timeValue;openModal(`<div class="agenda-modal"><h2>${appointmentId?'Editar cita':'Nueva cita'}</h2><div class="agenda-person"><b>${esc(p.nombre)}</b><span>${esc(p.cedula||'Sin cédula registrada')}</span></div><label class="agenda-date-label">Fecha<input id="agendaDate" type="date" value="${esc(dateValue)}" onchange="agendaDateChanged(${appointmentId||'null'})"></label><div class="agenda-time-section"><div class="agenda-time-head"><div><b>Hora</b><span>Bloques de 20 minutos.</span></div><strong id="agendaSelectedTimeLabel">${timeValue?esc(fmtTime(timeValue)):'Sin seleccionar'}</strong></div><input id="agendaTime" type="hidden" value="${esc(timeValue)}"><div id="agendaTimeSlots" class="agenda-time-slots"><div class="agenda-time-loading">Cargando horarios…</div></div></div><div class="agenda-fixed-row"><div class="agenda-fixed-duration"><small>Duración</small><b>20 minutos</b></div><label>Nota (opcional)<input id="agendaNote" maxlength="80" value="${esc(note)}" placeholder="Ej. Control"></label></div><div class="agenda-native-note"><b>Agenda propia</b><span>La cita queda guardada directamente en Recepción.</span></div>${appointmentId?`<div id="appointmentWhatsappDelivery" class="agenda-native-note" style="display:block"><b>WhatsApp · estado real de esta cita</b><div id="appointmentWhatsappDeliveryItems" style="padding-top:5px">Consultando Meta Cloud…</div><button type="button" class="primary-soft" onclick="refreshAppointmentWhatsappStatus(${Number(appointmentId)})">↻ Consultar estado (no reenvía)</button></div>`:''}<div class="actions"><button onclick="closeModal()">Cancelar</button><button class="primary" onclick="saveAgendaAppointment(${appointmentId||'null'})">Guardar cita</button></div></div>`);await loadAgendaTimeSlots(appointmentId,timeValue);if(appointmentId)refreshAppointmentWhatsappStatus(Number(appointmentId)).catch(()=>{})}catch(e){alert(e.message)}}
