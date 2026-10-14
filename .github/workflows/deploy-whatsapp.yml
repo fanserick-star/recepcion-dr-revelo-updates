@@ -94,6 +94,7 @@ jobs:
           node --check cloudflare/whatsapp_alarm_time.mjs
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
+          node tools/test_whatsapp_autoagenda_formats.mjs
           node tools/test_whatsapp_single_confirmation_policy.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
           node tools/test_whatsapp_reception_alarm_signature.mjs
