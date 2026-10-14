@@ -5830,8 +5830,11 @@ async function claim(client, c) {
   const r = await client.query(`INSERT INTO whatsapp_cloud.events(event_key,source_type,source_id,template_name,appointment_date,appointment_time,due_at,phone,patient_name,status,attempts,updated_at)
 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'SENDING',1,now())
 ON CONFLICT(event_key) DO UPDATE SET status='SENDING',attempts=whatsapp_cloud.events.attempts+1,error_code=NULL,error_text=NULL,updated_at=now()
-WHERE whatsapp_cloud.events.status='ERROR' AND whatsapp_cloud.events.attempts<5 AND whatsapp_cloud.events.updated_at < now()-interval '5 minutes'
-RETURNING event_key`, [key, c.source_type, c.source_id, c.template_name, d2, t, c.due_at, c.phone, c.patient_name]);
+WHERE whatsapp_cloud.events.status='ERROR'
+  AND whatsapp_cloud.events.attempts<5
+  AND whatsapp_cloud.events.updated_at < now() -
+      CASE WHEN $11::boolean THEN interval '30 seconds' ELSE interval '5 minutes' END
+RETURNING event_key`, [key, c.source_type, c.source_id, c.template_name, d2, t, c.due_at, c.phone, c.patient_name, c.kind === 'cita_agendada']);
   return !!r.rows?.length;
 }
 async function markSent(client, c, data) {
@@ -6908,7 +6911,10 @@ WITH base AS (
 )
 SELECT min(GREATEST(
   due_at,
-  CASE WHEN status='ERROR' THEN error_updated_at+interval '5 minutes' ELSE due_at END,
+  CASE WHEN status='ERROR'
+       THEN error_updated_at + CASE WHEN kind='cita_agendada' THEN interval '30 seconds'
+                                    ELSE interval '5 minutes' END
+       ELSE due_at END,
   now()+interval '2 seconds'
 )) AS next_due
 FROM pending
@@ -6967,7 +6973,10 @@ export class WhatsappAlarmCoordinator {
     if (pathname !== "/refresh" && pathname !== "/init") return new Response("Not found", { status: 404 });
     try {
       if (pathname === "/init" && await this.state.storage.get("bootstrapped_v1")) {
-        return Response.json({ ok: true, initialized: true });
+        // Reinicios y cambios de despliegue pueden dejar la alarma sin programar.
+        // Solo recuperar si falta: no hay cron y jamás envía mensajes desde /init.
+        const scheduled = await this.state.storage.getAlarm();
+        if (scheduled !== null) return Response.json({ ok: true, initialized: true });
       }
       return Response.json(await this.updateNextAlarm());
     } catch (err) {
