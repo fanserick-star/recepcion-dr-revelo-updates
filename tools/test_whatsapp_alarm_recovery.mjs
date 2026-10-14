@@ -18,7 +18,7 @@ const context = {
   sha256: async () => "sha-de-prueba",
   console: { error() {} },
 };
-vm.runInNewContext(between("async function claim(client, c) {", "async function markSent(client, c)") +
+vm.runInNewContext(between("async function claim(client, c) {", "async function markSent(client, c, data) {") +
   "\nglobalThis.probarClaim = claim;", context);
 const client = { query: async (sql, values) => {
   statement = sql;
