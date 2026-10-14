@@ -5833,7 +5833,7 @@ ON CONFLICT(event_key) DO UPDATE SET status='SENDING',attempts=whatsapp_cloud.ev
 WHERE whatsapp_cloud.events.status='ERROR'
   AND whatsapp_cloud.events.attempts<5
   AND whatsapp_cloud.events.updated_at < now() -
-      CASE WHEN $11::boolean THEN interval '30 seconds' ELSE interval '5 minutes' END
+      CASE WHEN $10::boolean THEN interval '30 seconds' ELSE interval '5 minutes' END
 RETURNING event_key`, [key, c.source_type, c.source_id, c.template_name, d2, t, c.due_at, c.phone, c.patient_name, c.kind === 'cita_agendada']);
   return !!r.rows?.length;
 }
