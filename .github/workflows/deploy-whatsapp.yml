@@ -77,6 +77,7 @@ jobs:
             'availability_overlap_projection: "grid_from_intervals_v1"',
             'autoagenda_enrollment: "one_time_v1"',
             'autoagenda_time_parser: "ampm_v2"',
+            'autoagenda_message_formats: "three_four_lines_explicit_date_v1"',
             'autoagenda_week_guard: "monday_sunday_v1"',
             'diagnostics_export: "cf_token_aesgcm_v1"',
             "CASE WHEN kind='cita_agendada' THEN interval '3 minutes' ELSE interval '4 hours' END",
@@ -94,6 +95,7 @@ jobs:
           node --check cloudflare/whatsapp_alarm_time.mjs
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
+          node tools/test_whatsapp_autoagenda_formats.mjs
           node tools/test_whatsapp_single_confirmation_policy.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
           node tools/test_whatsapp_reception_alarm_signature.mjs
@@ -155,6 +157,7 @@ jobs:
           assert d.get('availability_overlap_projection') == 'grid_from_intervals_v1', d
           assert d.get('autoagenda_enrollment') == 'one_time_v1', d
           assert d.get('autoagenda_time_parser') == 'ampm_v2', d
+          assert d.get('autoagenda_message_formats') == 'three_four_lines_explicit_date_v1', d
           assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
           assert d.get('autoagenda_ui') == 'emoji_v1', d
           assert d.get('diagnostics_read') == 'capability_v1', d
