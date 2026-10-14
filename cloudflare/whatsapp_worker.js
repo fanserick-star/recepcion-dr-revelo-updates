@@ -6561,7 +6561,7 @@ function parseAutoagendaForward(raw) {
   const phone=bookingCleanPhone(lines[lines.length-1]);
   if(name.length<5)return {ok:false,error:"No pude identificar correctamente el nombre del paciente."};
   if(!phone)return {ok:false,error:"El celular del paciente debe tener 10 dígitos y comenzar con 09."};
-  if(!date||!bookingValidDay(date)||!bookingDateWithinHorizon(date)||!bookingTimeWithinSchedule(date,time)){
+  if(!date||!bookingValidDay(date)||!bookingDateWithinHorizon(date)||!bookingTimeWithinSchedule(date, time)) {
     return {ok:false,error:"El horario "+weekday+" "+date+" "+time+" no está habilitado en la agenda."};
   }
   return {ok:true,weekday,name,phone,date,time};
