@@ -6505,12 +6505,12 @@ function autoagendaExplicitDate(suffix, weekday) {
   const raw = autoagendaNormalizeText(suffix).toLowerCase().replace(/\s+/g," ").trim();
   if (!raw) return { ok:true, date:"" };
   // Ejemplos: "23 oct", "23 octubre 2026", "23/10", "23/10/2026".
-  const m = /^(\d{1,2})(?:\s*[\/-]\s*|\s+)([a-z]+|\d{1,2})(?:\s*[\/-]\s*|\s+(\s*))?(\d{4})?$/.exec(raw);
+  const m = /^(\d{1,2})(?:\s*[\/-]\s*|\s+)([a-z]+|\d{1,2})(?:\s*(?:\/|-|\s)\s*(\d{4}))?$/.exec(raw);
   if (!m) return { ok:false, error:"Fecha no reconocida. Usa, por ejemplo, Viernes 23 oct." };
   const day=Number(m[1]), month=/^\d+$/.test(m[2])?Number(m[2]):AUTOAGENDA_MONTHS.get(m[2]);
   if (!month || month<1 || month>12 || day<1 || day>31) return {ok:false,error:"La fecha indicada no es válida."};
   const currentYear=Number(autoagendaClockParts().today.slice(0,4));
-  let year=m[4]?Number(m[4]):currentYear;
+  let year=m[3]?Number(m[3]):currentYear;
   const build= y => {
     const iso=String(y)+"-"+String(month).padStart(2,"0")+"-"+String(day).padStart(2,"0");
     const parsed=bookingDateObj(iso);
@@ -6519,7 +6519,7 @@ function autoagendaExplicitDate(suffix, weekday) {
   };
   let result=build(year);
   if (!result) return {ok:false,error:"La fecha indicada no existe en el calendario."};
-  if (!m[4] && result.iso<autoagendaClockParts().today) {
+  if (!m[3] && result.iso<autoagendaClockParts().today) {
     year+=1;
     result=build(year);
   }
