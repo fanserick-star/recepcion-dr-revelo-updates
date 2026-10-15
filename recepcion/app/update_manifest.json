@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.27",
-  "app_version": "4.8.27",
-  "runtime_version": "4.8.27",
+  "version": "4.8.28",
+  "app_version": "4.8.28",
+  "runtime_version": "4.8.28",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.27: aviso inmediato firmado de Cita agendada al guardar o reagendar una cita en Neon desde Recepción; Cloudflare valida vigencia y antigüedad máxima de 145 segundos antes de reservar el mismo event_key de la alarma para evitar duplicados. Fallos inciertos se registran como terminales. Sin cron, sin recuperar mensajes históricos, sin modificar autoagenda web/WhatsApp, turnos, Historia Clínica ni facturación.",
-    "previous_version": "4.8.26",
+    "purpose": "Recepción 4.8.28: corrige HTTP 403 entre Recepción y WhatsApp Cloud con clave de firma aleatoria compartida en tabla restringida de Neon, independiente de las credenciales PostgreSQL de cada aplicación. Mantiene anti-replay, entrega puntual idempotente, alarmas por evento, confirmaciones y recordatorios sin cron ni reenvío de avisos antiguos; sin cambios en citas, facturación, turnos, Historia ni TV.",
+    "previous_version": "4.8.27",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -516,7 +516,7 @@
     "whatsapp_cloud_booking_confirmation": "alarms_as_soon_as_allowed",
     "whatsapp_scheduled_reminders": "database_truth_alarm",
     "whatsapp_neon_no_polling": true,
-    "whatsapp_no_new_database_tables": true,
+    "whatsapp_no_new_database_tables": false,
     "whatsapp_alarm_preserves_24x7_messages": true,
     "registration_new_subsequent_choice": true,
     "registration_new_default": true,
@@ -534,7 +534,9 @@
     "whatsapp_manual_signed_worker": true,
     "whatsapp_reception_fresh_signed_push": true,
     "whatsapp_reception_fresh_no_replay": true,
-    "whatsapp_reception_fresh_event_key_idempotent": true
+    "whatsapp_reception_fresh_event_key_idempotent": true,
+    "whatsapp_neon_shared_hmac_key": true,
+    "whatsapp_hmac_key_role_independent": true
   },
   "channel": "launcher-v1-stable"
 }
