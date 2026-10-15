@@ -29,7 +29,12 @@ assert '"clinical_registration_kind": clinical_kind' in core
 assert 'saved_kind != "S"' in core
 assert '"status": "needs_link"' in core
 assert "clinical_registration_kind" in front
-assert "Antes de registrar, indica si el paciente es Nuevo o Subsecuente" in front
+assert 'const clinical_registration_kind=picker?($(\'#clinicalRegistrationSubsequent\')?.checked?\'S\':\'N\'):\'\';' in front
+assert 'id="clinicalRegistrationStatus">Nuevo' in front
+assert 'id="clinicalRegistrationSubsequent" type="checkbox"' in front
+assert "function updateClinicalRegistrationChoice(input)" in front
+assert 'input[name="clinicalRegistrationChoice"]' not in front
+assert "Antes de registrar, indica si el paciente es Nuevo o Subsecuente" not in front
 assert "window.openRegistrationHistoryLink" in ident
 assert "Marcar como subsecuente" not in front
 assert "void refreshAttentionClinicalHistory(id)" in front
@@ -39,4 +44,4 @@ assert "started_at IS NULL AND completed_at IS NULL" in ident
 assert "refresh_sent_waiting_handoffs_after_link" in transport
 assert doctor.count("status='waiting' AND started_at IS NULL") >= 3
 assert "reception_turn=?" in doctor
-print("OK: sintaxis Python/JS, selección obligatoria, no duplicados S y relevo seguro.")
+print("OK: sintaxis Python/JS, Nuevo automático + Subsecuente opcional, no duplicados S y relevo seguro.")

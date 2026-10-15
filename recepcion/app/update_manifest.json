@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.25",
-  "app_version": "4.8.25",
-  "runtime_version": "4.8.25",
+  "version": "4.8.26",
+  "app_version": "4.8.26",
+  "runtime_version": "4.8.26",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.25: botón manual «Cita agendada» únicamente para citas sincronizadas y sin constancia de envío. Confirmación explícita y único intento firmado por Cloudflare, con reserva atómica en whatsapp_cloud.events que bloquea duplicados. La comprobación se ejecuta solo al pulsar, sin cron ni vigilancia a Neon. No modifica agenda, turnos, facturación ni historias.",
-    "previous_version": "4.8.24",
+    "purpose": "Recepción 4.8.26: el registro de paciente inicia automáticamente como Nuevo, con indicador compacto y única casilla opcional Subsecuente. Al marcar Subsecuente se conserva la búsqueda y vinculación obligatoria de la ficha clínica anterior desde Recepción, sin crear ficha duplicada. Solo cambia la interfaz de registro: sin modificaciones a agenda, turnos, facturación, WhatsApp, LAN ni Historia.",
+    "previous_version": "4.8.25",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -519,6 +519,8 @@
     "whatsapp_no_new_database_tables": true,
     "whatsapp_alarm_preserves_24x7_messages": true,
     "registration_new_subsequent_choice": true,
+    "registration_new_default": true,
+    "registration_subsequent_compact_checkbox": true,
     "registration_subsequent_no_auto_duplicate": true,
     "waiting_link_change_only_before_start": true,
     "waiting_lan_same_event_id": true,

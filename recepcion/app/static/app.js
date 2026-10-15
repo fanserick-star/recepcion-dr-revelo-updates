@@ -1274,7 +1274,7 @@ function schedulePatientSimilarity(excludeId=0){
 }
 function patientForm(p={}){
   const foreign=isForeignIdentificationValue(p.cedula||'');
-  const registrationChoice=p.id?'':`<fieldset id="clinicalRegistrationKind" style="margin:0 0 12px;border:1px solid #cbdae9;border-radius:12px;padding:12px;background:#f6faff"><legend style="font-size:13px;font-weight:900;color:#28465f">¿Ya fue atendido anteriormente por el doctor?</legend><div style="display:flex;gap:10px;flex-wrap:wrap"><label style="flex:1;min-width:140px;padding:10px;border:1px solid #d5e1ee;border-radius:9px;background:#fff;cursor:pointer"><input type="radio" name="clinicalRegistrationChoice" value="N"> <b>Nuevo</b><small style="display:block">Nunca fue atendido</small></label><label style="flex:1;min-width:140px;padding:10px;border:1px solid #d5e1ee;border-radius:9px;background:#fff;cursor:pointer"><input type="radio" name="clinicalRegistrationChoice" value="S"> <b>Subsecuente</b><small style="display:block">Tiene historia clínica anterior</small></label></div><small style="display:block;margin-top:8px">Si es subsecuente, se vincula su historia anterior sin crear una ficha duplicada.</small></fieldset>`;
+  const registrationChoice=p.id?'':`<div id="clinicalRegistrationKind" class="clinical-registration-compact"><span class="clinical-registration-summary">Tipo de paciente: <strong id="clinicalRegistrationStatus">Nuevo</strong><small id="clinicalRegistrationHint">Automático</small></span><label class="clinical-registration-option"><input id="clinicalRegistrationSubsequent" type="checkbox" onchange="updateClinicalRegistrationChoice(this)"><span>Subsecuente</span></label></div>`;
   return `<div class="patient-form-shell">${registrationChoice}<div class="patient-form-grid">
     <div class="form-field identification-field"><div class="field-label-row"><label for="fCedula">Cédula o identificación</label><label class="foreign-toggle" title="Usar para pasaporte u otra identificación"><input id="fForeign" type="checkbox" ${foreign?'checked':''} onchange="toggleForeignIdentification()"><span>Extranjero</span></label></div><input id="fCedula" type="text" inputmode="${foreign?'text':'numeric'}" autocomplete="off" maxlength="${foreign?30:10}" placeholder="${foreign?'Pasaporte o identificación':'Ingrese 10 dígitos'}" value="${esc(p.cedula||'')}" oninput="identificationInput(this)"><small id="fCedulaHelp" class="field-help">${foreign?'Se permite otro formato de identificación.':'Cédula ecuatoriana: exactamente 10 dígitos.'}</small><small id="fCedulaError" class="field-error hidden"></small></div>
     <div class="form-field patient-name-field"><label for="fNombre">Apellidos y nombres</label><input id="fNombre" class="uppercase-name" autocapitalize="characters" autocomplete="off" placeholder="2 APELLIDOS Y NOMBRES" value="${esc(String(p.nombre||'').toUpperCase())}" oninput="upperNameInput(this);clearPatientFieldError('fNombre');schedulePatientSimilarity(${Number(p.id||0)})"><small class="field-help">Ideal: dos apellidos y dos nombres. Con 1–2 palabras se pedirá confirmar la identidad antes de atender.</small><small id="fNombreError" class="field-error hidden"></small></div>
@@ -1283,6 +1283,13 @@ function patientForm(p={}){
     <div class="form-field email-field"><label for="fMail">Correo</label><input id="fMail" type="email" autocapitalize="none" autocomplete="email" spellcheck="false" placeholder="nombre@correo.com" value="${esc(String(p.correo||'').toLowerCase())}" oninput="lowerEmailInput(this);clearPatientFieldError('fMail')"><div class="email-domain-chips"><button type="button" onclick="completeEmailDomain('@gmail.com')">@gmail.com</button><button type="button" onclick="completeEmailDomain('@hotmail.com')">@hotmail.com</button><button type="button" onclick="completeEmailDomain('@outlook.com')">@outlook.com</button><button type="button" onclick="completeEmailDomain('@yahoo.com')">@yahoo.com</button></div><small id="fMailError" class="field-error hidden"></small></div>
     <div class="form-field"><label for="fLugar">Lugar</label><input id="fLugar" placeholder="Ciudad o sector" value="${esc(p.lugar||'')}"></div>
   </div><div id="patientSimilarWarning" class="patient-name-quality"></div><div class="form-field notes-field"><label for="fNotas">Notas</label><textarea id="fNotas" placeholder="Observaciones adicionales del paciente">${esc(p.notas||'')}</textarea></div></div>`
+}
+function updateClinicalRegistrationChoice(input){
+  const box=$('#clinicalRegistrationKind');if(!box)return;
+  const subsequent=!!input?.checked;
+  box.classList.toggle('is-subsequent',subsequent);
+  const status=$('#clinicalRegistrationStatus');if(status)status.textContent=subsequent?'Subsecuente':'Nuevo';
+  const hint=$('#clinicalRegistrationHint');if(hint)hint.textContent=subsequent?'Vincular historia anterior':'Automático';
 }
 function getPatientForm(){
   ['fCedula','fNombre','fMail'].forEach(clearPatientFieldError);
@@ -1296,8 +1303,7 @@ function getPatientForm(){
   if(cedula&&extranjero&&cedula.length>30){setPatientFieldError('fCedula','La identificación no puede superar 30 caracteres.');throw Error('La identificación extranjera es demasiado larga.');}
   if(correo&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo)){setPatientFieldError('fMail','Revisa el formato del correo.');throw Error('El correo no tiene un formato válido.');}
   const picker=$('#clinicalRegistrationKind');
-  const clinical_registration_kind=picker?.querySelector('input[name="clinicalRegistrationChoice"]:checked')?.value||'';
-  if(picker&&!clinical_registration_kind)throw Error('Antes de registrar, indica si el paciente es Nuevo o Subsecuente.');
+  const clinical_registration_kind=picker?($('#clinicalRegistrationSubsequent')?.checked?'S':'N'):'';
   return {cedula:cedula||null,nombre,fecha_nacimiento:$('#fNac').value||null,celular:($('#fCel').value||'').replace(/\D/g,'')||null,correo:correo||null,lugar:$('#fLugar').value||null,notas:$('#fNotas').value||null,extranjero,...(clinical_registration_kind?{clinical_registration_kind}:{})};
 }
 let pendingNewPatientAgendaSlot=null;
