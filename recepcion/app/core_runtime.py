@@ -2799,6 +2799,68 @@ def _wa_alarm_hint_start() -> None:
     threading.Thread(target=task, name="revelo-whatsapp-alarm-event", daemon=True).start()
 
 
+
+# Solo después de guardar la cita en Neon, jamás desde la cola offline.
+_wa_reception_fresh_push_diag = {"status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "", "last_error": ""}
+
+
+def _wa_push_fresh_reception_booking_async(appointment_id: int) -> None:
+    """Aviso puntual firmado. Sin cron, barrido histórico ni cambios de cita."""
+    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE or not CONFIGURED_DB_URL:
+        return
+    if int(appointment_id or 0) <= 0:
+        return
+
+    def worker():
+        body = ("reception_fresh_booking_v1:" + str(int(appointment_id))).encode("ascii")
+        for attempt in range(3):
+            try:
+                secret = unquote(urlparse(CONFIGURED_DB_URL).password or "")
+                if len(secret) < 12:
+                    raise ValueError("Neon role credential unavailable")
+                ts = str(int(time.time()))
+                sig = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body,
+                               hashlib.sha256).hexdigest()
+                request = urllib.request.Request(
+                    "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev"
+                    "/reception/fresh-booking/" + str(int(appointment_id)),
+                    data=body, method="POST",
+                    headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                             "X-Revelo-Signature": sig},
+                )
+                _wa_reception_fresh_push_diag.update(
+                    status="enviando", last_attempt_at=datetime.utcnow().isoformat(timespec="seconds")
+                )
+                with urllib.request.urlopen(request, timeout=8) as response:
+                    receipt = json.loads(response.read(8192).decode("utf-8"))
+                if receipt.get("ok") is not True:
+                    raise RuntimeError("Worker did not acknowledge booking")
+                _wa_reception_fresh_push_diag.update(
+                    status="ok", last_ok_at=datetime.utcnow().isoformat(timespec="seconds"),
+                    last_error=""
+                )
+                return
+            except urllib.error.HTTPError as exc:
+                # Si Cloudflare pudo intentar el envío, NO repetir ciegamente.
+                _wa_reception_fresh_push_diag.update(
+                    status="fallido", last_error="HTTP " + str(exc.code)
+                )
+                if exc.code not in (429, 503, 504):
+                    return
+            except Exception as exc:
+                _wa_reception_fresh_push_diag.update(
+                    status="fallido", last_error=type(exc).__name__
+                )
+            # Solo reintentos inmediatos. El servidor vuelve a validar la edad
+            # (<145 s) y el reclamo único, incluso si se perdió la respuesta.
+            if attempt < 2:
+                time.sleep(3 if attempt == 0 else 8)
+
+    threading.Thread(
+        target=worker, name="revelo-fresh-booking-once", daemon=True
+    ).start()
+
+
 def _whatsapp_alarm_notify_async(*, source_type: str = "", source_id: int = 0) -> None:
     """Cita persistida -> señal DURABLE -> ack del coordinador Cloudflare.
 
@@ -8164,6 +8226,7 @@ def agenda_create(data: AppointmentIn, db: Session = Depends(get_db), user: User
     db.commit()
     mirror_appointment_to_local(a)
     schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+    _wa_push_fresh_reception_booking_async(a.id)
     result = appointment_dict(a); result["offline"] = False
     return result
 
@@ -8190,7 +8253,9 @@ def agenda_update(appointment_id: int, data: AppointmentUpdateIn, db: Session = 
     audit(db, user, "reagendar_cita", f"Cita {appointment_id}: {a.fecha} {a.hora}")
     db.commit(); mirror_appointment_to_local(a)
     p = db.get(Patient, a.patient_id)
-    if p: schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+    if p:
+        schedule_whatsapp_for_contact(source_type="appointment", source_id=a.id, name=p.nombre, phone=p.celular or "", fecha=a.fecha, hora=a.hora)
+        _wa_push_fresh_reception_booking_async(a.id)
     result = appointment_dict(a); result["offline"] = False
     return result
 
@@ -10705,6 +10770,7 @@ def whatsapp_status(user: User = Depends(current_user)):
     return {
         "enabled": bool(WHATSAPP_ENABLED and not WHATSAPP_CLOUD_MODE),
         "cloud_mode": bool(WHATSAPP_CLOUD_MODE),
+        "fresh_booking_notification": dict(_wa_reception_fresh_push_diag),
         "alarm_notification": dict(_wa_alarm_hint_diag, **{
             "persisted": _wa_alarm_signal_state(),
         }),
