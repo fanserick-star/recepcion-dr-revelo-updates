@@ -7076,32 +7076,52 @@ async function serveAdminAgendaAlarmHint(request, env) {
   }
 }
 
+// Clave compartida restringida en Neon. La PC y el Worker pueden usar
+// credenciales de PostgreSQL distintas; nunca usarlas como secreto entre apps.
+let receptionSigningCache = {key:"",expires:0};
+async function receptionSharedSigningKey(env) {
+  if (receptionSigningCache.key && Date.now()<receptionSigningCache.expires)
+    return receptionSigningCache.key;
+  const key = await withClient(env,async client => {
+    const r=await client.query("SELECT encode(secret,'hex') AS signing_key FROM whatsapp_cloud.reception_signing_key WHERE id=1");
+    return String(r.rows?.[0]?.signing_key||"");
+  });
+  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error("reception_auth_key_missing");
+  receptionSigningCache={key,expires:Date.now()+30*60*1000};
+  return key;
+}
 async function verifyReceptionAlarmHint(request, env) {
   return verifyReceptionSignedPayload(request, env, "agenda_changed_v1");
 }
 async function verifyReceptionSignedPayload(request, env, expectedBody) {
   if (!env.DATABASE_URL) return false;
-  const ts = Number(request.headers.get("x-revelo-timestamp") || 0);
-  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 120) return false;
-  const signature = String(request.headers.get("x-revelo-signature") || "").toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(signature)) return false;
-  const raw = await request.text();
-  if (raw !== expectedBody) return false;
+  const ts=Number(request.headers.get("x-revelo-timestamp")||0);
+  if (!Number.isFinite(ts) || Math.abs(Date.now()/1000-ts)>120) return false;
+  const supplied=String(request.headers.get("x-revelo-signature")||"").toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(supplied)) return false;
+  const body=await request.text();
+  if (body!==expectedBody) return false;
+  const keys=[];
+  try { keys.push(await receptionSharedSigningKey(env)); }
+  catch (err) { console.error("reception_auth_key_unavailable",String(err?.name||"Error")); }
+  // Compatibilidad con aplicaciones anteriores durante la actualización.
+  // La clave de Neon es la preferida y evita enlazar contraseñas de conexión.
   try {
-    const uri = new URL(String(env.DATABASE_URL).replace(/^postgresql\+[^:]+:/, "postgresql:"));
-    const key = decodeURIComponent(uri.password || "");
-    if (key.length < 12) return false;
-    const hmacKey = await crypto.subtle.importKey("raw", new TextEncoder().encode(key),
-      { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const digest = new Uint8Array(await crypto.subtle.sign("HMAC", hmacKey,
-      new TextEncoder().encode(String(ts) + "." + raw)));
-    const actual = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
-    let difference = 0;
-    for (let i = 0; i < actual.length; i++) difference |= actual.charCodeAt(i) ^ signature.charCodeAt(i);
-    return difference === 0;
-  } catch {
-    return false;
+    const uri=new URL(String(env.DATABASE_URL).replace(/^postgresql\+[^:]+:/,"postgresql:"));
+    const old=decodeURIComponent(uri.password||"");
+    if (old.length>=12) keys.push(old);
+  } catch {}
+  for (const key of keys) {
+    const hmacKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(key),
+      {name:"HMAC",hash:"SHA-256"},false,["sign"]);
+    const result=new Uint8Array(await crypto.subtle.sign("HMAC",hmacKey,
+      new TextEncoder().encode(String(ts)+"."+body)));
+    const actual=Array.from(result,b=>b.toString(16).padStart(2,"0")).join("");
+    let mismatch=0;
+    for(let i=0;i<actual.length;i++)mismatch|=actual.charCodeAt(i)^supplied.charCodeAt(i);
+    if(mismatch===0)return true;
   }
+  return false;
 }
 
 
