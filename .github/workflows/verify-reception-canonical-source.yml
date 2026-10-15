@@ -75,6 +75,7 @@ jobs:
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
           node tools/test_whatsapp_fresh_reception_push.mjs
+          node tools/test_whatsapp_shared_signing_key.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
           node tools/test_whatsapp_reception_alarm_signature.mjs
           python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
