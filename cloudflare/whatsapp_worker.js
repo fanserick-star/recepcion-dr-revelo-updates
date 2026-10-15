@@ -7076,7 +7076,10 @@ async function serveAdminAgendaAlarmHint(request, env) {
   }
 }
 
-async function verifyReceptionAlarmHint(request, env, expectedBody = "agenda_changed_v1") {
+async function verifyReceptionAlarmHint(request, env) {
+  return verifyReceptionSignedPayload(request, env, "agenda_changed_v1");
+}
+async function verifyReceptionSignedPayload(request, env, expectedBody) {
   if (!env.DATABASE_URL) return false;
   const ts = Number(request.headers.get("x-revelo-timestamp") || 0);
   if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 120) return false;
@@ -7105,7 +7108,7 @@ async function verifyReceptionAlarmHint(request, env, expectedBody = "agenda_cha
 async function serveManualBookingNotice(request, env, appointmentId) {
   if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
     return json({ok:false,error:"Solicitud inválida."},400);
-  if (!await verifyReceptionAlarmHint(request,env,"manual_cita_agendada_v1:"+appointmentId))
+  if (!await verifyReceptionSignedPayload(request,env,"manual_cita_agendada_v1:"+appointmentId))
     return text("Forbidden",403);
   if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
     return json({ok:false,error:"WhatsApp Cloud no está configurado."},503);
