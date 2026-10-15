@@ -30,7 +30,7 @@ const scope={
   Number, String, json:(body,status=200)=>({body,status}),
   text:(body,status=200)=>({body,status}),
   sha256: async ()=>"hash-de-prueba",
-  verifyReceptionAlarmHint:async (_req,_env,body)=>{
+  verifyReceptionSignedPayload:async (_req,_env,body)=>{
     assert.equal(body,"manual_cita_agendada_v1:113");
     return authorized;
   },
@@ -75,6 +75,7 @@ assert.match(ui,/async function manualResendCitaAgendada\(/);
 assert.match(ui,/can_manual_resend/);
 assert.match(ui,/window\.rpConfirm/);
 assert.match(worker,/manual_booking_notice: "one_time_signed_v1"/);
-assert.match(worker,/verifyReceptionAlarmHint\(request, env, expectedBody = "agenda_changed_v1"\)/);
+assert.ok(worker.includes('async function verifyReceptionAlarmHint(request, env) {'));
+assert.ok(worker.includes('async function verifyReceptionSignedPayload(request, env, expectedBody) {'));
 assert.doesNotMatch(worker.slice(start,end),/refreshWhatsappAlarm|setInterval|scheduled\(/);
 console.log("MANUAL_BOOKING_NOTICE_ONE_SHOT_NO_REAL_SEND_OK");
