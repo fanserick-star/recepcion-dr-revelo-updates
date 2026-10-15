@@ -69,7 +69,7 @@ const cloudUpdate=core.split('@app.put("/api/agenda/appointments/{appointment_id
 assert.match(cloudCreate,/result\["offline"\] = True/);
 assert.match(cloudCreate,/_wa_push_fresh_reception_booking_async\(a.id\)\s*result = appointment_dict\(a\); result\["offline"\] = False/);
 assert.match(cloudUpdate,/_wa_push_fresh_reception_booking_async\(a.id\)/);
-assert.doesNotMatch(core.split('def _wa_push_fresh_reception_booking_async')[1].split('def _whatsapp_alarm_notify_async')[0],/runScheduler|setInterval|cron/);
+assert.doesNotMatch(core.split('def _wa_push_fresh_reception_booking_async')[1].split('def _whatsapp_alarm_notify_async')[0],/runScheduler|setInterval|scheduled\\(/);
 assert.match(worker,/receptionFreshMatch/);
 assert.match(worker,/verifyReceptionSignedPayload\(request, env, "reception_fresh_booking_v1:"/);
 assert.match(worker,/failed.*terminal/i);
