@@ -475,8 +475,14 @@ def install_guard() -> None:
             and str(item.get("source") or "") != "local_schedule_only"
             for item in result.get("events") or []
         )
+        registered_at = getattr(appointment, "created_at", None)
+        old_enough = bool(
+            registered_at and
+            (datetime.utcnow() - registered_at.replace(tzinfo=None)).total_seconds() >= 180
+        )
         result["can_manual_resend"] = bool(
-            not result.get("cloud_error")
+            old_enough
+            and not result.get("cloud_error")
             and not confirmed_initial
             and not core.is_offline_db(db)
             and appointment.fecha >= date.today()
