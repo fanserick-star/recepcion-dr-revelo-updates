@@ -2436,10 +2436,14 @@ async function manualResendCitaAgendada(appointmentId){
       const res=await api('/api/whatsapp/appointments/'+Number(appointmentId)+'/manual-cita-agendada',{method:'POST'});
       alert(res.message||'Meta aceptó el envío manual. Comprueba después la entrega.');
       await refreshAppointmentWhatsappStatus(Number(appointmentId));
+      if(typeof window.loadAgendaWhatsappAppointmentPanel==='function')
+        await window.loadAgendaWhatsappAppointmentPanel(Number(appointmentId),0,'');
     },'Enviando una sola vez…');
   }catch(e){
     alert('No se pudo confirmar el envío manual: '+(e.message||e)+'\nRevisa el estado antes de intentar otra acción.');
     await refreshAppointmentWhatsappStatus(Number(appointmentId));
+    if(typeof window.loadAgendaWhatsappAppointmentPanel==='function')
+      await window.loadAgendaWhatsappAppointmentPanel(Number(appointmentId),0,'');
   }
 }
 
