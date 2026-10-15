@@ -460,13 +460,31 @@ def install_guard() -> None:
         if not row:
             raise core.HTTPException(404, "Cita no encontrada")
         appointment, patient = row
-        return _history_payload(
+        result = _history_payload(
             source_type="appointment",
             source_id=int(appointment.id),
             fecha=appointment.fecha,
             hora=str(appointment.hora or "")[:5],
             patient_name=str(patient.nombre or ""),
         )
+        # No hay consulta adicional: reutilizar el resultado ya recibido de
+        # Cloud en este modal. El Worker revalida todo antes de enviar.
+        confirmed_initial = any(
+            item.get("direction") == "outbound"
+            and str(item.get("template") or "") == str(core.WHATSAPP_TEMPLATE_CITA_AGENDADA)
+            and str(item.get("source") or "") != "local_schedule_only"
+            for item in result.get("events") or []
+        )
+        result["can_manual_resend"] = bool(
+            not result.get("cloud_error")
+            and not confirmed_initial
+            and not core.is_offline_db(db)
+            and appointment.fecha >= date.today()
+            and str(appointment.estado or "").upper()
+            not in {"CANCELADA", "CANCELADO", "NO_ASISTIRA", "NO_ASISTIRÁ"}
+            and core.WHATSAPP_CLOUD_MODE and not core.FORCE_OFFLINE
+        )
+        return result
 
     @app.get("/api/messaging/unlinked/{item_id}")
     def unlinked_message_history(
