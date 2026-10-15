@@ -12,6 +12,8 @@ on:
       - 'tools/test_whatsapp_single_confirmation_policy.mjs'
       - 'tools/test_whatsapp_admin_alarm_integration.mjs'
       - 'tools/test_whatsapp_reception_alarm_signature.mjs'
+      - 'tools/test_whatsapp_shared_signing_key.mjs'
+      - 'tools/sql/whatsapp_reception_signing_key.sql'
       - 'agenda/index.html'
       - '.github/workflows/deploy-whatsapp.yml'
       - '.github/workflows/verify-whatsapp-event-alarms.yml'
@@ -43,6 +45,7 @@ jobs:
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
           node tools/test_whatsapp_fresh_reception_push.mjs
+          node tools/test_whatsapp_shared_signing_key.mjs
           node tools/test_whatsapp_autoagenda_formats.mjs
           node tools/test_whatsapp_single_confirmation_policy.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs

@@ -9,7 +9,7 @@ const start = source.indexOf("async function verifyReceptionAlarmHint(request, e
 const end = source.indexOf("var whatsapp_worker_v2_6_responses_default =", start);
 assert.ok(start > 0 && end > start);
 const fn = source.slice(start, end);
-const context = { URL, crypto: webcrypto, TextEncoder };
+const context = { URL, crypto: webcrypto, TextEncoder, console: { error(){} } };
 vm.runInNewContext(fn + "\nglobalThis.validate = verifyReceptionAlarmHint;", context);
 const password = "not-a-real-database-passphrase-1234";
 const DATABASE_URL = "postgresql://reception:" + encodeURIComponent(password) + "@fake.example:5432/db";

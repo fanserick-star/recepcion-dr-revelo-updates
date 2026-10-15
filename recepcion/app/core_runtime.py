@@ -2669,11 +2669,34 @@ def _wa_alarm_signal_mark(generation: int, *, acknowledged: bool, error: str = "
         return bool(updated.rowcount)
 
 
+
+# Firma propia de mensajería, compartida por Neon y separada de las
+# contraseñas de conexión que pueden ser distintas entre PC y Cloudflare.
+_wa_signing_cache = {"key": "", "until": 0.0}
+_wa_signing_cache_lock = threading.Lock()
+
+
+def _wa_shared_signing_key() -> str:
+    """Solo consulta bajo demanda, sin cron ni acceso a Meta."""
+    with _wa_signing_cache_lock:
+        if _wa_signing_cache["key"] and time.monotonic() < _wa_signing_cache["until"]:
+            return _wa_signing_cache["key"]
+    if not CloudSessionLocal or FORCE_OFFLINE:
+        raise RuntimeError("Neon no disponible para autenticar WhatsApp Cloud")
+    with CloudSessionLocal() as session:
+        signing_key = str(session.execute(text(
+            "SELECT encode(secret,'hex') FROM whatsapp_cloud.reception_signing_key WHERE id=1"
+        )).scalar_one_or_none() or "")
+    if not re.fullmatch(r"[0-9a-f]{64}", signing_key):
+        raise RuntimeError("Falta la clave compartida de WhatsApp Cloud")
+    with _wa_signing_cache_lock:
+        _wa_signing_cache.update(key=signing_key, until=time.monotonic()+1800.0)
+    return signing_key
+
+
 def _wa_alarm_hint_post_once() -> dict:
     """Solo REPROGRAMA la próxima alarma; jamás solicita un envío a Meta."""
-    key = unquote(urlparse(CONFIGURED_DB_URL).password or "")
-    if len(key) < 12:
-        raise ValueError("Neon role credential unavailable")
+    key = _wa_shared_signing_key()
     ts = str(int(time.time()))
     body = b"agenda_changed_v1"
     mac = hmac.new(key.encode("utf-8"), ts.encode("ascii") + b"." + body, hashlib.sha256).hexdigest()
@@ -2815,9 +2838,7 @@ def _wa_push_fresh_reception_booking_async(appointment_id: int) -> None:
         body = ("reception_fresh_booking_v1:" + str(int(appointment_id))).encode("ascii")
         for attempt in range(3):
             try:
-                secret = unquote(urlparse(CONFIGURED_DB_URL).password or "")
-                if len(secret) < 12:
-                    raise ValueError("Neon role credential unavailable")
+                secret = _wa_shared_signing_key()
                 ts = str(int(time.time()))
                 sig = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body,
                                hashlib.sha256).hexdigest()
@@ -10625,9 +10646,10 @@ def whatsapp_manual_booking_notice(
         raise HTTPException(409, "La cita debe estar sincronizada con Neon.")
     if not CONFIGURED_DB_URL:
         raise HTTPException(503, "No se pudo autorizar el envío.")
-    secret = unquote(urlparse(CONFIGURED_DB_URL).password or "")
-    if len(secret) < 12:
-        raise HTTPException(503, "No se pudo autorizar el envío.")
+    try:
+        secret = _wa_shared_signing_key()
+    except Exception:
+        raise HTTPException(503, "No se pudo obtener la clave de autorización de WhatsApp Cloud.")
     body = ("manual_cita_agendada_v1:" + str(int(appointment_id))).encode("ascii")
     ts = str(int(time.time()))
     sig = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body,
@@ -10758,6 +10780,39 @@ def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
         "available": True, "summary": summary, "items": items,
         "message": "Sin errores de entrega en los últimos 7 días." if bad == 0 else f"Hay {bad} mensaje(s) con error para revisar.",
     }
+
+
+
+@app.get("/api/whatsapp/auth-check")
+def whatsapp_auth_check(user: User = Depends(current_user)):
+    """Diagnóstico bajo demanda. Jamás crea citas, eventos o WhatsApps."""
+    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE:
+        return {"ok": False, "reason": "whatsapp_cloud_disabled"}
+    try:
+        key = _wa_shared_signing_key()
+        ts = str(int(time.time()))
+        body = b"reception_auth_check_v1"
+        signature = hmac.new(
+            key.encode("utf-8"), ts.encode("ascii") + b"." + body,
+            hashlib.sha256,
+        ).hexdigest()
+        request = urllib.request.Request(
+            "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/reception/auth-check",
+            data=body, method="POST",
+            headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                     "X-Revelo-Signature": signature},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read(4096).decode("utf-8"))
+        return {"ok": result.get("authorized") is True,
+                "authenticated": result.get("authorized") is True,
+                "no_messages_sent": True}
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "authenticated": False, "error": "Cloudflare HTTP " + str(exc.code),
+                "no_messages_sent": True}
+    except Exception as exc:
+        return {"ok": False, "authenticated": False, "error": type(exc).__name__,
+                "no_messages_sent": True}
 
 
 @app.get("/api/whatsapp/status")
