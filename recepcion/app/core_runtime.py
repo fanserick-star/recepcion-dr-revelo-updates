@@ -10782,6 +10782,39 @@ def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
     }
 
 
+
+@app.get("/api/whatsapp/auth-check")
+def whatsapp_auth_check(user: User = Depends(current_user)):
+    """Diagnóstico bajo demanda. Jamás crea citas, eventos o WhatsApps."""
+    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE:
+        return {"ok": False, "reason": "whatsapp_cloud_disabled"}
+    try:
+        key = _wa_shared_signing_key()
+        ts = str(int(time.time()))
+        body = b"reception_auth_check_v1"
+        signature = hmac.new(
+            key.encode("utf-8"), ts.encode("ascii") + b"." + body,
+            hashlib.sha256,
+        ).hexdigest()
+        request = urllib.request.Request(
+            "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/reception/auth-check",
+            data=body, method="POST",
+            headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                     "X-Revelo-Signature": signature},
+        )
+        with urllib.request.urlopen(request, timeout=10) as response:
+            result = json.loads(response.read(4096).decode("utf-8"))
+        return {"ok": result.get("authorized") is True,
+                "authenticated": result.get("authorized") is True,
+                "no_messages_sent": True}
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "authenticated": False, "error": "Cloudflare HTTP " + str(exc.code),
+                "no_messages_sent": True}
+    except Exception as exc:
+        return {"ok": False, "authenticated": False, "error": type(exc).__name__,
+                "no_messages_sent": True}
+
+
 @app.get("/api/whatsapp/status")
 def whatsapp_status(user: User = Depends(current_user)):
     ready, missing = whatsapp_ready()
