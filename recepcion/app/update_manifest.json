@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.26",
-  "app_version": "4.8.26",
-  "runtime_version": "4.8.26",
+  "version": "4.8.27",
+  "app_version": "4.8.27",
+  "runtime_version": "4.8.27",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.26: el registro de paciente inicia automáticamente como Nuevo, con indicador compacto y única casilla opcional Subsecuente. Al marcar Subsecuente se conserva la búsqueda y vinculación obligatoria de la ficha clínica anterior desde Recepción, sin crear ficha duplicada. Solo cambia la interfaz de registro: sin modificaciones a agenda, turnos, facturación, WhatsApp, LAN ni Historia.",
-    "previous_version": "4.8.25",
+    "purpose": "Recepción 4.8.27: aviso inmediato firmado de Cita agendada al guardar o reagendar una cita en Neon desde Recepción; Cloudflare valida vigencia y antigüedad máxima de 145 segundos antes de reservar el mismo event_key de la alarma para evitar duplicados. Fallos inciertos se registran como terminales. Sin cron, sin recuperar mensajes históricos, sin modificar autoagenda web/WhatsApp, turnos, Historia Clínica ni facturación.",
+    "previous_version": "4.8.26",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -531,7 +531,10 @@
     "whatsapp_outbound_no_automatic_stale_replay": true,
     "whatsapp_manual_booking_notice_one_time": true,
     "whatsapp_manual_no_periodic_queries": true,
-    "whatsapp_manual_signed_worker": true
+    "whatsapp_manual_signed_worker": true,
+    "whatsapp_reception_fresh_signed_push": true,
+    "whatsapp_reception_fresh_no_replay": true,
+    "whatsapp_reception_fresh_event_key_idempotent": true
   },
   "channel": "launcher-v1-stable"
 }
