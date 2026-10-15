@@ -7298,6 +7298,11 @@ var whatsapp_worker_v2_6_responses_default = {
       // No appointment dates, times, phone numbers or names on a public endpoint.
       return json({ ok: true, mode: "durable_object_event_driven", initialized: !!data.initialized });
     }
+    // Diagnóstico de firma solicitado explícitamente, sin envío ni alarmas.
+    if (u.pathname === "/reception/auth-check" && request.method === "POST") {
+      const ok=await verifyReceptionSignedPayload(request,env,"reception_auth_check_v1");
+      return json({ok,authorized:ok,no_messages_sent:true},ok?200:403);
+    }
     if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
     const receptionFreshMatch = /^\/reception\/fresh-booking\/(\d{1,9})$/.exec(u.pathname);
     if (receptionFreshMatch) return serveFreshReceptionBookingNotice(request, env, Number(receptionFreshMatch[1]));
