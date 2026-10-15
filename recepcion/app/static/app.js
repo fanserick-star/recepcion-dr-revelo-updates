@@ -2418,9 +2418,35 @@ async function refreshAppointmentWhatsappStatus(appointmentId){
       ERROR:'Error',SENDING:'En proceso',SIN_REGISTRO:'Sin constancia de envío'};
     const items=Array.isArray(data.items)?data.items:[];
     host.innerHTML=items.map(r=>`<div style="padding:5px 0;border-bottom:1px solid #e6edf4"><b>${esc(r.label||r.template)}</b> · ${esc(labels[r.status]||r.status)}${r.error?`<small style="display:block">${esc(r.error)}</small>`:''}</div>`).join('')+
+      (data.can_manual_resend
+        ? '<div style="padding:10px 0"><button type="button" class="primary-soft" onclick="manualResendCitaAgendada('+Number(appointmentId)+')">Enviar manualmente «Cita agendada» (una sola vez)</button><small style="display:block">El envío manual puede generar un duplicado si hubo una entrega que no quedó registrada. Confirma antes de continuar.</small></div>'
+        : '')+
       '<small>Estado consultado en WhatsApp Cloud. Sin constancia no significa entregado. Esta consulta nunca reenvía mensajes.</small>';
   }catch(e){if(host.isConnected)host.textContent='No se pudo consultar WhatsApp Cloud: '+(e.message||e)}
 }
+async function manualResendCitaAgendada(appointmentId){
+  if(!Number.isInteger(Number(appointmentId))||Number(appointmentId)<1)return;
+  const message='ATENCIÓN: Neon no tiene constancia del aviso inicial, pero eso NO garantiza que Meta no lo haya enviado.\n\n¿Autorizar un ÚNICO envío manual de «Cita agendada» a este paciente? Esta acción no se puede deshacer.';
+  const approved=typeof window.rpConfirm==='function'
+    ?await window.rpConfirm(message,'Confirmar envío manual de WhatsApp')
+    :window.confirm(message);
+  if(!approved)return;
+  try{
+    await singleFlightMutation('manual-cita-agendada:'+Number(appointmentId),async()=>{
+      const res=await api('/api/whatsapp/appointments/'+Number(appointmentId)+'/manual-cita-agendada',{method:'POST'});
+      alert(res.message||'Meta aceptó el envío manual. Comprueba después la entrega.');
+      await refreshAppointmentWhatsappStatus(Number(appointmentId));
+      if(typeof window.loadAgendaWhatsappAppointmentPanel==='function')
+        await window.loadAgendaWhatsappAppointmentPanel(Number(appointmentId),0,'');
+    },'Enviando una sola vez…');
+  }catch(e){
+    alert('No se pudo confirmar el envío manual: '+(e.message||e)+'\nRevisa el estado antes de intentar otra acción.');
+    await refreshAppointmentWhatsappStatus(Number(appointmentId));
+    if(typeof window.loadAgendaWhatsappAppointmentPanel==='function')
+      await window.loadAgendaWhatsappAppointmentPanel(Number(appointmentId),0,'');
+  }
+}
+
 async function agendaDateChanged(appointmentId=null){agendaSelectedTime='';const hidden=$('#agendaTime');if(hidden)hidden.value='';const label=$('#agendaSelectedTimeLabel');if(label)label.textContent='Sin seleccionar';await loadAgendaTimeSlots(appointmentId,'')}
 async function loadAgendaTimeSlots(appointmentId=null,preferred=''){const fecha=$('#agendaDate')?.value,box=$('#agendaTimeSlots');if(!fecha||!box)return;box.innerHTML='<div class="agenda-time-loading">Cargando horarios…</div>';try{const qs=new URLSearchParams({fecha});if(appointmentId)qs.set('exclude_id',appointmentId);const key=qs.toString();const cached=agendaSlotsCache.get(key);let d;if(cached&&Date.now()-cached.ts<10000)d=cached.data;else{d=await api('/api/agenda/slots?'+key);agendaSlotsCache.set(key,{ts:Date.now(),data:d})}const slots=d.slots||[];box.innerHTML=slots.map(x=>{const selected=(preferred||agendaSelectedTime)===x.time&&x.available;return `<button type="button" class="agenda-time-slot ${selected?'selected':''} ${x.available?'':'busy'}" ${x.available?'':'disabled'} onclick="selectAgendaTime('${x.time}',this)">${esc(fmtTime(x.time))}${x.available?'':' · ocupado'}</button>`}).join('')||'<div class="agenda-time-loading">No hay horarios configurados.</div>';if(preferred){const found=slots.find(x=>x.time===preferred&&x.available);if(found){selectAgendaTime(preferred,[...box.querySelectorAll('.agenda-time-slot')].find(x=>x.textContent.startsWith(fmtTime(preferred))))}else{agendaSelectedTime='';if($('#agendaTime'))$('#agendaTime').value='';if($('#agendaSelectedTimeLabel'))$('#agendaSelectedTimeLabel').textContent='Selecciona otra hora'}}}catch(e){box.innerHTML=`<div class="panel err">${esc(e.message)}</div>`}}
 function selectAgendaTime(time,btn){agendaSelectedTime=time;if($('#agendaTime'))$('#agendaTime').value=time;if($('#agendaSelectedTimeLabel'))$('#agendaSelectedTimeLabel').textContent=fmtTime(time);document.querySelectorAll('.agenda-time-slot.selected').forEach(x=>x.classList.remove('selected'));btn?.classList.add('selected')}

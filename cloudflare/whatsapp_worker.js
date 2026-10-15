@@ -7077,13 +7077,16 @@ async function serveAdminAgendaAlarmHint(request, env) {
 }
 
 async function verifyReceptionAlarmHint(request, env) {
+  return verifyReceptionSignedPayload(request, env, "agenda_changed_v1");
+}
+async function verifyReceptionSignedPayload(request, env, expectedBody) {
   if (!env.DATABASE_URL) return false;
   const ts = Number(request.headers.get("x-revelo-timestamp") || 0);
   if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 120) return false;
   const signature = String(request.headers.get("x-revelo-signature") || "").toLowerCase();
   if (!/^[0-9a-f]{64}$/.test(signature)) return false;
   const raw = await request.text();
-  if (raw !== "agenda_changed_v1") return false;
+  if (raw !== expectedBody) return false;
   try {
     const uri = new URL(String(env.DATABASE_URL).replace(/^postgresql\+[^:]+:/, "postgresql:"));
     const key = decodeURIComponent(uri.password || "");
@@ -7101,6 +7104,80 @@ async function verifyReceptionAlarmHint(request, env) {
   }
 }
 
+// Invocación exclusiva de Recepción: un envío manual con HMAC, NO un cron.
+async function serveManualBookingNotice(request, env, appointmentId) {
+  if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
+    return json({ok:false,error:"Solicitud inválida."},400);
+  if (!await verifyReceptionSignedPayload(request,env,"manual_cita_agendada_v1:"+appointmentId))
+    return text("Forbidden",403);
+  if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
+    return json({ok:false,error:"WhatsApp Cloud no está configurado."},503);
+  const result=await withClient(env,async client=>{
+    // Comprobar contra la cita VIGENTE de Neon, nunca confiar en el celular
+    // ni la fecha recibidos de un formulario local.
+    const entry=await client.query(`SELECT a.id,a.fecha::text AS fecha,a.hora::text AS hora,
+       a.created_at,p.nombre,p.celular
+       FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
+       WHERE a.id=$1 AND upper(coalesce(a.estado,'')) NOT IN
+          ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
+         AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+         AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+         AND (a.created_at AT TIME ZONE 'UTC') <= now()-interval '3 minutes'
+       LIMIT 1`,[appointmentId]);
+    if (!entry.rows?.length)
+      return {ok:false,code:409,error:"La cita no está vigente o aún puede estar en su ventana de envío automático."};
+    const a=entry.rows[0],date=String(a.fecha).slice(0,10),
+          time=String(a.hora).slice(0,5),phone=normalizePhone(a.celular);
+    if(!phone||phone.length<10||phone.length>15)
+      return {ok:false,code:409,error:"El celular de la cita no es válido."};
+    const template=String(env.TEMPLATE_CITA_AGENDADA||"cita_agendada");
+    const eventKey=await sha256("appointment|"+appointmentId+"|"+template+"|"+date+"|"+time);
+    const patientName=String(a.nombre||"").trim().replace(/\s+/g," ").toUpperCase();
+    // La unicidad de event_key cubre clics paralelos. NOT EXISTS impide
+    // enviar si existe CUALQUIER intento previo de este mensaje en la cita.
+    // No hay reintentos de mensajes manuales, incluso tras una excepción de red.
+    const reserved=await client.query(`INSERT INTO whatsapp_cloud.events(
+      event_key,source_type,source_id,template_name,appointment_date,
+      appointment_time,due_at,phone,patient_name,status,attempts,updated_at)
+      SELECT $2,'appointment',a.id,$3,a.fecha,a.hora,now(),$4,$5,'SENDING',1,now()
+      FROM public.appointments a
+      WHERE a.id=$1 AND a.fecha=$6::date AND left(a.hora::text,5)=$7
+        AND upper(coalesce(a.estado,'')) NOT IN
+          ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
+        AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+        AND (a.created_at AT TIME ZONE 'UTC') <= now()-interval '3 minutes'
+        AND NOT EXISTS(
+          SELECT 1 FROM whatsapp_cloud.events e
+          WHERE e.source_type='appointment' AND e.source_id=a.id
+            AND e.template_name=$3
+        )
+      ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
+      [appointmentId,eventKey,template,phone,patientName,date,time]);
+    if(!reserved.rows?.length)
+      return {ok:false,code:409,error:"Ya hay un registro o intento de esta notificación; se bloqueó otro envío."};
+    const msg={phone,template_name:template,language:env.LANG_CITA_AGENDADA||"es_EC",
+      body_params:[patientName,dateLabel(date),timeLabel(time)],
+      header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL).trim()};
+    try{
+      const sent=await sendMeta(msg,env);
+      const messageId=String(sent?.messages?.[0]?.id||"");
+      if(!messageId)
+        return {ok:false,code:202,error:"Meta no devolvió identificador; no se permitirá un segundo intento."};
+      await client.query(`UPDATE whatsapp_cloud.events
+        SET status='SENT',message_id=$2,sent_at=now(),updated_at=now()
+        WHERE event_key=$1 AND status='SENDING'`,[eventKey,messageId]);
+      return {ok:true,status:"SENT",message:"Meta aceptó el mensaje manual; falta confirmar su entrega."};
+    }catch(e){
+      await client.query(`UPDATE whatsapp_cloud.events
+        SET status='ERROR',error_code=$2,error_text=$3,updated_at=now()
+        WHERE event_key=$1 AND status='SENDING'`,
+        [eventKey,String(e?.code||"MANUAL_ERROR"),String(e?.message||e).slice(0,500)]);
+      return {ok:false,code:502,error:"Meta no confirmó el envío. El intento se registró para impedir duplicados."};
+    }
+  });
+  return json(result,result.ok?200:(result.code||503));
+}
+
 var whatsapp_worker_v2_6_responses_default = {
   async fetch(request, env, ctx) {
     const u = new URL(request.url);
@@ -7115,7 +7192,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.30", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_message_formats: "three_four_lines_explicit_date_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.30", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_signed_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);
@@ -7124,6 +7201,8 @@ var whatsapp_worker_v2_6_responses_default = {
       return json({ ok: true, mode: "durable_object_event_driven", initialized: !!data.initialized });
     }
     if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
+    const manualMatch = /^\/manual\/cita-agendada\/(\d{1,9})$/.exec(u.pathname);
+    if (manualMatch) return serveManualBookingNotice(request, env, Number(manualMatch[1]));
     if (u.pathname === "/alarms/notify" && request.method === "POST") {
       if (!await verifyReceptionAlarmHint(request, env)) return text("Forbidden", 403);
       const response = await refreshWhatsappAlarm(env);

@@ -10543,6 +10543,63 @@ def whatsapp_test_recordatorio_cita(payload: dict, user: User = Depends(current_
     return whatsapp_test_message(data, user)
 
 
+@app.post("/api/whatsapp/appointments/{appointment_id}/manual-cita-agendada")
+def whatsapp_manual_booking_notice(
+    appointment_id: int, db: Session = Depends(get_db),
+    user: User = Depends(current_user)
+):
+    """Acción HUMANA exclusiva: no sondeo, cron ni envío desde Recepción.
+
+    La reserva atómica ocurre en Cloudflare/Neon. Si falla la red tras el
+    intento, NO repetimos el POST para evitar un segundo mensaje real.
+    """
+    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE or not cloud_configured():
+        raise HTTPException(503, "WhatsApp Cloud no está disponible. No se envió nada.")
+    appointment = db.get(Appointment, int(appointment_id))
+    if not appointment or is_offline_db(db):
+        raise HTTPException(409, "La cita debe estar sincronizada con Neon.")
+    if not CONFIGURED_DB_URL:
+        raise HTTPException(503, "No se pudo autorizar el envío.")
+    secret = unquote(urlparse(CONFIGURED_DB_URL).password or "")
+    if len(secret) < 12:
+        raise HTTPException(503, "No se pudo autorizar el envío.")
+    body = ("manual_cita_agendada_v1:" + str(int(appointment_id))).encode("ascii")
+    ts = str(int(time.time()))
+    sig = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body,
+                   hashlib.sha256).hexdigest()
+    target = ("https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev"
+              "/manual/cita-agendada/" + str(int(appointment_id)))
+    request = urllib.request.Request(
+        target, data=body, method="POST",
+        headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
+                 "X-Revelo-Signature": sig}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=18) as response:
+            result = json.loads(response.read(8192).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        try:
+            data = json.loads(exc.read(8192).decode("utf-8"))
+            reason = str(data.get("error") or "")[:250]
+        except Exception:
+            reason = ""
+        raise HTTPException(
+            409 if exc.code == 409 else 503,
+            reason or "No se pudo confirmar el envío. Consulta el estado antes de actuar."
+        )
+    except Exception:
+        # El Worker podría haber enviado antes de perderse la respuesta HTTP.
+        raise HTTPException(
+            503, "Resultado incierto: consulta el estado del mensaje. No pulses nuevamente."
+        )
+    if result.get("ok") is not True:
+        raise HTTPException(
+            409, str(result.get("error") or "Meta no confirmó el envío.")[:250]
+        )
+    return {"ok": True, "message": str(result.get("message") or "Meta aceptó el envío."),
+            "status": str(result.get("status") or "SENT")}
+
+
 @app.get("/api/whatsapp/appointment-delivery/{appointment_id}")
 def whatsapp_appointment_delivery(appointment_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)):
     """Lectura puntual por cita; NUNCA arma alarmas ni envía mensajes."""
@@ -10583,7 +10640,15 @@ def whatsapp_appointment_delivery(appointment_id: int, db: Session = Depends(get
             "read_at": row["read_at"].isoformat() if row and row.get("read_at") else None,
             "error": str(row.get("error_text") or "")[:220] if row else "",
         })
+    can_manual_resend = (
+        by_template.get("cita_agendada") is None
+        and str(appointment.estado or "").upper() not in
+        {"CANCELADA", "CANCELADO", "NO_ASISTIRA", "NO_ASISTIRÁ"}
+        and appointment.fecha >= date.today()
+        and WHATSAPP_CLOUD_MODE and not FORCE_OFFLINE
+    )
     return {"available": True, "source": "whatsapp_cloud.events", "items": items,
+            "can_manual_resend": bool(can_manual_resend),
             "message": "Sin registro no significa que Meta haya confirmado el envío o la entrega."}
 
 
