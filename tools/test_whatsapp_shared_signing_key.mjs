@@ -44,6 +44,10 @@ tableAvailable=false;
 const envLegacy={DATABASE_URL:"postgresql://legacy:worker-password-2026@fake.example/db"};
 assert.equal(await context.verify(sign("worker-password-2026"),envLegacy,"agenda_changed_v1"),true,
  "Old desktop clients are tolerated during the migration");
+assert.match(worker,/u.pathname === "\/reception\/auth-check"/);
+assert.match(worker,/no_messages_sent:true/);
+assert.match(core,/@app.get\("\/api\/whatsapp\/auth-check"\)/);
+assert.match(core,/body = b"reception_auth_check_v1"/);
 assert.match(core,/def _wa_shared_signing_key\(\) -> str:/);
 assert.match(core,/SELECT encode\(secret,'hex'\) FROM whatsapp_cloud.reception_signing_key WHERE id=1/);
 assert.match(core,/key = _wa_shared_signing_key\(\)/);
