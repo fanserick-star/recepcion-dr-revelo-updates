@@ -7101,6 +7101,80 @@ async function verifyReceptionAlarmHint(request, env, expectedBody = "agenda_cha
   }
 }
 
+// Invocación exclusiva de Recepción: un envío manual con HMAC, NO un cron.
+async function serveManualBookingNotice(request, env, appointmentId) {
+  if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
+    return json({ok:false,error:"Solicitud inválida."},400);
+  if (!await verifyReceptionAlarmHint(request,env,"manual_cita_agendada_v1:"+appointmentId))
+    return text("Forbidden",403);
+  if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
+    return json({ok:false,error:"WhatsApp Cloud no está configurado."},503);
+  const result=await withClient(env,async client=>{
+    // Comprobar contra la cita VIGENTE de Neon, nunca confiar en el celular
+    // ni la fecha recibidos de un formulario local.
+    const entry=await client.query(`SELECT a.id,a.fecha::text AS fecha,a.hora::text AS hora,
+       a.created_at,p.nombre,p.celular
+       FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
+       WHERE a.id=$1 AND upper(coalesce(a.estado,'')) NOT IN
+          ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
+         AND a.origen <> 'CONFIRMAFY_ATENDIDO'
+         AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+         AND (a.created_at AT TIME ZONE 'UTC') <= now()-interval '3 minutes'
+       LIMIT 1`,[appointmentId]);
+    if (!entry.rows?.length)
+      return {ok:false,code:409,error:"La cita no está vigente o aún puede estar en su ventana de envío automático."};
+    const a=entry.rows[0],date=String(a.fecha).slice(0,10),
+          time=String(a.hora).slice(0,5),phone=normalizePhone(a.celular);
+    if(!phone||phone.length<10||phone.length>15)
+      return {ok:false,code:409,error:"El celular de la cita no es válido."};
+    const template=String(env.TEMPLATE_CITA_AGENDADA||"cita_agendada");
+    const eventKey=await sha256("appointment|"+appointmentId+"|"+template+"|"+date+"|"+time);
+    const patientName=String(a.nombre||"").trim().replace(/\s+/g," ").toUpperCase();
+    // La unicidad de event_key cubre clics paralelos. NOT EXISTS impide
+    // enviar si existe CUALQUIER intento previo de este mensaje en la cita.
+    // No hay reintentos de mensajes manuales, incluso tras una excepción de red.
+    const reserved=await client.query(`INSERT INTO whatsapp_cloud.events(
+      event_key,source_type,source_id,template_name,appointment_date,
+      appointment_time,due_at,phone,patient_name,status,attempts,updated_at)
+      SELECT $2,'appointment',a.id,$3,a.fecha,a.hora,now(),$4,$5,'SENDING',1,now()
+      FROM public.appointments a
+      WHERE a.id=$1 AND a.fecha=$6::date AND left(a.hora::text,5)=$7
+        AND upper(coalesce(a.estado,'')) NOT IN
+          ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
+        AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
+        AND (a.created_at AT TIME ZONE 'UTC') <= now()-interval '3 minutes'
+        AND NOT EXISTS(
+          SELECT 1 FROM whatsapp_cloud.events e
+          WHERE e.source_type='appointment' AND e.source_id=a.id
+            AND e.template_name=$3
+        )
+      ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
+      [appointmentId,eventKey,template,phone,patientName,date,time]);
+    if(!reserved.rows?.length)
+      return {ok:false,code:409,error:"Ya hay un registro o intento de esta notificación; se bloqueó otro envío."};
+    const msg={phone,template_name:template,language:env.LANG_CITA_AGENDADA||"es_EC",
+      body_params:[patientName,dateLabel(date),timeLabel(time)],
+      header_image_url:String(env.WHATSAPP_HEADER_IMAGE_URL||DEFAULT_HEADER_IMAGE_URL).trim()};
+    try{
+      const sent=await sendMeta(msg,env);
+      const messageId=String(sent?.messages?.[0]?.id||"");
+      if(!messageId)
+        return {ok:false,code:202,error:"Meta no devolvió identificador; no se permitirá un segundo intento."};
+      await client.query(`UPDATE whatsapp_cloud.events
+        SET status='SENT',message_id=$2,sent_at=now(),updated_at=now()
+        WHERE event_key=$1 AND status='SENDING'`,[eventKey,messageId]);
+      return {ok:true,status:"SENT",message:"Meta aceptó el mensaje manual; falta confirmar su entrega."};
+    }catch(e){
+      await client.query(`UPDATE whatsapp_cloud.events
+        SET status='ERROR',error_code=$2,error_text=$3,updated_at=now()
+        WHERE event_key=$1 AND status='SENDING'`,
+        [eventKey,String(e?.code||"MANUAL_ERROR"),String(e?.message||e).slice(0,500)]);
+      return {ok:false,code:502,error:"Meta no confirmó el envío. El intento se registró para impedir duplicados."};
+    }
+  });
+  return json(result,result.ok?200:(result.code||503));
+}
+
 var whatsapp_worker_v2_6_responses_default = {
   async fetch(request, env, ctx) {
     const u = new URL(request.url);
