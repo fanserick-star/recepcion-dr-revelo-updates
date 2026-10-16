@@ -10421,55 +10421,25 @@ def whatsapp_manual_booking_notice(
     appointment_id: int, db: Session = Depends(get_db),
     user: User = Depends(current_user)
 ):
-    """Acción HUMANA exclusiva: no sondeo, cron ni envío desde Recepción.
+    """Único envío manual, autorizado por usuario y Neon, sin HMAC ni cron.
 
-    La reserva atómica ocurre en Cloudflare/Neon. Si falla la red tras el
-    intento, NO repetimos el POST para evitar un segundo mensaje real.
+    El Worker reserva la event_key atómicamente; un fallo incierto NO permite
+    intentos automáticos, ni se repite el POST desde esta función.
     """
-    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE or not cloud_configured():
-        raise HTTPException(503, "WhatsApp Cloud no está disponible. No se envió nada.")
+    if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE or not CloudSessionLocal:
+        raise HTTPException(503, "WhatsApp Cloud no está disponible.")
     appointment = db.get(Appointment, int(appointment_id))
     if not appointment or is_offline_db(db):
         raise HTTPException(409, "La cita debe estar sincronizada con Neon.")
-    if not CONFIGURED_DB_URL:
-        raise HTTPException(503, "No se pudo autorizar el envío.")
     try:
-        secret = _wa_shared_signing_key()
-    except Exception:
-        raise HTTPException(503, "No se pudo obtener la clave de autorización de WhatsApp Cloud.")
-    body = ("manual_cita_agendada_v1:" + str(int(appointment_id))).encode("ascii")
-    ts = str(int(time.time()))
-    sig = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + body,
-                   hashlib.sha256).hexdigest()
-    target = ("https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev"
-              "/manual/cita-agendada/" + str(int(appointment_id)))
-    request = urllib.request.Request(
-        target, data=body, method="POST",
-        headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
-                 "X-Revelo-Signature": sig}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=18) as response:
-            result = json.loads(response.read(8192).decode("utf-8"))
+        result = _wa_gateway_request(
+            purpose="manual", source_type="appointment", source_id=int(appointment_id),
+        )
     except urllib.error.HTTPError as exc:
-        try:
-            data = json.loads(exc.read(8192).decode("utf-8"))
-            reason = str(data.get("error") or "")[:250]
-        except Exception:
-            reason = ""
-        raise HTTPException(
-            409 if exc.code == 409 else 503,
-            reason or "No se pudo confirmar el envío. Consulta el estado antes de actuar."
-        )
+        raise HTTPException(409 if exc.code==409 else 503,
+                            "Cloudflare no confirmó el envío. Consulta el historial; no repitas el intento.")
     except Exception:
-        # El Worker podría haber enviado antes de perderse la respuesta HTTP.
-        raise HTTPException(
-            503, "Resultado incierto: consulta el estado del mensaje. No pulses nuevamente."
-        )
-    if result.get("ok") is not True:
-        raise HTTPException(
-            409, str(result.get("error") or "Meta no confirmó el envío.")[:250]
-        )
+        raise HTTPException(503, "Resultado incierto: consulta el historial antes de actuar.")
     return {"ok": True, "message": str(result.get("message") or "Meta aceptó el envío."),
             "status": str(result.get("status") or "SENT")}
 
@@ -10572,34 +10542,19 @@ def whatsapp_cloud_delivery_status(user: User = Depends(current_user)):
 
 @app.get("/api/whatsapp/auth-check")
 def whatsapp_auth_check(user: User = Depends(current_user)):
-    """Diagnóstico bajo demanda. Jamás crea citas, eventos o WhatsApps."""
+    """Diagnóstico manual del gateway central, sin alarmas ni mensajes."""
     if not WHATSAPP_CLOUD_MODE or FORCE_OFFLINE:
-        return {"ok": False, "reason": "whatsapp_cloud_disabled"}
+        return {"ok": False, "no_messages_sent": True, "error": "Cloud desactivado"}
     try:
-        key = _wa_shared_signing_key()
-        ts = str(int(time.time()))
-        body = b"reception_auth_check_v1"
-        signature = hmac.new(
-            key.encode("utf-8"), ts.encode("ascii") + b"." + body,
-            hashlib.sha256,
-        ).hexdigest()
-        request = urllib.request.Request(
-            "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/reception/auth-check",
-            data=body, method="POST",
-            headers={"Content-Type": "text/plain", "X-Revelo-Timestamp": ts,
-                     "X-Revelo-Signature": signature},
-        )
-        with urllib.request.urlopen(request, timeout=10) as response:
-            result = json.loads(response.read(4096).decode("utf-8"))
-        return {"ok": result.get("authorized") is True,
-                "authenticated": result.get("authorized") is True,
-                "no_messages_sent": True}
+        response = _wa_gateway_request(purpose="auth_check")
+        return {"ok": bool(response.get("authorized")), "authenticated": bool(response.get("authorized")),
+                "no_messages_sent": True, "gateway": "unified_neon_capability_v1"}
     except urllib.error.HTTPError as exc:
-        return {"ok": False, "authenticated": False, "error": "Cloudflare HTTP " + str(exc.code),
-                "no_messages_sent": True}
+        return {"ok": False, "authenticated": False, "no_messages_sent": True,
+                "error": "Cloudflare HTTP " + str(exc.code)}
     except Exception as exc:
-        return {"ok": False, "authenticated": False, "error": type(exc).__name__,
-                "no_messages_sent": True}
+        return {"ok": False, "authenticated": False, "no_messages_sent": True,
+                "error": type(exc).__name__}
 
 
 @app.get("/api/whatsapp/status")
