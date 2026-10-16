@@ -177,6 +177,21 @@ jobs:
           test "$OK" = "1"
           cat /tmp/health.json
 
+      - name: Validar puerta de entrada de Recepción sin ningún permiso ni mensaje
+        shell: bash
+        run: |
+          set -euo pipefail
+          CODE=$(curl -sS --max-time 15 -X POST -H 'Content-Type: application/json' \
+            --data '{"token":"invalid"}' -o /tmp/reception_gateway_probe.json -w '%{http_code}' \
+            "$WORKER_URL/reception/gateway")
+          test "$CODE" = "403"
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/reception_gateway_probe.json',encoding='utf-8'))
+          assert x.get('ok') is False and x.get('error')=='invalid_capability', x
+          print('RECEPTION_GATEWAY_EDGE_ROUTE_OK_NO_MESSAGES_NO_DB_WAKE')
+          PY
+
       - name: Comprobar alarmas inicializadas sin enviar WhatsApp
         shell: bash
         run: |
