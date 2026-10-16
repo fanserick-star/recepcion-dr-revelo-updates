@@ -13,7 +13,7 @@ for value in ("morning","afternoon","all"):
 assert "function agendaVisibleSlotTimes()" in js
 assert "for(const time of agendaVisibleSlotTimes())" in js
 assert "if(agendaRemasterRange==='all'&&!lunch&&time==='14:00')" in js
-assert "if(d.getDay()===3&&minutes<10*60)return false" in js
+assert "if(dateObj.getDay()===3&&minute<10*60)return false" in js
 assert "grid-template-columns:62px repeat(4,minmax(205px,1fr))" in css
 assert "#agenda.agenda-remaster-dark" in css
 assert "agenda-more-navigation" in html and "agenda-state-details" in html
