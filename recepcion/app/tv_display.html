@@ -15,39 +15,24 @@
 .idle-clock-scene{
  width:100%;height:100%;min-height:0;
  display:flex;flex-direction:column;align-items:center;justify-content:center;
- gap:clamp(3px,.7vh,10px);
- padding:1.2vh 2vw 1.8vh;
+ gap:0;
+ padding:.7vh 1.5vw;
  overflow:hidden;
  background:#ffffff;color:#181c21;
 }
 .idle-clock-face{
  display:block;flex:0 1 auto;
- width:min(56vh,40vw);height:min(56vh,40vw);
+ width:min(65vh,46vw);height:min(65vh,46vw);
  max-width:100%;max-height:100%;min-height:0;
  filter:drop-shadow(0 .5vh 1vh rgba(26,32,39,.10));
 }
-.idle-clock-time{
- flex:0 0 auto;margin:0;color:#262b30;
- font-size:clamp(19px,2.1vw,34px);
- font-weight:800;line-height:1.1;
- letter-spacing:.07em;font-variant-numeric:tabular-nums;
-}
-.idle-clock-date{
- flex:0 0 auto;color:#6a757e;
- font-size:clamp(11px,1.07vw,17px);
- font-weight:600;line-height:1.2;text-align:center;
-}
 @media(max-aspect-ratio:1/1){
  .idle-clock-scene{padding:1vh 2vw 1.5vh}
- .idle-clock-face{width:min(53vh,80vw);height:min(53vh,80vw)}
- .idle-clock-time{font-size:clamp(18px,3vw,28px)}
- .idle-clock-date{font-size:clamp(11px,2vw,17px)}
+ .idle-clock-face{width:min(62vh,80vw);height:min(62vh,80vw)}
 }
 @media(max-height:540px){
- .idle-clock-scene{padding:.6vh 1.5vw 1vh;gap:2px}
- .idle-clock-face{width:min(55vh,42vw);height:min(55vh,42vw)}
- .idle-clock-time{font-size:clamp(16px,2vw,26px)}
- .idle-clock-date{font-size:clamp(10px,1.05vw,14px)}
+ .idle-clock-scene{padding:.5vh 1.5vw}
+ .idle-clock-face{width:min(64vh,49vw);height:min(64vh,49vw)}
 }
 </style></head><body>
 <div class="testmark" id="testMark" style="display:none">MODO PRUEBAS · NO AFECTA PACIENTES</div><div class="screen"><div class="head"><div class="brand"><img class="brandimg" src="/assets/logo-icon.png" alt="Logo Dr. Armando Revelo"><div class="brandtext"><div class="name">DR. ARMANDO REVELO</div><div class="role">CIRUJANO URÓLOGO</div></div></div><div class="clock"><div class="time" id="time">--:--</div><div class="date" id="date">--</div></div></div>
@@ -91,8 +76,6 @@ function idleClockMarkup(){
     +'<line id="idleSecondHand" x1="200" y1="226" x2="200" y2="47" stroke="#24272b" stroke-width="2" stroke-linecap="round"/>'
     +'<circle cx="200" cy="200" r="8" fill="#1a1e22"/><circle cx="200" cy="200" r="3" fill="#dfe4e7"/>'
     +'</svg>'
-    +'<div id="idleClockDigital" class="idle-clock-time">--:--</div>'
-    +'<div id="idleClockDate" class="idle-clock-date">--</div>'
     +'</div>';
 }
 function updateIdleClock(n){
@@ -102,9 +85,6 @@ function updateIdleClock(n){
   if(h)h.setAttribute('transform','rotate('+(hours*30)+' 200 200)');
   if(m)m.setAttribute('transform','rotate('+(mins*6)+' 200 200)');
   if(s)s.setAttribute('transform','rotate('+(seconds*6)+' 200 200)');
-  const t=e('idleClockDigital'),d=e('idleClockDate');
-  if(t)t.textContent=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
-  if(d)d.textContent=e('date').textContent;
 }
 function displayTurn(v){const n=parseInt(v||0,10);return n?String(n).padStart(2,'0'):'--'}function ytCommand(func,args){const f=e('youtubeFrame');try{if(f&&f.contentWindow)f.contentWindow.postMessage(JSON.stringify({event:'command',func:func,args:args||[]}), '*')}catch(_){}}function syncYoutubeAudio(){const vol=Math.round(Math.max(0,Math.min(1,Number(videoCfg.volume||0)))*100);ytCommand('setVolume',[vol]);ytCommand(audioUnlocked?'unMute':'mute',[])}function stopVideo(){const v=e('infoVideo');try{v.pause()}catch(_){}ytCommand('pauseVideo',[]);e('videoStage').style.display='none';e('stage').style.display='block'}function startLocalVideo(turn){if(!videoCfg.items||!videoCfg.items.length)return false;if(videoIndex>=videoCfg.items.length)videoIndex=0;const item=videoCfg.items[videoIndex],v=e('infoVideo'),y=e('youtubeFrame');y.style.display='none';v.style.display='block';e('videoTurn').textContent=displayTurn(turn);e('stage').style.display='none';e('videoStage').style.display='block';if(v.dataset.url!==item.url){v.dataset.url=item.url;v.src=item.url}v.volume=Math.max(0,Math.min(1,Number(videoCfg.volume||0)));v.muted=!audioUnlocked;const p=v.play();if(p&&p.catch)p.catch(()=>{v.muted=true;v.play().catch(()=>{})});return true}function startYoutube(turn){const item=videoCfg.youtube;if(!item||!item.id)return false;const v=e('infoVideo'),f=e('youtubeFrame');try{v.pause()}catch(_){}v.style.display='none';f.style.display='block';e('videoTurn').textContent=displayTurn(turn);e('stage').style.display='none';e('videoStage').style.display='block';if(f.dataset.videoId!==item.id){f.dataset.videoId=item.id;f.src='https://www.youtube.com/embed/'+encodeURIComponent(item.id)+'?autoplay=1&mute=1&controls=0&rel=0&playsinline=1&enablejsapi=1&loop=1&playlist='+encodeURIComponent(item.id);setTimeout(()=>{syncYoutubeAudio();ytCommand('playVideo',[])},900)}else{syncYoutubeAudio();ytCommand('playVideo',[])}return true}function startVideo(turn){if(!videoCfg.enabled)return false;return videoCfg.source==='youtube'?startYoutube(turn):startLocalVideo(turn)}e('youtubeFrame').onload=()=>{syncYoutubeAudio();if(state&&state.advertising&&videoCfg.source==='youtube')ytCommand('playVideo',[])};e('infoVideo').onended=()=>{videoIndex=(videoIndex+1)%Math.max(1,videoCfg.items.length);if(state&&state.advertising&&videoCfg.source!=='youtube')startVideo(state.turn)};
 function idle(force){
