@@ -69,7 +69,7 @@ assert.match(core,/_wa_gateway_request\(/);
 assert.match(ui,/async function manualResendCitaAgendada\(/);
 assert.match(ui,/can_manual_resend/);
 assert.match(ui,/window\.rpConfirm/);
-assert.match(worker,/manual_booking_notice: "one_time_signed_v1"/);
+assert.match(worker,/manual_booking_notice: "one_time_gateway_v1"/);
 assert.ok(worker.includes('async function serveReceptionGateway(request,env) {'));
 assert.ok(!worker.includes('async function verifyReceptionSignedPayload('));
 assert.doesNotMatch(worker.slice(start,end),/refreshWhatsappAlarm|setInterval|scheduled\(/);
