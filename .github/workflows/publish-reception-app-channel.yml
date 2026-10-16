@@ -48,6 +48,7 @@ jobs:
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
           node tools/test_whatsapp_unified_gateway.mjs
+          node tools/test_whatsapp_three_agendas_one_alarm.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
 
       - name: Validate real issued-invoice pagination before publication

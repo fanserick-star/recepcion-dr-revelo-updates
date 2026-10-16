@@ -26,7 +26,7 @@ const ctx={
   json:(body,status=200)=>({body,status}),
   withClient:async(_env,fn)=>fn(client),
   sha256:async()=> "b".repeat(64),
-  refreshWhatsappAlarm:async()=>{alarmCount++;return {ok:true};},
+  registerUnifiedAgendaAlarm:async(_env,origin)=>{assert.equal(origin,'reception');alarmCount++;return {ok:true,alarm_scheduled:true};},
   serveManualBookingNotice:async(_req,_env,id,authorized)=>{assert.equal(authorized,true);assert.equal(id,501);manualCount++;return {status:200,body:{ok:true}};},
   console:{error(){}}
 };
@@ -53,7 +53,7 @@ assert.equal(manualCount,1);
 assert.equal(metaMessages,0);
 assert.doesNotMatch(worker.slice(start,end),/sendMeta\(|sendTextMeta\(|runScheduler\(|setInterval\(/);
 assert.match(worker,/u.pathname === "\/reception\/gateway"/);
-assert.match(worker,/const alarm=await refreshWhatsappAlarm\(env\)/);
+assert.match(worker,/const alarm=await registerUnifiedAgendaAlarm\(env, "reception"\)/);
 assert.doesNotMatch(worker,/serveFreshReceptionBookingNotice|verifyReceptionSignedPayload|receptionSigningCache|\/alarms\/notify" &&/);
 assert.match(reception,/def _wa_gateway_issue\(/);
 assert.match(reception,/secrets\.token_urlsafe\(32\)/);

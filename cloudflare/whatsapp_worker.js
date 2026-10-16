@@ -6193,7 +6193,7 @@ async function serveBookingCreate(request, env, ctx) {
       }
     });
     if (!row) return bookingJson(request, { ok: false, error: "Ese horario acaba de ser reservado. Seleccione otro horario.", code: "SLOT_TAKEN" }, 409);
-    if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error("booking_alarm_registration_failed", e)));
+    if (ctx?.waitUntil) ctx.waitUntil(registerUnifiedAgendaAlarm(env, "public_web").catch(e => console.error("booking_alarm_registration_failed", e)));
     return bookingJson(request, { ok: true, booking_id: Number(row.id || 0), patient_name: name, date: String(row.fecha || date).slice(0, 10), time: String(row.hora || time).slice(0, 5), message: "Su cita qued\xF3 registrada correctamente." }, 201, { "cache-control": "no-store" });
   } catch (e) {
     console.error("booking_create_failed", e);
@@ -6257,7 +6257,7 @@ async function receiveWebhook(request, env, ctx) {
         }
       }
       await logButtonInbound(env, m2, p2, result);
-      if (responseWasApplied(result) && ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error("response_alarm_registration_failed", e)));
+      if (responseWasApplied(result) && ctx?.waitUntil) ctx.waitUntil(registerUnifiedAgendaAlarm(env, "patient_reply").catch(e => console.error("response_alarm_registration_failed", e)));
       continue;
     }
     if (m2?.type === "text" || m2?.type === "audio") {
@@ -6771,9 +6771,12 @@ async function handleAutoagendaForward(env, message, ctx) {
     try { await sendTextMeta(sender, "❌ NO SE AGENDÓ\n\nOcurrió un problema al consultar la agenda. No se creó ninguna cita.", env, String(message?.id || "")); } catch {}
     return true;
   }
+  // Programar ANTES de la respuesta de cortesía. Una respuesta lenta de Meta
+  // no puede retrasar los recordatorios ni hacer vencer "Cita agendada".
+  if (status === "CREATED" && ctx?.waitUntil)
+    ctx.waitUntil(registerUnifiedAgendaAlarm(env, "whatsapp_message").catch(e => console.error("autoagenda_alarm_registration_failed", e)));
   try { await sendTextMeta(sender, autoagendaReply(parsed, status), env, String(message?.id || "")); }
   catch (e) { console.error("autoagenda_reply_failed", e); }
-  if (status === "CREATED" && ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error("autoagenda_alarm_registration_failed", e)));
   return true;
 }
 
@@ -6878,6 +6881,21 @@ async function refreshWhatsappAlarm(env, initOnly = false) {
   if (!response.ok) throw new Error("Durable Object reminder scheduling rejected");
   return response;
 }
+
+/**
+ * Puerta única para programar mensajes de citas y recordatorios.
+ * Todos los orígenes (WhatsApp, web y Recepción) usan exactamente el mismo
+ * Durable Object y la misma consulta de candidatos / event_key en Neon.
+ * No manda Meta, no enumera citas y no crea timers ni vigilancia locales.
+ */
+async function registerUnifiedAgendaAlarm(env, origin) {
+  if (!["whatsapp_message", "public_web", "admin_web", "reception", "patient_reply"].includes(origin))
+    throw new Error("Unsupported agenda alarm origin");
+  const response = await refreshWhatsappAlarm(env);
+  if (!response?.ok) throw new Error("Alarm coordinator unavailable");
+  return {ok:true,alarm_scheduled:true,no_messages_sent:true};
+}
+
 async function nextWhatsappReminderTimestamp(env) {
   if (!env.DATABASE_URL) throw new Error("Neon DATABASE_URL is missing");
   return withClient(env, async client => {
@@ -7067,9 +7085,8 @@ async function serveAdminAgendaAlarmHint(request, env) {
     if (!allowed) return bookingJson(request, { ok: false, error: "Not authorized" }, 403);
     // No patient data or date is supplied; Neon remains the only source of truth.
     // This merely recomputes the alarm, it cannot send WhatsApp itself.
-    const response = await refreshWhatsappAlarm(env);
-    if (!response.ok) throw new Error("Alarm coordinator unavailable");
-    return bookingJson(request, { ok: true, alarm_scheduled: true }, 200, { "cache-control": "no-store" });
+    const receipt = await registerUnifiedAgendaAlarm(env, "admin_web");
+    return bookingJson(request, receipt, 200, { "cache-control": "no-store" });
   } catch (e) {
     console.error("web_admin_alarm_hint_failed", String(e?.name || "Error"));
     return bookingJson(request, { ok: false, error: "No se pudo programar el recordatorio; reintenta actualizar la agenda." }, 503);
@@ -7131,8 +7148,8 @@ async function serveReceptionGateway(request,env) {
     return serveManualBookingNotice(request,env,sourceId,true);
   }
   try {
-    // MISMO Durable Object que invoca la Agenda Web.
-    const alarm=await refreshWhatsappAlarm(env);
+    // MISMO registro que WhatsApp por mensaje y ambas agendas web.
+    const alarm=await registerUnifiedAgendaAlarm(env, "reception");
     if(!alarm.ok)throw new Error("alarm_rejected");
     try {
       await withClient(env,async client=>client.query(
@@ -7230,7 +7247,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.30", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "cita_agendada_by_alarm", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_signed_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.31", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "three_sources_same_alarm_v1", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_gateway_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);

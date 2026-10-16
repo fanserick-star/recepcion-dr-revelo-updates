@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.29",
-  "app_version": "4.8.29",
-  "runtime_version": "4.8.29",
+  "version": "4.8.30",
+  "app_version": "4.8.30",
+  "runtime_version": "4.8.30",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.29 remaster: unifica los avisos de agenda con el único coordinador WhatsApp Cloud que utiliza la web. Retira HMAC y credenciales compartidas entre PC/Cloudflare, los avisos fresh-booking redundantes, reintentos SQLite obsoletos y pruebas legacy; autorización efímera por token SHA-256 registrado en Neon exclusivamente ante un cambio confirmado. Respeta cola offline, Meta una sola vez, alarmas sin cron, historial y recordatorios. Renovación visual discreta de la mensajería.",
-    "previous_version": "4.8.28",
+    "purpose": "Recepción 4.8.30: agenda de Recepción, agenda web y autoagenda por mensaje de WhatsApp utilizan ahora exactamente la misma función de registro de alarmas en Cloudflare Durable Object, sobre un único conjunto de plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
+    "previous_version": "4.8.29",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -528,6 +528,8 @@
     "whatsapp_alarm_ack_required": true,
     "whatsapp_reception_unified_capability_gateway": true,
     "whatsapp_same_web_cloudflare_coordinator": true,
+    "whatsapp_three_agendas_shared_alarm_registration": true,
+    "whatsapp_forward_register_alarm_before_ack": true,
     "whatsapp_legacy_alarm_signal_disabled": true,
     "whatsapp_unified_gateway_no_old_replay": true,
     "whatsapp_alarm_event_bounded_retry_count": 2,

@@ -50,7 +50,7 @@ for(const [label,sql] of [["sender",scheduler],["alarm",doAlarm]]){
   assert.ok(sql.includes("kind='cita_agendada' THEN interval '3 minutes'"),label+": 3-minute limit missing");
 }
 assert.match(worker,/ON CONFLICT\(event_key\)/,"Do not break idempotent event claims");
-assert.match(worker,/worker_version: "2\.6\.30"/);
+assert.match(worker,/worker_version: "2\.6\.31"/);
 const ecu=(stamp)=>new Date(new Date(stamp).getTime()-5*3600e3).toISOString().slice(0,10);
 const dayBefore=(date)=>new Date(Date.parse(date+"T00:00:00Z")-86400e3).toISOString().slice(0,10);
 const bookingAllowed=(created,appointment)=>{
