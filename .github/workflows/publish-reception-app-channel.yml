@@ -29,6 +29,7 @@ jobs:
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_reports.py
           python tools/test_reception_neon_efficiency.py
+          python tools/test_reception_unified_gateway.py
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
           python tools/test_reception_exam_review_turn.py
@@ -36,7 +37,6 @@ jobs:
           python tools/test_reception_only_link_authority.py
           python tools/test_reception_auto_clinical_chart.py
           python tools/test_reception_whatsapp_timeline_4820.py
-          python tools/test_reception_alarm_durable_4821.py
           python tools/test_reception_active_messaging_panel_4822.py
           python tools/test_reception_smart_alerts_4814.py
           python tools/test_reception_integrity_4815.py
@@ -47,8 +47,8 @@ jobs:
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
+          node tools/test_whatsapp_unified_gateway.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
-          node tools/test_whatsapp_reception_alarm_signature.mjs
 
       - name: Validate real issued-invoice pagination before publication
         run: |

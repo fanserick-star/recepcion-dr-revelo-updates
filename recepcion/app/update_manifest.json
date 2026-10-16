@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.28",
-  "app_version": "4.8.28",
-  "runtime_version": "4.8.28",
+  "version": "4.8.29",
+  "app_version": "4.8.29",
+  "runtime_version": "4.8.29",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.28: corrige HTTP 403 entre Recepción y WhatsApp Cloud con clave de firma aleatoria compartida en tabla restringida de Neon, independiente de las credenciales PostgreSQL de cada aplicación. Mantiene anti-replay, entrega puntual idempotente, alarmas por evento, confirmaciones y recordatorios sin cron ni reenvío de avisos antiguos; sin cambios en citas, facturación, turnos, Historia ni TV.",
-    "previous_version": "4.8.27",
+    "purpose": "Recepción 4.8.29 remaster: unifica los avisos de agenda con el único coordinador WhatsApp Cloud que utiliza la web. Retira HMAC y credenciales compartidas entre PC/Cloudflare, los avisos fresh-booking redundantes, reintentos SQLite obsoletos y pruebas legacy; autorización efímera por token SHA-256 registrado en Neon exclusivamente ante un cambio confirmado. Respeta cola offline, Meta una sola vez, alarmas sin cron, historial y recordatorios. Renovación visual discreta de la mensajería.",
+    "previous_version": "4.8.28",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -526,17 +526,21 @@
     "waiting_lan_same_event_id": true,
     "offline_subsequent_no_auto_duplicate": true,
     "whatsapp_alarm_ack_required": true,
+    "whatsapp_reception_unified_capability_gateway": true,
+    "whatsapp_same_web_cloudflare_coordinator": true,
+    "whatsapp_legacy_alarm_signal_disabled": true,
+    "whatsapp_unified_gateway_no_old_replay": true,
     "whatsapp_alarm_event_bounded_retry_count": 2,
     "whatsapp_alarm_no_periodic_polling": true,
     "whatsapp_outbound_no_automatic_stale_replay": true,
     "whatsapp_manual_booking_notice_one_time": true,
     "whatsapp_manual_no_periodic_queries": true,
-    "whatsapp_manual_signed_worker": true,
-    "whatsapp_reception_fresh_signed_push": true,
+    "whatsapp_manual_signed_worker": false,
+    "whatsapp_reception_fresh_signed_push": false,
     "whatsapp_reception_fresh_no_replay": true,
     "whatsapp_reception_fresh_event_key_idempotent": true,
-    "whatsapp_neon_shared_hmac_key": true,
-    "whatsapp_hmac_key_role_independent": true
+    "whatsapp_neon_shared_hmac_key": false,
+    "whatsapp_hmac_key_role_independent": false
   },
   "channel": "launcher-v1-stable"
 }

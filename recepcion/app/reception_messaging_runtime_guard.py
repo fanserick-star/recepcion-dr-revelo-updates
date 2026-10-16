@@ -221,7 +221,7 @@ def _local_intention_state(item: dict, *, cloud_available: bool) -> dict:
 
 def _pending_signal_safe() -> bool:
     try:
-        return bool(core._wa_alarm_signal_state().get("pending"))
+        return bool(core._wa_gateway_diag.get("pending"))
     except Exception:
         return False
 

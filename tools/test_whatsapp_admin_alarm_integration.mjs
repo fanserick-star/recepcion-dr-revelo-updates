@@ -26,10 +26,10 @@ assert.match(reception, /_whatsapp_alarm_notify_async\(source_type=source_type, 
 assert.match(reception, /if alarm_relevant_change:/);
 assert.match(reception, /_whatsapp_alarm_notify_async\(source_type="staged", source_id=item_id\)/);
 assert.match(reception, /_whatsapp_alarm_notify_async\(source_type="appointment", source_id=appointment_id\)/);
-assert.match(reception, /pending_this_event/);
+assert.match(reception, /if pending is not None: return/);
 
 const start = worker.indexOf("async function serveAdminAgendaAlarmHint(request, env) {");
-const end = worker.indexOf("async function verifyReceptionAlarmHint(request, env)", start);
+const end = worker.indexOf("// Un único coordinador WhatsApp para Agenda Web y Recepción.", start);
 assert.ok(start > 0 && end > start);
 const handlerSource = worker.slice(start, end);
 assert.doesNotMatch(handlerSource, /sendMeta\(|sendTextMeta\(|runScheduler\(/);

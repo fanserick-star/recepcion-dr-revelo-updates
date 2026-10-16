@@ -13,7 +13,7 @@ on:
       - "tools/test_reception_only_link_authority.py"
       - "tools/test_reception_auto_clinical_chart.py"
       - "tools/test_reception_whatsapp_timeline_4820.py"
-      - "tools/test_reception_alarm_durable_4821.py"
+      - "tools/test_reception_unified_gateway.py"
       - "tools/test_reception_active_messaging_panel_4822.py"
       - "tools/test_tv_display_javascript.mjs"
       - "tools/test_reception_history_tv_contract.py"
@@ -54,6 +54,7 @@ jobs:
           python tools/test_reception_canonical_source.py
           python tools/test_reception_reports.py
           python tools/test_reception_neon_efficiency.py
+          python tools/test_reception_unified_gateway.py
           python tools/validate_reception_runtime_layout.py recepcion/app
           python tools/test_reception_history_tv_contract.py
           python tools/test_reception_history_identity_search.py
@@ -63,7 +64,6 @@ jobs:
           python tools/test_reception_auto_clinical_chart.py
           python tools/test_reception_prior_history_registration.py
           python tools/test_reception_whatsapp_timeline_4820.py
-          python tools/test_reception_alarm_durable_4821.py
           python tools/test_reception_active_messaging_panel_4822.py
           python tools/test_reception_smart_alerts_4814.py
           python tools/test_reception_integrity_4815.py
@@ -74,10 +74,8 @@ jobs:
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
-          node tools/test_whatsapp_fresh_reception_push.mjs
-          node tools/test_whatsapp_shared_signing_key.mjs
+          node tools/test_whatsapp_unified_gateway.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
-          node tools/test_whatsapp_reception_alarm_signature.mjs
           python -m py_compile recepcion/app/core_runtime.py recepcion/app/reception_history_cancellation.py recepcion/app/historia_lan_transport.py recepcion/app/reception_history_bridge.py recepcion/app/reception_billing_history.py recepcion/app/app.py
           PYTHONPATH=recepcion/app python -c "import reception_tv_http, reception_tv_service; print('RECEPTION TV IMPORTS OK')"
           python - <<'PY'
