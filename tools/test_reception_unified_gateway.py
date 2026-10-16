@@ -83,6 +83,20 @@ assert "exc.read(1024)" in core
 assert 'reason = candidate' in core
 assert '"reason": reason' in core
 assert "token" not in core.split('def whatsapp_auth_check(',1)[1].split('@app.get("/api/whatsapp/status")',1)[0]
+# Cloudflare returned error 1010 to urllib's default User-Agent from the PC,
+# while the same no-token route succeeded using curl. Do not loosen capability
+# validation; only switch the User-Agent on the existing single gateway path.
+assert '_WA_GATEWAY_USER_AGENT = "curl/8.10.1"' in core
+http_call = core.split('def _wa_gateway_request(',1)[1].split('def _wa_gateway_signal_async(',1)[0]
+assert '"User-Agent": _WA_GATEWAY_USER_AGENT' in http_call
+assert '"Accept": "application/json"' in http_call
+assert '"Content-Type": "application/json"' in http_call
+assert '_wa_gateway_issue(purpose=purpose,source_type=source_type,source_id=source_id)' in http_call
+assert 'data=json.dumps({"token": token}).encode("utf-8")' in http_call
+assert 'method="POST"' in http_call
+assert 'urllib.request.urlopen(request, timeout=12)' in http_call
+print("RECEPTION_CF_1010_CLIENT_FIX_LEAVES_CAPABILITY_CHECK_INTACT_OK")
+
 print("RECEPTION_CF_403_DIAGNOSTIC_NO_TOKEN_LEAK_NO_WA_SEND_OK")
 
 print("RECEPTION_WEB_AGENDA_READONLY_CANCEL_AND_SINGLE_SENDER_NO_META_OK")
