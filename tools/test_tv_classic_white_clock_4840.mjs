@@ -38,7 +38,7 @@ const dialFirst=markup;
 ctx.updateIdleClock(new Date(2026,9,16,13,14,15));
 assert.equal(elements.idleClockDigital.textContent,"13:14");
 assert.equal(elements.idleClockDate.textContent,elements.date.textContent);
-assert.match(elements.idleHourHand.transform,/rotate\(397/);
+assert.match(elements.idleHourHand.transform,/rotate\(37\./);
 ctx.idle(false);
 assert.equal(markup,dialFirst,"Do not rebuild SVG for 900ms polling");
 ctx.state={next_waiting_turn:9,next_waiting_exam_review:true};
