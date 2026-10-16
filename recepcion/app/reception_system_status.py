@@ -383,7 +383,7 @@ def reception_4814_alerts(user=core.Depends(core.current_user)):
     lock = getattr(core, '_wa_gateway_lock', None)
     if lock is not None:
         with lock:
-            result['alarm_hint'] = dict(getattr(core, '_wa_alarm_hint_diag', {}) or {})
+            result['alarm_hint'] = dict(getattr(core, '_wa_gateway_diag', {}) or {})
     if not core.cloud_configured() or not core.CloudSessionLocal or core.FORCE_OFFLINE:
         result['cloud_error'] = 'Neon no disponible. Se muestran solo alertas locales.'
         return result
