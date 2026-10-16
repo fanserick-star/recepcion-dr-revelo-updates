@@ -63,10 +63,9 @@ assert "call('/api/whatsapp/auth-check')" in configuration
 for start,end in [
     ('@app.delete("/api/mobile/unlinked/{item_id}")','@app.put("/api/mobile/appointments/{appointment_id}")'),
     ('@app.delete("/api/mobile/appointments/{appointment_id}")','@app.get("/api/whatsapp/outbox")'),
-    ('@app.delete("/api/agenda/appointments/{appointment_id}")','@app.get("/api/agenda/export.csv")'),
+    ('@app.delete("/api/agenda/appointments/{appointment_id}")','def _decode_confirmafy_csv('),
 ]:
-    if start not in core:
-        continue
+    assert start in core and end in core, (start, end)
     segment=core.split(start,1)[1].split(end,1)[0]
     assert "_whatsapp_alarm_notify_async()" in segment, start
     assert '_whatsapp_alarm_notify_async(source_type=' not in segment, start
