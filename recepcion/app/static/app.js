@@ -2357,12 +2357,15 @@ function nativeAgendaRowCell(row,date,time){
   if(!row&&!agendaSlotOpenForDay(date,time))return `<div class="native-slot closed"><b>${esc(fmtTime(time))}</b><span>No disponible</span></div>`;
   if(!row)return `<button class="native-slot free" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">${esc(fmtTime(time))}</b><span>Disponible</span></button>`;
   const a=row.appointment||{},p=row.patient||{},staged=row.staged||{},source=String(row.source_type||''),unlinked=source==='MOBILE_UNLINKED'||source==='LEGACY_UNLINKED'||source==='CONFIRMAFY_STAGED'||source==='CONFIRMAFY_LEGACY';
-  const name=staged.nombre||p.nombre||'PACIENTE';const status=agendaStatusInfo(a.estado);const sourceBadge=unlinked?'<small class="native-unlinked">SIN VINCULAR</small>':'';
+  const name=staged.nombre||p.nombre||'PACIENTE';const status=agendaStatusInfo(a.estado);
+  const stateIcon={pending:'◷',confirmed:'✓',rescheduled:'↻',cancelled:'✕'}[status.cls]||'•';
+  const statusMarkup=`<span class="native-status-label ${status.cls}"><i aria-hidden="true">${stateIcon}</i>${esc(status.label)}</span>`;
+  const sourceBadge=unlinked?'<small class="native-unlinked">SIN VINCULAR</small>':'';
   const wa=!unlinked?agendaWhatsappBadgeHtml(a):{html:'',cls:''};
   const action=unlinked
     ?`openUnlinkedAgendaDetail(${Number(staged.id||0)},'${date}')`
     :`openLinkedAgendaDetail(${Number(a.id||0)},${Number(p.id||0)},'${date}')`;
-  return `<button class="native-slot occupied ${status.cls} ${wa.cls?`wa-${wa.cls}`:''}" onclick="${action}"><b>${esc(name)}</b><span>${esc(status.label)}</span>${wa.html}${sourceBadge}</button>`;
+  return `<button class="native-slot occupied ${status.cls} ${wa.cls?`wa-${wa.cls}`:''}" onclick="${action}"><b>${esc(name)}</b>${statusMarkup}${wa.html}${sourceBadge}</button>`;
 }
 function renderNativeAgenda(week={}){
   const box=$('#agendaNativeGrid');if(!box)return;const days=week.days||[];const maps=days.map(day=>{const m=new Map();for(const row of day.appointments||[]){const t=String(row.appointment?.hora||row.staged?.hora||'');if(t&&!m.has(t))m.set(t,row)}return m});
@@ -3394,10 +3397,10 @@ function agendaWhatsappStateForAppointment(a={}){
 function agendaWhatsappBadgeHtml(a={}){
   const st=agendaWhatsappStateForAppointment(a);if(st.kind==='none')return {html:'',cls:''};
   const audio=String(st.latest?.message_type||'').toLowerCase()==='audio',mic=audio?'🎙 ':'';
-  if(st.kind==='review')return {cls:'review',html:`<small class="agenda-wa-chip review">⚠ ${mic}WhatsApp: revisar</small>`};
-  if(st.kind==='confirmed')return {cls:'confirmed',html:`<small class="agenda-wa-chip confirmed">✓ ${mic}WhatsApp</small>`};
-  if(st.kind==='no-show')return {cls:'no-show',html:`<small class="agenda-wa-chip no-show">× ${mic}WhatsApp</small>`};
-  return {cls:'resolved',html:`<small class="agenda-wa-chip resolved">💬 ${mic}Revisado</small>`};
+  if(st.kind==='review')return {cls:'review',html:`<small class="agenda-wa-chip review">⚠ ${mic}Revisar WA</small>`};
+  if(st.kind==='confirmed')return {cls:'confirmed',html:`<small class="agenda-wa-chip confirmed">✓ ${mic}Confirmó WA</small>`};
+  if(st.kind==='no-show')return {cls:'no-show',html:`<small class="agenda-wa-chip no-show">✕ ${mic}Rechazó WA</small>`};
+  return {cls:'resolved',html:`<small class="agenda-wa-chip resolved">💬 ${mic}Revisado WA</small>`};
 }
 function agendaWhatsappWeekKeyFor(week={}){
   const days=week.days||[];return days.length?`${days[0].date}|${days[days.length-1].date}`:'';

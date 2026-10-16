@@ -44,6 +44,7 @@ jobs:
           python tools/test_reception_day_waitlist_4816.py
           python tools/test_reception_backup_integrity_4817.py
           node --check recepcion/app/static/app.js
+          node tools/test_reception_agenda_status_contrast.mjs
           node tools/test_tv_display_javascript.mjs
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
