@@ -14,7 +14,7 @@ const e=id=>(id==="idleClockFace"&&!dialExists)?null:els[id]||null;
 const ctx={e,state:{mode:"idle",waiting_count:0},stopVideo:()=>{},displayTurn:v=>String(v),Date,console};
 vm.runInNewContext(part("function idleClockMarks()","function displayTurn(v)")+part("function idle(force)","function render(s)"),ctx);
 ctx.idle(true);
-assert.match(rendered,/idleClockFace/);assert.match(rendered,/CONSULTORIO DR. ARMANDO REVELO/);
+assert.match(rendered,/idleClockFace/);assert.match(rendered,/Reloj analógico de pared blanco/);
 assert.doesNotMatch(rendered,/Bienvenido al consultorio|Gracias por su visita/);
 const first=rendered;ctx.updateIdleClock(new Date(2026,9,16,9,30,45));
 assert.equal(els.idleClockDigital.textContent,"09:30");

@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.39",
-  "app_version": "4.8.39",
-  "runtime_version": "4.8.39",
+  "version": "4.8.40",
+  "app_version": "4.8.40",
+  "runtime_version": "4.8.40",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.39: únicamente cambia la presentación del reloj en reposo de la TV a blanco premium elegante (fondo marfil, tarjeta clara, esfera azul noche, aro champán, texto azul marino), ajusta su tamaño y espaciado para evitar recortes de Sala de espera, fecha y nombre del consultorio. Mantiene intacto el reloj funcional de 4.8.38, la prioridad del próximo turno, llamadas, voz, sonido, publicidad, desconexión, recepción, agenda y WhatsApp. No cambia el estado ni los datos de pacientes.",
-    "previous_version": "4.8.38",
+    "purpose": "Recepción 4.8.40: rediseña exclusivamente el reloj de reposo de TV según la fotografía de referencia: esfera blanca de reloj de pared real, aro gris claro, 12 números negros grandes, marcas y agujas negras; aumenta el diámetro a aproximadamente 56vh y reduce la hora y fecha digitales. Retira textos decorativos redundantes para evitar recortes. No altera la función idle, llamados, próxima cita, revisiones, voz, sonido, publicidad, desconexión ni otras pantallas; sin cambios de base de datos o WhatsApp.",
+    "previous_version": "4.8.39",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -299,7 +299,7 @@
     "tv_header_full_logo_removed": true,
     "tv_header_duplicate_text_removed": true,
     "tv_header_background_rectangle_removed": true,
-    "tv_turn_logic_changes": true,
+    "tv_turn_logic_changes": false,
     "tv_voice_logic_changes": false,
     "tv_video_logic_changes": false,
     "historia_lan_previous_day_pending_expires": true,
@@ -548,8 +548,11 @@
     "tv_idle_clock_external_dependencies": false,
     "tv_call_and_voice_logic_changes": false,
     "tv_clock_local_time_source": "TV_browser",
-    "tv_idle_clock_theme": "white_premium",
-    "tv_idle_clock_layout_safe_for_short_screens": true
+    "tv_idle_clock_theme": "classic_white_wall_clock",
+    "tv_idle_clock_layout_safe_for_short_screens": true,
+    "tv_idle_clock_12_black_numbers": true,
+    "tv_idle_clock_large_diameter": "min(56vh,40vw)",
+    "tv_idle_clock_no_external_images": true
   },
   "channel": "launcher-v1-stable"
 }
