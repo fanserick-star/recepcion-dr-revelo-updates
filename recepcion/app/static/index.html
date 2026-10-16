@@ -193,6 +193,10 @@
           <div class="config-panel-head"><div><h3>WhatsApp Cloud</h3><p class="muted">Automatización 24/7, plantillas aprobadas y entregas recientes.</p></div><span id="whatsappStatusPill" class="performance-pill">Cargando</span></div>
           <div id="whatsappStatusText" class="desktop-runtime-status">Consultando estado…</div>
           <div id="configWhatsappTemplates" class="config-template-grid"></div>
+          <div class="actions">
+            <button id="whatsappGatewayAuthBtn" type="button" onclick="checkWhatsappGatewayAuth()">Comprobar conexión con Cloudflare (sin enviar)</button>
+            <span id="whatsappGatewayAuthResult" class="muted" role="status">Sin comprobar.</span>
+          </div>
           <div class="wa-delivery-head"><b>Últimos 7 días</b><button id="waDeliveryRefreshBtn" onclick="loadWhatsappCloudStatus(true)">↻ Actualizar mensajes</button></div>
           <div id="whatsappDeliverySummary" class="wa-delivery-summary"><span>Sin consultar todavía.</span></div>
           <div id="whatsappDeliveryList" class="wa-delivery-list"></div>

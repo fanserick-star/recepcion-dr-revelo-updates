@@ -40,4 +40,44 @@ assert "serveFreshReceptionBookingNotice" not in worker
 assert "verifyReceptionSignedPayload" not in worker
 assert "_wa_alarm_signal_state" not in guard
 assert "async scheduled(" not in worker
+
+# Read-only configuration route: panel and server must agree; never regenerate
+# or reactivate access tokens simply because a configuration screen was opened.
+frontend=(ROOT/"recepcion/app/static/app.js").read_text(encoding="utf-8")
+configuration=(ROOT/"recepcion/app/static/configuration.js").read_text(encoding="utf-8")
+html=(ROOT/"recepcion/app/static/index.html").read_text(encoding="utf-8")
+assert "api('/api/mobile/config'" in frontend
+assert '@app.get("/api/mobile/config")' in core
+route=core.split('@app.get("/api/mobile/config")',1)[1].split('@app.post("/api/mobile/links/rotate")',1)[0]
+assert "_is_loopback_client(request)" in route
+assert "agenda_private.web_keys" in route
+assert "active IS TRUE" in route
+assert "force=bool(force_cloud)" in route
+assert not any(x in route for x in ("_ensure_mobile_tokens(", "_upsert_local_env(", "_write_cloud_agenda_keys(", "_agenda_cloud_payload(", "INSERT INTO", "UPDATE agenda_private", "DELETE FROM"))
+assert 'id="whatsappGatewayAuthBtn"' in html
+assert "window.checkWhatsappGatewayAuth" in configuration
+assert "call('/api/whatsapp/auth-check')" in configuration
+
+# A cancellation has already deleted its source: a source-bound gateway
+# refresh would return 409 and retain the old alarm. Recompute without ID.
+for start,end in [
+    ('@app.delete("/api/mobile/unlinked/{item_id}")','@app.put("/api/mobile/appointments/{appointment_id}")'),
+    ('@app.delete("/api/mobile/appointments/{appointment_id}")','@app.get("/api/whatsapp/outbox")'),
+    ('@app.delete("/api/agenda/appointments/{appointment_id}")','@app.get("/api/agenda/export.csv")'),
+]:
+    if start not in core:
+        continue
+    segment=core.split(start,1)[1].split(end,1)[0]
+    assert "_whatsapp_alarm_notify_async()" in segment, start
+    assert '_whatsapp_alarm_notify_async(source_type=' not in segment, start
+
+schedule=core.split("def schedule_whatsapp_for_contact(",1)[1].split("def _whatsapp_rebase_pending_schedule(",1)[0]
+assert 'if WHATSAPP_CLOUD_MODE:' in schedule
+assert 'return {"queued": 0, "cloud_mode": True}' in schedule
+assert schedule.index('return {"queued": 0, "cloud_mode": True}') < schedule.index('_whatsapp_queue_one(')
+legacy=core.split("def start_whatsapp_worker_if_enabled()",1)[1].split("def mirror_patient_to_local(",1)[0]
+assert "threading.Thread(" not in legacy
+assert "return" in legacy
+print("RECEPTION_WEB_AGENDA_READONLY_CANCEL_AND_SINGLE_SENDER_NO_META_OK")
+
 print("RECEPTION_UNIFIED_WA_CLOUD_ALARMS_SAFE_NO_OLD_HMAC_OR_CRON_OK")

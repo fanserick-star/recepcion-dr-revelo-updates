@@ -44,6 +44,22 @@ async function loadWhatsappConsolidated(){
   if(typeof window.loadWhatsappCloudStatus==='function')await window.loadWhatsappCloudStatus(false);
 }
 
+window.checkWhatsappGatewayAuth=async function(){
+  const button=q('#whatsappGatewayAuthBtn'),message=q('#whatsappGatewayAuthResult');
+  if(button)button.disabled=true;
+  if(message)message.textContent='Comprobando autorización sin enviar mensajes…';
+  try{
+    const response=await call('/api/whatsapp/auth-check');
+    if(message)message.textContent=response.ok&&response.authenticated&&response.no_messages_sent
+      ?'Conexión autorizada con Cloudflare. No se envió ningún WhatsApp.'
+      :'No se pudo autorizar: '+String(response.error||'Comprobar conexión Neon ↔ Cloudflare');
+  }catch(error){
+    if(message)message.textContent='Error de autorización: '+String(error.message||error);
+  }finally{
+    if(button)button.disabled=false;
+  }
+};
+
 function waTestResult(text){const el=q('#whatsappTestResult');if(el)el.textContent=text}
 async function pollWaCloudTest(){
   if(!waCloudTest)return;
