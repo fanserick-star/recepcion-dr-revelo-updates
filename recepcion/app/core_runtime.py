@@ -4519,15 +4519,28 @@ def _desktop_runtime_info() -> dict:
 def home():
     with open(os.path.join(BASE_DIR, "static", "index.html"), encoding="utf-8") as f:
         html = f.read()
+    # Los querystrings del HTML quedaron fijos desde 4.3.x y WebView puede
+    # reutilizar JavaScript o CSS antiguos aunque el servidor muestre 4.8.x.
+    # Vincular assets a la versión REAL del runtime (sin cadenas de versiones).
+    html = re.sub(
+        r'(/static/(?:app\\.js|style\\.css))\\?v=[^"\\']+',
+        lambda m: f"{m.group(1)}?v={APP_VERSION}",
+        html,
+    )
     addon = (
         '<link rel="stylesheet" href="/v458/settings.css?v=4.3.58">'
         '<script defer src="/v458/settings.js?v=4.3.58"></script>'
         '<link rel="stylesheet" href="/v459/settings.css?v=4.3.59">'
         '<script defer src="/v459/settings.js?v=4.3.59"></script>'
-        '<link rel="stylesheet" href="/v460/overlay.css?v=4.3.72">'
-        '<script defer src="/v460/overlay.js?v=4.3.72"></script>'
+        f'<link rel="stylesheet" href="/v460/overlay.css?v={APP_VERSION}">'
+        f'<script defer src="/v460/overlay.js?v={APP_VERSION}"></script>'
     )
-    return html.replace("</head>", addon + "</head>", 1) if "</head>" in html else html + addon
+    result = html.replace("</head>", addon + "</head>", 1) if "</head>" in html else html + addon
+    return HTMLResponse(
+        content=result,
+        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0",
+                 "Pragma":"no-cache", "Expires":"0"},
+    )
 
 
 @app.get("/api/version")
@@ -10948,15 +10961,24 @@ V473_HOTFIX_JS = r""";(()=>{
   }
   window.v473AgendaStatusForDate=statusForDate;
 
-  // En la cuadrícula, "Pendiente" solo aparece desde la hora en que corresponde
-  // enviar la confirmación. Una cita futura todavía no confirmada dice "Agendada".
-  window.nativeAgendaRowCell=function(row,date,time){
-    if(!row)return `<button class="native-slot free" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">${esc(fmtTime(time))}</b><span>Disponible</span></button>`;
-    const a=row.appointment||{},p=row.patient||{},staged=row.staged||{},source=String(row.source_type||''),unlinked=source==='MOBILE_UNLINKED'||source==='LEGACY_UNLINKED'||source==='CONFIRMAFY_STAGED'||source==='CONFIRMAFY_LEGACY';
-    const name=staged.nombre||p.nombre||'PACIENTE',status=statusForDate(a.estado,date),sourceBadge=unlinked?'<small class="native-unlinked">SIN VINCULAR</small>':'';
-    const action=unlinked?`openUnlinkedAgendaDetail(${Number(staged.id||0)},'${date}')`:`openLinkedAgendaDetail(${Number(a.id||0)},${Number(p.id||0)},'${date}')`;
-    return `<button class="native-slot occupied ${status.cls}" onclick="${action}"><b>${esc(name)}</b><span>${esc(status.label)}</span>${sourceBadge}</button>`;
-  };
+  // La Agenda canónica dibuja franjas cerradas, tarjetas, etiquetas y respuestas
+  // de WhatsApp. El viejo hotfix reemplazaba TODO el renderer y reintroducía
+  // "08:00Disponible" e incluso mostraba el miércoles 08:00 como disponible.
+  // Conservar únicamente el texto histórico "Agendada" antes del recordatorio,
+  // delegando siempre a la única implementación de app.js.
+  const nativeAgendaRowCellWithTimeRules=window.nativeAgendaRowCell;
+  if(typeof nativeAgendaRowCellWithTimeRules==='function'){
+    window.nativeAgendaRowCell=function(row,date,time){
+      const html=nativeAgendaRowCellWithTimeRules.apply(this,arguments);
+      if(!row || statusForDate(row.appointment?.estado,date).cls!=='scheduled')return html;
+      // Solo la etiqueta administrativa visible, sin alterar color, clases,
+      // historial, botones, hora, estado persistido ni badges de WhatsApp.
+      return html.replace(
+        /(<span class="native-status-label pending"><i aria-hidden="true">◷<\/i>)Pendiente(<\/span>)/,
+        '$1Agendada$2'
+      );
+    };
+  }
 
   // El detalle usa la misma regla de fecha que la cuadrícula.
   const baseOpenLinked=window.openLinkedAgendaDetail;
