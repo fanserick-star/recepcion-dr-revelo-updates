@@ -1069,3 +1069,153 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .clinical-registration-option input{width:13px!important;height:13px!important;min-height:0!important;margin:0!important;padding:0!important;accent-color:#286bc5;cursor:pointer}
 .clinical-registration-compact.is-subsequent .clinical-registration-option{border-color:#e8d6b4!important;background:#fffaf2!important;color:#87621d!important}
 @media(max-width:500px){.clinical-registration-compact{flex-wrap:wrap;row-gap:6px}}
+
+
+
+/* v4.8.34 — Remaster grafito de Agenda ÚNICAMENTE (no afecta pacientes ni otras pantallas).
+   Vistas Mañana/Tarde sin salto de servidor: las 4 columnas siguen alineadas. */
+#agenda.agenda-remaster-dark{
+  --ag-bg:#10141b;--ag-card:#171d27;--ag-cell:#191f2a;--ag-line:#303a49;
+  --ag-text:#f1f5fc;--ag-muted:#a5b3c8;--ag-blue:#80b5ff;
+  background:linear-gradient(145deg,#1b2330 0%,#10141b 56%,#131925 100%);
+  border:1px solid #354052;border-radius:20px;padding:16px 16px 18px;color:var(--ag-text);
+}
+#agenda.agenda-remaster-dark h1,
+#agenda.agenda-remaster-dark .title-brand-line h1{color:#f5f8ff!important}
+#agenda.agenda-remaster-dark .section-title-with-brand p{color:#b6c4d9!important}
+#agenda.agenda-remaster-dark .agenda-native-title-row{margin-bottom:10px!important}
+#agenda.agenda-remaster-dark .agenda-native-weekbar{
+  background:#171d27!important;border:1px solid #344052!important;
+  box-shadow:none!important;border-radius:14px!important;padding:10px 12px!important;
+  gap:8px!important;align-items:center!important;
+}
+#agenda.agenda-remaster-dark .agenda-browser-stack{gap:4px!important}
+#agenda.agenda-remaster-dark .agenda-week-row{gap:7px!important}
+#agenda.agenda-remaster-dark .agenda-week-current span,
+#agenda.agenda-remaster-dark .agenda-week-jump span{color:#91a6be!important}
+#agenda.agenda-remaster-dark .agenda-week-current b{color:#f1f5fc!important}
+#agenda.agenda-remaster-dark .agenda-week-jump,
+#agenda.agenda-remaster-dark .agenda-month-jump{
+  background:#252e3d!important;border-color:#42536b!important;color:#f1f5fc!important;
+}
+#agenda.agenda-remaster-dark .agenda-week-jump input,
+#agenda.agenda-remaster-dark .agenda-month-jump input{color:#f1f5fc!important;color-scheme:dark!important}
+#agenda.agenda-remaster-dark .agenda-week-row>button,
+#agenda.agenda-remaster-dark .agenda-month-row>button{
+  background:#283345!important;color:#d9e7fb!important;border:1px solid #43536a!important;
+  height:38px!important;min-height:38px!important;padding:0 11px!important;
+}
+#agenda.agenda-remaster-dark .agenda-week-today{
+  background:#244c7b!important;border-color:#4074b2!important;color:white!important;
+}
+#agenda.agenda-remaster-dark .agenda-week-row>button:hover,
+#agenda.agenda-remaster-dark .agenda-month-row>button:hover{background:#355274!important}
+#agenda.agenda-remaster-dark .agenda-more-navigation,
+#agenda.agenda-remaster-dark .agenda-state-details,
+#agenda.agenda-remaster-dark .agenda-wa-extra,
+#agenda.agenda-remaster-dark .agenda-hints{font-size:11px;color:#abbbd0}
+#agenda.agenda-remaster-dark summary{cursor:pointer;list-style:none;font-weight:750}
+#agenda.agenda-remaster-dark summary::-webkit-details-marker{display:none}
+#agenda.agenda-remaster-dark .agenda-more-navigation>summary,
+#agenda.agenda-remaster-dark .agenda-state-details>summary,
+#agenda.agenda-remaster-dark .agenda-wa-extra>summary{display:inline-flex;align-items:center;gap:5px}
+#agenda.agenda-remaster-dark .agenda-more-navigation>summary::before,
+#agenda.agenda-remaster-dark .agenda-state-details>summary::before,
+#agenda.agenda-remaster-dark .agenda-wa-extra>summary::before{content:'›';font-weight:900;font-size:15px}
+#agenda.agenda-remaster-dark details[open]>summary::before{transform:rotate(90deg)}
+#agenda.agenda-remaster-dark .agenda-more-navigation .agenda-month-row{margin-top:8px;padding:8px;background:#202a39;border-radius:10px}
+#agenda.agenda-remaster-dark .agenda-native-legend{margin-top:9px!important;color:#d3dcea!important}
+#agenda.agenda-remaster-dark .agenda-native-legend span{color:#d3dcea!important}
+#agenda.agenda-remaster-dark .agenda-wa-toolbar{align-items:center}
+#agenda.agenda-remaster-dark .agenda-wa-extra{position:relative}
+#agenda.agenda-remaster-dark .agenda-wa-extra>div{position:absolute;z-index:5;right:0;top:23px;
+ background:#232e3d;border:1px solid #4b5a70;border-radius:10px;padding:7px;min-width:170px}
+#agenda.agenda-remaster-dark .agenda-wa-refresh{background:#283549;color:#f0f5fe;border-color:#54647a}
+#agenda.agenda-remaster-dark .agenda-focus-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin:9px 0 9px;padding:9px 12px;background:#192331;border:1px solid #344359;border-radius:13px;
+}
+#agenda.agenda-remaster-dark .agenda-focus-heading{display:grid;gap:3px}
+#agenda.agenda-remaster-dark .agenda-focus-heading strong{color:#f0f5fc;font-size:13px}
+#agenda.agenda-remaster-dark .agenda-focus-heading small{color:#a9c0dc;font-size:11px}
+#agenda.agenda-remaster-dark .agenda-focus-tabs{display:flex;gap:4px;padding:4px;background:#0c111a;border:1px solid #364356;border-radius:11px}
+#agenda.agenda-remaster-dark .agenda-focus-tabs button{
+  min-height:35px;border:1px solid transparent;border-radius:8px;background:transparent;color:#a9b8cc;
+  padding:5px 13px;font-size:12px;font-weight:850;white-space:nowrap;
+}
+#agenda.agenda-remaster-dark .agenda-focus-tabs button.active{
+  background:#d7e8ff;color:#15283f;border-color:#f0f6ff;box-shadow:0 2px 7px #0005;
+}
+#agenda.agenda-remaster-dark .agenda-focus-tabs button:hover:not(.active){background:#253247;color:#e6f1ff}
+#agenda.agenda-remaster-dark .agenda-native-grid{
+  background:#101722!important;border:1px solid #354458!important;box-shadow:none!important;
+  min-height:0!important;max-height:calc(100vh - 275px)!important;border-radius:14px!important;
+}
+#agenda.agenda-remaster-dark .native-schedule{
+  min-width:940px!important;grid-template-columns:62px repeat(4,minmax(205px,1fr))!important;
+}
+#agenda.agenda-remaster-dark .native-corner,
+#agenda.agenda-remaster-dark .native-day-head,
+#agenda.agenda-remaster-dark .native-time,
+#agenda.agenda-remaster-dark .native-cell{border-color:#344154!important}
+#agenda.agenda-remaster-dark .native-corner{background:#141b26;color:#b8c7db;font-size:11px}
+#agenda.agenda-remaster-dark .native-day-head{
+  padding:7px 9px!important;background:#202b3a!important;color:#f0f5ff!important;
+}
+#agenda.agenda-remaster-dark .native-day-head b{color:#f3f6fc!important;font-size:12px!important;letter-spacing:.3px}
+#agenda.agenda-remaster-dark .native-day-head span{color:#aabbd0!important;font-size:10px!important}
+#agenda.agenda-remaster-dark .native-day-head small{display:block;color:#9fb1c8;font-size:9px;margin-top:3px}
+#agenda.agenda-remaster-dark .native-time{
+  background:#192433!important;color:#e3efff!important;font-size:12px!important;
+  font-variant-numeric:tabular-nums;min-height:35px!important;padding:3px!important;
+}
+#agenda.agenda-remaster-dark .native-cell{
+  background:#171e2a!important;min-height:35px!important;padding:2px 4px!important;
+}
+#agenda.agenda-remaster-dark .native-slot{
+  border-radius:7px!important;min-height:31px!important;padding:4px 7px!important;
+  gap:1px!important;box-shadow:none!important;
+}
+#agenda.agenda-remaster-dark .native-slot.free{
+  background:#1c2937!important;border:1px dashed #375068!important;color:#abc4dc!important;
+  opacity:1!important;justify-content:center;
+}
+#agenda.agenda-remaster-dark .native-slot.free .native-free-time{color:#a9cbf5!important;font-size:11px!important}
+#agenda.agenda-remaster-dark .native-slot.free span{color:#a4b4c8!important;font-size:9px!important}
+#agenda.agenda-remaster-dark .native-slot.free:hover{background:#234463!important;border-color:#7bb5ed!important}
+#agenda.agenda-remaster-dark .native-slot.occupied{
+  background:#342d20!important;border:1px solid #a47a3d!important;
+  display:grid!important;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied.confirmed{background:#173729!important;border-color:#3e9575!important}
+#agenda.agenda-remaster-dark .native-slot.occupied.rescheduled{background:#1b3151!important;border-color:#5a8cc3!important}
+#agenda.agenda-remaster-dark .native-slot.occupied.cancelled{background:#432328!important;border-color:#ba6875!important}
+#agenda.agenda-remaster-dark .native-slot.occupied>b{
+  grid-column:1/-1;color:#f7f9ff!important;font-size:11px!important;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;line-height:1.15;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied>span{color:#d4dfec!important;font-size:9px!important;white-space:nowrap}
+#agenda.agenda-remaster-dark .native-slot .agenda-wa-chip{margin:0!important;grid-column:2;grid-row:2;font-size:8px!important}
+#agenda.agenda-remaster-dark .native-slot.closed{
+  background:#191e27!important;border:1px solid #2e3b49!important;opacity:1!important;
+}
+#agenda.agenda-remaster-dark .native-slot.closed b{color:#8798ac!important}
+#agenda.agenda-remaster-dark .native-slot.closed span{color:#8798ac!important}
+#agenda.agenda-remaster-dark .native-lunch,
+#agenda.agenda-remaster-dark .native-time.lunch{background:#3a3120!important;color:#f1cc8c!important;border-color:#695337!important}
+#agenda.agenda-remaster-dark .agenda-hints{margin-top:7px!important;padding:7px 10px!important;
+ border:1px solid #344052!important;background:#171f2b!important;color:#a7b8ca!important}
+#agenda.agenda-remaster-dark .agenda-hints p{margin:8px 0 0;line-height:1.5}
+@media(min-width:1500px){
+  #agenda.agenda-remaster-dark .native-schedule{min-width:0!important;grid-template-columns:62px repeat(4,minmax(0,1fr))!important}
+}
+@media(max-width:1050px){
+  #agenda.agenda-remaster-dark .agenda-focus-toolbar{align-items:stretch}
+  #agenda.agenda-remaster-dark .agenda-focus-tabs{justify-content:space-between;flex-wrap:wrap}
+  #agenda.agenda-remaster-dark .agenda-focus-tabs button{flex:1;padding:5px 8px}
+}
+@media(max-width:780px){
+  #agenda.agenda-remaster-dark{padding:10px}
+  #agenda.agenda-remaster-dark .agenda-native-grid{max-height:calc(100vh - 300px)!important}
+  #agenda.agenda-remaster-dark .agenda-focus-tabs{width:100%}
+}
