@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.36",
-  "app_version": "4.8.36",
-  "runtime_version": "4.8.36",
+  "version": "4.8.37",
+  "app_version": "4.8.37",
+  "runtime_version": "4.8.37",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.36: pulido de paleta de agenda con colores sobrios y estados legibles, horarios disponibles con + y hora sin texto pegado, aviso sin vincular más discreto; bloquea miércoles 08:00–09:40 en pantalla y en validación final del servidor, conservando citas históricas y las vistas Mañana/Tarde/Día completo. Mantiene los cambios previos que bloqueo Cloudflare HTTP 403 error 1010 ocasionado por el User-Agent por defecto de Python-urllib, utilizando identificación curl verificada en la PC y preservando capacidades efímeras de Neon, alarmas y antirreenvío. Mantiene el diagnóstico seguro de rechazos Cloudflare HTTP 403 con causa exacta sin exponer tokens, sin alterar los permisos ni enviar Meta. Las mejoras de 4.8.31 permanecen: restaura la consulta de accesos de Agenda Web sin regenerar claves y reprograma correctamente alarmas al cancelar citas. Bloquea los envíos automáticos locales antiguos y evita crear bandejas locales duplicadas cuando WhatsApp Cloud está activo. Incluye diagnóstico de autorización sin enviar mensajes. Conserva el coordinador único de Cloudflare, plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
-    "previous_version": "4.8.35",
+    "purpose": "Recepción 4.8.37: corrige un hotfix antiguo que sobrescribía la agenda canónica e ignoraba franjas cerradas, etiquetas nuevas y respuestas WhatsApp; ahora delega todo el renderizado y solo conserva la etiqueta histórica Agendada para citas futuras antes de la confirmación. Evita caché WebView cruzada con parámetros de versión reales y HTML no-store. Conserva el pulido de agenda de 4.8.36, el miércoles desde 10:00 y no altera citas, facturas, turnos, historia ni envíos. Mantiene los cambios previos que bloqueo Cloudflare HTTP 403 error 1010 ocasionado por el User-Agent por defecto de Python-urllib, utilizando identificación curl verificada en la PC y preservando capacidades efímeras de Neon, alarmas y antirreenvío. Mantiene el diagnóstico seguro de rechazos Cloudflare HTTP 403 con causa exacta sin exponer tokens, sin alterar los permisos ni enviar Meta. Las mejoras de 4.8.31 permanecen: restaura la consulta de accesos de Agenda Web sin regenerar claves y reprograma correctamente alarmas al cancelar citas. Bloquea los envíos automáticos locales antiguos y evita crear bandejas locales duplicadas cuando WhatsApp Cloud está activo. Incluye diagnóstico de autorización sin enviar mensajes. Conserva el coordinador único de Cloudflare, plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
+    "previous_version": "4.8.36",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
