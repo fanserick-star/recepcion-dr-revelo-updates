@@ -29,7 +29,7 @@ assert.match(reception, /_whatsapp_alarm_notify_async\(source_type="appointment"
 assert.match(reception, /pending_this_event/);
 
 const start = worker.indexOf("async function serveAdminAgendaAlarmHint(request, env) {");
-const end = worker.indexOf("async function verifyReceptionAlarmHint(request, env)", start);
+const end = worker.indexOf("// Un único coordinador WhatsApp para Agenda Web y Recepción.", start);
 assert.ok(start > 0 && end > start);
 const handlerSource = worker.slice(start, end);
 assert.doesNotMatch(handlerSource, /sendMeta\(|sendTextMeta\(|runScheduler\(/);
