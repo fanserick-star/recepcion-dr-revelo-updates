@@ -2307,6 +2307,28 @@ function jumpNativeAgendaMonth(value){
   agendaNativeAnchor=firstClinicAnchorOfMonth(Number(m[1]),Number(m[2])-1);
   syncNativeAgendaMonthControl();syncNativeAgendaWeekControl();loadAgenda();
 }
+// La agenda compacta cambia solo la presentación: no consulta ni escribe Neon.
+let agendaRemasterRange='morning';
+function setAgendaTimeRange(range){
+  if(!['morning','afternoon','all'].includes(range))return;
+  agendaRemasterRange=range;
+  for(const button of document.querySelectorAll('#agenda [data-agenda-range]')){
+    const selected=button.dataset.agendaRange===range;
+    button.classList.toggle('active',selected);
+    button.setAttribute('aria-pressed',selected?'true':'false');
+  }
+  const label=$('#agendaFocusSummary');
+  if(label)label.textContent=range==='morning'
+    ?'Mañana · 08:00–12:20 · Miércoles desde las 10:00'
+    :range==='afternoon'
+      ?'Tarde · 14:00–17:00'
+      :'Jornada completa · 08:00–17:00 · Pausa 12:30–14:00';
+  if(agendaNativeWeek)renderNativeAgenda(agendaNativeWeek);
+}
+function agendaVisibleSlotTimes(){
+  if(agendaRemasterRange==='all')return AGENDA_SLOT_TIMES;
+  return AGENDA_SLOT_TIMES.filter(time=>agendaRemasterRange==='morning'?time<'13:00':time>='14:00');
+}
 function agendaStatusInfo(state){const s=String(state||'PENDIENTE').toUpperCase();if(['CONFIRMADA','CONFIRMADO'].includes(s))return {label:'Confirmada',cls:'confirmed'};if(['NO_ASISTIRA','CANCELADA','CANCELADO'].includes(s))return {label:'No asistirá',cls:'cancelled'};if(s==='REAGENDADA')return {label:'Reagendada',cls:'rescheduled'};return {label:'Pendiente',cls:'pending'}}
 function agendaWeekLabel(week={}){const days=week.days||[];if(!days.length)return '—';return `${fmtDate(days[0].date)} – ${fmtDate(days[days.length-1].date)}`}
 async function loadAgenda(){
@@ -2344,9 +2366,15 @@ function nativeAgendaRowCell(row,date,time){
 }
 function renderNativeAgenda(week={}){
   const box=$('#agendaNativeGrid');if(!box)return;const days=week.days||[];const maps=days.map(day=>{const m=new Map();for(const row of day.appointments||[]){const t=String(row.appointment?.hora||row.staged?.hora||'');if(t&&!m.has(t))m.set(t,row)}return m});
-  let html='<div class="native-schedule"><div class="native-corner">HORA</div>'+days.map(d=>`<div class="native-day-head"><b>${esc(String(d.label||'').toUpperCase())}</b><span>${fmtDate(d.date)}</span></div>`).join('');
+  let html='<div class="native-schedule"><div class="native-corner">HORA</div>'+days.map(d=>`<div class="native-day-head"><b>${esc(String(d.label||'').toUpperCase())}</b><span>${fmtDate(d.date)}</span><small>${(d.appointments||[]).length} citas</small></div>`).join('');
   let lunch=false;
-  for(const time of AGENDA_SLOT_TIMES){if(!lunch&&time==='14:00'){html+=`<div class="native-time lunch">12:30 PM</div><div class="native-lunch" style="grid-column:span ${days.length}">ALMUERZO · 12:30 PM – 2:00 PM</div>`;lunch=true}html+=`<div class="native-time">${esc(fmtTime(time))}</div>`;days.forEach((d,i)=>{html+=`<div class="native-cell">${nativeAgendaRowCell(maps[i].get(time),d.date,time)}</div>`})}
+  for(const time of agendaVisibleSlotTimes()){
+    if(agendaRemasterRange==='all'&&!lunch&&time==='14:00'){
+      html+=`<div class="native-time lunch">12:30</div><div class="native-lunch" style="grid-column:span ${days.length}">PAUSA · 12:30–14:00</div>`;lunch=true;
+    }
+    html+=`<div class="native-time">${esc(time)}</div>`;
+    days.forEach((d,i)=>{html+=`<div class="native-cell">${nativeAgendaRowCell(maps[i].get(time),d.date,time)}</div>`});
+  }
   html+='</div>';box.innerHTML=html;
 }
 const agendaRecentPickerCache=new Map();
