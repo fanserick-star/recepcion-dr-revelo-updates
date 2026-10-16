@@ -341,6 +341,31 @@ RUNTIME_CSS = r'''
 [onclick*="chooseConfirmafyImport"],[onclick*="openExternalApp('confirmafy')"],[onclick*='openExternalApp("confirmafy")']{display:none!important}
 .confirmafy-import-modal,.patient-origin-badge{display:none!important}
 @media(max-width:700px){.rp-msg-row{grid-template-columns:28px minmax(0,1fr)}.rp-msg-row>time{grid-column:2}.rp-msg-head{align-items:flex-start}}
+
+/* Remaster 4.8.29: mayor jerarquia visual sin duplicar rutas o estados. */
+.rp-msg-history{border:1px solid #d7e3ef;border-radius:16px;background:#fff;box-shadow:0 3px 14px rgba(31,52,82,.045);overflow:hidden}
+.rp-msg-head{padding:14px 17px;background:linear-gradient(110deg,#f2f7fd,#fbfdff 80%);border-bottom:1px solid #e1eaf3}
+.rp-msg-head>div{display:grid;gap:4px}.rp-msg-head h3{font-size:15px;letter-spacing:-.02em;font-weight:800;color:#1c3552}
+.rp-msg-head small{font-size:10px;color:#6a8297;font-weight:500}
+.rp-msg-head span{background:#e5f0ff;color:#315e87;font-size:10px;padding:5px 9px;white-space:nowrap}
+.rp-msg-list{padding:3px 14px 7px}
+.rp-msg-row{grid-template-columns:34px minmax(0,1fr) auto;gap:11px;padding:13px 3px;border-bottom:1px solid #edf2f7}
+.rp-msg-icon{width:32px;height:32px;background:#edf4fc;border-radius:10px;font-size:16px}
+.rp-msg-row.inbound .rp-msg-icon{background:#e8f6ec}
+.rp-msg-row.error .rp-msg-icon{background:#fceceb}
+.rp-msg-title b{font-size:13px;line-height:1.35;color:#233b53}
+.rp-msg-status{font-size:9px;letter-spacing:0;padding:4px 8px}
+.rp-msg-status.planned,.rp-msg-status.sending{background:#fff4df;color:#906b29}
+.rp-msg-status.read,.rp-msg-status.delivered,.rp-msg-status.sent{background:#e5f5eb;color:#246d48}
+.rp-msg-meta{font-size:10px;line-height:1.45;margin-top:5px;color:#728296}
+.rp-msg-body{background:#f4f7fb;border:1px solid #e8eef5;font-size:11px;padding:9px 11px}
+.rp-msg-row.error .rp-msg-body{background:#fff8f5;border-color:#f1dbcf;color:#875345}
+.rp-msg-empty{font-size:12px;padding:21px 15px;color:#74879b}
+.rp-msg-error{font-size:10px;line-height:1.4;padding:10px 15px}
+.rp-msg-manual-actions{padding:12px 17px;border-top:1px solid #e5edf6;background:#fafcff;display:flex;flex-direction:column;gap:5px}
+.rp-msg-manual-actions button{align-self:flex-start;border-radius:9px;padding:9px 13px}
+.rp-msg-manual-actions small{font-size:10px;color:#7d8792}
+@media(max-width:700px){.rp-msg-row{grid-template-columns:32px minmax(0,1fr)}.rp-msg-row>time{grid-column:2}.rp-msg-head{align-items:flex-start}.rp-msg-row{padding:12px 0}}
 '''
 
 
@@ -356,8 +381,8 @@ const fmtShort=v=>{if(!v)return'';try{return new Date(v).toLocaleString('es-EC',
 function statusTimes(x){const out=[];if(x.due_at&&!x.sent_at)out.push('Programado: '+fmtStamp(x.due_at));if(x.sent_at)out.push('Enviado: '+fmtShort(x.sent_at));if(x.delivered_at)out.push('Entregado: '+fmtShort(x.delivered_at));if(x.read_at)out.push('Leído: '+fmtShort(x.read_at));if(x.received_at)out.push('Recibido: '+fmtStamp(x.received_at));return out.join(' · ')}
 function actions(x,ctx){if(x.direction!=='inbound'||x.resolved_at||String(x.status||'').toUpperCase()!=='REVISAR')return'';const id=Number(x.response_id||0);if(!id)return'';if(ctx.kind==='appointment')return `<div class="rp-msg-review-actions"><button class="primary" onclick="rpResolveMessage(${id},'CONFIRMAR',${Number(ctx.appointmentId)},${Number(ctx.patientId)},'${eh(ctx.fecha)}')">✓ Confirmar</button><button onclick="rpResolveMessage(${id},'CANCELAR',${Number(ctx.appointmentId)},${Number(ctx.patientId)},'${eh(ctx.fecha)}')">× No asistirá</button><button onclick="rpResolveMessage(${id},'RESUELTO',${Number(ctx.appointmentId)},${Number(ctx.patientId)},'${eh(ctx.fecha)}')">Marcar resuelto</button></div>`;return `<div class="rp-msg-review-actions"><button onclick="rpResolveMessage(${id},'RESUELTO',0,0,'')">Marcar resuelto</button></div>`}
 function eventHtml(x,ctx){const inbound=x.direction==='inbound',audio=x.kind==='audio',icon=inbound?(audio?'🎙':'↙'):'↗',tone=eh(x.tone||'muted'),body=inbound?(x.body||'Sin texto'):(x.error?'Error: '+x.error:''),meta=statusTimes(x),audioHtml=audio&&Number(x.response_id)?`<div class="rp-msg-audio"><audio id="waAudioPlayer${Number(x.response_id)}" controls preload="none"></audio><small id="waAudioStatus${Number(x.response_id)}" class="wa-audio-error">Cargando audio…</small></div>`:'';return `<div class="rp-msg-row ${inbound?'inbound':'outbound'} ${tone==='error'?'error':''}"><span class="rp-msg-icon">${icon}</span><div class="rp-msg-copy"><div class="rp-msg-title"><b>${eh(x.label||'WhatsApp')}</b><span class="rp-msg-status ${tone}">${eh(x.status_label||'')}</span></div>${meta?`<div class="rp-msg-meta">${eh(meta)}</div>`:''}${body?`<div class="rp-msg-body">${eh(body)}</div>`:''}${audioHtml}${actions(x,ctx)}</div><time class="rp-msg-meta">${eh(fmtShort(x.timestamp))}</time></div>`}
-function render(data,ctx){const events=Array.isArray(data?.events)?data.events:[];let html='<div class="rp-msg-head"><h3>Mensajería WhatsApp</h3><span>Cloud 24/7</span></div>';if(!events.length)html+='<div class="rp-msg-empty">Aún no se han enviado ni recibido mensajes para esta cita.</div>';else html+='<div class="rp-msg-list">'+events.map(x=>eventHtml(x,ctx)).join('')+'</div>';if(data?.cloud_error&&events.length)html+=`<div class="rp-msg-error">La nube no respondió completamente: ${eh(data.cloud_error)}</div>`;if(ctx.kind==='appointment'&&data?.can_manual_resend){
-  html+='<div style="padding:10px 12px;border-top:1px solid #e4ebf2"><button type="button" class="primary-soft" onclick="manualResendCitaAgendada('+Number(ctx.appointmentId)+')">Enviar «Cita agendada» manualmente (una sola vez)</button><small style="display:block;padding-top:6px">Precaución: sin constancia no garantiza que nunca se haya enviado. Confirma antes.</small></div>';
+function render(data,ctx){const events=Array.isArray(data?.events)?data.events:[];let html='<div class="rp-msg-head"><div><h3>Mensajería WhatsApp</h3><small>Seguimiento real de la cita · un único servicio Cloud</small></div><span>Cloud 24/7</span></div>';if(!events.length)html+='<div class="rp-msg-empty">Aún no se han enviado ni recibido mensajes para esta cita.</div>';else html+='<div class="rp-msg-list">'+events.map(x=>eventHtml(x,ctx)).join('')+'</div>';if(data?.cloud_error&&events.length)html+=`<div class="rp-msg-error">La nube no respondió completamente: ${eh(data.cloud_error)}</div>`;if(ctx.kind==='appointment'&&data?.can_manual_resend){
+  html+='<div class="rp-msg-manual-actions"><button type="button" class="primary-soft" onclick="manualResendCitaAgendada('+Number(ctx.appointmentId)+')">Enviar «Cita agendada» manualmente (una sola vez)</button><small >Precaución: sin constancia no garantiza que nunca se haya enviado. Confirma antes.</small></div>';
 }return html}
 async function getHistory(kind,id,force=false){const key=kind+':'+Number(id),old=cache.get(key);if(!force&&old&&Date.now()-old.at<CACHE_MS)return old.data;const url=kind==='appointment'?`/api/messaging/appointments/${Number(id)}`:`/api/messaging/unlinked/${Number(id)}`;const data=await call(url);cache.set(key,{at:Date.now(),data});return data}
 async function loadHistory(host,ctx,force=false){if(!host)return;host.innerHTML='<div class="rp-msg-empty">Cargando historial de mensajes…</div>';try{const d=await getHistory(ctx.kind,ctx.kind==='appointment'?ctx.appointmentId:ctx.itemId,force);if(!host.isConnected)return;host.innerHTML=render(d,ctx);for(const x of d.events||[])if(x.kind==='audio'&&Number(x.response_id)&&typeof window.loadWhatsappAudioBlob==='function')setTimeout(()=>window.loadWhatsappAudioBlob(Number(x.response_id)),0)}catch(e){host.innerHTML=`<div class="rp-msg-empty">No se pudo cargar la mensajería: ${eh(e.message||e)}</div>`}}
