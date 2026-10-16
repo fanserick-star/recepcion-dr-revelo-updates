@@ -30,8 +30,8 @@ assert "finally" in worker.split("async function withClient(env, fn)", 1)[1][:35
 assert "await c.end();" in worker.split("async function withClient(env, fn)", 1)[1][:350]
 
 # Booking confirmations are event-driven immediately, NOT delayed 30 minutes.
-assert "ctx.waitUntil(registerUnifiedAgendaAlarm(env, "public_web").catch(e => console.error(\"booking_alarm_registration_failed\", e)))" in worker
-assert "ctx.waitUntil(registerUnifiedAgendaAlarm(env, "whatsapp_message").catch(e => console.error(\"autoagenda_alarm_registration_failed\", e)))" in worker
+assert 'registerUnifiedAgendaAlarm(env, "public_web").catch(e => console.error("booking_alarm_registration_failed", e))' in worker
+assert 'registerUnifiedAgendaAlarm(env, "whatsapp_message").catch(e => console.error("autoagenda_alarm_registration_failed", e))' in worker
 assert "when kind='cita_agendada'" not in worker.lower() or "interval '3 minutes'" in worker
 assert "interval '4 hours'" in worker  # missed cron window cannot lose reminders
 assert "case when kind='cita_agendada'" in worker.lower() or "CASE WHEN kind='cita_agendada'" in worker
