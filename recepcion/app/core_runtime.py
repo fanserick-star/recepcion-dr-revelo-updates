@@ -4523,7 +4523,7 @@ def home():
     # reutilizar JavaScript o CSS antiguos aunque el servidor muestre 4.8.x.
     # Vincular assets a la versión REAL del runtime (sin cadenas de versiones).
     html = re.sub(
-        r'(/static/(?:app\\.js|style\\.css))\\?v=[^"\\']+',
+        r'(/static/(?:app\.js|style\.css))\?v=[^"]+',
         lambda m: f"{m.group(1)}?v={APP_VERSION}",
         html,
     )
