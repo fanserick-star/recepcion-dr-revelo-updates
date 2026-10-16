@@ -3394,6 +3394,11 @@ def normalize_appointment_payload(data) -> dict:
     # y la última cita disponible comienza a las 17:00.
     if minutes < 8 * 60 or minutes > 17 * 60:
         raise HTTPException(400, "La cita debe estar entre las 08:00 y las 17:00")
+    # El selector ya bloqueaba 08:00–09:40 los miércoles; validar también
+    # en el servidor para que guardar o reagendar no admita ese hueco.
+    appointment_date = values.get("fecha")
+    if isinstance(appointment_date, date) and appointment_date.weekday() == 2 and minutes < 10 * 60:
+        raise HTTPException(400, "Los miércoles las citas comienzan a las 10:00")
     if minutes < 14 * 60 and end > 12 * 60 + 30:
         raise HTTPException(400, "De 12:30 a 14:00 es horario de almuerzo")
     values["hora"] = raw_time

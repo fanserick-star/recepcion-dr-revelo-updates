@@ -1293,3 +1293,69 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
  #agenda.agenda-remaster-dark .native-slot .agenda-wa-chip{font-size:8px!important;padding:2px 3px!important}
  #agenda.agenda-remaster-dark .native-slot.occupied>.native-status-label{font-size:9px!important;padding:2px 3px!important}
 }
+
+
+
+/* v4.8.36 — pulido grafito, controles legibles y colores sobrios. Solo Agenda. */
+#agenda.agenda-remaster-dark{
+ background:linear-gradient(150deg,#27313f 0%,#202b39 60%,#1e2936 100%)!important;
+ border-color:#4a5a6e!important;
+}
+#agenda.agenda-remaster-dark .agenda-native-grid{background:#202b38!important;border-color:#4a5c70!important}
+#agenda.agenda-remaster-dark .native-day-head{background:#303e4d!important;border-color:#465a6c!important}
+#agenda.agenda-remaster-dark .native-cell{background:#263240!important;border-color:#3e5165!important}
+#agenda.agenda-remaster-dark .native-time{background:#263648!important;color:#e9f2ff!important;border-color:#3e5165!important}
+#agenda.agenda-remaster-dark .native-slot.free{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ background:#354558!important;border:1px dashed #5a7289!important;box-shadow:none!important;
+}
+#agenda.agenda-remaster-dark .native-slot.free .native-free-time{
+ color:#e7f2ff!important;font-size:12px!important;font-weight:800!important;
+ letter-spacing:.2px!important;white-space:nowrap!important;
+}
+#agenda.agenda-remaster-dark .native-slot.free:hover{background:#3c5673!important;border-color:#9dbde2!important}
+#agenda.agenda-remaster-dark .native-slot.closed{
+ display:flex!important;align-items:center!important;justify-content:center!important;
+ gap:5px!important;background:#222e39!important;border-color:#37495a!important;
+ opacity:1!important;
+}
+#agenda.agenda-remaster-dark .native-slot.closed b,
+#agenda.agenda-remaster-dark .native-slot.closed span{
+ color:#9daebd!important;font-size:10px!important;font-weight:750!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied{
+ background:#725b38!important;border-color:#c5a46b!important;
+ box-shadow:inset 3px 0 0 #d5b577!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied.confirmed,
+#agenda.agenda-remaster-dark .native-slot.occupied.wa-confirmed{
+ background:#25654f!important;border-color:#6aad91!important;
+ box-shadow:inset 3px 0 0 #8dc3aa!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied.rescheduled{
+ background:#34587d!important;border-color:#729ecb!important;
+ box-shadow:inset 3px 0 0 #9fbdda!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied.cancelled,
+#agenda.agenda-remaster-dark .native-slot.occupied.wa-no-show{
+ background:#78434c!important;border-color:#c78690!important;
+ box-shadow:inset 3px 0 0 #d9a6ad!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied.wa-review{
+ border-color:#d3ac6f!important;box-shadow:inset 3px 0 0 #ddb574!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied>b{
+ color:#f5f8ff!important;text-shadow:none!important;font-size:11.5px!important;font-weight:850!important;
+}
+#agenda.agenda-remaster-dark .native-slot.occupied>.native-status-label{
+ background:#111a2447!important;font-size:9.5px!important;padding:2px 5px!important;
+}
+#agenda.agenda-remaster-dark .native-slot .native-unlinked{
+ background:transparent!important;border:0!important;
+ color:#b9c6d6!important;opacity:.85!important;font-size:8px!important;
+ font-weight:750!important;white-space:nowrap!important;padding:1px 2px!important;
+}
+#agenda.agenda-remaster-dark .agenda-native-legend .dot.pending{background:#d5b577!important}
+#agenda.agenda-remaster-dark .agenda-native-legend .dot.confirmed{background:#78b69a!important}
+#agenda.agenda-remaster-dark .agenda-native-legend .dot.rescheduled{background:#87a9d3!important}
+#agenda.agenda-remaster-dark .agenda-native-legend .dot.cancelled{background:#d4969e!important}

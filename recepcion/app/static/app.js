@@ -2346,16 +2346,20 @@ async function loadAgenda(){
   }catch(e){if(box)box.innerHTML=`<div class="panel err">${esc(e.message)}</div>`}
 }
 function agendaSlotOpenForDay(date,time){
-  const d=parseISO(date),parts=String(time||'').split(':'),minutes=(Number(parts[0]||0)*60)+Number(parts[1]||0);
-  // Miércoles: atención 10:00–17:00. Los demás días conservan su horario actual.
-  if(d.getDay()===3&&minutes<10*60)return false;
-  return true;
+  const iso=String(date||'').slice(0,10);
+  const parts=/^(\d{2}):(\d{2})$/.exec(String(time||''));
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)||!parts)return false;
+  const dateObj=parseISO(iso),minute=Number(parts[1])*60+Number(parts[2]);
+  if(Number.isNaN(dateObj.getTime())||minute>17*60||minute<8*60)return false;
+  // Miércoles inicia 10:00. La pantalla no ofrece crear huecos cerrados.
+  if(dateObj.getDay()===3&&minute<10*60)return false;
+  return !(minute<14*60&&minute+20>12*60+30);
 }
 function nativeAgendaRowCell(row,date,time){
   // Si existiera una cita histórica fuera del horario nuevo, se sigue mostrando.
   // Solo se bloquean los huecos libres para impedir agendar donde el doctor no atiende.
-  if(!row&&!agendaSlotOpenForDay(date,time))return `<div class="native-slot closed"><b>${esc(fmtTime(time))}</b><span>No disponible</span></div>`;
-  if(!row)return `<button class="native-slot free" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">${esc(fmtTime(time))}</b><span>Disponible</span></button>`;
+  if(!row&&!agendaSlotOpenForDay(date,time))return `<div class="native-slot closed" title="Fuera del horario de atención"><b>—</b><span>Cerrado</span></div>`;
+  if(!row)return `<button class="native-slot free" aria-label="Agendar a las ${esc(time)}" title="Agendar cita ${esc(time)}" onclick="openAgendaSlotPicker('${date}','${time}')"><b class="native-free-time">＋ ${esc(fmtTime(time))}</b></button>`;
   const a=row.appointment||{},p=row.patient||{},staged=row.staged||{},source=String(row.source_type||''),unlinked=source==='MOBILE_UNLINKED'||source==='LEGACY_UNLINKED'||source==='CONFIRMAFY_STAGED'||source==='CONFIRMAFY_LEGACY';
   const name=staged.nombre||p.nombre||'PACIENTE';const status=agendaStatusInfo(a.estado);
   const stateIcon={pending:'◷',confirmed:'✓',rescheduled:'↻',cancelled:'✕'}[status.cls]||'•';
