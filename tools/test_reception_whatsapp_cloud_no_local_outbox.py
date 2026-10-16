@@ -4,7 +4,7 @@ Prueba aislada; no conecta con Neon, Cloudflare ni Meta ni crea pacientes.
 from __future__ import annotations
 
 import ast
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,13 +17,19 @@ functions = [
 ]
 assert len(functions) == 1
 function = functions[0]
-assert isinstance(function.body[1], ast.If)
-assert ast.unparse(function.body[1].test) == "WHATSAPP_CLOUD_MODE"
-assert "return {'queued': 0, 'cloud_mode': True, 'local_outbox_created': False}" in ast.unparse(function.body[1])
+guards = [
+    node for node in function.body
+    if isinstance(node, ast.If) and ast.unparse(node.test) == "WHATSAPP_CLOUD_MODE"
+]
+assert len(guards) == 1
+guard = guards[0]
+assert function.body.index(guard) > 1  # validacion de fecha/hora siempre primero
+assert "return {'queued': 0, 'cloud_mode': True, 'local_outbox_created': False}" in ast.unparse(guard)
 
 # La funcion queda aislada sin LocalSessionLocal, sin llamadas a Meta,
 # sin scheduler local ni envio de mensajes de prueba.
 alarms = []
+target = date.today() + timedelta(days=14)
 def alarm(**kwargs):
     alarms.append(kwargs)
 
@@ -31,11 +37,13 @@ scope = {
     "WHATSAPP_CLOUD_MODE": True,
     "_whatsapp_alarm_notify_async": alarm,
     "date": date,
+    "datetime": datetime,
+    "_whatsapp_cancel_pending": lambda *_args: None,
 }
 exec(compile(ast.Module(body=[function], type_ignores=[]), "<isolated booking>", "exec"), scope)
 res = scope["schedule_whatsapp_for_contact"](
     source_type="appointment", source_id=123, name="PACIENTE DE PRUEBA",
-    phone="0999999999", fecha=date(2026, 10, 29), hora="10:20"
+    phone="0999999999", fecha=target, hora="10:20"
 )
 assert res == {"queued": 0, "cloud_mode": True, "local_outbox_created": False}
 assert alarms == [{"source_type": "appointment", "source_id": 123}]
@@ -44,10 +52,24 @@ alarms.clear()
 # La autoagenda puede pasar por 'staged' y sigue usando la misma alarma.
 res = scope["schedule_whatsapp_for_contact"](
     source_type="staged", source_id=456, name="PRUEBA",
-    phone="0999999999", fecha=date(2026, 10, 29), hora="11:00"
+    phone="0999999999", fecha=target, hora="11:00"
 )
 assert res["local_outbox_created"] is False
 assert alarms == [{"source_type": "staged", "source_id": 456}]
+alarms.clear()
+
+# No despertar Neon ni programar nada ante horarios invalidos o ya vencidos.
+bad = scope["schedule_whatsapp_for_contact"](
+    source_type="appointment", source_id=789, name="PRUEBA",
+    phone="0999999999", fecha=target, hora="INVALIDO"
+)
+assert bad["reason"] == "invalid_datetime"
+past = scope["schedule_whatsapp_for_contact"](
+    source_type="appointment", source_id=790, name="PRUEBA",
+    phone="0999999999", fecha=date.today() - timedelta(days=1), hora="10:00"
+)
+assert past["reason"] == "past_appointment"
+assert alarms == []
 
 # La sincronizacion offline, su reintento y las rutas del historial no se quitan.
 assert "def process_offline_queue(" in source
