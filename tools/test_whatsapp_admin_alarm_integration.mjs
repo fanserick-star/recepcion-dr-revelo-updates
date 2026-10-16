@@ -47,9 +47,11 @@ const context = {
       return { rows: [{ role }] };
     },
   }),
-  refreshWhatsappAlarm: async () => {
+  registerUnifiedAgendaAlarm: async (_env,origin) => {
+    assert.equal(origin,"admin_web");
     alarmCalls++;
-    return { ok: alarmOk };
+    if (!alarmOk) throw new Error("Simulated scheduler unavailable");
+    return { ok: true, alarm_scheduled: true };
   },
   console: { error() {} },
 };
