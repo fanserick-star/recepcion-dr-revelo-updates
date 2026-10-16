@@ -7076,138 +7076,78 @@ async function serveAdminAgendaAlarmHint(request, env) {
   }
 }
 
-// Clave compartida restringida en Neon. La PC y el Worker pueden usar
-// credenciales de PostgreSQL distintas; nunca usarlas como secreto entre apps.
-let receptionSigningCache = {key:"",expires:0};
-async function receptionSharedSigningKey(env) {
-  if (receptionSigningCache.key && Date.now()<receptionSigningCache.expires)
-    return receptionSigningCache.key;
-  const key = await withClient(env,async client => {
-    const r=await client.query("SELECT encode(secret,'hex') AS signing_key FROM whatsapp_cloud.reception_signing_key WHERE id=1");
-    return String(r.rows?.[0]?.signing_key||"");
-  });
-  if (!/^[0-9a-f]{64}$/.test(key)) throw new Error("reception_auth_key_missing");
-  receptionSigningCache={key,expires:Date.now()+30*60*1000};
-  return key;
-}
-async function verifyReceptionAlarmHint(request, env) {
-  return verifyReceptionSignedPayload(request, env, "agenda_changed_v1");
-}
-async function verifyReceptionSignedPayload(request, env, expectedBody) {
-  if (!env.DATABASE_URL) return false;
-  const ts=Number(request.headers.get("x-revelo-timestamp")||0);
-  if (!Number.isFinite(ts) || Math.abs(Date.now()/1000-ts)>120) return false;
-  const supplied=String(request.headers.get("x-revelo-signature")||"").toLowerCase();
-  if (!/^[0-9a-f]{64}$/.test(supplied)) return false;
-  const body=await request.text();
-  if (body!==expectedBody) return false;
-  const keys=[];
-  try { keys.push(await receptionSharedSigningKey(env)); }
-  catch (err) { console.error("reception_auth_key_unavailable",String(err?.name||"Error")); }
-  // Compatibilidad con aplicaciones anteriores durante la actualización.
-  // La clave de Neon es la preferida y evita enlazar contraseñas de conexión.
-  try {
-    const uri=new URL(String(env.DATABASE_URL).replace(/^postgresql\+[^:]+:/,"postgresql:"));
-    const old=decodeURIComponent(uri.password||"");
-    if (old.length>=12) keys.push(old);
-  } catch {}
-  for (const key of keys) {
-    const hmacKey=await crypto.subtle.importKey("raw",new TextEncoder().encode(key),
-      {name:"HMAC",hash:"SHA-256"},false,["sign"]);
-    const result=new Uint8Array(await crypto.subtle.sign("HMAC",hmacKey,
-      new TextEncoder().encode(String(ts)+"."+body)));
-    const actual=Array.from(result,b=>b.toString(16).padStart(2,"0")).join("");
-    let mismatch=0;
-    for(let i=0;i<actual.length;i++)mismatch|=actual.charCodeAt(i)^supplied.charCodeAt(i);
-    if(mismatch===0)return true;
-  }
-  return false;
-}
 
-
-// Notificación puntual firmada solo para citas NUEVAS de Recepción.
-// No cron, no vigilancia, no reenvío de mensajes antiguos.
-async function serveFreshReceptionBookingNotice(request, env, appointmentId) {
-  if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
-    return json({ok:false,error:"Solicitud inválida."},400);
-  if (!await verifyReceptionSignedPayload(request, env, "reception_fresh_booking_v1:" + appointmentId))
-    return text("Forbidden",403);
-  if (!enabled(env.ENABLE_CITA_AGENDADA))
-    return json({ok:true,sent:false,reason:"disabled"},200);
-  if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
-    return json({ok:false,error:"WhatsApp Cloud no está configurado."},503);
+// Un único coordinador WhatsApp para Agenda Web y Recepción.
+// Capacidad efímera aleatoria (256 bits), solo hash en Neon; sin contraseñas HMAC.
+async function serveReceptionGateway(request,env) {
+  if(request.method!=="POST")return json({ok:false,error:"method_not_allowed"},405);
+  if(!env.DATABASE_URL)return json({ok:false,error:"cloud_unavailable"},503);
+  let payload;
   try {
-    const result = await withClient(env, async client => {
-      // Confirmar en Neon: cita vigente, cambio de hace menos de 145 s,
-      // más de 24 h hasta la visita y antes del día previo.
-      const found = await client.query(`SELECT a.id,a.fecha::text AS fecha,a.hora::text AS hora,
-          p.nombre,p.celular
-        FROM public.appointments a JOIN public.patients p ON p.id=a.patient_id
-        WHERE a.id=$1
-          AND a.origen <> 'CONFIRMAFY_ATENDIDO'
-          AND upper(coalesce(a.estado,'')) NOT IN
-            ('CANCELADA','CANCELADO','NO_ASISTIRA','NO_ASISTIRÁ')
-          AND GREATEST(a.created_at,coalesce(a.updated_at,a.created_at))
-                BETWEEN (now() AT TIME ZONE 'UTC') - interval '145 seconds'
-                    AND (now() AT TIME ZONE 'UTC') + interval '10 seconds'
-          AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil') > now()
-          AND ((a.fecha+a.hora::time) AT TIME ZONE 'America/Guayaquil')
-                - (GREATEST(a.created_at,coalesce(a.updated_at,a.created_at)) AT TIME ZONE 'UTC') >= interval '24 hours'
-          AND ((GREATEST(a.created_at,coalesce(a.updated_at,a.created_at)) AT TIME ZONE 'UTC')
-                AT TIME ZONE 'America/Guayaquil')::date < (a.fecha-1)
-        LIMIT 1`, [appointmentId]);
-      if (!found.rows?.length)
-        return {ok:true,sent:false,reason:"not_fresh_or_ineligible"};
-      const a = found.rows[0];
-      const d = String(a.fecha).slice(0,10), t = String(a.hora).slice(0,5);
-      const candidate = materializeCandidate({
-        source_type:"appointment", source_id:appointmentId, patient_name:a.nombre,
-        phone:a.celular, appointment_date:d, appointment_time:t,
-        kind:"cita_agendada", due_at:new Date().toISOString(), is_test:false
-      }, env);
-      if (!candidate) return {ok:false,code:422,error:"Celular inválido."};
-      candidate.event_key = await sha256(
-        "appointment|" + appointmentId + "|" + candidate.template_name + "|" + d + "|" + t);
-      // La misma event_key que el scheduler: no hay doble envío aunque compitan.
-      // A diferencia del scheduler, aquí NO se reintentan estados ERROR inciertos.
-      const claimed = await client.query(`INSERT INTO whatsapp_cloud.events(
-          event_key,source_type,source_id,template_name,appointment_date,
-          appointment_time,due_at,phone,patient_name,status,attempts,updated_at)
-        VALUES($1,'appointment',$2,$3,$4,$5,now(),$6,$7,'SENDING',1,now())
-        ON CONFLICT(event_key) DO NOTHING RETURNING event_key`,
-        [candidate.event_key,appointmentId,candidate.template_name,d,t,
-         candidate.phone,candidate.patient_name]);
-      if (!claimed.rows?.length)
-        return {ok:true,sent:false,reason:"already_claimed"};
-      try {
-        const accepted = await sendMeta(candidate,env);
-        const metaId = String(accepted?.messages?.[0]?.id || "");
-        if (!metaId) throw new Error("meta_message_id_missing");
-        await markSent(client,candidate,accepted);
-        return {ok:true,sent:true,status:"SENT"};
-      } catch (err) {
-        // FAILED es terminal: el scheduler no reenvía un intento incierto.
-        await client.query(`UPDATE whatsapp_cloud.events
-          SET status='FAILED',error_code='RECEPTION_FRESH_UNCERTAIN',
-              error_text=$2,updated_at=now()
-          WHERE event_key=$1 AND status='SENDING'`,
-          [candidate.event_key,String(err?.name || "SendError").slice(0,80)]);
-        return {ok:false,code:502,error:"Meta no confirmó el envío; intento bloqueado contra duplicados."};
-      }
+    const raw=await request.text();
+    if(raw.length>512)return json({ok:false,error:"invalid_request"},400);
+    payload=JSON.parse(raw);
+  }catch{return json({ok:false,error:"invalid_json"},400);}
+  const token=String(payload?.token||"");
+  if(!/^[A-Za-z0-9_-]{40,64}$/.test(token))return json({ok:false,error:"invalid_capability"},403);
+  const digest=await sha256(token);
+  let req;
+  try {
+    req=await withClient(env,async client=>{
+      const r=await client.query(
+        "SELECT purpose,source_type,source_id FROM whatsapp_cloud.reception_alarm_requests WHERE token_hash=$1 AND expires_at>now() LIMIT 1",
+        [digest]);
+      return r.rows?.[0]||null;
     });
-    return json(result,result.ok?200:(result.code||503));
-  } catch (err) {
-    console.error("reception_fresh_booking_push_failed",String(err?.name||"Error"));
-    return json({ok:false,error:"No se pudo verificar el envío de la cita."},503);
+  }catch(e){console.error("reception_gateway_auth_lookup_failed",String(e?.name||"Error"));return json({ok:false,error:"gateway_database_unavailable"},503);}
+  if(!req)return json({ok:false,error:"expired_or_invalid_capability"},403);
+  const purpose=String(req.purpose||""),sourceType=String(req.source_type||""),sourceId=Number(req.source_id||0);
+  if(!["refresh","auth_check","manual"].includes(purpose))return json({ok:false,error:"invalid_purpose"},403);
+  if(purpose==="auth_check")return json({ok:true,authorized:true,no_messages_sent:true,gateway:"unified_neon_capability_v1"});
+  if(sourceType) {
+    if(!["appointment","staged"].includes(sourceType)||!Number.isSafeInteger(sourceId)||sourceId<=0)
+      return json({ok:false,error:"invalid_source"},403);
+    try {
+      const found=await withClient(env,async client=>{
+        const table=sourceType==="appointment"?"public.appointments":"public.confirmafy_agenda_items";
+        const r=await client.query("SELECT id FROM "+table+" WHERE id=$1 LIMIT 1",[sourceId]);
+        return !!r.rows?.length;
+      });
+      if(!found)return json({ok:false,error:"source_not_synchronized"},409);
+    }catch{return json({ok:false,error:"source_check_failed"},503);}
   }
+  if(purpose==="manual") {
+    if(sourceType!=="appointment"||sourceId<=0)return json({ok:false,error:"invalid_manual_target"},403);
+    let claimed=false;
+    try {
+      claimed=await withClient(env,async client=>{
+        const r=await client.query(
+          "UPDATE whatsapp_cloud.reception_alarm_requests SET consumed_at=now() WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>now() RETURNING token_hash",
+          [digest]);
+        return !!r.rows?.length;
+      });
+    }catch{return json({ok:false,error:"gateway_database_unavailable"},503);}
+    if(!claimed)return json({ok:false,error:"manual_already_claimed"},409);
+    return serveManualBookingNotice(request,env,sourceId,true);
+  }
+  try {
+    // MISMO Durable Object que invoca la Agenda Web.
+    const alarm=await refreshWhatsappAlarm(env);
+    if(!alarm.ok)throw new Error("alarm_rejected");
+    try {
+      await withClient(env,async client=>client.query(
+        "UPDATE whatsapp_cloud.reception_alarm_requests SET acknowledged_at=now() WHERE token_hash=$1",
+        [digest]));
+    }catch{}
+    return json({ok:true,authorized:true,alarm_scheduled:true,no_messages_sent:true});
+  }catch(e){console.error("reception_gateway_refresh_failed",String(e?.name||"Error"));return json({ok:false,error:"scheduler_unavailable"},503);}
 }
 
 // Invocación exclusiva de Recepción: un envío manual con HMAC, NO un cron.
-async function serveManualBookingNotice(request, env, appointmentId) {
+async function serveManualBookingNotice(request, env, appointmentId, gatewayAuthorized = false) {
   if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
     return json({ok:false,error:"Solicitud inválida."},400);
-  if (!await verifyReceptionSignedPayload(request,env,"manual_cita_agendada_v1:"+appointmentId))
-    return text("Forbidden",403);
+  if (!gatewayAuthorized) return json({ok:false,error:"gateway_authorization_required"},403);
   if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
     return json({ok:false,error:"WhatsApp Cloud no está configurado."},503);
   const result=await withClient(env,async client=>{
@@ -7299,20 +7239,7 @@ var whatsapp_worker_v2_6_responses_default = {
       return json({ ok: true, mode: "durable_object_event_driven", initialized: !!data.initialized });
     }
     // Diagnóstico de firma solicitado explícitamente, sin envío ni alarmas.
-    if (u.pathname === "/reception/auth-check" && request.method === "POST") {
-      const ok=await verifyReceptionSignedPayload(request,env,"reception_auth_check_v1");
-      return json({ok,authorized:ok,no_messages_sent:true},ok?200:403);
-    }
-    if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
-    const receptionFreshMatch = /^\/reception\/fresh-booking\/(\d{1,9})$/.exec(u.pathname);
-    if (receptionFreshMatch) return serveFreshReceptionBookingNotice(request, env, Number(receptionFreshMatch[1]));
-    const manualMatch = /^\/manual\/cita-agendada\/(\d{1,9})$/.exec(u.pathname);
-    if (manualMatch) return serveManualBookingNotice(request, env, Number(manualMatch[1]));
-    if (u.pathname === "/alarms/notify" && request.method === "POST") {
-      if (!await verifyReceptionAlarmHint(request, env)) return text("Forbidden", 403);
-      const response = await refreshWhatsappAlarm(env);
-      return new Response(response.body, { status: response.status, headers: { "content-type": "application/json" } });
-    }
+    if (u.pathname === "/reception/gateway") return serveReceptionGateway(request,env);
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
       return json(await runScheduler(env));
