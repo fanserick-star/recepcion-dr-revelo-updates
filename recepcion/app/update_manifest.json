@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.37",
-  "app_version": "4.8.37",
-  "runtime_version": "4.8.37",
+  "version": "4.8.38",
+  "app_version": "4.8.38",
+  "runtime_version": "4.8.38",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.37: corrige un hotfix antiguo que sobrescribía la agenda canónica e ignoraba franjas cerradas, etiquetas nuevas y respuestas WhatsApp; ahora delega todo el renderizado y solo conserva la etiqueta histórica Agendada para citas futuras antes de la confirmación. Evita caché WebView cruzada con parámetros de versión reales y HTML no-store. Conserva el pulido de agenda de 4.8.36, el miércoles desde 10:00 y no altera citas, facturas, turnos, historia ni envíos. Mantiene los cambios previos que bloqueo Cloudflare HTTP 403 error 1010 ocasionado por el User-Agent por defecto de Python-urllib, utilizando identificación curl verificada en la PC y preservando capacidades efímeras de Neon, alarmas y antirreenvío. Mantiene el diagnóstico seguro de rechazos Cloudflare HTTP 403 con causa exacta sin exponer tokens, sin alterar los permisos ni enviar Meta. Las mejoras de 4.8.31 permanecen: restaura la consulta de accesos de Agenda Web sin regenerar claves y reprograma correctamente alarmas al cancelar citas. Bloquea los envíos automáticos locales antiguos y evita crear bandejas locales duplicadas cuando WhatsApp Cloud está activo. Incluye diagnóstico de autorización sin enviar mensajes. Conserva el coordinador único de Cloudflare, plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
-    "previous_version": "4.8.36",
+    "purpose": "Recepción 4.8.38: reemplaza únicamente los mensajes rotativos de TV sin personas esperando por un reloj analógico circular, sobrio y actualizado en tiempo real, con hora digital y fecha. Respeta todos los llamados, próximo turno, sonido, voz, publicidad, alertas de desconexión y modo de pruebas. Preserva la corrección anterior que que sobrescribía la agenda canónica e ignoraba franjas cerradas, etiquetas nuevas y respuestas WhatsApp; ahora delega todo el renderizado y solo conserva la etiqueta histórica Agendada para citas futuras antes de la confirmación. Evita caché WebView cruzada con parámetros de versión reales y HTML no-store. Conserva el pulido de agenda de 4.8.36, el miércoles desde 10:00 y no altera citas, facturas, turnos, historia ni envíos. Mantiene los cambios previos que bloqueo Cloudflare HTTP 403 error 1010 ocasionado por el User-Agent por defecto de Python-urllib, utilizando identificación curl verificada en la PC y preservando capacidades efímeras de Neon, alarmas y antirreenvío. Mantiene el diagnóstico seguro de rechazos Cloudflare HTTP 403 con causa exacta sin exponer tokens, sin alterar los permisos ni enviar Meta. Las mejoras de 4.8.31 permanecen: restaura la consulta de accesos de Agenda Web sin regenerar claves y reprograma correctamente alarmas al cancelar citas. Bloquea los envíos automáticos locales antiguos y evita crear bandejas locales duplicadas cuando WhatsApp Cloud está activo. Incluye diagnóstico de autorización sin enviar mensajes. Conserva el coordinador único de Cloudflare, plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
+    "previous_version": "4.8.37",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -542,7 +542,12 @@
     "whatsapp_reception_fresh_no_replay": true,
     "whatsapp_reception_fresh_event_key_idempotent": true,
     "whatsapp_neon_shared_hmac_key": false,
-    "whatsapp_hmac_key_role_independent": false
+    "whatsapp_hmac_key_role_independent": false,
+    "tv_idle_analog_clock": true,
+    "tv_idle_clock_only_when_no_waiting": true,
+    "tv_idle_clock_external_dependencies": false,
+    "tv_call_and_voice_logic_changes": false,
+    "tv_clock_local_time_source": "TV_browser"
   },
   "channel": "launcher-v1-stable"
 }
