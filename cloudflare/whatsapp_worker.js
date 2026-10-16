@@ -7239,6 +7239,7 @@ var whatsapp_worker_v2_6_responses_default = {
       return json({ ok: true, mode: "durable_object_event_driven", initialized: !!data.initialized });
     }
     // Diagnóstico de firma solicitado explícitamente, sin envío ni alarmas.
+    if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
     if (u.pathname === "/reception/gateway") return serveReceptionGateway(request,env);
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
