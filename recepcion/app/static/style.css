@@ -1359,3 +1359,6 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 #agenda.agenda-remaster-dark .agenda-native-legend .dot.confirmed{background:#78b69a!important}
 #agenda.agenda-remaster-dark .agenda-native-legend .dot.rescheduled{background:#87a9d3!important}
 #agenda.agenda-remaster-dark .agenda-native-legend .dot.cancelled{background:#d4969e!important}
+
+/* Un ancho visual fijo para las cifras de las horas: evita el efecto amontonado. */
+#agenda.agenda-remaster-dark .native-slot.free .native-free-time{font-variant-numeric:tabular-nums!important}
