@@ -77,6 +77,14 @@ assert schedule.index('return {"queued": 0, "cloud_mode": True}') < schedule.ind
 legacy=core.split("def start_whatsapp_worker_if_enabled()",1)[1].split("def mirror_patient_to_local(",1)[0]
 assert "threading.Thread(" not in legacy
 assert "return" in legacy
+assert "reason = \"edge_or_unknown_rejection\"" in core
+assert '"expired_or_invalid_capability"' in core
+assert "exc.read(1024)" in core
+assert 'reason = candidate' in core
+assert '"reason": reason' in core
+assert "token" not in core.split('def whatsapp_auth_check(',1)[1].split('@app.get("/api/whatsapp/status")',1)[0]
+print("RECEPTION_CF_403_DIAGNOSTIC_NO_TOKEN_LEAK_NO_WA_SEND_OK")
+
 print("RECEPTION_WEB_AGENDA_READONLY_CANCEL_AND_SINGLE_SENDER_NO_META_OK")
 
 print("RECEPTION_UNIFIED_WA_CLOUD_ALARMS_SAFE_NO_OLD_HMAC_OR_CRON_OK")
