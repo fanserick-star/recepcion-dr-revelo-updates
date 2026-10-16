@@ -6538,10 +6538,22 @@ function parseAutoagendaForward(raw) {
   if (!matchDay) return {ok:false,error:"Primero indica el día. Ejemplo: Viernes 23 oct."};
   const weekday=matchDay[1], dow=AUTOAGENDA_WEEKDAYS.get(weekday);
   // 3 líneas: "Viernes 9am | Nombre | Celular".
-  // 4 líneas: "Viernes 23 oct | Nombre | 9am | Celular", o solo "Viernes".
-  const timePart=lines.length===4 ? autoagendaNormalizeText(lines[2]).toLowerCase().replace(/\s+/g," ") :
-    String(matchDay[2]||"").trim();
-  const m=/^(\d{1,2})(?:\s*(?:y|:|\.)\s*(\d{1,2}))?\s*(?:(a|p)\s*\.?\s*m\.?)?$/.exec(timePart);
+  // 4 líneas: admitir ambos órdenes: fecha, hora, nombre, celular;
+  // o fecha, nombre, hora, celular. Jamás adivinar si hay dos horas.
+  const timePattern=/^(\d{1,2})(?:\s*(?:y|:|\.)\s*(\d{1,2}))?\s*(?:(a|p)\s*\.?\s*m\.?)?$/;
+  const normalizedTime=value=>autoagendaNormalizeText(value).toLowerCase().replace(/\s+/g," ");
+  let nameLine=lines[1];
+  let timePart=String(matchDay[2]||"").trim();
+  if (lines.length===4) {
+    const second=normalizedTime(lines[1]),third=normalizedTime(lines[2]);
+    const secondIsTime=timePattern.test(second),thirdIsTime=timePattern.test(third);
+    if (secondIsTime===thirdIsTime) {
+      return {ok:false,error:"No pude entender la hora. Usa una línea con la hora y otra con el nombre. Ejemplo: 9:00 am."};
+    }
+    timePart=secondIsTime?second:third;
+    nameLine=secondIsTime?lines[2]:lines[1];
+  }
+  const m=timePattern.exec(timePart);
   if (!m) return {ok:false,error:"No pude entender la hora. Ejemplos: 9am, 9:20am o 15:30."};
   let hour=Number(m[1]);
   const minute=m[2]==null?0:Number(m[2]);
@@ -6557,7 +6569,7 @@ function parseAutoagendaForward(raw) {
   const declared=lines.length===4?autoagendaExplicitDate(matchDay[2]||"",dow):{ok:true,date:""};
   if (!declared.ok) return declared;
   const date=declared.date||autoagendaNextDate(dow,time);
-  const name=bookingCleanName(lines[1]);
+  const name=bookingCleanName(nameLine);
   const phone=bookingCleanPhone(lines[lines.length-1]);
   if(name.length<5)return {ok:false,error:"No pude identificar correctamente el nombre del paciente."};
   if(!phone)return {ok:false,error:"El celular del paciente debe tener 10 dígitos y comenzar con 09."};
@@ -7247,7 +7259,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.31", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "three_sources_same_alarm_v1", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_gateway_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.31", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "three_sources_same_alarm_v1", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_four_line_order: "flexible_time_name_v1", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_gateway_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);

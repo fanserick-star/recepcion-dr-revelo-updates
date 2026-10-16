@@ -79,6 +79,7 @@ jobs:
             'availability_overlap_projection: "grid_from_intervals_v1"',
             'autoagenda_enrollment: "one_time_v1"',
             'autoagenda_time_parser: "ampm_v2"',
+            'autoagenda_four_line_order: "flexible_time_name_v1"',
             'autoagenda_message_formats: "three_four_lines_explicit_date_v1"',
             'manual_booking_notice: "one_time_gateway_v1"',
             'autoagenda_week_guard: "monday_sunday_v1"',
@@ -163,6 +164,7 @@ jobs:
           assert d.get('availability_overlap_projection') == 'grid_from_intervals_v1', d
           assert d.get('autoagenda_enrollment') == 'one_time_v1', d
           assert d.get('autoagenda_time_parser') == 'ampm_v2', d
+          assert d.get('autoagenda_four_line_order') == 'flexible_time_name_v1', d
           assert d.get('autoagenda_message_formats') == 'three_four_lines_explicit_date_v1', d
           assert d.get('manual_booking_notice') == 'one_time_gateway_v1', d
           assert d.get('autoagenda_week_guard') == 'monday_sunday_v1', d
