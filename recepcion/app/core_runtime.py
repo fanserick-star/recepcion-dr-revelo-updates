@@ -2730,6 +2730,13 @@ def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str
         _whatsapp_cancel_pending(source_type, source_id)
         return {"queued": 0, "reason": "past_appointment"}
 
+
+    if WHATSAPP_CLOUD_MODE:
+        # Cloudflare is the only automatic sender. Do not create another local
+        # outbox entry that could later be replayed by a legacy process.
+        _whatsapp_alarm_notify_async(source_type=source_type, source_id=source_id)
+        return {"queued": 0, "cloud_mode": True}
+
     _whatsapp_cancel_pending(source_type, source_id)
     clean_name = " ".join(str(name or "").split()).upper()
     date_text = whatsapp_date_label(fecha)
@@ -2925,13 +2932,9 @@ def _whatsapp_background_loop() -> None:
 
 
 def start_whatsapp_worker_if_enabled() -> None:
-    global _whatsapp_worker_started
-    if WHATSAPP_CLOUD_MODE:
-        return
-    if not WHATSAPP_ENABLED or _whatsapp_worker_started:
-        return
-    _whatsapp_worker_started = True
-    threading.Thread(target=_whatsapp_background_loop, daemon=True, name="rp-whatsapp").start()
+    # Retired. Cloudflare alarm coordinator is the only automatic WhatsApp sender.
+    # Kept as a no-op for backwards-compatible application initialization.
+    return
 
 
 def mirror_patient_to_local(p: Patient):
@@ -7307,6 +7310,59 @@ def _agenda_cloud_payload(doctor: str, reception: str, *, force_sync: bool = Fal
 
 
 
+
+@app.get("/api/mobile/config")
+def mobile_cloud_config(request: Request, force_cloud: bool = False, user: User = Depends(current_user)):
+    """Read-only status of existing Web Agenda access, confined to this PC.
+
+    Never create, rotate, publish or reactivate access keys on a GET.
+    The user-initiated Verify action only rechecks existing hashes in Neon.
+    """
+    if not _is_loopback_client(request):
+        raise HTTPException(403, "Los accesos de la agenda solo se consultan desde Recepción")
+
+    doctor = str(MOBILE_DOCTOR_TOKEN or "")
+    reception = str(MOBILE_RECEPTION_TOKEN or "")
+    registered = False
+    error = ""
+    if not doctor or not reception:
+        error = "No hay accesos existentes configurados en esta PC. No se generaron otros nuevos."
+    elif not cloud_configured() or FORCE_OFFLINE or not CloudSessionLocal:
+        error = "Neon no está disponible para verificar los accesos existentes."
+    else:
+        try:
+            if not check_cloud(force=bool(force_cloud)):
+                raise RuntimeError("Neon no respondió")
+            doctor_hash = hashlib.sha256(doctor.encode("utf-8")).hexdigest()
+            reception_hash = hashlib.sha256(reception.encode("utf-8")).hexdigest()
+            with CloudSessionLocal() as cdb:
+                rows = cdb.execute(text("""
+                    SELECT access_level, key_hash
+                    FROM agenda_private.web_keys
+                    WHERE active IS TRUE AND key_hash IN (:doctor_hash, :reception_hash)
+                """), {"doctor_hash": doctor_hash, "reception_hash": reception_hash}).all()
+            active = {(str(role), str(key_hash)) for role, key_hash in rows}
+            registered = ("doctor", doctor_hash) in active and ("reception", reception_hash) in active
+            if not registered:
+                error = "Hay accesos que no aparecen activos en Neon; no se modificaron las claves."
+        except Exception as exc:
+            error = _cloud_error_hint(exc)
+
+    return {
+        "ok": True,
+        "cloud": {
+            "enabled": True,
+            "base_url": AGENDA_CLOUD_BASE_URL,
+            "doctor_url": _agenda_cloud_link(doctor) if doctor else "",
+            "reception_url": _agenda_cloud_link(reception) if reception else "",
+            "registered": registered,
+            "last_error": error,
+            "always_available": True,
+            "architecture": "GitHub Pages + Neon Data API",
+        },
+    }
+
+
 @app.post("/api/mobile/links/rotate")
 def mobile_rotate_links(request: Request, user: User = Depends(current_user)):
     if not _is_loopback_client(request):
@@ -7449,7 +7505,8 @@ def mobile_delete_unlinked(item_id: int, request: Request):
         if not item or not _mobile_unlinked(item):
             raise HTTPException(404, "Cita móvil no encontrada")
         db.delete(item); db.commit(); mirror_delete_confirmafy_agenda_local(item_id); _whatsapp_cancel_pending("staged", item_id)
-        _whatsapp_alarm_notify_async(source_type="staged", source_id=item_id)
+        # The record no longer exists: recompute the shared DO without an ID check.
+        _whatsapp_alarm_notify_async()
         return {"ok": True}
     finally:
         db.close()
@@ -7484,7 +7541,7 @@ def mobile_delete_linked(appointment_id: int, request: Request):
         if not a or a.origen == CONFIRMAFY_ATTENDED_ORIGIN:
             raise HTTPException(404, "Cita no encontrada")
         db.delete(a); db.commit(); mirror_delete_appointment_local(appointment_id); _whatsapp_cancel_pending("appointment", appointment_id)
-        _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
+        _whatsapp_alarm_notify_async()
         return {"ok": True}
     finally:
         db.close()
@@ -8134,7 +8191,7 @@ def agenda_delete(appointment_id: int, db: Session = Depends(get_db), user: User
     db.commit()
     mirror_delete_appointment_local(appointment_id)
     _whatsapp_cancel_pending("appointment", appointment_id)
-    _whatsapp_alarm_notify_async(source_type="appointment", source_id=appointment_id)
+    _whatsapp_alarm_notify_async()
     return {"ok": True, "offline": False, "deleted": True}
 
 

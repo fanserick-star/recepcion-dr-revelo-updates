@@ -24,8 +24,19 @@ assert.match(html, /if\(state\.role==='reception'\)void notifyWhatsappAlarms\(1\
 assert.ok(!html.includes("setInterval(()=>notifyWhatsappAlarms"), "No browser polling for reminders");
 assert.match(reception, /_whatsapp_alarm_notify_async\(source_type=source_type, source_id=source_id\)/);
 assert.match(reception, /if alarm_relevant_change:/);
-assert.match(reception, /_whatsapp_alarm_notify_async\(source_type="staged", source_id=item_id\)/);
-assert.match(reception, /_whatsapp_alarm_notify_async\(source_type="appointment", source_id=appointment_id\)/);
+// Cancellation deletes the source BEFORE refreshing its alarm: the gateway
+// must not look up a now-missing row (which would yield HTTP 409).
+for (const [start, end] of [
+  ['@app.delete("/api/mobile/unlinked/{item_id}")', '@app.put("/api/mobile/appointments/{appointment_id}")'],
+  ['@app.delete("/api/mobile/appointments/{appointment_id}")', '@app.get("/api/whatsapp/outbox")'],
+  ['@app.delete("/api/agenda/appointments/{appointment_id}")', 'def _decode_confirmafy_csv(']
+]) {
+  const a = reception.indexOf(start), b = reception.indexOf(end, a);
+  assert.ok(a >= 0 && b > a, "Existing cancellation handler required: " + start);
+  const handler = reception.slice(a, b);
+  assert.match(handler, /_whatsapp_alarm_notify_async\(\)/, "Refresh must use no deleted ID");
+  assert.doesNotMatch(handler, /_whatsapp_alarm_notify_async\(source_type=/);
+}
 assert.match(reception, /if pending is not None: return/);
 
 const start = worker.indexOf("async function serveAdminAgendaAlarmHint(request, env) {");

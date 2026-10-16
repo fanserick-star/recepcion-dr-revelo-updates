@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.30",
-  "app_version": "4.8.30",
-  "runtime_version": "4.8.30",
+  "version": "4.8.31",
+  "app_version": "4.8.31",
+  "runtime_version": "4.8.31",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -170,8 +170,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.30: agenda de Recepción, agenda web y autoagenda por mensaje de WhatsApp utilizan ahora exactamente la misma función de registro de alarmas en Cloudflare Durable Object, sobre un único conjunto de plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
-    "previous_version": "4.8.29",
+    "purpose": "Recepción 4.8.31: restaura la consulta de accesos de Agenda Web sin regenerar claves y reprograma correctamente alarmas al cancelar citas. Bloquea los envíos automáticos locales antiguos y evita crear bandejas locales duplicadas cuando WhatsApp Cloud está activo. Incluye diagnóstico de autorización sin enviar mensajes. Conserva el coordinador único de Cloudflare, plantillas, estados y event_key de Neon. En autoagenda WhatsApp registra la alarma inmediatamente tras guardar, antes de la respuesta al administrador. Mantiene las autorizaciones particulares de cada origen, fichas clínicas, turnos, facturas, agenda offline y recordatorios sin cron ni reenvío de citas antiguas.",
+    "previous_version": "4.8.30",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
