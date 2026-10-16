@@ -10614,8 +10614,24 @@ def whatsapp_auth_check(user: User = Depends(current_user)):
         return {"ok": bool(response.get("authorized")), "authenticated": bool(response.get("authorized")),
                 "no_messages_sent": True, "gateway": "unified_neon_capability_v1"}
     except urllib.error.HTTPError as exc:
+        # A denied capability must remain denied. Report only safe, fixed
+        # gateway error identifiers: never reveal the capability or HTTP body.
+        reason = "edge_or_unknown_rejection"
+        try:
+            payload = json.loads(exc.read(1024).decode("utf-8"))
+            candidate = str(payload.get("error") or "")
+            if candidate in {
+                "invalid_capability", "expired_or_invalid_capability",
+                "invalid_purpose", "invalid_source", "gateway_database_unavailable",
+                "cloud_unavailable", "invalid_request", "invalid_json",
+                "source_not_synchronized", "source_check_failed",
+            }:
+                reason = candidate
+        except (ValueError, UnicodeError, AttributeError, TypeError):
+            pass
         return {"ok": False, "authenticated": False, "no_messages_sent": True,
-                "error": "Cloudflare HTTP " + str(exc.code)}
+                "error": "Cloudflare HTTP " + str(exc.code) + " · " + reason,
+                "reason": reason}
     except Exception as exc:
         return {"ok": False, "authenticated": False, "no_messages_sent": True,
                 "error": type(exc).__name__}
