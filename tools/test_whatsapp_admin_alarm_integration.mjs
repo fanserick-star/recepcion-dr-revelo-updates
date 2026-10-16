@@ -29,7 +29,7 @@ assert.match(reception, /if alarm_relevant_change:/);
 for (const [start, end] of [
   ['@app.delete("/api/mobile/unlinked/{item_id}")', '@app.put("/api/mobile/appointments/{appointment_id}")'],
   ['@app.delete("/api/mobile/appointments/{appointment_id}")', '@app.get("/api/whatsapp/outbox")'],
-  ['@app.delete("/api/agenda/appointments/{appointment_id}")', '@app.get("/api/agenda/export.csv")']
+  ['@app.delete("/api/agenda/appointments/{appointment_id}")', 'def _decode_confirmafy_csv(']
 ]) {
   const a = reception.indexOf(start), b = reception.indexOf(end, a);
   assert.ok(a >= 0 && b > a, "Existing cancellation handler required: " + start);
