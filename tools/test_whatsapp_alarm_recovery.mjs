@@ -66,8 +66,9 @@ assert.equal(nextArgs.length, 8);
 assert.doesNotMatch(src, /async scheduled\(/);
 
 const reception = readFileSync(new URL("../recepcion/app/core_runtime.py",import.meta.url),"utf8");
-assert.match(reception, /"next_alarm_utc" not in payload/);
-assert.match(reception, /_wa_alarm_hint_defer_once\(failed_generation\)/);
-assert.match(reception, /_wa_alarm_deferred_count >= 2/);
-assert.match(reception, /timer = threading.Timer\(delay, resume\)/);
-console.log("WHATSAPP_ALARM_RECOVERY_NO_SEND_OK");
+assert.match(reception,/def _wa_gateway_signal_async\(/);
+assert.match(reception,/if attempt == 0:/);
+assert.match(reception,/if exc.code not in \(429, 502, 503, 504\):/);
+assert.match(reception,/time.sleep\(4\)/);
+assert.doesNotMatch(reception,/_wa_alarm_hint_defer_once|threading.Timer\(delay, resume\)/);
+console.log("WHATSAPP_CLOUD_ALARM_RECOVERY_NO_LOCAL_CRON_NO_SEND_OK");
