@@ -2632,6 +2632,13 @@ def _wa_gateway_issue(*, purpose: str = "refresh", source_type: str = "",
     token = secrets.token_urlsafe(32)
     digest = hashlib.sha256(token.encode("ascii")).hexdigest()
     with CloudSessionLocal() as session:
+        # Limpieza acotada SOLO al crearse una nueva señal. Sin cron ni vigilancia.
+        session.execute(text("""
+            DELETE FROM whatsapp_cloud.reception_alarm_requests WHERE token_hash IN (
+                SELECT token_hash FROM whatsapp_cloud.reception_alarm_requests
+                WHERE expires_at < now()-interval '24 hours' ORDER BY expires_at LIMIT 24
+            )
+        """))
         session.execute(text("""
             INSERT INTO whatsapp_cloud.reception_alarm_requests
               (token_hash,purpose,source_type,source_id,expires_at)
