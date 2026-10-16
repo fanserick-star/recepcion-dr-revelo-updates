@@ -31,8 +31,8 @@ assert.match(worker, /ORDER BY e.updated_at DESC LIMIT 1/);
 assert.match(worker, /AND NOT \(coalesce\(status,\x27\x27\)=\x27ERROR\x27 AND coalesce\(attempts,0\)>=5\)/);
 assert.doesNotMatch(worker, /AND NOT \(status=\x27ERROR\x27 AND attempts>=5\)/);
 assert.match(worker, /bootstrapped_v1/);
-assert.match(worker, /"\/alarms\/notify"/);
-assert.match(worker, /verifyReceptionAlarmHint/);
+assert.match(worker, /"\/reception\/gateway"/);
+assert.match(worker, /async function serveReceptionGateway/);
 assert.match(worker, /"\/alarms\/status"/);
 assert.match(worker, /refreshWhatsappAlarm\(env, true\)/);
 assert.match(worker, /alarm_delivery_policy: "preserve_24x7"/);
@@ -46,8 +46,8 @@ assert.match(worker, /ON CONFLICT\(event_key\)/); // idempotent Meta sending ret
 assert.match(worker, /AND e\.appointment_date=ev\.fecha/);
 assert.match(worker, /interval '2 hours'/); // stale test events cannot be replayed
 assert.match(reception, /def _whatsapp_alarm_notify_async\(\*, source_type: str/);
-assert.match(reception, /hmac\.new\(key\.encode\("utf-8"\)/);
-assert.match(reception, /_WA_ALARM_NOTIFY_URL = "https:\/\/dr-revelo-whatsapp-cloud/);
+assert.match(reception, /secrets\.token_urlsafe\(32\)/);
+assert.match(reception, /whatsapp_cloud\.reception_alarm_requests/);
 assert.match(reception, /if alarm_relevant_change:\s*_whatsapp_alarm_notify_async\(\)/);
 assert.match(reception, /_whatsapp_alarm_notify_async\(source_type=source_type, source_id=source_id\)\s*return \{"queued": queued\}/);
 assert.match(reception, /def process_offline_queue\(/);
