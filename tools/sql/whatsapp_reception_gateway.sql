@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_cloud.reception_alarm_requests(
  consumed_at timestamptz,
  CHECK(purpose <> 'manual' OR (source_type='appointment' AND source_id>0))
 );
+CREATE INDEX IF NOT EXISTS reception_alarm_requests_expiry_idx ON whatsapp_cloud.reception_alarm_requests(expires_at);
 REVOKE ALL ON whatsapp_cloud.reception_alarm_requests FROM PUBLIC;
 GRANT SELECT,INSERT,UPDATE,DELETE ON whatsapp_cloud.reception_alarm_requests TO neondb_owner;
 GRANT SELECT,INSERT,UPDATE,DELETE ON whatsapp_cloud.reception_alarm_requests TO neon_service;
