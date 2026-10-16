@@ -2611,6 +2611,10 @@ def _whatsapp_queue_one(*, source_type: str, source_id: int, phone: str, templat
 # hash contra Neon y programa el MISMO Durable Object que usa la agenda web.
 # No HMAC ligado a DATABASE_URL, cron, sondas periódicas ni replay histórico.
 _WA_GATEWAY_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/reception/gateway"
+# Cloudflare error 1010 on the default Python-urllib User-Agent was reproduced
+# on the clinic PC. curl reaches this Worker normally; set only the HTTP client
+# identification while keeping the existing Neon capability and validation.
+_WA_GATEWAY_USER_AGENT = "curl/8.10.1"
 _wa_gateway_lock = threading.Lock()
 _wa_gateway_diag = {
     "status": "sin_actividad", "last_attempt_at": "", "last_ok_at": "",
@@ -2657,7 +2661,9 @@ def _wa_gateway_request(*, purpose: str = "refresh", source_type: str = "",
     token = _wa_gateway_issue(purpose=purpose,source_type=source_type,source_id=source_id)
     request = urllib.request.Request(
         _WA_GATEWAY_URL, data=json.dumps({"token": token}).encode("utf-8"),
-        headers={"Content-Type": "application/json"}, method="POST",
+        headers={"Content-Type": "application/json",
+                 "Accept": "application/json",
+                 "User-Agent": _WA_GATEWAY_USER_AGENT}, method="POST",
     )
     with urllib.request.urlopen(request, timeout=12) as response:
         result = json.loads(response.read(8192).decode("utf-8"))
