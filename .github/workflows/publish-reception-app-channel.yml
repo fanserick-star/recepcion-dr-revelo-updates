@@ -52,6 +52,7 @@ jobs:
           node tools/test_tv_idle_analog_clock.mjs
           node tools/test_tv_white_premium_clock_4839.mjs
           node tools/test_tv_classic_white_clock_4840.mjs
+          node tools/test_tv_no_duplicate_clock_4841.mjs
           node tools/test_whatsapp_event_alarms.mjs
           node tools/test_whatsapp_alarm_recovery.mjs
           node tools/test_whatsapp_manual_booking_once.mjs
