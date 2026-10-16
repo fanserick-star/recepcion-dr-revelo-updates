@@ -32,8 +32,8 @@ assert "_wa_alarm_signal_state" not in core
 assert "_wa_shared_signing_key" not in core
 assert "whatsapp_alarm_signal" not in core
 assert "reception_gateway_refresh_failed" in worker
-assert 'const alarm=await refreshWhatsappAlarm(env)' in worker
-assert 'ctx.waitUntil(refreshWhatsappAlarm(env).catch(e => console.error("booking_alarm_registration_failed", e)))' in worker
+assert 'const alarm=await registerUnifiedAgendaAlarm(env, "reception")' in worker
+assert 'registerUnifiedAgendaAlarm(env, "public_web").catch(e => console.error("booking_alarm_registration_failed", e))' in worker
 assert "async function runScheduler(env)" in worker
 assert '"/alarms/notify"' not in worker
 assert "serveFreshReceptionBookingNotice" not in worker
