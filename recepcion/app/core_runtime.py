@@ -2730,6 +2730,15 @@ def schedule_whatsapp_for_contact(*, source_type: str, source_id: int, name: str
         _whatsapp_cancel_pending(source_type, source_id)
         return {"queued": 0, "reason": "past_appointment"}
 
+    # WhatsApp Cloud es el ÚNICO generador y remitente de mensajes.
+    # Las filas SQLite antiguas solo se conservan para consultar el historial;
+    # no crear nuevas intenciones locales que aparenten ser envíos programados.
+    # Si la cita está pendiente de sincronización, el gateway la omite y
+    # process_offline_queue activa la alarma cuando Neon confirma el guardado.
+    if WHATSAPP_CLOUD_MODE:
+        _whatsapp_alarm_notify_async(source_type=source_type, source_id=source_id)
+        return {"queued": 0, "cloud_mode": True, "local_outbox_created": False}
+
     _whatsapp_cancel_pending(source_type, source_id)
     clean_name = " ".join(str(name or "").split()).upper()
     date_text = whatsapp_date_label(fecha)

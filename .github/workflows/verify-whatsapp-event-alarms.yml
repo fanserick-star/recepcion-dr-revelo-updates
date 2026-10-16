@@ -8,6 +8,7 @@ on:
       - 'cloudflare/whatsapp_alarm_time.mjs'
       - 'cloudflare/wrangler.whatsapp.jsonc'
       - 'recepcion/app/core_runtime.py'
+      - 'tools/test_reception_whatsapp_cloud_no_local_outbox.py'
       - 'tools/test_whatsapp_event_alarms.mjs'
       - 'tools/test_whatsapp_single_confirmation_policy.mjs'
       - 'tools/test_whatsapp_admin_alarm_integration.mjs'
@@ -38,6 +39,7 @@ jobs:
           set -euo pipefail
           python -m py_compile recepcion/app/core_runtime.py
           python tools/test_reception_unified_gateway.py
+          python tools/test_reception_whatsapp_cloud_no_local_outbox.py
           cp cloudflare/whatsapp_worker.js /tmp/revelo_whatsapp_worker.mjs
           node --check /tmp/revelo_whatsapp_worker.mjs
           node --check cloudflare/whatsapp_alarm_time.mjs
