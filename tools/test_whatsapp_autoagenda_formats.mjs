@@ -42,10 +42,22 @@ check("Viernes 23 oct\n"+patient+"\n9am\n"+phone,"2026-10-23");
 check("Viernes 23 octubre 2026\n"+patient+"\n9am\n"+phone,"2026-10-23");
 check("Viernes 23/10\n"+patient+"\n9am\n"+phone,"2026-10-23");
 check("Viernes 23/10/2026\n"+patient+"\n9am\n"+phone,"2026-10-23");
+check("Viernes 23 oct\n9:00 am\n"+patient+"\n"+phone,"2026-10-23");
+check("Viernes 23 oct\n9y00 am\n"+patient+"\n"+phone,"2026-10-23");
+check("Viernes 23 oct\n9.00 AM\n"+patient+"\n"+phone,"2026-10-23");
+check("Viernes\n9:00 am\n"+patient+"\n"+phone,"2026-10-16");
+// Exact day reported, synthetic contact information: no real patient data.
+check("Jueves 22 octubre\n9:00 am\n"+patient+"\n"+phone,"2026-10-22");
+check("Jueves 22 octubre\n9y00 am\n"+patient+"\n"+phone,"2026-10-22");
+check("Jueves 22 octubre\n"+patient+"\n9:00 am\n"+phone,"2026-10-22");
+assert.match(ctx.parse("Jueves 22 octubre\n"+patient+"\nOTRO NOMBRE\n"+phone).error,/No pude entender la hora/);
+assert.match(ctx.parse("Jueves 22 octubre\n9am\n10am\n"+phone).error,/No pude entender la hora/);
 assert.match(ctx.parse("Jueves 23 oct\n"+patient+"\n9am\n"+phone).error,/no coincide/);
 assert.match(ctx.parse("Viernes 31 feb\n"+patient+"\n9am\n"+phone).error,/no existe|no coincide/);
 assert.match(ctx.parse("Viernes 23 oct\n"+patient+"\n"+phone).error,/hora/);
 assert.equal(ctx.isCommand("Hola, buenos días"),false);
 assert.equal(ctx.isCommand("Viernes 23 oct\n"+patient+"\n9am"),false); // Sin teléfono no crear cita.
 assert.equal(ctx.parse("Viernes 23 oct\n"+patient+"\n9am\n0981111111").ok,true);
-console.log("AUTOAGENDA_3_4_LINES_EXPLICIT_DATE_NO_SEND_OK");
+assert.match(src,/autoagenda_four_line_order: "flexible_time_name_v1"/);
+assert.match(src,/return same \? "ALREADY_EXISTS" : "SLOT_TAKEN"/);
+console.log("AUTOAGENDA_FLEXIBLE_4_LINES_EXPLICIT_DATE_NO_SEND_NO_DUPLICATE_OK");
