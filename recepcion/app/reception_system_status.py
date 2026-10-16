@@ -380,7 +380,7 @@ def reception_4814_alerts(user=core.Depends(core.current_user)):
         'alarm_hint': {},
         'no_message_sent': True, 'automatic_neon_polling': False,
     }
-    lock = getattr(core, '_wa_alarm_hint_lock', None)
+    lock = getattr(core, '_wa_gateway_lock', None)
     if lock is not None:
         with lock:
             result['alarm_hint'] = dict(getattr(core, '_wa_alarm_hint_diag', {}) or {})
