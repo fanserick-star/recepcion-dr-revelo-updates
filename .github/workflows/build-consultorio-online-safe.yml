@@ -52,6 +52,7 @@ jobs:
       - name: Verify clinical restore code is embedded byte-for-byte
         run: |
           python3 -m py_compile installer-online/restore_historia_initial.py
+          python3 installer-online/test_restore_guards.py
           python3 - <<'PY'
           from pathlib import Path
           master=Path('installer-online/restore_historia_initial.py').read_text().strip()
