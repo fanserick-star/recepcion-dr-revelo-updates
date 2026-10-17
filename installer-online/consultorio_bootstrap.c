@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "bootstrap_ps.h"
+#include "prepare_ps.h"
 
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "crypt32.lib")
@@ -358,6 +359,71 @@ static int run_bootstrap(int mode, const char *cfg_b64, DWORD *exit_code) {
     return 1;
 }
 
+static int write_prepare_script(wchar_t *path, size_t path_chars) {
+    wchar_t tmp[MAX_PATH * 4];
+    wchar_t dir[MAX_PATH * 4];
+    HANDLE f;
+    DWORD written = 0;
+    DWORD pid = GetCurrentProcessId();
+    if (!GetTempPathW((DWORD)(sizeof(tmp)/sizeof(tmp[0])), tmp)) return 0;
+    _snwprintf(dir, sizeof(dir)/sizeof(dir[0]), L"%lsDrReveloSetup", tmp);
+    CreateDirectoryW(dir, NULL);
+    _snwprintf(path, path_chars, L"%ls\\prepare-%lu.ps1", dir, (unsigned long)pid);
+    f = CreateFileW(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_TEMPORARY, NULL);
+    if (f == INVALID_HANDLE_VALUE) return 0;
+    if (!WriteFile(f, prepare_ps1, (DWORD)prepare_ps1_len, &written, NULL) ||
+        written != (DWORD)prepare_ps1_len) {
+        CloseHandle(f); DeleteFileW(path); return 0;
+    }
+    FlushFileBuffers(f);
+    CloseHandle(f);
+    return 1;
+}
+
+/* Runs only on an already-configured office PC. Reads local .env, writes an
+   authorized private installer next to this EXE; never uploads private data. */
+static int prepare_on_trusted_pc(DWORD *exit_code) {
+    wchar_t script[MAX_PATH * 4], self[MAX_PATH * 4], output[MAX_PATH * 4];
+    wchar_t cmd[8192], ps[MAX_PATH * 4], win[MAX_PATH * 4];
+    wchar_t *slash;
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+    BOOL started;
+
+    if (!GetModuleFileNameW(NULL, self, (DWORD)(sizeof(self)/sizeof(self[0])))) return 0;
+    _snwprintf(output, sizeof(output)/sizeof(output[0]), L"%ls", self);
+    slash = wcsrchr(output, L'\\');
+    if (!slash) return 0;
+    *(slash + 1) = 0;
+    if ((wcslen(output) + wcslen(L"INSTALAR_CONSULTORIO_PRIVADO.exe") + 1) >=
+        sizeof(output)/sizeof(output[0])) return 0;
+    wcscat(output, L"INSTALAR_CONSULTORIO_PRIVADO.exe");
+    if (!write_prepare_script(script, sizeof(script)/sizeof(script[0]))) return 0;
+    if (!GetWindowsDirectoryW(win, (UINT)(sizeof(win)/sizeof(win[0])))) {
+        DeleteFileW(script); return 0;
+    }
+    _snwprintf(ps, sizeof(ps)/sizeof(ps[0]),
+        L"%ls\\System32\\WindowsPowerShell\\v1.0\\powershell.exe", win);
+    _snwprintf(cmd, sizeof(cmd)/sizeof(cmd[0]),
+        L"\"%ls\" -NoProfile -NonInteractive -ExecutionPolicy Bypass "
+        L"-File \"%ls\" -BaseExe \"%ls\" -OutputExe \"%ls\"",
+        ps, script, self, output);
+    ZeroMemory(&si, sizeof(si));
+    ZeroMemory(&pi, sizeof(pi));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    started = CreateProcessW(NULL, cmd, NULL, NULL, FALSE,
+        CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT, NULL, NULL, &si, &pi);
+    if (!started) { DeleteFileW(script); return 0; }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    if (!GetExitCodeProcess(pi.hProcess, exit_code)) *exit_code = 1;
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    DeleteFileW(script);
+    return 1;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int show) {
     unsigned char *plain = NULL;
     uint32_t plain_len = 0;
@@ -372,7 +438,33 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int show) {
     }
 
     if (!read_private_payload(&plain, &plain_len)) {
-        show_error(L"Este instalador está incompleto o su configuración privada fue alterada. Vuelve a descargar el archivo original.");
+        DWORD attrs = GetFileAttributesW(L"C:\\Recepcion Dr Revelo\\.env");
+        if (attrs != INVALID_FILE_ATTRIBUTES && !(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
+            int choice = MessageBoxW(NULL,
+                L"Esta PC ya tiene Recepción configurada.\n\n"
+                L"¿Crear automáticamente el instalador PRIVADO para otra PC?\n"
+                L"Leerá las claves locales y generará un único EXE sin pedirlas.\n"
+                L"No modificará los programas ni las bases clínicas.",
+                APP_TITLE, MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND);
+            if (choice != IDYES) return 0;
+            if (!prepare_on_trusted_pc(&exit_code) || exit_code != 0) {
+                show_error(L"No se pudo crear el instalador privado.\n"
+                           L"Comprueba que Recepción tenga configuradas Neon, AZUR y las claves móviles.\n"
+                           L"El programa y las bases clínicas no se modificaron.");
+                return 2;
+            }
+            MessageBoxW(NULL,
+                L"Instalador privado creado junto al archivo que acabas de abrir:\n\n"
+                L"INSTALAR_CONSULTORIO_PRIVADO.exe\n\n"
+                L"Lleva SOLO ese archivo a la PC nueva.\n"
+                L"Allí instalará los programas y sus claves automáticamente.\n"
+                L"NO publiques ni compartas el instalador privado.",
+                APP_TITLE, MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
+            return 0;
+        }
+        show_error(L"Este archivo es la BASE sin claves; no puede instalarse solo.\n\n"
+                   L"Ejecuta primero este mismo EXE en la PC de Recepción ya configurada.\n"
+                   L"Allí generará INSTALAR_CONSULTORIO_PRIVADO.exe para usar en una PC nueva.");
         return 2;
     }
     b64 = base64_encode(plain, plain_len);
