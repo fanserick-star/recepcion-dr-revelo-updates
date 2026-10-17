@@ -53,7 +53,7 @@ assert.equal(approved.body.status,'approved');
 assert.equal(approved.headers.get('Cache-Control'),'no-store, max-age=0');
 const p=approved.body;
 const material=await crypto.subtle.decrypt({name:'RSA-OAEP'},keys.privateKey,raw(p.wrapped_key));
-const macKey=await crypto.subtle.importKey('raw',new Uint8Array(material).slice(32),'HMAC',false,['verify']);
+const macKey=await crypto.subtle.importKey('raw',new Uint8Array(material).slice(32),{name:'HMAC',hash:'SHA-256'},false,['verify']);
 const signed=e.encode([p.ticket,p.wrapped_key,p.iv,p.ciphertext].join('|'));
 assert.equal(await crypto.subtle.verify('HMAC',macKey,raw(p.mac),signed),true);
 const aes=await crypto.subtle.importKey('raw',new Uint8Array(material).slice(0,32),'AES-CBC',false,['decrypt']);
