@@ -200,24 +200,15 @@ function Merge-Env([string]$Root, [hashtable]$Values, [string]$BackupTag) {
     New-Item -ItemType Directory -Force $Root | Out-Null
     $path = Join-Path $Root '.env'
     $old = if (Test-Path -LiteralPath $path) { [IO.File]::ReadAllLines($path) } else { @() }
-    $managed = @{}
-    foreach ($k in $Values.Keys) { $managed[[string]$k] = $true }
     $out = New-Object System.Collections.Generic.List[string]
-    $written = @{}
-    foreach ($line in $old) {
-        $matched = $false
-        foreach ($key in $Values.Keys) {
-            if ($line -match ('^\s*' + [regex]::Escape([string]$key) + '\s*=')) {
-                if (-not $written.ContainsKey([string]$key)) {
-                    $out.Add(([string]$key + '=' + [string]$Values[$key])); $written[[string]$key] = $true
-                }
-                $matched = $true; break
-            }
-        }
-        if (-not $matched) { $out.Add($line) }
-    }
+    foreach ($line in $old) { $out.Add($line) }
+    # In a repair, never overwrite working Neon, billing or mobile tokens.
     foreach ($key in $Values.Keys) {
-        if (-not $written.ContainsKey([string]$key)) { $out.Add(([string]$key + '=' + [string]$Values[$key])) }
+        $found = $false
+        foreach ($line in $old) {
+            if ($line -match ('^\s*' + [regex]::Escape([string]$key) + '\s*=')) { $found = $true; break }
+        }
+        if (-not $found) { $out.Add(([string]$key + '=' + [string]$Values[$key])) }
     }
     $newText = (($out.ToArray() -join "`r`n").TrimEnd() + "`r`n")
     $oldText = (($old -join "`r`n").TrimEnd() + "`r`n")
@@ -231,6 +222,18 @@ function Merge-Env([string]$Root, [hashtable]$Values, [string]$BackupTag) {
     [IO.File]::WriteAllText($tmp,$newText,$utf8NoBom)
     Move-Item -LiteralPath $tmp -Destination $path -Force
     return $path
+}
+
+function Read-Env-Value([string]$Root, [string]$Key) {
+    $path = Join-Path $Root '.env'
+    if (-not (Test-Path -LiteralPath $path)) { throw "La configuración privada no existe en $Root." }
+    $value = ''
+    foreach ($line in [IO.File]::ReadAllLines($path)) {
+        if ($line -match ('^\s*' + [regex]::Escape($Key) + '\s*=')) {
+            $value = ($line -split '=', 2)[1].Trim().Trim('"').Trim("'")
+        }
+    }
+    return $value
 }
 
 function Test-PostgresConfig([string]$Root, [string]$Url, [string]$Label) {
@@ -285,8 +288,8 @@ try {
         foreach ($k in $private.RECEPTION.Keys) { $vals[[string]$k] = [string]$private.RECEPTION[$k] }
         $vals['HISTORIA_DATABASE_URL'] = $histUrl
         Merge-Env $root $vals 'instalador_consultorio' | Out-Null
-        Test-PostgresConfig $root ([string]$vals['DATABASE_URL']) 'Recepción'
-        Test-PostgresConfig $root $histUrl 'puente Historia'
+        Test-PostgresConfig $root (Read-Env-Value $root 'DATABASE_URL') 'Recepción'
+        Test-PostgresConfig $root (Read-Env-Value $root 'HISTORIA_DATABASE_URL') 'puente Historia'
         Install-VerifiedLauncher 'Recepción' $ReceptionLauncherUrl $ReceptionLauncherSha256
         Write-Step "Recepción $version preparada y conectada."
     }
@@ -300,7 +303,7 @@ try {
         $vals['HISTORIA_DATABASE_URL'] = $histUrl
         $vals['HISTORIA_SYNC_ENABLED'] = '1'
         $changed = Merge-Env $root $vals 'instalador_consultorio'
-        Test-PostgresConfig $root $histUrl 'Historia Clínica'
+        Test-PostgresConfig $root (Read-Env-Value $root 'HISTORIA_DATABASE_URL') 'Historia Clínica'
         # No SQLite sync state reset on reinstall/repair.
         Install-VerifiedLauncher 'Historia Clínica' $HistoriaLauncherUrl $HistoriaLauncherSha256
         Write-Step "Historia Clínica $version preparada y conectada."
