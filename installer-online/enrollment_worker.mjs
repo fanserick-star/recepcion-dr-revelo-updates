@@ -76,7 +76,7 @@ export async function encryptForDevice(cfg,publicKey,ticket) {
   const iv=random64(16);
   const aes=await crypto.subtle.importKey("raw",material.slice(0,32),"AES-CBC",false,["encrypt"]);
   const ciphertext=await crypto.subtle.encrypt({name:"AES-CBC",iv},aes,enc.encode(cfg));
-  const macKey=await crypto.subtle.importKey("raw",material.slice(32),"HMAC",false,["sign"]);
+  const macKey=await crypto.subtle.importKey("raw",material.slice(32),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const out={ticket,wrapped_key:to64(wrapped),iv:to64(iv),ciphertext:to64(ciphertext)};
   const signed=enc.encode([out.ticket,out.wrapped_key,out.iv,out.ciphertext].join("|"));
   const mac=await crypto.subtle.sign("HMAC",macKey,signed);
