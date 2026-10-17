@@ -11,6 +11,7 @@ from pathlib import Path
 
 root = Path(os.environ.get("DR_REVELO_HISTORIA_ROOT", r"C:\Historia Clinica Dr Revelo"))
 db_path = root / "data" / "historia_clinica.db"
+resume_marker = root / "data" / ".instalador_restauracion_pendiente"
 if not (root / "app.py").is_file():
     raise SystemExit("HISTORIA_APP_MISSING")
 
@@ -25,11 +26,28 @@ if db_path.is_file():
             raise SystemExit("CLINICAL_DATABASE_PRESENT_UNREADABLE")
     existing_rows = any(current)
 
+# Installer marker is created ONLY when no old clinical SQLite exists.
+# Failed imports can be safely resumed without overwriting doctor-entered data.
+resume_allowed = resume_marker.is_file()
+if existing_rows and resume_allowed:
+    with sqlite3.connect(db_path) as check:
+        pending_local = int(check.execute(
+            "SELECT COUNT(*) FROM sync_dirty "
+            "WHERE table_name IN ('patients','encounters','encounter_revisions')"
+        ).fetchone()[0])
+    if pending_local:
+        raise SystemExit("LOCAL_CLINICAL_EDITS_DETECTED_RESTORE_ABORTED")
+if not db_path.exists():
+    resume_marker.parent.mkdir(parents=True, exist_ok=True)
+    resume_marker.write_text("restauracion-segura-v1\n", encoding="utf-8")
+    resume_allowed = True
+
 os.chdir(root)
 sys.path.insert(0, str(root))
 import cloud_sync
 
-if existing_rows:
+if existing_rows or (db_path.is_file() and resume_allowed):
+    # Existing data: no app.py import to avoid destructive startup side effects.
     # Verification only. Never import app.py over a doctor's existing database.
     service = cloud_sync.CloudSyncService(root, db_path)
 else:
@@ -69,7 +87,7 @@ try:
         raise SystemExit("HISTORIA_CLOUD_CORE_TABLES_MISSING")
 
     service._remote_available_tables = found
-    if existing_rows:
+    if existing_rows and not resume_allowed:
         with sqlite3.connect(db_path) as existing:
             try:
                 local_patients = int(existing.execute("SELECT COUNT(*) FROM patients").fetchone()[0])
@@ -85,6 +103,17 @@ try:
             raise SystemExit("EXISTING_CLINICAL_DATA_NOT_VERIFIED_NO_AUTO_OVERWRITE")
         print("HISTORIA_EXISTING_DB_VERIFIED_NO_CHANGES")
         raise SystemExit(0)
+    if resume_allowed:
+        with sqlite3.connect(db_path) as pending:
+            pending.execute(
+                "INSERT OR REPLACE INTO sync_state(key,value) "
+                "VALUES('last_pull','1970-01-01T00:00:00+00:00')"
+            )
+            pending.execute(
+                "INSERT OR REPLACE INTO sync_state(key,value) "
+                "VALUES('cloud_bootstrap_complete','0')"
+            )
+            pending.commit()
     cur.execute("SELECT now()::text")
     remote_now = str(cur.fetchone()[0])
     restored = service._pull(pg, remote_now)  # PostgreSQL SELECT; only local SQLite UPSERT
@@ -158,6 +187,9 @@ with sqlite3.connect(db_path) as local:
         (cloud_sync.HISTORIA_CLOUD_IDENTITY,),
     )
     local.commit()
+
+if resume_allowed:
+    resume_marker.unlink(missing_ok=True)
 
 print("HISTORIA_FIRST_BOOT_RESTORE_OK")
 print("HISTORIA_CLOUD_ROWS_RETRIEVED", restored)
