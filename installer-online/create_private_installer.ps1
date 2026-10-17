@@ -2,11 +2,16 @@ param(
     [Parameter(Mandatory=$true)][string]$BaseExe,
     [string]$ReceptionEnv = 'C:\Recepcion Dr Revelo\.env',
     [string]$HistoriaEnv = 'C:\Historia Clinica Dr Revelo\.env',
-    [string]$OutputExe = (Join-Path ([Environment]::GetFolderPath('Desktop')) 'INSTALAR_CONSULTORIO_PRIVADO.exe')
+    [string]$OutputExe
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ([string]::IsNullOrWhiteSpace($OutputExe)) {
+    $desktop = [Environment]::GetFolderPath('Desktop')
+    if ([string]::IsNullOrWhiteSpace($desktop)) { $desktop = [IO.Path]::GetTempPath() }
+    $OutputExe = Join-Path $desktop 'INSTALAR_CONSULTORIO_PRIVADO.exe'
+}
 
 function Read-PrivateEnv([string]$Path) {
     $result = @{}
@@ -58,7 +63,8 @@ $hist['HISTORIA_DATABASE_URL'] = $histUrl
 if (-not $hist.ContainsKey('HISTORIA_SYNC_ENABLED')) { $hist['HISTORIA_SYNC_ENABLED'] = '1' }
 
 # No imprimir, copiar a portapapeles ni mostrar las contraseñas en la consola.
-$tempDir = Join-Path $env:TEMP ('dr-revelo-seal-' + [guid]::NewGuid().ToString('N'))
+$safeTemp = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
+$tempDir = Join-Path $safeTemp ('dr-revelo-seal-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 $tempCfg = Join-Path $tempDir 'private.cfg'
 try {
