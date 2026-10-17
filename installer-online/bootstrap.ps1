@@ -304,10 +304,7 @@ finally:
 function Restore-HistoriaOnFreshPC([string]$Root) {
     $dbPath = Join-Path $Root 'data\historia_clinica.db'
     if (Test-Path -LiteralPath $dbPath -PathType Leaf) {
-        # A clinical database is never replaced, even when partially synchronized.
-        # Installation/repair of an existing doctor PC must not disturb its records.
-        Write-Step 'Historia ya tiene base local: se conserva intacta. La recuperación automática se omite.'
-        return
+        Write-Step 'Historia ya tiene SQLite: solo se verificará, sin modificarla.'
     }
     $python = Join-Path $Root '.venv\Scripts\python.exe'
     if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
@@ -331,8 +328,8 @@ db_path = root / "data" / "historia_clinica.db"
 if not (root / "app.py").is_file():
     raise SystemExit("HISTORIA_APP_MISSING")
 
-# Refuse to overwrite a clinical database that contains any patient data.
-# A nonempty database is protected, even if it has an incomplete cloud cursor.
+# Existing clinical data is never modified by this initializer.
+existing_rows = False
 if db_path.is_file():
     with sqlite3.connect(db_path) as local:
         try:
@@ -340,15 +337,18 @@ if db_path.is_file():
                        for table in ("patients", "encounters")]
         except sqlite3.DatabaseError:
             raise SystemExit("CLINICAL_DATABASE_PRESENT_UNREADABLE")
-    if any(current):
-        raise SystemExit("CLINICAL_DATABASE_ALREADY_EXISTS_NO_AUTO_OVERWRITE")
+    existing_rows = any(current)
 
 os.chdir(root)
 sys.path.insert(0, str(root))
-import app as clinical_app  # creates only missing local SQLite schema
 import cloud_sync
 
-service = clinical_app.SYNC_SERVICE
+if existing_rows:
+    # Verification only. Never import app.py over a doctor's existing database.
+    service = cloud_sync.CloudSyncService(root, db_path)
+else:
+    import app as clinical_app  # creates only missing local SQLite schema
+    service = clinical_app.SYNC_SERVICE
 if not service.enabled:
     raise SystemExit("HISTORIA_CLOUD_SYNC_DISABLED")
 if cloud_sync._endpoint_id_from_url(service.url) != cloud_sync.HISTORIA_NEON_ENDPOINT_ID:
@@ -383,6 +383,22 @@ try:
         raise SystemExit("HISTORIA_CLOUD_CORE_TABLES_MISSING")
 
     service._remote_available_tables = found
+    if existing_rows:
+        with sqlite3.connect(db_path) as existing:
+            try:
+                local_patients = int(existing.execute("SELECT COUNT(*) FROM patients").fetchone()[0])
+                local_encounters = int(existing.execute("SELECT COUNT(*) FROM encounters").fetchone()[0])
+                row = existing.execute("SELECT value FROM sync_state WHERE key='cloud_bootstrap_complete'").fetchone()
+                endpoint_row = existing.execute("SELECT value FROM sync_state WHERE key='cloud_endpoint_id'").fetchone()
+            except sqlite3.DatabaseError:
+                raise SystemExit("CLINICAL_DATABASE_EXISTS_INCOMPLETE")
+        if (local_patients < expected_patients or
+            local_encounters < expected_encounters - 100 or not row or
+            row[0] != "1" or not endpoint_row or
+            endpoint_row[0] != cloud_sync.HISTORIA_NEON_ENDPOINT_ID):
+            raise SystemExit("EXISTING_CLINICAL_DATA_NOT_VERIFIED_NO_AUTO_OVERWRITE")
+        print("HISTORIA_EXISTING_DB_VERIFIED_NO_CHANGES")
+        raise SystemExit(0)
     cur.execute("SELECT now()::text")
     remote_now = str(cur.fetchone()[0])
     restored = service._pull(pg, remote_now)  # PostgreSQL SELECT; only local SQLite UPSERT
