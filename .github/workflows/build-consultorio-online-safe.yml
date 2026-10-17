@@ -87,6 +87,27 @@ jobs:
           assert b"fake-a" not in sealed
           PY
           sha256sum dist/*.exe > dist/SHA256SUMS.txt
+      - name: Smoke-test private EXE preparation with FAKE local configs
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'dr-revelo-fake-seal'
+          New-Item -ItemType Directory -Force $work | Out-Null
+          $rec = Join-Path $work 'rec.env'
+          $hist = Join-Path $work 'hist.env'
+          $out = Join-Path $work 'TEST_PRIVADO_NO_PUBLICAR.exe'
+          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine))
+          [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
+          $python = (Get-Command python3 -ErrorAction Stop).Source
+          New-Item -ItemType SymbolicLink -Path (Join-Path $work 'python.exe') -Target $python -Force | Out-Null
+          $env:PATH = $work + [IO.Path]::PathSeparator + $env:PATH
+          & ./installer-online/create_private_installer.ps1 -BaseExe './dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe' -ReceptionEnv $rec -HistoriaEnv $hist -OutputExe $out
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw 'Falló el sellado privado con datos ficticios.' }
+          $printable = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($out))
+          if ($printable.Contains('dummy-ci-key') -or $printable.Contains('dummy.invalid')) {
+            throw 'Datos privados ficticios visibles sin cifrar en el EXE.'
+          }
+          Remove-Item $out,$rec,$hist -Force
+
       - name: Upload PUBLIC-SAFE BASE ONLY
         uses: actions/upload-artifact@v4
         with:
