@@ -49,6 +49,20 @@ jobs:
             (Resolve-Path "installer-online/auto_enroll_install.ps1"),
             [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Verify clinical restore code is embedded byte-for-byte
+        run: |
+          python3 -m py_compile installer-online/restore_historia_initial.py
+          python3 - <<'PY'
+          from pathlib import Path
+          master=Path('installer-online/restore_historia_initial.py').read_text().strip()
+          bootstrap=Path('installer-online/bootstrap.ps1').read_text()
+          extracted=bootstrap.split("    $scriptSource = @'\n",1)[1].split("\n'@\n",1)[0].strip()
+          assert extracted==master, 'Embedded restore script is out of date'
+          assert 'BEGIN READ ONLY' in extracted
+          assert 'CLINICAL_DATABASE_EXISTS_INCOMPLETE' in extracted
+          assert 'HISTORIA_FIRST_BOOT_RESTORE_OK' in extracted
+          print('CLINICAL_RESTORE_EMBED_AND_READ_ONLY_GUARDS_OK')
+          PY
       - name: Test isolated enrollment worker with dummy secrets only
         run: |
           node --check installer-online/enrollment_worker.mjs
