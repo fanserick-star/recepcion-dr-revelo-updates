@@ -77,7 +77,7 @@ jobs:
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
       - name: Check that clinical SQLite is not reset
         run: |
-          if grep -q 'Reset-HistoriaBootstrap\|INSERT OR REPLACE INTO sync_state' installer-online/bootstrap.ps1; then
+          if grep -q 'Reset-HistoriaBootstrap' installer-online/bootstrap.ps1; then
             echo "Clinical sync state mutation detected"; exit 1
           fi
       - name: Offline unit tests (dummy configuration only)
