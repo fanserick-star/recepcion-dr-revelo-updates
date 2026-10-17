@@ -95,7 +95,7 @@ jobs:
           $rec = Join-Path $work 'rec.env'
           $hist = Join-Path $work 'hist.env'
           $out = Join-Path $work 'TEST_PRIVADO_NO_PUBLICAR.exe'
-          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine))
+          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_BASE_URL=https://billing.invalid" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine + "MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key" + [Environment]::NewLine + "MOBILE_RECEPTION_TOKEN=dummy-reception-ci-key" + [Environment]::NewLine + "RP_WORKSTATION_NAME=OLD-RECEPTION-PC" + [Environment]::NewLine + "RP_FORCE_OFFLINE=1" + [Environment]::NewLine + "WHATSAPP_CLOUD_MODE=0" + [Environment]::NewLine + "WHATSAPP_ENABLED=1" + [Environment]::NewLine))
           [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
           $python = (Get-Command python3 -ErrorAction Stop).Source
           New-Item -ItemType SymbolicLink -Path (Join-Path $work 'python.exe') -Target $python -Force | Out-Null
