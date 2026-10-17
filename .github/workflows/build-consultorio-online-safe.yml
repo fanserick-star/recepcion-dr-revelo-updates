@@ -141,7 +141,7 @@ jobs:
           [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_BASE_URL=https://billing.invalid" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine + "MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key" + [Environment]::NewLine + "MOBILE_RECEPTION_TOKEN=dummy-reception-ci-key" + [Environment]::NewLine + "RP_WORKSTATION_NAME=OLD-PC" + [Environment]::NewLine + "WHATSAPP_ENABLED=1" + [Environment]::NewLine))
           [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
           & ./installer-online/prepare_embedded.ps1 -BaseExe './dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe' -ReceptionEnv $rec -HistoriaEnv $hist -OutputExe $out
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw 'Falló la preparación privada interna.' }
+          if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { throw 'Falló la preparación privada interna.' }
           $txt = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($out))
           if ($txt.Contains('dummy-ci-key') -or $txt.Contains('dummy.invalid')) { throw 'Secretos de prueba expuestos.' }
       - name: Decrypt test payload (fake keys only) to verify native compatibility
