@@ -20,6 +20,8 @@ class SealTests(unittest.TestCase):
             p = Path(td) / "private.txt"
             p.write_bytes(data)
             self.assertEqual(data, read_config(p))
+            p.write_bytes(data.replace(b"\n", b"\r\n"))
+            self.assertEqual(data, read_config(p))
         base = b"MZ" + b"fake-machine-code" + MARKER + b"none"
         packed = seal(base, data)
         self.assertNotIn(data, packed)
