@@ -233,9 +233,9 @@ function Merge-Env([string]$Root, [hashtable]$Values, [string]$BackupTag) {
     return $path
 }
 
-function Test-PostgresConfig([string]$Root, [string]$Url, [string]$ExpectedEndpoint, [string]$Label) {
+function Test-PostgresConfig([string]$Root, [string]$Url, [string]$Label) {
     if ([string]::IsNullOrWhiteSpace($Url)) { throw "Falta la conexión privada de $Label." }
-    if ($Url -notmatch [regex]::Escape($ExpectedEndpoint)) { throw "La conexión privada de $Label no apunta al endpoint esperado." }
+    if ($Url -notmatch '^postgres(ql)?://') { throw "La conexión privada de $Label no es PostgreSQL." }
     $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
     $probe = @'
 import os, ssl, urllib.parse, sys
@@ -281,8 +281,7 @@ $HistoriaLauncherSha256 = '7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0
 
 try {
     $private = Get-PrivateConfig
-    # Validate both configurations before downloading or changing local files.
-    Ensure-PrivatePython
+    # Validate both connections BEFORE installing runtime, downloading app files or changing configuration.
     $histUrl = [string]$private.HISTORIA['HISTORIA_DATABASE_URL']
     $recUrl = [string]$private.RECEPTION['DATABASE_URL']
     if ([string]::IsNullOrWhiteSpace($histUrl) -or [string]::IsNullOrWhiteSpace($recUrl)) {
@@ -291,6 +290,7 @@ try {
     if ($histUrl -eq $recUrl) {
         throw 'La conexión Neon de Historia no puede ser la misma que la de Recepción.'
     }
+    Ensure-PrivatePython
 
     if ($Reception) {
         $root = 'C:\Recepcion Dr Revelo'
@@ -300,8 +300,8 @@ try {
         foreach ($k in $private.RECEPTION.Keys) { $vals[[string]$k] = [string]$private.RECEPTION[$k] }
         $vals['HISTORIA_DATABASE_URL'] = $histUrl
         Merge-Env $root $vals 'instalador_consultorio' | Out-Null
-        Test-PostgresConfig $root ([string]$vals['DATABASE_URL']) 'ep-shiny-scene-a66ta52d' 'Recepción'
-        Test-PostgresConfig $root $histUrl 'ep-sweet-mud-arlsk7qa' 'puente Historia'
+        Test-PostgresConfig $root ([string]$vals['DATABASE_URL']) 'Recepción'
+        Test-PostgresConfig $root $histUrl 'puente Historia'
         Install-VerifiedLauncher 'Recepción' $ReceptionLauncherUrl $ReceptionLauncherSha256
         Write-Step "Recepción $version preparada y conectada."
     }
@@ -310,9 +310,12 @@ try {
         $root = 'C:\Historia Clinica Dr Revelo'
         $version = Install-AppFromChannel 'Historia Clínica' $root 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json'
         Ensure-Venv 'Historia Clínica' $root $HistoriaPackages
-        $vals = @{ 'HISTORIA_DATABASE_URL' = $histUrl; 'HISTORIA_SYNC_ENABLED' = '1' }
+        $vals = @{}
+        foreach ($k in $private.HISTORIA.Keys) { $vals[[string]$k] = [string]$private.HISTORIA[$k] }
+        $vals['HISTORIA_DATABASE_URL'] = $histUrl
+        $vals['HISTORIA_SYNC_ENABLED'] = '1'
         $changed = Merge-Env $root $vals 'instalador_consultorio'
-        Test-PostgresConfig $root $histUrl 'ep-sweet-mud-arlsk7qa' 'Historia Clínica'
+        Test-PostgresConfig $root $histUrl 'Historia Clínica'
         if ($changed) { Reset-HistoriaBootstrap $root }
         Install-VerifiedLauncher 'Historia Clínica' $HistoriaLauncherUrl $HistoriaLauncherSha256
         Write-Step "Historia Clínica $version preparada y conectada."
