@@ -33,3 +33,15 @@ Se valida sintaxis de PowerShell, compilación Windows x64 y sellado **con crede
 Rutas: \`C:\Recepcion Dr Revelo\`, \`C:\Historia Clinica Dr Revelo\`. Se conservan \`data/\` y archivos privados que no se actualizan por canal. Los accesos directos los prepara el instalador oficial del launcher.
 
 Este proceso NO modifica pacientes, facturas ni bases de datos en GitHub.
+
+## Crear el ejecutable privado SIN escribir las claves
+
+En la PC de Recepción que ya está correctamente configurada, coloque juntos `create_private_installer.ps1`, `seal_private_installer.py` y el ejecutable base de la compilación de pruebas. Ejecute en PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\create_private_installer.ps1 -BaseExe .\INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe
+```
+
+La herramienta lee los valores de `C:\Recepcion Dr Revelo\.env` y, si existe, `C:\Historia Clinica Dr Revelo\.env`. Si solo existe la configuración de Recepción, toma la conexión a Historia desde el puente ya configurado en Recepción. No pide escribir las API keys, no toca las bases, no imprime credenciales y elimina el archivo privado temporal. El ejecutable resultante se guarda en el escritorio como `INSTALAR_CONSULTORIO_PRIVADO.exe`.
+
+Si la PC de Recepción no tiene guardadas todas las claves necesarias (por ejemplo, AZUR o integraciones específicas), deberán obtenerse del almacén privado autorizado antes de sellar; nunca de GitHub público. No distribuir el ejecutable privado fuera del consultorio.
