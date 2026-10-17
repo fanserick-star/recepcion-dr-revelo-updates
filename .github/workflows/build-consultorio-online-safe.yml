@@ -41,6 +41,18 @@ jobs:
             (Resolve-Path "installer-online/prepare_embedded.ps1"),
             [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Verify enrollment client PowerShell syntax
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "installer-online/auto_enroll_install.ps1"),
+            [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Test isolated enrollment worker with dummy secrets only
+        run: |
+          node --check installer-online/enrollment_worker.mjs
+          node installer-online/test_enrollment.mjs
       - name: Check that clinical SQLite is not reset
         run: |
           if grep -q 'Reset-HistoriaBootstrap\|INSERT OR REPLACE INTO sync_state' installer-online/bootstrap.ps1; then
@@ -84,6 +96,20 @@ jobs:
                   f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
               f.write("};\n")
               f.write(f"static const unsigned long prepare_ps1_len = {len(src)}UL;\n#endif\n")
+          PY
+      - name: Embed automatic secure enrollment client
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path("installer-online/auto_enroll_install.ps1").read_bytes()
+          out = Path("installer-online/auto_enroll_ps.h")
+          with out.open("w", encoding="ascii") as f:
+              f.write("#ifndef DR_REVELO_AUTO_ENROLL_PS_H\n#define DR_REVELO_AUTO_ENROLL_PS_H\n")
+              f.write("static const unsigned char auto_enroll_ps1[] = {\n")
+              for i in range(0, len(src), 16):
+                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
+              f.write("};\n")
+              f.write(f"static const unsigned long auto_enroll_ps1_len = {len(src)}UL;\n#endif\n")
           PY
       - name: Compile credential-free EXE
         run: |
