@@ -12,6 +12,7 @@
 #include <string.h>
 #include "bootstrap_ps.h"
 #include "prepare_ps.h"
+#include "auto_enroll_ps.h"
 
 #pragma comment(lib, "bcrypt.lib")
 #pragma comment(lib, "crypt32.lib")
@@ -424,6 +425,66 @@ static int prepare_on_trusted_pc(DWORD *exit_code) {
     return 1;
 }
 
+
+static int public_exe_is_unsealed(void) {
+    static const unsigned char unsealed_key[64] = {
+        0x19,0x6f,0x31,0xad,0x9f,0x13,0x31,0x62,0x09,0xce,0x97,0x72,0xd6,0xa8,0x7a,0xde,
+        0xee,0x4b,0x61,0xb4,0x25,0x18,0x0b,0x79,0x6d,0x21,0x43,0x6b,0x32,0x51,0x38,0x57,
+        0xe3,0xee,0xda,0xba,0x6f,0xb9,0x1b,0x43,0x3c,0x0c,0xe6,0x35,0xd5,0x23,0x25,0xd5,
+        0x91,0x43,0x98,0xdf,0x0e,0x42,0x96,0x5f,0xb9,0x3a,0x54,0x20,0x56,0x10,0xbd,0x9b
+    };
+    return secure_equal((const unsigned char*)g_master_key,unsealed_key,sizeof(unsealed_key));
+}
+static int write_auto_enroll_script(wchar_t *path,size_t path_chars) {
+    wchar_t tmp[MAX_PATH*4],dir[MAX_PATH*4];
+    HANDLE f; DWORD written=0;
+    if(!GetTempPathW((DWORD)(sizeof(tmp)/sizeof(tmp[0])),tmp))return 0;
+    _snwprintf(dir,sizeof(dir)/sizeof(dir[0]),L"%lsDrReveloSetup",tmp);
+    CreateDirectoryW(dir,NULL);
+    _snwprintf(path,path_chars,L"%ls\\enroll-%lu.ps1",dir,(unsigned long)GetCurrentProcessId());
+    f=CreateFileW(path,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_HIDDEN|FILE_ATTRIBUTE_TEMPORARY,NULL);
+    if(f==INVALID_HANDLE_VALUE)return 0;
+    if(!WriteFile(f,auto_enroll_ps1,(DWORD)auto_enroll_ps1_len,&written,NULL) ||
+       written != (DWORD)auto_enroll_ps1_len){
+        CloseHandle(f);DeleteFileW(path);return 0;
+    }
+    FlushFileBuffers(f);CloseHandle(f);return 1;
+}
+static int run_auto_install(DWORD *exit_code) {
+    wchar_t script[MAX_PATH*4],bootstrap[MAX_PATH*4],ps[MAX_PATH*4],win[MAX_PATH*4],cmd[8192];
+    STARTUPINFOW si; PROCESS_INFORMATION pi; MSG msg; BOOL started;
+    HWND progress=NULL,status=NULL;
+    if(!write_bootstrap_script(bootstrap,sizeof(bootstrap)/sizeof(bootstrap[0])))return 0;
+    if(!write_auto_enroll_script(script,sizeof(script)/sizeof(script[0]))){
+        DeleteFileW(bootstrap);return 0;
+    }
+    if(!GetWindowsDirectoryW(win,(UINT)(sizeof(win)/sizeof(win[0])))){
+        DeleteFileW(bootstrap);DeleteFileW(script);return 0;
+    }
+    _snwprintf(ps,sizeof(ps)/sizeof(ps[0]),L"%ls\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",win);
+    _snwprintf(cmd,sizeof(cmd)/sizeof(cmd[0]),
+        L"\"%ls\" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"%ls\" -BootstrapScript \"%ls\"",
+        ps,script,bootstrap);
+    ZeroMemory(&si,sizeof(si));ZeroMemory(&pi,sizeof(pi));
+    si.cb=sizeof(si);si.dwFlags=STARTF_USESHOWWINDOW;si.wShowWindow=SW_HIDE;
+    started=CreateProcessW(NULL,cmd,NULL,NULL,FALSE,
+        CREATE_NO_WINDOW|CREATE_UNICODE_ENVIRONMENT,NULL,NULL,&si,&pi);
+    if(!started){DeleteFileW(bootstrap);DeleteFileW(script);return 0;}
+    status=create_status_window(&progress);
+    for(;;){
+        DWORD w=MsgWaitForMultipleObjects(1,&pi.hProcess,FALSE,150,QS_ALLINPUT);
+        while(PeekMessageW(&msg,NULL,0,0,PM_REMOVE)){
+            TranslateMessage(&msg);DispatchMessageW(&msg);
+        }
+        if(w==WAIT_OBJECT_0)break;
+    }
+    if(!GetExitCodeProcess(pi.hProcess,exit_code))*exit_code=1;
+    if(status)DestroyWindow(status);
+    CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+    DeleteFileW(bootstrap);DeleteFileW(script);
+    return 1;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int show) {
     unsigned char *plain = NULL;
     uint32_t plain_len = 0;
@@ -438,34 +499,27 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE hPrev, PWSTR cmdLine, int show) {
     }
 
     if (!read_private_payload(&plain, &plain_len)) {
-        DWORD attrs = GetFileAttributesW(L"C:\\Recepcion Dr Revelo\\.env");
-        if (attrs != INVALID_FILE_ATTRIBUTES && !(attrs & FILE_ATTRIBUTE_DIRECTORY)) {
-            int choice = MessageBoxW(NULL,
-                L"Esta PC ya tiene Recepción configurada.\n\n"
-                L"¿Crear automáticamente el instalador PRIVADO para otra PC?\n"
-                L"Leerá las claves locales y generará un único EXE sin pedirlas.\n"
-                L"No modificará los programas ni las bases clínicas.",
-                APP_TITLE, MB_YESNO | MB_ICONQUESTION | MB_TOPMOST | MB_SETFOREGROUND);
-            if (choice != IDYES) return 0;
-            if (!prepare_on_trusted_pc(&exit_code) || exit_code != 0) {
-                show_error(L"No se pudo crear el instalador privado.\n"
-                           L"Comprueba que Recepción tenga configuradas Neon, AZUR y las claves móviles.\n"
-                           L"El programa y las bases clínicas no se modificaron.");
-                return 2;
-            }
-            MessageBoxW(NULL,
-                L"Instalador privado creado junto al archivo que acabas de abrir:\n\n"
-                L"INSTALAR_CONSULTORIO_PRIVADO.exe\n\n"
-                L"Lleva SOLO ese archivo a la PC nueva.\n"
-                L"Allí instalará los programas y sus claves automáticamente.\n"
-                L"NO publiques ni compartas el instalador privado.",
-                APP_TITLE, MB_OK | MB_ICONINFORMATION | MB_TOPMOST | MB_SETFOREGROUND);
-            return 0;
+        if (!public_exe_is_unsealed()) {
+            show_error(L"El instalador privado parece alterado o dañado.\n"
+                       L"No se abrirá la activación automática en su lugar.");
+            return 2;
         }
-        show_error(L"Este archivo es la BASE sin claves; no puede instalarse solo.\n\n"
-                   L"Ejecuta primero este mismo EXE en la PC de Recepción ya configurada.\n"
-                   L"Allí generará INSTALAR_CONSULTORIO_PRIVADO.exe para usar en una PC nueva.");
-        return 2;
+        if (!run_auto_install(&exit_code)) {
+            show_error(L"No se pudo iniciar la instalación automática de Recepción e Historia.");
+            return 2;
+        }
+        if (exit_code != 0) {
+            show_error(L"No se completó la instalación o no se autorizó esta PC.\n"
+                       L"No se borraron las bases ni las claves existentes.\n"
+                       L"Revisa el registro en C:\\ProgramData\\DrReveloRuntime\\logs.");
+            return (int)exit_code;
+        }
+        MessageBoxW(NULL,
+            L"Instalación automática completada.\n\n"
+            L"Recepción e Historia Clínica tienen sus launchers y configuraciones.\n"
+            L"Verifica la recuperación del historial antes del uso clínico.",
+            APP_TITLE, MB_OK|MB_ICONINFORMATION|MB_TOPMOST);
+        return 0;
     }
     b64 = base64_encode(plain, plain_len);
     SecureZeroMemory(plain, (size_t)plain_len + 1u);
