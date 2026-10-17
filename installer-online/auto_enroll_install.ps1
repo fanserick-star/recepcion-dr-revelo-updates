@@ -85,8 +85,13 @@ try {
       "Código de aprobación: $code" + [char]10 + [char]10 +
       "La contraseña administrativa solo se escribe en la página segura." + [char]10 +
       "No se te pedirán las claves de Neon ni AZUR."
-    [void][System.Windows.Forms.MessageBox]::Show($instructions,'Autorizar nueva PC - Consultorio Dr. Revelo',
-        [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information)
+    $owner = New-Object System.Windows.Forms.Form
+    $owner.TopMost = $true
+    $owner.ShowInTaskbar = $false
+    try {
+        [void][System.Windows.Forms.MessageBox]::Show($owner,$instructions,'Autorizar nueva PC - Consultorio Dr. Revelo',
+            [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information)
+    } finally { $owner.Dispose() }
     $approved = $null
     for ($i=0; $i -lt 180; $i++) {
         $res = Invoke-JsonPost '/poll' @{ ticket=$ticket; token=$token }
