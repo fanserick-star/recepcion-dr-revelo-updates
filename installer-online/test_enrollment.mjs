@@ -44,6 +44,7 @@ assert.equal((await call('/admin/approve',{ticket,code},'wrong')).status,403);
 assert.equal((await call('/admin/approve',{ticket,code:'000000'},fakeEnv.DR_REVELO_ADMIN_TOKEN)).status,409);
 let pending=await call('/admin/pending',{ticket},fakeEnv.DR_REVELO_ADMIN_TOKEN);
 assert.equal(pending.body.pc,'PC-DE-PRUEBA');
+assert.equal('code' in pending.body,false,'Admin ticket lookup must never reveal confirmation code');
 assert.equal((await call('/admin/approve',{ticket,code},fakeEnv.DR_REVELO_ADMIN_TOKEN)).status,200);
 const debugEnvelope=await encryptForDevice(buildPrivateConfig(fakeEnv),{n:jwk.n,e:jwk.e},ticket);
 assert.ok(debugEnvelope.mac);
@@ -65,6 +66,12 @@ assert.ok(plain.includes('WHATSAPP_CLOUD_MODE=1'));
 assert.ok(plain.includes('HISTORIA_SYNC_ENABLED=1'));
 assert.ok(!plain.includes('RP_WORKSTATION_NAME='));
 assert.equal((await call('/poll',{ticket,token})).status,410);
+// The public endpoint cannot fill up KV indefinitely from one IP/hour.
+for(let i=0;i<9;i++) {
+  const next=await call('/enroll',{pc:'PC-TEST-'+i,public_key:{n:jwk.n,e:jwk.e}});
+  assert.equal(next.status,200);
+}
+assert.equal((await call('/enroll',{pc:'PC-EXCESS',public_key:{n:jwk.n,e:jwk.e}})).status,429);
 const damaged={...fakeEnv,RECEPTION_ENV_B64:''};
 assert.equal((await call('/enroll',{pc:'PC',public_key:{n:jwk.n,e:jwk.e}},'',damaged)).status,503);
 console.log('ENROLLMENT_DENY_UNAUTHORIZED_AND_RSA_CRYPTO_ROUNDTRIP_OK_DUMMY_ONLY');
