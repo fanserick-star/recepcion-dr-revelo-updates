@@ -256,22 +256,7 @@ finally:
     } finally { [Environment]::SetEnvironmentVariable('DR_REVELO_PROBE_URL',$null,'Process') }
 }
 
-function Reset-HistoriaBootstrap([string]$Root) {
-    $db = Join-Path $Root 'data\historia_clinica.db'
-    if (-not (Test-Path -LiteralPath $db)) { return }
-    $venvPython = Join-Path $Root '.venv\Scripts\python.exe'
-    $code = @'
-import sqlite3,sys
-p=sys.argv[1]
-c=sqlite3.connect(p,timeout=10)
-c.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('last_pull','1970-01-01T00:00:00+00:00')")
-c.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES('cloud_bootstrap_complete','0')")
-c.commit()
-c.close()
-'@
-    try { & $venvPython -c $code $db | Out-Null } catch { Write-Step 'Historia conservará sus datos locales; el bootstrap se reintentará al abrir.' }
-}
-
+# Clinical SQLite/data are never modified by this installer.
 $ReceptionPackages = @('fastapi==0.128.2','uvicorn==0.48.0','SQLAlchemy>=2.0,<2.1','python-dotenv>=1.0,<2','pg8000==1.31.2','python-multipart>=0.0.20,<1')
 $HistoriaPackages = @('fastapi==0.128.2','uvicorn==0.48.0','pg8000==1.31.2','pywebview==6.2.1')
 $ReceptionLauncherUrl = 'https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.12/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12.exe'
@@ -316,7 +301,7 @@ try {
         $vals['HISTORIA_SYNC_ENABLED'] = '1'
         $changed = Merge-Env $root $vals 'instalador_consultorio'
         Test-PostgresConfig $root $histUrl 'Historia Clínica'
-        if ($changed) { Reset-HistoriaBootstrap $root }
+        # No SQLite sync state reset on reinstall/repair.
         Install-VerifiedLauncher 'Historia Clínica' $HistoriaLauncherUrl $HistoriaLauncherSha256
         Write-Step "Historia Clínica $version preparada y conectada."
     }
