@@ -1,5 +1,23 @@
 # Instalador online del consultorio (rama de validación)
 
+## Arquitectura definitiva (en rama de pruebas, aún NO en producción)
+
+**Un solo EXE público y sin credenciales** se puede ejecutar en cualquier Windows autorizado. En vez de pedir un `.env`, el EXE inicia el cliente `auto_enroll_install.ps1`, que crea una clave privada RSA-CNG efímera. El servicio aislado `dr-revelo-enrollment` recibe únicamente la clave pública y el nombre de la computadora, muestra código de aprobación y retiene la solicitud en KV con vencimiento. Un administrador abre `https://dr-revelo-enrollment.drrevelo.workers.dev/approve`, comprueba el ticket de la PC, introduce el código mostrado y su contraseña administrativa. El Worker entrega un solo sobre cifrado RSA-OAEP-SHA256 / AES-256-CBC / HMAC-SHA256 para esa clave pública. El cliente verifica el HMAC, descifra en RAM y llama al bootstrap con ambos programas seleccionados. Los valores solo se escriben en los `.env` finales de las PC autorizadas.
+
+El EXE descarga Recepción e Historia Clínica desde sus canales publicados, comprobando SHA256; instala WebView2 firmado por Microsoft, Python 3.12, sus dependencias, launchers, accesos directos y las configuraciones privadas. **El programa original instalado no se desinstala ni se reemplaza en producción por estos commits.** En una instalación existente nunca se borra ni resetea el SQLite clínico.
+
+### Activación una sola vez por el administrador
+
+1. Desplegar primero el Worker **independiente** y su namespace KV mediante el workflow manual `.github/workflows/deploy-consultorio-enrollment.yml` (requiere permisos Cloudflare para KV y Worker). Este workflow no afecta `dr-revelo-whatsapp-cloud`.
+2. En la PC de Recepción ya configurada, ejecutar en PowerShell `provision_once_reception.ps1 -CloudflareAccountId <id de cuenta>` y proporcionar el token Cloudflare con permisos de escribir secretos **una sola vez**. El script lee `C:\Recepcion Dr Revelo\.env`, revisa claves obligatorias, comprueba que Historia use el endpoint esperado y crea los secretos `RECEPTION_ENV_B64`, `HISTORIA_ENV_B64`, `DR_REVELO_ADMIN_TOKEN` en Cloudflare sin imprimir ni enviar claves a GitHub. La contraseña administrativa se genera aleatoriamente y queda protegida con DPAPI local; guardarla también en un gestor seguro.
+3. Después de esta activación, **ninguna PC nueva necesita tocar ni leer los archivos de la PC original**. Se descarga el mismo EXE, se autoriza esa PC desde el portal administrativo y se instalan ambos sistemas automáticamente.
+
+**Actualmente falta desplegar y provisionar el Worker con secretos reales.** Un EXE con esta nueva lógica **no instala** mientras `/health` indique `configured: false` o no esté desplegado. Esa falla cerrada es deliberada. La configuración inicial solo la puede realizar el administrador desde el equipo de confianza: ni ChatGPT ni GitHub público contienen las API keys. No almacenar archivos `.p12/.pfx` ni su contraseña en el Worker; la firma electrónica es un paso local independiente del doctor.
+
+**Limitaciones pendientes:** aún no se ha realizado un ensayo E2E sobre PC Windows vacía con aprobaciones reales y recuperación completa de historias. Las pruebas CI usan credenciales falsas, realizan cifrado/descifrado, denegación sin permiso, compilación PE y verificación de RSA/AES en Windows PowerShell 5.1. Para llamar al sistema listo para producción hace falta verificar base local restaurada, turnos, impresoras, AZUR, accesos móviles, que WhatsApp no tenga emisor duplicado y validación de firma; todo en PC de pruebas aislada.
+
+---
+
 ## Ahora es un único EXE por paso, sin scripts manuales
 1. Descargar `INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe` de la compilación verificada.
 2. Ejecutar **ese mismo EXE en la PC de Recepción ya configurada**. Detecta el `.env` autorizado y genera `INSTALAR_CONSULTORIO_PRIVADO.exe` **junto al primero**, sin pedir contraseñas, sin Python y sin modificar la aplicación.
