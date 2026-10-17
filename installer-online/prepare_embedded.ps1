@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$BaseExe,
-    [Parameter(Mandatory=$true)][string]$OutputExe
+    [Parameter(Mandatory=$true)][string]$OutputExe,
+    [string]$ReceptionEnv = 'C:\Recepcion Dr Revelo\.env',
+    [string]$HistoriaEnv = 'C:\Historia Clinica Dr Revelo\.env'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -96,8 +98,8 @@ function Seal-PrivateExe([byte[]]$Exe, [byte[]]$Plain) {
     return ,$sealed
 }
 
-$receptionPath = 'C:\Recepcion Dr Revelo\.env'
-$historiaPath = 'C:\Historia Clinica Dr Revelo\.env'
+$receptionPath = $ReceptionEnv
+$historiaPath = $HistoriaEnv
 if (-not (Test-Path -LiteralPath $BaseExe -PathType Leaf)) { throw 'No se encontró el EXE base.' }
 if ([IO.Path]::GetFullPath($BaseExe) -eq [IO.Path]::GetFullPath($OutputExe)) { throw 'La salida no puede reemplazar la base.' }
 $rec = Read-PrivateEnv $receptionPath
