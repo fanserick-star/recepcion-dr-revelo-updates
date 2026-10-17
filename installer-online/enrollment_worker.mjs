@@ -35,7 +35,7 @@ function parseEnv(encoded, pattern) {
   }
   return env;
 }
-function buildPrivateConfig(env) {
+export function buildPrivateConfig(env) {
   const rec=parseEnv(env.RECEPTION_ENV_B64,ALLOWED.rec);
   const hist=parseEnv(env.HISTORIA_ENV_B64,ALLOWED.hist);
   const required=["DATABASE_URL","HISTORIA_DATABASE_URL","AZUR_BASE_URL","AZUR_API_KEY",
@@ -67,7 +67,7 @@ async function admin(req,env) {
   const expected=env.DR_REVELO_ADMIN_TOKEN;
   return !!(expected && expected.length>=32 && safeEqual(authorization, "Bearer "+expected));
 }
-async function encryptForDevice(cfg,publicKey,ticket) {
+export async function encryptForDevice(cfg,publicKey,ticket) {
   const key=await crypto.subtle.importKey("jwk",{kty:"RSA",n:publicKey.n,e:publicKey.e,
     alg:"RSA-OAEP-256",ext:true,key_ops:["encrypt"]},
     {name:"RSA-OAEP",hash:"SHA-256"},false,["encrypt"]);
