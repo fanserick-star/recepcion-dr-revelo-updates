@@ -1,0 +1,85 @@
+name: Test and build consultorio online bootstrap (no secrets)
+
+on:
+  push:
+    branches:
+      - feature/instalador-online-seguro-20261017
+    paths:
+      - "installer-online/**"
+      - ".github/workflows/build-consultorio-online-safe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell safely
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "installer-online/bootstrap.ps1"),
+            [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Offline unit tests (dummy configuration only)
+        run: |
+          python3 installer-online/test_sealer.py
+          python3 -m py_compile installer-online/seal_private_installer.py
+          if grep -R -n 'DR_REVELO_PRIVATE_CONFIG_B64=' installer-online/; then
+            echo "Unexpected embedded configuration assignment"; exit 1
+          fi
+      - name: Prepare Windows cross-compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-mingw-w64-x86-64
+      - name: Embed secret-free PowerShell script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path("installer-online/bootstrap.ps1").read_bytes()
+          out = Path("installer-online/bootstrap_ps.h")
+          with out.open("w", encoding="ascii") as f:
+              f.write("#ifndef DR_REVELO_BOOTSTRAP_PS_H\n#define DR_REVELO_BOOTSTRAP_PS_H\n")
+              f.write("static const unsigned char bootstrap_ps1[] = {\n")
+              for i in range(0, len(src), 16):
+                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
+              f.write("};\n")
+              f.write(f"static const unsigned long bootstrap_ps1_len = {len(src)}UL;\n#endif\n")
+          PY
+      - name: Compile credential-free EXE
+        run: |
+          mkdir -p dist
+          x86_64-w64-mingw32-gcc installer-online/consultorio_bootstrap.c \
+            -o dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe \
+            -std=c11 -O2 -s -mwindows -municode -static-libgcc \
+            -lbcrypt -lcrypt32 -lshell32 -lcomctl32 -ladvapi32
+          file dist/*.exe
+          test "$(wc -c < dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe)" -lt 12582912
+          # The stub must never contain private URLs, even encrypted production secrets.
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "installer-online")
+          from seal_private_installer import MARKER, seal
+          exe = Path("dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe").read_bytes()
+          assert exe.count(MARKER) == 1, "Compiler changed key layout: fail closed"
+          fake = b"DR_REVELO_CONFIG_V2\n[RECEPTION]\nDATABASE_URL=fake-a\n[HISTORIA]\nHISTORIA_DATABASE_URL=fake-b\n"
+          sealed = seal(exe, fake)
+          assert len(sealed) > len(exe)
+          assert fake not in sealed
+          assert b"fake-a" not in sealed
+          PY
+          sha256sum dist/*.exe > dist/SHA256SUMS.txt
+      - name: Upload PUBLIC-SAFE BASE ONLY
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-base-sin-credenciales
+          path: |
+            dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
