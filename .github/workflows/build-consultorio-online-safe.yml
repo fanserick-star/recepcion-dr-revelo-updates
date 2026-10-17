@@ -33,6 +33,14 @@ jobs:
             (Resolve-Path "installer-online/create_private_installer.ps1"),
             [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Parse embedded one-EXE preparation script
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "installer-online/prepare_embedded.ps1"),
+            [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
       - name: Check that clinical SQLite is not reset
         run: |
           if grep -q 'Reset-HistoriaBootstrap\|INSERT OR REPLACE INTO sync_state' installer-online/bootstrap.ps1; then
@@ -62,6 +70,20 @@ jobs:
                   f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
               f.write("};\n")
               f.write(f"static const unsigned long bootstrap_ps1_len = {len(src)}UL;\n#endif\n")
+          PY
+      - name: Embed self-preparation PowerShell (source-PC only)
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path("installer-online/prepare_embedded.ps1").read_bytes()
+          out = Path("installer-online/prepare_ps.h")
+          with out.open("w", encoding="ascii") as f:
+              f.write("#ifndef DR_REVELO_PREPARE_PS_H\n#define DR_REVELO_PREPARE_PS_H\n")
+              f.write("static const unsigned char prepare_ps1[] = {\n")
+              for i in range(0, len(src), 16):
+                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
+              f.write("};\n")
+              f.write(f"static const unsigned long prepare_ps1_len = {len(src)}UL;\n#endif\n")
           PY
       - name: Compile credential-free EXE
         run: |
@@ -108,6 +130,46 @@ jobs:
           }
           Remove-Item $out,$rec,$hist -Force
 
+      - name: Smoke-test embedded one-EXE private preparation with FAKE configs
+        shell: pwsh
+        run: |
+          $work = Join-Path $env:RUNNER_TEMP 'dr-revelo-internal-seal'
+          New-Item -ItemType Directory -Force $work | Out-Null
+          $rec = Join-Path $work 'rec.env'
+          $hist = Join-Path $work 'hist.env'
+          $out = Join-Path $work 'TEST_PRIVADO_NO_PUBLICAR.exe'
+          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_BASE_URL=https://billing.invalid" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine + "MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key" + [Environment]::NewLine + "MOBILE_RECEPTION_TOKEN=dummy-reception-ci-key" + [Environment]::NewLine + "RP_WORKSTATION_NAME=OLD-PC" + [Environment]::NewLine + "WHATSAPP_ENABLED=1" + [Environment]::NewLine))
+          [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
+          & ./installer-online/prepare_embedded.ps1 -BaseExe './dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe' -ReceptionEnv $rec -HistoriaEnv $hist -OutputExe $out
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw 'Falló la preparación privada interna.' }
+          $txt = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($out))
+          if ($txt.Contains('dummy-ci-key') -or $txt.Contains('dummy.invalid')) { throw 'Secretos de prueba expuestos.' }
+      - name: Decrypt test payload (fake keys only) to verify native compatibility
+        run: |
+          python3 - <<'PY'
+          import hashlib, hmac, struct, pathlib, os, sys
+          sys.path.insert(0,'installer-online')
+          from seal_private_installer import MARKER
+          base=pathlib.Path('dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe').read_bytes()
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'dr-revelo-internal-seal'
+          sealed=(root/'TEST_PRIVADO_NO_PUBLICAR.exe').read_bytes()
+          key=sealed[base.index(MARKER):base.index(MARKER)+64]
+          assert key!=MARKER
+          magic,version,length,nonce,mac=struct.unpack('<16sII16s32s',sealed[-72:])
+          assert magic==b'DRRV2CFGFOOTER!!' and version==2
+          cipher=sealed[-72-length:-72]
+          assert hmac.compare_digest(hmac.new(key[32:],struct.pack('<II',2,length)+nonce+cipher,hashlib.sha256).digest(),mac)
+          plain=bytearray()
+          for count,p in enumerate(range(0,length,32)):
+              stream=hashlib.sha256(key[:32]+nonce+struct.pack('<I',count)).digest()
+              plain+=bytes(x^y for x,y in zip(cipher[p:p+32],stream))
+          assert b'AZUR_API_KEY=dummy-ci-key' in plain
+          assert b'MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key' in plain
+          assert b'RP_WORKSTATION_NAME=' not in plain
+          assert b'WHATSAPP_ENABLED=0' in plain
+          assert b'WHATSAPP_CLOUD_MODE=1' in plain
+          print('ONE_EXE_PRIVATE_PREPARATION_OK_DUMMY_ONLY')
+          PY
       - name: Upload PUBLIC-SAFE BASE ONLY
         uses: actions/upload-artifact@v4
         with:
