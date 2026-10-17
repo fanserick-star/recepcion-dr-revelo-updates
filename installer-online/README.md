@@ -45,3 +45,13 @@ powershell -ExecutionPolicy Bypass -File .\create_private_installer.ps1 -BaseExe
 La herramienta lee los valores de `C:\Recepcion Dr Revelo\.env` y, si existe, `C:\Historia Clinica Dr Revelo\.env`. Si solo existe la configuración de Recepción, toma la conexión a Historia desde el puente ya configurado en Recepción. No pide escribir las API keys, no toca las bases, no imprime credenciales y elimina el archivo privado temporal. El ejecutable resultante se guarda en el escritorio como `INSTALAR_CONSULTORIO_PRIVADO.exe`.
 
 Si la PC de Recepción no tiene guardadas todas las claves necesarias (por ejemplo, AZUR o integraciones específicas), deberán obtenerse del almacén privado autorizado antes de sellar; nunca de GitHub público. No distribuir el ejecutable privado fuera del consultorio.
+
+## Auditoría de claves, 17 de octubre de 2026
+
+Antes de crear un EXE privado, `create_private_installer.ps1` comprueba que en Recepción existan, con valor no vacío, `DATABASE_URL`, `AZUR_BASE_URL`, `AZUR_API_KEY`, `MOBILE_DOCTOR_TOKEN`, `MOBILE_RECEPTION_TOKEN`, y que Historia tenga una URL Neon independiente. **Esta preprueba garantiza presencia, no validez ni vigencia**: la conexión de Neon se comprueba tras la instalación; AZUR y los enlaces móviles requieren pruebas funcionales autorizadas en una PC nueva.
+
+El creador no transfiere `RP_WORKSTATION_NAME`, `RP_DATA_DIR`, `RP_FORCE_OFFLINE`, `RP_PORT` ni otras opciones ligadas al equipo original. Configura la nueva Recepción en modo mensajería de nube (`WHATSAPP_CLOUD_MODE=1`, `WHATSAPP_ENABLED=0`) para no arrancar un segundo emisor local. Los secretos del proveedor que estén únicamente en workers de nube **no se extraen ni se necesitan en el EXE local**, pero se deben comprobar en su servicio de origen.
+
+**La firma electrónica es una excepción expresa:** en Historia el certificado `data/firma_electronica/certificado_doctor.p12` y su `config.json` están fuera de `.env`. La contraseña PAdES no se almacena; se habilita localmente cuando lo autorice el doctor. El instalador online **no** transfiere ni desbloquea automáticamente el certificado, y no se deben poner esos archivos en GitHub.
+
+Si el programa se reinstala sobre una PC existente, se conservan las claves locales ya escritas; por lo tanto una clave local incorrecta no queda reparada automáticamente y deberá diagnosticarse de forma segura. Las credenciales incorporadas a un USB pueden caducar o ser revocadas, por lo que conviene regenerar el EXE privado al rotar claves.
