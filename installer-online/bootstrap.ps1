@@ -53,6 +53,47 @@ function Get-VerifiedFile([string]$Url, [string]$Destination, [string]$ExpectedS
     Move-Item -LiteralPath $temp -Destination $Destination -Force
 }
 
+function Test-WebView2 {
+    $appId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+    $keys = @(
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$appId",
+        "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\$appId",
+        "HKCU:\Software\Microsoft\EdgeUpdate\Clients\$appId"
+    )
+    foreach ($key in $keys) {
+        try {
+            $version = [string](Get-ItemProperty -LiteralPath $key -Name 'pv' -ErrorAction Stop).pv
+            if ($version -match '^[1-9][0-9]*\.' -and $version -ne '0.0.0.0') { return $true }
+        } catch { }
+    }
+    return $false
+}
+
+function Ensure-WebView2 {
+    if (Test-WebView2) { Write-Step 'Microsoft Edge WebView2 listo.'; return }
+    Write-Step 'Instalando Microsoft Edge WebView2 Runtime oficial...'
+    $exe = Join-Path $env:TEMP 'dr-revelo-webview2-bootstrap.exe'
+    try {
+        # Microsoft-documented Evergreen bootstrapper, matching Windows architecture.
+        Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $exe -TimeoutSec 240
+        $signature = Get-AuthenticodeSignature -FilePath $exe
+        if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate -or
+            $signature.SignerCertificate.Subject -notmatch 'Microsoft (Corporation|Windows)') {
+            throw 'El instalador WebView2 no tiene una firma Microsoft válida.'
+        }
+        $proc = Start-Process -FilePath $exe -ArgumentList @('/silent','/install') -Wait -PassThru
+        if ($proc.ExitCode -notin @(0,3010)) {
+            throw "WebView2 devolvió código $($proc.ExitCode)."
+        }
+        if (-not (Test-WebView2)) {
+            throw 'WebView2 no aparece instalado después de ejecutar el instalador.'
+        }
+        Write-Step 'WebView2 preparado.'
+    } finally {
+        Remove-Item -LiteralPath $exe -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Test-Python312([string]$Path) {
     if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $false }
     try {
@@ -278,6 +319,7 @@ try {
     if ($histUrl -eq $recUrl) {
         throw 'La conexión Neon de Historia no puede ser la misma que la de Recepción.'
     }
+    Ensure-WebView2
     Ensure-PrivatePython
 
     if ($Reception) {
