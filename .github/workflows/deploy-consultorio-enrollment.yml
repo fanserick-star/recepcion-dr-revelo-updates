@@ -78,7 +78,14 @@ jobs:
         run: |
           set -euo pipefail
           url="https://dr-revelo-enrollment.drrevelo.workers.dev"
-          curl -fsS --max-time 20 "$url/health" -o /tmp/enrollment-health.json
+          verified=0
+          for attempt in $(seq 1 18); do
+            status=$(curl -sS --max-time 20 -o /tmp/enrollment-health.json -w '%{http_code}' "$url/health" || true)
+            if [ "$status" = "200" ]; then verified=1; break; fi
+            echo "Enrollment health pending propagation (HTTP $status, attempt $attempt)"
+            sleep 5
+          done
+          test "$verified" = "1"
           python3 - <<'PY'
           import json
           x=json.load(open('/tmp/enrollment-health.json'))
