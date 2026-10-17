@@ -205,3 +205,37 @@ jobs:
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
+
+  windows-crypto-compat:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check native Windows PowerShell 5.1 RSA-OAEP256 and AES
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $rsa = New-Object System.Security.Cryptography.RSACng -ArgumentList @(2048)
+          try {
+            $pub = $rsa.ExportParameters($false)
+            if ($pub.Modulus.Length -lt 256) { throw 'RSA modulus too small.' }
+            $bytes = [byte[]](0..63)
+            $encrypted = $rsa.Encrypt($bytes, [Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+            $result = $rsa.Decrypt($encrypted, [Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+            if ($result.Length -ne 64 -or $result[63] -ne 63) { throw 'RSA-OAEP256 failed.' }
+            $aes = [Security.Cryptography.Aes]::Create()
+            try { $aes.Key = [byte[]](0..31); $aes.GenerateIV()
+                  $enc = $aes.CreateEncryptor()
+                  try { $c = $enc.TransformFinalBlock($bytes,0,64) } finally { $enc.Dispose() }
+                  $dec = $aes.CreateDecryptor()
+                  try { $p = $dec.TransformFinalBlock($c,0,$c.Length) } finally { $dec.Dispose() }
+                  if ($p.Length -ne 64 -or $p[42] -ne 42) { throw 'AES-CBC failed.' }
+            } finally { $aes.Dispose() }
+          } finally { $rsa.Dispose() }
+          Write-Host 'WINDOWS_POWERSHELL_5_1_CRYPTO_OK'
+      - name: Validate PowerShell enrollment script syntax on Windows
+        shell: powershell
+        run: |
+          $tokens = $null; $errors = $null
+          [void][Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'installer-online/auto_enroll_install.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { throw 'Enrollment PowerShell parse errors.' }
