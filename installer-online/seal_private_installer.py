@@ -29,7 +29,8 @@ def read_config(path: Path) -> bytes:
     data = path.read_bytes()
     if len(data) > 64 * 1024 or len(data) == 0:
         raise ValueError("Configuración privada vacía o demasiado grande.")
-    content = data.decode("utf-8-sig")
+    # Windows .env exports use CRLF; the native loader expects LF after the header.
+    content = data.decode("utf-8-sig").replace("\r\n", "\n").replace("\r", "\n")
     if not content.startswith(HEADER):
         raise ValueError("Falta cabecera DR_REVELO_CONFIG_V2.")
     section = None
