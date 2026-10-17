@@ -53,6 +53,36 @@ if ([IO.Path]::GetFullPath($BaseExe) -eq [IO.Path]::GetFullPath($OutputExe)) { t
 
 $rec = Read-PrivateEnv $ReceptionEnv
 $hist = Read-PrivateEnv $HistoriaEnv
+
+# The private installer must not silently ship missing billing or mobile secrets.
+# Only variable NAMES are displayed; never print values.
+$requiredReception = @('DATABASE_URL', 'AZUR_BASE_URL', 'AZUR_API_KEY',
+                       'MOBILE_DOCTOR_TOKEN', 'MOBILE_RECEPTION_TOKEN')
+$missing = @($requiredReception | Where-Object { -not $rec.ContainsKey($_) -or [string]::IsNullOrWhiteSpace([string]$rec[$_]) })
+if ($missing.Count -gt 0) {
+    throw ('La PC de Recepción no tiene estas claves imprescindibles: ' + ($missing -join ', ') + '. El instalador NO se generó.')
+}
+
+# Preserve independent per-PC identity, per-PC paths and offline overrides.
+# The new workstation gets its own name, directory and network state.
+$workstationOnly = @(
+    'RP_DATA_DIR', 'RP_WORKSTATION_NAME', 'RP_PORT', 'RP_FORCE_OFFLINE',
+    'RP_DESKTOP_LAUNCH', 'COMPUTERNAME', 'USERPROFILE', 'LOCALAPPDATA',
+    'AGENDA_CLOUD_KEYS_SYNCED_SHA'
+)
+foreach ($key in $workstationOnly) {
+    if ($rec.ContainsKey($key)) { [void]$rec.Remove($key) }
+    if ($hist.ContainsKey($key)) { [void]$hist.Remove($key) }
+}
+# Reception's messaging is cloud-only. Never enable a second local sender
+# after cloning a configured PC; cloud worker stays the source of truth.
+$rec['WHATSAPP_CLOUD_MODE'] = '1'
+$rec['WHATSAPP_ENABLED'] = '0'
+# Reject disagreements between History PC and Reception bridge.
+if ($hist.ContainsKey('HISTORIA_DATABASE_URL') -and $rec.ContainsKey('HISTORIA_DATABASE_URL') -and
+    [string]$hist['HISTORIA_DATABASE_URL'] -ne [string]$rec['HISTORIA_DATABASE_URL']) {
+    throw 'Las conexiones de Historia difieren entre las PCs. No se creó el instalador para evitar usar la base equivocada.'
+}
 $recUrl = [string]$rec['DATABASE_URL']
 $histUrl = if ($hist.ContainsKey('HISTORIA_DATABASE_URL')) { [string]$hist['HISTORIA_DATABASE_URL'] } else { [string]$rec['HISTORIA_DATABASE_URL'] }
 if ([string]::IsNullOrWhiteSpace($recUrl) -or [string]::IsNullOrWhiteSpace($histUrl) -or $recUrl -eq $histUrl) {
@@ -61,6 +91,9 @@ if ([string]::IsNullOrWhiteSpace($recUrl) -or [string]::IsNullOrWhiteSpace($hist
 $rec['HISTORIA_DATABASE_URL'] = $histUrl
 $hist['HISTORIA_DATABASE_URL'] = $histUrl
 if (-not $hist.ContainsKey('HISTORIA_SYNC_ENABLED')) { $hist['HISTORIA_SYNC_ENABLED'] = '1' }
+Write-Host 'Verificación previa de nombres: Neon, AZUR y tokens móviles presentes.'
+Write-Host 'WhatsApp local desactivado; el sistema de mensajería permanece en nube.'
+Write-Host 'Nota: la firma electrónica .p12/.pfx del doctor no forma parte de .env y requiere habilitación autorizada en la nueva PC.'
 
 # No imprimir, copiar a portapapeles ni mostrar las contraseñas en la consola.
 $safeTemp = if ($env:TEMP) { $env:TEMP } else { [IO.Path]::GetTempPath() }
