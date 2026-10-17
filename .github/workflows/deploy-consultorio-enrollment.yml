@@ -1,0 +1,86 @@
+name: Deploy isolated clinic PC enrollment (manual only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dr-revelo-enrollment-independent
+  cancel-in-progress: false
+
+jobs:
+  isolated-enrollment:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate worker and deny unauthorized enrollment
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check installer-online/enrollment_worker.mjs
+          node installer-online/test_enrollment.mjs
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+      - name: Allocate dedicated short-lived enrollment KV
+        shell: bash
+        run: |
+          set -euo pipefail
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/storage/kv/namespaces"
+          curl -fsS --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API?per_page=100" -o /tmp/kvlist.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/kvlist.json'))
+          assert x.get('success') is True,x.get('errors')
+          matches=[v for v in x.get('result',[]) if v.get('title')=='dr-revelo-enrollment-private']
+          assert len(matches)<=1
+          if matches:open('/tmp/enroll-namespace-id','w').write(matches[0]['id'])
+          PY
+          if [ ! -s /tmp/enroll-namespace-id ]; then
+            curl -fsS --max-time 30 -X POST -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                 -H 'Content-Type: application/json' --data '{"title":"dr-revelo-enrollment-private"}' \
+                 "$API" -o /tmp/kvcreated.json
+            python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/kvcreated.json'))
+          assert x.get('success') is True,x.get('errors')
+          open('/tmp/enroll-namespace-id','w').write(x['result']['id'])
+          PY
+          fi
+          python3 - <<'PY'
+          import pathlib,re
+          kv=pathlib.Path('/tmp/enroll-namespace-id').read_text().strip()
+          assert re.fullmatch(r'[a-f0-9]{32}',kv)
+          p=pathlib.Path('installer-online/wrangler.enrollment.jsonc')
+          source=p.read_text()
+          assert source.count('__ENROLLMENTS_KV_NAMESPACE_ID__')==1
+          p.write_text(source.replace('__ENROLLMENTS_KV_NAMESPACE_ID__',kv))
+          print('ENROLLMENT_KV_PREPARED_SEPARATE_FROM_WHATSAPP')
+          PY
+      - name: Deploy only dr-revelo-enrollment preserving secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 deploy --config installer-online/wrangler.enrollment.jsonc --keep-vars
+      - name: Verify public cannot approve computers
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://dr-revelo-enrollment.drrevelo.workers.dev"
+          curl -fsS --max-time 20 "$url/health" -o /tmp/enrollment-health.json
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/enrollment-health.json'))
+          assert x.get('ok') is True and x.get('service')=='consultorio-enrollment'
+          print('ISOLATED_ENROLLMENT_DEPLOYMENT_OK')
+          PY
+          code=$(curl -sS -X POST "$url/admin/approve" -H 'Content-Type: application/json' \
+            --data '{"ticket":"0000000000000000","code":"000000"}' -o /tmp/deny.json -w '%{http_code}')
+          test "$code" = "403"
