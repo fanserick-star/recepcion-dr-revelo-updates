@@ -46,7 +46,7 @@ os.chdir(root)
 sys.path.insert(0, str(root))
 import cloud_sync
 
-if existing_rows or (db_path.is_file() and resume_allowed):
+if existing_rows:
     # Existing data: no app.py import to avoid destructive startup side effects.
     # Verification only. Never import app.py over a doctor's existing database.
     service = cloud_sync.CloudSyncService(root, db_path)
