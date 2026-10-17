@@ -1,5 +1,16 @@
 # Instalador online del consultorio (rama de validación)
 
+## Ahora es un único EXE por paso, sin scripts manuales
+1. Descargar `INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe` de la compilación verificada.
+2. Ejecutar **ese mismo EXE en la PC de Recepción ya configurada**. Detecta el `.env` autorizado y genera `INSTALAR_CONSULTORIO_PRIVADO.exe` **junto al primero**, sin pedir contraseñas, sin Python y sin modificar la aplicación.
+3. Llevar **solo** `INSTALAR_CONSULTORIO_PRIVADO.exe` a la PC nueva. Al abrirlo con Internet instala WebView2 (si falta), Python, las versiones actuales de Recepción e Historia desde los canales de publicación, sus dependencias y launchers, y aplica las claves guardadas.
+4. Durante la primera prueba usar una computadora limpia, no la de producción.
+
+**Importante:** el EXE base que se descarga públicamente no contiene claves reales y por eso no puede instalar todo en una computadora ajena. El EXE privado sí instala sin pasos ni claves manuales en la PC destino. No copiar ni subir el privado a GitHub o sitios públicos. Este cambio no copia el certificado de firma electrónica `.p12` porque requiere consentimiento y desbloqueo presencial del doctor.
+
+El instalador instala WebView2 Evergreen desde Microsoft solamente si falta, verificando que el instalador descargado tenga firma Authenticode válida de Microsoft.
+
+
 Este proyecto recupera la arquitectura liviana: el EXE no contiene el programa clínico, datos clínicos ni credenciales reales. Al ejecutarlo, el bootstrap descarga desde los **canales publicados en main** la última Recepción e Historia Clínica, verifica cada archivo por SHA-256, instala dependencias/launchers y crea la configuración privada en la máquina autorizada.
 
 ## Qué quedó separado
