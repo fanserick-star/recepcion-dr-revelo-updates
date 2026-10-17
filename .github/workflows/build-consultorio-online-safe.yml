@@ -25,6 +25,19 @@ jobs:
             (Resolve-Path "installer-online/bootstrap.ps1"),
             [ref]$tokens, [ref]$errors)
           if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Parse private-preparation PowerShell helper
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path "installer-online/create_private_installer.ps1"),
+            [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
+      - name: Check that clinical SQLite is not reset
+        run: |
+          if grep -q 'Reset-HistoriaBootstrap\|INSERT OR REPLACE INTO sync_state' installer-online/bootstrap.ps1; then
+            echo "Clinical sync state mutation detected"; exit 1
+          fi
       - name: Offline unit tests (dummy configuration only)
         run: |
           python3 installer-online/test_sealer.py
