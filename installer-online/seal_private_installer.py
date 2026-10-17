@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 import secrets
 import struct
@@ -45,8 +46,10 @@ def read_config(path: Path) -> bytes:
         if section not in values or "=" not in line:
             raise ValueError("Línea de configuración fuera de sección.")
         k, v = line.split("=", 1)
-        if not k.strip() or not v.strip():
-            raise ValueError("Clave o valor privado vacío.")
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", k.strip()) or not v.strip():
+            raise ValueError("Nombre de clave inválido o valor privado vacío.")
+        if k.strip() in values[section]:
+            raise ValueError("Clave privada duplicada.")
         values[section][k.strip()] = v.strip()
     a = values["RECEPTION"].get("DATABASE_URL")
     b = values["HISTORIA"].get("HISTORIA_DATABASE_URL")
