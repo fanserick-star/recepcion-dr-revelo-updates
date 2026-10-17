@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
-import installer from './enrollment_worker.mjs';
+import installer, { buildPrivateConfig, encryptForDevice } from './enrollment_worker.mjs';
 globalThis.crypto ??= webcrypto;
 const e=new TextEncoder(),d=new TextDecoder();
 const b64=bytes=>Buffer.from(bytes).toString('base64');
@@ -45,6 +45,8 @@ assert.equal((await call('/admin/approve',{ticket,code:'000000'},fakeEnv.DR_REVE
 let pending=await call('/admin/pending',{ticket},fakeEnv.DR_REVELO_ADMIN_TOKEN);
 assert.equal(pending.body.pc,'PC-DE-PRUEBA');
 assert.equal((await call('/admin/approve',{ticket,code},fakeEnv.DR_REVELO_ADMIN_TOKEN)).status,200);
+const debugEnvelope=await encryptForDevice(buildPrivateConfig(fakeEnv),{n:jwk.n,e:jwk.e},ticket);
+assert.ok(debugEnvelope.mac);
 const approved=await call('/poll',{ticket,token});
 assert.equal(approved.status,200);
 assert.equal(approved.body.status,'approved');
