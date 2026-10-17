@@ -141,7 +141,7 @@ async function route(req,env) {
       if(!validTicket(ticket))return json({error:"invalid_request"},400);
       const stored=await env.ENROLLMENTS.get("ticket:"+ticket,"json");
       if(!stored)return json({error:"not_found"},404);
-      return json({ticket,status:stored.status,code:stored.code,pc:stored.pc,
+      return json({ticket,status:stored.status,pc:stored.pc,
         created_at:stored.created_at});
     }
     const d=await bodyJson(req);
