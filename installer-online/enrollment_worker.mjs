@@ -100,6 +100,14 @@ async function route(req,env) {
   if(url.pathname==="/enroll") {
     if(!(env.DR_REVELO_ADMIN_TOKEN&&env.RECEPTION_ENV_B64&&env.HISTORIA_ENV_B64))
       return json({error:"service_not_configured"},503);
+    // Modest abuse budget per source/hour. Only a SHA256 digest, never an IP,
+    // is stored in KV. The account should ALSO enable Cloudflare edge rate limits.
+    const sourceIp = req.headers.get("CF-Connecting-IP") || "unknown";
+    const hour = Math.floor(Date.now()/3600000);
+    const rateKey = "enroll-rate:" + await sha(sourceIp + "|" + hour);
+    const rate = Number(await env.ENROLLMENTS.get(rateKey) || "0");
+    if(!Number.isFinite(rate) || rate >= 10) return json({error:"rate_limited"},429);
+    await env.ENROLLMENTS.put(rateKey,String(rate+1),{expirationTtl:3700});
     const d=await bodyJson(req);
     const pc=String(d.pc||"").replace(/[^a-zA-Z0-9._ -]/g,"").slice(0,64);
     if(!pc || !d.public_key || typeof d.public_key!=="object" ||
