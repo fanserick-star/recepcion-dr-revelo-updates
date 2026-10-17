@@ -1,4 +1,4 @@
-name: Test and build consultorio online bootstrap (no secrets)
+name: Validate clean one-click consultorio master (no credentials)
 
 on:
   push:
@@ -13,252 +13,150 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  validate-source:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Parse PowerShell safely
+      - name: Parse source PowerShell with strict syntax
         shell: pwsh
         run: |
-          $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "installer-online/bootstrap.ps1"),
-            [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-      - name: Parse private-preparation PowerShell helper
-        shell: pwsh
+          foreach ($file in @(
+            'installer-online/bootstrap.ps1',
+            'installer-online/auto_enroll_install.ps1',
+            'installer-online/provision_once_reception.ps1'
+          )) {
+            $tokens=$null; $errors=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $file),[ref]$tokens,[ref]$errors)
+            if($errors.Count -gt 0) { throw "Error de sintaxis en $file" }
+          }
+      - name: Test isolated Cloudflare approval and cryptography with dummy values
         run: |
-          $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "installer-online/create_private_installer.ps1"),
-            [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-      - name: Parse embedded one-EXE preparation script
-        shell: pwsh
-        run: |
-          $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "installer-online/prepare_embedded.ps1"),
-            [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-      - name: Verify enrollment client PowerShell syntax
-        shell: pwsh
-        run: |
-          $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "installer-online/auto_enroll_install.ps1"),
-            [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-      - name: Verify clinical restore code is embedded byte-for-byte
+          node --check installer-online/enrollment_worker.mjs
+          node installer-online/test_enrollment.mjs
+      - name: Test non-destructive clinical restoration and identical embedded source
         run: |
           python3 -m py_compile installer-online/restore_historia_initial.py
           python3 installer-online/test_restore_guards.py
           python3 - <<'PY'
           from pathlib import Path
-          master=Path('installer-online/restore_historia_initial.py').read_text().strip()
+          canonical=Path('installer-online/restore_historia_initial.py').read_text().strip()
           bootstrap=Path('installer-online/bootstrap.ps1').read_text()
-          extracted=bootstrap.split("    $scriptSource = @'\n",1)[1].split("\n'@\n",1)[0].strip()
-          assert extracted==master, 'Embedded restore script is out of date'
-          assert 'BEGIN READ ONLY' in extracted
-          assert 'CLINICAL_DATABASE_EXISTS_INCOMPLETE' in extracted
-          assert 'HISTORIA_FIRST_BOOT_RESTORE_OK' in extracted
-          print('CLINICAL_RESTORE_EMBED_AND_READ_ONLY_GUARDS_OK')
+          embedded=bootstrap.split("    $scriptSource = @'\n",1)[1].split("\n'@\n",1)[0].strip()
+          assert canonical == embedded, 'Embedded clinical restoration is stale'
+          for check in ('BEGIN READ ONLY',
+                        'HISTORIA_FIRST_BOOT_RESTORE_OK',
+                        'LOCAL_CLINICAL_EDITS_DETECTED_RESTORE_ABORTED',
+                        'EXISTING_CLINICAL_DATA_NOT_VERIFIED_NO_AUTO_OVERWRITE'):
+              assert check in embedded,check
+          assert 'Reset-HistoriaBootstrap' not in bootstrap
+          print('CLINICAL_RESTORE_READ_ONLY_GUARDS_OK')
           PY
-      - name: Test isolated enrollment worker with dummy secrets only
-        run: |
-          node --check installer-online/enrollment_worker.mjs
-          node installer-online/test_enrollment.mjs
-      - name: Verify one-time cloud provisioning script syntax
-        shell: pwsh
-        run: |
-          $tokens = $null; $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path "installer-online/provision_once_reception.ps1"),
-            [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_.Message }; exit 1 }
-      - name: Check that clinical SQLite is not reset
-        run: |
-          if grep -q 'Reset-HistoriaBootstrap' installer-online/bootstrap.ps1; then
-            echo "Clinical sync state mutation detected"; exit 1
-          fi
-      - name: Offline unit tests (dummy configuration only)
-        run: |
-          python3 installer-online/test_sealer.py
-          python3 -m py_compile installer-online/seal_private_installer.py
-          if grep -R -n 'DR_REVELO_PRIVATE_CONFIG_B64=' installer-online/; then
-            echo "Unexpected embedded configuration assignment"; exit 1
-          fi
-      - name: Prepare Windows cross-compiler
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-mingw-w64-x86-64
-      - name: Embed secret-free PowerShell script
+      - name: Verify no private credentials or obsolete key-sealing in one-click source
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          src = Path("installer-online/bootstrap.ps1").read_bytes()
-          out = Path("installer-online/bootstrap_ps.h")
-          with out.open("w", encoding="ascii") as f:
-              f.write("#ifndef DR_REVELO_BOOTSTRAP_PS_H\n#define DR_REVELO_BOOTSTRAP_PS_H\n")
-              f.write("static const unsigned char bootstrap_ps1[] = {\n")
-              for i in range(0, len(src), 16):
-                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
-              f.write("};\n")
-              f.write(f"static const unsigned long bootstrap_ps1_len = {len(src)}UL;\n#endif\n")
+          code=Path('installer-online/consultorio_oneclick.c').read_text()
+          assert 'prepare_ps.h' not in code
+          assert 'seal_private_installer' not in code
+          assert 'g_master_key' not in code
+          assert 'auto_enroll_ps.h' in code
+          assert 'bootstrap_ps.h' in code
+          assert code.count('INSTALAR_CONSULTORIO_PRIVADO')==0
+          print('ONE_CLICK_NO_EMBEDDED_SECRETS_OR_LEGACY_PATH_OK')
           PY
-      - name: Embed self-preparation PowerShell (source-PC only)
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          src = Path("installer-online/prepare_embedded.ps1").read_bytes()
-          out = Path("installer-online/prepare_ps.h")
-          with out.open("w", encoding="ascii") as f:
-              f.write("#ifndef DR_REVELO_PREPARE_PS_H\n#define DR_REVELO_PREPARE_PS_H\n")
-              f.write("static const unsigned char prepare_ps1[] = {\n")
-              for i in range(0, len(src), 16):
-                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
-              f.write("};\n")
-              f.write(f"static const unsigned long prepare_ps1_len = {len(src)}UL;\n#endif\n")
-          PY
-      - name: Embed automatic secure enrollment client
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          src = Path("installer-online/auto_enroll_install.ps1").read_bytes()
-          out = Path("installer-online/auto_enroll_ps.h")
-          with out.open("w", encoding="ascii") as f:
-              f.write("#ifndef DR_REVELO_AUTO_ENROLL_PS_H\n#define DR_REVELO_AUTO_ENROLL_PS_H\n")
-              f.write("static const unsigned char auto_enroll_ps1[] = {\n")
-              for i in range(0, len(src), 16):
-                  f.write("  "+",".join(f"0x{x:02x}" for x in src[i:i+16])+",\n")
-              f.write("};\n")
-              f.write(f"static const unsigned long auto_enroll_ps1_len = {len(src)}UL;\n#endif\n")
-          PY
-      - name: Compile credential-free EXE
-        run: |
-          mkdir -p dist
-          x86_64-w64-mingw32-gcc installer-online/consultorio_bootstrap.c \
-            -o dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe \
-            -std=c11 -O2 -s -mwindows -municode -static-libgcc \
-            -lbcrypt -lcrypt32 -lshell32 -lcomctl32 -ladvapi32
-          file dist/*.exe
-          test "$(wc -c < dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe)" -lt 12582912
-          # The stub must never contain private URLs, even encrypted production secrets.
-          python3 - <<'PY'
-          from pathlib import Path
-          import sys
-          sys.path.insert(0, "installer-online")
-          from seal_private_installer import MARKER, seal
-          exe = Path("dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe").read_bytes()
-          assert exe.count(MARKER) == 1, "Compiler changed key layout: fail closed"
-          fake = b"DR_REVELO_CONFIG_V2\n[RECEPTION]\nDATABASE_URL=fake-a\n[HISTORIA]\nHISTORIA_DATABASE_URL=fake-b\n"
-          sealed = seal(exe, fake)
-          assert len(sealed) > len(exe)
-          assert fake not in sealed
-          assert b"fake-a" not in sealed
-          PY
-          sha256sum dist/*.exe > dist/SHA256SUMS.txt
-      - name: Smoke-test private EXE preparation with FAKE local configs
-        shell: pwsh
-        run: |
-          $work = Join-Path $env:RUNNER_TEMP 'dr-revelo-fake-seal'
-          New-Item -ItemType Directory -Force $work | Out-Null
-          $rec = Join-Path $work 'rec.env'
-          $hist = Join-Path $work 'hist.env'
-          $out = Join-Path $work 'TEST_PRIVADO_NO_PUBLICAR.exe'
-          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_BASE_URL=https://billing.invalid" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine + "MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key" + [Environment]::NewLine + "MOBILE_RECEPTION_TOKEN=dummy-reception-ci-key" + [Environment]::NewLine + "RP_WORKSTATION_NAME=OLD-RECEPTION-PC" + [Environment]::NewLine + "RP_FORCE_OFFLINE=1" + [Environment]::NewLine + "WHATSAPP_CLOUD_MODE=0" + [Environment]::NewLine + "WHATSAPP_ENABLED=1" + [Environment]::NewLine))
-          [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
-          $python = (Get-Command python3 -ErrorAction Stop).Source
-          New-Item -ItemType SymbolicLink -Path (Join-Path $work 'python.exe') -Target $python -Force | Out-Null
-          $env:PATH = $work + [IO.Path]::PathSeparator + $env:PATH
-          & ./installer-online/create_private_installer.ps1 -BaseExe './dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe' -ReceptionEnv $rec -HistoriaEnv $hist -OutputExe $out
-          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $out)) { throw 'Falló el sellado privado con datos ficticios.' }
-          $printable = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($out))
-          if ($printable.Contains('dummy-ci-key') -or $printable.Contains('dummy.invalid')) {
-            throw 'Datos privados ficticios visibles sin cifrar en el EXE.'
-          }
-          Remove-Item $out,$rec,$hist -Force
 
-      - name: Smoke-test embedded one-EXE private preparation with FAKE configs
-        shell: pwsh
-        run: |
-          $work = Join-Path $env:RUNNER_TEMP 'dr-revelo-internal-seal'
-          New-Item -ItemType Directory -Force $work | Out-Null
-          $rec = Join-Path $work 'rec.env'
-          $hist = Join-Path $work 'hist.env'
-          $out = Join-Path $work 'TEST_PRIVADO_NO_PUBLICAR.exe'
-          [IO.File]::WriteAllText($rec,("DATABASE_URL=postgresql://dummy.invalid/fake-reception" + [Environment]::NewLine + "HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine + "AZUR_BASE_URL=https://billing.invalid" + [Environment]::NewLine + "AZUR_API_KEY=dummy-ci-key" + [Environment]::NewLine + "MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key" + [Environment]::NewLine + "MOBILE_RECEPTION_TOKEN=dummy-reception-ci-key" + [Environment]::NewLine + "RP_WORKSTATION_NAME=OLD-PC" + [Environment]::NewLine + "WHATSAPP_ENABLED=1" + [Environment]::NewLine))
-          [IO.File]::WriteAllText($hist,("HISTORIA_DATABASE_URL=postgresql://dummy.invalid/fake-history" + [Environment]::NewLine))
-          & ./installer-online/prepare_embedded.ps1 -BaseExe './dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe' -ReceptionEnv $rec -HistoriaEnv $hist -OutputExe $out
-          if (-not (Test-Path -LiteralPath $out -PathType Leaf)) { throw 'Falló la preparación privada interna.' }
-          $txt = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($out))
-          if ($txt.Contains('dummy-ci-key') -or $txt.Contains('dummy.invalid')) { throw 'Secretos de prueba expuestos.' }
-      - name: Decrypt test payload (fake keys only) to verify native compatibility
-        run: |
-          python3 - <<'PY'
-          import hashlib, hmac, struct, pathlib, os, sys
-          sys.path.insert(0,'installer-online')
-          from seal_private_installer import MARKER
-          base=pathlib.Path('dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe').read_bytes()
-          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'dr-revelo-internal-seal'
-          sealed=(root/'TEST_PRIVADO_NO_PUBLICAR.exe').read_bytes()
-          key=sealed[base.index(MARKER):base.index(MARKER)+64]
-          assert key!=MARKER
-          magic,version,length,nonce,mac=struct.unpack('<16sII16s32s',sealed[-72:])
-          assert magic==b'DRRV2CFGFOOTER!!' and version==2
-          cipher=sealed[-72-length:-72]
-          assert hmac.compare_digest(hmac.new(key[32:],struct.pack('<II',2,length)+nonce+cipher,hashlib.sha256).digest(),mac)
-          plain=bytearray()
-          for count,p in enumerate(range(0,length,32)):
-              stream=hashlib.sha256(key[:32]+nonce+struct.pack('<I',count)).digest()
-              plain+=bytes(x^y for x,y in zip(cipher[p:p+32],stream))
-          assert b'AZUR_API_KEY=dummy-ci-key' in plain
-          assert b'MOBILE_DOCTOR_TOKEN=dummy-doctor-ci-key' in plain
-          assert b'RP_WORKSTATION_NAME=' not in plain
-          assert b'WHATSAPP_ENABLED=0' in plain
-          assert b'WHATSAPP_CLOUD_MODE=1' in plain
-          print('ONE_EXE_PRIVATE_PREPARATION_OK_DUMMY_ONLY')
-          PY
-      - name: Upload PUBLIC-SAFE BASE ONLY
-        uses: actions/upload-artifact@v4
-        with:
-          name: instalador-base-sin-credenciales
-          path: |
-            dist/INSTALADOR_CONSULTORIO_BASE_SIN_CREDENCIALES.exe
-            dist/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 7
-
-  windows-crypto-compat:
+  windows-crypto:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check native Windows PowerShell 5.1 RSA-OAEP256 and AES
+      - name: Exercise Windows PowerShell 5.1 RSA-OAEP256 and AES
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $rsa = New-Object System.Security.Cryptography.RSACng -ArgumentList @(2048)
           try {
-            $pub = $rsa.ExportParameters($false)
-            if ($pub.Modulus.Length -lt 256) { throw 'RSA modulus too small.' }
             $bytes = [byte[]](0..63)
-            $encrypted = $rsa.Encrypt($bytes, [Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
-            $result = $rsa.Decrypt($encrypted, [Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
-            if ($result.Length -ne 64 -or $result[63] -ne 63) { throw 'RSA-OAEP256 failed.' }
+            $encrypted = $rsa.Encrypt($bytes,[Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+            $result = $rsa.Decrypt($encrypted,[Security.Cryptography.RSAEncryptionPadding]::OaepSHA256)
+            if($result.Length -ne 64 -or $result[63] -ne 63) { throw 'RSA-OAEP256 falló' }
             $aes = [Security.Cryptography.Aes]::Create()
-            try { $aes.Key = [byte[]](0..31); $aes.GenerateIV()
-                  $enc = $aes.CreateEncryptor()
-                  try { $c = $enc.TransformFinalBlock($bytes,0,64) } finally { $enc.Dispose() }
-                  $dec = $aes.CreateDecryptor()
-                  try { $p = $dec.TransformFinalBlock($c,0,$c.Length) } finally { $dec.Dispose() }
-                  if ($p.Length -ne 64 -or $p[42] -ne 42) { throw 'AES-CBC failed.' }
+            try {
+              $aes.Key = [byte[]](0..31); $aes.GenerateIV()
+              $enc = $aes.CreateEncryptor()
+              try { $cipher = $enc.TransformFinalBlock($bytes,0,64) }
+              finally { $enc.Dispose() }
+              $dec = $aes.CreateDecryptor()
+              try { $plain = $dec.TransformFinalBlock($cipher,0,$cipher.Length) }
+              finally { $dec.Dispose() }
+              if($plain.Length -ne 64 -or $plain[42] -ne 42) { throw 'AES-CBC falló' }
             } finally { $aes.Dispose() }
           } finally { $rsa.Dispose() }
-          Write-Host 'WINDOWS_POWERSHELL_5_1_CRYPTO_OK'
-      - name: Validate PowerShell enrollment script syntax on Windows
+          Write-Host 'WINDOWS_CRYPT_TEST_OK'
+      - name: Verify client syntax in native Windows PowerShell
         shell: powershell
         run: |
-          $tokens = $null; $errors = $null
+          $tokens=$null; $errors=$null
           [void][Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'installer-online/auto_enroll_install.ps1'), [ref]$tokens, [ref]$errors)
-          if ($errors.Count -gt 0) { throw 'Enrollment PowerShell parse errors.' }
+            (Resolve-Path 'installer-online/auto_enroll_install.ps1'),
+            [ref]$tokens,[ref]$errors)
+          if($errors.Count -gt 0){ throw 'PowerShell de autorización inválido' }
+
+  build:
+    needs: [validate-source, windows-crypto]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Windows x64 cross-compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-mingw-w64-x86-64
+      - name: Embed ONLY two credential-free first-install scripts
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name,filename,array in (
+             ('BOOTSTRAP_PS','bootstrap.ps1','bootstrap_ps1'),
+             ('AUTO_ENROLL_PS','auto_enroll_install.ps1','auto_enroll_ps1')
+          ):
+             data=(Path('installer-online')/filename).read_bytes()
+             head=Path('installer-online')/(array.replace('_ps1','') + '_ps.h')
+             # Output filenames exactly as native includes.
+             head=Path('installer-online')/(
+                'bootstrap_ps.h' if filename=='bootstrap.ps1' else 'auto_enroll_ps.h'
+             )
+             with head.open('w',encoding='ascii') as out:
+                out.write(f'#ifndef {name}_H\n#define {name}_H\n')
+                out.write(f'static const unsigned char {array}[] = {{\n')
+                for i in range(0,len(data),16):
+                    out.write('  '+','.join(f'0x{v:02x}' for v in data[i:i+16])+',\n')
+                out.write('};\n')
+                out.write(f'static const unsigned long {array}_len = {len(data)}UL;\n#endif\n')
+          PY
+      - name: Compile ONE Windows executable without keys
+        run: |
+          mkdir -p dist
+          x86_64-w64-mingw32-gcc installer-online/consultorio_oneclick.c \
+            -o dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe \
+            -std=c11 -O2 -s -municode -mwindows -static-libgcc \
+            -lcomctl32 -lshell32 -ladvapi32
+          file dist/*.exe
+          test "$(wc -c < dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe)" -lt 2097152
+          python3 - <<'PY'
+          from pathlib import Path
+          exe=Path('dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe').read_bytes()
+          assert exe[:2]==b'MZ'
+          assert b'DR_REVELO_ADMIN_TOKEN=' not in exe
+          assert b'AZUR_API_KEY=' not in exe
+          print('COMPILED_ONE_CLICK_NO_CREDENTIALS_OK')
+          PY
+          sha256sum dist/*.exe > dist/SHA256SUMS.txt
+      - name: Retain internal candidate only; NOT a clinic release
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-oneclick-unconfigured
+          path: |
+            dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe
+            dist/SHA256SUMS.txt
+          retention-days: 5
+          if-no-files-found: error
