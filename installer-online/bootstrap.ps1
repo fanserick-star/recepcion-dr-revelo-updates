@@ -402,6 +402,47 @@ try:
     cur.execute("SELECT now()::text")
     remote_now = str(cur.fetchone()[0])
     restored = service._pull(pg, remote_now)  # PostgreSQL SELECT; only local SQLite UPSERT
+
+    # Audit and clinical encounter revisions are PUSH-ONLY in the normal sync.
+    # A fresh PC still needs their historic records. Restore from PostgreSQL
+    # using SELECT ONLY and disable local change triggers during the import.
+    restored_aux = {}
+    with sqlite3.connect(db_path) as local:
+        local.execute("UPDATE meta SET value='1' WHERE key='sync_applying_remote'")
+        local.commit()
+        try:
+            for table in ("encounter_revisions", "audit_log"):
+                cur.execute("SELECT COUNT(*) FROM public." + table)
+                expected = int(cur.fetchone()[0])
+                cols = {row[1] for row in local.execute("PRAGMA table_info(" + table + ")")}
+                count = 0
+                for offset in range(0, expected, 500):
+                    cur.execute("SELECT * FROM public." + table +
+                                " ORDER BY id LIMIT 500 OFFSET %s", (offset,))
+                    cloud_cols = [col[0] for col in cur.description]
+                    chosen = [(idx, col) for idx, col in enumerate(cloud_cols)
+                              if col in cols]
+                    if "id" not in [name for _, name in chosen]:
+                        raise SystemExit("HISTORIA_AUXILIARY_SCHEMA_INVALID")
+                    insert_cols = [name for _, name in chosen]
+                    sql = ("INSERT OR IGNORE INTO " + table + "(" +
+                           ",".join(insert_cols) + ") VALUES (" +
+                           ",".join("?" for _ in insert_cols) + ")")
+                    for row in cur.fetchall():
+                        values = [cloud_sync._normalize_remote_value(row[idx])
+                                  for idx, _ in chosen]
+                        local.execute(sql, values)
+                        count += 1
+                    local.commit()
+                local_count = int(local.execute(
+                    "SELECT COUNT(*) FROM " + table
+                ).fetchone()[0])
+                if local_count < expected:
+                    raise SystemExit("HISTORIA_AUXILIARY_RESTORE_INCOMPLETE")
+                restored_aux[table] = count
+        finally:
+            local.execute("UPDATE meta SET value='0' WHERE key='sync_applying_remote'")
+            local.commit()
     pg.commit()
 finally:
     pg.close()
@@ -434,6 +475,7 @@ with sqlite3.connect(db_path) as local:
 
 print("HISTORIA_FIRST_BOOT_RESTORE_OK")
 print("HISTORIA_CLOUD_ROWS_RETRIEVED", restored)
+print("HISTORIA_AUXILIARY_ROWS_RETRIEVED", sum(restored_aux.values()))
 print("HISTORIA_LOCAL_PATIENTS", patients)
 print("HISTORIA_LOCAL_ENCOUNTERS", encounters)
 '@
