@@ -159,6 +159,21 @@ static int install_both(void) {
           TITLE,MB_OK|MB_ICONINFORMATION|MB_TOPMOST|MB_SETFOREGROUND);
         return 0;
     }
+    if(exit_code==41) {
+        error_box(L"La instalación está bloqueada por una configuración inicial pendiente.\n\n"
+          L"El servicio de autorización existe, pero todavía no tiene las claves"
+          L" privadas del consultorio.\n"
+          L"No se descargaron ni instalaron Recepción o Historia Clínica.\n"
+          L"Debe completarse la configuración segura desde la PC de Recepción.");
+        return 41;
+    }
+    if(exit_code==42) {
+        error_box(L"No se pudo contactar o comprobar el servicio de autorización.\n\n"
+          L"Comprueba Internet y consulta el registro de activación en:\n"
+          L"C:\\ProgramData\\DrReveloRuntime\\logs.\n"
+          L"No se inició la instalación de los programas.");
+        return 42;
+    }
     error_box(L"La instalación no se pudo completar o esta PC no fue autorizada.\n\n"
       L"No se han borrado bases clínicas ni configuraciones existentes.\n"
       L"Consulta los registros en C:\\ProgramData\\DrReveloRuntime\\logs.");
