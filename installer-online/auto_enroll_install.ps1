@@ -70,16 +70,22 @@ function Unwrap-Payload([object]$Message,[System.Security.Cryptography.RSA]$Rsa,
 $logDir = Join-Path $env:ProgramData 'DrReveloRuntime\logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $logPath = Join-Path $logDir ('activation-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+# Use distinct, non-sensitive exit codes so the EXE can explain the blocker.
+# 41 = the independent worker is present but lacks approved clinic credentials.
+# 42 = health endpoint unreachable, or unexpected response; do not proceed.
 try {
     $health = Invoke-RestMethod -Method Get -Uri ($ServiceUrl + '/health') -TimeoutSec 20
-    if (-not $health.ok -or $health.service -ne 'consultorio-enrollment' -or
-        -not $health.configured) {
-        throw 'SERVICIO_DE_ACTIVACION_NO_CONFIGURADO'
-    }
 } catch {
-    # Do not log exception bodies, keys, URLs, tickets or connection strings.
-    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_NO_DISPONIBLE_O_SIN_CONFIGURAR')
-    throw 'El servicio de autorización no está configurado. No se instalaron programas.'
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_SIN_CONEXION_O_RESPUESTA_INVALIDA')
+    exit 42
+}
+if (-not $health.ok -or $health.service -ne 'consultorio-enrollment') {
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_SIN_CONEXION_O_RESPUESTA_INVALIDA')
+    exit 42
+}
+if (-not $health.configured) {
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_PENDIENTE_DE_CONFIGURACION_INICIAL')
+    exit 41
 }
 
 # RSA-OAEP SHA256, unique in-memory private key per attempted installation.
