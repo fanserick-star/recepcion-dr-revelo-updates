@@ -70,6 +70,90 @@ function Unwrap-Payload([object]$Message,[System.Security.Cryptography.RSA]$Rsa,
 $logDir = Join-Path $env:ProgramData 'DrReveloRuntime\logs'
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $logPath = Join-Path $logDir ('activation-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.log')
+# Fixed, non-sensitive phase markers. Never log the response body or a credential.
+[IO.File]::WriteAllText($logPath, "FASE: INICIO_AUTORIZACION" + [Environment]::NewLine)
+$phase = 'PREPARAR_CLAVES_TEMPORALES'
+function Write-SafePhase([string]$Name) {
+    if($Name -notmatch '^[A-Z_]{3,65}
+# Use distinct, non-sensitive exit codes so the EXE can explain the blocker.
+# 41 = the independent worker is present but lacks approved clinic credentials.
+# 42 = health endpoint unreachable, or unexpected response; do not proceed.
+try {
+    $health = Invoke-RestMethod -Method Get -Uri ($ServiceUrl + '/health') -TimeoutSec 20
+} catch {
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_SIN_CONEXION_O_RESPUESTA_INVALIDA')
+    exit 42
+}
+if (-not $health.ok -or $health.service -ne 'consultorio-enrollment') {
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_SIN_CONEXION_O_RESPUESTA_INVALIDA')
+    exit 42
+}
+if (-not $health.configured) {
+    [IO.File]::WriteAllText($logPath, 'ERROR: ACTIVACION_PENDIENTE_DE_CONFIGURACION_INICIAL')
+    exit 41
+}
+
+Write-SafePhase 'SERVICIO_CONFIGURADO'
+# RSA-OAEP SHA256, unique in-memory private key per attempted installation.
+$rsa = New-Object System.Security.Cryptography.RSACng -ArgumentList @(2048)
+try {
+    Write-SafePhase 'CLAVES_TEMPORALES_PREPARADAS'
+    $pub = $rsa.ExportParameters($false)
+    $pc = ([string]$env:COMPUTERNAME).Trim()
+    if (-not $pc) { $pc = 'PC-NUEVA' }
+    $phase = 'SOLICITAR_APROBACION'
+    $enroll = Invoke-JsonPost '/enroll' @{ pc=$pc; public_key=@{ n=(Base64Url $pub.Modulus); e=(Base64Url $pub.Exponent) } }
+    $ticket = [string]$enroll.ticket
+    $token = [string]$enroll.token
+    $code = [string]$enroll.code
+    if ($ticket -notmatch '^[a-f0-9]{16}$' -or $code -notmatch '^\d{6}$' -or $token.Length -lt 40) {
+        throw 'La autorización no devolvió una solicitud válida.'
+    }
+    Write-SafePhase 'SOLICITUD_CREADA'
+    $approveUrl = $ServiceUrl + '/approve?ticket=' + $ticket
+    Add-Type -AssemblyName System.Windows.Forms
+    $instructions = "Computadora: $pc" + [char]10 + [char]10 +
+      "Para instalar Recepción e Historia Clínica, autoriza esta PC desde tu dispositivo de confianza:" + [char]10 + [char]10 +
+      $approveUrl + [char]10 + [char]10 +
+      "Código de aprobación: $code" + [char]10 + [char]10 +
+      "La contraseña administrativa solo se escribe en la página segura." + [char]10 +
+      "No se te pedirán las claves de Neon ni AZUR."
+    $owner = New-Object System.Windows.Forms.Form
+    $owner.TopMost = $true
+    $owner.ShowInTaskbar = $false
+    try {
+        [void][System.Windows.Forms.MessageBox]::Show($owner,$instructions,'Autorizar nueva PC - Consultorio Dr. Revelo',
+            [System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Information)
+    } finally { $owner.Dispose() }
+    $phase = 'ESPERAR_APROBACION'
+    Write-SafePhase 'ESPERANDO_APROBACION'
+    $approved = $null
+    for ($i=0; $i -lt 180; $i++) {
+        $res = Invoke-JsonPost '/poll' @{ ticket=$ticket; token=$token }
+        if ([string]$res.status -eq 'approved') { $approved = $res; break }
+        if ([string]$res.status -ne 'pending') { throw 'La autorización ya no está disponible.' }
+        Start-Sleep -Seconds 5
+    }
+    if ($null -eq $approved) { throw 'La solicitud venció sin autorización. No se instaló nada.' }
+    # Config remains in memory until bootstrap writes each app's protected .env.
+    Write-SafePhase 'APROBACION_RECIBIDA'
+    $phase = 'DESCIFRAR_CONFIGURACION'
+    $cfgB64 = Unwrap-Payload $approved $rsa $ticket
+    [Environment]::SetEnvironmentVariable('DR_REVELO_PRIVATE_CONFIG_B64',$cfgB64,'Process')
+    try {
+        Write-SafePhase 'COMENZAR_INSTALACION_DE_AMBOS_PROGRAMAS'
+        $phase = 'INSTALAR_AMBOS_PROGRAMAS'
+        & $BootstrapScript -Reception -Historia
+        if ($LASTEXITCODE -ne 0) { throw "La instalación devolvió código $LASTEXITCODE." }
+    } finally {
+        [Environment]::SetEnvironmentVariable('DR_REVELO_PRIVATE_CONFIG_B64',$null,'Process')
+        $cfgB64 = $null
+    }
+} finally { $rsa.Dispose() }
+) { throw 'Nombre de fase incorrecto.' }
+    [IO.File]::AppendAllText($logPath, 'FASE: ' + $Name + [Environment]::NewLine)
+}
+
 # Use distinct, non-sensitive exit codes so the EXE can explain the blocker.
 # 41 = the independent worker is present but lacks approved clinic credentials.
 # 42 = health endpoint unreachable, or unexpected response; do not proceed.
@@ -134,4 +218,9 @@ try {
         [Environment]::SetEnvironmentVariable('DR_REVELO_PRIVATE_CONFIG_B64',$null,'Process')
         $cfgB64 = $null
     }
+} catch {
+    # Only the known stage marker is recorded; exception details may contain
+    # database connection strings and MUST NOT be written to disk.
+    Write-SafePhase ('ERROR_' + $phase)
+    throw 'La activación falló. Revisa únicamente el archivo activation-*.log y el instalador-*.log recientes.'
 } finally { $rsa.Dispose() }
