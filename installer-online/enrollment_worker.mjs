@@ -41,10 +41,23 @@ export function buildPrivateConfig(env) {
   const required=["DATABASE_URL","HISTORIA_DATABASE_URL","AZUR_BASE_URL","AZUR_API_KEY",
     "MOBILE_DOCTOR_TOKEN","MOBILE_RECEPTION_TOKEN"];
   if(required.some(k=>!rec[k]) || !hist.HISTORIA_DATABASE_URL) throw new Error("required_secrets_missing");
-  if(rec.DATABASE_URL===hist.HISTORIA_DATABASE_URL || rec.HISTORIA_DATABASE_URL!==hist.HISTORIA_DATABASE_URL)
+  // Reception uses a restricted bridge role; Historia uses its own clinical role.
+  // Their passwords MUST NOT be identical. Compare the destination, never secrets.
+  function destination(raw) {
+    let u;
+    try { u = new URL(raw); } catch(_) { throw new Error("postgresql_url_invalid"); }
+    if(!["postgres:","postgresql:"].includes(u.protocol) ||
+       !u.username || !u.password || !u.hostname.toLowerCase().endsWith(".neon.tech") ||
+       !u.pathname || u.pathname==="/") throw new Error("postgresql_url_invalid");
+    return {host:u.hostname.toLowerCase(),database:u.pathname,role:u.username};
+  }
+  const r=destination(rec.DATABASE_URL), bridge=destination(rec.HISTORIA_DATABASE_URL),
+        clinical=destination(hist.HISTORIA_DATABASE_URL);
+  if(r.host===clinical.host || r.database!==bridge.database ||
+     bridge.host!==clinical.host || bridge.database!==clinical.database ||
+     bridge.role===clinical.role ||
+     !clinical.host.startsWith("ep-sweet-mud-arlsk7qa"))
     throw new Error("neon_projects_do_not_match");
-  if(!/^postgres(ql)?:\/\//.test(rec.DATABASE_URL) || !/^postgres(ql)?:\/\//.test(hist.HISTORIA_DATABASE_URL))
-    throw new Error("postgresql_url_invalid");
   // Prevent local WhatsApp sending on extra computers. Cloudflare remains sole dispatcher.
   rec.WHATSAPP_CLOUD_MODE="1";
   rec.WHATSAPP_ENABLED="0";
