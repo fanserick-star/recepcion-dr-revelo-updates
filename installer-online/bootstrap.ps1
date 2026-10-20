@@ -539,7 +539,8 @@ try {
     # Validate both connections BEFORE installing runtime, downloading app files or changing configuration.
     $histUrl = [string]$private.HISTORIA['HISTORIA_DATABASE_URL']
     $recUrl = [string]$private.RECEPTION['DATABASE_URL']
-    if ([string]::IsNullOrWhiteSpace($histUrl) -or [string]::IsNullOrWhiteSpace($recUrl)) {
+    $bridgeUrl = [string]$private.RECEPTION['HISTORIA_DATABASE_URL']
+    if ([string]::IsNullOrWhiteSpace($histUrl) -or [string]::IsNullOrWhiteSpace($recUrl) -or [string]::IsNullOrWhiteSpace($bridgeUrl)) {
         throw 'La configuración privada debe contener dos conexiones Neon independientes.'
     }
     if ($histUrl -eq $recUrl) {
@@ -554,7 +555,8 @@ try {
         Ensure-Venv 'Recepción' $root $ReceptionPackages
         $vals = @{}
         foreach ($k in $private.RECEPTION.Keys) { $vals[[string]$k] = [string]$private.RECEPTION[$k] }
-        $vals['HISTORIA_DATABASE_URL'] = $histUrl
+        # Reception retains the narrowly privileged bridge identity, not the doctor’s clinical role.
+        $vals['HISTORIA_DATABASE_URL'] = $bridgeUrl
         Merge-Env $root $vals 'instalador_consultorio' | Out-Null
         Test-PostgresConfig $root (Read-Env-Value $root 'DATABASE_URL') 'Recepción'
         Test-PostgresConfig $root (Read-Env-Value $root 'HISTORIA_DATABASE_URL') 'puente Historia'
