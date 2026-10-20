@@ -1,17 +1,36 @@
-# ONE-TIME configuration from the EXISTING, TRUSTED Reception PC.
-# Never upload this script's output to GitHub or send secrets by chat.
-param([Parameter(Mandatory=$true)][string]$CloudflareAccountId,
+# One-time clinic configuration. This file contains NO private credentials.
+# Read trusted .env files locally, upload ONLY to Cloudflare encrypted secrets over TLS.
+# NEVER put secrets in GitHub, logs, support chats or command-line arguments.
+param([string]$CloudflareAccountId = '',
       [string]$ReceptionEnv = 'C:\Recepcion Dr Revelo\.env',
-      [string]$HistoriaEnv = 'C:\Historia Clinica Dr Revelo\.env')
+      [string]$HistoriaEnv = 'C:\Historia Clinica Dr Revelo\.env',
+      [switch]$ValidateOnly)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
-if($CloudflareAccountId -notmatch '^[a-f0-9]{32}$'){throw 'ID de cuenta Cloudflare inválido.'}
 $service='https://dr-revelo-enrollment.drrevelo.workers.dev'
-try {
-  $health=Invoke-RestMethod -Uri ($service+'/health') -TimeoutSec 15
-  if(-not $health.ok -or $health.service -ne 'consultorio-enrollment') {throw 'No es el servicio aislado del instalador.'}
-}catch{throw 'Primero debe desplegarse el servicio privado de autorización. No se enviaron claves.'}
+function Select-PrivateFile([string]$Message) {
+  Add-Type -AssemblyName System.Windows.Forms
+  $dialog=New-Object System.Windows.Forms.OpenFileDialog
+  $dialog.Title=$Message
+  $dialog.Filter='Todos los archivos (*.*)|*.*|Archivos .env (*.env)|*.env'
+  $dialog.CheckFileExists=$true
+  $dialog.Multiselect=$false
+  try {
+    $answer=$dialog.ShowDialog()
+    if($answer -ne [System.Windows.Forms.DialogResult]::OK){throw 'Seleccion de archivo cancelada.'}
+    return $dialog.FileName
+  }finally{$dialog.Dispose()}
+}
+if(-not(Test-Path -LiteralPath $ReceptionEnv -PathType Leaf)){
+  $ReceptionEnv=Select-PrivateFile 'Selecciona el archivo .env ACTUAL de Recepcion'
+}
+if(-not(Test-Path -LiteralPath $HistoriaEnv -PathType Leaf)){
+  $HistoriaEnv=Select-PrivateFile 'Selecciona el archivo .env ACTUAL de Historia Clinica'
+}
+if([IO.Path]::GetFullPath($ReceptionEnv) -eq [IO.Path]::GetFullPath($HistoriaEnv)){
+  throw 'Recepcion e Historia necesitan dos archivos diferentes.'
+}
 function Read-PrivateEnv([string]$Path,[string]$Label){
   if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){
     throw ('No se encontró el .env de '+$Label+'. Se necesitan ambas configuraciones actuales.')
@@ -73,7 +92,15 @@ $hist=@{HISTORIA_DATABASE_URL=[string]$histRaw['HISTORIA_DATABASE_URL'];HISTORIA
 function Render-Env([hashtable]$Values){
   return (($Values.Keys|Sort-Object|ForEach-Object{$key=[string]$_; $key+'='+[string]$Values[$key]}) -join [char]10)+[char]10
 }
-$recB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $rec)))
+if($ValidateOnly){
+  Write-Host 'VALIDACION_LOCAL_OK: ambas configuraciones son compatibles por destino y permisos.'
+  Write-Host 'No se enviaron secretos a Internet ni se modifico Cloudflare.'
+  return
+}
+if(-not $CloudflareAccountId){
+  $CloudflareAccountId=(Read-Host 'ID de tu cuenta Cloudflare (32 caracteres, NO es el token)').Trim()
+}
+if($CloudflareAccountId -notmatch '^[a-f0-9]{32}
 $histB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $hist)))
 $secretDir=Join-Path $env:APPDATA 'DrReveloPrivateInstaller'
 $adminFile=Join-Path $secretDir 'aprobacion.dpapi'
@@ -97,22 +124,52 @@ $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($cfSecure)
 try{$cfToken=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
 finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
 if(-not $cfToken){throw 'No se proporcionó acceso Cloudflare. No se enviaron claves.'}
-$endpoint="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/workers/scripts/dr-revelo-enrollment/secrets"
+$endpoint="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/workers/scripts/dr-revelo-enrollment/secrets-bulk"
 $headers=@{Authorization=('Bearer '+$cfToken)}
-try{
-  foreach($item in @(
-    @{name='RECEPTION_ENV_B64';text=$recB64},
-    @{name='HISTORIA_ENV_B64';text=$histB64},
-    @{name='DR_REVELO_ADMIN_TOKEN';text=$admin}
-  )){
-    $body=ConvertTo-Json -InputObject @{type='secret_text';name=$item.name;text=$item.text} -Compress
-    try{
-      $result=Invoke-RestMethod -Method Put -Uri $endpoint -Headers $headers -Body $body -ContentType 'application/json' -TimeoutSec 35
-      if(-not $result.success){throw 'El servidor rechazó el secreto.'}
-    }catch{throw ('No se pudo registrar de forma segura: '+$item.name+'. No se imprimen valores.')}
-    Write-Host ('Registrado en Cloudflare (secreto oculto): '+$item.name)
+# Cloudflare recommends one atomic PATCH for multiple secrets. JSON stays
+# only in the PowerShell process and is never stored in a file.
+$payload=@{secrets=@{
+  RECEPTION_ENV_B64=@{name='RECEPTION_ENV_B64';type='secret_text';text=$recB64}
+  HISTORIA_ENV_B64=@{name='HISTORIA_ENV_B64';type='secret_text';text=$histB64}
+  DR_REVELO_ADMIN_TOKEN=@{name='DR_REVELO_ADMIN_TOKEN';type='secret_text';text=$admin}
+}}
+$body=ConvertTo-Json -InputObject $payload -Depth 8 -Compress
+try {
+  try {
+    $result=Invoke-RestMethod -Method Patch -Uri $endpoint -Headers $headers -Body $body -ContentType 'application/json' -TimeoutSec 40
+    if(-not $result.success){throw 'Cloudflare no acepto la configuracion.'}
+  }catch{
+    throw 'No se pudo guardar la configuracion en el Worker asignado. No se muestran secretos.'
   }
-}finally{$cfToken=$null;$cfSecure.Dispose()}
-Write-Host 'Instalador centralizado configurado. Guardar esta contraseña en un gestor seguro.'
+}finally{
+  $body=$null;$payload=$null;$recB64=$null;$histB64=$null
+  $headers.Clear();$cfToken=$null
+  $cfSecure.Dispose()
+}
+Write-Host 'Los 3 secretos se registraron en el Worker aislado.'
+# Verify the currently LIVE worker actually uses the secrets; do not assume
+# an API update is deployed immediately.
+$ready=$false
+for($attempt=0;$attempt -lt 8;$attempt++){
+  try {
+    $h=Invoke-RestMethod -Method Get -Uri ($service+'/health') -TimeoutSec 15
+    if($h.ok -and $h.service -eq 'consultorio-enrollment' -and $h.configured){
+      $ready=$true;break
+    }
+  }catch{}
+  Start-Sleep -Seconds 3
+}
+if(-not $ready){
+  throw 'Secretos guardados, pero todavia no aparecen en el Worker activo. No instales aun.'
+}
+try{
+  $headers2=@{ Authorization=('Bearer '+$admin) }
+  $valid=Invoke-RestMethod -Method Post -Uri ($service+'/admin/validate') -Headers $headers2 -Body '{}' -ContentType 'application/json' -TimeoutSec 20
+  if(-not $valid.ok -or -not $valid.ready){throw 'Configuracion rechazada'}
+}catch{
+  throw 'Cloudflare tiene los 3 secretos, pero falta confirmar su validacion. No ejecutes el instalador aun.'
+}
+Write-Host 'ACTIVACION_OK: Worker publico configurado y configuracion privada validada.'
+Write-Host 'Guarda la siguiente contrasena ADMINISTRATIVA de aprobacion en tu gestor seguro.'
 Write-Host ('CONTRASENA_ADMINISTRATIVA_DE_APROBACION: '+$admin)
-Write-Host 'No enviarla por WhatsApp, GitHub ni por el chat.'
+Write-Host 'No compartir por chat, WhatsApp ni GitHub. Luego revoca el token temporal de Cloudflare.'
