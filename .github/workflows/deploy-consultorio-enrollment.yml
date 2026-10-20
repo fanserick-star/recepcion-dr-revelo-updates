@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/deploy-consultorio-enrollment.yml'
+      - 'installer-online/enrollment_worker.mjs'
+      - 'installer-online/test_enrollment.mjs'
+      - 'installer-online/wrangler.enrollment.jsonc'
   workflow_dispatch:
 
 permissions:
