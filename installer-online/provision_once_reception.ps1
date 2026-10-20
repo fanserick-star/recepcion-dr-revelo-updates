@@ -100,7 +100,18 @@ if($ValidateOnly){
 if(-not $CloudflareAccountId){
   $CloudflareAccountId=(Read-Host 'ID de tu cuenta Cloudflare (32 caracteres, NO es el token)').Trim()
 }
-if($CloudflareAccountId -notmatch '^[a-f0-9]{32}
+if($CloudflareAccountId -notmatch '^[a-f0-9]{32}$'){
+  throw 'ID de cuenta Cloudflare invalido. Copia Account ID desde Workers.'
+}
+try {
+  $health=Invoke-RestMethod -Method Get -Uri ($service+'/health') -TimeoutSec 20
+  if(-not $health.ok -or $health.service -ne 'consultorio-enrollment'){
+    throw 'Servicio incorrecto'
+  }
+}catch{
+  throw 'El servicio aislado del instalador no responde. No se envio ninguna clave.'
+}
+$recB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $rec)))
 $histB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $hist)))
 $secretDir=Join-Path $env:APPDATA 'DrReveloPrivateInstaller'
 $adminFile=Join-Path $secretDir 'aprobacion.dpapi'
