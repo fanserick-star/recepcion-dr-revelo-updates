@@ -75,14 +75,14 @@ for(let i=0;i<9;i++) {
 assert.equal((await call('/enroll',{pc:'PC-EXCESS',public_key:{n:jwk.n,e:jwk.e}})).status,429);
 // Reject a bridge pointing at another project's endpoint, even if credentials exist.
 const wrongBridge={...fakeEnv,RECEPTION_ENV_B64:b64(e.encode(
-  'DATABASE_URL=postgresql://reception-test:test@ep-reception-testing.us-west-2.aws.neon.tech/db\\n'+
-  'HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-other-testing.us-west-2.aws.neon.tech/db\\n'+
-  'AZUR_BASE_URL=https://billing.invalid\\nAZUR_API_KEY=TEST\\n'+
-  'MOBILE_DOCTOR_TOKEN=CI-TEST\\nMOBILE_RECEPTION_TOKEN=CI-TEST\\n'))};
+  'DATABASE_URL=postgresql://reception-test:test@ep-reception-testing.us-west-2.aws.neon.tech/db\n'+
+  'HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-other-testing.us-west-2.aws.neon.tech/db\n'+
+  'AZUR_BASE_URL=https://billing.invalid\nAZUR_API_KEY=TEST\n'+
+  'MOBILE_DOCTOR_TOKEN=CI-TEST\nMOBILE_RECEPTION_TOKEN=CI-TEST\n'))};
 assert.throws(()=>buildPrivateConfig(wrongBridge),/neon_projects_do_not_match/);
 // Reject reuse of bridge role as the doctor's privileged clinical role.
 const sharedRole={...fakeEnv,HISTORIA_ENV_B64:b64(e.encode(
-  'HISTORIA_DATABASE_URL=postgresql://bridge-test:other@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\\n'))};
+  'HISTORIA_DATABASE_URL=postgresql://bridge-test:other@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\n'))};
 assert.throws(()=>buildPrivateConfig(sharedRole),/neon_projects_do_not_match/);
 const damaged={...fakeEnv,RECEPTION_ENV_B64:''};
 assert.equal((await call('/enroll',{pc:'PC',public_key:{n:jwk.n,e:jwk.e}},'',damaged)).status,503);
