@@ -15,12 +15,12 @@ const fakeEnv={
   ENROLLMENTS:new KV(),
   DR_REVELO_ADMIN_TOKEN:'ONLY_FOR_LOCAL_CI_TEST_012345678901234',
   RECEPTION_ENV_B64:b64(e.encode(
-    'DATABASE_URL=postgresql://dummy-reception.invalid/db\n'+
-    'HISTORIA_DATABASE_URL=postgresql://dummy-historia.invalid/db\n'+
+    'DATABASE_URL=postgresql://reception-test:test@ep-reception-testing.us-west-2.aws.neon.tech/db\n'+
+    'HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\n'+
     'AZUR_BASE_URL=https://billing.invalid\nAZUR_API_KEY=CI-TEST-PRIVATE-KEY\n'+
     'MOBILE_DOCTOR_TOKEN=CI-DOCTOR-TOKEN\nMOBILE_RECEPTION_TOKEN=CI-RECEPTION-TOKEN\n'+
     'WHATSAPP_ENABLED=1\nRP_WORKSTATION_NAME=OLD-CLINIC-PC\n')),
-  HISTORIA_ENV_B64:b64(e.encode('HISTORIA_DATABASE_URL=postgresql://dummy-historia.invalid/db\nHISTORIA_SYNC_ENABLED=0\n'))
+  HISTORIA_ENV_B64:b64(e.encode('HISTORIA_DATABASE_URL=postgresql://clinical-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\nHISTORIA_SYNC_ENABLED=0\n'))
 };
 async function call(path,data,secret='',env=fakeEnv){
   const req=new Request('https://worker.local'+path,{method:'POST',headers:{
@@ -28,6 +28,11 @@ async function call(path,data,secret='',env=fakeEnv){
   const res=await installer.fetch(req,env);
   return {status:res.status,body:await res.json(),headers:res.headers};
 }
+assert.equal((await call('/admin/validate',{})).status,403);
+const ready=await call('/admin/validate',{},fakeEnv.DR_REVELO_ADMIN_TOKEN);
+assert.equal(ready.status,200);
+assert.equal(ready.body.ready,true);
+assert.equal(JSON.stringify(ready.body).includes('postgresql://'),false);
 const health=await installer.fetch(new Request('https://worker.local/health'),fakeEnv);
 assert.equal((await health.json()).configured,true);
 const keys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['encrypt','decrypt']);
@@ -60,7 +65,8 @@ assert.equal(await crypto.subtle.verify('HMAC',macKey,raw(p.mac),signed),true);
 const aes=await crypto.subtle.importKey('raw',new Uint8Array(material).slice(0,32),'AES-CBC',false,['decrypt']);
 const plain=d.decode(await crypto.subtle.decrypt({name:'AES-CBC',iv:raw(p.iv)},aes,raw(p.ciphertext)));
 assert.ok(plain.includes('AZUR_API_KEY=CI-TEST-PRIVATE-KEY'));
-assert.ok(plain.includes('HISTORIA_DATABASE_URL=postgresql://dummy-historia.invalid/db'));
+assert.ok(plain.includes('[HISTORIA]\nHISTORIA_DATABASE_URL=postgresql://clinical-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db'));
+assert.ok(plain.includes('HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db'));
 assert.ok(plain.includes('WHATSAPP_ENABLED=0'));
 assert.ok(plain.includes('WHATSAPP_CLOUD_MODE=1'));
 assert.ok(plain.includes('HISTORIA_SYNC_ENABLED=1'));
@@ -72,6 +78,19 @@ for(let i=0;i<9;i++) {
   assert.equal(next.status,200);
 }
 assert.equal((await call('/enroll',{pc:'PC-EXCESS',public_key:{n:jwk.n,e:jwk.e}})).status,429);
+// Reject a bridge pointing at another project's endpoint, even if credentials exist.
+const wrongBridge={...fakeEnv,RECEPTION_ENV_B64:b64(e.encode(
+  'DATABASE_URL=postgresql://reception-test:test@ep-reception-testing.us-west-2.aws.neon.tech/db\n'+
+  'HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-other-testing.us-west-2.aws.neon.tech/db\n'+
+  'AZUR_BASE_URL=https://billing.invalid\nAZUR_API_KEY=TEST\n'+
+  'MOBILE_DOCTOR_TOKEN=CI-TEST\nMOBILE_RECEPTION_TOKEN=CI-TEST\n'))};
+assert.throws(()=>buildPrivateConfig(wrongBridge),/neon_projects_do_not_match/);
+// Reject reuse of bridge role as the doctor's privileged clinical role.
+const sharedRole={...fakeEnv,HISTORIA_ENV_B64:b64(e.encode(
+  'HISTORIA_DATABASE_URL=postgresql://bridge-test:other@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\n'))};
+assert.throws(()=>buildPrivateConfig(sharedRole),/neon_projects_do_not_match/);
+const invalidAdmin={...fakeEnv,RECEPTION_ENV_B64:''};
+assert.equal((await call('/admin/validate',{},fakeEnv.DR_REVELO_ADMIN_TOKEN,invalidAdmin)).status,503);
 const damaged={...fakeEnv,RECEPTION_ENV_B64:''};
 assert.equal((await call('/enroll',{pc:'PC',public_key:{n:jwk.n,e:jwk.e}},'',damaged)).status,503);
 console.log('ENROLLMENT_DENY_UNAUTHORIZED_AND_RSA_CRYPTO_ROUNDTRIP_OK_DUMMY_ONLY');
