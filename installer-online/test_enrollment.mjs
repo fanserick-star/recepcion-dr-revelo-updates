@@ -28,6 +28,11 @@ async function call(path,data,secret='',env=fakeEnv){
   const res=await installer.fetch(req,env);
   return {status:res.status,body:await res.json(),headers:res.headers};
 }
+assert.equal((await call('/admin/validate',{})).status,403);
+const ready=await call('/admin/validate',{},fakeEnv.DR_REVELO_ADMIN_TOKEN);
+assert.equal(ready.status,200);
+assert.equal(ready.body.ready,true);
+assert.equal(JSON.stringify(ready.body).includes('postgresql://'),false);
 const health=await installer.fetch(new Request('https://worker.local/health'),fakeEnv);
 assert.equal((await health.json()).configured,true);
 const keys=await crypto.subtle.generateKey({name:'RSA-OAEP',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['encrypt','decrypt']);
@@ -84,6 +89,8 @@ assert.throws(()=>buildPrivateConfig(wrongBridge),/neon_projects_do_not_match/);
 const sharedRole={...fakeEnv,HISTORIA_ENV_B64:b64(e.encode(
   'HISTORIA_DATABASE_URL=postgresql://bridge-test:other@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db\n'))};
 assert.throws(()=>buildPrivateConfig(sharedRole),/neon_projects_do_not_match/);
+const invalidAdmin={...fakeEnv,RECEPTION_ENV_B64:''};
+assert.equal((await call('/admin/validate',{},fakeEnv.DR_REVELO_ADMIN_TOKEN,invalidAdmin)).status,503);
 const damaged={...fakeEnv,RECEPTION_ENV_B64:''};
 assert.equal((await call('/enroll',{pc:'PC',public_key:{n:jwk.n,e:jwk.e}},'',damaged)).status,503);
 console.log('ENROLLMENT_DENY_UNAUTHORIZED_AND_RSA_CRYPTO_ROUNDTRIP_OK_DUMMY_ONLY');
