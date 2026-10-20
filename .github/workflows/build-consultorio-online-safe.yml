@@ -114,6 +114,28 @@ jobs:
             } finally { $aes.Dispose() }
           } finally { $rsa.Dispose() }
           Write-Host 'WINDOWS_CRYPT_TEST_OK'
+      - name: Validate both clinic configuration roles with synthetic offline env files
+        shell: powershell
+        run: |
+          $ErrorActionPreference='Stop'
+          $rec=Join-Path $env:RUNNER_TEMP 'reception-config-dummy.env'
+          $hist=Join-Path $env:RUNNER_TEMP 'historia-config-dummy.env'
+          [IO.File]::WriteAllText($rec, @'
+          DATABASE_URL=postgresql://rec:test@ep-reception-testing.us-west-2.aws.neon.tech/neondb?sslmode=require
+          HISTORIA_DATABASE_URL=postgresql://bridge:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/neondb?sslmode=require
+          AZUR_BASE_URL=https://billing.example.invalid
+          AZUR_API_KEY=DUMMY_LOCAL_ONLY
+          MOBILE_DOCTOR_TOKEN=DUMMY_LOCAL_ONLY
+          MOBILE_RECEPTION_TOKEN=DUMMY_LOCAL_ONLY
+          '@.Trim())
+          [IO.File]::WriteAllText($hist, @'
+          HISTORIA_SYNC_ENABLED=1
+          HISTORIA_DATABASE_URL=postgresql://clinician:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/neondb?sslmode=require
+          '@.Trim())
+          & '.\\installer-online\\provision_once_reception.ps1' -ReceptionEnv $rec -HistoriaEnv $hist -ValidateOnly
+          if(-not $?) { throw 'One-time activation configuration did not validate.' }
+          Write-Host 'TWO_ENV_OFFLINE_VALIDATION_OK'
+
       - name: Verify client syntax in native Windows PowerShell
         shell: powershell
         run: |
