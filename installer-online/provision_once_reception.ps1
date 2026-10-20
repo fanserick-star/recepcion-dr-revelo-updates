@@ -1,7 +1,8 @@
 # ONE-TIME configuration from the EXISTING, TRUSTED Reception PC.
 # Never upload this script's output to GitHub or send secrets by chat.
 param([Parameter(Mandatory=$true)][string]$CloudflareAccountId,
-      [string]$ReceptionEnv = 'C:\Recepcion Dr Revelo\.env')
+      [string]$ReceptionEnv = 'C:\Recepcion Dr Revelo\.env',
+      [string]$HistoriaEnv = 'C:\Historia Clinica Dr Revelo\.env')
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
@@ -11,28 +12,54 @@ try {
   $health=Invoke-RestMethod -Uri ($service+'/health') -TimeoutSec 15
   if(-not $health.ok -or $health.service -ne 'consultorio-enrollment') {throw 'No es el servicio aislado del instalador.'}
 }catch{throw 'Primero debe desplegarse el servicio privado de autorización. No se enviaron claves.'}
-if(-not(Test-Path -LiteralPath $ReceptionEnv -PathType Leaf)){throw 'No se encontró el .env de Recepción.'}
-$raw=@{}
-foreach($line in [IO.File]::ReadAllLines($ReceptionEnv)){
-  $l=$line.Trim()
-  if(-not $l -or $l.StartsWith('#') -or -not $l.Contains('=')){continue}
-  $pair=$l.Split('=',2);$key=$pair[0].Trim()
-  if($key -notmatch '^[A-Z][A-Z0-9_]*$'){continue}
-  if($raw.ContainsKey($key)){throw ('Clave duplicada en Recepción: '+$key)}
-  if($pair[1].Trim()){$raw[$key]=$pair[1].Trim()}
+function Read-PrivateEnv([string]$Path,[string]$Label){
+  if(-not(Test-Path -LiteralPath $Path -PathType Leaf)){
+    throw ('No se encontró el .env de '+$Label+'. Se necesitan ambas configuraciones actuales.')
+  }
+  $data=@{}
+  foreach($line in [IO.File]::ReadAllLines($Path)){
+    $l=$line.Trim()
+    if(-not $l -or $l.StartsWith('#') -or -not $l.Contains('=')){continue}
+    $pair=$l.Split('=',2);$key=$pair[0].Trim()
+    if($key -notmatch '^[A-Z][A-Z0-9_]*$'){continue}
+    if($data.ContainsKey($key)){throw ('Clave duplicada en '+$Label+': '+$key)}
+    if($pair[1].Trim()){$data[$key]=$pair[1].Trim()}
+  }
+  return $data
 }
+$raw=Read-PrivateEnv $ReceptionEnv 'Recepción'
+$histRaw=Read-PrivateEnv $HistoriaEnv 'Historia Clínica'
 $required=@('DATABASE_URL','HISTORIA_DATABASE_URL','AZUR_BASE_URL','AZUR_API_KEY','MOBILE_DOCTOR_TOKEN','MOBILE_RECEPTION_TOKEN')
 $missing=@($required|Where-Object{-not $raw.ContainsKey($_)})
 if($missing.Count -gt 0){throw ('Faltan claves: '+($missing -join ', '))}
-if([string]$raw['DATABASE_URL'] -eq [string]$raw['HISTORIA_DATABASE_URL']){
-  throw 'Las conexiones Neon de Recepción e Historia no son independientes.'
+if(-not $histRaw.ContainsKey('HISTORIA_DATABASE_URL') -or -not [string]$histRaw['HISTORIA_DATABASE_URL']){
+  throw 'Historia Clínica no contiene su propia conexión Neon.'
 }
-foreach($key in @('DATABASE_URL','HISTORIA_DATABASE_URL')){
-  if([string]$raw[$key] -notmatch '^postgres(ql)?://'){throw ('Formato Neon incorrecto: '+$key)}
+if([string]$histRaw['HISTORIA_SYNC_ENABLED'] -ne '1'){
+  throw 'Primero hay que verificar por qué la sincronización de Historia no está activada.'
 }
-$histHost=([uri]([string]$raw['HISTORIA_DATABASE_URL'])).Host.ToLowerInvariant()
-if(-not $histHost.StartsWith('ep-sweet-mud-arlsk7qa')){
-  throw 'La URL de Historia no corresponde al endpoint esperado. Revisa antes de enviar claves.'
+foreach($url in @(
+  [string]$raw['DATABASE_URL'],
+  [string]$raw['HISTORIA_DATABASE_URL'],
+  [string]$histRaw['HISTORIA_DATABASE_URL']
+)){
+  if($url -notmatch '^postgres(ql)?://'){throw 'Formato Neon incorrecto.'}
+}
+$recUri=[uri]([string]$raw['DATABASE_URL'])
+$bridgeUri=[uri]([string]$raw['HISTORIA_DATABASE_URL'])
+$histUri=[uri]([string]$histRaw['HISTORIA_DATABASE_URL'])
+if($recUri.Host -eq $histUri.Host -or $bridgeUri.Host -ne $histUri.Host -or
+   $bridgeUri.AbsolutePath -ne $histUri.AbsolutePath){
+  throw 'Los endpoints de Recepción, el puente y la Historia no coinciden con la arquitectura autorizada.'
+}
+if(-not $histUri.Host.ToLowerInvariant().StartsWith('ep-sweet-mud-arlsk7qa') -or
+   -not $histUri.Host.ToLowerInvariant().EndsWith('.neon.tech')){
+  throw 'La conexión de Historia no apunta al proyecto clínico esperado.'
+}
+$bridgeRole=($bridgeUri.UserInfo -split ':',2)[0]
+$clinicalRole=($histUri.UserInfo -split ':',2)[0]
+if(-not $bridgeRole -or -not $clinicalRole -or $bridgeRole -eq $clinicalRole){
+  throw 'Recepción y el doctor deben utilizar roles distintos en Historia Clínica.'
 }
 $rec=@{}
 foreach($key in $raw.Keys){
@@ -42,9 +69,9 @@ foreach($key in $raw.Keys){
 }
 $rec['WHATSAPP_CLOUD_MODE']='1'
 $rec['WHATSAPP_ENABLED']='0'
-$hist=@{HISTORIA_DATABASE_URL=[string]$raw['HISTORIA_DATABASE_URL'];HISTORIA_SYNC_ENABLED='1'}
+$hist=@{HISTORIA_DATABASE_URL=[string]$histRaw['HISTORIA_DATABASE_URL'];HISTORIA_SYNC_ENABLED='1'}
 function Render-Env([hashtable]$Values){
-  return (($Values.Keys|Sort-Object|ForEach-Object{[string]$_+'='+[string]$Values[$_]}) -join [char]10)+[char]10
+  return (($Values.Keys|Sort-Object|ForEach-Object{$key=[string]$_; $key+'='+[string]$Values[$key]}) -join [char]10)+[char]10
 }
 $recB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $rec)))
 $histB64=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Render-Env $hist)))
@@ -64,7 +91,7 @@ if(Test-Path -LiteralPath $adminFile -PathType Leaf){
   $secure=ConvertTo-SecureString $admin -AsPlainText -Force
   ($secure|ConvertFrom-SecureString)|Set-Content -LiteralPath $adminFile -Encoding ASCII
 }
-Write-Host 'Configuración original verificada por nombres. No se imprimen los valores.'
+Write-Host 'Configuraciones de Recepción e Historia comprobadas por separado. No se imprimen los valores.'
 $cfSecure=Read-Host 'Escribe SOLO el token administrativo de Cloudflare (se usa una vez)' -AsSecureString
 $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($cfSecure)
 try{$cfToken=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
