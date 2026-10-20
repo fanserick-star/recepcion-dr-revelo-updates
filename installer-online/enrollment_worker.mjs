@@ -154,8 +154,16 @@ async function route(req,env) {
       JSON.stringify({...stored,status:"delivered",public_key:null}),{expirationTtl:120});
     return json({status:"approved",...payload});
   }
-  if(url.pathname==="/admin/pending"||url.pathname==="/admin/approve") {
+  if(url.pathname==="/admin/pending"||url.pathname==="/admin/approve"||
+     url.pathname==="/admin/validate") {
     if(!await admin(req,env))return json({error:"forbidden"},403);
+    if(url.pathname==="/admin/validate") {
+      // Admin-only health check: validate names and destinations without
+      // returning credentials, hosts, passwords, patient data or payload.
+      try { buildPrivateConfig(env); }
+      catch(_) { return json({ok:false,ready:false,error:"private_configuration_invalid"},503); }
+      return json({ok:true,ready:true,service:"consultorio-enrollment"});
+    }
     if(url.pathname==="/admin/pending") {
       const d=await bodyJson(req);
       const ticket=String(d.ticket||"");
