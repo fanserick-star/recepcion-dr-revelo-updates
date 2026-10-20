@@ -60,7 +60,7 @@ assert.equal(await crypto.subtle.verify('HMAC',macKey,raw(p.mac),signed),true);
 const aes=await crypto.subtle.importKey('raw',new Uint8Array(material).slice(0,32),'AES-CBC',false,['decrypt']);
 const plain=d.decode(await crypto.subtle.decrypt({name:'AES-CBC',iv:raw(p.iv)},aes,raw(p.ciphertext)));
 assert.ok(plain.includes('AZUR_API_KEY=CI-TEST-PRIVATE-KEY'));
-assert.ok(plain.includes('[HISTORIA]\\nHISTORIA_DATABASE_URL=postgresql://clinical-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db'));
+assert.ok(plain.includes('[HISTORIA]\nHISTORIA_DATABASE_URL=postgresql://clinical-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db'));
 assert.ok(plain.includes('HISTORIA_DATABASE_URL=postgresql://bridge-test:test@ep-sweet-mud-arlsk7qa-pooler.c-4.us-west-2.aws.neon.tech/db'));
 assert.ok(plain.includes('WHATSAPP_ENABLED=0'));
 assert.ok(plain.includes('WHATSAPP_CLOUD_MODE=1'));
