@@ -21,7 +21,7 @@ def function(tree: ast.AST, name: str) -> ast.FunctionDef:
 def main() -> None:
     manifest = json.loads((APP / "update_manifest.json").read_text(encoding="utf-8"))
     version = json.loads((APP / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
-    assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"4.8.42","4.8.43","4.8.44","4.8.45","4.8.46"}
+    assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"4.8.42","4.8.43","4.8.44","4.8.45","4.8.46","4.8.47"}
     for item in ("static/billing_advanced.css", "static/billing_advanced.js"):
         assert item in manifest["copy"], ("Not shipped by launcher", item)
         assert item in manifest["required_dependencies"], ("Not required", item)
