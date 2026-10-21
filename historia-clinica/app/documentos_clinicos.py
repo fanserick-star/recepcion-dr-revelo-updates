@@ -541,6 +541,7 @@ def _inline_signature_activation_dialog() -> str:
 .hcs-dialog h2{font-size:21px;margin:0 0 8px}.hcs-dialog p{line-height:1.5}
 .hcs-dialog label{display:block;font-weight:800;margin-top:16px}
 .hcs-dialog input{width:100%;box-sizing:border-box;margin-top:6px;padding:11px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px}
+.hcs-dialog input[type=checkbox]{width:18px;height:18px;margin:2px 0;padding:0;flex:none}
 .hcs-dialog button{padding:10px 14px;border:0;border-radius:9px;font-weight:800;cursor:pointer;background:#edf3f9;color:#173b66}
 .hcs-dialog button:disabled{opacity:.65}.hcs-dialog .hcs-primary{background:#2b6aa7;color:#fff}
 .hcs-buttons{display:flex;flex-wrap:wrap;gap:10px;margin-top:15px}
@@ -552,6 +553,10 @@ def _inline_signature_activation_dialog() -> str:
   <p id="hcs-help">El certificado permanece abierto sin perder lo que ha escrito.</p>
   <button id="hcs-select" type="button">Seleccionar certificado .p12 / .pfx</button>
   <label>Contraseña del certificado<input id="hcs-password" type="password" autocomplete="off"></label>
+  <label style="display:flex;align-items:flex-start;gap:9px;font-weight:650;font-size:14px;line-height:1.4">
+   <input id="hcs-remember" type="checkbox">Recordar de forma cifrada en este usuario de Windows al reiniciar Historia Clínica
+  </label>
+  <p style="font-size:12px;color:#64748b">Solo en esta PC; no se envía a Neón. Bloquee la sesión de Windows al ausentarse. Cada firma requiere pulsar Firmar PDF.</p>
   <div class="hcs-buttons">
    <button type="button" id="hcs-cancel">Volver al certificado</button>
    <button type="button" id="hcs-activate" class="hcs-primary">Activar y continuar</button>
@@ -567,17 +572,19 @@ window.historiaEnsureSignatureReady=async function(){
  if(status.configured&&status.unlocked)return true;
  return new Promise(resolve=>{
   const overlay=document.getElementById('hcs-backdrop'),pass=document.getElementById('hcs-password');
+  const remember=document.getElementById('hcs-remember');
   const message=document.getElementById('hcs-message'),choose=document.getElementById('hcs-select');
   const activate=document.getElementById('hcs-activate'),cancel=document.getElementById('hcs-cancel');
   const previous=document.activeElement;let busy=false;
   overlay.hidden=false;pass.value='';message.textContent='';
+  remember.checked=!!status.remembered;remember.disabled=!status.remember_supported;
   document.getElementById('hcs-help').textContent=status.configured?
    'La firma está configurada, pero bloqueada. Ingrese su contraseña sin salir del certificado.':
    'Seleccione el certificado .p12 o .pfx y active su firma aquí. El texto del certificado no se perderá.';
   choose.textContent=status.configured?'Cambiar certificado .p12 / .pfx':'Seleccionar certificado .p12 / .pfx';
   pass.focus();
   function setBusy(value){busy=value;choose.disabled=value;activate.disabled=value;cancel.disabled=value;}
-  function done(ok){if(busy)return;overlay.hidden=true;pass.value='';choose.onclick=null;activate.onclick=null;cancel.onclick=null;pass.onkeydown=null;if(previous&&previous.focus)previous.focus();resolve(ok);}
+  function done(ok){if(busy)return;overlay.hidden=true;pass.value='';remember.checked=false;choose.onclick=null;activate.onclick=null;cancel.onclick=null;pass.onkeydown=null;if(previous&&previous.focus)previous.focus();resolve(ok);}
   cancel.onclick=()=>done(false);
   pass.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();activate.click();}};
   choose.onclick=async()=>{
@@ -591,7 +598,7 @@ window.historiaEnsureSignatureReady=async function(){
   activate.onclick=async()=>{
    if(busy)return;if(!pass.value){message.textContent='Ingrese la contraseña.';pass.focus();return;}
    setBusy(true);message.textContent='Activando firma…';
-   try{const r=await fetch('/api/firma/desbloquear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass.value})});
+   try{const r=await fetch('/api/firma/desbloquear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass.value,remember:remember.checked})});
     const j=await r.json().catch(()=>({}));pass.value='';
     if(!r.ok||!j.ok)throw new Error(j.error||'No se pudo activar la firma.');
     setBusy(false);done(true);
