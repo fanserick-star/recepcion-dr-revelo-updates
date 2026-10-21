@@ -13,6 +13,7 @@ on:
       - "tools/test_historia_link_name_search.py"
       - "tools/test_reception_only_link_authority.py"
       - "tools/test_historia_firma_pades.py"
+      - "tools/test_historia_informes.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
@@ -27,6 +28,7 @@ on:
       - "tools/test_historia_link_name_search.py"
       - "tools/test_reception_only_link_authority.py"
       - "tools/test_historia_firma_pades.py"
+      - "tools/test_historia_informes.py"
       - "tools/validate_historia_runtime.py"
       - "tools/build_historia_app_channel.py"
       - ".github/workflows/validate-historia-release.yml"
@@ -67,6 +69,11 @@ jobs:
       - name: Install exact Historia runtime dependencies
         run: |
           python -m pip install --disable-pip-version-check -r historia-clinica/app/requirements.txt
+
+      - name: Test medical report creation and patient isolation
+        env:
+          PYTHONPATH: historia-clinica/app
+        run: python tools/test_historia_informes.py
 
       - name: Smoke-test electronic signature PAdES
         env:
