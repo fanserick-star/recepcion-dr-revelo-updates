@@ -16,6 +16,7 @@ assert "method=\"GET\"" in remote
 assert '"--request", "GET"' in remote
 assert "normalize_base_url(core.AZUR_BASE_URL)" in remote
 assert '"--max-redirs", "0"' in remote
+assert "build_opener(_NeverRedirect()).open" in remote
 assert '"--config", "-"' in remote
 assert 'capture_output=True' in remote
 assert "subprocess.run" in remote
