@@ -293,28 +293,30 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
 .signature b{{font-size:11pt;color:var(--navy)}}
 .footer{{border-top:1px solid #d5e3eb;padding-top:4mm;text-align:center;color:var(--muted);font-size:8pt;line-height:1.35;break-inside:avoid}}
 .watermark{{position:absolute;z-index:0;top:48%;left:50%;width:70mm;transform:translate(-50%,-50%);opacity:.055;pointer-events:none}}
-@page{{size:A4;margin:0}}
+@page{{size:A4 portrait;margin:0}}
 @media print{{
- body{{background:white}}
+ html,body{{width:210mm;margin:0;padding:0;background:white}}
  .toolbar{{display:none!important}}
- /* Seguridad de paginado: margen físico interno y tipografía compacta para
-    los informes normales. Los realmente extensos pueden ocupar más hojas. */
- .sheet{{width:210mm;max-width:none;min-height:288mm;margin:0;box-shadow:none;padding:12mm 14mm 12mm}}
- .brand{{gap:12px;padding-bottom:6px}}
+ /* No usar min-height:297mm/288mm ni flex: ambos pueden mandar el pie
+    de pagina a una segunda hoja en Edge/WebView2 al imprimir A4. */
+ .sheet{{width:210mm;max-width:none;min-height:0;height:auto;margin:0;
+         padding:10mm 13mm 10mm;box-shadow:none;display:block;
+         break-after:auto;overflow:visible;}}
+ .brand{{gap:12px;padding-bottom:7px}}
  .brand img{{height:17mm;width:17mm}}
  .brand h1{{font-size:16pt}}
  .brand h2{{margin:2px 0;font-size:11pt}}
  .brand small{{font-size:7.1pt;line-height:1.3}}
- .report-title{{margin:6mm 0 4mm;font-size:14pt}}
- .patient{{padding:8px 12px;gap:5px 10px;font-size:9pt}}
- .findings{{padding-top:4mm}}
- .finding{{margin:0 0 3mm;font-size:10pt;line-height:1.3}}
- .finding h3{{margin:0 0 1mm;padding-bottom:1mm;font-size:9.2pt}}
+ .report-title{{margin:6mm 0 5mm;font-size:14pt}}
+ .patient{{padding:9px 12px;gap:6px 10px;font-size:9pt}}
+ .findings{{padding-top:4mm;flex:none}}
+ .finding{{margin:0 0 3.5mm;font-size:10.5pt;line-height:1.35}}
+ .finding h3{{margin:0 0 1.2mm;padding-bottom:1mm;font-size:9.5pt}}
  .finding:last-child{{margin-bottom:0}}
- .signature{{margin:4mm auto 2mm 0;font-size:8.7pt;max-width:93mm}}
+ .signature{{margin:8mm 0 3mm;max-width:91mm;font-size:9pt}}
  .signature .line{{padding-top:2mm}}
- .signature b{{font-size:9.2pt}}
- .footer{{padding-top:2mm;font-size:7pt;line-height:1.2}}
+ .signature b{{font-size:9.5pt}}
+ .footer{{padding-top:2mm;font-size:7.1pt;line-height:1.2}}
  .patient,.finding{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 }}
 </style></head><body>
