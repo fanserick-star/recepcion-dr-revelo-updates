@@ -52,6 +52,9 @@ jobs:
           python -m py_compile recepcion/app/reception_azur_readonly.py
           python tools/test_reception_azur_readonly_4846.py
           node tools/test_reception_azur_readonly_ui_4846.mjs
+          python -m py_compile recepcion/app/reception_azur_pos80.py
+          python tools/test_reception_azur_pos80_4847.py
+          node tools/test_reception_azur_pos80_ui_4847.mjs
           python tools/test_reception_advanced_billing_4842.py
           node tools/test_reception_agenda_status_contrast.mjs
           node tools/test_reception_agenda_4836_polish.mjs
