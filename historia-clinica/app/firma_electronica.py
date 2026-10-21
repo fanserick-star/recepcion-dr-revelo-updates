@@ -17,7 +17,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
@@ -52,6 +52,17 @@ def _is_local_request(request: Request) -> bool:
 def _require_local(request: Request) -> None:
     if not _is_local_request(request):
         raise HTTPException(status_code=403, detail="La firma electrónica solo se administra desde esta PC.")
+    # Las URLs de PDF firmado usan GET por compatibilidad con el visor. Evitar
+    # que una web externa provoque una firma mediante imagen/enlace cross-site.
+    # El WebView2 propio funciona con peticiones same-origin.
+    site = str(request.headers.get("sec-fetch-site") or "").strip().lower()
+    if site == "cross-site":
+        raise HTTPException(status_code=403, detail="La firma debe activarse desde Historia Clínica.")
+    origin = str(request.headers.get("origin") or "").strip()
+    if origin:
+        source, target = urlsplit(origin), urlsplit(str(request.base_url))
+        if (source.scheme, source.netloc) != (target.scheme, target.netloc):
+            raise HTTPException(status_code=403, detail="Origen no autorizado para administrar la firma.")
 
 
 def _paths(root: Path) -> dict[str, Path]:
