@@ -78,10 +78,18 @@
     }).join('');
     var canEmit = pending(g) && !(a && a.has_clave_acceso);
     var actions = '';
-    if (canEmit) actions = '<button type="button" class="primary v4842-primary" onclick="rpBillingReview()">Revisar antes de emitir →</button>' +
-      '<button type="button" class="v4842-secondary" onclick="openBillingRecipientEditor(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Facturar con otros datos</button>';
-    else if (a && a.has_clave_acceso && st.tone !== 'ok') actions = '<button type="button" class="primary v4842-primary" onclick="checkAzurInvoiceStatus(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Consultar estado AZUR/SRI</button>';
-    else actions = '<button type="button" class="v4842-secondary" onclick="copyBillingData(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Ver datos del comprobante</button>';
+    if (canEmit) {
+      actions = '<button type="button" class="primary v4842-primary" onclick="rpBillingReview()">Revisar antes de emitir →</button>' +
+        '<button type="button" class="v4842-secondary" onclick="openBillingRecipientEditor(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Facturar con otros datos</button>' +
+        '<button type="button" class="v4845-discard" onclick="rpBillingDiscardPending(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Quitar de Por emitir</button>';
+    } else if (a && a.has_clave_acceso && st.tone !== 'ok') {
+      actions = '<button type="button" class="primary v4842-primary" onclick="checkAzurInvoiceStatus(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Consultar estado AZUR/SRI</button>';
+    } else {
+      actions = '<button type="button" class="v4842-secondary" onclick="copyBillingData(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Ver datos del comprobante</button>';
+    }
+    if (st.tone === 'ok' && number && a && String(a.estado || '').toUpperCase() === 'AUTORIZADA') {
+      actions += '<button type="button" class="v4845-pos" onclick="rpBillingOpenAzurPos(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Imprimir en AZUR · POS 80 mm ↗</button>';
+    }
     target.innerHTML =
       '<div class="v4842-detail-title"><small>DETALLE DE FACTURACIÓN</small><h3>' + esc(g.patient.nombre) + '</h3>' +
       '<span class="v4842-pill ' + st.tone + '">' + esc(st.name) + '</span></div>' +
@@ -93,6 +101,60 @@
       '<div class="v4842-detail-actions">' + actions + '</div>' +
       (st.tone === 'wait' ? '<p class="v4842-detail-tip">Una factura enviada no equivale a una factura autorizada por el SRI. No vuelvas a enviarla sin verificar el estado.</p>' : '');
   }
+  // Esta acción recupera la función que el diseño avanzado ocultó.
+  // El backend v4477 hace el descarte auditado y rechaza cualquier factura ya enviada.
+  var discardBusy = false;
+  window.rpBillingDiscardPending = async function (patientId, fecha) {
+    if (discardBusy) return;
+    var selected = groups().find(function (g) {return groupKey(g) === String(Number(patientId)) + '|' + String(fecha).slice(0,10);});
+    if (!selected || !pending(selected) || String(azur(selected)?.clave_acceso || '').trim()) {
+      alert('La factura ya no es una pendiente descartable. Actualiza la lista para consultar su estado.');
+      return;
+    }
+    var prompt = '¿QUITAR ESTA FACTURA DE POR EMITIR?\n\nLa atención y el paciente SE CONSERVAN. No se eliminarán facturas emitidas ni autorizadas.\n\nEsta acción solo descarta el pendiente del sistema de Recepción.';
+    var yes = typeof window.rpConfirm === 'function'
+      ? await window.rpConfirm(prompt,'Quitar de Por emitir') : window.confirm(prompt);
+    if (!yes) return;
+    discardBusy = true;
+    try {
+      var result = await api('/api/v4477/billing/discard', {
+        method:'POST',
+        body:JSON.stringify({patient_id:Number(patientId),fecha:String(fecha).slice(0,10)})
+      });
+      await window.loadBilling();
+      if (typeof refreshPendingBadges === 'function') await refreshPendingBadges();
+      if (typeof window.rpNotice === 'function') window.rpNotice(result.message || 'Pendiente descartado y atención conservada.','Facturación');
+      else alert(result.message || 'Pendiente descartado.');
+    } catch(e) {
+      alert('No se pudo quitar de Por emitir: ' + String(e && e.message || e) + '\n\nEl estado original se conserva.');
+    } finally {discardBusy = false;}
+  };
+
+  // AZUR permite imprimir en POS desde el portal. La API v2 documentada solo
+  // garantiza PDF RIDE, no una descarga directa de su formato POS 80 mm.
+  // No convertir silenciosamente un PDF A4 a ticket ni crear una factura falsa.
+  window.rpBillingOpenAzurPos = async function (patientId, fecha) {
+    var group = groups().find(function (g) {return groupKey(g) === String(Number(patientId)) + '|' + String(fecha).slice(0,10);});
+    if (!group || status(group).tone !== 'ok' || !azur(group) || String(azur(group).estado || '').toUpperCase() !== 'AUTORIZADA') {
+      alert('Solo puedes abrir la impresión POS de una factura AZUR autorizada por el SRI.');
+      return;
+    }
+    var number = invoice(group);
+    if (!number) {alert('No hay número de factura confirmado para buscarla en AZUR.');return;}
+    var msg = 'Se abrirá AZUR para imprimir la factura ' + number +
+      ' en su formato oficial POS de 80 mm.\n\nEn AZUR: Facturas → Todos → busca este número → Imprimir en POS.\n\nEl botón todavía NO envía la factura directamente a la impresora. No emitirá otro comprobante.';
+    var yes = typeof window.rpConfirm === 'function'
+      ? await window.rpConfirm(msg,'Impresión POS oficial') : window.confirm(msg);
+    if (!yes) return;
+    try {
+      // Utiliza el abridor configurado en Recepción; no inventa enlaces de AZUR.
+      await api('/api/open-external/azur',{method:'POST',body:'{}'});
+      if (typeof window.rpNotice === 'function') window.rpNotice('AZUR abierto. Busca la factura ' + number + ' y usa «Imprimir en POS» para 80 mm.','Impresión POS');
+    } catch(e) {
+      alert('No se pudo abrir AZUR: ' + String(e && e.message || e) + '\nPuedes usar el botón «Abrir AZUR» de la cabecera.');
+    }
+  };
+
   window.rpBillingSelect = function (patientId, fecha) {
     selectedKey = String(Number(patientId)) + '|' + String(fecha).slice(0, 10);
     document.querySelectorAll('#billingList .v4842-row').forEach(function (row) {
