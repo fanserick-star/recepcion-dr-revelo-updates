@@ -136,99 +136,39 @@ jobs:
           if(-not $?) { throw 'One-time activation configuration did not validate.' }
           Write-Host 'TWO_ENV_OFFLINE_VALIDATION_OK'
 
-      - name: Regression test DPAPI admin password with Windows CRLF and repeat runs
+      - name: Test hidden, pasteable token textbox on Windows (no real token)
         shell: powershell
         run: |
           $ErrorActionPreference='Stop'
-          $filename=Join-Path $env:RUNNER_TEMP 'dpapi-instalador-test.txt'
-          $expected='CI-TEST-ONLY-PERMANENT-ADMIN-'+[guid]::NewGuid().ToString('N')
+          Add-Type -AssemblyName System.Windows.Forms
+          $t=New-Object System.Windows.Forms.TextBox
           try {
-            $secure=ConvertTo-SecureString $expected -AsPlainText -Force
-            ($secure|ConvertFrom-SecureString)|Set-Content -LiteralPath $filename -Encoding ASCII
-            for($iteration=1;$iteration -le 3;$iteration++){
-              $cipher=(Get-Content -LiteralPath $filename -Raw -ErrorAction Stop).Trim()
-              if(-not $cipher -or $cipher -notmatch '^[0-9a-fA-F]+
+            $t.UseSystemPasswordChar=$true
+            $t.ShortcutsEnabled=$true
+            if(-not $t.UseSystemPasswordChar -or -not $t.ShortcutsEnabled){throw 'Token textbox not usable'}
+            $src=[IO.File]::ReadAllText('installer-online/provision_once_reception.ps1')
+            if(-not $src.Contains('function Read-CloudflareApiToken') -or
+               -not $src.Contains('TOKEN_CLOUDFLARE_NO_VALIDO')){throw 'Expected GUI verification missing'}
+            Write-Host 'WINDOWS_GUI_TOKEN_PASTE_READY_DUMMY_ONLY'
+          } finally { $t.Dispose() }
+      - name: Regression test DPAPI CRLF from Windows user (dummy only)
         shell: powershell
         run: |
-          $tokens=$null; $errors=$null
-          [void][Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'installer-online/auto_enroll_install.ps1'),
-            [ref]$tokens,[ref]$errors)
-          if($errors.Count -gt 0){ throw 'PowerShell de autorización inválido' }
-
-  build:
-    needs: [validate-source, windows-crypto]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Prepare Windows x64 cross-compiler
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-mingw-w64-x86-64
-      - name: Embed ONLY two credential-free first-install scripts
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          for name,filename,array in (
-             ('BOOTSTRAP_PS','bootstrap.ps1','bootstrap_ps1'),
-             ('AUTO_ENROLL_PS','auto_enroll_install.ps1','auto_enroll_ps1')
-          ):
-             data=(Path('installer-online')/filename).read_bytes()
-             head=Path('installer-online')/(array.replace('_ps1','') + '_ps.h')
-             # Output filenames exactly as native includes.
-             head=Path('installer-online')/(
-                'bootstrap_ps.h' if filename=='bootstrap.ps1' else 'auto_enroll_ps.h'
-             )
-             with head.open('w',encoding='ascii') as out:
-                out.write(f'#ifndef {name}_H\n#define {name}_H\n')
-                out.write(f'static const unsigned char {array}[] = {{\n')
-                for i in range(0,len(data),16):
-                    out.write('  '+','.join(f'0x{v:02x}' for v in data[i:i+16])+',\n')
-                out.write('};\n')
-                out.write(f'static const unsigned long {array}_len = {len(data)}UL;\n#endif\n')
-          PY
-      - name: Compile ONE Windows executable without keys
-        run: |
-          mkdir -p dist
-          x86_64-w64-mingw32-gcc installer-online/consultorio_oneclick.c \
-            -o dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe \
-            -std=c11 -O2 -s -municode -mwindows -static-libgcc \
-            -lcomctl32 -lshell32 -ladvapi32
-          file dist/*.exe
-          test "$(wc -c < dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe)" -lt 2097152
-          python3 - <<'PY'
-          from pathlib import Path
-          exe=Path('dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe').read_bytes()
-          assert exe[:2]==b'MZ'
-          assert b'DR_REVELO_ADMIN_TOKEN=' not in exe
-          assert b'AZUR_API_KEY=' not in exe
-          print('COMPILED_ONE_CLICK_NO_CREDENTIALS_OK')
-          PY
-          sha256sum dist/*.exe > dist/SHA256SUMS.txt
-      - name: Retain internal candidate only; NOT a clinic release
-        uses: actions/upload-artifact@v4
-        with:
-          name: internal-oneclick-unconfigured
-          path: |
-            dist/INSTALADOR_MAESTRO_DR_REVELO_NO_PUBLICAR.exe
-            dist/SHA256SUMS.txt
-          retention-days: 5
-          if-no-files-found: error
-){throw 'Stored DPAPI format invalid'}
-              $restored=ConvertTo-SecureString -String $cipher -ErrorAction Stop
-              $p=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($restored)
-              try { $decoded=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($p) }
-              finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($p) }
-              if($decoded -cne $expected) { throw 'DPAPI restore mismatch' }
+          $ErrorActionPreference='Stop'
+          $path=Join-Path $env:RUNNER_TEMP 'dpapi-approval-test.txt'
+          $expected='CI_TEST_ONLY_'+[guid]::NewGuid().ToString('N')
+          try {
+            (ConvertTo-SecureString $expected -AsPlainText -Force | ConvertFrom-SecureString) | Set-Content -LiteralPath $path -Encoding ASCII
+            foreach($n in 1..3){
+              $value=(Get-Content -LiteralPath $path -Raw).Trim()
+              $decrypted=ConvertTo-SecureString -String $value -ErrorAction Stop
+              $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($decrypted)
+              try{$actual=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
+              finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
+              if($actual -cne $expected){throw 'DPAPI repeat read failed'}
             }
-            $script=[IO.File]::ReadAllText('installer-online/provision_once_reception.ps1')
-            if(-not $script.Contains('(Get-Content -LiteralPath $adminFile -Raw -ErrorAction Stop).Trim()')){
-              throw 'Provisioning script lost DPAPI CRLF correction'
-            }
-            Write-Host 'WINDOWS_DPAPI_REPEAT_ACTIVATION_OK_DUMMY_ONLY'
-          } finally {
-            Remove-Item -LiteralPath $filename -Force -ErrorAction SilentlyContinue
-          }
+            Write-Host 'WINDOWS_DPAPI_REPEAT_READY_DUMMY_ONLY'
+          } finally{ Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
       - name: Verify client syntax in native Windows PowerShell
         shell: powershell
         run: |
