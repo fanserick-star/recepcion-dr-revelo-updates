@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const root='recepcion/app/';
 const manifest=JSON.parse(readFileSync(root+'update_manifest.json','utf8'));
 const version=JSON.parse(readFileSync(root+'recepcion-version.json','utf8')).version;
-assert.ok(['4.8.44','4.8.45'].includes(version));
+assert.ok(['4.8.44','4.8.45','4.8.46'].includes(version));
 assert.equal(manifest.version,version);
 assert.equal(manifest.app_version,version);
 assert.equal(manifest.runtime_version,version);
