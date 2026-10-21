@@ -793,9 +793,9 @@ def _page_html(base, status: dict) -> str:
     unlocked = bool(status.get("unlocked"))
     state_title = "Lista para firmar" if unlocked else ("Certificado configurado · bloqueado" if configured else "Sin configurar")
     state_detail = (
-        "La contraseña está activa solo durante esta sesión de Historia Clínica."
+        "La firma está activa en esta sesión. Windows puede recordar la contraseña cifrada con autorización."
         if unlocked
-        else "La contraseña nunca se guarda en disco, Neon ni .env."
+        else "La clave nunca se guarda en texto legible, Neon ni archivos .env."
     )
     cert_detail = (
         "Archivo: " + str(status.get("certificate_name") or "")
@@ -806,7 +806,7 @@ def _page_html(base, status: dict) -> str:
 <section class='page-head'>
   <span class='eyebrow'>SEGURIDAD LOCAL</span>
   <h1>Firma electrónica</h1>
-  <p class='muted'>Firma PAdES para recetas y certificados. El certificado queda únicamente en esta PC.</p>
+  <p class='muted'>Firma PAdES para recetas, certificados e informes. El certificado permanece en esta PC.</p>
 </section>
 <section class='panel' style='max-width:900px;margin:0 auto;padding:18px'>
   <div style='display:grid;grid-template-columns:1fr 1fr;gap:14px'>
@@ -820,11 +820,17 @@ def _page_html(base, status: dict) -> str:
       <label style='display:block;font-weight:800'>Contraseña del certificado
         <input id='firma-password' type='password' autocomplete='off' style='width:100%;margin-top:7px'>
       </label>
+      <label style='display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:14px'>
+        <input id='firma-remember' type='checkbox' style='width:19px;height:19px;flex:none;margin:1px 0'>
+        <span>Recordar firma para los próximos inicios de Historia Clínica en esta PC</span>
+      </label>
+      <small style='display:block;color:#64748b;margin-top:8px;line-height:1.5'>Con su autorización, Windows cifra la contraseña exclusivamente para el usuario actual. No se envía a Neón. Quien tenga acceso a la sesión de Windows puede utilizar la firma: bloquee el equipo cuando se ausente.</small>
       <div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:12px'>
         <button id='firma-unlock' class='primary'>Activar firma</button>
-        <button id='firma-lock' class='secondary'>Bloquear</button>
+        <button id='firma-lock' class='secondary'>Bloquear ahora</button>
+        <button id='firma-forget' class='secondary' style='color:#a02929'>Olvidar clave guardada</button>
       </div>
-      <small style='display:block;color:#64748b;margin-top:10px'>Se desbloquea por hasta 8 horas o hasta cerrar Historia Clínica.</small>
+      <small style='display:block;color:#64748b;margin-top:10px'>La sesión dura hasta 8 horas. Si autoriza Recordar, se restaura al reiniciar o al expirar. Firmar un documento siempre requiere pulsar su botón.</small>
     </div>
   </div>
   <div id='firma-result' style='margin-top:14px;border-radius:12px;padding:12px;background:#f8fafc;color:#334155'>Cargando estado…</div>
@@ -836,8 +842,11 @@ async function firmaStatus(){
   const r=await fetch('/api/firma/status?t='+Date.now(),{cache:'no-store'}); const s=await r.json();
   const box=document.getElementById('firma-result');
   const mins=Math.max(0,Math.ceil(Number(s.expires_in_seconds||0)/60));
-  box.innerHTML=(s.unlocked?'<b>✓ Firma activa</b> · '+mins+' min restantes':'<b>'+ (s.configured?'Certificado cargado, firma bloqueada':'Firma sin configurar') +'</b>')
-    +(s.subject?'<br><small>'+String(s.subject).replace(/[<>]/g,'')+'</small>':'');
+  box.textContent=(s.unlocked?'Firma activa · '+mins+' min restantes':(s.configured?'Certificado configurado, firma bloqueada':'Firma sin configurar'))+
+    (s.remembered?' · Recordar protegido en Windows':' · Sin clave recordada');
+  document.getElementById('firma-remember').disabled=!s.remember_supported;
+  document.getElementById('firma-remember').checked=!!s.remembered;
+  document.getElementById('firma-forget').disabled=!s.remembered;
 }
 document.getElementById('firma-select').onclick=async()=>{
   const r=await fetch('/api/firma/seleccionar-certificado',{method:'POST'}); const j=await r.json();
@@ -845,11 +854,16 @@ document.getElementById('firma-select').onclick=async()=>{
 };
 document.getElementById('firma-unlock').onclick=async()=>{
   const password=document.getElementById('firma-password').value;
-  const r=await fetch('/api/firma/desbloquear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})}); const j=await r.json();
+  const remember=document.getElementById('firma-remember').checked;
+  const r=await fetch('/api/firma/desbloquear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,remember})}); const j=await r.json();
   document.getElementById('firma-password').value='';
   if(!r.ok||!j.ok)alert(j.error||'No se pudo activar la firma'); else firmaStatus();
 };
 document.getElementById('firma-lock').onclick=async()=>{await fetch('/api/firma/bloquear',{method:'POST'}); firmaStatus();};
+document.getElementById('firma-forget').onclick=async()=>{
+ if(!confirm('¿Olvidar la clave protegida de Windows y bloquear la firma? Deberá escribir la contraseña la próxima vez.'))return;
+ await fetch('/api/firma/olvidar',{method:'POST'}); firmaStatus();
+};
 firmaStatus();
 </script>
 """
