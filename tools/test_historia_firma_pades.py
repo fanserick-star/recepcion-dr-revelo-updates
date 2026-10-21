@@ -163,3 +163,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+    from test_historia_firma_remember_windows import main as test_remembered
+    test_remembered()

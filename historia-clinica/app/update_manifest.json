@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.13",
-  "app_version": "1.4.13",
-  "runtime_version": "1.4.13",
+  "version": "1.4.14",
+  "app_version": "1.4.14",
+  "runtime_version": "1.4.14",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -80,8 +80,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Informes de ecografía y cistoscopía A4 con texto más grande y fácil de leer: hallazgos 12 pt, títulos y encabezado ampliados, sello PAdES/QR alineado con la firma del doctor en la misma hoja. Conserva guardado manual, informes firmados inmutables, pacientes, recetas y sincronización.",
-    "previous_version": "1.4.12",
+    "purpose": "Firma electrónica con opción voluntaria Recordar en esta PC: contraseña cifrada mediante DPAPI del usuario Windows, restauración automática al reabrir Historia Clínica, bloqueo y olvido local. Requiere pulsar Firmar para cada documento; no envía la contraseña a Neón ni la guarda en .env. Recetas, certificados, informes, historias y facturación intactos.",
+    "previous_version": "1.4.13",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -146,7 +146,7 @@
     "waiting_queue_signed_reconciled_before_expiry": true,
     "electronic_signature_pades": true,
     "electronic_signature_local_only": true,
-    "electronic_signature_password_persisted": false,
+    "electronic_signature_password_persisted": true,
     "electronic_signature_certificate_protected_data": true,
     "electronic_signature_signed_pdf_audit": true,
     "electronic_signature_cloud_changes": false,
@@ -228,6 +228,15 @@
     "clinical_reports_signed_immutable": true,
     "clinical_reports_print_font_pt": 12,
     "clinical_reports_print_bigger_headings": true,
-    "clinical_reports_a4_single_page_for_normal_length": true
+    "clinical_reports_a4_single_page_for_normal_length": true,
+    "electronic_signature_password_plaintext_persisted": false,
+    "electronic_signature_password_windows_dpapi_user_scope": true,
+    "electronic_signature_remember_explicit_opt_in": true,
+    "electronic_signature_neon_password_sync": false,
+    "electronic_signature_remember_can_forget": true,
+    "electronic_signature_remember_affects_signing_consent": false,
+    "electronic_signature_password_plaintext_storage": false,
+    "electronic_signature_encrypted_credential_stored_in_protected_data_directory": true,
+    "electronic_signature_requires_windows_lock_for_safe_use": true
   }
 }
