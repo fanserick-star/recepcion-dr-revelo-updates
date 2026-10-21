@@ -149,6 +149,11 @@ jobs:
             $src=[IO.File]::ReadAllText('installer-online/provision_once_reception.ps1')
             if(-not $src.Contains('function Read-CloudflareApiToken') -or
                -not $src.Contains('TOKEN_CLOUDFLARE_NO_VALIDO')){throw 'Expected GUI verification missing'}
+            if(-not $src.Contains("if($cfToken.StartsWith('cfat_'") -or
+               -not $src.Contains('/accounts/$CloudflareAccountId/tokens/verify') -or
+               -not $src.Contains('/user/tokens/verify')){
+              throw 'Account-token and user-token verification endpoints must differ'
+            }
             Write-Host 'WINDOWS_GUI_TOKEN_PASTE_READY_DUMMY_ONLY'
           } finally { $t.Dispose() }
       - name: Regression test DPAPI CRLF from Windows user (dummy only)
