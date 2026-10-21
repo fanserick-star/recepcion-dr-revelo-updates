@@ -49,7 +49,7 @@ scope={
     "read":SimpleNamespace(_invoice_norm=_norm),
     "_XML_MAX_BYTES":2*1024*1024,
 }
-for key in ("_text","_decimal","_money","_safe_xml","_authorized_xml_to_ticket"):
+for key in ("_text","_decimal","_money","_contact_from_additional","_safe_xml","_authorized_xml_to_ticket"):
     exec(compile(ast.Module(body=[fns[key]],type_ignores=[]),"<invoice XML unit>","exec"),scope)
 
 key="1"*49
