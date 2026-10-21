@@ -2004,7 +2004,7 @@ body{{background:#e8edf1;padding:14px}}
         </section>
         <section class='docs-card'>
           <h2>Firma electrónica</h2>
-          <p>Certificado P12/PFX del doctor guardado solo en esta PC. La contraseña se mantiene únicamente durante la sesión.</p>
+          <p>Certificado P12/PFX exclusivo de esta PC. Puede autorizar recordar la contraseña cifrada para su usuario Windows; nunca se sincroniza con Neón.</p>
           <button type='button' class='config-tool-btn' onclick="location.href='/firma-electronica'">
             <b>Configurar firma electrónica</b>
             <small>Seleccionar certificado, desbloquear la firma y revisar su estado.</small>
