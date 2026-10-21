@@ -303,7 +303,7 @@ def install(app, context: dict) -> None:
     base = context["base"]
 
     @app.get("/informes", response_class=HTMLResponse)
-    def list_reports(patient_id: str = ""):
+    def list_reports(patient_id: str = "", encounter_id: str = "", queue_id: str = "", from_consultation: int = 0):
         with _connect(db_path) as conn:
             args = []
             where = "WHERE c.certificate_type IN ('report_cystoscopy','report_ultrasound') AND COALESCE(c.deleted_at,'')=''"
@@ -325,10 +325,11 @@ def install(app, context: dict) -> None:
             " · <a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a></td></tr>"
             for r in rows
         ) or "<tr><td colspan='4'>No existen informes guardados.</td></tr>"
+        context = "&encounter_id="+quote(encounter_id)+"&queue_id="+quote(queue_id)+"&from_consultation="+str(int(bool(from_consultation)))
         start = (
             "<div class='doc-actions'>"
-            "<a class='doc-light' href='/informes/nuevo?patient_id="+quote(patient_id)+"&tipo=cistoscopia'>+ Cistoscopia</a>"
-            "<a class='doc-light' href='/informes/nuevo?patient_id="+quote(patient_id)+"&tipo=ecografia'>+ Ecografía</a>"
+            "<a class='doc-light' href='/informes/nuevo?patient_id="+quote(patient_id)+"&tipo=cistoscopia"+context+"'>+ Cistoscopia</a>"
+            "<a class='doc-light' href='/informes/nuevo?patient_id="+quote(patient_id)+"&tipo=ecografia"+context+"'>+ Ecografía</a>"
             "</div>" if patient_id else ""
         )
         body = _styles() + "<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>DOCUMENTOS</span><h1>Informes médicos</h1><p>Ecografías y cistoscopias del paciente.</p>"+start+"</div></div><div class='docs-card'><table class='list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Estudio</th><th>Acciones</th></tr></thead><tbody>"+table_rows+"</tbody></table></div></section>"
