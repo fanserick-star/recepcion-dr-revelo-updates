@@ -1097,7 +1097,7 @@ footer{{
     def certificates_list(patient_id: str = ""):
         with _connect(db_path) as conn:
             args = []
-            where = "WHERE COALESCE(c.deleted_at,'')=''"
+            where = "WHERE COALESCE(c.deleted_at,'')='' AND COALESCE(c.certificate_type,'medical') NOT IN ('report_cystoscopy','report_ultrasound')"
             if patient_id:
                 patient_id = _canonical_patient_id(conn, patient_id)
                 where += " AND c.patient_id=?"
@@ -1379,8 +1379,10 @@ footer{{
                 stored_extra_dx,stored_extra_cie,str(p.get("procedure_text") or "").upper(),rest_days,
                 str(p.get("rest_from") or ""),str(p.get("rest_to") or ""),body_text.upper(),stamp,
             )
-            current = conn.execute("SELECT id,patient_id FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
+            current = conn.execute("SELECT id,patient_id,certificate_type FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
             if current:
+                if str(current["certificate_type"] or "medical") in ("report_cystoscopy", "report_ultrasound"):
+                    return JSONResponse({"ok": False, "error": "Este documento es un informe, no un certificado."}, status_code=409)
                 if str(current["patient_id"] or "") != patient_id:
                     return JSONResponse({"ok": False, "error": "El certificado pertenece a otro paciente"}, status_code=409)
                 conn.execute(
@@ -1409,7 +1411,7 @@ footer{{
                 (cert_id,),
             ).fetchone()
             settings = _settings(conn)
-        if not row:
+        if not row or str(row["certificate_type"] or "medical") in ("report_cystoscopy", "report_ultrasound"):
             return HTMLResponse("Certificado no encontrado", status_code=404)
 
         body_text = str(row["body_text"] or "").strip()
