@@ -360,10 +360,12 @@ def _resolve_pos80_printer() -> tuple[str, str]:
     if not info.get("supported"):
         raise core.HTTPException(409, "Windows no informó impresoras disponibles. Revisa Configuración → Recibos e impresora")
     installed = [str(x).strip() for x in (info.get("printers") or []) if str(x).strip()]
+    if not installed:
+        raise core.HTTPException(409, "Windows no tiene impresoras instaladas para imprimir el ticket de 80 mm")
     name = configured or str(info.get("default_printer") or "").strip()
     if not name:
         raise core.HTTPException(409, "No hay impresora de recibos ni impresora predeterminada de Windows. Configúrala en Recepción")
-    if installed and name not in installed:
+    if name not in installed:
         raise core.HTTPException(409, "La impresora seleccionada ya no está instalada en Windows. Configura la impresora de recibos")
     return name, ("Configurada en Recepción" if configured else "Predeterminada de Windows")
 
