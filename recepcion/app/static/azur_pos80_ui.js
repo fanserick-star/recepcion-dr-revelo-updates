@@ -36,7 +36,9 @@ window.rpPos80PreviewSelected=async function(){
     taxes+'<div class="v4847-preview-total">TOTAL '+esc(t.total)+'</div><hr>'+
     '<small>CLAVE DE ACCESO</small><code>'+esc(t.clave)+'</code>'+
     '<small>Representacion impresa desde XML SRI</small></div>'+
-    '<p class="muted">La impresion real incluye campos fiscales adicionales del XML autorizado. El diseño puede ser distinto al POS del portal AZUR.</p>'+
+    '<p class="muted">Impresora: '+esc(response.printer||"No configurada en Windows")+
+      (response.printer_source?' · '+esc(response.printer_source):'')+
+      '. La impresion real incluye campos adicionales del XML autorizado. Puede diferir del POS del portal AZUR.</p>'+
     '<div class="actions"><button onclick="closeModal()">Cerrar sin imprimir</button>'+
     '<button class="primary" onclick="closeModal();rpPos80PrintSelected()">Imprimir 80 mm</button></div></div>';
   if(typeof openModal==="function")openModal(body);else notice("La factura está validada, pero no se pudo abrir la vista previa.");
@@ -44,8 +46,19 @@ window.rpPos80PreviewSelected=async function(){
 };
 window.rpPos80PrintSelected=async function(){
  if(busy)return;var payload=selected();if(!payload)return;
+ var printerStatus;
+ try {printerStatus=await api("/api/printing/status");}
+ catch(e){fail(e);return;}
+ var printerName=String(printerStatus && printerStatus.selected_printer || "").trim();
+ var available=Array.isArray(printerStatus && printerStatus.printers)?printerStatus.printers:[];
+ if(!printerStatus || printerStatus.supported===false || !printerName ||
+    (available.length && !available.includes(printerName))){
+   alert("No hay una impresora disponible para el ticket. Entra en Configuración → Recepción → Recibos e impresora y selecciona tu impresora térmica de 80 mm.");
+   return;
+ }
  var message="¿IMPRIMIR FACTURA ELECTRONICA EN PAPEL DE 80 MM?\n\nNumero: "+payload.numero_factura+
-   "\n\nRecepción imprimirá los datos del XML AUTORIZADO en la impresora configurada. No se emitirá otra factura.";
+   "\nImpresora de Windows: "+printerName+
+   "\n\nConfirma que este dispositivo tiene papel térmico de 80 mm. No se emitirá otra factura.";
  var yes=typeof window.rpConfirm==="function"?await window.rpConfirm(message,"Impresión térmica AZUR"):window.confirm(message);
  if(!yes)return;busy=true;
  try{
