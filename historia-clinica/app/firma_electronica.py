@@ -451,6 +451,7 @@ def _signature_qr_payload(
         "receta": "R",
         "certificado": "C",
         "reposo": "A",
+        "informe": "D",
     }.get(str(kind or "").strip().lower(), "D")
     params = {
         "v": "1",
@@ -591,6 +592,14 @@ def _document_exists(db_path: Path, kind: str, doc_id: str) -> bool:
                 "SELECT 1 FROM prescriptions WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1",
                 (doc_id,),
             ).fetchone()
+        elif kind == "informe":
+            row = conn.execute(
+                """SELECT 1 FROM certificates
+                   WHERE id=? AND COALESCE(deleted_at,'')=''
+                     AND certificate_type IN ('report_cystoscopy','report_ultrasound')
+                   LIMIT 1""",
+                (doc_id,),
+            ).fetchone()
         elif kind == "reposo":
             row = conn.execute(
                 """SELECT 1 FROM certificates
@@ -603,7 +612,7 @@ def _document_exists(db_path: Path, kind: str, doc_id: str) -> bool:
             row = conn.execute(
                 """SELECT 1 FROM certificates
                    WHERE id=? AND COALESCE(deleted_at,'')=''
-                     AND COALESCE(certificate_type,'medical')<>'rest_isolation'
+                     AND COALESCE(certificate_type,'medical') NOT IN ('rest_isolation','report_cystoscopy','report_ultrasound')
                    LIMIT 1""",
                 (doc_id,),
             ).fetchone()
@@ -758,7 +767,7 @@ def install(app, context: dict) -> None:
     def firma_document(request: Request, kind: str, doc_id: str):
         _require_local(request)
         kind = str(kind or "").strip().lower()
-        if kind not in {"receta", "certificado", "reposo"}:
+        if kind not in {"receta", "certificado", "reposo", "informe"}:
             raise HTTPException(status_code=404, detail="Tipo de documento no soportado.")
         try:
             doc_id = _safe_doc_id(doc_id)
@@ -776,6 +785,8 @@ def install(app, context: dict) -> None:
             preview_path = f"/recetas/{quote(doc_id)}/vista"
         elif kind == "reposo":
             preview_path = f"/certificados/reposo/{quote(doc_id)}/vista"
+        elif kind == "informe":
+            preview_path = f"/informes/{quote(doc_id)}/vista"
         else:
             preview_path = f"/certificados/{quote(doc_id)}/vista"
         base_url = str(request.base_url).rstrip("/")
@@ -803,7 +814,7 @@ def install(app, context: dict) -> None:
         filename = (
             "Receta_firmada.pdf"
             if kind == "receta"
-            else ("Certificado_reposo_firmado.pdf" if kind == "reposo" else "Certificado_firmado.pdf")
+            else ("Informe_firmado.pdf" if kind == "informe" else ("Certificado_reposo_firmado.pdf" if kind == "reposo" else "Certificado_firmado.pdf"))
         )
         return FileResponse(
             final_pdf,
