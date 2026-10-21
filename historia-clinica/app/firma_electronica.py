@@ -432,7 +432,7 @@ def _signature_stamp_box(kind: str) -> tuple[int, int, int, int]:
     if k == "informe":
         # Informe A4: bloque más legible en el primer folio, a la derecha de
         # los datos del médico y sin invadir el pie de página.
-        return (340, 70, 570, 139)
+        return (335, 110, 570, 182)
     # Certificados: usa el espacio inferior derecho, fuera del bloque de firma física.
     return (425, 68, 575, 138)
 
