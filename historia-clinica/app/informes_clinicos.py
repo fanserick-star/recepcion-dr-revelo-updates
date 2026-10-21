@@ -6,12 +6,15 @@ Nunca se convierten en certificados médicos ni generan diagnósticos automátic
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
+from pathlib import Path
 from datetime import date, datetime
 from urllib.parse import quote
-from fastapi import Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi import HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+import firma_electronica as firma
 
 from documentos_clinicos import (
     _age, _canonical_patient_id, _connect, _e, _id, _now,
@@ -117,7 +120,11 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
         "</label>"
         for key, label, hint in config["fields"]
     )
-    status_text = "Editando informe guardado" if row else "Sin guardar"
+    signed = bool(row and conn.execute(
+        "SELECT 1 FROM electronic_signatures WHERE document_type='informe' AND document_id=? LIMIT 1",
+        (report_id,),
+    ).fetchone())
+    status_text = "Informe firmado electrónicamente: solo lectura" if signed else ("Editando informe guardado" if row else "Sin guardar")
     report_json = json.dumps({
         "id": report_id, "patient_id": patient_id, "type": kind,
         "encounter_id": encounter_id, "queue_id": queue_id,
@@ -166,6 +173,25 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
 </section>
 {_inline_signature_activation_dialog()}
 """
+    if signed:
+        # El PDF firmado es definitivo. Evitar que una reimpresión o edición
+        # posterior altere el contenido clínico al que corresponde la firma.
+        body = body.replace(
+            "<div class='doc-actions report-actions'>",
+            "<div class='doc-actions report-actions' data-signed-report='1'>", 1
+        )
+        actions_start = body.index("<div class='doc-actions report-actions' data-signed-report='1'>")
+        actions_end = body.index("</div>", actions_start)
+        body = (body[:actions_start] +
+            "<div class='doc-actions report-actions'>"
+            "<a class='doc-primary' target='_blank' rel='noopener' "
+            "style='display:inline-block;padding:12px 17px;border-radius:8px;text-decoration:none' "
+            "href='/informes/" + quote(report_id) + "/firmado'>Ver PDF firmado original</a>"
+            "<span class='report-state'>Este informe está firmado y no puede modificarse.</span>"
+            "</div>" + body[actions_end + len("</div>"):])
+        body = body.replace("class='report-input' data-field=", "class='report-input' readonly data-field=")
+        body = body.replace("id='report-date' type='date'", "id='report-date' disabled type='date'")
+        return HTMLResponse(base("Informe médico firmado", body, "informes"))
     script = """
 <script>
 (()=>{
@@ -271,7 +297,24 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
 @media print{{
  body{{background:white}}
  .toolbar{{display:none!important}}
- .sheet{{width:210mm;max-width:none;min-height:297mm;margin:0;box-shadow:none}}
+ /* Seguridad de paginado: margen físico interno y tipografía compacta para
+    los informes normales. Los realmente extensos pueden ocupar más hojas. */
+ .sheet{{width:210mm;max-width:none;min-height:288mm;margin:0;box-shadow:none;padding:12mm 14mm 12mm}}
+ .brand{{gap:12px;padding-bottom:6px}}
+ .brand img{{height:17mm;width:17mm}}
+ .brand h1{{font-size:16pt}}
+ .brand h2{{margin:2px 0;font-size:11pt}}
+ .brand small{{font-size:7.1pt;line-height:1.3}}
+ .report-title{{margin:6mm 0 4mm;font-size:14pt}}
+ .patient{{padding:8px 12px;gap:5px 10px;font-size:9pt}}
+ .findings{{padding-top:4mm}}
+ .finding{{margin:0 0 3mm;font-size:10pt;line-height:1.3}}
+ .finding h3{{margin:0 0 1mm;padding-bottom:1mm;font-size:9.2pt}}
+ .finding:last-child{{margin-bottom:0}}
+ .signature{{margin:4mm auto 2mm 0;font-size:8.7pt;max-width:93mm}}
+ .signature .line{{padding-top:2mm}}
+ .signature b{{font-size:9.2pt}}
+ .footer{{padding-top:2mm;font-size:7pt;line-height:1.2}}
  .patient,.finding{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 }}
 </style></head><body>
@@ -444,3 +487,30 @@ def install(app, context: dict) -> None:
                 return HTMLResponse("Informe no encontrado.", status_code=404)
             settings = _settings(conn)
         return HTMLResponse(_print_html(row, settings, bool(print_now)))
+
+    @app.get("/informes/{report_id}/firmado")
+    def get_signed_report(request: Request, report_id: str):
+        """Devuelve el mismo PDF firmado, sin firmar otra vez ni regenerarlo."""
+        firma._require_local(request)
+        with _connect(db_path) as conn:
+            if not _report_row(conn, report_id):
+                raise HTTPException(status_code=404, detail="Informe no encontrado.")
+            signed = conn.execute(
+                """SELECT relative_path,pdf_sha256 FROM electronic_signatures
+                   WHERE document_type='informe' AND document_id=?
+                   ORDER BY id DESC LIMIT 1""",
+                (report_id,),
+            ).fetchone()
+        if not signed:
+            raise HTTPException(status_code=404, detail="Este informe todavía no está firmado.")
+        archive_dir = (root / "data" / "documentos_firmados").resolve()
+        pdf_path = (root / str(signed["relative_path"])).resolve()
+        if not pdf_path.is_relative_to(archive_dir) or not pdf_path.is_file():
+            raise HTTPException(status_code=404, detail="El PDF firmado no está disponible en esta computadora.")
+        if hashlib.sha256(pdf_path.read_bytes()).hexdigest() != str(signed["pdf_sha256"] or ""):
+            raise HTTPException(status_code=409, detail="La huella digital del PDF no coincide con la copia firmada.")
+        return FileResponse(
+            pdf_path, media_type="application/pdf", filename="Informe_firmado.pdf",
+            content_disposition_type="inline", headers={"Cache-Control":"no-store"},
+        )
+
