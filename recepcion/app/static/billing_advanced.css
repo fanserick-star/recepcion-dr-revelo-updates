@@ -125,3 +125,15 @@
   #facturacion .v4844-detail-meta{grid-template-columns:minmax(0,1fr)!important}
   #facturacion .v4842-detail{max-height:calc(100vh - 125px)!important}
 }
+
+/* v4.8.45 — acciones de facturación conservadoras y distinguibles. */
+#facturacion .v4842-detail-actions .v4845-discard{
+  background:#fff8f7!important;color:#964e47!important;border:1px solid #ecc7c2!important;
+  box-shadow:none!important;
+}
+#facturacion .v4842-detail-actions .v4845-discard:hover{background:#fff0ed!important}
+#facturacion .v4842-detail-actions .v4845-pos{
+  background:#edf6fd!important;color:#205d96!important;border:1px solid #b9d5ed!important;
+  box-shadow:none!important;font-weight:900!important;
+}
+#facturacion .v4842-detail-actions .v4845-pos:hover{background:#e3f1fc!important}

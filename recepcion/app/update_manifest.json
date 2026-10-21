@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.44",
-  "app_version": "4.8.44",
-  "runtime_version": "4.8.44",
+  "version": "4.8.45",
+  "app_version": "4.8.45",
+  "runtime_version": "4.8.45",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -174,8 +174,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.44: panel Detalle de facturación opción B, alta densidad sin espacio vertical desperdiciado, fecha y destinatario en dos columnas, total y acciones compactas. Exclusivamente interfaz; sin alteraciones en emisión, consultas AZUR/SRI, Neon, historiales, turnos, TV o impresión.",
-    "previous_version": "4.8.43",
+    "purpose": "Recepción 4.8.45: recupera Quitar de Por emitir con descarte auditado y sin borrar paciente/atención ni facturas autorizadas; añade acceso asistido a impresión oficial AZUR POS 80 mm para comprobantes autorizados. Sin impresión directa ni generación fiscal automática; la descarga térmica por API está pendiente de confirmar. Conserva paginación y detalle compacto.",
+    "previous_version": "4.8.44",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
