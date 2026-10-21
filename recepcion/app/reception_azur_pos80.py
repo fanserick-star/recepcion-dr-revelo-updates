@@ -295,6 +295,22 @@ def _wrap_thermal_text(value: str, limit: float, measure) -> list[str]:
     return rows
 
 
+def _pos80_horizontal_origin(bounds_width: float, content_width: float) -> float:
+    """Small calibrated shift to left, never leaving the printable Windows margin."""
+    return max(0.0, (float(bounds_width) - float(content_width)) / 2.0 - 8.0)
+
+
+def _pos80_text_line_box(y: float, measured_height: float, minheight: float) -> tuple[float, float, float]:
+    """Add top bearing for bold glyphs without cutting their ascenders.
+
+    Returns (draw_top, rect_height, next_y), all in GDI+ drawing units.
+    A separate top inset prevents the upper strokes touching the clip rectangle.
+    """
+    line_height = max(float(minheight), float(measured_height) + 3.0)
+    top_inset = 2.5
+    return float(y) + top_inset, line_height + 3.0, float(y) + line_height + 4.5
+
+
 def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     if os.name != "nt":
         raise RuntimeError("La impresión térmica directa requiere Windows")
@@ -338,12 +354,13 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         g = e.Graphics
         bounds_width = float(e.MarginBounds.Width)
         # Print within ~66 mm even if a Windows driver incorrectly advertises
-        # a full 80 mm printable area. Center this within the driver's margins.
+        # a full 80 mm printable area. Apply a small leftward thermal calibration
+        # after centering, to compensate for the off-center physical print observed.
         width = min(258.0, bounds_width - 12.0)
         if width < 145.0:
             raise RuntimeError("El ancho imprimible de la impresora es insuficiente para una factura de 80 mm")
-        x = max(0.0, (bounds_width - width) / 2.0)
-        y = 5.0
+        x = _pos80_horizontal_origin(bounds_width, width)
+        y = 7.0
         def write(value, font=f_text, align=False, minheight=14):
             nonlocal y
             content = str(value or "").strip()
@@ -355,11 +372,12 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             rows = _wrap_thermal_text(content, width - 12.0,
                                       lambda part: float(g.MeasureString(part, font).Width))
             for segment in rows:
-                height = max(float(minheight), float(g.MeasureString(segment, font).Height) + 2.0)
+                draw_top, rect_height, next_y = _pos80_text_line_box(
+                    y, float(g.MeasureString(segment, font).Height), minheight)
                 g.DrawString(segment, font, Brushes.Black,
-                             RectangleF(x, y, width, height + 3.0),
+                             RectangleF(x, draw_top, width, rect_height),
                              center if align else StringFormat.GenericDefault)
-                y += height + 3.0
+                y = next_y
         def line():
             nonlocal y
             g.DrawLine(pen, x, y, x + width, y)
