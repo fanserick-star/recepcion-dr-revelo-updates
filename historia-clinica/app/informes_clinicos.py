@@ -262,7 +262,7 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
 .finding h3{{margin:0 0 3mm;color:var(--navy);font-size:10.2pt;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #dfe7f0;padding-bottom:2mm}}
 .finding div{{white-space:pre-wrap;overflow-wrap:anywhere;text-align:justify}}
 .finding:last-child{{margin-bottom:3mm}}
-.signature{{margin:17mm 0 7mm auto;max-width:80mm;text-align:center;font-size:10pt;line-height:1.45;break-inside:avoid}}
+.signature{{margin:17mm auto 7mm 0;max-width:80mm;text-align:center;font-size:10pt;line-height:1.45;break-inside:avoid}}
 .signature .line{{border-top:1px solid #6d8294;padding-top:3mm}}
 .signature b{{font-size:11pt;color:var(--navy)}}
 .footer{{border-top:1px solid #d5e3eb;padding-top:4mm;text-align:center;color:var(--muted);font-size:8pt;line-height:1.35;break-inside:avoid}}
