@@ -9117,7 +9117,7 @@ def billing_azur_batch_preview(db: Session = Depends(get_db), user: User = Depen
         except HTTPException as exc:
             skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": str(exc.detail)}); continue
         ready.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "total": round(sum(float(v.valor or 0) for _b,v in rows),2)})
-    return {"ok": True, "unlocked": True, "ready": ready, "skipped": skipped,
+    return {"ok": True, "unlocked": _azur_mass_unlocked(db), "ready": ready, "skipped": skipped,
             "counts": {"ready": len(ready), "skipped": len(skipped)}}
 
 
@@ -9130,6 +9130,8 @@ def billing_azur_emit_all_pending(db: Session = Depends(get_db), user: User = De
         raise HTTPException(503, "La emisión masiva requiere conexión a Internet")
     if not AZUR_BASE_URL or not AZUR_API_KEY:
         raise HTTPException(400, "AZUR todavía no está configurado")
+    if not _azur_mass_unlocked(db):
+        raise HTTPException(409, "La emisión por lotes está bloqueada hasta confirmar al menos una factura AUTORIZADA por el SRI.")
     grouped = db.execute(
         select(Visit.patient_id, Visit.fecha, func.min(Visit.id))
         .join(BillingRecord, BillingRecord.visit_id == Visit.id)
