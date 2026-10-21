@@ -112,6 +112,14 @@ def _session_clear() -> None:
         _SESSION["not_after"] = ""
 
 
+def _block_remembered_session() -> None:
+    """Bloquear ahora aunque exista DPAPI: no restaurar hasta reiniciar o activar manualmente."""
+    global _AUTOUNLOCK_DISABLED
+    with _REMEMBER_LOCK:
+        _AUTOUNLOCK_DISABLED = True
+        _session_clear()
+
+
 def _session_passphrase() -> bytes | None:
     with _LOCK:
         if not _SESSION.get("passphrase"):
@@ -827,7 +835,7 @@ def _page_html(base, status: dict) -> str:
       <small style='display:block;color:#64748b;margin-top:8px;line-height:1.5'>Con su autorización, Windows cifra la contraseña exclusivamente para el usuario actual. No se envía a Neón. Quien tenga acceso a la sesión de Windows puede utilizar la firma: bloquee el equipo cuando se ausente.</small>
       <div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:12px'>
         <button id='firma-unlock' class='primary'>Activar firma</button>
-        <button id='firma-lock' class='secondary'>Bloquear ahora</button>
+        <button id='firma-lock' class='secondary'>Bloquear hasta volver a iniciar</button>
         <button id='firma-forget' class='secondary' style='color:#a02929'>Olvidar clave guardada</button>
       </div>
       <small style='display:block;color:#64748b;margin-top:10px'>La sesión dura hasta 8 horas. Si autoriza Recordar, se restaura al reiniciar o al expirar. Firmar un documento siempre requiere pulsar su botón.</small>
@@ -927,7 +935,7 @@ def install(app, context: dict) -> None:
     @app.post("/api/firma/bloquear")
     def firma_lock(request: Request):
         _require_local(request)
-        _session_clear()
+        _block_remembered_session()
         return JSONResponse({"ok": True})
 
     @app.post("/api/firma/olvidar")
