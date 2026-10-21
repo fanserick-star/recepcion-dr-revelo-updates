@@ -20,7 +20,7 @@ cases=[
     "ATENCION MEDICA SUBSECUENTE COMPLEJA A DOMICILIO",
     "LARGOTOKENDEIDENTIFICACIONSINSEPARADORES1234567890",
 ]
-width=31.0
+width=23.0
 measure=lambda v: float(len(v))
 for content in cases:
     lines=wrap(content,width,measure)
