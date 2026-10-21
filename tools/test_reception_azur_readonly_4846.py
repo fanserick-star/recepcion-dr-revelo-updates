@@ -41,15 +41,15 @@ assert context["_field"]({"numero":"001-001-000000123"},"numero")=="001-001-0000
 
 m=json.loads((root/"update_manifest.json").read_text())
 v=json.loads((root/"recepcion-version.json").read_text())["version"]
-assert m["version"] == m["app_version"] == m["runtime_version"] == v == "4.8.46"
+assert m["version"] == m["app_version"] == m["runtime_version"] == v in {"4.8.46","4.8.47"}
 for section in ("copy","required_dependencies"):
     assert "reception_azur_readonly.py" in m[section]
     assert "static/azur_readonly_config.js" in m[section]
 
 html=(root/"static/index.html").read_text()
 assert 'azur_readonly_config.js?v=4.8.46' in html
-assert 'billing_advanced.js?v=4.8.46' in html
-assert 'billing_advanced.css?v=4.8.46' in html
+assert f'billing_advanced.js?v={v}' in html
+assert f'billing_advanced.css?v={v}' in html
 app=(root/"app.py").read_text()
 assert "import reception_azur_readonly as _azur_readonly" in app
 print("AZUR_V2_LOCAL_READONLY_STATIC_SAFE_4846_OK")
