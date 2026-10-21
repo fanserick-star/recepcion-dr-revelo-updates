@@ -308,7 +308,7 @@ def _pos80_text_line_box(y: float, measured_height: float, minheight: float) -> 
     """
     line_height = max(float(minheight), float(measured_height) + 3.0)
     top_inset = 2.5
-    return float(y) + top_inset, line_height + 3.0, float(y) + line_height + 4.5
+    return float(y) + top_inset, line_height + 2.0, float(y) + line_height + 5.5
 
 
 def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
