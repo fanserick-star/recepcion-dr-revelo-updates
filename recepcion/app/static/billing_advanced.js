@@ -220,6 +220,44 @@
     if(installing || typeof window.billingCardHtml !== 'function' || typeof window.loadBilling !== 'function')return;
     installing = true;
     window.billingCardHtml = renderCard;
+    window.emitAllPendingInvoices = async function () {
+      if (bulkBusy) return;
+      bulkBusy = true;
+      try {
+        var pre = await api('/api/billing/azur/batch-preview');
+        if (!pre.unlocked) {
+          var stop = 'Emisión por lotes bloqueada: primero debe existir una factura real AUTORIZADA por el SRI. Puedes facturar individualmente.';
+          if (typeof window.rpNotice === 'function') window.rpNotice(stop, 'Protección fiscal'); else alert(stop);
+          return;
+        }
+        var ready = (pre.ready || []), skipped = (pre.skipped || []);
+        if (!ready.length) {if (typeof window.rpNotice === 'function') window.rpNotice('No hay facturas completas listas para emitir. Omitidas: ' + skipped.length, 'Facturación');else alert('No hay facturas completas.');return;}
+        var sample=ready.slice(0,6).map(function(x){return '• '+String(x.nombre || 'Paciente')+' · 
+      var old = window.loadBilling;
+      var wrapped=async function () {var response=await old.apply(this,arguments);afterLoad();return response;};
+      wrapped.__v4842=true;
+      window.loadBilling=wrapped;
+    }
+    inject();
+    if (document.querySelector('#billingList .billing-card')) {
+      window.loadBilling(); // Re-renderizar tarjetas antiguas ya cargadas con el nuevo componente.
+    } else afterLoad();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,70);},{once:true});
+  else setTimeout(install,70);
+  setTimeout(install,450);
+})();
++Number(x.total||0).toFixed(2);}).join('\n');
+        var message='Vas a emitir '+ready.length+' factura(s) REALES en AZUR. Se omitirán '+skipped.length+' por datos o estado.\n\n'+sample+'\n\n¿Confirmas después de revisar el lote?';
+        var yes=typeof window.rpConfirm==='function'?await window.rpConfirm(message,'Emisión real por lotes'):window.confirm(message);
+        if(!yes)return;
+        var result=await singleFlightMutation('billing:azur:emit-all',function(){return api('/api/billing/azur/emit-all-pending',{method:'POST',body:'{}'});},'Emitiendo facturas…');
+        var counts=result.counts || {}, output='Enviadas a AZUR: '+Number(counts.sent||0)+' · Omitidas: '+Number(counts.skipped||0)+' · Fallidas: '+Number(counts.failed||0)+'. Verifica posteriormente la autorización en SRI.';
+        if (typeof window.rpNotice==='function')window.rpNotice(output,'Resultado del lote');else alert(output);
+        await window.loadBilling();if(typeof refreshPendingBadges==='function')refreshPendingBadges();
+      }catch(error){var msg=String(error && error.message || error);if(typeof window.rpNotice==='function')window.rpNotice(msg,'Facturación');else alert(msg);}
+      finally{bulkBusy=false;}
+    };
     if(window.loadBilling.__v4842 !== true) {
       var old = window.loadBilling;
       var wrapped=async function () {var response=await old.apply(this,arguments);afterLoad();return response;};
@@ -227,7 +265,9 @@
       window.loadBilling=wrapped;
     }
     inject();
-    afterLoad();
+    if (document.querySelector('#billingList .billing-card')) {
+      window.loadBilling(); // Re-renderizar tarjetas antiguas ya cargadas con el nuevo componente.
+    } else afterLoad();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(install,70);},{once:true});
   else setTimeout(install,70);
