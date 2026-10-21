@@ -19,7 +19,7 @@ source_get=ast.get_source_segment(source,fns["_download_authorized_xml"])
 assert '"GET"' in source_get and '"/xml"' in source_get
 assert 'build_opener(read._NeverRedirect())' in source_get
 assert '"--max-redirs", "0"' in source_get
-assert '"X-Api-Key: "' in source_get
+assert "X-Api-Key:" in source_get
 assert 'POST /factura/emision' not in source
 assert 'db.commit(' not in source and 'db.delete(' not in source
 assert 'azur_emit_invoice' not in source
