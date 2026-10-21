@@ -137,3 +137,6 @@
   box-shadow:none!important;font-weight:900!important;
 }
 #facturacion .v4842-detail-actions .v4845-pos:hover{background:#e3f1fc!important}
+
+/* 4.8.46: verification performs ONLY two AZUR GETs, never prints. */
+#facturacion .v4842-detail-actions .v4846-verify{background:#eef8f3!important;border:1px solid #c1dfd0!important;color:#26694d!important;font-weight:850!important}
