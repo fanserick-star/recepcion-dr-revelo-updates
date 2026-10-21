@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.47",
-  "app_version": "4.8.47",
-  "runtime_version": "4.8.47",
+  "version": "4.8.48",
+  "app_version": "4.8.48",
+  "runtime_version": "4.8.48",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.47: impresión térmica 80 mm desde Recepción a través del XML AUTORIZADO del SRI descargado en modo consulta de AZUR; vista previa y botón de impresión manual. Verifica número, clave de acceso, estado, producción y contenido del XML antes de imprimir. Conserva facturas y recepción, sin emisiones ni escrituras fiscales.",
-    "previous_version": "4.8.46",
+    "purpose": "Recepción 4.8.48: corrige impresión de facturas AZUR 80 mm cuando el usuario utiliza la impresora predeterminada de Windows. Verifica dispositivos instalados, muestra el destino real para confirmar antes de imprimir y mantiene vista previa y emisión fiscal intactas. No cambia facturas, caja, Neon, agenda ni Historia.",
+    "previous_version": "4.8.47",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
