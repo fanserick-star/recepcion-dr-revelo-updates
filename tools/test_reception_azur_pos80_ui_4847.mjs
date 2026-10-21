@@ -6,7 +6,7 @@ const bill=fs.readFileSync('recepcion/app/static/billing_advanced.js','utf8');
 const src=fs.readFileSync('recepcion/app/static/azur_pos80_ui.js','utf8');
 const html=fs.readFileSync('recepcion/app/static/index.html','utf8');
 assert.match(html,/azur_pos80_ui\.js\?v=4\.8\.4[78]/);
-assert.ok(html.indexOf('billing_advanced.js?v=4.8.48')<html.indexOf('azur_pos80_ui.js?v=4.8.48'));
+assert.ok(html.indexOf('billing_advanced.js?v=4.8.49')<html.indexOf('azur_pos80_ui.js?v=4.8.49'));
 assert.match(bill,/rpPos80PrintSelected/);
 assert.match(bill,/rpPos80PreviewSelected/);
 assert.doesNotMatch(src,/\/api\/billing\/(approve|emit)/);
