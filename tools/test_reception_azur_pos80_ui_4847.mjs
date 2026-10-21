@@ -12,7 +12,8 @@ assert.match(bill,/rpPos80PreviewSelected/);
 assert.doesNotMatch(src,/\/api\/billing\/(approve|emit)/);
 assert.doesNotMatch(src,/setInterval\s*\(/);
 
-const calls=[],dialog=[],notices=[],alerts=[];
+const calls=[],dialog=[],notices=[],alerts=[],confirms=[];
+let selectedPrinter='IMPRESORA DEMO';
 let selectedKey='7|2026-10-21';
 const authorized={
  patient:{id:8,nombre:'PACIENTE DEMO'},
@@ -32,12 +33,12 @@ const ticket={
  impuestos:[{codigo:'2',porcentaje:'0',valor:'0.00'}]
 };
 const context={
- window:{rpConfirm:async()=>true,rpNotice:(message,title)=>notices.push({message,title})},
+ window:{rpConfirm:async(message,title)=>{confirms.push({message,title});return true;},rpNotice:(message,title)=>notices.push({message,title})},
  document:{querySelector:s=>s==='#billingList .v4842-row.selected'?{dataset:{key:selectedKey}}:null},
  billingGroupsCache:[pending,authorized],
  api:async(url,options={})=>{
   calls.push({url,options});
-  if(url==='/api/printing/status')return {supported:true,selected_printer:'IMPRESORA DEMO',default_printer:'IMPRESORA DEMO',printers:['IMPRESORA DEMO']};
+  if(url==='/api/printing/status')return {supported:true,selected_printer:selectedPrinter,default_printer:selectedPrinter,printers:['IMPRESORA DEMO']};
   if(url.endsWith('/pos80-preview'))return {ok:true,printed:false,ticket};
   if(url.endsWith('/pos80-print'))return {ok:true,printed:true,numero_factura:ticket.numero,printer:'IMPRESORA DEMO'};
   throw Error('Unexpected endpoint '+url);
@@ -71,5 +72,13 @@ assert.deepEqual(JSON.parse(calls[1].options.body),{
  patient_id:8,fecha:'2026-10-21',numero_factura:'001-001-000000123'
 });
 assert.ok(notices.length>=1);
+assert.ok(confirms[0].message.includes('IMPRESORA DEMO'),'Show actual printer before user authorizes printing');
+calls.length=0;
+selectedPrinter='';
+await context.window.rpPos80PrintSelected();
+assert.equal(calls.length,1,'When no printer is available do not send the XML to a print job');
+assert.equal(calls[0].url,'/api/printing/status');
+assert.match(alerts[alerts.length-1],/No hay una impresora disponible/);
+
 assert.match(alerts[0],/Solo se pueden imprimir facturas autorizadas/);
 console.log('AZUR_DIRECT_POS_80MM_UI_CONFIRM_AND_PREVIEW_4847_OK');
