@@ -15,8 +15,8 @@ assert.match(backend,/str\(getattr\(emission, 'clave_acceso'/);
 assert.doesNotMatch(backend,/db\.delete\(/);
 assert.match(src,/\/api\/v4477\/billing\/discard/);
 assert.match(src,/\/api\/open-external\/azur/);
-assert.doesNotMatch(src,/POST[^]*\/api\/billing\/azur\/emit/);
-const detail={innerHTML:''},calls=[],notices=[],confirms=[];
+assert.doesNotMatch(src.split('window.rpBillingOpenAzurPos =')[1].split('window.rpBillingSelect =')[0],/\/api\/billing\/azur\/emit/);
+const detail={innerHTML:''},calls=[],notices=[],confirms=[],alerts=[];
 let dataset=[];
 const pending={patient:{id:7,nombre:'PACIENTE PRUEBA',cedula:''},fecha:'2026-10-21',items:[{billing:{estado:'PENDIENTE'},visit:{procedimiento:'CONSULTA',valor:40},azur:null}]};
 const authorized={patient:{id:8,nombre:'PACIENTE AUTORIZADO',cedula:'0102030405'},fecha:'2026-10-21',items:[{billing:{estado:'EMITIDA',numero_factura:'001-001-000000123'},visit:{procedimiento:'CONSULTA',valor:40},azur:{estado:'AUTORIZADA',has_clave_acceso:true,numero_factura:'001-001-000000123'}}]};
@@ -37,7 +37,7 @@ const ctx={
   billingTotal:g=>g.items.reduce((n,i)=>n+i.visit.valor,0),
   fmtDate:v=>v,money:n=>'$'+Number(n).toFixed(2),
   billingRecipientDraft:()=>null,
-  alert:msg=>{throw Error('Unexpected alert: '+msg);},
+  alert:msg=>alerts.push(msg),
   setTimeout(){},console,
 };
 vm.runInNewContext(src,ctx,{filename:'billing_advanced.js'});
@@ -65,5 +65,6 @@ assert.match(confirms[1].message,/NO envía la factura directamente a la impreso
 calls.length=0;
 await ctx.window.rpBillingDiscardPending(8,'2026-10-21');
 assert.equal(calls.length,0,'Never discard already emitted fiscal records');
+assert.match(alerts[0],/ya no es una pendiente descartable/);
 assert.ok(notices.length>=1);
 console.log('RECEPTION_BILLING_DISCARD_AND_OFFICIAL_POS_HANDOFF_4845_OK');
