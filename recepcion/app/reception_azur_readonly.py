@@ -14,7 +14,7 @@ from datetime import date as _date
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 import reception_payment_terminal_panel as _deps
 from azur_client import normalize_base_url, AzurError
@@ -25,6 +25,12 @@ app = _deps.app
 _READ_KEY = (os.getenv("AZUR_READ_API_KEY") or "").strip()
 _KEY_PATTERN = re.compile(r"^(?:sk|azur)_(?:live|test)_[A-Za-z0-9._~-]{8,240}$")
 _MAX_RESPONSE = 2 * 1024 * 1024
+
+
+class _NeverRedirect(HTTPRedirectHandler):
+    """Prevent AZUR API credentials from being forwarded to redirected hosts."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
 
 
 class ReadKeyIn(core.BaseModel):
@@ -106,7 +112,7 @@ def _remote_get(resource: str, query: str = "") -> dict:
         req = Request(url, headers={"X-Api-Key": _READ_KEY, "Accept": "application/json"},
                       method="GET")
         try:
-            with urlopen(req, timeout=16) as result:
+            with build_opener(_NeverRedirect()).open(req, timeout=16) as result:
                 code = int(result.status)
                 body = result.read(_MAX_RESPONSE + 1)
         except HTTPError as exc:
