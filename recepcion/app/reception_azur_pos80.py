@@ -348,16 +348,39 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     return printer_name
 
 
+def _resolve_pos80_printer() -> tuple[str, str]:
+    """Use the exact same configured/default Windows printer rule as receipts.
+
+    Never guess a printer from a substring, install drivers or silently select a
+    different device if the explicitly configured printer disappeared.
+    """
+    prefs = core._app_preferences()
+    configured = str(prefs.get("printer") or "").strip()
+    info = core._windows_printer_info()
+    if not info.get("supported"):
+        raise core.HTTPException(409, "Windows no informó impresoras disponibles. Revisa Configuración → Recibos e impresora")
+    installed = [str(x).strip() for x in (info.get("printers") or []) if str(x).strip()]
+    name = configured or str(info.get("default_printer") or "").strip()
+    if not name:
+        raise core.HTTPException(409, "No hay impresora de recibos ni impresora predeterminada de Windows. Configúrala en Recepción")
+    if installed and name not in installed:
+        raise core.HTTPException(409, "La impresora seleccionada ya no está instalada en Windows. Configura la impresora de recibos")
+    return name, ("Configurada en Recepción" if configured else "Predeterminada de Windows")
+
+
 @app.post("/api/azur/readonly/pos80-preview")
 def azur_pos80_preview(data: read.InvoiceLookupIn, db=core.Depends(core.get_db),
                        user=core.Depends(core.current_user)):
     """Live, read-only AZUR verification and XML preview; zero print jobs."""
     ticket = _ticket_for_request(data, db, user)
-    prefs = core._app_preferences()
-    printer = str(prefs.get("printer") or "").strip()
+    try:
+        printer, source = _resolve_pos80_printer()
+        printer_ready = True
+    except core.HTTPException:
+        printer, source, printer_ready = "", "", False
     return {
-        "ok": True, "printed": False, "printer_configured": bool(printer),
-        "printer": printer,
+        "ok": True, "printed": False, "printer_configured": printer_ready,
+        "printer": printer, "printer_source": source,
         "source": "XML SRI autorizado, obtenido de AZUR",
         "ticket": ticket,
         "message": "Vista previa fiscal verificada. No se ha impreso nada.",
@@ -368,9 +391,7 @@ def azur_pos80_preview(data: read.InvoiceLookupIn, db=core.Depends(core.get_db),
 def azur_pos80_print(data: read.InvoiceLookupIn, db=core.Depends(core.get_db),
                      user=core.Depends(core.current_user)):
     """Explicit user-triggered local print. Re-validates source, no fiscal POST."""
-    printer = str(core._app_preferences().get("printer") or "").strip()
-    if not printer:
-        raise core.HTTPException(409, "Configura la impresora térmica de 80 mm antes de imprimir")
+    printer, _source = _resolve_pos80_printer()
     ticket = _ticket_for_request(data, db, user)
     try:
         chosen = _print_ticket_windows(ticket, printer)
