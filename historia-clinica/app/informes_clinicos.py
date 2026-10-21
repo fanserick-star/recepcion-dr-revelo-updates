@@ -159,7 +159,7 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
  <div class='doc-actions report-actions'>
   <button id='report-save' class='doc-primary' type='button'>Guardar informe</button>
   <button id='report-preview' class='doc-light' type='button'>Vista previa</button>
-  <button id='report-print' class='doc-primary' type='button'>Guardar e imprimir</button>
+  <button id='report-print' class='doc-primary' type='button'>Guardar e imprimir sin firma</button>
   <button id='report-sign' class='doc-light' type='button'>PDF firmado</button>
   <span class='report-state' id='report-state'>{_e(status_text)}</span>
  </div>
@@ -402,6 +402,13 @@ def install(app, context: dict) -> None:
             storage = REPORT_TYPES[kind]["storage"]
             if current and (str(current["patient_id"]) != patient_id or str(current["certificate_type"]) != storage):
                 return JSONResponse({"ok":False,"error":"El informe pertenece a otro paciente o tiene otro tipo."},status_code=409)
+            # Un PDF ya firmado es un documento final e inmutable. Evitar que
+            # editar un informe modifique el contenido visible de un PDF emitido.
+            if current and conn.execute(
+                "SELECT 1 FROM electronic_signatures WHERE document_type='informe' AND document_id=? LIMIT 1",
+                (report_id,),
+            ).fetchone():
+                return JSONResponse({"ok":False,"error":"Este informe ya fue firmado electrónicamente. Para corregirlo, cree un nuevo informe sin modificar el firmado."},status_code=409)
             if current and current["encounter_id"] and encounter_id and str(current["encounter_id"]) != encounter_id:
                 return JSONResponse({"ok":False,"error":"No se puede cambiar la consulta asociada."},status_code=409)
             if current and not encounter_id:
