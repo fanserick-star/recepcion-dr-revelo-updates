@@ -85,11 +85,11 @@
     target.innerHTML =
       '<div class="v4842-detail-title"><small>DETALLE DE FACTURACIÓN</small><h3>' + esc(g.patient.nombre) + '</h3>' +
       '<span class="v4842-pill ' + st.tone + '">' + esc(st.name) + '</span></div>' +
-      '<div class="v4842-detail-block"><small>FECHA DE ATENCIÓN</small><b>' + esc(typeof fmtDate === 'function' ? fmtDate(g.fecha) : g.fecha) + '</b></div>' +
-      '<div class="v4842-detail-block"><small>FACTURAR A</small><b>' + esc(recipient) + '</b><span>' + esc(id || 'Sin identificación') + '</span></div>' +
-      '<div class="v4842-detail-block"><small>SERVICIOS</small>' + lines + '</div>' +
+      '<div class="v4844-detail-meta"><div class="v4842-detail-block v4844-meta-date"><small>FECHA DE ATENCIÓN</small><b>' + esc(typeof fmtDate === 'function' ? fmtDate(g.fecha) : g.fecha) + '</b></div>' +
+      '<div class="v4842-detail-block v4844-meta-recipient"><small>FACTURAR A</small><b>' + esc(recipient) + '</b><span>' + esc(id || 'Sin identificación') + '</span></div></div>' +
+      '<div class="v4842-detail-block v4844-services"><small>SERVICIOS</small>' + lines + '</div>' +
       '<div class="v4842-detail-total"><span>Total</span><strong>' + esc(amt) + '</strong></div>' +
-      (number ? '<div class="v4842-detail-block"><small>NÚMERO DE FACTURA</small><b>' + esc(number) + '</b></div>' : '') +
+      (number ? '<div class="v4842-detail-block v4844-invoice-number"><small>NÚMERO DE FACTURA</small><b>' + esc(number) + '</b></div>' : '') +
       '<div class="v4842-detail-actions">' + actions + '</div>' +
       (st.tone === 'wait' ? '<p class="v4842-detail-tip">Una factura enviada no equivale a una factura autorizada por el SRI. No vuelvas a enviarla sin verificar el estado.</p>' : '');
   }
