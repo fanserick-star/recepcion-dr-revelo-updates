@@ -31,7 +31,7 @@ assert.doesNotMatch(output.textContent,/synthetic_mock/,'Never display the API k
 await ctx.window.testAzurReadKey();
 assert.equal(endpoints[1].url,'/api/azur/readonly/test');
 assert.doesNotMatch(output.textContent,/synthetic_mock/);
-assert.match(billing,/rpBillingVerifySelected\(\)/);
+assert.match(billing,/rpPos80PrintSelected\(\)/);
 assert.match(billing,/window\.rpBillingVerifySelected/);
 assert.doesNotMatch(src,/\/api\/billing\/(approve|emit)/);
 assert.doesNotMatch(src,/setInterval\s*\(/,'Never poll AZUR in background');
