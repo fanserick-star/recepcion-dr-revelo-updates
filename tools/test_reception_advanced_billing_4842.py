@@ -60,7 +60,7 @@ def main() -> None:
     billing_fields = vanilla.split("function billingMissingFields(p={}){", 1)[1].split("}", 1)[0]
     assert "push('correo')" not in billing_fields, "Email must remain optional"
     assert "['cédula'].includes(x)" in vanilla
-    assert "return '<div" not in client, "No unrelated application bootstrapping"
+    assert "if (window.__rpBilling4842) return;" in client, "Billing workspace must boot only once"
     print("RECEPTION_BILLING_4842_SAFE_STATIC_OK")
 
 
