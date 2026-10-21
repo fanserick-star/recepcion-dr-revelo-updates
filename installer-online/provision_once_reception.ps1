@@ -117,104 +117,20 @@ $secretDir=Join-Path $env:APPDATA 'DrReveloPrivateInstaller'
 $adminFile=Join-Path $secretDir 'aprobacion.dpapi'
 New-Item -ItemType Directory -Path $secretDir -Force|Out-Null
 if(Test-Path -LiteralPath $adminFile -PathType Leaf){
-  # Set-Content adds CRLF. Passing that terminator to ConvertTo-SecureString
-  # makes a valid DPAPI ciphertext appear malformed on a second activation.
-  # Never delete/regenerate this credential silently: it is the permanent
-  # administrator approval key and may already exist on the live Worker.
+  # DPAPI is bound to this Windows user. Get-Content -Raw retains the line
+  # ending written by Set-Content; strip it before decrypting the same secret.
+  # Never delete or silently regenerate the saved administrator password.
   try {
     $cipher=(Get-Content -LiteralPath $adminFile -Raw -ErrorAction Stop).Trim()
-    if(-not $cipher -or $cipher -notmatch '^[0-9a-fA-F]+
-  $rand=New-Object byte[] 32
-  $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
-  try{$rng.GetBytes($rand)}finally{$rng.Dispose()}
-  $admin=[Convert]::ToBase64String($rand).TrimEnd('=').Replace('+','-').Replace('/','_')
-  $secure=ConvertTo-SecureString $admin -AsPlainText -Force
-  ($secure|ConvertFrom-SecureString)|Set-Content -LiteralPath $adminFile -Encoding ASCII
-}
-Write-Host 'Configuraciones de Recepción e Historia comprobadas por separado. No se imprimen los valores.'
-$cfSecure=Read-Host 'Escribe SOLO el token administrativo de Cloudflare (se usa una vez)' -AsSecureString
-$ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($cfSecure)
-try{$cfToken=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
-finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
-if(-not $cfToken){throw 'No se proporcionó acceso Cloudflare. No se enviaron claves.'}
-$endpoint="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/workers/scripts/dr-revelo-enrollment/secrets-bulk"
-$headers=@{Authorization=('Bearer '+$cfToken)}
-# Cloudflare recommends one atomic PATCH for multiple secrets. JSON stays
-# only in the PowerShell process and is never stored in a file.
-$payload=@{secrets=@{
-  RECEPTION_ENV_B64=@{name='RECEPTION_ENV_B64';type='secret_text';text=$recB64}
-  HISTORIA_ENV_B64=@{name='HISTORIA_ENV_B64';type='secret_text';text=$histB64}
-  DR_REVELO_ADMIN_TOKEN=@{name='DR_REVELO_ADMIN_TOKEN';type='secret_text';text=$admin}
-}}
-$body=ConvertTo-Json -InputObject $payload -Depth 8 -Compress
-try {
-  try {
-    $result=Invoke-RestMethod -Method Patch -Uri $endpoint -Headers $headers -Body $body -ContentType 'application/json' -TimeoutSec 40
-    if(-not $result.success){throw 'Cloudflare no acepto la configuracion.'}
-  }catch{
-    # Never print the raw exception or the API response body. Either may
-    # unexpectedly include confidential request context.
-    $status=0
-    try {
-      if($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode){
-        $status=[int]$_.Exception.Response.StatusCode
-      }
-    }catch{}
-    $hint=switch($status){
-      400 {'Solicitud rechazada: formato o validacion. No repitas el envio.'}
-      401 {'Token no autorizado, vencido o incorrecto.'}
-      403 {'Token sin permisos para modificar secretos de este Worker.'}
-      404 {'Account ID o nombre del Worker no coinciden con el servicio autorizado.'}
-      409 {'Cloudflare reporta un conflicto de versiones; no repitas el envio.'}
-      429 {'Demasiados intentos; espera antes de reintentar.'}
-      500 {'Error temporal del servidor de Cloudflare.'}
-      502 {'Error temporal del servidor de Cloudflare.'}
-      503 {'Servicio de Cloudflare temporalmente no disponible.'}
-      default {'Sin respuesta HTTP verificable o error no clasificado.'}
-    }
-    throw ('ACTIVACION_CLOUDFLARE_HTTP_'+$status+'. '+$hint+' No se muestran secretos.')
-  }
-}finally{
-  $body=$null;$payload=$null;$recB64=$null;$histB64=$null
-  $headers.Clear();$cfToken=$null
-  $cfSecure.Dispose()
-}
-Write-Host 'Los 3 secretos se registraron en el Worker aislado.'
-# Verify the currently LIVE worker actually uses the secrets; do not assume
-# an API update is deployed immediately.
-$ready=$false
-for($attempt=0;$attempt -lt 8;$attempt++){
-  try {
-    $h=Invoke-RestMethod -Method Get -Uri ($service+'/health') -TimeoutSec 15
-    if($h.ok -and $h.service -eq 'consultorio-enrollment' -and $h.configured){
-      $ready=$true;break
-    }
-  }catch{}
-  Start-Sleep -Seconds 3
-}
-if(-not $ready){
-  throw 'Secretos guardados, pero todavia no aparecen en el Worker activo. No instales aun.'
-}
-try{
-  $headers2=@{ Authorization=('Bearer '+$admin) }
-  $valid=Invoke-RestMethod -Method Post -Uri ($service+'/admin/validate') -Headers $headers2 -Body '{}' -ContentType 'application/json' -TimeoutSec 20
-  if(-not $valid.ok -or -not $valid.ready){throw 'Configuracion rechazada'}
-}catch{
-  throw 'Cloudflare tiene los 3 secretos, pero falta confirmar su validacion. No ejecutes el instalador aun.'
-}
-Write-Host 'ACTIVACION_OK: Worker publico configurado y configuracion privada validada.'
-Write-Host 'Guarda la siguiente contrasena ADMINISTRATIVA de aprobacion en tu gestor seguro.'
-Write-Host ('CONTRASENA_ADMINISTRATIVA_DE_APROBACION: '+$admin)
-Write-Host 'No compartir por chat, WhatsApp ni GitHub. Luego revoca el token temporal de Cloudflare.'
-){
-      throw 'invalid_local_dpapi'
+    if([string]::IsNullOrWhiteSpace($cipher) -or $cipher -notmatch '^[0-9a-fA-F]+$'){
+      throw 'invalid_ciphertext'
     }
     $secure=ConvertTo-SecureString -String $cipher -ErrorAction Stop
     $ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try{$admin=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
     finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
-  }catch {
-    throw 'CLAVE_LOCAL_DPAPI_NO_RECUPERABLE: activa desde el mismo usuario de Windows original. No se cambio Cloudflare ni se genero otra clave.'
+  }catch{
+    throw 'CLAVE_ADMINISTRATIVA_LOCAL_NO_RECUPERABLE: usa el mismo usuario de Windows y conserva aprobacion.dpapi. Cloudflare no se ha modificado.'
   }
 }else{
   $rand=New-Object byte[] 32
