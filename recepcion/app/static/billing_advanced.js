@@ -89,7 +89,8 @@
     }
     if (st.tone === 'ok' && number && a && String(a.estado || '').toUpperCase() === 'AUTORIZADA') {
       actions += '<button type="button" class="v4845-pos" onclick="rpBillingOpenAzurPos(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Imprimir en AZUR · POS 80 mm ↗</button>';
-      actions += '<button type="button" class="v4846-verify" onclick="rpBillingVerifySelected()">✓ Verificar para impresión directa (sin imprimir)</button>';
+      actions += '<button type="button" class="primary v4847-direct" onclick="rpPos80PrintSelected()">Imprimir factura 80 mm</button>';
+      actions += '<button type="button" class="v4846-verify" onclick="rpPos80PreviewSelected()">Vista previa térmica</button>';
     }
     target.innerHTML =
       '<div class="v4842-detail-title"><small>DETALLE DE FACTURACIÓN</small><h3>' + esc(g.patient.nombre) + '</h3>' +

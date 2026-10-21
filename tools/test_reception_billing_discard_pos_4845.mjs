@@ -6,7 +6,7 @@ const root='recepcion/app/';
 const src=fs.readFileSync(root+'static/billing_advanced.js','utf8');
 const backend=fs.readFileSync(root+'reception_billing_discard.py','utf8');
 const version=JSON.parse(fs.readFileSync(root+'recepcion-version.json','utf8')).version;
-assert.ok(['4.8.45','4.8.46'].includes(version));
+assert.ok(['4.8.45','4.8.46','4.8.47'].includes(version));
 // Existing audited server action is reused. Nothing is deleted from the database.
 assert.match(backend,/@app.post\('\/api\/v4477\/billing\/discard'\)/);
 assert.match(backend,/billing\.estado = 'DESCARTADA'/);
@@ -56,6 +56,7 @@ calls.length=0;
 ctx.window.rpBillingSelect(8,'2026-10-21');
 assert.doesNotMatch(detail.innerHTML,/Quitar de Por emitir/);
 assert.match(detail.innerHTML,/Imprimir en AZUR · POS 80 mm/);
+assert.match(detail.innerHTML,/Imprimir factura 80 mm/);
 await ctx.window.rpBillingOpenAzurPos(8,'2026-10-21');
 assert.equal(calls.length,1);
 assert.equal(calls[0].url,'/api/open-external/azur');

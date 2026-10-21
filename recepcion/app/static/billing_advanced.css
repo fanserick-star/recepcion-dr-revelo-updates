@@ -140,3 +140,16 @@
 
 /* 4.8.46: verification performs ONLY two AZUR GETs, never prints. */
 #facturacion .v4842-detail-actions .v4846-verify{background:#eef8f3!important;border:1px solid #c1dfd0!important;color:#26694d!important;font-weight:850!important}
+
+/* 4.8.47: authenticated XML print and visual preview of 80mm paper. */
+#facturacion .v4842-detail-actions .v4847-direct{background:#206ba2!important;border:1px solid #206ba2!important;color:#fff!important;font-size:12px!important}
+.v4847-preview{max-width:470px;margin:auto}
+.v4847-paper{display:grid;gap:6px;width:min(302px,100%);margin:13px auto;padding:15px 13px;
+ background:#fff;color:#111;border:1px dashed #8c99a6;box-shadow:0 3px 12px #10203012;
+ text-align:center;font-family:Arial,sans-serif;font-size:12px;overflow-wrap:anywhere}
+.v4847-paper>strong{font-size:15px}.v4847-paper>span,.v4847-paper>small{font-size:11px}
+.v4847-paper hr{width:100%;border:0;border-top:1px dashed #444;margin:3px 0}
+.v4847-paper code{white-space:normal;overflow-wrap:anywhere;font-size:10px}
+.v4847-preview-line{display:flex;justify-content:space-between;gap:9px;text-align:left}
+.v4847-preview-line>span{flex:1}.v4847-preview-line small{display:block;font-size:10px}
+.v4847-preview-total{font-weight:900;font-size:17px;text-align:right}
