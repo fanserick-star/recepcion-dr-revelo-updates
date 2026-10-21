@@ -426,8 +426,13 @@ def _verification_code(source_pdf: Path, kind: str, doc_id: str, certificate_ser
 def _signature_stamp_box(kind: str) -> tuple[int, int, int, int]:
     # A4 portrait ~= 595 x 842 pt.
     # Recetas: la plantilla deja ~18 mm libres debajo de las dos copias.
-    if str(kind or "").strip().lower() == "receta":
+    k = str(kind or "").strip().lower()
+    if k == "receta":
         return (165, 6, 430, 50)
+    if k == "informe":
+        # Informe A4: bloque más legible en el primer folio, a la derecha de
+        # los datos del médico y sin invadir el pie de página.
+        return (340, 70, 570, 139)
     # Certificados: usa el espacio inferior derecho, fuera del bloque de firma física.
     return (425, 68, 575, 138)
 
@@ -521,8 +526,8 @@ def _sign_pdf(
             "%(ts)s"
         ),
         timestamp_format="%d/%m/%Y %H:%M",
-        text_box_style=text.TextBoxStyle(font_size=6),
-        qr_inner_size=38,
+        text_box_style=text.TextBoxStyle(font_size=(7 if kind == "informe" else 6)),
+        qr_inner_size=(46 if kind == "informe" else 38),
     )
     field_spec = fields.SigFieldSpec(
         "FirmaElectronicaDoctor",
