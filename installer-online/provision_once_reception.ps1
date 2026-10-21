@@ -150,7 +150,27 @@ try {
     $result=Invoke-RestMethod -Method Patch -Uri $endpoint -Headers $headers -Body $body -ContentType 'application/json' -TimeoutSec 40
     if(-not $result.success){throw 'Cloudflare no acepto la configuracion.'}
   }catch{
-    throw 'No se pudo guardar la configuracion en el Worker asignado. No se muestran secretos.'
+    # Never print the raw exception or the API response body. Either may
+    # unexpectedly include confidential request context.
+    $status=0
+    try {
+      if($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode){
+        $status=[int]$_.Exception.Response.StatusCode
+      }
+    }catch{}
+    $hint=switch($status){
+      400 {'Solicitud rechazada: formato o validacion. No repitas el envio.'}
+      401 {'Token no autorizado, vencido o incorrecto.'}
+      403 {'Token sin permisos para modificar secretos de este Worker.'}
+      404 {'Account ID o nombre del Worker no coinciden con el servicio autorizado.'}
+      409 {'Cloudflare reporta un conflicto de versiones; no repitas el envio.'}
+      429 {'Demasiados intentos; espera antes de reintentar.'}
+      500 {'Error temporal del servidor de Cloudflare.'}
+      502 {'Error temporal del servidor de Cloudflare.'}
+      503 {'Servicio de Cloudflare temporalmente no disponible.'}
+      default {'Sin respuesta HTTP verificable o error no clasificado.'}
+    }
+    throw ('ACTIVACION_CLOUDFLARE_HTTP_'+$status+'. '+$hint+' No se muestran secretos.')
   }
 }finally{
   $body=$null;$payload=$null;$recB64=$null;$histB64=$null
