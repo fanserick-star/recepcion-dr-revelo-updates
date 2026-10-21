@@ -1097,7 +1097,7 @@ footer{{
     def certificates_list(patient_id: str = ""):
         with _connect(db_path) as conn:
             args = []
-            where = "WHERE COALESCE(c.deleted_at,'')=''"
+            where = "WHERE COALESCE(c.deleted_at,'')='' AND COALESCE(c.certificate_type,'medical') NOT IN ('report_cystoscopy','report_ultrasound')"
             if patient_id:
                 patient_id = _canonical_patient_id(conn, patient_id)
                 where += " AND c.patient_id=?"
@@ -1379,8 +1379,10 @@ footer{{
                 stored_extra_dx,stored_extra_cie,str(p.get("procedure_text") or "").upper(),rest_days,
                 str(p.get("rest_from") or ""),str(p.get("rest_to") or ""),body_text.upper(),stamp,
             )
-            current = conn.execute("SELECT id,patient_id FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
+            current = conn.execute("SELECT id,patient_id,certificate_type FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
             if current:
+                if str(current["certificate_type"] or "medical") in ("report_cystoscopy", "report_ultrasound"):
+                    return JSONResponse({"ok": False, "error": "Este documento es un informe, no un certificado."}, status_code=409)
                 if str(current["patient_id"] or "") != patient_id:
                     return JSONResponse({"ok": False, "error": "El certificado pertenece a otro paciente"}, status_code=409)
                 conn.execute(
@@ -1409,7 +1411,7 @@ footer{{
                 (cert_id,),
             ).fetchone()
             settings = _settings(conn)
-        if not row:
+        if not row or str(row["certificate_type"] or "medical") in ("report_cystoscopy", "report_ultrasound"):
             return HTMLResponse("Certificado no encontrado", status_code=404)
 
         body_text = str(row["body_text"] or "").strip()
@@ -1779,8 +1781,10 @@ footer{{
             extra={"establishment":str(p.get("establishment") or ""),"place":str(p.get("place") or "Quevedo"),"institution":str(p.get("institution") or ""),"job_title":str(p.get("job_title") or ""),"history_no":str(p.get("history_no") or ""),"address":str(p.get("address") or ""),"phone":str(p.get("phone") or ""),"email":str(p.get("email") or ""),"rest_reason":str(p.get("rest_reason") or ""),"contingency":contingency,"symptoms":symptoms,"disease_text":str(p.get("disease_text") or ""),"additional_diagnoses":extras}
             body_text=str(extra["disease_text"] or p.get("diagnosis") or "").strip().upper();stored_extra_dx=" | ".join(x["diagnosis"] for x in extras if x["diagnosis"]);stored_extra_cie=" | ".join(x["cie10"] for x in extras if x["cie10"])
             values=(patient_id,enc_id,issued_at,str(p.get("diagnosis") or "").upper(),str(p.get("cie10") or "").upper(),stored_extra_dx,stored_extra_cie,str(extra["rest_reason"] or "").upper(),rest_days,str(p.get("rest_from") or ""),str(p.get("rest_to") or ""),body_text,"rest_isolation",json.dumps(extra,ensure_ascii=False),stamp)
-            current=conn.execute("SELECT id,patient_id FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
+            current=conn.execute("SELECT id,patient_id,certificate_type FROM certificates WHERE id=? AND COALESCE(deleted_at,'')=''",(cid,)).fetchone()
             if current:
+                if str(current["certificate_type"] or "medical") != "rest_isolation":
+                    return JSONResponse({"ok":False,"error":"El documento no es un certificado de reposo."},status_code=409)
                 if str(current["patient_id"] or "")!=patient_id:return JSONResponse({"ok":False,"error":"El certificado pertenece a otro paciente"},status_code=409)
                 conn.execute("""UPDATE certificates SET patient_id=?,encounter_id=?,issued_at=?,diagnosis=?,cie10=?,additional_diagnosis=?,additional_cie10=?,procedure_text=?,rest_days=?,rest_from=?,rest_to=?,body_text=?,certificate_type=?,extra_json=?,updated_at=? WHERE id=?""",values+(cid,))
             else:
@@ -1798,7 +1802,7 @@ footer{{
                 (cert_id,),
             ).fetchone()
             settings = _settings(conn)
-        if not row:
+        if not row or str(row["certificate_type"] or "medical") != "rest_isolation":
             return HTMLResponse("Certificado no encontrado", status_code=404)
 
         try:

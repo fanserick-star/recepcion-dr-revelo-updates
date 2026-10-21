@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_status
 import documentos_clinicos
+import informes_clinicos
 import firma_electronica
 import cloud_presence_patch
 cloud_presence_patch.install()
@@ -2580,13 +2581,18 @@ def _v1370_render_encounter_documents(encounter_id: str, compact: bool = False) 
             url = f"/recetas/{e(doc_id)}/vista"
         else:
             cert_type = str(item.get("certificate_type") or "medical")
-            label = "Certificado de reposo" if cert_type == "rest_isolation" else "Certificado médico"
-            detail = diagnosis
-            url = (
-                f"/certificados/reposo/{e(doc_id)}/vista"
-                if cert_type == "rest_isolation"
-                else f"/certificados/{e(doc_id)}/vista"
-            )
+            if cert_type in ("report_cystoscopy", "report_ultrasound"):
+                label = "Informe de cistoscopia" if cert_type == "report_cystoscopy" else "Informe de ecografía"
+                detail = diagnosis
+                url = f"/informes/{e(doc_id)}/vista"
+            else:
+                label = "Certificado de reposo" if cert_type == "rest_isolation" else "Certificado médico"
+                detail = diagnosis
+                url = (
+                    f"/certificados/reposo/{e(doc_id)}/vista"
+                    if cert_type == "rest_isolation"
+                    else f"/certificados/{e(doc_id)}/vista"
+                )
         meta = " · ".join(x for x in (date_label, detail) if x)
         print_kind = "recipe" if kind == "rx" else "certificate"
         print_button = (
@@ -2872,6 +2878,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         f"<a class='secondary btn-link cp-edit-patient' href='/paciente/{e(patient_id)}/editar'>Editar datos</a>"
         f"<a class='secondary btn-link cp-prescription' target='_blank' href='/recetas/nueva?patient_id={e(patient_id)}'>Receta médica</a>"
         f"<a class='secondary btn-link cp-certificate' target='_blank' href='/certificados/nuevo?patient_id={e(patient_id)}'>Certificado médico</a>"
+        f"<a class='secondary btn-link cp-reports' href='/informes?patient_id={e(patient_id)}'>Informes médicos</a>"
         f"{consult_action}</div>"
     )
 
@@ -4403,6 +4410,8 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
         nav_parts.append(f'<a class="{"active" if active=="recetas" else ""}" href="/recetas">Recetas</a>')
     if 'href="/certificados"' not in html:
         nav_parts.append(f'<a class="{"active" if active=="certificados" else ""}" href="/certificados">Certificados</a>')
+    if 'href="/informes"' not in html:
+        nav_parts.append(f'<a class="{"active" if active=="informes" else ""}" href="/informes">Informes</a>')
     if 'href="/configuracion"' not in html:
         nav_parts.append(f'<a class="{"active" if active=="configuracion" else ""}" href="/configuracion">Configuración</a>')
     if 'href="/recuperacion/borradores"' not in html:
@@ -4442,6 +4451,7 @@ except Exception:
     pass
 
 documentos_clinicos.install(app, globals())
+informes_clinicos.install(app, globals())
 firma_electronica.install(app, globals())
 
 
@@ -4484,6 +4494,7 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
             "<button id='toggle-macros' class='secondary'>Frases rápidas</button>"
             "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
             "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+            "<button id='open-reports' class='secondary document-action' type='button'>Informes médicos</button>"
         )
         if tools_marker in html:
             html = html.replace(tools_marker, tools_replacement, 1)
@@ -4493,6 +4504,7 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
                 "<div class='editor-actions'>"
                 "<button id='open-prescription' class='secondary document-action' type='button'>Receta médica</button>"
                 "<button id='open-certificate' class='secondary document-action' type='button'>Certificado médico</button>"
+            "<button id='open-reports' class='secondary document-action' type='button'>Informes médicos</button>"
             )
             if footer_marker in html:
                 html = html.replace(footer_marker, footer_replacement, 1)
@@ -4502,6 +4514,7 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
 (()=>{
   const rx=document.getElementById('open-prescription');
   const cert=document.getElementById('open-certificate');
+  const reports=document.getElementById('open-reports');
   async function openClinicalDocument(kind,button){
     const original=button.textContent;
     button.disabled=true;
@@ -4511,7 +4524,7 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
       if(typeof save==='function'){
         id=await save(true) || '';
       }
-      const route=kind==='rx'?'/recetas/nueva':'/certificados/nuevo';
+      const route=kind==='rx'?'/recetas/nueva':(kind==='cert'?'/certificados/nuevo':'/informes');
       const qs=new URLSearchParams({patient_id:PATIENT_ID});
       if(id)qs.set('encounter_id',id);
       qs.set('from_consultation','1');
@@ -4532,6 +4545,7 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
   }
   if(rx)rx.addEventListener('click',()=>openClinicalDocument('rx',rx));
   if(cert)cert.addEventListener('click',()=>openClinicalDocument('cert',cert));
+  if(reports)reports.addEventListener('click',()=>openClinicalDocument('report',reports));
 })();
 
 // v1.3.18 — segunda capa local, independiente de SQLite/Neon.
@@ -4962,6 +4976,8 @@ def v138_health():
         "duplicate_creation_guard": True,
         "patient_card_recipe_button": True,
         "patient_card_certificate_button": True,
+        "patient_card_reports_button": True,
+        "reports_cystoscopy_ultrasound": True,
         "global_recipe_nav_visible": True,
         "consultation_only_turn_numbers": True,
         "empty_draft_pending_fix": True,

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.10",
-  "app_version": "1.4.10",
-  "runtime_version": "1.4.10",
+  "version": "1.4.11",
+  "app_version": "1.4.11",
+  "runtime_version": "1.4.11",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -17,6 +17,7 @@
     "lan_bridge.py",
     "tv_turn_bridge.py",
     "documentos_clinicos.py",
+    "informes_clinicos.py",
     "firma_electronica.py",
     "material_pacientes.py",
     "consentimiento_informado.py",
@@ -63,6 +64,7 @@
     "lan_bridge.py",
     "tv_turn_bridge.py",
     "documentos_clinicos.py",
+    "informes_clinicos.py",
     "firma_electronica.py",
     "material_pacientes.py",
     "consentimiento_informado.py",
@@ -78,8 +80,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.10: aceptar cambios de vinculación enviados desde Recepción solo cuando el turno permanezca esperando y el doctor no haya iniciado la consulta. Se conserva el evento y número de turno, consultas en curso, historiales, certificados, firmas electrónicas y sincronización; sin cambios destructivos.",
-    "previous_version": "1.4.9",
+    "purpose": "Historia Clínica 1.4.11: Informes A4 de ecografía y cistoscopia, vinculados a pacientes y consultas, guardado voluntario, impresión directa, firma PAdES y sincronización mediante documentos clínicos existentes. Sin alterar fichas ni datos de pacientes.",
+    "previous_version": "1.4.10",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -151,7 +153,9 @@
     "electronic_signature_supported_documents": [
       "prescription",
       "medical_certificate",
-      "rest_isolation_certificate"
+      "rest_isolation_certificate",
+      "cystoscopy_report",
+      "ultrasound_report"
     ],
     "electronic_signature_ci_smoke_test": true,
     "signature_dependency_self_heal": true,
@@ -211,6 +215,14 @@
     "certificate_reprint_available": true,
     "certificate_background_autosave": false,
     "waiting_relinked_only_before_start": true,
-    "existing_consultation_unchanged": true
+    "existing_consultation_unchanged": true,
+    "clinical_reports_enabled": true,
+    "clinical_reports_types": [
+      "cistoscopia",
+      "ecografia"
+    ],
+    "clinical_reports_no_auto_diagnosis": true,
+    "clinical_reports_no_autosave": true,
+    "clinical_reports_storage": "certificates_tipado"
   }
 }
