@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.49",
-  "app_version": "4.8.49",
-  "runtime_version": "4.8.49",
+  "version": "4.8.50",
+  "app_version": "4.8.50",
+  "runtime_version": "4.8.50",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.49: mejoras cuidadosas al ticket RIDE 80mm inspiradas en el formato oficial de AZUR, manteniendo layout compacto. Añade ambiente PRODUCCIÓN, fecha/hora legible, descripción confirmada de pago 01, contacto del destinatario solo si existe en el XML firmado y suprime dirección sucursal duplicada. Sin cambios en emisiones, facturas históricas ni Neón.",
-    "previous_version": "4.8.48",
+    "purpose": "Recepción 4.8.50: calibración exclusiva de ticket térmico AZUR 80 mm. Aumenta espacio sobre los glifos para evitar cortar la parte superior de letras y desplaza con límite de seguridad el contenido ~2 mm a la izquierda. Preserva datos del XML SRI autorizado, totales, numeración, PDF-inspired layout, Emisiones, AZUR, Neon, WhatsApp e Historia sin alteraciones.",
+    "previous_version": "4.8.49",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,

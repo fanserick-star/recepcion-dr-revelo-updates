@@ -36,8 +36,8 @@ paint=ast.get_source_segment(source,draw[0])
 assert "Margins(14, 14, 11, 10)" in paint, "Physical margins must protect paper edges"
 assert "min(258.0, bounds_width - 12.0)" in paint, "Use conservative printable-width cap"
 assert "_wrap_thermal_text(content, width - 12.0" in paint
-assert "RectangleF(x, y, width, height + 3.0)" in paint
-assert "y += height + 3.0" in paint, "Advance one row per wrapped line"
+assert "RectangleF(x, draw_top, width, rect_height)" in paint
+assert "y = next_y" in paint, "Advance one row per wrapped line"
 assert "g.DrawLine(pen, x, y, x + width, y)" in paint, "Rules must also respect width"
 assert 'doc.Print()' in paint
 assert 'azur_emit_invoice' not in source
