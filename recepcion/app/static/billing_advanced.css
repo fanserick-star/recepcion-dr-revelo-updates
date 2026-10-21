@@ -1,0 +1,68 @@
+/* Recepción 4.8.42 · Facturación avanzada: panel compacto para PC antigua. */
+#facturacion.v4842-advanced-billing{--bill-border:#dce5ef;--bill-muted:#63768f;--bill-ink:#152d4c;--bill-blue:#2a65a4}
+#facturacion.v4842-advanced-billing .billing-title-row{margin-bottom:13px}
+#facturacion.v4842-advanced-billing .billing-title-row h1{font-size:27px!important;color:#142e4d!important}
+#facturacion.v4842-advanced-billing .billing-summary{margin:0 0 15px!important;gap:12px!important}
+#facturacion .v4842-bar{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;padding:14px 17px;margin:15px 0 14px;border:1px solid var(--bill-border);background:#fff;border-radius:16px;box-shadow:0 4px 14px rgba(25,54,92,.045)}
+#facturacion .v4842-bar>div:first-child{display:grid;gap:4px}
+#facturacion .v4842-bar b{font-size:15px;color:var(--bill-ink);font-weight:850}
+#facturacion .v4842-bar small{font-size:11px;color:var(--bill-muted)}
+#facturacion .v4842-bar-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#facturacion .v4842-bar-actions>button{min-height:40px;padding:9px 12px;border:1px solid var(--bill-border);border-radius:10px;background:#fff;color:#2a507f;font-size:12px;font-weight:800;cursor:pointer}
+#facturacion .v4842-bar-actions>button:hover{background:#f0f6fd}
+#facturacion .v4842-search{display:flex;align-items:center;gap:8px;min-height:40px;padding:0 12px;border:1px solid #cad9e9;background:#f8fbff;border-radius:10px}
+#facturacion .v4842-search span{font-size:23px;line-height:1;color:#5c7799}
+#facturacion .v4842-search input{min-width:230px;width:250px;max-width:100%;background:none;border:0;outline:0;font-size:13px;color:#183450;font-weight:600;box-shadow:none}
+#facturacion .v4842-search input:focus{outline:0;box-shadow:none}
+#facturacion .v4842-workspace{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(310px,.85fr);gap:14px;align-items:start}
+#facturacion .v4842-list-area,#facturacion .v4842-detail{background:#fff;border:1px solid var(--bill-border);border-radius:17px;box-shadow:0 6px 21px rgba(24,54,88,.055);overflow:hidden}
+#facturacion .v4842-list-label{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 17px;border-bottom:1px solid #e9eef5}
+#facturacion .v4842-list-label b{font-size:14px;color:#233f5f}
+#facturacion .v4842-list-label small{font-size:11px;color:#688099}
+#facturacion #billingList{display:block!important;grid-template-columns:none!important;gap:0!important;padding:0!important}
+#facturacion .v4842-row{width:100%;display:flex;align-items:center;gap:12px;padding:15px 16px;border:0;border-bottom:1px solid #ebf0f5;background:#fff;text-align:left;cursor:pointer;border-radius:0;box-shadow:none;transition:background-color .12s ease}
+#facturacion .v4842-row:last-child{border-bottom:0}
+#facturacion .v4842-row:hover,#facturacion .v4842-row.selected{background:#f0f6ff}
+#facturacion .v4842-row.selected{box-shadow:inset 3px 0 0 #3678b5}
+#facturacion .v4842-row[hidden]{display:none!important}
+#facturacion .v4842-row-main{display:grid;min-width:0;flex:1;gap:4px}
+#facturacion .v4842-row-main>b{font-size:14px!important;color:#183453;font-weight:850;line-height:1.3;overflow-wrap:anywhere}
+#facturacion .v4842-row-main small{font-size:11px;color:#698096;font-weight:600;line-height:1.3}
+#facturacion .v4842-row-main .v4842-service{color:#526f91;overflow-wrap:anywhere}
+#facturacion .v4842-row-end{display:grid;flex:0 0 auto;gap:7px;justify-items:end}
+#facturacion .v4842-row-end>b{font-size:15px;color:#18334f;font-variant-numeric:tabular-nums}
+#facturacion .v4842-pill{display:inline-flex;align-items:center;justify-content:center;max-width:200px;padding:5px 9px;border-radius:999px;font-size:10.5px;line-height:1.2;font-weight:800;text-align:center}
+#facturacion .v4842-pill.pending{color:#855b12;background:#fff4dc}
+#facturacion .v4842-pill.wait{color:#295e9b;background:#eaf3ff}
+#facturacion .v4842-pill.ok{color:#217445;background:#e5f6eb}
+#facturacion .v4842-pill.bad{color:#a33b3b;background:#fff0ee}
+#facturacion .v4842-chevron{font-size:25px;color:#8b9eb4}
+#facturacion .v4842-detail{position:sticky;top:13px;min-height:280px;padding:19px 20px;display:grid;gap:14px}
+#facturacion .v4842-detail-title{display:grid;gap:8px}
+#facturacion .v4842-detail-title>small,#facturacion .v4842-detail-block>small{font-size:10px;font-weight:900;letter-spacing:.07em;color:#74869a}
+#facturacion .v4842-detail-title h3{margin:0;font-size:20px!important;color:#152f4e;line-height:1.2;overflow-wrap:anywhere}
+#facturacion .v4842-detail-title .v4842-pill{justify-self:start}
+#facturacion .v4842-detail-block{display:grid;gap:7px;padding:12px 0;border-bottom:1px solid #edf1f6}
+#facturacion .v4842-detail-block>b{font-size:13px;color:#2b4566;overflow-wrap:anywhere}
+#facturacion .v4842-detail-block>span{font-size:12px;color:#61758d;overflow-wrap:anywhere}
+#facturacion .v4842-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12.5px;color:#405774}
+#facturacion .v4842-line>b{flex-shrink:0;color:#163656}
+#facturacion .v4842-detail-total{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 14px;background:#f1f7fe;border:1px solid #deebfb;border-radius:11px}
+#facturacion .v4842-detail-total span{font-size:12px;font-weight:750;color:#55718e}
+#facturacion .v4842-detail-total strong{font-size:23px;color:#155488}
+#facturacion .v4842-detail-actions{display:grid;gap:9px}
+#facturacion .v4842-detail-actions button{width:100%;min-height:43px;border-radius:10px;font-size:12px;font-weight:850;padding:10px}
+#facturacion .v4842-detail-actions button:disabled{opacity:.56;cursor:wait}
+#facturacion .v4842-primary{background:#2466a4;color:#fff;border:1px solid #2466a4}
+#facturacion .v4842-secondary{background:#fff;border:1px solid #cbdced;color:#315d8f}
+#facturacion .v4842-detail-tip{margin:0;font-size:11px;line-height:1.55;color:#87642b;background:#fff9ec;border:1px solid #f5e3b8;border-radius:10px;padding:11px}
+#facturacion .v4842-error{font-size:12px;color:#9e3434;background:#fff4f2;border:1px solid #efc5c2;border-radius:10px;padding:11px}
+#facturacion .v4842-empty-detail,#facturacion .v4842-empty-list{display:grid;justify-items:center;align-content:center;text-align:center;min-height:175px;gap:9px;padding:23px;color:#70829a}
+#facturacion .v4842-empty-detail .v4842-empty-icon{font-size:29px}
+#facturacion .v4842-empty-detail h3{font-size:16px!important;color:#38516e;margin:0}
+#facturacion .v4842-empty-detail p,#facturacion .v4842-empty-list span{font-size:12px;color:#7389a0;margin:0;max-width:32ch}
+#facturacion .v4842-empty-list b{color:#31506e;font-size:14px}
+#facturacion .v4842-progress{padding:22px;color:#345e8b;font-weight:750;font-size:13px}
+#facturacion .v4842-list-area .issued-billing-toolbar{margin:11px!important}
+@media(max-width:1050px){#facturacion .v4842-workspace{grid-template-columns:minmax(0,1fr)}#facturacion .v4842-detail{position:static}}
+@media(max-width:680px){#facturacion .v4842-bar{padding:12px}#facturacion .v4842-bar-actions,#facturacion .v4842-search{width:100%}#facturacion .v4842-search input{min-width:0;width:100%}#facturacion .v4842-row{padding:12px;gap:8px}#facturacion .v4842-row-main>b{font-size:13px!important}#facturacion .v4842-pill{max-width:125px;font-size:9px}#facturacion .v4842-detail{padding:15px}}
