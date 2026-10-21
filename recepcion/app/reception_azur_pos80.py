@@ -224,6 +224,33 @@ def _ticket_for_request(data: read.InvoiceLookupIn, db, user) -> dict:
     return ticket
 
 
+def _wrap_thermal_text(value: str, limit: float, measure) -> list[str]:
+    """Word-wrap each fiscal field within actual printable width; never truncate names.
+
+    measure(text) returns the width in printer graphics units. Long unbroken
+    tokens are split by characters rather than silently clipped by the driver.
+    """
+    rows = []
+    for paragraph in str(value or "").replace("\r", "").split("\n"):
+        current = ""
+        for word in paragraph.split():
+            proposed = (current + " " + word).strip()
+            if measure(proposed) <= limit:
+                current = proposed
+                continue
+            if current:
+                rows.append(current)
+                current = ""
+            for char in word:
+                if current and measure(current + char) > limit:
+                    rows.append(current)
+                    current = ""
+                current += char
+        if current:
+            rows.append(current)
+    return rows
+
+
 def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     if os.name != "nt":
         raise RuntimeError("La impresión térmica directa requiere Windows")
@@ -247,7 +274,9 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     doc.DocumentName = "Factura electronica autorizada 80mm"
     doc.OriginAtMargins = True
     doc.DefaultPageSettings.PaperSize = PaperSize("Factura RIDE 80 mm", 315, est)
-    doc.DefaultPageSettings.Margins = Margins(8, 8, 7, 7)
+    # Wider safety margins: physical 80mm drivers often expose only ~72mm.
+    # Layout below also reserves an internal margin for text and divider lines.
+    doc.DefaultPageSettings.Margins = Margins(14, 14, 11, 10)
     fonts = []
     def make_font(size, bold=False):
         f = Font("Arial", float(size), FontStyle.Bold if bold else FontStyle.Regular)
@@ -256,28 +285,41 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     f_small = make_font(7.0)
     f_text = make_font(8.0)
     f_bold = make_font(8.0, True)
-    f_title = make_font(10.0, True)
+    f_title = make_font(9.5, True)
     f_total = make_font(13.0, True)
     pen = Pen(Color.Black, 1)
     center = StringFormat()
     center.Alignment = StringAlignment.Center
     def print_page(sender, e):
         g = e.Graphics
-        width = float(e.MarginBounds.Width)
-        y = 0.0
+        bounds_width = float(e.MarginBounds.Width)
+        # Print within ~66 mm even if a Windows driver incorrectly advertises
+        # a full 80 mm printable area. Center this within the driver's margins.
+        width = min(258.0, bounds_width - 12.0)
+        if width < 145.0:
+            raise RuntimeError("El ancho imprimible de la impresora es insuficiente para una factura de 80 mm")
+        x = max(0.0, (bounds_width - width) / 2.0)
+        y = 5.0
         def write(value, font=f_text, align=False, minheight=14):
             nonlocal y
             content = str(value or "").strip()
             if not content:
                 return
-            height = max(float(minheight), float(g.MeasureString(content,font,int(width - 2)).Height) + 2)
-            g.DrawString(content, font, Brushes.Black, RectangleF(0.0, y, width, height + 2),
-                         center if align else StringFormat.GenericDefault)
-            y += height + 3
+            # Wrap by measured glyph width, not only by character count.
+            # Draw every resulting line separately so Windows cannot clip the
+            # right-hand end of the doctor's legal name or specialty.
+            rows = _wrap_thermal_text(content, width - 12.0,
+                                      lambda part: float(g.MeasureString(part, font).Width))
+            for segment in rows:
+                height = max(float(minheight), float(g.MeasureString(segment, font).Height) + 2.0)
+                g.DrawString(segment, font, Brushes.Black,
+                             RectangleF(x, y, width, height + 3.0),
+                             center if align else StringFormat.GenericDefault)
+                y += height + 3.0
         def line():
             nonlocal y
-            g.DrawLine(pen, 0.0, y, width, y)
-            y += 8
+            g.DrawLine(pen, x, y, x + width, y)
+            y += 8.0
         write(ticket["emisor"], f_title, True)
         if ticket.get("nombre_comercial") and ticket["nombre_comercial"] != ticket["emisor"]:
             write(ticket["nombre_comercial"], f_bold, True)
