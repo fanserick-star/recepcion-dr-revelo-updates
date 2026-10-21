@@ -2622,7 +2622,7 @@ function billingStatusBadge(state){
   return `<span class="billing-status ${String(state).toLowerCase()}">${label}</span>`;
 }
 function billingMissingFields(p={}){
-  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');if(!String(p.correo||'').trim())out.push('correo');return out;
+  const out=[];if(!String(p.cedula||'').trim())out.push('cédula');return out; // El correo es opcional para AZUR/SRI
 }
 function billingServicesHtml(g){
   return g.items.map(x=>`<div class="billing-line"><span>${serviceBadge(x.visit)}</span><b>${money(x.visit.valor)}</b></div>`).join('');
@@ -2730,7 +2730,7 @@ async function reviewNextBilling(){
     if(d.billing_preference)billingPreferencesCache[String(Number(d.patient?.id||0))]=d.billing_preference;
     const groups=billingGroupRows(d.items||[]).sort((a,b)=>String(a.fecha).localeCompare(String(b.fecha)));
     if(!groups.length){alert('No hay facturas pendientes.');return}
-    const g=groups[0],p=g.patient||{},missing=missingPatientFields(p).filter(x=>['cédula','correo'].includes(x)),alt=billingRecipientDraft(p.id,g.fecha);
+    const g=groups[0],p=g.patient||{},missing=missingPatientFields(p).filter(x=>['cédula'].includes(x)),alt=billingRecipientDraft(p.id,g.fecha);
     const services=billingServicesHtml(g);const total=money(billingTotal(g));
     const warning=missing.length&&!alt?.alternate?`<div class="data-warning"><span class="warning-icon">⚠</span><span>Falta ${esc(missing.join(' y '))} para facturar con los datos del paciente.</span></div>`:'';
     const recipient=alt?.alternate?`<div class="billing-recipient-note"><span>Factura a</span><b>${esc(alt.nombre||'OTROS DATOS')}</b><small>${esc(billingRecipientKind(alt.identificacion))}: ${esc(alt.identificacion||'—')}</small></div>`:'';
