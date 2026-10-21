@@ -89,6 +89,7 @@
     }
     if (st.tone === 'ok' && number && a && String(a.estado || '').toUpperCase() === 'AUTORIZADA') {
       actions += '<button type="button" class="v4845-pos" onclick="rpBillingOpenAzurPos(' + Number(g.patient.id) + ',\'' + esc(g.fecha) + '\')">Imprimir en AZUR · POS 80 mm ↗</button>';
+      actions += '<button type="button" class="v4846-verify" onclick="rpBillingVerifySelected()">✓ Verificar para impresión directa (sin imprimir)</button>';
     }
     target.innerHTML =
       '<div class="v4842-detail-title"><small>DETALLE DE FACTURACIÓN</small><h3>' + esc(g.patient.nombre) + '</h3>' +
@@ -153,6 +154,19 @@
     } catch(e) {
       alert('No se pudo abrir AZUR: ' + String(e && e.message || e) + '\nPuedes usar el botón «Abrir AZUR» de la cabecera.');
     }
+  };
+
+  window.rpBillingVerifySelected = function () {
+    var g=groups().find(function (item) {return groupKey(item)===selectedKey;});
+    if(!g || status(g).tone!=='ok' || !azur(g) || !invoice(g)) {
+      alert('Selecciona una factura autorizada por AZUR con número confirmado.');
+      return;
+    }
+    if(typeof window.verifyAzurPosInvoice!=='function') {
+      alert('La conexión de consulta de AZUR no está disponible. Reinicia Recepción para completar la actualización.');
+      return;
+    }
+    return window.verifyAzurPosInvoice(Number(g.patient.id),String(g.fecha).slice(0,10),invoice(g));
   };
 
   window.rpBillingSelect = function (patientId, fecha) {
