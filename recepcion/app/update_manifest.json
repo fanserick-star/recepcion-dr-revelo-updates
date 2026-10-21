@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.42",
-  "app_version": "4.8.42",
-  "runtime_version": "4.8.42",
+  "version": "4.8.43",
+  "app_version": "4.8.43",
+  "runtime_version": "4.8.43",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -174,8 +174,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.42: remasterización de Facturación con lista compacta, panel de detalle, revisión fiscal explícita, exportación CSV de la vista, correo opcional y bloqueo de emisión masiva hasta autorización SRI comprobada. Conserva facturas existentes, caja, historia clínica, agenda, TV, Neon y WhatsApp sin migraciones de base de datos.",
-    "previous_version": "4.8.41",
+    "purpose": "Recepción 4.8.43: Emitidas abre el historial paginado sin bloquearse en una consulta masiva AZUR/SRI. Estado fiscal individual consultable bajo demanda; quita banner AZUR engañoso al abrir el historial. No modifica facturas, historiales, Neon ni WhatsApp.",
+    "previous_version": "4.8.42",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
