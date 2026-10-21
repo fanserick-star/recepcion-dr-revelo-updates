@@ -75,6 +75,21 @@ def _report_fields(row, kind: str) -> dict:
     return {key: str(raw.get(key) or "") for key, _, _ in REPORT_TYPES[kind]["fields"]}
 
 
+def _has_report_signature(conn, report_id: str) -> bool:
+    """Compatibilidad con bases de pruebas/legado aún sin tabla de firmas."""
+    if not report_id:
+        return False
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='electronic_signatures'"
+    ).fetchone()
+    if not exists:
+        return False
+    return bool(conn.execute(
+        "SELECT 1 FROM electronic_signatures WHERE document_type='informe' AND document_id=? LIMIT 1",
+        (report_id,),
+    ).fetchone())
+
+
 def _valid_date(value: str) -> bool:
     try:
         parsed = date.fromisoformat(value)
@@ -120,10 +135,7 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
         "</label>"
         for key, label, hint in config["fields"]
     )
-    signed = bool(row and conn.execute(
-        "SELECT 1 FROM electronic_signatures WHERE document_type='informe' AND document_id=? LIMIT 1",
-        (report_id,),
-    ).fetchone())
+    signed = bool(row and _has_report_signature(conn, report_id))
     status_text = "Informe firmado electrónicamente: solo lectura" if signed else ("Editando informe guardado" if row else "Sin guardar")
     report_json = json.dumps({
         "id": report_id, "patient_id": patient_id, "type": kind,
@@ -449,10 +461,7 @@ def install(app, context: dict) -> None:
                 return JSONResponse({"ok":False,"error":"El informe pertenece a otro paciente o tiene otro tipo."},status_code=409)
             # Un PDF ya firmado es un documento final e inmutable. Evitar que
             # editar un informe modifique el contenido visible de un PDF emitido.
-            if current and conn.execute(
-                "SELECT 1 FROM electronic_signatures WHERE document_type='informe' AND document_id=? LIMIT 1",
-                (report_id,),
-            ).fetchone():
+            if current and _has_report_signature(conn, report_id):
                 return JSONResponse({"ok":False,"error":"Este informe ya fue firmado electrónicamente. Para corregirlo, cree un nuevo informe sin modificar el firmado."},status_code=409)
             if current and current["encounter_id"] and encounter_id and str(current["encounter_id"]) != encounter_id:
                 return JSONResponse({"ok":False,"error":"No se puede cambiar la consulta asociada."},status_code=409)
@@ -497,12 +506,12 @@ def install(app, context: dict) -> None:
         with _connect(db_path) as conn:
             if not _report_row(conn, report_id):
                 raise HTTPException(status_code=404, detail="Informe no encontrado.")
-            signed = conn.execute(
+            signed = (conn.execute(
                 """SELECT relative_path,pdf_sha256 FROM electronic_signatures
                    WHERE document_type='informe' AND document_id=?
                    ORDER BY id DESC LIMIT 1""",
                 (report_id,),
-            ).fetchone()
+            ).fetchone() if _has_report_signature(conn, report_id) else None)
         if not signed:
             raise HTTPException(status_code=404, detail="Este informe todavía no está firmado.")
         archive_dir = (root / "data" / "documentos_firmados").resolve()
