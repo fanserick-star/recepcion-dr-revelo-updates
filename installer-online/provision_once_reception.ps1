@@ -9,6 +9,67 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 $service='https://dr-revelo-enrollment.drrevelo.workers.dev'
+# PASTEABLE Windows dialog. Unlike Read-Host -AsSecureString, this field
+# supports both Ctrl+V and a visible Paste button while masking the token.
+# The token is never saved to disk, printed, logged, or passed via CLI args.
+function Read-CloudflareApiToken {
+  Add-Type -AssemblyName System.Windows.Forms
+  Add-Type -AssemblyName System.Drawing
+  $form=New-Object System.Windows.Forms.Form
+  $form.Text='Cloudflare - Token privado de activacion'
+  $form.StartPosition=[System.Windows.Forms.FormStartPosition]::CenterScreen
+  $form.ClientSize=New-Object System.Drawing.Size(580,225)
+  $form.FormBorderStyle=[System.Windows.Forms.FormBorderStyle]::FixedDialog
+  $form.MaximizeBox=$false
+  $form.MinimizeBox=$false
+  $form.ShowInTaskbar=$true
+  $intro=New-Object System.Windows.Forms.Label
+  $intro.Text='Pega tu API Token de Cloudflare. Solo lo usaremos una vez.'
+  $intro.AutoSize=$true
+  $intro.Location=New-Object System.Drawing.Point(18,18)
+  $tip=New-Object System.Windows.Forms.Label
+  $tip.Text='Se mantendra oculto. Usa Ctrl+V o haz clic en Pegar.'
+  $tip.AutoSize=$true
+  $tip.Location=New-Object System.Drawing.Point(18,47)
+  $field=New-Object System.Windows.Forms.TextBox
+  $field.Location=New-Object System.Drawing.Point(18,78)
+  $field.Size=New-Object System.Drawing.Size(440,27)
+  $field.UseSystemPasswordChar=$true
+  $field.ShortcutsEnabled=$true
+  $paste=New-Object System.Windows.Forms.Button
+  $paste.Text='Pegar'
+  $paste.Location=New-Object System.Drawing.Point(469,77)
+  $paste.Size=New-Object System.Drawing.Size(90,30)
+  $paste.Add_Click({ $field.Paste(); $field.Focus() })
+  $ok=New-Object System.Windows.Forms.Button
+  $ok.Text='Verificar token'
+  $ok.Location=New-Object System.Drawing.Point(310,158)
+  $ok.Size=New-Object System.Drawing.Size(145,33)
+  $ok.DialogResult=[System.Windows.Forms.DialogResult]::OK
+  $cancel=New-Object System.Windows.Forms.Button
+  $cancel.Text='Cancelar'
+  $cancel.Location=New-Object System.Drawing.Point(466,158)
+  $cancel.Size=New-Object System.Drawing.Size(93,33)
+  $cancel.DialogResult=[System.Windows.Forms.DialogResult]::Cancel
+  $form.Controls.AddRange([System.Windows.Forms.Control[]]@($intro,$tip,$field,$paste,$ok,$cancel))
+  $form.AcceptButton=$ok
+  $form.CancelButton=$cancel
+  try{
+    $result=$form.ShowDialog()
+    if($result -ne [System.Windows.Forms.DialogResult]::OK){
+      throw 'ACTIVACION_CANCELADA: No se envio ninguna clave.'
+    }
+    $entered=$field.Text.Trim()
+    if([string]::IsNullOrWhiteSpace($entered)){
+      throw 'TOKEN_VACIO: No se envio ninguna clave.'
+    }
+    return $entered
+  }finally{
+    $field.Clear()
+    $form.Dispose()
+  }
+}
+
 function Select-PrivateFile([string]$Message) {
   Add-Type -AssemblyName System.Windows.Forms
   $dialog=New-Object System.Windows.Forms.OpenFileDialog
@@ -141,13 +202,29 @@ if(Test-Path -LiteralPath $adminFile -PathType Leaf){
   ($secure|ConvertFrom-SecureString)|Set-Content -LiteralPath $adminFile -Encoding ASCII
 }
 Write-Host 'Configuraciones de Recepción e Historia comprobadas por separado. No se imprimen los valores.'
-$cfSecure=Read-Host 'Escribe SOLO el token administrativo de Cloudflare (se usa una vez)' -AsSecureString
-$ptr=[Runtime.InteropServices.Marshal]::SecureStringToBSTR($cfSecure)
-try{$cfToken=[Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)}
-finally{[Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)}
-if(-not $cfToken){throw 'No se proporcionó acceso Cloudflare. No se enviaron claves.'}
-$endpoint="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/workers/scripts/dr-revelo-enrollment/secrets-bulk"
+Write-Host 'Se abrira una ventana segura para PEGAR el token. No lo escribas en el terminal.'
+$cfToken=Read-CloudflareApiToken
 $headers=@{Authorization=('Bearer '+$cfToken)}
+# Confirm the token before uploading any database credentials.
+# Do not log token details, API responses or HTTP exception messages.
+try{
+  $verified=Invoke-RestMethod -Method Get -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $headers -TimeoutSec 25
+}catch{
+  $code=0
+  try{
+    if($null -ne $_.Exception.Response -and $null -ne $_.Exception.Response.StatusCode){
+      $code=[int]$_.Exception.Response.StatusCode
+    }
+  }catch{}
+  $headers.Clear();$cfToken=$null
+  throw ('TOKEN_CLOUDFLARE_NO_VALIDO_HTTP_'+$code+'. Verifica el token en tu panel de Cloudflare. Ningun secreto enviado.')
+}
+if(-not $verified.success -or [string]$verified.result.status -ne 'active'){
+  $headers.Clear();$cfToken=$null
+  throw 'TOKEN_CLOUDFLARE_NO_VALIDO: Token no activo. Ningun secreto enviado.'
+}
+Write-Host 'TOKEN_VERIFICADO: Cloudflare confirmo que el token esta activo.'
+$endpoint="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/workers/scripts/dr-revelo-enrollment/secrets-bulk"
 # Cloudflare recommends one atomic PATCH for multiple secrets. JSON stays
 # only in the PowerShell process and is never stored in a file.
 $payload=@{secrets=@{
@@ -186,7 +263,6 @@ try {
 }finally{
   $body=$null;$payload=$null;$recB64=$null;$histB64=$null
   $headers.Clear();$cfToken=$null
-  $cfSecure.Dispose()
 }
 Write-Host 'Los 3 secretos se registraron en el Worker aislado.'
 # Verify the currently LIVE worker actually uses the secrets; do not assume
