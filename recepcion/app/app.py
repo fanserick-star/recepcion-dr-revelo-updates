@@ -11,6 +11,7 @@ core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
 # Registra sólo endpoints de consulta AZUR v2, sin alterar el motor de emisión.
 import reception_azur_readonly as _azur_readonly
+import reception_azur_pos80 as _azur_pos80
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()
