@@ -81,6 +81,7 @@ jobs:
           node tools/test_reception_azur_readonly_ui_4846.mjs
           python -m py_compile recepcion/app/reception_azur_pos80.py
           python tools/test_reception_azur_pos80_4847.py
+          node --check recepcion/app/static/azur_pos80_ui.js
           node tools/test_reception_azur_pos80_ui_4847.mjs
           python tools/test_reception_advanced_billing_4842.py
           node tools/test_reception_agenda_status_contrast.mjs
