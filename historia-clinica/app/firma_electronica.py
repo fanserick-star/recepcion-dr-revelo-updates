@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-# Firma PAdES local: nunca persistir la contraseña del certificado.
+# Firma PAdES local. El usuario puede optar por guardar la clave solo cifrada con DPAPI de Windows.
 
+import ctypes
+from ctypes import wintypes
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -22,6 +25,8 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 _LOCK = threading.RLock()
 _DEPENDENCY_LOCK = threading.Lock()
+_REMEMBER_LOCK = threading.RLock()
+_AUTOUNLOCK_DISABLED = False  # tras error o bloqueo manual; se restablece al reiniciar
 _SESSION = {
     "passphrase": None,
     "expires_at": 0.0,
@@ -140,6 +145,132 @@ def _certificate_validity_iso(cert, attr: str, asn1_key: str) -> str:
         return value.isoformat()
     except Exception:
         return str(value).strip()
+
+
+# No se utiliza almacenamiento de navegador, Neon, .env, ni DPAPI de equipo.
+# DPAPI con contexto de usuario de Windows: solo el MISMO usuario puede descifrar.
+# Riesgo residual: cualquier proceso ejecutándose bajo ese usuario de Windows
+# puede potencialmente reutilizar la credencial. Bloquee Windows al ausentarse.
+_SAVED_SECRET_MAGIC = b"HISTORIA_DOCTOR_DPAPI_V1\x00"
+
+
+def _remember_file(root: Path) -> Path:
+    return _paths(root)["firma_dir"] / "clave_firma_windows.dpapi"
+
+
+def _can_remember() -> bool:
+    return os.name == "nt"
+
+
+def _dpapi_crypt(value: bytes, entropy: bytes, *, decrypt: bool) -> bytes:
+    """Win32 CryptProtectData/CryptUnprotectData; alcance CURRENT_USER.
+
+    CRYPTPROTECT_LOCAL_MACHINE nunca se utiliza. Entropía ligada a los bytes
+    del certificado .p12 para impedir reutilizar la clave con otro archivo.
+    """
+    if not _can_remember():
+        raise RuntimeError("Recordar la firma solo está disponible en Windows.")
+    if not value or not entropy:
+        raise ValueError("No se puede proteger una credencial vacía.")
+    class DATA_BLOB(ctypes.Structure):
+        _fields_ = [
+            ("cbData", wintypes.DWORD),
+            ("pbData", ctypes.POINTER(ctypes.c_ubyte)),
+        ]
+    def blob(data: bytes):
+        buf = ctypes.create_string_buffer(data)
+        result = DATA_BLOB(len(data), ctypes.cast(buf, ctypes.POINTER(ctypes.c_ubyte)))
+        return result, buf
+
+    crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    # Signature: BOOL CryptProtectData(DATA_BLOB*, LPCWSTR, DATA_BLOB*,
+    #                                  PVOID, CRYPTPROTECT_PROMPTSTRUCT*, DWORD, DATA_BLOB*)
+    # CryptUnprotectData takes LPWSTR* as the second argument.
+    function = crypt32.CryptUnprotectData if decrypt else crypt32.CryptProtectData
+    function.argtypes = [
+        ctypes.POINTER(DATA_BLOB), ctypes.c_void_p, ctypes.POINTER(DATA_BLOB),
+        ctypes.c_void_p, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(DATA_BLOB)
+    ]
+    function.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    input_blob, input_buffer = blob(value)
+    entropy_blob, entropy_buffer = blob(entropy)
+    output_blob = DATA_BLOB()
+    # Flag 0x1: CRYPTPROTECT_UI_FORBIDDEN (no emergent dialogs).
+    if not function(ctypes.byref(input_blob), None, ctypes.byref(entropy_blob),
+                    None, None, 0x1, ctypes.byref(output_blob)):
+        raise OSError(ctypes.get_last_error(), "Windows no pudo proteger o recuperar la clave de firma.")
+    try:
+        return ctypes.string_at(output_blob.pbData, output_blob.cbData)
+    finally:
+        kernel32.LocalFree(ctypes.cast(output_blob.pbData, ctypes.c_void_p))
+
+
+def _certificate_entropy(root: Path) -> bytes:
+    path = _certificate_path(root)
+    if not path.is_file():
+        raise FileNotFoundError("El certificado de firma no está configurado.")
+    return hashlib.sha256(path.read_bytes()).digest()
+
+
+def _save_remembered_secret(root: Path, password: bytes) -> None:
+    """Opt-in explícito. El archivo escrito contiene SOLO ciphertext DPAPI."""
+    if not _can_remember():
+        raise RuntimeError("Solo puede recordar la firma en una PC con Windows.")
+    with _REMEMBER_LOCK:
+        encrypted = _dpapi_crypt(password, _certificate_entropy(root), decrypt=False)
+        target = _remember_file(root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp = target.with_name(target.name + "." + secrets.token_hex(8) + ".tmp")
+        try:
+            with temp.open("xb") as file:
+                file.write(_SAVED_SECRET_MAGIC + encrypted)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temp, target)
+        finally:
+            temp.unlink(missing_ok=True)
+        global _AUTOUNLOCK_DISABLED
+        _AUTOUNLOCK_DISABLED = False
+
+
+def _forget_remembered_secret(root: Path) -> None:
+    """Desactiva el auto desbloqueo y elimina la única copia DPAPI local."""
+    global _AUTOUNLOCK_DISABLED
+    with _REMEMBER_LOCK:
+        _AUTOUNLOCK_DISABLED = True
+        _remember_file(root).unlink(missing_ok=True)
+
+
+def _try_restore_remembered(root: Path) -> bool:
+    """Desbloqueo al abrir/consultar, sin guardar clave legible ni salir al navegador."""
+    global _AUTOUNLOCK_DISABLED
+    if _session_passphrase() is not None:
+        return True
+    if not _can_remember():
+        return False
+    with _REMEMBER_LOCK:
+        if _AUTOUNLOCK_DISABLED:
+            return False
+        try:
+            saved = _remember_file(root)
+            if not saved.is_file():
+                return False
+            raw = saved.read_bytes()
+            if not raw.startswith(_SAVED_SECRET_MAGIC) or len(raw) < len(_SAVED_SECRET_MAGIC) + 20:
+                raise ValueError("Credencial protegida incompleta.")
+            secret = _dpapi_crypt(raw[len(_SAVED_SECRET_MAGIC):], _certificate_entropy(root), decrypt=True)
+            # La firma solo queda activa si la clave realmente abre el P12 actual.
+            _unlock(root, secret.decode("utf-8"), _DEFAULT_SESSION_SECONDS)
+            return True
+        except Exception:
+            # Si cambió el certificado/usuario Windows, vuelve al modo manual.
+            # No mostrar ni registrar contraseñas ni excepciones sensibles.
+            _AUTOUNLOCK_DISABLED = True
+            _session_clear()
+            return False
 
 
 def _certificate_metadata(signer) -> dict:
@@ -284,6 +415,7 @@ def _unlock(root: Path, password: str, ttl_seconds: int = _DEFAULT_SESSION_SECON
 
 
 def _status(root: Path) -> dict:
+    _try_restore_remembered(root)
     cert_path = _certificate_path(root)
     passphrase = _session_passphrase()
     with _LOCK:
@@ -296,6 +428,8 @@ def _status(root: Path) -> dict:
         }
     return {
         "configured": cert_path.is_file(),
+        "remember_supported": _can_remember(),
+        "remembered": _can_remember() and _remember_file(root).is_file(),
         "unlocked": passphrase is not None,
         "certificate_name": cert_path.name if cert_path.is_file() else "",
         "certificate_path": str(cert_path) if cert_path.is_file() else "",
@@ -347,6 +481,7 @@ def _install_certificate(root: Path, source: Path) -> Path:
     config = _load_config(root)
     config["certificate_path"] = str(target)
     _save_config(root, config)
+    _forget_remembered_secret(root)  # cambio de P12: invalida clave anterior
     _session_clear()
     return target
 
@@ -728,6 +863,8 @@ def install(app, context: dict) -> None:
     _paths(root)["firma_dir"].mkdir(parents=True, exist_ok=True)
     _paths(root)["signed_dir"].mkdir(parents=True, exist_ok=True)
     _ensure_audit_schema(db_path)
+    # Intentar restaurar la clave protegida al abrir el programa sin pedirla.
+    _try_restore_remembered(root)
 
     @app.get("/firma-electronica", response_class=HTMLResponse)
     def firma_page(request: Request):
@@ -756,7 +893,18 @@ def install(app, context: dict) -> None:
         _require_local(request)
         try:
             payload = await request.json()
-            meta = _unlock(root, str(payload.get("password") or ""), _DEFAULT_SESSION_SECONDS)
+            password = str(payload.get("password") or "")
+            remember = payload.get("remember") is True
+            if remember and not _can_remember():
+                return JSONResponse({"ok": False, "error": "Recordar la clave solo está disponible en Windows."}, status_code=400)
+            meta = _unlock(root, password, _DEFAULT_SESSION_SECONDS)
+            if remember:
+                try:
+                    _save_remembered_secret(root, password.encode("utf-8"))
+                except Exception:
+                    return JSONResponse({"ok": False, "error": "Firma desbloqueada, pero Windows no pudo guardar la credencial protegida. Revise los permisos de la PC."}, status_code=409)
+            elif _remember_file(root).exists():
+                _forget_remembered_secret(root)
             return JSONResponse({"ok": True, **meta, **_status(root)})
         except Exception as exc:
             _session_clear()
@@ -767,6 +915,13 @@ def install(app, context: dict) -> None:
         _require_local(request)
         _session_clear()
         return JSONResponse({"ok": True})
+
+    @app.post("/api/firma/olvidar")
+    def firma_forget(request: Request):
+        _require_local(request)
+        _forget_remembered_secret(root)
+        _session_clear()
+        return JSONResponse({"ok": True, **_status(root)})
 
     @app.get("/api/firma/documento/{kind}/{doc_id}")
     def firma_document(request: Request, kind: str, doc_id: str):
@@ -780,7 +935,7 @@ def install(app, context: dict) -> None:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if not _document_exists(db_path, kind, doc_id):
             raise HTTPException(status_code=404, detail="Documento no encontrado.")
-        if _session_passphrase() is None:
+        if not _try_restore_remembered(root):
             return JSONResponse(
                 {"ok": False, "error": "Firma electrónica bloqueada. Abra Configuración > Firma electrónica e ingrese la contraseña."},
                 status_code=423,
