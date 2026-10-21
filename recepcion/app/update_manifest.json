@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.48",
-  "app_version": "4.8.48",
-  "runtime_version": "4.8.48",
+  "version": "4.8.49",
+  "app_version": "4.8.49",
+  "runtime_version": "4.8.49",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.48: corrige impresión de facturas AZUR 80 mm cuando el usuario utiliza la impresora predeterminada de Windows. Verifica dispositivos instalados, muestra el destino real para confirmar antes de imprimir y mantiene vista previa y emisión fiscal intactas. No cambia facturas, caja, Neon, agenda ni Historia.",
-    "previous_version": "4.8.47",
+    "purpose": "Recepción 4.8.49: mejoras cuidadosas al ticket RIDE 80mm inspiradas en el formato oficial de AZUR, manteniendo layout compacto. Añade ambiente PRODUCCIÓN, fecha/hora legible, descripción confirmada de pago 01, contacto del destinatario solo si existe en el XML firmado y suprime dirección sucursal duplicada. Sin cambios en emisiones, facturas históricas ni Neón.",
+    "previous_version": "4.8.48",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -191,7 +191,7 @@
     "patient_data_changes": true,
     "patient_data_destructive_changes": false,
     "billing_logic_changes": false,
-    "azur_logic_changes": true,
+    "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
     "whatsapp_send_schedule_changes": false,
     "whatsapp_template_changes": false,

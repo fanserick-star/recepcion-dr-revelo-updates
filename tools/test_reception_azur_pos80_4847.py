@@ -49,7 +49,7 @@ scope={
     "read":SimpleNamespace(_invoice_norm=_norm),
     "_XML_MAX_BYTES":2*1024*1024,
 }
-for key in ("_text","_decimal","_money","_safe_xml","_authorized_xml_to_ticket"):
+for key in ("_text","_decimal","_money","_contact_from_additional","_safe_xml","_authorized_xml_to_ticket"):
     exec(compile(ast.Module(body=[fns[key]],type_ignores=[]),"<invoice XML unit>","exec"),scope)
 
 key="1"*49
@@ -78,7 +78,7 @@ for scenario in [
     except ExpectedReject:pass
     else:raise AssertionError("A malformed or unverified XML reached print preparation")
 manifest=json.loads((base/"update_manifest.json").read_text())
-assert manifest["version"] in {"4.8.47","4.8.48"}
+assert manifest["version"] in {"4.8.47","4.8.48","4.8.49"}
 for field in ("copy","required_dependencies"):assert "reception_azur_pos80.py" in manifest[field]
 assert "import reception_azur_pos80 as _azur_pos80" in (base/"app.py").read_text()
 print("AZUR_AUTHORIZED_XML_POS80_SAFE_PARSER_4847_OK")

@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener
@@ -40,6 +41,41 @@ def _decimal(value: str) -> Decimal:
 
 def _money(value) -> str:
     return f"{_decimal(value):.2f}"
+
+
+def _format_authorization_datetime(value: str) -> str:
+    """Show the hour given by SRI without changing its timezone."""
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        when = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        return when.strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        # Never invent a timestamp or hide an unusual original from SRI.
+        return text
+
+
+def _payment_method_label(code: str) -> str:
+    """Only expand the code explicitly confirmed in the original AZUR POS."""
+    token = str(code or "").strip()
+    if token == "01":
+        return "SIN UTILIZACION DEL SISTEMA FINANCIERO"
+    return "Forma de pago " + token if token else "Forma de pago"
+
+
+def _contact_from_additional(items: list[dict]) -> tuple[str, str]:
+    """Return contact data only when explicitly present in the signed XML."""
+    phone = ""
+    email = ""
+    for field in items:
+        kind = str(field.get("nombre") or "").casefold().strip()
+        value = str(field.get("valor") or "").strip()
+        if kind in ("telefono", "teléfono", "celular", "telefono cliente", "teléfono cliente") and not phone:
+            phone = value
+        if kind in ("correo", "correo electronico", "correo electrónico", "email", "e-mail") and not email:
+            email = value
+    return phone, email
 
 
 def _safe_xml(raw: bytes) -> ET.Element:
@@ -117,7 +153,13 @@ def _authorized_xml_to_ticket(raw: bytes, expected_key: str, expected_number: st
             additional.append({"nombre": name[:50], "valor": field.text.strip()[:120]})
     payments = []
     for payment in invoice.findall("./infoFactura/pagos/pago"):
-        payments.append({"tipo": _text(payment, "formaPago"), "total": _money(_text(payment, "total"))})
+        payments.append({
+            "tipo": _text(payment, "formaPago"),
+            "total": _money(_text(payment, "total")),
+            "plazo": _text(payment, "plazo"),
+            "unidad_tiempo": _text(payment, "unidadTiempo"),
+        })
+    phone, email = _contact_from_additional(additional)
     return {
         "numero": num,
         "clave": expected_key,
@@ -136,6 +178,8 @@ def _authorized_xml_to_ticket(raw: bytes, expected_key: str, expected_number: st
         "fecha_emision": _text(info, "fechaEmision"),
         "cliente": _text(info, "razonSocialComprador"),
         "identificacion": _text(info, "identificacionComprador"),
+        "telefono_cliente": phone,
+        "correo_cliente": email,
         "direccion_cliente": _text(info, "direccionComprador"),
         "subtotal": _money(_text(info, "totalSinImpuestos")),
         "total_descuento": _money(_text(info, "totalDescuento") or "0"),
@@ -325,7 +369,8 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             write(ticket["nombre_comercial"], f_bold, True)
         write("RUC: " + ticket["ruc"], f_bold, True)
         if ticket["direccion_matriz"]: write("Matriz: " + ticket["direccion_matriz"], f_small)
-        if ticket["direccion_establecimiento"]: write("Sucursal: " + ticket["direccion_establecimiento"], f_small)
+        if ticket["direccion_establecimiento"] and ticket["direccion_establecimiento"].strip().casefold() != (ticket["direccion_matriz"] or "").strip().casefold():
+            write("Sucursal: " + ticket["direccion_establecimiento"], f_small)
         if ticket["obligado_contabilidad"]: write("Obligado contabilidad: " + ticket["obligado_contabilidad"], f_small)
         if ticket["contribuyente_especial"]: write("Contribuyente especial: " + ticket["contribuyente_especial"], f_small)
         if ticket["regimen"]: write(ticket["regimen"], f_small)
@@ -333,12 +378,16 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         write("FACTURA ELECTRONICA", f_title, True)
         write(ticket["numero"], f_title, True)
         write("AUTORIZADA POR EL SRI", f_bold, True)
+        write("Ambiente: PRODUCCION", f_small, True)
         write("Emision: " + ticket["fecha_emision"], f_text)
-        write("Autorizacion: " + ticket["fecha_autorizacion"], f_small)
+        if ticket["fecha_autorizacion"]:
+            write("Autorizada: " + _format_authorization_datetime(ticket["fecha_autorizacion"]), f_small)
         line()
         write("CLIENTE: " + ticket["cliente"], f_bold)
         write("Identificacion: " + ticket["identificacion"], f_text)
         if ticket["direccion_cliente"]: write("Direccion: " + ticket["direccion_cliente"], f_small)
+        if ticket.get("telefono_cliente"): write("Telefono: " + ticket["telefono_cliente"], f_small)
+        if ticket.get("correo_cliente"): write("Correo: " + ticket["correo_cliente"], f_small)
         line()
         write("DETALLE", f_bold)
         for item in docs:
@@ -356,11 +405,26 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         if ticket["pagos"]:
             line()
             for pago in ticket["pagos"]:
-                write("Forma de pago " + pago["tipo"] + ": $" + pago["total"], f_small)
+                write(_payment_method_label(pago["tipo"]), f_small)
+                write("Valor: $" + pago["total"], f_small)
+                try:
+                    plazo = _decimal(pago.get("plazo") or "0")
+                except core.HTTPException:
+                    plazo = Decimal("0")
+                if plazo > 0:
+                    write("Plazo: " + str(plazo) + " " + str(pago.get("unidad_tiempo") or ""), f_small)
         if ticket["adicional"]:
-            line()
-            for field in ticket["adicional"]:
-                write(field["nombre"] + ": " + field["valor"], f_small)
+            # Move recognized recipient contacts beside recipient details.
+            # Other signed extra fields still appear once, as before.
+            extra = [field for field in ticket["adicional"]
+                     if str(field["nombre"]).casefold().strip() not in (
+                         "telefono", "teléfono", "celular", "telefono cliente",
+                         "teléfono cliente", "correo", "correo electronico",
+                         "correo electrónico", "email", "e-mail")]
+            if extra:
+                line()
+                for field in extra:
+                    write(field["nombre"] + ": " + field["valor"], f_small)
         line()
         write("CLAVE DE ACCESO / AUTORIZACION", f_bold, True)
         key = ticket["clave"]
