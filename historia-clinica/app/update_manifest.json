@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.11",
-  "app_version": "1.4.11",
-  "runtime_version": "1.4.11",
+  "version": "1.4.12",
+  "app_version": "1.4.12",
+  "runtime_version": "1.4.12",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -80,8 +80,8 @@
     "update_manifest.json"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.11: Informes A4 de ecografía y cistoscopia, vinculados a pacientes y consultas, guardado voluntario, impresión directa, firma PAdES y sincronización mediante documentos clínicos existentes. Sin alterar fichas ni datos de pacientes.",
-    "previous_version": "1.4.10",
+    "purpose": "Corrección del paginado A4 en informes de cistoscopía y ecografía: informes habituales en una sola hoja, con o sin firma electrónica; QR PAdES en la misma hoja. Impresión limpia, documentos ya firmados inmutables. No modifica fichas, consultas ni sincronización.",
+    "previous_version": "1.4.11",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -223,6 +223,8 @@
     ],
     "clinical_reports_no_auto_diagnosis": true,
     "clinical_reports_no_autosave": true,
-    "clinical_reports_storage": "certificates_tipado"
+    "clinical_reports_storage": "certificates_tipado",
+    "clinical_reports_a4_print_fix": true,
+    "clinical_reports_signed_immutable": true
   }
 }
