@@ -208,7 +208,15 @@ $headers=@{Authorization=('Bearer '+$cfToken)}
 # Confirm the token before uploading any database credentials.
 # Do not log token details, API responses or HTTP exception messages.
 try{
-  $verified=Invoke-RestMethod -Method Get -Uri 'https://api.cloudflare.com/client/v4/user/tokens/verify' -Headers $headers -TimeoutSec 25
+  # Account-owned tokens (cfat_) use account-scoped verification;
+  # user tokens (cfut_ or legacy) use user-scoped verification.
+  # Do not silently treat the wrong verification endpoint as a revoked token.
+  if($cfToken.StartsWith('cfat_',[StringComparison]::Ordinal)){
+    $verifyUri="https://api.cloudflare.com/client/v4/accounts/$CloudflareAccountId/tokens/verify"
+  }else{
+    $verifyUri='https://api.cloudflare.com/client/v4/user/tokens/verify'
+  }
+  $verified=Invoke-RestMethod -Method Get -Uri $verifyUri -Headers $headers -TimeoutSec 25
 }catch{
   $code=0
   try{
