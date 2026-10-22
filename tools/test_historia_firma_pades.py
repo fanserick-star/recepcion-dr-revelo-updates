@@ -93,6 +93,17 @@ def main() -> None:
         signed = root / "firmado.pdf"
         _minimal_pdf(source)
         assert fe._pdf_page_count(source) == 1
+        from unittest.mock import patch
+        attempts = []
+        def render_try(url, dest):
+            attempts.append(url)
+            dest.write_bytes(b"compact" if "compact=1" in url else b"original")
+        with patch.object(fe, "_render_pdf_from_url", side_effect=render_try):
+            with patch.object(fe, "_pdf_page_count", side_effect=[2, 1]):
+                candidate = root / "candidate.pdf"
+                assert fe._render_report_pdf_with_reflow("http://localhost/informes/test/vista", candidate) == 1
+                assert candidate.read_bytes() == b"compact"
+        assert len(attempts) == 2 and "compact=1" in attempts[1]
         meta_signed = fe._sign_pdf(
             root,
             source,
