@@ -45,8 +45,8 @@ for needle in ('class="v4854-azur-prices"', 'colspan="2"', 'v4854-azur-detail',
                "esc(x.unitario)","esc(x.descuento||'0.00')"):
  assert needle in preview,needle
 assert ".v4854-azur-detail" in css
-for token in ('azur_pos80_ui.js?v=4.8.59',
-              'billing_advanced.css?v=4.8.59',
-              'billing_advanced.js?v=4.8.59'):
+for token in ('azur_pos80_ui.js?v=4.8.60',
+              'billing_advanced.css?v=4.8.60',
+              'billing_advanced.js?v=4.8.60'):
  assert token in html,token
 print("AZUR_80MM_UNCLIPPED_TITLE_LEGIBLE_THREE_COLUMNS_AND_FULL_XML_4854_OK")
