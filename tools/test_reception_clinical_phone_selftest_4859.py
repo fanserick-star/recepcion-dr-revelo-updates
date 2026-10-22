@@ -34,6 +34,11 @@ assert "with urllib.request.urlopen(url, timeout=25)" in src
 assert "hmac.compare_digest(hashlib.sha256(downloaded).digest(),hashlib.sha256(pdf).digest())" in src
 assert '"DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)"' in src
 assert '"clinical-temp/self-test/"' in src
+assert 'def _check_r2():' in src
+assert '@app.post("/api/clinical-delivery/check-r2")' in src
+assert 'x-amz-expiration' in src
+assert '_r2_url("DELETE",key,180)' in src
+assert "'/api/clinical-delivery/check-r2'" in ui
 assert '"ready_test"' in src
 assert 'time.monotonic() - _LAST_TEST_SEND < 300' in src
 assert 'def _linked_patient(pid):' in src
