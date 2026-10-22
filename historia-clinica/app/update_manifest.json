@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.21",
-  "app_version": "1.4.21",
-  "runtime_version": "1.4.21",
+  "version": "1.4.22",
+  "app_version": "1.4.22",
+  "runtime_version": "1.4.22",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.21: expone únicamente el PDF firmado original por LAN a la Recepción autorizada, comprobando vínculo, token temporal, HMAC compartida, huella SHA-256 y ubicación permitida. Conserva sin alterar informes y correcciones de Historia 1.4.20. Sin nuevas firmas, ni edición, ni cambios de pacientes, recetas, certificados, agenda o Neón.",
-    "previous_version": "1.4.20",
+    "purpose": "Historia 1.4.22: permite leer la clave privada HMAC del puente de documentos firmados desde el .env local protegido de Historia. No cambia consultas, informes, recetas, certificados, impresión, sincronización ni firma electrónica.",
+    "previous_version": "1.4.21",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -281,6 +281,7 @@
     "clinical_signed_pdf_sha256_checked": true,
     "clinical_signed_pdf_never_resigned": true,
     "clinical_signed_pdf_hmac_required": true,
-    "clinical_signed_pdf_no_patient_changes": true
+    "clinical_signed_pdf_no_patient_changes": true,
+    "clinical_delivery_lan_shared_secret_private_env": true
   }
 }
