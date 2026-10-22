@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.50",
-  "app_version": "4.8.50",
-  "runtime_version": "4.8.50",
+  "version": "4.8.51",
+  "app_version": "4.8.51",
+  "runtime_version": "4.8.51",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.50: calibración exclusiva de ticket térmico AZUR 80 mm. Aumenta espacio sobre los glifos para evitar cortar la parte superior de letras y desplaza con límite de seguridad el contenido ~2 mm a la izquierda. Preserva datos del XML SRI autorizado, totales, numeración, PDF-inspired layout, Emisiones, AZUR, Neon, WhatsApp e Historia sin alteraciones.",
-    "previous_version": "4.8.49",
+    "purpose": "TV recibe eventos de llamado explícito desde Historia Clínica mediante LAN, una sola vez por evento. Preserva audio y voz, llamados automáticos actuales, seguridad de turnos, y funcionamiento AZUR/Neón.",
+    "previous_version": "4.8.50",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -566,7 +566,10 @@
     "tv_idle_clock_large_diameter": "min(65vh,46vw)",
     "tv_idle_clock_no_external_images": true,
     "tv_idle_clock_duplicate_digital_clock_removed": true,
-    "tv_idle_clock_header_date_time_preserved": true
+    "tv_idle_clock_header_date_time_preserved": true,
+    "doctor_manual_turn_call": true,
+    "tv_call_deduplication": true,
+    "tv_call_preserves_legacy": true
   },
   "channel": "launcher-v1-stable"
 }
