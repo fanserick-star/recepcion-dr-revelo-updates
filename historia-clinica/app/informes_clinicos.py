@@ -28,7 +28,8 @@ REPORT_TYPES = {
         "description": "Registrar los hallazgos endoscópicos sin texto clínico predefinido.",
         "fields": (
             ("equipo", "Equipo e instrumental utilizado", "Ej. modelo y óptica; completar si corresponde"),
-            ("uretra", "Uretra", "Descripción de los hallazgos"),
+            ("uretra_anterior", "Uretra anterior", "Hallazgos de la uretra anterior"),
+            ("uretra_posterior", "Uretra posterior", "Hallazgos de la uretra posterior"),
             ("cuello", "Cuello vesical", "Descripción de los hallazgos"),
             ("vejiga", "Vejiga y paredes vesicales", "Descripción de los hallazgos"),
             ("meatos", "Meatos ureterales", "Descripción de los hallazgos"),
@@ -66,12 +67,25 @@ def _report_row(conn, report_id: str):
     ).fetchone()
 
 
-def _report_fields(row, kind: str) -> dict:
+def _stored_raw_fields(row) -> dict:
+    """Leer hallazgos tal como se guardaron, sin reinterpretar anatomía previa."""
     try:
         data = json.loads(str(row["extra_json"] or "{}")) if row else {}
-        raw = data.get("fields", {}) if isinstance(data, dict) else {}
+        fields = data.get("fields", {}) if isinstance(data, dict) else {}
+        return fields if isinstance(fields, dict) else {}
     except (ValueError, TypeError):
-        raw = {}
+        return {}
+
+
+def _legacy_uretra(row, kind: str) -> str:
+    """Los informes previos tenían un campo único. No se reparte automáticamente."""
+    if kind != "cistoscopia":
+        return ""
+    return str(_stored_raw_fields(row).get("uretra") or "")
+
+
+def _report_fields(row, kind: str) -> dict:
+    raw = _stored_raw_fields(row)
     return {key: str(raw.get(key) or "") for key, _, _ in REPORT_TYPES[kind]["fields"]}
 
 
@@ -108,12 +122,15 @@ def _age_at(birth: str, issued: str) -> str:
         return ""
 
 
-def _body_from_fields(kind: str, values: dict) -> str:
-    return "\n\n".join(
-        f"{label.upper()}: {str(values.get(key) or '').strip()}"
-        for key, label, _ in REPORT_TYPES[kind]["fields"]
-        if str(values.get(key) or "").strip()
-    )
+def _body_from_fields(kind: str, values: dict, legacy_uretra: str = "") -> str:
+    paragraphs = []
+    for key, label, _ in REPORT_TYPES[kind]["fields"]:
+        content = str(values.get(key) or "").strip()
+        if content:
+            paragraphs.append(f"{label.upper()}: {content}")
+        if key == "uretra_posterior" and legacy_uretra.strip() and kind == "cistoscopia":
+            paragraphs.append(f"URETRA (REGISTRO ANTERIOR): {legacy_uretra.strip()}")
+    return "\n\n".join(paragraphs)
 
 
 def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id="", from_consultation=0) -> HTMLResponse:
@@ -135,6 +152,16 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
         "</label>"
         for key, label, hint in config["fields"]
     )
+    legacy_uretra = _legacy_uretra(row, kind)
+    if legacy_uretra.strip():
+        # Solo en fichas anteriores: visible y legible, no se mezcla con
+        # anterior/posterior ni se manda como campo nuevo desde el navegador.
+        fields_markup += (
+            "<label class='full'>Uretra (registro anterior, conservado)"
+            "<textarea class='report-input' readonly rows='3' "
+            "title='Contenido histórico que se conserva sin clasificar'>"
+            + _e(legacy_uretra) + "</textarea></label>"
+        )
     signed = bool(row and _has_report_signature(conn, report_id))
     status_text = "Informe firmado electrónicamente: solo lectura" if signed else ("Editando informe guardado" if row else "Sin guardar")
     report_json = json.dumps({
@@ -259,10 +286,20 @@ def _print_html(row, settings, print_now: bool, compact: bool = False) -> str:
     config = REPORT_TYPES[kind]
     fields = _report_fields(row, kind)
     # El contenido almacenado se muestra exactamente como lo redactó el médico.
-    sections = "".join(
-        f"<section class='finding'><h3>{_e(label)}</h3><div>{_e(fields[key])}</div></section>"
-        for key, label, _ in config["fields"] if str(fields.get(key) or "").strip()
-    )
+    section_parts = []
+    legacy_uretra = _legacy_uretra(row, kind)
+    for key, label, _ in config["fields"]:
+        if str(fields.get(key) or "").strip():
+            section_parts.append(
+                f"<section class='finding'><h3>{_e(label)}</h3><div>{_e(fields[key])}</div></section>"
+            )
+        if key == "uretra_posterior" and legacy_uretra.strip():
+            # PDF histórico: texto íntegro con su etiqueta de origen.
+            section_parts.append(
+                "<section class='finding'><h3>Uretra (registro anterior)</h3>"
+                f"<div>{_e(legacy_uretra)}</div></section>"
+            )
+    sections = "".join(section_parts)
     patient_name = _e(row["name"])
     national_id = _e(row["national_id"])
     issued = str(row["issued_at"] or "")[:10]
@@ -480,9 +517,18 @@ def install(app, context: dict) -> None:
                 return JSONResponse({"ok":False,"error":"No se puede cambiar la consulta asociada."},status_code=409)
             if current and not encounter_id:
                 encounter_id = str(current["encounter_id"] or "")
+            # Si se edita una cistoscopía anterior al cambio, nunca borrar
+            # silenciosamente sus hallazgos de uretra. Mantenerlos originales
+            # en extra_json y en el cuerpo, sin atribuirlos a una región.
+            legacy_uretra = ""
+            if current and kind == "cistoscopia":
+                legacy_uretra = _legacy_uretra(_report_row(conn, report_id), kind)
+            retained_fields = dict(values)
+            if legacy_uretra:
+                retained_fields["uretra"] = legacy_uretra
             issued_at = issued_date + "T" + datetime.now().strftime("%H:%M:%S")
-            details = json.dumps({"version":1,"report_type":kind,"fields":values}, ensure_ascii=False)
-            body_text = _body_from_fields(kind, values)
+            details = json.dumps({"version":1,"report_type":kind,"fields":retained_fields}, ensure_ascii=False)
+            body_text = _body_from_fields(kind, values, legacy_uretra)
             conclusion = values.get("conclusion", "")
             if current:
                 conn.execute(
