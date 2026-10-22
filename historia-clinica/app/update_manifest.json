@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.18",
-  "app_version": "1.4.18",
-  "runtime_version": "1.4.18",
+  "version": "1.4.19",
+  "app_version": "1.4.19",
+  "runtime_version": "1.4.19",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Cistoscopía: reemplaza el campo único Uretra por dos cuadros independientes Uretra anterior y Uretra posterior en edición e impresión. Los informes históricos con Uretra conservan el hallazgo original sin clasificarlo automáticamente, incluso al editarlos. No modifica ecografías, certificados, PDF firmados, pacientes, Recepción ni Neón.",
-    "previous_version": "1.4.17",
+    "purpose": "Informes médicos: nuevo botón Eliminar con confirmación individual para cistoscopías/ecografías sin firma. Bloquea documentos firmados también en servidor. Elimina solo la fila del informe para que el sincronizador marque borrado en Neón; conserva pacientes, consultas, recetas y certificados. Registra auditoría sin datos médicos en la PC clínica.",
+    "previous_version": "1.4.18",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -100,7 +100,7 @@
     "tv_turn_state_lan_authenticated": true,
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
-    "clinical_data_changes": false,
+    "clinical_data_changes": true,
     "cloud_logic_changes": false,
     "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
@@ -264,6 +264,12 @@
     "cystoscopy_legacy_urethra_preserved": true,
     "cystoscopy_legacy_urethra_auto_split": false,
     "cystoscopy_previous_signed_pdf_immutable": true,
-    "cystoscopy_schema_migration": false
+    "cystoscopy_schema_migration": false,
+    "unsigned_report_manual_delete": true,
+    "signed_report_delete_blocked": true,
+    "report_delete_no_patient_or_encounter_mutation": true,
+    "report_delete_cloud_tombstone_via_existing_sync": true,
+    "report_delete_local_only": true,
+    "report_delete_confirmation_required": true
   }
 }

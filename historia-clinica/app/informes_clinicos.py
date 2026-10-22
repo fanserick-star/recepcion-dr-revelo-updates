@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 from datetime import date, datetime
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 import firma_electronica as firma
@@ -423,13 +423,30 @@ def install(app, context: dict) -> None:
                     FROM certificates c JOIN patients p ON p.id=c.patient_id
                     {where} ORDER BY c.issued_at DESC LIMIT 300""", args,
             ).fetchall()
+            # Respetar PDFs certificados y firmas registradas: jamás ofrecer
+            # un control de borrado en un documento ya firmado.
+            signed_ids = set()
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='electronic_signatures'").fetchone() and rows:
+                placeholders = ",".join("?" for _ in rows)
+                signed_ids = {
+                    str(v[0]) for v in conn.execute(
+                        f"SELECT DISTINCT document_id FROM electronic_signatures "
+                        f"WHERE document_type='informe' AND document_id IN ({placeholders})",
+                        [str(r["id"]) for r in rows],
+                    ).fetchall()
+                }
         table_rows = "".join(
             "<tr><td>"+_e(str(r["issued_at"] or "")[:10])+"</td>"
             "<td>"+_e(r["name"])+"</td>"
             "<td>"+_e(REPORT_TYPES[TYPE_BY_STORAGE[str(r["certificate_type"])]]["title"].title())+"</td>"
             "<td><a href='/informes/"+quote(r["id"])+"/vista' target='_blank'>Ver</a>"
             " · <a href='/informes/"+quote(r["id"])+"/editar'>Editar</a>"
-            " · <a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a></td></tr>"
+            " · <a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a>"
+            + (" · <span class='report-signed-protected' title='Un PDF firmado no puede eliminarse'>🔒 Firmado</span>"
+               if str(r["id"]) in signed_ids else
+               " · <button type='button' class='report-delete-btn' data-report-id='"
+               + _e(str(r["id"])) + "'>Eliminar</button>")
+            + "</td></tr>"
             for r in rows
         ) or "<tr><td colspan='4'>No existen informes guardados.</td></tr>"
         context = "&encounter_id="+quote(encounter_id)+"&queue_id="+quote(queue_id)+"&from_consultation="+str(int(bool(from_consultation)))
@@ -440,7 +457,81 @@ def install(app, context: dict) -> None:
             "</div>" if patient_id else ""
         )
         body = _styles() + "<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>DOCUMENTOS</span><h1>Informes médicos</h1><p>Ecografías y cistoscopias del paciente.</p>"+start+"</div></div><div class='docs-card'><table class='list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Estudio</th><th>Acciones</th></tr></thead><tbody>"+table_rows+"</tbody></table></div></section>"
+        body += """<style>
+.report-delete-btn{border:1px solid #e9b9b9;color:#9e3030;background:#fff7f7;
+ padding:7px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.report-delete-btn:hover{background:#ffebeb;border-color:#d17d7d}
+.report-delete-btn:disabled{opacity:.6;cursor:wait}
+.report-signed-protected{font-size:12px;color:#687a8b;font-weight:750;white-space:nowrap}
+</style><script>
+(function(){
+ document.addEventListener('click',async function(ev){
+  const button=ev.target.closest('.report-delete-btn');
+  if(!button)return;
+  const id=String(button.dataset.reportId||'');
+  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))return;
+  const row=button.closest('tr');
+  const patient=String(row?.cells?.[1]?.textContent||'').trim();
+  const study=String(row?.cells?.[2]?.textContent||'').trim();
+  if(!window.confirm('¿Eliminar este informe sin firmar de '+patient+' ('+study+')?\\n\\nSe quitará de los informes guardados. Esta acción no tiene deshacer y NO elimina la historia ni la consulta.'))return;
+  button.disabled=true;button.textContent='Eliminando…';
+  try{
+   const response=await fetch('/api/informes/'+encodeURIComponent(id)+'/eliminar',{
+    method:'POST',headers:{'X-Historia-Delete-Report':'1'},cache:'no-store'
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||!data.ok)throw new Error(data.error||'No se pudo eliminar el informe.');
+   location.reload();
+  }catch(e){
+   window.alert(e.message||'No se pudo eliminar el informe.');
+   button.disabled=false;button.textContent='Eliminar';
+  }
+ });
+})();
+</script>"""
         return HTMLResponse(base("Informes médicos", body, "informes"))
+
+    @app.post("/api/informes/{report_id}/eliminar")
+    def delete_unsigned_report(report_id: str, request: Request):
+        """Eliminar solo informes SIN firma. El trigger del sync genera tombstone.
+
+        DELETE real, no soft-delete: el sync de Historia usa el borrado de
+        filas ausentes para señalar deleted_at en Neón. Marcar deleted_at
+        localmente provocaría reaparición al sincronizar.
+        """
+        firma._require_local(request)
+        if str(request.headers.get("x-historia-delete-report") or "") != "1":
+            return JSONResponse({"ok":False,"error":"Solicitud de eliminación no autorizada."}, status_code=403)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", report_id or ""):
+            return JSONResponse({"ok":False,"error":"Identificador no válido."}, status_code=400)
+        with _connect(db_path) as conn:
+            # Serializar borrado y auditoría para no alterar registros parciales.
+            conn.execute("BEGIN IMMEDIATE")
+            row = _report_row(conn, report_id)
+            if not row:
+                return JSONResponse({"ok":False,"error":"Informe no encontrado o ya eliminado."}, status_code=404)
+            if _has_report_signature(conn, report_id):
+                return JSONResponse({"ok":False,"error":"Este informe tiene firma electrónica y no puede eliminarse."}, status_code=409)
+            result = conn.execute(
+                """DELETE FROM certificates
+                   WHERE id=? AND certificate_type IN ('report_cystoscopy','report_ultrasound')
+                     AND COALESCE(deleted_at,'')=''""",
+                (report_id,),
+            )
+            if result.rowcount != 1:
+                raise RuntimeError("No pudo verificarse la eliminación del informe.")
+            audit = context.get("audit")
+            if callable(audit) and conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'"
+            ).fetchone():
+                # Auditoría mínima sin copiar contenido médico ni cédulas.
+                audit(conn, "delete_unsigned_report", "certificate", report_id, {
+                    "document_type":str(row["certificate_type"]),
+                    "patient_id":str(row["patient_id"]),
+                    "reason":"Eliminación manual confirmada",
+                })
+            conn.commit()
+        return JSONResponse({"ok":True,"id":report_id,"message":"Informe sin firmar eliminado."})
 
     @app.get("/informes/nuevo", response_class=HTMLResponse)
     def new_report(patient_id: str, tipo: str = "cistoscopia", encounter_id: str = "", queue_id: str = "", from_consultation: int = 0):

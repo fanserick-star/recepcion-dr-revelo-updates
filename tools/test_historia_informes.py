@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "historia-clinica" / "app"))
 from fastapi import FastAPI
@@ -18,6 +19,17 @@ class FakeRequest:
 
     async def json(self):
         return self.data
+
+
+
+class LocalDeleteRequest:
+    base_url = "http://127.0.0.1:8000/"
+
+    def __init__(self, allow=True, host="127.0.0.1"):
+        self.client = SimpleNamespace(host=host)
+        self.headers = {"origin": "http://127.0.0.1:8000"}
+        if allow:
+            self.headers["x-historia-delete-report"] = "1"
 
 
 def response_json(response):
@@ -60,6 +72,7 @@ def main():
         preview = route("/informes/{report_id}/vista", "GET")
         listing = route("/informes", "GET")
         save = route("/api/informes", "POST")
+        delete_report = route("/api/informes/{report_id}/eliminar", "POST")
 
         created_form = new(
             "p1", "cistoscopia", "visit1", "", 1
@@ -196,6 +209,42 @@ def main():
                 "SELECT COUNT(*) FROM certificates WHERE certificate_type='medical'"
             ).fetchone()[0]
             assert certs == 0
+        # Bloqueo de informes firmados: no se ofrece botón ni se borra por API.
+        with sqlite3.connect(path) as conn:
+            conn.execute("""CREATE TABLE electronic_signatures(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_type TEXT,document_id TEXT,signed_at TEXT,
+                certificate_subject TEXT,certificate_serial TEXT,
+                pdf_sha256 TEXT,relative_path TEXT
+            )""")
+            conn.execute("""INSERT INTO electronic_signatures(document_type,document_id,signed_at,pdf_sha256,relative_path)
+                            VALUES('informe',?,'2026-10-22T10:00:00','test','test.pdf')""", (rid,))
+            conn.commit()
+        signed_list = listing().body.decode("utf-8")
+        assert "🔒 Firmado" in signed_list
+        assert "data-report-id='" + rid + "'" not in signed_list
+        assert delete_report(rid, LocalDeleteRequest()).status_code == 409
+
+        # Informes no firmados: acción manual desde la lista.
+        list_html = listing().body.decode("utf-8")
+        assert "report-delete-btn" in list_html
+        assert "data-report-id='" + result["id"] + "'" in list_html
+        assert delete_report(result["id"], LocalDeleteRequest(allow=False)).status_code == 403
+        from fastapi import HTTPException
+        try:
+            delete_report(result["id"], LocalDeleteRequest(host="192.168.1.10"))
+            raise AssertionError("Acceso desde otra PC no autorizado")
+        except HTTPException as exc:
+            assert exc.status_code == 403
+        deleted = response_json(delete_report(result["id"], LocalDeleteRequest()))
+        assert deleted["ok"] and deleted["id"] == result["id"]
+        assert preview(result["id"]).status_code == 404
+        assert delete_report(result["id"], LocalDeleteRequest()).status_code == 404
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM certificates WHERE id=?", (rid,)).fetchone()[0] == 1
+        print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
 
