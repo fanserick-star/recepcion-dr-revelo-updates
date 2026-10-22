@@ -21,9 +21,8 @@ import threading
 import time
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import core_runtime as core
 import historia_lan_transport as lan
@@ -33,7 +32,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 app = core.app
-TZ = ZoneInfo("America/Guayaquil")
+TZ = timezone(timedelta(hours=-5))
 ROOT = Path(__file__).resolve().parent
 AUDIT_DB = ROOT / "data" / "clinical_delivery_audit.db"
 LIMIT_VIDEO = 550 * 1024 * 1024
@@ -191,7 +190,7 @@ def _r2_url(method, key, expires=604800):
     secret=os.environ["CLINICAL_R2_SECRET_ACCESS_KEY"].strip()
     host=f"{account}.r2.cloudflarestorage.com"
     path="/"+urllib.parse.quote(bucket+"/"+key,safe="/-_.~")
-    now=datetime.now(ZoneInfo("UTC"))
+    now=datetime.now(timezone.utc)
     stamp=now.strftime("%Y%m%dT%H%M%SZ")
     day=stamp[:8]
     scope=f"{day}/auto/s3/aws4_request"
@@ -378,7 +377,9 @@ async def delivery_send_video(pid:int,request:Request,confirmed_phone:str,
                 if size>LIMIT_VIDEO:
                     raise core.HTTPException(413,"Video demasiado grande (máximo 550 MB)")
                 f.write(chunk)
-        if size<1024 or b"ftyp" not in Path(tmp).read_bytes()[:24]:
+        with open(tmp,"rb") as video_check:
+            header=video_check.read(24)
+        if size<1024 or b"ftyp" not in header:
             raise core.HTTPException(415,"El archivo no parece un video MP4 válido")
         return await asyncio.to_thread(_deliver_temp,pid,"video",secrets.token_hex(12),tmp,
                                        "video/mp4",patient,user)
