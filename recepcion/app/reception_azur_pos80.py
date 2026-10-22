@@ -399,7 +399,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             nonlocal y
             # Cant must fit "Cant" and "1.00"; description needs room for
             # "CONSULTA MEDICA". Keep all five values on their own columns.
-            fractions = (0.12, 0.39, 0.15, 0.15, 0.19)
+            fractions = (0.125, 0.385, 0.14, 0.14, 0.21)
             spans = [width * part for part in fractions]
             offsets = [sum(spans[:i]) for i in range(len(spans))]
             font = f_small if not header else f_bold_small
