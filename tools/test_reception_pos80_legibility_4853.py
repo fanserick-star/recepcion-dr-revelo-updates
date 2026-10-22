@@ -21,7 +21,7 @@ for marker in (
     'write_access_identifier("Clave de acceso", ticket["clave"])',
     'write(token[:25], f_identifier)',
     'write(token[25:], f_identifier)',
-    'Margins(14, 14, 11, 10)',
+    'Margins(11, 13, 16, 10)',
     'if y > float(e.MarginBounds.Height) - 10:',
 ):
     assert marker in printer, marker
