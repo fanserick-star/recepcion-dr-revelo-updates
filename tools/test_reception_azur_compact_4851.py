@@ -16,7 +16,7 @@ css = (base / "static" / "billing_advanced.css").read_text(encoding="utf-8")
 html = (base / "static" / "index.html").read_text(encoding="utf-8")
 manifest = json.loads((base / "update_manifest.json").read_text(encoding="utf-8"))
 version = json.loads((base / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version in {"4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56"}
+assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version in {"4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57"}
 assert "reception_azur_pos80.py" in manifest["copy"]
 assert "static/azur_pos80_ui.js" in manifest["copy"]
 assert "static/billing_advanced.css" in manifest["copy"]
@@ -85,6 +85,6 @@ assert "/api/azur/readonly/pos80-preview" in preview
 assert "/api/azur/readonly/pos80-print" in preview
 assert "/api/billing/emit" not in preview
 assert "v4851-azur-paper" in css
-assert 'azur_pos80_ui.js?v=4.8.56' in html
-assert 'billing_advanced.css?v=4.8.56' in html
+assert 'azur_pos80_ui.js?v=4.8.57' in html
+assert 'billing_advanced.css?v=4.8.57' in html
 print("AZUR_RIDE_COMPACT_80MM_XML_AUTHORIZED_FISCAL_UNCHANGED_4851_OK")
