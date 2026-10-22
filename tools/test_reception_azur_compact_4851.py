@@ -48,7 +48,7 @@ for marker in (
     'write("Ambiente: PRODUCCION"',
     'write_access_identifier("Autorización", ticket["autorizacion"])',
     '_format_authorization_datetime(ticket["fecha_autorizacion"])',
-    'write("Clave de acceso: " + ticket["clave"]',
+    'write_access_identifier("Clave de acceso", ticket["clave"])',
     'write("Razón social / nombres: " + ticket["cliente"]',
     'write_row(("Cant", "Descripción", "P.V.P", "Descto", "Subtotal"), True)',
     'write_amount("Total sin impuestos", ticket["subtotal"])',
