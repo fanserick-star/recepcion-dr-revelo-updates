@@ -25,11 +25,13 @@ class FakeRequest:
 class LocalDeleteRequest:
     base_url = "http://127.0.0.1:8000/"
 
-    def __init__(self, allow=True, host="127.0.0.1"):
+    def __init__(self, allow=True, host="127.0.0.1", certificate=False, signed_confirm=False):
         self.client = SimpleNamespace(host=host)
         self.headers = {"origin": "http://127.0.0.1:8000"}
         if allow:
-            self.headers["x-historia-delete-report"] = "1"
+            self.headers["x-historia-delete-certificate" if certificate else "x-historia-delete-report"] = "1"
+        if signed_confirm:
+            self.headers["x-historia-confirm-signed-delete"] = "ELIMINAR"
 
 
 def response_json(response):
@@ -60,6 +62,9 @@ def main():
         informes_clinicos.install(
             app, {"DB_PATH": path, "base": lambda title, body, active: body}
         )
+        documentos_clinicos.install(
+            app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
+        )
 
         def route(path, method):
             return next(
@@ -73,6 +78,8 @@ def main():
         listing = route("/informes", "GET")
         save = route("/api/informes", "POST")
         delete_report = route("/api/informes/{report_id}/eliminar", "POST")
+        certificate_listing = route("/certificados", "GET")
+        delete_certificate = route("/api/certificados/{cert_id}/eliminar", "POST")
 
         created_form = new(
             "p1", "cistoscopia", "visit1", "", 1
@@ -222,7 +229,8 @@ def main():
             conn.commit()
         signed_list = listing().body.decode("utf-8")
         assert "🔒 Firmado" in signed_list
-        assert "data-report-id='" + rid + "'" not in signed_list
+        assert "data-report-id='" + rid + "'" in signed_list
+        assert "data-signed='1'" in signed_list
         assert delete_report(rid, LocalDeleteRequest()).status_code == 409
 
         # Informes no firmados: acción manual desde la lista.
@@ -244,6 +252,58 @@ def main():
             assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
             assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
             assert conn.execute("SELECT COUNT(*) FROM certificates WHERE id=?", (rid,)).fetchone()[0] == 1
+        # Certificados normales y reposo ficticios, sin alterar consultas.
+        with sqlite3.connect(path) as conn:
+            for cid, kind in (
+                ("cert-unsigned", "medical"), ("rest-unsigned", "rest_isolation"),
+                ("cert-signed", "medical"), ("rest-signed", "rest_isolation"),
+            ):
+                conn.execute(
+                    "INSERT INTO certificates(id,patient_id,encounter_id,issued_at,body_text,certificate_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                    (cid, "p1", "visit1", "2026-10-22T13:00:00", "Documento de prueba", kind, "2026-10-22T13:00:00", "2026-10-22T13:00:00"),
+                )
+            for cid, kind in (("cert-signed", "certificado"), ("rest-signed", "reposo")):
+                conn.execute(
+                    "INSERT INTO electronic_signatures(document_type,document_id,signed_at,pdf_sha256,relative_path) VALUES(?,?,?,?,?)",
+                    (kind, cid, "2026-10-22T13:00:00", "hash-test", "pdf-test"),
+                )
+            conn.commit()
+        cert_html = certificate_listing().body.decode("utf-8")
+        assert "data-cert-id='cert-unsigned'" in cert_html
+        assert "data-cert-id='rest-unsigned'" in cert_html
+        assert "data-cert-id='cert-signed'" in cert_html
+        assert "data-cert-id='rest-signed'" in cert_html
+        assert cert_html.count("🔒 Firmado") == 2
+        assert "document-delete-btn" in cert_html
+        assert "report-delete-actions" in listing().body.decode("utf-8")
+        assert delete_certificate("cert-unsigned", LocalDeleteRequest(allow=False, certificate=True)).status_code == 403
+        assert delete_certificate(rid, LocalDeleteRequest(certificate=True)).status_code == 404
+        assert delete_certificate("cert-signed", LocalDeleteRequest(certificate=True)).status_code == 409
+        assert delete_certificate("rest-signed", LocalDeleteRequest(certificate=True)).status_code == 409
+        # El retiro firmado exige confirmación separada. No borra la firma.
+        for cid in ("cert-signed", "rest-signed"):
+            result_signed = response_json(delete_certificate(
+                cid, LocalDeleteRequest(certificate=True, signed_confirm=True)
+            ))
+            assert result_signed["ok"] and result_signed["signed"] and result_signed["original_retained"]
+        assert delete_certificate("cert-signed", LocalDeleteRequest(certificate=True)).status_code == 404
+        for cid in ("cert-unsigned", "rest-unsigned"):
+            result_unsigned = response_json(delete_certificate(cid, LocalDeleteRequest(certificate=True)))
+            assert result_unsigned["ok"] and not result_unsigned["signed"]
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM electronic_signatures WHERE document_type IN ('certificado','reposo')").fetchone()[0] == 2
+        signed_report_removed = response_json(delete_report(
+            rid, LocalDeleteRequest(signed_confirm=True)
+        ))
+        assert signed_report_removed["ok"] and signed_report_removed["signed"]
+        assert signed_report_removed["original_retained"]
+        assert preview(rid).status_code == 404
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM electronic_signatures WHERE document_type='informe'").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
         print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 

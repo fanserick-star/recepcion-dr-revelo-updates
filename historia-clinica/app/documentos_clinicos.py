@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse
+import firma_electronica as firma
 
 
 SHARED_DEFAULTS = {
@@ -1112,21 +1113,133 @@ footer{{
             rows = conn.execute(
                 f"""SELECT c.*,p.name,p.national_id
                     FROM certificates c JOIN patients p ON p.id=c.patient_id
-                    {where} ORDER BY c.issued_at DESC LIMIT 300""",
-                args,
+                    {where} ORDER BY c.issued_at DESC LIMIT 300""", args,
             ).fetchall()
+            # Las firmas PAdES ya emitidas tienen auditoría independiente:
+            # la lista NUNCA ofrece Eliminar para esos certificados.
+            signed_ids = set()
+            if rows and conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='electronic_signatures'"
+            ).fetchone():
+                ids = [str(row["id"]) for row in rows]
+                marks = ",".join("?" for _ in ids)
+                signed_ids = {
+                    str(v[0]) for v in conn.execute(
+                        f"""SELECT DISTINCT document_id FROM electronic_signatures
+                            WHERE document_type IN ('certificado','reposo')
+                              AND document_id IN ({marks})""", ids,
+                    ).fetchall()
+                }
         body_rows = "".join(
-            f"<tr><td>{_e(r['issued_at'][:16].replace('T',' '))}</td><td>{_e(r['name'])}</td>"
+            f"<tr><td>{_e(str(r['issued_at'] or '')[:16].replace('T',' '))}</td><td>{_e(r['name'])}</td>"
             f"<td>{'Reposo / aislamiento' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else 'Certificado médico'}</td>"
             f"<td>{_e(r['diagnosis'])}</td><td>{_e(r['rest_days'])}</td>"
-            f"<td><a href='{'/certificados/reposo/'+_e(r['id'])+'/vista' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista'}' target='_blank'>Ver</a> · <a href='{'/certificados/reposo/'+_e(r['id'])+'/vista?print_now=1' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista?print_now=1'}' target='_blank'>Reimprimir</a></td></tr>"
+            f"<td class='doc-delete-actions'>"
+            + (f"<span class='signed-lock' title='El PDF firmado original se conservará'>🔒 Firmado</span>" if str(r["id"]) in signed_ids else "")
+            + f"<button type='button' class='document-delete-btn' data-cert-id='{_e(r['id'])}' data-signed='{'1' if str(r['id']) in signed_ids else '0'}'>🗑 Eliminar</button>"
+            + f"<a href='{'/certificados/reposo/'+_e(r['id'])+'/vista' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista'}' target='_blank'>Ver</a>"
+            + f"<a href='{'/certificados/reposo/'+_e(r['id'])+'/vista?print_now=1' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista?print_now=1'}' target='_blank'>Reimprimir</a></td></tr>"
             for r in rows
         ) or "<tr><td colspan='6'>No hay certificados emitidos.</td></tr>"
         body = f"""{_styles()}<section class='docs-wrap'><div class='docs-head'><div>
         <span class='eyebrow'>DOCUMENTOS</span><h1>Certificados médicos</h1>
-        <p>Certificados guardados y sincronizados con la nube.</p></div></div>
-        <div class='docs-card'><table class='list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Tipo</th><th>Diagnóstico</th><th>Reposo</th><th></th></tr></thead><tbody>{body_rows}</tbody></table></div></section>"""
+        <p>Certificados guardados y sincronizados con la nube. Si elimina uno firmado se conservarán su PDF original y la constancia de firma.</p></div></div>
+        <div class='docs-card document-list-card'>
+        <table class='list-table document-list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Tipo</th><th>Diagnóstico</th><th>Reposo</th><th>Acciones</th></tr></thead><tbody>{body_rows}</tbody></table></div></section>"""
+        body += """<style>
+.document-list-card{overflow-x:auto}
+.document-list-table td.doc-delete-actions{min-width:195px;white-space:normal}
+.doc-delete-actions{vertical-align:middle}
+.doc-delete-actions a{display:inline-block;margin:3px 8px 3px 0}
+.document-delete-btn{display:inline-flex;align-items:center;justify-content:center;
+ margin:4px 9px 4px 0;padding:8px 11px;border:1px solid #cc8989;border-radius:7px;
+ background:#fff0f0;color:#992b2b;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.document-delete-btn:hover{background:#ffe0e0}
+.document-delete-btn:disabled{opacity:.5;cursor:wait}
+.signed-lock{display:inline-block;color:#607485;font-size:12px;font-weight:800;margin-right:9px}
+</style><script>
+(function(){
+ document.addEventListener('click',async function(ev){
+  const button=ev.target.closest('.document-delete-btn');
+  if(!button)return;
+  const id=String(button.dataset.certId||'');
+  if(!/^[a-zA-Z0-9_-]{1,100}$/.test(id))return;
+  const row=button.closest('tr');
+  const patient=String(row?.cells?.[1]?.textContent||'').trim();
+  const study=String(row?.cells?.[2]?.textContent||'').trim();
+  const isSigned=button.dataset.signed==='1';
+  if(!confirm('¿Eliminar '+study+' de '+patient+'?\\n\\nEl documento desaparecerá de los listados, sin eliminar la historia ni la consulta.'+(isSigned?'\\n\\nESTÁ FIRMADO: conservará su PDF original y la constancia de firma.':'')))return;
+  if(isSigned&&prompt('CONFIRMACIÓN DE DOCUMENTO FIRMADO\\nEscriba ELIMINAR para retirar este documento del listado.\\nEl PDF original se conservará.')!=='ELIMINAR')return;
+  button.disabled=true;button.textContent='Eliminando…';
+  try{
+   const response=await fetch('/api/certificados/'+encodeURIComponent(id)+'/eliminar',{
+    method:'POST',headers:{'X-Historia-Delete-Certificate':'1',...(isSigned?{'X-Historia-Confirm-Signed-Delete':'ELIMINAR'}:{})},cache:'no-store'
+   });
+   const data=await response.json().catch(()=>({}));
+   if(!response.ok||!data.ok)throw Error(data.error||'No se pudo eliminar el certificado.');
+   location.reload();
+  }catch(err){
+   alert(err.message||'No se pudo eliminar el certificado.');
+   button.disabled=false;button.textContent='🗑 Eliminar';
+  }
+ });
+})();
+</script>"""
         return HTMLResponse(base("Certificados médicos", body, "certificados"))
+
+    @app.post("/api/certificados/{cert_id}/eliminar")
+    def delete_unsigned_certificate(cert_id: str, request: Request):
+        """Eliminar certificados con/sin firma del listado (doble confirmación para firmados).
+
+        La copia PAdES, la firma y su auditoría nunca se destruyen;
+        el tombstone de sync_dirty impide reaparición desde Neon.
+        """
+        firma._require_local(request)
+        if str(request.headers.get("x-historia-delete-certificate") or "") != "1":
+            return JSONResponse({"ok":False,"error":"Acción de eliminación no autorizada."},status_code=403)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", cert_id or ""):
+            return JSONResponse({"ok":False,"error":"Identificador inválido."},status_code=400)
+        with _connect(db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                """SELECT id,patient_id,certificate_type FROM certificates
+                   WHERE id=? AND COALESCE(deleted_at,'')=''
+                     AND COALESCE(certificate_type,'medical') IN ('medical','rest_isolation')
+                   LIMIT 1""", (cert_id,),
+            ).fetchone()
+            if not row:
+                return JSONResponse({"ok":False,"error":"Certificado no encontrado o ya eliminado."},status_code=404)
+            has_table = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='electronic_signatures'"
+            ).fetchone()
+            signed = bool(has_table and conn.execute(
+                """SELECT 1 FROM electronic_signatures
+                   WHERE document_id=? AND document_type IN ('certificado','reposo')
+                   LIMIT 1""", (cert_id,),
+            ).fetchone())
+            if signed and str(request.headers.get("x-historia-confirm-signed-delete") or "") != "ELIMINAR":
+                return JSONResponse({"ok":False,"error":"Este documento firmado requiere confirmación reforzada. El PDF firmado se conservará."},status_code=409)
+            deleted = conn.execute(
+                """DELETE FROM certificates WHERE id=?
+                   AND COALESCE(deleted_at,'')=''
+                   AND COALESCE(certificate_type,'medical') IN ('medical','rest_isolation')""",
+                (cert_id,),
+            )
+            if deleted.rowcount != 1:
+                raise RuntimeError("No pudo verificarse la eliminación del certificado.")
+            audit = context.get("audit")
+            if callable(audit) and conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'"
+            ).fetchone():
+                audit(conn, "delete_signed_certificate" if signed else "delete_unsigned_certificate", "certificate", cert_id, {
+                    "document_type": str(row["certificate_type"]),
+                    "patient_id": str(row["patient_id"]),
+                    "signed": signed,
+                    "signed_original_retained": signed,
+                    "reason": "Eliminación individual confirmada",
+                })
+            conn.commit()
+        return JSONResponse({"ok":True,"id":cert_id,"signed":signed,"original_retained":signed,"message":"Certificado retirado del listado. El PDF firmado original y su auditoría se conservaron." if signed else "Certificado sin firmar eliminado."})
 
     @app.get("/certificados/nuevo", response_class=HTMLResponse)
     def certificate_new(patient_id: str, encounter_id: str = "", queue_id: str = "", encounter_date: str = "", encounter_time: str = "", from_consultation: int = 0):
