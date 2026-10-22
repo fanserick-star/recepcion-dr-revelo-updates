@@ -413,6 +413,61 @@ async def delivery_self_test(data: TestDelivery, user=core.Depends(core.current_
     return await asyncio.to_thread(_test_send,data.phone)
 
 
+def _check_r2():
+    """Probe isolated synthetic bytes, expiration metadata, and cleanup; no patients."""
+    if not _setup()["ready_r2"]:
+        raise core.HTTPException(503, "Completa primero el bucket privado, claves y la regla de 7 días")
+    from email.utils import parsedate_to_datetime
+    key = "clinical-temp/self-test/r2-check-" + secrets.token_hex(16) + ".bin"
+    temp = None
+    uploaded = False
+    expected = secrets.token_bytes(144)
+    deletion_ok = False
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_r2_probe_",suffix=".bin",delete=False) as out:
+            temp=out.name
+            out.write(expected)
+        _upload_r2(temp,key,"application/octet-stream")
+        uploaded = True
+        with urllib.request.urlopen(_r2_url("GET",key,180),timeout=20) as resp:
+            actual = resp.read(len(expected)+1)
+        if not hmac.compare_digest(actual,expected):
+            raise RuntimeError("R2 devolvió contenido diferente al enviado")
+        signed_head = _r2_url("HEAD",key,180)
+        with urllib.request.urlopen(urllib.request.Request(signed_head,method="HEAD"),timeout=20) as resp:
+            expiration_header=resp.headers.get("x-amz-expiration","")
+        lifecycle_verified=False
+        match=re.search(r'expiry-date="([^"]+)"',expiration_header or "",flags=re.I)
+        if match:
+            try:
+                expire=parsedate_to_datetime(match.group(1))
+                days=(expire-datetime.now(timezone.utc)).total_seconds()/86400
+                lifecycle_verified=6.0<=days<=8.1
+            except (ValueError,TypeError):
+                pass
+        return {"ok":True,"r2_upload_download_verified":True,
+                "lifecycle_7_day_header_verified":lifecycle_verified,
+                "note":"Comprobación R2 correcta. La política de borrado "
+                       +("refleja aproximadamente 7 días." if lifecycle_verified
+                         else "no pudo verificarse por cabecera: revisa Object Lifecycles.")}
+    finally:
+        if uploaded:
+            try:
+                delete=urllib.request.Request(_r2_url("DELETE",key,180),method="DELETE")
+                with urllib.request.urlopen(delete,timeout=15):
+                    deletion_ok=True
+            except Exception:
+                pass  # Existing 7-day lifecycle remains the cleanup fallback.
+        if temp:
+            try:os.unlink(temp)
+            except OSError:pass
+
+
+@app.post("/api/clinical-delivery/check-r2")
+async def delivery_check_r2(user=core.Depends(core.current_user)):
+    return await asyncio.to_thread(_check_r2)
+
+
 @app.get("/api/clinical-delivery/status")
 def delivery_status(user=core.Depends(core.current_user)):
     return {"ok":True,**_setup(),"privacy":"private-bucket-presigned-link"}
