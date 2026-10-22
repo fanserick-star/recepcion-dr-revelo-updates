@@ -254,7 +254,7 @@ document.getElementById('report-sign').onclick=()=>act('sign');
     return HTMLResponse(base("Informes médicos", body + script, "informes"))
 
 
-def _print_html(row, settings, print_now: bool) -> str:
+def _print_html(row, settings, print_now: bool, compact: bool = False) -> str:
     kind = TYPE_BY_STORAGE[str(row["certificate_type"])]
     config = REPORT_TYPES[kind]
     fields = _report_fields(row, kind)
@@ -275,6 +275,19 @@ def _print_html(row, settings, print_now: bool) -> str:
     doctor = _e(settings.get("doctor_name") or "Dr. Armando Revelo")
     logo = "/static/doctor_logo.png"
     js = """<script>window.addEventListener('load',()=>setTimeout(()=>window.print(),450),{once:true});</script>""" if print_now else ""
+    # El PDF firmado se valida antes de sellar: si Edge detecta desbordamiento,
+    # se prueba una segunda densidad con letra de hallazgos aún de 12 pt.
+    compact_css = """@media print {
+      .sheet{padding:7mm 11mm 6mm}
+      .brand{padding-bottom:4px}
+      .report-title{margin:3.5mm 0 3mm}
+      .patient{padding:6px 10px;gap:4px 8px}
+      .findings{padding-top:2mm}
+      .finding{margin-bottom:1.8mm;line-height:1.40;font-size:12pt}
+      .finding h3{margin-bottom:.8mm;padding-bottom:.6mm}
+      .signature{margin:4mm 0 1.5mm}
+      .footer{padding-top:1.5mm}
+    }""" if compact else ""
     return f"""<!doctype html>
 <html lang='es'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
 <title>{_e(config["title"].title())} · {patient_name}</title>
@@ -311,25 +324,26 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
  .toolbar{{display:none!important}}
  /* A4 grande y legible: sin min-height, sin flex ni salto artificial. */
  .sheet{{width:210mm;max-width:none;min-height:0;height:auto;margin:0;
-         padding:11mm 13mm 10mm;box-shadow:none;display:block;
+         padding:8mm 12mm 7mm;box-shadow:none;display:block;
          break-after:auto;overflow:visible}}
- .brand{{gap:14px;padding-bottom:9px}}
+ .brand{{gap:12px;padding-bottom:6px}}
  .brand img{{height:21mm;width:21mm}}
  .brand h1{{font-size:19pt}}
  .brand h2{{font-size:12.5pt;margin:3px 0}}
  .brand small{{font-size:8pt;line-height:1.38}}
- .report-title{{margin:8mm 0 7mm;font-size:17pt}}
- .patient{{padding:11px 14px;gap:8px 12px;font-size:10.5pt}}
- .findings{{padding-top:6mm;flex:none}}
- .finding{{margin:0 0 5mm;line-height:1.48;font-size:12pt}}
- .finding h3{{margin:0 0 2mm;padding-bottom:1.5mm;font-size:10.8pt}}
+ .report-title{{margin:5mm 0 4mm;font-size:17pt}}
+ .patient{{padding:8px 11px;gap:5px 9px;font-size:10.5pt}}
+ .findings{{padding-top:3mm;flex:none}}
+ .finding{{margin:0 0 3mm;line-height:1.43;font-size:12pt}}
+ .finding h3{{margin:0 0 1mm;padding-bottom:.9mm;font-size:10.8pt}}
  .finding:last-child{{margin-bottom:0}}
- .signature{{margin:12mm 0 4mm;max-width:95mm;font-size:10pt;line-height:1.4}}
+ .signature{{margin:6mm 0 2mm;max-width:95mm;font-size:10pt;line-height:1.4}}
  .signature .line{{padding-top:2.5mm}}
  .signature b{{font-size:10.5pt}}
- .footer{{padding-top:3mm;font-size:8pt;line-height:1.28}}
+ .footer{{padding-top:2mm;font-size:8pt;line-height:1.22}}
  .patient,.finding{{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 }}
+{compact_css}
 </style></head><body>
 <div class='toolbar'><button onclick='window.print()'>Imprimir / Guardar PDF</button></div>
 <main class='sheet'>
@@ -490,13 +504,13 @@ def install(app, context: dict) -> None:
         return JSONResponse({"ok":True,"id":report_id,"encounter_id":encounter_id,"preview_url":f"/informes/{report_id}/vista"})
 
     @app.get("/informes/{report_id}/vista", response_class=HTMLResponse)
-    def preview_report(report_id: str, print_now: int = 0):
+    def preview_report(report_id: str, print_now: int = 0, compact: int = 0):
         with _connect(db_path) as conn:
             row = _report_row(conn, report_id)
             if not row:
                 return HTMLResponse("Informe no encontrado.", status_code=404)
             settings = _settings(conn)
-        return HTMLResponse(_print_html(row, settings, bool(print_now)))
+        return HTMLResponse(_print_html(row, settings, bool(print_now), bool(compact)))
 
     @app.get("/informes/{report_id}/firmado")
     def get_signed_report(request: Request, report_id: str):

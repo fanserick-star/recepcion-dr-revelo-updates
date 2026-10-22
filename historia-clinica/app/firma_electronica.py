@@ -567,6 +567,47 @@ def _render_pdf_from_url(url: str, output: Path) -> None:
         shutil.rmtree(profile_dir, ignore_errors=True)
 
 
+def _pdf_page_count(path: Path) -> int:
+    """Contar hojas físicas ANTES de sellar, con pyHanko ya instalado.
+
+    Leer el /Count del árbol PDF evita dependencias nuevas en la PC antigua.
+    """
+    from pyhanko.pdf_utils.reader import PdfFileReader
+
+    with path.open("rb") as pdf:
+        reader = PdfFileReader(pdf)
+        pages = reader.root["/Pages"]
+        if hasattr(pages, "get_object"):
+            pages = pages.get_object()
+        count = int(pages["/Count"])
+    if count < 1:
+        raise ValueError("Edge generó un PDF sin páginas válidas.")
+    return count
+
+
+def _render_report_pdf_with_reflow(preview_url: str, output: Path) -> int:
+    """Reintentar un informe paginado con márgenes compactos sin reducir letra.
+
+    Nunca elimina hojas ni recorta texto. Para informes genuinamente extensos,
+    conserva todas las páginas y el sello va en la última como antes.
+    """
+    _render_pdf_from_url(preview_url, output)
+    pages = _pdf_page_count(output)
+    if pages == 1:
+        return pages
+    compact = output.with_name(output.stem + "_compact" + output.suffix)
+    try:
+        separator = "&" if "?" in preview_url else "?"
+        _render_pdf_from_url(preview_url + separator + "compact=1", compact)
+        compact_pages = _pdf_page_count(compact)
+        if compact_pages <= pages:
+            os.replace(compact, output)
+            return compact_pages
+        return pages
+    finally:
+        compact.unlink(missing_ok=True)
+
+
 def _verification_code(source_pdf: Path, kind: str, doc_id: str, certificate_serial: str) -> str:
     digest = hashlib.sha256()
     digest.update(source_pdf.read_bytes())
@@ -991,7 +1032,12 @@ def install(app, context: dict) -> None:
         os.close(temp_fd)
         temp_pdf = Path(temp_name)
         try:
-            _render_pdf_from_url(preview_url, temp_pdf)
+            if kind == "informe":
+                # Corrige el caso donde solo el pie se escapaba a otra hoja:
+                # Edge puede paginar diferente de la vista HTML de Windows.
+                _render_report_pdf_with_reflow(preview_url, temp_pdf)
+            else:
+                _render_pdf_from_url(preview_url, temp_pdf)
             meta = _sign_pdf(root, temp_pdf, final_pdf, doctor_name, kind, doc_id)
             _audit_signature(db_path, root, kind, doc_id, final_pdf, meta)
         except PermissionError as exc:
