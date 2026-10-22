@@ -25,11 +25,46 @@
     const b=document.createElement('button');b.type='button';b.textContent=text;
     b.disabled=disabled;b.addEventListener('click',fn);parent.appendChild(b);return b;
   }
+  function addSelfTest(host,data){
+    const block=document.createElement('div');block.className='rp-clinical-test';
+    block.append(cell('strong','📱 Prueba de WhatsApp en mi celular'));
+    block.append(cell('p','Esta prueba usa un PDF ficticio, sin datos de pacientes. Se envía únicamente al número autorizado para pruebas.','rp-clinical-help'));
+    const preview=document.createElement('a');
+    preview.href='https://fanserick-star.github.io/recepcion-dr-revelo-updates/prueba-envio-clinico.html';
+    preview.target='_blank';preview.rel='noopener noreferrer';
+    preview.textContent='Ver ejemplo en mi iPhone (no envía nada)';
+    preview.className='rp-clinical-preview';
+    block.append(preview);
+    const input=document.createElement('input');
+    input.type='tel';input.inputMode='tel';input.autocomplete='off';
+    input.placeholder='Tu número de prueba: 09XXXXXXXX';
+    input.maxLength=20;input.setAttribute('aria-label','Celular propio autorizado para prueba');
+    block.append(input);
+    const allowed=!!data.ready_test;
+    addButton(block,'Enviar PRUEBA REAL a mi WhatsApp',async()=>{
+      if(!window.confirm('Se enviará un mensaje real al número de prueba autorizado. El archivo contiene solo texto ficticio y puede generar un cargo de WhatsApp. ¿Continuar?'))return;
+      const number=String(input.value||'').trim();
+      if(!number){notice('Ingresa el número de tu celular de prueba','error');return;}
+      try{
+        const response=await api('/api/clinical-delivery/send-self-test',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({phone:number,confirmation:'ENVIAR PRUEBA'})
+        });
+        notice('Meta aceptó la prueba. Abre WhatsApp en tu iPhone y revisa el PDF. Vence el '+new Date(response.expires_at).toLocaleString('es-EC')+'.','success');
+      }catch(e){notice(e.message||'No se pudo enviar la prueba','error');}
+    },!allowed);
+    if(!allowed){
+      const missing=(data.test_missing||[]);
+      block.append(cell('p','Envío real aún bloqueado: '+(missing.length?missing.join('; '):'falta configurar Cloudflare R2 y WhatsApp')+'.','rp-clinical-warning'));
+    }
+    host.append(block);
+  }
   function draw(data={}){
     const host=container();if(!host)return;
     host.replaceChildren();
     const top=cell('div','Documentos realizados por el doctor en Historia Clínica','rp-clinical-subtitle');
     host.append(top);
+    addSelfTest(host,data);
     if(!data.ok){host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));return;}
     const docs=Array.isArray(data.documents)?data.documents:[];
     host.append(cell('p',docs.length?docs.length+' documento(s) guardado(s), del más reciente al más antiguo.':'No hay recetas, informes ni certificados guardados para esta ficha.','rp-clinical-help'));
@@ -62,12 +97,16 @@
     const root=container();if(!root)return;
     state.pid=Number(pid);state.phone=String(phone||'');state.name=String(name||'');
     root.replaceChildren(cell('p','Consultando documentos de Historia Clínica...','rp-clinical-help'));
+    let status={ready_test:false,test_missing:[]};
+    try{status=await api('/api/clinical-delivery/status');}catch(_ignored){}
     try{
       const data=await api('/api/clinical-delivery/patients/'+state.pid+'/documents');
       if(!container()||state.pid!==Number(pid))return;
-      Object.assign(state,{documents:data.documents||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video});
-      draw(data);
-    }catch(e){draw({ok:false,error:e.message||'Historia no está disponible'});}
+      Object.assign(state,{documents:data.documents||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
+      draw({...status,...data});
+    }catch(e){
+      draw({...status,ok:false,error:e.message||'Historia no está disponible'});
+    }
   }
   function confirmDelivery(label){
     const raw=String(state.phone||'').replace(/\D/g,'');
