@@ -209,6 +209,26 @@ def main():
                 "SELECT COUNT(*) FROM certificates WHERE certificate_type='medical'"
             ).fetchone()[0]
             assert certs == 0
+        # Informes no firmados: acción manual desde la lista.
+        list_html = listing().body.decode("utf-8")
+        assert "report-delete-btn" in list_html
+        assert "data-report-id='" + result["id"] + "'" in list_html
+        assert delete_report(result["id"], LocalDeleteRequest(allow=False)).status_code == 403
+        from fastapi import HTTPException
+        try:
+            delete_report(result["id"], LocalDeleteRequest(host="192.168.1.10"))
+            raise AssertionError("Acceso desde otra PC no autorizado")
+        except HTTPException as exc:
+            assert exc.status_code == 403
+        deleted = response_json(delete_report(result["id"], LocalDeleteRequest()))
+        assert deleted["ok"] and deleted["id"] == result["id"]
+        assert preview(result["id"]).status_code == 404
+        assert delete_report(result["id"], LocalDeleteRequest()).status_code == 404
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM certificates WHERE id=?", (rid,)).fetchone()[0] == 1
+        print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
 
