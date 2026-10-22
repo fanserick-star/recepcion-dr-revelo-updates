@@ -329,8 +329,8 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         raise RuntimeError("Windows no puede utilizar la impresora configurada")
     docs = ticket["servicios"]
     # Receipt paper length in hundredths of inches; auto length for extra items.
-    est = max(730, min(3200, 650 + len(docs) * 65 + len(ticket["impuestos"]) * 34 +
-                       len(ticket["adicional"]) * 30 + len(ticket["pagos"]) * 26))
+    est = max(850, min(3200, 790 + len(docs) * 67 + len(ticket["impuestos"]) * 32 +
+                       len(ticket["adicional"]) * 30 + len(ticket["pagos"]) * 33))
     doc.DocumentName = "Factura electronica autorizada 80mm"
     doc.OriginAtMargins = True
     doc.DefaultPageSettings.PaperSize = PaperSize("Factura RIDE 80 mm", 315, est)
@@ -339,36 +339,38 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     doc.DefaultPageSettings.Margins = Margins(14, 14, 11, 10)
     fonts = []
     def make_font(size, bold=False):
-        f = Font("Arial", float(size), FontStyle.Bold if bold else FontStyle.Regular)
+        f = Font("Times New Roman", float(size), FontStyle.Bold if bold else FontStyle.Regular)
         fonts.append(f)
         return f
-    f_small = make_font(7.0)
+    f_small = make_font(7.3)
+    f_bold_small = make_font(7.0, True)
     f_text = make_font(8.0)
     f_bold = make_font(8.0, True)
     f_title = make_font(9.5, True)
-    f_total = make_font(13.0, True)
+    f_total = make_font(11.0, True)
     pen = Pen(Color.Black, 1)
     center = StringFormat()
     center.Alignment = StringAlignment.Center
     def print_page(sender, e):
         g = e.Graphics
         bounds_width = float(e.MarginBounds.Width)
-        # Print within ~66 mm even if a Windows driver incorrectly advertises
-        # a full 80 mm printable area. Apply a small leftward thermal calibration
-        # after centering, to compensate for the off-center physical print observed.
+        # Keep the previously calibrated left shift and safe printable width.
         width = min(258.0, bounds_width - 12.0)
         if width < 145.0:
-            raise RuntimeError("El ancho imprimible de la impresora es insuficiente para una factura de 80 mm")
+            raise RuntimeError("El ancho imprimible es insuficiente para un RIDE de 80 mm")
         x = _pos80_horizontal_origin(bounds_width, width)
         y = 7.0
-        def write(value, font=f_text, align=False, minheight=14):
+        right = StringFormat()
+        right.Alignment = StringAlignment.Far
+        centered = StringFormat()
+        centered.Alignment = StringAlignment.Center
+
+        def write(value, font=f_text, align=False, minheight=12):
             nonlocal y
             content = str(value or "").strip()
             if not content:
                 return
-            # Wrap by measured glyph width, not only by character count.
-            # Draw every resulting line separately so Windows cannot clip the
-            # right-hand end of the doctor's legal name or specialty.
+            # Width is measured by Windows GDI+: preserve every signed character.
             rows = _wrap_thermal_text(content, width - 12.0,
                                       lambda part: float(g.MeasureString(part, font).Width))
             for segment in rows:
@@ -378,82 +380,155 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
                              RectangleF(x, draw_top, width, rect_height),
                              center if align else StringFormat.GenericDefault)
                 y = next_y
+
         def line():
             nonlocal y
+            # Use only two subtle rules (columns and totals), not boxes.
             g.DrawLine(pen, x, y, x + width, y)
-            y += 8.0
-        write(ticket["emisor"], f_title, True)
+            y += 4.0
+
+        def write_row(values, header=False):
+            """AZUR-style Cant / Descripcion / PVP / Descto / Subtotal."""
+            nonlocal y
+            fractions = (0.085, 0.355, 0.170, 0.175, 0.215)
+            spans = [width * part for part in fractions]
+            offsets = [sum(spans[:i]) for i in range(len(spans))]
+            font = f_small if not header else f_bold_small
+            blocks = [
+                _wrap_thermal_text(str(value), max(5.0, span - 3.0),
+                                   lambda text: float(g.MeasureString(text, font).Width))
+                for value, span in zip(values, spans)
+            ]
+            rows_count = max((len(block) for block in blocks), default=1)
+            for index in range(rows_count):
+                row_y = y
+                next_line = y
+                for col, block in enumerate(blocks):
+                    if index >= len(block):
+                        continue
+                    segment = block[index]
+                    draw_top, rect_height, next_y = _pos80_text_line_box(
+                        row_y, float(g.MeasureString(segment, font).Height), 11)
+                    g.DrawString(segment, font, Brushes.Black,
+                                 RectangleF(x + offsets[col], draw_top,
+                                            spans[col] - 1.0, rect_height),
+                                 right if col in (2, 3, 4) else StringFormat.GenericDefault)
+                    next_line = max(next_line, next_y)
+                y = next_line
+
+        def write_amount(label, amount, prominent=False):
+            nonlocal y
+            font = f_total if prominent else f_text
+            textfont = f_bold if prominent else f_text
+            label_width = width * 0.72
+            label_lines = _wrap_thermal_text(str(label), label_width - 5.0,
+                          lambda part: float(g.MeasureString(part, textfont).Width))
+            for number, segment in enumerate(label_lines):
+                base_y = y
+                top, rh, next_y = _pos80_text_line_box(
+                    base_y, float(g.MeasureString(segment, textfont).Height),
+                    17 if prominent else 12)
+                g.DrawString(segment, textfont, Brushes.Black,
+                             RectangleF(x, top, label_width, rh),
+                             StringFormat.GenericDefault)
+                if number == 0:
+                    top_val, rh_val, next_val = _pos80_text_line_box(
+                        base_y, float(g.MeasureString(str(amount), font).Height),
+                        17 if prominent else 12)
+                    g.DrawString(str(amount), font, Brushes.Black,
+                                 RectangleF(x + label_width, top_val,
+                                            width - label_width, rh_val), right)
+                    next_y = max(next_y, next_val)
+                y = next_y
+
+        # All fiscal and customer values below originate in the SRI-authorized
+        # signed XML already validated by _authorized_xml_to_ticket.
+        write("FACTURA", f_title, True, 17)
+        write("RUC: " + ticket["ruc"], f_bold, True)
+        write(ticket["emisor"], f_bold, True)
         if ticket.get("nombre_comercial") and ticket["nombre_comercial"] != ticket["emisor"]:
             write(ticket["nombre_comercial"], f_bold, True)
-        write("RUC: " + ticket["ruc"], f_bold, True)
-        if ticket["direccion_matriz"]: write("Matriz: " + ticket["direccion_matriz"], f_small)
+        if ticket["direccion_matriz"]:
+            write("Matriz: " + ticket["direccion_matriz"], f_small, True)
         if ticket["direccion_establecimiento"] and ticket["direccion_establecimiento"].strip().casefold() != (ticket["direccion_matriz"] or "").strip().casefold():
-            write("Sucursal: " + ticket["direccion_establecimiento"], f_small)
-        if ticket["obligado_contabilidad"]: write("Obligado contabilidad: " + ticket["obligado_contabilidad"], f_small)
-        if ticket["contribuyente_especial"]: write("Contribuyente especial: " + ticket["contribuyente_especial"], f_small)
-        if ticket["regimen"]: write(ticket["regimen"], f_small)
-        line()
-        write("FACTURA ELECTRONICA", f_title, True)
-        write(ticket["numero"], f_title, True)
-        write("AUTORIZADA POR EL SRI", f_bold, True)
+            write("Sucursal: " + ticket["direccion_establecimiento"], f_small, True)
+        if ticket["obligado_contabilidad"]:
+            write("Obligado a llevar contabilidad: " + ticket["obligado_contabilidad"], f_small, True)
+        if ticket["contribuyente_especial"]:
+            write("Contribuyente especial: " + ticket["contribuyente_especial"], f_small, True)
+        if ticket["regimen"]:
+            write(ticket["regimen"], f_small, True)
+        write("Fecha emisión: " + ticket["fecha_emision"], f_text, True)
+        write("No. " + ticket["numero"], f_bold, True)
         write("Ambiente: PRODUCCION", f_small, True)
-        write("Emision: " + ticket["fecha_emision"], f_text)
+        write("Autorización: " + ticket["autorizacion"], f_small)
         if ticket["fecha_autorizacion"]:
-            write("Autorizada: " + _format_authorization_datetime(ticket["fecha_autorizacion"]), f_small)
+            write("Fecha y Hora Autorización: " + _format_authorization_datetime(ticket["fecha_autorizacion"]), f_small)
+        write("Clave de acceso: " + ticket["clave"], f_small)
+        y += 5.0
+
+        write("Razón social / nombres: " + ticket["cliente"], f_text)
+        write("Identificación: " + ticket["identificacion"], f_text)
+        if ticket["direccion_cliente"]:
+            write("Dirección: " + ticket["direccion_cliente"], f_small)
+        if ticket.get("telefono_cliente"):
+            write("Teléfono: " + ticket["telefono_cliente"], f_small)
+        if ticket.get("correo_cliente"):
+            write("Correo: " + ticket["correo_cliente"], f_small)
+        y += 4.0
+
+        write_row(("Cant", "Descripción", "P.V.P", "Descto", "Subtotal"), True)
         line()
-        write("CLIENTE: " + ticket["cliente"], f_bold)
-        write("Identificacion: " + ticket["identificacion"], f_text)
-        if ticket["direccion_cliente"]: write("Direccion: " + ticket["direccion_cliente"], f_small)
-        if ticket.get("telefono_cliente"): write("Telefono: " + ticket["telefono_cliente"], f_small)
-        if ticket.get("correo_cliente"): write("Correo: " + ticket["correo_cliente"], f_small)
-        line()
-        write("DETALLE", f_bold)
         for item in docs:
-            write(item["descripcion"], f_bold)
-            write("Cant. " + item["cantidad"] + " x $" + item["unitario"] + " = $" + item["total"], f_small)
-            if item["descuento"] != "0.00": write("Descuento: $" + item["descuento"], f_small)
+            write_row((item["cantidad"], item["descripcion"], item["unitario"],
+                       item["descuento"], item["total"]))
         line()
-        write("Subtotal sin impuestos: $" + ticket["subtotal"], f_text)
-        if ticket["total_descuento"] != "0.00": write("Descuento total: $" + ticket["total_descuento"])
+        write_amount("Total sin impuestos", ticket["subtotal"])
+        write_amount("Descuento", ticket["total_descuento"])
+
+        # ICE and IVA are presentation totals derived only from the signed XML,
+        # never from local prices, payment amounts or independently guessed taxes.
+        ice = Decimal("0")
         for tax in ticket["impuestos"]:
-            label = "IVA" if tax["codigo"] == "2" else "Impuesto " + tax["codigo"]
-            write(label + " (" + tax["porcentaje"] + "): $" + tax["valor"], f_text)
-        if ticket["propina"] != "0.00": write("Propina: $" + ticket["propina"])
-        write("TOTAL: $" + ticket["total"], f_total, True, 23)
+            if tax["codigo"] == "3":
+                ice += _decimal(tax["valor"])
+        write_amount("Valor ICE", _money(ice))
+        for tax in ticket["impuestos"]:
+            if tax["codigo"] != "3" and _decimal(tax["valor"]) != Decimal("0"):
+                label = "Valor IVA (" + tax["porcentaje"] + ")" if tax["codigo"] == "2" else "Impuesto " + tax["codigo"] + " (" + tax["porcentaje"] + ")"
+                write_amount(label, tax["valor"])
+        if ticket["propina"] != "0.00":
+            write_amount("Propina", ticket["propina"])
+        write_amount("VALOR TOTAL", ticket["total"], True)
+        y += 4.0
+
+        # Contact fields already shown with buyer should not repeat at bottom.
+        extra = [field for field in ticket["adicional"]
+                 if str(field["nombre"]).casefold().strip() not in (
+                     "telefono", "teléfono", "celular", "telefono cliente",
+                     "teléfono cliente", "correo", "correo electronico",
+                     "correo electrónico", "email", "e-mail")]
+        if extra or ticket["pagos"]:
+            write("Información adicional", f_bold)
+        for field in extra:
+            write(field["nombre"] + ": " + field["valor"], f_small)
         if ticket["pagos"]:
-            line()
+            write_row(("Forma de pago", "", "Valor", "Plazo", "Tiempo"), True)
             for pago in ticket["pagos"]:
                 write(_payment_method_label(pago["tipo"]), f_small)
-                write("Valor: $" + pago["total"], f_small)
-                try:
-                    plazo = _decimal(pago.get("plazo") or "0")
-                except core.HTTPException:
-                    plazo = Decimal("0")
-                if plazo > 0:
-                    write("Plazo: " + str(plazo) + " " + str(pago.get("unidad_tiempo") or ""), f_small)
-        if ticket["adicional"]:
-            # Move recognized recipient contacts beside recipient details.
-            # Other signed extra fields still appear once, as before.
-            extra = [field for field in ticket["adicional"]
-                     if str(field["nombre"]).casefold().strip() not in (
-                         "telefono", "teléfono", "celular", "telefono cliente",
-                         "teléfono cliente", "correo", "correo electronico",
-                         "correo electrónico", "email", "e-mail")]
-            if extra:
-                line()
-                for field in extra:
-                    write(field["nombre"] + ": " + field["valor"], f_small)
-        line()
-        write("CLAVE DE ACCESO / AUTORIZACION", f_bold, True)
-        key = ticket["clave"]
-        write(key[:25], f_small, True)
-        write(key[25:], f_small, True)
-        write("Representacion impresa de factura electronica", f_small, True)
-        write("Verificable en www.sri.gob.ec", f_small, True)
-        # Refuse to silently truncate the tax document if paper width/length fails.
+                write("Valor: " + pago["total"], f_small)
+                plazo = str(pago.get("plazo") or "0")
+                unidad = str(pago.get("unidad_tiempo") or "")
+                if plazo:
+                    # Show the original XML payment term (including zero days).
+                    write("Plazo: " + plazo + " " + unidad, f_small)
+        # No extra boxes, advertising footers or repeated access keys.
+        # Preserve the no-truncation safeguard already calibrated for Windows.
         if y > float(e.MarginBounds.Height) - 10:
             raise RuntimeError("El ticket no cabe en la longitud de papel configurada; no se debe recortar")
         e.HasMorePages = False
+        right.Dispose()
+        centered.Dispose()
     doc.PrintPage += print_page
     try:
         doc.Print()
