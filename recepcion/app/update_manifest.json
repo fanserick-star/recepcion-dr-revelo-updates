@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.51",
-  "app_version": "4.8.51",
-  "runtime_version": "4.8.51",
+  "version": "4.8.52",
+  "app_version": "4.8.52",
+  "runtime_version": "4.8.52",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.51: imprimir RIDE AZUR 80 mm con diseño compacto inspirado en AZUR (encabezado centrado, pocas líneas, detalle en columnas y totales claros). Solo cambia la presentación y la vista previa; conserva lectura de XML SRI autorizado, márgenes antirrecorte, calibración a la izquierda, validación fiscal, impresora y demás servicios.",
-    "previous_version": "4.8.50",
+    "purpose": "Recibir de Historia por LAN el llamado manual de turno para la TV con voz/sonido, repetición intencional y deduplicación por evento, sin modificar estados clínicos. Conserva los cambios de impresión AZUR 4.8.51.",
+    "previous_version": "4.8.51",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -566,7 +566,11 @@
     "tv_idle_clock_large_diameter": "min(65vh,46vw)",
     "tv_idle_clock_no_external_images": true,
     "tv_idle_clock_duplicate_digital_clock_removed": true,
-    "tv_idle_clock_header_date_time_preserved": true
+    "tv_idle_clock_header_date_time_preserved": true,
+    "doctor_call_lan": true,
+    "doctor_call_once_per_event": true,
+    "doctor_call_patient_data_exposed": false,
+    "doctor_call_clinical_status_changes": false
   },
   "channel": "launcher-v1-stable"
 }
