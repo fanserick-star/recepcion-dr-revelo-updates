@@ -16,7 +16,7 @@ for marker in (
     'TextRenderingHint.SingleBitPerPixelGridFit',
     'f_small = make_font(7.7)',
     'f_bold_small = make_font(7.4, True)',
-    'write_row(("Cant", "Descripción", "P.V.P", "Descto", "Subtotal"), True)',
+    'write_detail_row(("Cant", "Descripción", "Subtotal"), True)',
     'write_access_identifier("Autorización", ticket["autorizacion"])',
     'write_access_identifier("Clave de acceso", ticket["clave"])',
     'write(token[:25], f_identifier)',
@@ -32,20 +32,19 @@ assert 'Font("Times New Roman",' not in printer
 match=re.search(r"fractions = \(([^\n]+)\)",printer)
 assert match
 fractions=ast.literal_eval("("+match.group(1)+")")
-assert len(fractions)==5 and abs(sum(fractions)-1.0)<1e-10
+assert len(fractions)==3 and abs(sum(fractions)-1.0)<1e-10
 width=258.0
 spans=[width*x for x in fractions]
-assert spans[0]>=31 and spans[1]>=96 and spans[4]>=53
+assert spans[0]>=37 and spans[1]>=140 and spans[2]>=65
 
-# Simulate the wrapping decision with a conservative 5.8 point-per-glyph
+# Simulate wrapping for the three-column detail with a conservative 5.8 point-per-glyph
 # surrogate. Actual Windows GDI+ widths depend on the printer driver.
 scope={}
 wrap=funcs["_wrap_thermal_text"]
 exec(compile(ast.Module(body=[wrap],type_ignores=[]),"<wrap>", "exec"),scope)
 wrap=scope["_wrap_thermal_text"]
 samples=[(0,"Cant"),(0,"1.00"),(1,"CONSULTA MEDICA"),
-         (2,"P.V.P"),(2,"40.00"),(3,"Descto"),(3,"0.00"),
-         (4,"Subtotal"),(4,"40.00")]
+         (2,"Subtotal"),(2,"40.00")]
 for i,value in samples:
     parts=wrap(value,spans[i]-3.0,lambda v:len(v)*5.8)
     assert parts==[value],(i,value,parts,spans)
