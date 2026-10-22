@@ -340,19 +340,19 @@ def _test_pdf():
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 550 240] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-        b"<< /Length " + str(len(stream)).encode() + b" >>\\nstream\\n" + stream + b"\\nendstream",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     ]
-    out = b"%PDF-1.4\\n"
+    out = b"%PDF-1.4\n"
     positions = [0]
     for i, body in enumerate(objects, 1):
         positions.append(len(out))
-        out += f"{i} 0 obj\\n".encode() + body + b"\\nendobj\\n"
+        out += f"{i} 0 obj\n".encode() + body + b"\nendobj\n"
     position = len(out)
-    out += b"xref\\n0 6\\n0000000000 65535 f \\n"
+    out += b"xref\n0 6\n0000000000 65535 f \n"
     for offset in positions[1:]:
-        out += f"{offset:010d} 00000 n \\n".encode()
-    out += b"trailer\\n<< /Size 6 /Root 1 0 R >>\\nstartxref\\n" + str(position).encode() + b"\\n%%EOF\\n"
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + str(position).encode() + b"\n%%EOF\n"
     return out
 
 
@@ -361,10 +361,10 @@ def _test_send(phone: str):
     global _LAST_TEST_SEND
     if not _setup()["ready_test"]:
         raise core.HTTPException(503, "Faltan R2, plantilla aprobada o número de pruebas")
-    raw = re.sub(r"\\D", "", str(phone or ""))
+    raw = re.sub(r"\D", "", str(phone or ""))
     if len(raw) == 10 and raw.startswith("09"):
         raw = "593" + raw[1:]
-    allow = re.sub(r"\\D", "", str(core.WHATSAPP_TEST_PHONE or ""))
+    allow = re.sub(r"\D", "", str(core.WHATSAPP_TEST_PHONE or ""))
     if len(allow) == 10 and allow.startswith("09"):
         allow = "593" + allow[1:]
     if not raw or not hmac.compare_digest(raw, allow):
