@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.17",
-  "app_version": "1.4.17",
-  "runtime_version": "1.4.17",
+  "version": "1.4.18",
+  "app_version": "1.4.18",
+  "runtime_version": "1.4.18",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Corrige informe de cistoscopía/ecografía que enviaba el pie y sello electrónico a segunda hoja: márgenes redistribuidos en A4 sin reducir la letra de 12 pt, reflujo de impresión por Edge antes de aplicar PAdES/QR si detecta 2+ páginas. No recorta informes realmente largos ni altera certificados, fichas, Inicio, Recepción o Neón.",
-    "previous_version": "1.4.16",
+    "purpose": "Cistoscopía: reemplaza el campo único Uretra por dos cuadros independientes Uretra anterior y Uretra posterior en edición e impresión. Los informes históricos con Uretra conservan el hallazgo original sin clasificarlo automáticamente, incluso al editarlos. No modifica ecografías, certificados, PDF firmados, pacientes, Recepción ni Neón.",
+    "previous_version": "1.4.17",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -256,6 +256,14 @@
     "report_print_footer_orphan_fix": true,
     "report_print_signature_pdf_reflow": true,
     "report_print_preserve_main_font_pt": 12,
-    "report_print_long_reports_keep_pages": true
+    "report_print_long_reports_keep_pages": true,
+    "cystoscopy_urethra_fields": [
+      "uretra_anterior",
+      "uretra_posterior"
+    ],
+    "cystoscopy_legacy_urethra_preserved": true,
+    "cystoscopy_legacy_urethra_auto_split": false,
+    "cystoscopy_previous_signed_pdf_immutable": true,
+    "cystoscopy_schema_migration": false
   }
 }
