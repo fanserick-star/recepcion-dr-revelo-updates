@@ -144,3 +144,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+    from test_doctor_turn_call import main as test_doctor_call
+    test_doctor_call()
