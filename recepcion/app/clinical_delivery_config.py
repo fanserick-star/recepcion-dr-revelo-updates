@@ -59,7 +59,7 @@ def _validate(key: str, value: str) -> None:
         raise ValueError("Número de prueba de Ecuador inválido")
     if key == "WHATSAPP_PHONE_NUMBER_ID" and not re.fullmatch(r"[0-9]{8,32}",value):
         raise ValueError("ID de número de Meta inválido")
-    if key == "WHATSAPP_GRAPH_VERSION" and not re.fullmatch(r"v[0-9]{2,3}\\.[0-9]+",value):
+    if key == "WHATSAPP_GRAPH_VERSION" and not re.fullmatch(r"v[0-9]{2,3}\.[0-9]+",value):
         raise ValueError("Versión Graph inválida, por ejemplo v26.0")
     if key in ("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE", "WHATSAPP_CLINICAL_VIDEO_TEMPLATE") and not re.fullmatch(r"[a-z0-9_]{3,70}",value):
         raise ValueError("Nombre de plantilla inválido")
