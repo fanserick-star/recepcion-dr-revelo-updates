@@ -229,7 +229,8 @@ def main():
             conn.commit()
         signed_list = listing().body.decode("utf-8")
         assert "🔒 Firmado" in signed_list
-        assert "data-report-id='" + rid + "'" not in signed_list
+        assert "data-report-id='" + rid + "'" in signed_list
+        assert "data-signed='1'" in signed_list
         assert delete_report(rid, LocalDeleteRequest()).status_code == 409
 
         # Informes no firmados: acción manual desde la lista.
