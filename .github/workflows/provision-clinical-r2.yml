@@ -1,0 +1,43 @@
+name: Provision isolated clinical R2 bucket and 7-day expiry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/provision-clinical-r2.yml'
+      - 'tools/provision_clinical_r2_cf.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provision-dr-revelo-r2-clinical-isolated
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Assert private-only R2 provisioning contract
+        run: |
+          python -m py_compile tools/provision_clinical_r2_cf.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('tools/provision_clinical_r2_cf.py').read_text()
+          for x in ['dr-revelo-clinical-2026', 'clinical-temp/', 'SEVEN_DAYS=7*24*60*60',
+                    'R2_PRIVATE_STANDARD_BUCKET_AND_7D_LIFECYCLE_VERIFIED']:
+              assert x in s,x
+          assert 'whatsapp_worker' not in s
+          assert 'meta' not in s.lower().split('def call')[0]
+          print('R2_ISOLATED_CONTRACT_OK')
+          PY
+      - name: Create/verify dedicated private bucket and 7-day expiry using existing token
+        run: python tools/provision_clinical_r2_cf.py
