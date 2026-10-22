@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.19",
-  "app_version": "1.4.19",
-  "runtime_version": "1.4.19",
+  "version": "1.4.20",
+  "app_version": "1.4.20",
+  "runtime_version": "1.4.20",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Informes médicos: nuevo botón Eliminar con confirmación individual para cistoscopías/ecografías sin firma. Bloquea documentos firmados también en servidor. Elimina solo la fila del informe para que el sincronizador marque borrado en Neón; conserva pacientes, consultas, recetas y certificados. Registra auditoría sin datos médicos en la PC clínica.",
-    "previous_version": "1.4.18",
+    "purpose": "Historia 1.4.20: puente LAN de solo lectura entrega exclusivamente PDF firmado original con comprobación SHA-256 a Recepción tras verificar vínculo de paciente; no modifica recetas, informes, certificados, firmas ni fichas; no autoriza envío desde Historia.",
+    "previous_version": "1.4.19",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -270,6 +270,11 @@
     "report_delete_no_patient_or_encounter_mutation": true,
     "report_delete_cloud_tombstone_via_existing_sync": true,
     "report_delete_local_only": true,
-    "report_delete_confirmation_required": true
+    "report_delete_confirmation_required": true,
+    "clinical_signed_pdf_verified_lan_only": true,
+    "clinical_signed_pdf_sha256_checked": true,
+    "clinical_signed_pdf_never_resigned": true,
+    "clinical_signed_pdf_reception_link_required": true,
+    "clinical_signed_pdf_no_patient_changes": true
   }
 }
