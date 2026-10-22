@@ -1,4 +1,5 @@
 name: Provision isolated clinical R2 bucket and 7-day expiry
+# One-time retrigger after R2-scoped GitHub Actions secret was configured on 2026-10-22.
 
 on:
   push:
