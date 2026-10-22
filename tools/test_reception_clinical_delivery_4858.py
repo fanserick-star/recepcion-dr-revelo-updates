@@ -19,9 +19,9 @@ for marker in [
   "WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE", "WHATSAPP_CLINICAL_VIDEO_TEMPLATE",
   "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED", '"X-Amz-Expires"',
   "604800", "LIMIT_VIDEO = 550 * 1024 * 1024", 'with open(tmp,"rb") as video_check:',
-  "_send_template(phone,name,kind,expiry,url)", "DOCUMENT","":
+  "_send_template(phone,name,kind,expiry,url)",
 ]:
-  if marker and marker != "DOCUMENT":assert marker in r,marker
+  assert marker in r,marker
 assert "ZoneInfo" not in r
 assert "Path(tmp).read_bytes()" not in r
 assert "import clinical_delivery as _clinical_delivery" in main
@@ -43,6 +43,8 @@ for marker in [
     'if path == "/delivery/signed-pdf"',
     'service._valid_token(self.remote_ip, token)',
     'self.send_header("Cache-Control", "no-store, private")',
+    'X-Revelo-Delivery-Proof',
+    '_valid_delivery_proof(',
 ]:
     assert marker in h,marker
 section=h.split("def signed_document_for_reception",1)[1].split("def _handler_class",1)[0]
