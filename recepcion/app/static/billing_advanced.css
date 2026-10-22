@@ -180,3 +180,10 @@
 .v4851-azur-totals .v4851-azur-grand{font-size:15px;font-weight:900;margin-top:5px}
 .v4851-azur-add{display:grid;gap:4px;margin-top:13px;text-align:left}
 .v4851-azur-add>b{font-size:13px}
+
+/* 4.8.54 — La vista previa refleja el detalle térmico en tres columnas. */
+.v4851-azur-detail.v4854-azur-detail th:nth-child(1){width:15%}
+.v4851-azur-detail.v4854-azur-detail th:nth-child(2){width:58%}
+.v4851-azur-detail.v4854-azur-detail th:nth-child(3){width:27%;text-align:right}
+.v4854-azur-detail .v4854-azur-prices td{border:0;padding-top:0;padding-bottom:8px;color:#383838;font-size:10px;text-align:left}
+.v4854-azur-detail .v4854-azur-prices td[colspan]{text-align:left}
