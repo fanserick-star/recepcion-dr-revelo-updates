@@ -146,3 +146,4 @@ if __name__ == "__main__":
     main()
     from test_doctor_turn_call import main as test_doctor_call
     test_doctor_call()
+    import test_historia_queue_beacon_1416  # visual contract, no DB writes

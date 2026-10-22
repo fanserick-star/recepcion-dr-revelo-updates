@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.15",
-  "app_version": "1.4.15",
-  "runtime_version": "1.4.15",
+  "version": "1.4.16",
+  "app_version": "1.4.16",
+  "runtime_version": "1.4.16",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,9 +82,9 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Llamar/Repetir turno desde Historia Clínica sin quitar Inicio. Pantalla TV de Recepción recibe señal LAN sin nombres/cédulas ni cambio de estado clínico. No usa Neón.",
-    "previous_version": "1.4.14",
-    "functional_changes": true,
+    "purpose": "Lista de espera más llamativa en Historia Clínica: focos pulsantes azul en consultas y ámbar en revisiones, nombres/turnos grandes y contadores pendientes. Focos estáticos para pacientes en atención y modo de movimiento reducido. Conserva Inicio, Llamar/Repetir, Abrir ficha, finalización, clínica, LAN y Neón sin cambios.",
+    "previous_version": "1.4.15",
+    "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -243,6 +243,15 @@
     "doctor_turn_call_enabled": true,
     "doctor_turn_call_lan_only": true,
     "doctor_turn_call_patient_privacy": true,
-    "doctor_turn_call_no_queue_state_changes": true
+    "doctor_turn_call_no_queue_state_changes": true,
+    "waiting_cards_visual_highlight": true,
+    "waiting_cards_consultation_blue_beacon": true,
+    "waiting_cards_exam_review_amber_beacon": true,
+    "waiting_cards_attending_no_blink": true,
+    "waiting_cards_reduced_motion_supported": true,
+    "waiting_cards_no_extra_polling": true,
+    "waiting_cards_keep_navigation_and_call_controls": true,
+    "waiting_cards_database_changes": false,
+    "waiting_cards_neon_changes": false
   }
 }
