@@ -280,6 +280,20 @@ def main():
         assert delete_certificate(rid, LocalDeleteRequest(certificate=True)).status_code == 404
         assert delete_certificate("cert-signed", LocalDeleteRequest(certificate=True)).status_code == 409
         assert delete_certificate("rest-signed", LocalDeleteRequest(certificate=True)).status_code == 409
+        # El retiro firmado exige confirmación separada. No borra la firma.
+        for cid in ("cert-signed", "rest-signed"):
+            result_signed = response_json(delete_certificate(
+                cid, LocalDeleteRequest(certificate=True, signed_confirm=True)
+            ))
+            assert result_signed["ok"] and result_signed["signed"] and result_signed["original_retained"]
+        assert delete_certificate("cert-signed", LocalDeleteRequest(certificate=True)).status_code == 404
+        for cid in ("cert-unsigned", "rest-unsigned"):
+            result_unsigned = response_json(delete_certificate(cid, LocalDeleteRequest(certificate=True)))
+            assert result_unsigned["ok"] and not result_unsigned["signed"]
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM electronic_signatures WHERE document_type IN ('certificado','reposo')").fetchone()[0] == 2
         print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
