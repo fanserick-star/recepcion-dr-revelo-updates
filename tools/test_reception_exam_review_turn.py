@@ -250,11 +250,18 @@ def test_automatic_review_ticket_and_thermal_centering() -> None:
     class PaperEvent:
         def __init__(self):
             self.Graphics = Graphics()
-            self.MarginBounds = SimpleNamespace(Width=299, Left=8)
+            self.MarginBounds = SimpleNamespace(Width=291, Left=11)
             self.PageBounds = SimpleNamespace(Width=315)
+            self.PageSettings = SimpleNamespace(PrintableArea=SimpleNamespace(Right=284))
             self.HasMorePages = True
 
+    geometry_fn = next(n for n in core.body if isinstance(n, ast.FunctionDef)
+                       and n.name == "_safe_pos80_print_width")
+    geometry_scope = {}
+    exec(compile(ast.Module(body=[geometry_fn], type_ignores=[]),
+                 "<geometry>", "exec"), geometry_scope)
     scope = {
+        "_safe_pos80_print_width": geometry_scope["_safe_pos80_print_width"],
         "RectangleF": lambda x, y, width, height: (x, y, width, height),
         "ticket": {"turn": 2, "fecha": "2026-10-08"},
         "center": object(),
@@ -272,9 +279,10 @@ def test_automatic_review_ticket_and_thermal_centering() -> None:
         "2026-10-08", "Espere el llamado de su turno",
     ]
     for _, (left, y, width, height) in event.Graphics.draws:
-        assert width == 299
-        assert left + width / 2 == 315 / 2 - 8 - 7
-        assert height > 0
+        assert width == 255
+        assert left == 0
+        assert 11 + left + width <= 284 - 16
+        assert y >= 0 and height > 0
 
 
 if __name__ == "__main__":

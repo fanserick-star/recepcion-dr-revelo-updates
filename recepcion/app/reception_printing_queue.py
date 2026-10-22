@@ -12,7 +12,7 @@ PATCH_BOOT_OK = False
 PATCH_BOOT_ERROR = ''
 _PRINT_QUEUE = queue.Queue(maxsize=16)
 _PRINT_LOCK = threading.Lock()
-_PRINT_STATE = {'queued_total': 0, 'printed_total': 0, 'failed_total': 0, 'last_status': 'idle', 'last_error': '', 'last_printer': '', 'last_finished_at': 0.0}
+_PRINT_STATE = {'queued_total': 0, 'printed_total': 0, 'failed_total': 0, 'last_status': 'idle', 'last_error': '', 'last_printer': '', 'last_finished_at': 0.0, 'delivery_stage': 'idle', 'physical_completion_verified': False}
 try:
     _stable_print_receipt_windows = core._print_receipt_windows
 
@@ -41,11 +41,12 @@ try:
         while True:
             payload, printer_name, show_blood_pressure = _PRINT_QUEUE.get()
             try:
-                _record_state(last_status='printing', last_error='', last_printer=str(printer_name or ''))
+                _record_state(last_status='printing', delivery_stage='submitting_to_windows', last_error='', last_printer=str(printer_name or ''))
                 used = _stable_print_receipt_windows(payload, printer_name, show_blood_pressure)
                 with _PRINT_LOCK:
                     _PRINT_STATE['printed_total'] += 1
-                    _PRINT_STATE['last_status'] = 'printed'
+                    _PRINT_STATE['last_status'] = 'printed'  # Legacy; PrintDocument only acknowledges Windows spooler.
+                    _PRINT_STATE['delivery_stage'] = 'submitted_to_windows'
                     _PRINT_STATE['last_error'] = ''
                     _PRINT_STATE['last_printer'] = str(used or printer_name or '')
                     _PRINT_STATE['last_finished_at'] = time.time()
@@ -53,6 +54,7 @@ try:
                 with _PRINT_LOCK:
                     _PRINT_STATE['failed_total'] += 1
                     _PRINT_STATE['last_status'] = 'error'
+                    _PRINT_STATE['delivery_stage'] = 'error'
                     _PRINT_STATE['last_error'] = str(exc)[:240]
                     _PRINT_STATE['last_finished_at'] = time.time()
                 try:
@@ -74,6 +76,7 @@ try:
         with _PRINT_LOCK:
             _PRINT_STATE['queued_total'] += 1
             _PRINT_STATE['last_status'] = 'queued'
+            _PRINT_STATE['delivery_stage'] = 'queued'
             _PRINT_STATE['last_error'] = ''
             _PRINT_STATE['last_printer'] = chosen
         return chosen
