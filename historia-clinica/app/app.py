@@ -1870,6 +1870,19 @@ def home():
         """).fetchone()[0])
 
     queue_count = len(queue)
+    # Contadores visuales: solo los pacientes que siguen EN ESPERA.
+    # No alteran prioridades, la cola, los turnos ni estados clínicos.
+    waiting_consult_count = sum(
+        1 for row in queue
+        if row["status"] == "waiting"
+        and not _queue_is_procedure(row)
+        and normalize_search(str(row["attention_type"] or "")).upper().strip() != "REVISION DE EXAMENES"
+    )
+    waiting_review_count = sum(
+        1 for row in queue
+        if row["status"] == "waiting"
+        and normalize_search(str(row["attention_type"] or "")).upper().strip() == "REVISION DE EXAMENES"
+    )
     if queue:
         parts = []
         for r in queue:
@@ -1903,10 +1916,27 @@ def home():
             last_label = _v1373_last_attention_label(r["last_encounter_date"] if "last_encounter_date" in r.keys() else "")
             patient_meta = " · ".join(x for x in ((f"{age} años" if age else ""), last_label) if x)
             queued = e((r["queued_at"] or "")[-8:-3])
+            is_waiting = r["status"] == "waiting"
+            queue_kind_class = "queue-row-review" if exam_review else (
+                "queue-row-procedure-muted" if is_procedure else "queue-row-consult-highlight"
+            )
+            queue_status_class = "queue-row-waiting" if is_waiting else "queue-row-attending"
+            queue_kind_label = "REVISIÓN DE EXÁMENES" if exam_review else (
+                "PROCEDIMIENTO" if is_procedure else "CONSULTA"
+            )
+            queue_state_label = "EN ESPERA" if is_waiting else "EN ATENCIÓN"
+            spotlight_heading = (
+                "<div class='queue-spotlight-head'>"
+                + ("<span class='queue-beacon' aria-hidden='true'></span>" if not is_procedure else "")
+                + "<span class='queue-spotlight-label'>" + queue_kind_label + "</span>"
+                + "<span class='queue-spotlight-state'>" + queue_state_label + "</span>"
+                + "</div>"
+            )
             can_open = bool(r["clinical_patient_id"]) or r["status"] == "in_consultation"
             href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
             parts.append(
-                f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'}'>"
+                f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'} {queue_kind_class} {queue_status_class}'>"
+                f"{spotlight_heading}"
                 f"<a class='queue-row-main' href='{href}' title='{e(action_label)}'>"
                 f"{turn_badge}"
                 f"<span class='queue-patient-copy'><b>{e(r['display_name'])}</b>"
@@ -2025,6 +2055,10 @@ def home():
 <section class="home-workspace">
   <section class="panel queue-panel home-queue-v107">
     <div class="panel-title"><div><span class="dot"></span><div><h2>Pacientes en espera</h2><p>{queue_count} paciente{'s' if queue_count!=1 else ''} en la cola del doctor</p></div></div>{next_button}</div>
+    <div class="queue-spotlight-totals" aria-label="Pacientes pendientes por tipo">
+      <span class="queue-total-consult">● {waiting_consult_count} consulta{'s' if waiting_consult_count!=1 else ''}</span>
+      <span class="queue-total-review">● {waiting_review_count} revisión{'es' if waiting_review_count!=1 else ''}</span>
+    </div>
     <div class="home-scroll-region">{qhtml}</div>
   </section>
   <aside class="home-side-stack">
