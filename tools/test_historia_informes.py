@@ -5,6 +5,7 @@ import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "historia-clinica" / "app"))
 from fastapi import FastAPI
@@ -60,6 +61,7 @@ def main():
         preview = route("/informes/{report_id}/vista", "GET")
         listing = route("/informes", "GET")
         save = route("/api/informes", "POST")
+        delete_report = route("/api/informes/{report_id}/eliminar", "POST")
 
         created_form = new(
             "p1", "cistoscopia", "visit1", "", 1
