@@ -259,8 +259,8 @@ def main():
                 ("cert-signed", "medical"), ("rest-signed", "rest_isolation"),
             ):
                 conn.execute(
-                    "INSERT INTO certificates(id,patient_id,encounter_id,issued_at,body_text,certificate_type) VALUES(?,?,?,?,?,?)",
-                    (cid, "p1", "visit1", "2026-10-22T13:00:00", "Documento de prueba", kind),
+                    "INSERT INTO certificates(id,patient_id,encounter_id,issued_at,body_text,certificate_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+                    (cid, "p1", "visit1", "2026-10-22T13:00:00", "Documento de prueba", kind, "2026-10-22T13:00:00", "2026-10-22T13:00:00"),
                 )
             for cid, kind in (("cert-signed", "certificado"), ("rest-signed", "reposo")):
                 conn.execute(
