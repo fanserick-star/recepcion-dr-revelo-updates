@@ -33,7 +33,7 @@ assert wrap("",31,measure)==[]
 draw=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="_print_ticket_windows"]
 assert len(draw)==1
 paint=ast.get_source_segment(source,draw[0])
-assert "Margins(14, 14, 11, 10)" in paint, "Physical margins must protect paper edges"
+assert "Margins(11, 13, 16, 10)" in paint, "Physical margins must protect paper edges"
 assert "min(258.0, bounds_width - 12.0)" in paint, "Use conservative printable-width cap"
 assert "_wrap_thermal_text(content, width - 12.0" in paint
 assert "RectangleF(x, draw_top, width, rect_height)" in paint
