@@ -90,6 +90,59 @@ class ClinicTVTurnService(TVTurnService):
             self.live["last_change"] = _now_iso()
 
     def apply_history(self, payload: dict) -> None:
+        # Mantiene TODAS las reglas anteriores para abrir/finalizar/eliminar.
+        # El llamado manual llega como evento independiente y no cambia estados.
+        self._apply_history_without_doctor_call(payload)
+        self._consume_doctor_call(payload)
+
+    def _consume_doctor_call(self, payload: dict) -> None:
+        call = payload.get("doctor_call") if isinstance(payload.get("doctor_call"), dict) else None
+        now = _epoch()
+        if not hasattr(self, "_doctor_last_call_id"):
+            self._doctor_last_call_id = ""
+            self._doctor_hold_until = 0.0
+            self._doctor_held_queue_id = ""
+            self._doctor_held_turn = None
+            self._doctor_held_review = False
+        with self.lock:
+            # Un evento idéntico se recibe varias veces por el sondeo LAN:
+            # se anuncia una sola vez y se retiene en TV unos segundos.
+            if call:
+                event_id = str(call.get("event_id") or "")
+                queue_id = str(call.get("queue_id") or "")
+                try:
+                    turn = int(call.get("turn") or 0)
+                    age = now - float(call.get("at_epoch") or 0)
+                except (ValueError, TypeError):
+                    turn, age = 0, 999
+                seen = event_id == self._doctor_last_call_id
+                current = payload.get("current") if isinstance(payload.get("current"), dict) else {}
+                all_rows = [current] + [r for r in payload.get("waiting") or [] if isinstance(r, dict)]
+                verified = any(
+                    str(r.get("queue_id") or "") == queue_id
+                    and int(r.get("turn") or 0) == turn
+                    for r in all_rows
+                )
+                if not seen and event_id and queue_id and 0 <= age < 25 and 1 <= turn <= 9999 and verified:
+                    self._doctor_last_call_id = event_id
+                    self._doctor_hold_until = now + 7
+                    self._doctor_held_queue_id = queue_id
+                    self._doctor_held_turn = turn
+                    self._doctor_held_review = call.get("exam_review") is True
+                    self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
+                    self.live["sound"] = True
+                    self.live["sound_test"] = False
+            if now < self._doctor_hold_until and self._doctor_held_turn is not None:
+                self.live["mode"] = "calling"
+                self.live["turn"] = self._doctor_held_turn
+                self.live["exam_review"] = self._doctor_held_review
+                self.live["calling_started_epoch"] = now
+                self.live["last_change"] = _now_iso()
+            elif self._doctor_hold_until:
+                self._doctor_hold_until = 0.0
+                self._doctor_held_turn = None
+
+    def _apply_history_without_doctor_call(self, payload: dict) -> None:
         waiting = self._valid_waiting(payload)
         has_current = self._has_current_turn(payload)
         current = payload.get("current") if isinstance(payload.get("current"), dict) else None

@@ -1,0 +1,19 @@
+name: Test Reception TV Doctor Call
+on:
+  pull_request:
+    paths:
+      - 'recepcion/app/reception_tv_turns.py'
+      - 'tools/test_reception_doctor_call.py'
+      - '.github/workflows/test-reception-doctor-call.yml'
+  workflow_dispatch:
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify deduplication and patient-state isolation
+        run: python tools/test_reception_doctor_call.py
