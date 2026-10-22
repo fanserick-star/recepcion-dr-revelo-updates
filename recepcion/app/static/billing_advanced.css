@@ -156,7 +156,7 @@
 
 /* 4.8.51 · Vista previa fiscal compacta inspirada en el POS de AZUR. */
 .v4847-paper.v4851-azur-paper{display:block;width:min(326px,100%);padding:14px 12px;
- font-family:"Times New Roman",Georgia,serif;font-size:12px;line-height:1.25;text-align:left;
+ font-family:Tahoma,Arial,sans-serif;font-size:12px;line-height:1.25;text-align:left;
  background:#fff;color:#111;overflow-wrap:anywhere;border:1px solid #c4c4c4;box-shadow:0 4px 16px #15233812}
 .v4851-azur-head{text-align:center;display:grid;gap:2px;margin:0 auto 14px}
 .v4851-azur-head span{font-size:12px;font-weight:400;overflow-wrap:anywhere}
