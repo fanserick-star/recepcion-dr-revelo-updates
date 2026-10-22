@@ -34,11 +34,13 @@ try:
         doc.PrinterSettings.PrinterName = chosen
         if not doc.PrinterSettings.IsValid:
             raise RuntimeError(f'Windows no puede usar la impresora ‘{chosen}’')
-        estimated_h = 360 + max(0, len(lines) - 1) * 34
+        # Reserve room for long descriptions and a multiline payment method.
+        estimated_h = 740 + len(lines) * 120 + sum(
+            max(0, len(str(desc)) // 24) * 18 for desc, _ in lines)
         doc.DocumentName = 'Comprobante de pago'
         doc.OriginAtMargins = True
-        doc.DefaultPageSettings.PaperSize = PaperSize('Comprobante 80 mm', 315, max(380, min(900, int(estimated_h))))
-        doc.DefaultPageSettings.Margins = Margins(10, 10, 6, 6)
+        doc.DefaultPageSettings.PaperSize = PaperSize('Comprobante 80 mm', 315, max(900, min(3200, int(estimated_h))))
+        doc.DefaultPageSettings.Margins = Margins(11, 13, 8, 10)
         fonts = []
         image_holder = {'img': None}
 
@@ -71,9 +73,14 @@ try:
 
         def on_print_page(sender, e):
             g = e.Graphics
-            width = float(e.MarginBounds.Width)
-            safe_right = max(210.0, width - 22.0)
-            y = 0.0
+            width = core._safe_pos80_print_width(
+                float(e.MarginBounds.Width),
+                float(e.PageSettings.PrintableArea.Right),
+                float(e.MarginBounds.Left))
+            if width < 145.0:
+                raise RuntimeError('El área imprimible es insuficiente para el comprobante')
+            safe_right = width
+            y = 8.0
             logo_path = _os.path.join(str(core.BASE_DIR), 'static', 'doctor_isotype.png')
             if _os.path.exists(logo_path):
                 try:
@@ -83,13 +90,13 @@ try:
                     image_holder['img'] = None
             title_x = 42.0 if image_holder['img'] is not None else 0.0
             title_w = width - title_x
-            g.DrawString('DR. ARMANDO REVELO', f_doctor, Brushes.Black, RectangleF(title_x, 2.0, title_w, 15.0), center)
-            g.DrawString('CIRUJANO URÓLOGO', f_specialty, Brushes.Black, RectangleF(title_x, 18.0, title_w, 13.0), center)
-            y = 43.0
+            g.DrawString('DR. ARMANDO REVELO', f_doctor, Brushes.Black, RectangleF(title_x, y + 2.0, title_w, 20.0), center)
+            g.DrawString('CIRUJANO URÓLOGO', f_specialty, Brushes.Black, RectangleF(title_x, y + 22.0, title_w, 16.0), center)
+            y = 51.0
             draw_line(g, y, width)
             y += 9.0
-            g.DrawString('COMPROBANTE DE PAGO', f_title, Brushes.Black, RectangleF(0.0, y, width, 19.0), center)
-            y += 21.0
+            g.DrawString('COMPROBANTE DE PAGO', f_title, Brushes.Black, RectangleF(0.0, y + 2.0, width, 24.0), center)
+            y += 29.0
             g.DrawString(f'REF. {proof_ref}', f_ref, Brushes.Black, RectangleF(0.0, y, width, 13.0), center)
             y += 18.0
             draw_line(g, y, width)
@@ -104,7 +111,7 @@ try:
             y += 13.0
             name = ' '.join(str(patient_name or 'SIN NOMBRE').split()).upper()
             measured = g.MeasureString(name, f_name, int(width))
-            name_h = max(24.0, min(46.0, float(measured.Height) + 4.0))
+            name_h = max(24.0, float(measured.Height) + 6.0)
             g.DrawString(name, f_name, Brushes.Black, RectangleF(0.0, y, width, name_h), center)
             y += name_h + 3.0
             draw_line(g, y, width)
@@ -113,9 +120,10 @@ try:
             g.DrawString('VALOR', f_label, Brushes.Black, RectangleF(safe_right - 72.0, y, 72.0, 14.0), right)
             y += 16.0
             for desc, value in lines:
-                item_rect = RectangleF(0.0, y, max(120.0, safe_right - 82.0), 40.0)
-                size = g.MeasureString(str(desc), f_item_bold, int(max(120.0, safe_right - 82.0)))
-                item_h = max(18.0, min(38.0, float(size.Height) + 2.0))
+                description_width = max(120.0, safe_right - 82.0)
+                size = g.MeasureString(str(desc), f_item_bold, int(description_width))
+                item_h = max(18.0, float(size.Height) + 4.0)
+                item_rect = RectangleF(0.0, y, description_width, item_h)
                 g.DrawString(str(desc), f_item_bold, Brushes.Black, item_rect)
                 g.DrawString(f'${float(value):.2f}', f_item_bold, Brushes.Black, RectangleF(safe_right - 74.0, y, 74.0, 18.0), right)
                 y += item_h + 3.0
@@ -127,11 +135,15 @@ try:
             y += 30.0
             g.DrawString('Forma de pago:', f_label, Brushes.Black, 0.0, y)
             y += 14.0
-            g.DrawString(str(payment_method or 'NO REGISTRADA'), f_item_bold, Brushes.Black, RectangleF(0.0, y, width, 18.0), center)
-            y += 24.0
+            method = str(payment_method or 'NO REGISTRADA')
+            method_height = max(18.0, float(g.MeasureString(method, f_item_bold, int(width)).Height) + 4.0)
+            g.DrawString(method, f_item_bold, Brushes.Black, RectangleF(0.0, y, width, method_height), center)
+            y += method_height + 6.0
             draw_line(g, y, width)
             y += 12.0
-            g.DrawString('Comprobante interno de pago.\nNo reemplaza la factura electrónica.', f_footer, Brushes.Black, RectangleF(0.0, y, width, 30.0), center)
+            if y + 40.0 > float(e.MarginBounds.Height) - 10.0:
+                raise RuntimeError('El comprobante excede el largo de papel imprimible')
+            g.DrawString('Comprobante interno de pago.\nNo reemplaza la factura electrónica.', f_footer, Brushes.Black, RectangleF(0.0, y + 2.0, width, 36.0), center)
             e.HasMorePages = False
         doc.PrintPage += on_print_page
         try:
