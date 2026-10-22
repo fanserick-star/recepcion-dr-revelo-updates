@@ -179,14 +179,16 @@ def _setup():
     retention=os.getenv("CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED","")=="1"
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
     wa_ready=all((core.WHATSAPP_GRAPH_VERSION,core.WHATSAPP_PHONE_NUMBER_ID,core.WHATSAPP_ACCESS_TOKEN))
+    lan_ready=len(os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip())>=32
     return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,
-            "ready_document":bool(ready_r2 and wa_ready and template_doc),
+            "ready_document":bool(ready_r2 and wa_ready and template_doc and lan_ready),
             "ready_video":bool(ready_r2 and wa_ready and template_video),
             "missing":[name for name,present in [
                 ("Cuenta/bucket y claves R2",all((account,bucket,key,secret))),
                 ("Regla de borrado R2 a 7 días",retention),
                 ("Credenciales WhatsApp",wa_ready),
                 ("Plantilla de documentos aprobada",bool(template_doc)),
+                ("Clave LAN compartida con Historia",lan_ready),
                 ("Plantilla de video aprobada",bool(template_video)),
             ] if not present]}
 
