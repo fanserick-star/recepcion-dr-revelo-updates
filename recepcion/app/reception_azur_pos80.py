@@ -320,6 +320,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     clr.AddReference("System.Drawing")
     from System.Drawing import Font, FontStyle, Brushes, RectangleF, StringFormat, StringAlignment, Pen, Color
     from System.Drawing.Printing import PrintDocument, PrinterSettings, PaperSize, Margins
+    from System.Drawing.Text import TextRenderingHint
     installed = [str(p) for p in PrinterSettings.InstalledPrinters]
     if printer_name not in installed:
         raise RuntimeError("La impresora configurada ya no aparece en Windows")
@@ -339,20 +340,26 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     doc.DefaultPageSettings.Margins = Margins(14, 14, 11, 10)
     fonts = []
     def make_font(size, bold=False):
-        f = Font("Times New Roman", float(size), FontStyle.Bold if bold else FontStyle.Regular)
+        f = Font("Tahoma", float(size), FontStyle.Bold if bold else FontStyle.Regular)
         fonts.append(f)
         return f
-    f_small = make_font(7.3)
-    f_bold_small = make_font(7.0, True)
-    f_text = make_font(8.0)
-    f_bold = make_font(8.0, True)
-    f_title = make_font(9.5, True)
-    f_total = make_font(11.0, True)
+    # Tahoma's sturdy sans-serif strokes print more clearly on low-dpi thermal
+    # heads than fine Times New Roman serifs; no font file is redistributed.
+    f_small = make_font(7.7)
+    f_bold_small = make_font(7.4, True)
+    f_text = make_font(8.5)
+    f_bold = make_font(8.4, True)
+    f_title = make_font(10.5, True)
+    f_total = make_font(11.5, True)
+    f_identifier = make_font(7.6)
     pen = Pen(Color.Black, 1)
     center = StringFormat()
     center.Alignment = StringAlignment.Center
     def print_page(sender, e):
         g = e.Graphics
+        # Draw text with discrete pixels rather than anti-aliased gray edges:
+        # this is a thermal paper ticket, not a photo document.
+        g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit
         bounds_width = float(e.MarginBounds.Width)
         # Keep the previously calibrated left shift and safe printable width.
         width = min(258.0, bounds_width - 12.0)
@@ -390,7 +397,9 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         def write_row(values, header=False):
             """AZUR-style Cant / Descripcion / PVP / Descto / Subtotal."""
             nonlocal y
-            fractions = (0.085, 0.355, 0.170, 0.175, 0.215)
+            # Cant must fit "Cant" and "1.00"; description needs room for
+            # "CONSULTA MEDICA". Keep all five values on their own columns.
+            fractions = (0.12, 0.39, 0.15, 0.15, 0.19)
             spans = [width * part for part in fractions]
             offsets = [sum(spans[:i]) for i in range(len(spans))]
             font = f_small if not header else f_bold_small
@@ -441,6 +450,16 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
                     next_y = max(next_y, next_val)
                 y = next_y
 
+        def write_access_identifier(label, number):
+            """Preserve all 49 signed digits and prevent an orphan '817' line."""
+            write(label + ":", f_small)
+            token = str(number or "").strip()
+            if re.fullmatch(r"[0-9]{49}", token):
+                write(token[:25], f_identifier)
+                write(token[25:], f_identifier)
+            elif token:
+                write(token, f_identifier)
+
         # All fiscal and customer values below originate in the SRI-authorized
         # signed XML already validated by _authorized_xml_to_ticket.
         write("FACTURA", f_title, True, 17)
@@ -461,10 +480,10 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         write("Fecha emisión: " + ticket["fecha_emision"], f_text, True)
         write("No. " + ticket["numero"], f_bold, True)
         write("Ambiente: PRODUCCION", f_small, True)
-        write("Autorización: " + ticket["autorizacion"], f_small)
+        write_access_identifier("Autorización", ticket["autorizacion"])
         if ticket["fecha_autorizacion"]:
             write("Fecha y Hora Autorización: " + _format_authorization_datetime(ticket["fecha_autorizacion"]), f_small)
-        write("Clave de acceso: " + ticket["clave"], f_small)
+        write_access_identifier("Clave de acceso", ticket["clave"])
         y += 5.0
 
         write("Razón social / nombres: " + ticket["cliente"], f_text)
