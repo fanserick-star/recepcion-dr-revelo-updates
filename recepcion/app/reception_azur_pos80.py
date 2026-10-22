@@ -318,7 +318,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         raise RuntimeError("Configura primero la impresora térmica en Recepción → Configuración → Recibos e impresora")
     import clr  # type: ignore
     clr.AddReference("System.Drawing")
-    from System.Drawing import Font, FontStyle, Brushes, RectangleF, StringFormat, StringAlignment, Pen, Color
+    from System.Drawing import Font, FontStyle, Brushes, RectangleF, PointF, StringFormat, StringAlignment, Pen, Color
     from System.Drawing.Printing import PrintDocument, PrinterSettings, PaperSize, Margins
     from System.Drawing.Text import TextRenderingHint
     installed = [str(p) for p in PrinterSettings.InstalledPrinters]
@@ -394,36 +394,44 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             g.DrawLine(pen, x, y, x + width, y)
             y += 4.0
 
-        def write_row(values, header=False):
-            """AZUR-style Cant / Descripcion / PVP / Descto / Subtotal."""
+        def write_detail_row(values, header=False):
+            """Readable 80 mm: Cant | Descripción | Subtotal, no split headers.
+
+            P.V.P and discount are displayed on a full-width second row. This
+            preserves every amount from the authorized XML without shrinking
+            the thermal font until the text becomes illegible.
+            """
             nonlocal y
-            # Cant must fit "Cant" and "1.00"; description needs room for
-            # "CONSULTA MEDICA". Keep all five values on their own columns.
-            fractions = (0.125, 0.38, 0.13, 0.155, 0.21)
+            fractions = (0.15, 0.58, 0.27)
             spans = [width * part for part in fractions]
             offsets = [sum(spans[:i]) for i in range(len(spans))]
-            font = f_small if not header else f_bold_small
+            font = f_bold_small if header else f_small
             blocks = [
-                _wrap_thermal_text(str(value), max(5.0, span - 3.0),
+                _wrap_thermal_text(str(value), max(5.0, span - 5.0),
                                    lambda text: float(g.MeasureString(text, font).Width))
                 for value, span in zip(values, spans)
             ]
-            rows_count = max((len(block) for block in blocks), default=1)
-            for index in range(rows_count):
+            row_count = max((len(block) for block in blocks), default=1)
+            for index in range(row_count):
                 row_y = y
                 next_line = y
                 for col, block in enumerate(blocks):
                     if index >= len(block):
                         continue
-                    segment = block[index]
-                    draw_top, rect_height, next_y = _pos80_text_line_box(
-                        row_y, float(g.MeasureString(segment, font).Height), 11)
-                    g.DrawString(segment, font, Brushes.Black,
-                                 RectangleF(x + offsets[col], draw_top,
-                                            spans[col] - 1.0, rect_height),
-                                 right if col in (2, 3, 4) else StringFormat.GenericDefault)
-                    next_line = max(next_line, next_y)
+                    part = block[index]
+                    top, height, advance = _pos80_text_line_box(
+                        row_y, float(g.MeasureString(part, font).Height), 12)
+                    g.DrawString(part, font, Brushes.Black,
+                                 RectangleF(x + offsets[col], top,
+                                            spans[col] - 2.0, height),
+                                 right if col == 2 else StringFormat.GenericDefault)
+                    next_line = max(next_line, advance)
                 y = next_line
+
+        def write_detail_prices(unit_price, discount):
+            """P.V.P and discount stay together on one naturally wide line."""
+            write("P.V.P: " + str(unit_price) + "    Descto: " +
+                  str(discount), f_small, False, 12)
 
         def write_amount(label, amount, prominent=False):
             nonlocal y
@@ -460,9 +468,18 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             elif token:
                 write(token, f_identifier)
 
+        def write_title():
+            """GDI+ point drawing avoids clipping the top of bold FACTURA."""
+            nonlocal y
+            text = "FACTURA"
+            y += 10.0
+            g.DrawString(text, f_title, Brushes.Black,
+                         PointF(x + width / 2.0, y), center)
+            y += max(20.0, float(g.MeasureString(text, f_title).Height) + 12.0)
+
         # All fiscal and customer values below originate in the SRI-authorized
         # signed XML already validated by _authorized_xml_to_ticket.
-        write("FACTURA", f_title, True, 17)
+        write_title()
         write("RUC: " + ticket["ruc"], f_bold, True)
         write(ticket["emisor"], f_bold, True)
         if ticket.get("nombre_comercial") and ticket["nombre_comercial"] != ticket["emisor"]:
@@ -496,11 +513,11 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             write("Correo: " + ticket["correo_cliente"], f_small)
         y += 4.0
 
-        write_row(("Cant", "Descripción", "P.V.P", "Descto", "Subtotal"), True)
+        write_detail_row(("Cant", "Descripción", "Subtotal"), True)
         line()
         for item in docs:
-            write_row((item["cantidad"], item["descripcion"], item["unitario"],
-                       item["descuento"], item["total"]))
+            write_detail_row((item["cantidad"], item["descripcion"], item["total"]))
+            write_detail_prices(item["unitario"], item["descuento"])
         line()
         write_amount("Total sin impuestos", ticket["subtotal"])
         write_amount("Descuento", ticket["total_descuento"])
