@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.14",
-  "app_version": "1.4.14",
-  "runtime_version": "1.4.14",
+  "version": "1.4.15",
+  "app_version": "1.4.15",
+  "runtime_version": "1.4.15",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -28,7 +28,8 @@
     "sync_status_resilience.py",
     "requirements.txt",
     "static/style.css",
-    "static/doctor_icon.b64"
+    "static/doctor_icon.b64",
+    "doctor_turn_call.py"
   ],
   "required_python_packages": [
     {
@@ -77,11 +78,12 @@
     "static/style.css",
     "static/doctor_icon.b64",
     "historia-version.json",
-    "update_manifest.json"
+    "update_manifest.json",
+    "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Firma electrónica con opción voluntaria Recordar en esta PC: contraseña cifrada mediante DPAPI del usuario Windows, restauración automática al reabrir Historia Clínica, bloqueo y olvido local. Requiere pulsar Firmar para cada documento; no envía la contraseña a Neón ni la guarda en .env. Recetas, certificados, informes, historias y facturación intactos.",
-    "previous_version": "1.4.13",
+    "purpose": "Llamar/Repetir turno desde Historia Clínica sin quitar Inicio. Pantalla TV de Recepción recibe señal LAN sin nombres/cédulas ni cambio de estado clínico. No usa Neón.",
+    "previous_version": "1.4.14",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -237,6 +239,10 @@
     "electronic_signature_remember_affects_signing_consent": false,
     "electronic_signature_password_plaintext_storage": false,
     "electronic_signature_encrypted_credential_stored_in_protected_data_directory": true,
-    "electronic_signature_requires_windows_lock_for_safe_use": true
+    "electronic_signature_requires_windows_lock_for_safe_use": true,
+    "doctor_turn_call_enabled": true,
+    "doctor_turn_call_lan_only": true,
+    "doctor_turn_call_patient_privacy": true,
+    "doctor_turn_call_no_queue_state_changes": true
   }
 }
