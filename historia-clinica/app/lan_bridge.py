@@ -16,7 +16,7 @@ import uuid
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 LAN_HTTP_PORT = 8765
 LAN_DISCOVERY_PORT = 8766
@@ -515,6 +515,84 @@ class LanService:
         except Exception as exc:
             return {"ok": False, "message": f"No se pudo abrir el permiso de Windows: {type(exc).__name__}"}
 
+    def _valid_delivery_proof(self, reception_id: str, kind: str, doc_id: str,
+                              timestamp: str, digest: str) -> bool:
+        """Document delivery uses independent HMAC; /challenge alone is not authorization."""
+        secret = os.getenv("CLINICAL_DELIVERY_LAN_SECRET", "").strip()
+        if len(secret) < 32:
+            return False
+        try:
+            if abs(time.time() - int(timestamp)) > 60:
+                return False
+        except (ValueError, TypeError):
+            return False
+        material = f"{reception_id}|{kind}|{doc_id}|{timestamp}".encode("utf-8")
+        expected = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(str(digest or ""), expected)
+
+    def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str) -> bytes:
+        """Read-only, verified signed original; never signs or edits a document."""
+        reception_id = _clean(reception_id, 100)
+        doc_id = _clean(doc_id, 100)
+        kind = _clean(kind, 30).lower()
+        if not reception_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", doc_id):
+            raise ValueError("Identificador de documento inválido")
+        types = {
+            "receta": ("prescriptions", None),
+            "certificado": ("certificates", "medical"),
+            "reposo": ("certificates", "rest_isolation"),
+            "informe": ("certificates", "report"),
+        }
+        if kind not in types:
+            raise ValueError("Tipo de documento inválido")
+        table, subtype = types[kind]
+        with sqlite3.connect(self.db_path, timeout=8) as conn:
+            conn.row_factory = sqlite3.Row
+            link = conn.execute(
+                """SELECT clinical_patient_id FROM patient_links
+                   WHERE reception_patient_id=? AND verified=1 LIMIT 1""",
+                (reception_id,),
+            ).fetchone()
+            if not link or not str(link["clinical_patient_id"] or ""):
+                raise PermissionError("No existe una vinculación clínica verificada")
+            clinical_id = str(link["clinical_patient_id"])
+            row = conn.execute(
+                f"SELECT id,patient_id,certificate_type FROM {table} WHERE id=? AND COALESCE(deleted_at,'')=''"
+                if table == "certificates"
+                else "SELECT id,patient_id FROM prescriptions WHERE id=? AND COALESCE(deleted_at,'')=''",
+                (doc_id,),
+            ).fetchone()
+            if not row or str(row["patient_id"]) != clinical_id:
+                raise PermissionError("Documento no pertenece a la ficha vinculada")
+            if table == "certificates":
+                actual_type = str(row["certificate_type"] or "medical")
+                valid = (actual_type in ("report_cystoscopy", "report_ultrasound")
+                         if subtype == "report" else
+                         actual_type == "rest_isolation" if subtype == "rest_isolation"
+                         else actual_type not in ("rest_isolation", "report_cystoscopy", "report_ultrasound"))
+                if not valid:
+                    raise PermissionError("El tipo de documento no coincide")
+            signature = conn.execute(
+                """SELECT relative_path,pdf_sha256 FROM electronic_signatures
+                   WHERE document_type=? AND document_id=?
+                   ORDER BY id DESC LIMIT 1""",
+                (kind, doc_id),
+            ).fetchone()
+            if not signature:
+                raise FileNotFoundError("El doctor todavía no ha guardado un PDF firmado")
+            archive = (self.root / "data" / "documentos_firmados").resolve()
+            source = (self.root / str(signature["relative_path"])).resolve()
+            if not source.is_relative_to(archive) or not source.is_file():
+                raise FileNotFoundError("La copia original firmada no está disponible")
+            if source.stat().st_size > 20 * 1024 * 1024:
+                raise ValueError("El PDF firmado supera el límite de seguridad")
+            data = source.read_bytes()
+            digest = hashlib.sha256(data).hexdigest()
+            if not hmac.compare_digest(digest, str(signature["pdf_sha256"] or "")):
+                raise ValueError("La integridad del PDF firmado no coincide")
+            return data
+
+
     def _handler_class(self):
         service = self
 
@@ -549,6 +627,38 @@ class LanService:
                         "token": service._token(self.remote_ip),
                         "port": LAN_HTTP_PORT,
                     })
+                    return
+                if path == "/delivery/signed-pdf":
+                    token = self.headers.get("X-Historia-LAN-Token", "")
+                    if not service._valid_token(self.remote_ip, token):
+                        self._send(403, {"ok": False, "error": "No autorizado"})
+                        return
+                    args = parse_qs(urlsplit(self.path).query, keep_blank_values=False)
+                    val = lambda key: str((args.get(key) or [""])[0])
+                    if not service._valid_delivery_proof(
+                        val("reception_id"), val("kind"), val("doc_id"),
+                        self.headers.get("X-Revelo-Delivery-Time", ""),
+                        self.headers.get("X-Revelo-Delivery-Proof", "")):
+                        self._send(403, {"ok": False, "error": "Autorización clínica inválida"})
+                        return
+                    try:
+                        data = service.signed_document_for_reception(
+                            val("reception_id"), val("kind"), val("doc_id"))
+                    except (PermissionError, FileNotFoundError, ValueError) as exc:
+                        self._send(404, {"ok": False, "error": str(exc)[:150]})
+                        return
+                    except Exception:
+                        self._send(503, {"ok": False, "error": "No se pudo recuperar el PDF firmado"})
+                        return
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/pdf")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.send_header("Content-Disposition", 'attachment; filename="Documento_firmado.pdf"')
+                    self.send_header("Cache-Control", "no-store, private")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(data)
                     return
                 if path == "/health":
                     service._touch_reception(self.remote_ip)
