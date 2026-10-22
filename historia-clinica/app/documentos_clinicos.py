@@ -1135,16 +1135,15 @@ footer{{
             f"<td>{'Reposo / aislamiento' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else 'Certificado médico'}</td>"
             f"<td>{_e(r['diagnosis'])}</td><td>{_e(r['rest_days'])}</td>"
             f"<td class='doc-delete-actions'>"
-            + (f"<span class='signed-lock' title='Protegido por firma electrónica'>🔒 Firmado</span>"
-               if str(r["id"]) in signed_ids else
-               f"<button type='button' class='document-delete-btn' data-cert-id='{_e(r['id'])}'>🗑 Eliminar</button>")
+            + (f"<span class='signed-lock' title='El PDF firmado original se conservará'>🔒 Firmado</span>" if str(r["id"]) in signed_ids else "")
+            + f"<button type='button' class='document-delete-btn' data-cert-id='{_e(r['id'])}' data-signed='{'1' if str(r['id']) in signed_ids else '0'}'>🗑 Eliminar</button>"
             + f"<a href='{'/certificados/reposo/'+_e(r['id'])+'/vista' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista'}' target='_blank'>Ver</a>"
             + f"<a href='{'/certificados/reposo/'+_e(r['id'])+'/vista?print_now=1' if str(_row_value(r,'certificate_type','medical'))=='rest_isolation' else '/certificados/'+_e(r['id'])+'/vista?print_now=1'}' target='_blank'>Reimprimir</a></td></tr>"
             for r in rows
         ) or "<tr><td colspan='6'>No hay certificados emitidos.</td></tr>"
         body = f"""{_styles()}<section class='docs-wrap'><div class='docs-head'><div>
         <span class='eyebrow'>DOCUMENTOS</span><h1>Certificados médicos</h1>
-        <p>Certificados guardados y sincronizados con la nube. Los documentos firmados están protegidos.</p></div></div>
+        <p>Certificados guardados y sincronizados con la nube. Si elimina uno firmado se conservarán su PDF original y la constancia de firma.</p></div></div>
         <div class='docs-card document-list-card'>
         <table class='list-table document-list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Tipo</th><th>Diagnóstico</th><th>Reposo</th><th>Acciones</th></tr></thead><tbody>{body_rows}</tbody></table></div></section>"""
         body += """<style>
@@ -1168,11 +1167,13 @@ footer{{
   const row=button.closest('tr');
   const patient=String(row?.cells?.[1]?.textContent||'').trim();
   const study=String(row?.cells?.[2]?.textContent||'').trim();
-  if(!confirm('¿Eliminar '+study+' de '+patient+'?\\n\\nSolo se permite borrar documentos SIN FIRMA electrónica. El certificado desaparecerá de los documentos guardados, pero la historia clínica y la consulta permanecerán intactas. Esta acción no se puede deshacer.'))return;
+  const isSigned=button.dataset.signed==='1';
+  if(!confirm('¿Eliminar '+study+' de '+patient+'?\\n\\nEl documento desaparecerá de los listados, sin eliminar la historia ni la consulta.'+(isSigned?'\\n\\nESTÁ FIRMADO: conservará su PDF original y la constancia de firma.':'')))return;
+  if(isSigned&&prompt('CONFIRMACIÓN DE DOCUMENTO FIRMADO\\nEscriba ELIMINAR para retirar este documento del listado.\\nEl PDF original se conservará.')!=='ELIMINAR')return;
   button.disabled=true;button.textContent='Eliminando…';
   try{
    const response=await fetch('/api/certificados/'+encodeURIComponent(id)+'/eliminar',{
-    method:'POST',headers:{'X-Historia-Delete-Certificate':'1'},cache:'no-store'
+    method:'POST',headers:{'X-Historia-Delete-Certificate':'1',...(isSigned?{'X-Historia-Confirm-Signed-Delete':'ELIMINAR'}:{})},cache:'no-store'
    });
    const data=await response.json().catch(()=>({}));
    if(!response.ok||!data.ok)throw Error(data.error||'No se pudo eliminar el certificado.');
@@ -1188,10 +1189,10 @@ footer{{
 
     @app.post("/api/certificados/{cert_id}/eliminar")
     def delete_unsigned_certificate(cert_id: str, request: Request):
-        """Eliminar certificados SIN firma; nunca informes u otros documentos.
+        """Eliminar certificados con/sin firma del listado (doble confirmación para firmados).
 
-        Se borra la fila local para emitir el tombstone de sync_dirty en Neon.
-        No se modifican pacientes, consultas, turnos ni documentos firmados.
+        La copia PAdES, la firma y su auditoría nunca se destruyen;
+        el tombstone de sync_dirty impide reaparición desde Neon.
         """
         firma._require_local(request)
         if str(request.headers.get("x-historia-delete-certificate") or "") != "1":
@@ -1211,14 +1212,13 @@ footer{{
             has_table = conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='electronic_signatures'"
             ).fetchone()
-            if has_table:
-                signed = conn.execute(
-                    """SELECT 1 FROM electronic_signatures
-                       WHERE document_id=? AND document_type IN ('certificado','reposo')
-                       LIMIT 1""", (cert_id,),
-                ).fetchone()
-                if signed:
-                    return JSONResponse({"ok":False,"error":"Documento firmado electrónicamente: no se puede eliminar."},status_code=409)
+            signed = bool(has_table and conn.execute(
+                """SELECT 1 FROM electronic_signatures
+                   WHERE document_id=? AND document_type IN ('certificado','reposo')
+                   LIMIT 1""", (cert_id,),
+            ).fetchone())
+            if signed and str(request.headers.get("x-historia-confirm-signed-delete") or "") != "ELIMINAR":
+                return JSONResponse({"ok":False,"error":"Este documento firmado requiere confirmación reforzada. El PDF firmado se conservará."},status_code=409)
             deleted = conn.execute(
                 """DELETE FROM certificates WHERE id=?
                    AND COALESCE(deleted_at,'')=''
@@ -1231,13 +1231,15 @@ footer{{
             if callable(audit) and conn.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'"
             ).fetchone():
-                audit(conn, "delete_unsigned_certificate", "certificate", cert_id, {
+                audit(conn, "delete_signed_certificate" if signed else "delete_unsigned_certificate", "certificate", cert_id, {
                     "document_type": str(row["certificate_type"]),
                     "patient_id": str(row["patient_id"]),
+                    "signed": signed,
+                    "signed_original_retained": signed,
                     "reason": "Eliminación individual confirmada",
                 })
             conn.commit()
-        return JSONResponse({"ok":True,"id":cert_id,"message":"Certificado sin firmar eliminado."})
+        return JSONResponse({"ok":True,"id":cert_id,"signed":signed,"original_retained":signed,"message":"Certificado retirado del listado. El PDF firmado original y su auditoría se conservaron." if signed else "Certificado sin firmar eliminado."})
 
     @app.get("/certificados/nuevo", response_class=HTMLResponse)
     def certificate_new(patient_id: str, encounter_id: str = "", queue_id: str = "", encounter_date: str = "", encounter_time: str = "", from_consultation: int = 0):
