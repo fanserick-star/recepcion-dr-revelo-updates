@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.16",
-  "app_version": "1.4.16",
-  "runtime_version": "1.4.16",
+  "version": "1.4.17",
+  "app_version": "1.4.17",
+  "runtime_version": "1.4.17",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Lista de espera más llamativa en Historia Clínica: focos pulsantes azul en consultas y ámbar en revisiones, nombres/turnos grandes y contadores pendientes. Focos estáticos para pacientes en atención y modo de movimiento reducido. Conserva Inicio, Llamar/Repetir, Abrir ficha, finalización, clínica, LAN y Neón sin cambios.",
-    "previous_version": "1.4.15",
+    "purpose": "Corrige informe de cistoscopía/ecografía que enviaba el pie y sello electrónico a segunda hoja: márgenes redistribuidos en A4 sin reducir la letra de 12 pt, reflujo de impresión por Edge antes de aplicar PAdES/QR si detecta 2+ páginas. No recorta informes realmente largos ni altera certificados, fichas, Inicio, Recepción o Neón.",
+    "previous_version": "1.4.16",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -252,6 +252,10 @@
     "waiting_cards_no_extra_polling": true,
     "waiting_cards_keep_navigation_and_call_controls": true,
     "waiting_cards_database_changes": false,
-    "waiting_cards_neon_changes": false
+    "waiting_cards_neon_changes": false,
+    "report_print_footer_orphan_fix": true,
+    "report_print_signature_pdf_reflow": true,
+    "report_print_preserve_main_font_pt": 12,
+    "report_print_long_reports_keep_pages": true
   }
 }
