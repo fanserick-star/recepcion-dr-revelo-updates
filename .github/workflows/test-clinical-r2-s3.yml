@@ -1,0 +1,46 @@
+name: Test private clinical R2 S3 with synthetic PDF
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/test-clinical-r2-s3.yml'
+      - 'tools/test_clinical_r2_live_synthetic.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-clinical-r2-s3-private
+  cancel-in-progress: false
+
+jobs:
+  verify-s3:
+    runs-on: ubuntu-latest
+    env:
+      CLINICAL_R2_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLINICAL_R2_ACCESS_KEY_ID: ${{ secrets.CLINICAL_R2_ACCESS_KEY_ID }}
+      CLINICAL_R2_SECRET_ACCESS_KEY: ${{ secrets.CLINICAL_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate isolated source and absence of clinical data dependencies
+        run: |
+          set -eu
+          python -m py_compile tools/test_clinical_r2_live_synthetic.py
+          python -m py_compile recepcion/app/clinical_delivery.py
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('tools/test_clinical_r2_live_synthetic.py').read_text()
+          for x in ['PRUEBA SIN DATOS MEDICOS', 'R2_S3_TEST_OK_NO_PATIENT_DATA',
+                    'clinical-temp/self-test/', 'hmac.compare_digest',
+                    '"_r2_url", "_upload_r2"']:
+              assert x in s,x
+          assert "requests.post" not in s and "whatsapp_send_template" not in s
+          print("R2_S3_SYNTHETIC_ONLY_CONTRACT_OK")
+          PY
+      - name: PUT GET exact hash DELETE and deny old link in private R2
+        run: python tools/test_clinical_r2_live_synthetic.py
