@@ -93,6 +93,7 @@ jobs:
           python tools/test_reception_azur_compact_4851.py
           python tools/test_reception_pos80_legibility_4853.py
           python tools/test_reception_pos80_unclipped_title_4854.py
+          python tools/test_reception_pos80_compact_margins_4855.py
           python tools/test_reception_advanced_billing_4842.py
           node tools/test_reception_agenda_status_contrast.mjs
           node tools/test_reception_agenda_4836_polish.mjs
