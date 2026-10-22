@@ -22,6 +22,7 @@ from cloud_sync import build_sync_service, ensure_local_sync_schema, get_sync_st
 import documentos_clinicos
 import informes_clinicos
 import firma_electronica
+import doctor_turn_call
 import cloud_presence_patch
 cloud_presence_patch.install()
 
@@ -1913,6 +1914,7 @@ def home():
                 f"<span class='queue-tags'><span class='queue-type queue-type-{e(attention_key)}'>{'★ PACIENTE NUEVO' if is_new else e(attention_label)}</span>"
                 f"{service_tag}<span class='queue-status'>{e(status_text)}</span></span></span>"
                 f"<time>{queued}</time><span class='queue-row-action'>{e(action_label)} ›</span></a>"
+                f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
                 f"<form class='queue-dismiss-form js-queue-dismiss' method='post' action='/cola/{e(r['id'])}/descartar'>"
                 f"<button type='submit' class='queue-dismiss-btn' title='Quitar de espera'>×</button></form>"
                 f"</div>"
@@ -2879,6 +2881,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         f"<a class='secondary btn-link cp-prescription' target='_blank' href='/recetas/nueva?patient_id={e(patient_id)}'>Receta médica</a>"
         f"<a class='secondary btn-link cp-certificate' target='_blank' href='/certificados/nuevo?patient_id={e(patient_id)}'>Certificado médico</a>"
         f"<a class='secondary btn-link cp-reports' href='/informes?patient_id={e(patient_id)}'>Informes médicos</a>"
+        f"{doctor_turn_call.patient_button(db, patient_id, _queue_turn_number, _queue_is_procedure)}"
         f"{consult_action}</div>"
     )
 
@@ -3218,6 +3221,7 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
 <section class='consult-patient-bar'>
   <div class='avatar'>{e((p['name'] or '?')[:1])}</div>
   <div class='consult-patient-copy'><div class='consult-queue-badges'>{queue_badges_html}</div><span class='eyebrow'>CONSULTA MÉDICA</span><h1>{e(p['name'])}</h1><div class='consult-meta'>{''.join(f'<span>{x}</span>' for x in info)}</div></div>
+  {doctor_turn_call.consultation_button(queue_context, queue_turn, patient_id, _queue_is_procedure)}
   <div id='save-state' class='save-state saved'>Autoguardado activo</div>
 </section>
 {"<div class='recovery-note'>Se recuperó automáticamente la consulta que estaba en edición. Puede continuar donde la dejó.</div>" if recovered else ""}
@@ -4983,3 +4987,13 @@ def v138_health():
         "empty_draft_pending_fix": True,
         "empty_attention_closes_without_signed_history": True,
     })
+
+
+# Nuevo canal de llamados explícitos: no altera los botones Inicio existentes,
+# los flujos de consulta, los estados de Recepción ni el sincronizador Neón.
+doctor_turn_call.install(app, db, ROOT, _queue_turn_number, _queue_is_procedure)
+_DOCTOR_CALL_ORIGINAL_BASE = base
+
+def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
+    html = _DOCTOR_CALL_ORIGINAL_BASE(title, body, active, extra_head, extra_script)
+    return html.replace("</body>", doctor_turn_call.CALL_SCRIPT + "</body>", 1)
