@@ -176,6 +176,10 @@ def _setup():
     secret=os.getenv("CLINICAL_R2_SECRET_ACCESS_KEY","").strip()
     template_doc=os.getenv("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","").strip()
     template_video=os.getenv("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","").strip()
+    # Fail closed while either Meta template is in review. Saving API keys or
+    # naming templates alone must never unlock patient messaging.
+    approved=os.getenv("WHATSAPP_CLINICAL_TEMPLATES_APPROVED","0")=="1"
+    live_enabled=os.getenv("CLINICAL_DELIVERY_LIVE_ENABLED","0")=="1"
     retention=os.getenv("CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED","")=="1"
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
     wa_ready=all((core.WHATSAPP_GRAPH_VERSION,core.WHATSAPP_PHONE_NUMBER_ID,core.WHATSAPP_ACCESS_TOKEN))
@@ -183,11 +187,15 @@ def _setup():
     test_phone=re.sub(r"\D","",core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
         test_phone="593"+test_phone[1:]
-    ready_test=bool(ready_r2 and wa_ready and template_doc and re.fullmatch(r"5939\d{8}",test_phone))
+    ready_test=bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and re.fullmatch(r"5939\d{8}",test_phone))
     return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,"ready_test":ready_test,
-            "ready_document":bool(ready_r2 and wa_ready and template_doc and lan_ready),
-            "ready_video":bool(ready_r2 and wa_ready and template_video),
+            "clinical_delivery_enabled":live_enabled,
+            "clinical_templates_approved":approved,
+            "ready_document":bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and lan_ready),
+            "ready_video":bool(live_enabled and approved and ready_r2 and wa_ready and template_video),
             "missing":[name for name,present in [
+                ("Habilitación clínica manual (desactivada por seguridad)",live_enabled),
+                ("Aprobación de ambas plantillas en Meta",approved),
                 ("Cuenta/bucket y claves R2",all((account,bucket,key,secret))),
                 ("Regla de borrado R2 a 7 días",retention),
                 ("Credenciales WhatsApp",wa_ready),
@@ -196,6 +204,8 @@ def _setup():
                 ("Plantilla de video aprobada",bool(template_video)),
             ] if not present],
             "test_missing":[name for name,present in [
+                ("Envíos clínicos habilitados expresamente",live_enabled),
+                ("Plantillas Meta aprobadas",approved),
                 ("Almacenamiento R2 y eliminación a 7 días",ready_r2),
                 ("Número y credenciales WhatsApp de Recepción",wa_ready),
                 ("Plantilla de documentos aprobada por Meta",bool(template_doc)),

@@ -1,4 +1,4 @@
-# Entrega clínica desde Recepción — 4.8.59 / Historia 1.4.22
+# Entrega clínica desde Recepción — 4.8.60 / Historia 1.4.22
 
 ## Separación de responsabilidades
 - Historia Clínica: el doctor crea, guarda y firma. No se envía WhatsApp desde Historia.
@@ -7,6 +7,19 @@
 - Si Historia está apagada, el índice puede consultarse desde Neon, pero un PDF no se puede previsualizar ni enviar.
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
+
+## Preparación local asistida — Recepción 4.8.60
+
+El bucket `dr-revelo-clinical-2026` ya se creó con retención R2 de 7 días; la prueba real de S3 desde GitHub validó PUT, GET, hash SHA-256, DELETE y 404 tras borrar. **Esto no instala las claves en la PC:** GitHub Actions Secrets no pueden leerse desde el programa ni publicarse en un canal de actualizaciones. No intentar copiar tokens desde los logs.
+
+1. En Windows, actualizar Recepción con su launcher a **4.8.60**. Desde la carpeta de instalación del programa, abrir **`Configurar envios clinicos.vbs`** con doble clic; inicia el asistente gráfico usando su `.venv\\Scripts\\pythonw.exe`, sin CMD.
+2. En el asistente introducir **Account ID** de Cloudflare y la pareja R2 S3 **Access Key ID / Secret Access Key** restringida al bucket. No confundir con el token general **`CLOUDFLARE_R2_API_TOKEN`**. Si la clave secreta se perdió, emitir otra credencial R2 específica desde Cloudflare, no copiarla de GitHub ni pegarla en chats.
+3. Opcional por ahora: **Phone Number ID** y un **token Meta con permisos de envío**, correspondientes al mismo número de citas; el Worker de Cloudflare mantiene su propio secreto y este asistente nunca lo lee ni modifica. Añadir celular de prueba autorizado si se conoce.
+4. Generar y guardar la clave compartida **LAN** de Recepción. Configurar **exactamente el mismo valor** en el archivo privado `.env` de la PC de Historia Clínica (`CLINICAL_DELIVERY_LAN_SECRET`) usando un canal local controlado, no mensajería externa. No cambiarla si ya estaba configurada.
+5. Guardar. **Siempre queda `CLINICAL_DELIVERY_LIVE_ENABLED=0` y `WHATSAPP_CLINICAL_TEMPLATES_APPROVED=0`.** Reiniciar Recepción para recargar la configuración y ejecutar la comprobación R2 en la ficha → Documentos médicos. Ningún envío clínico a pacientes se activa con este paso.
+6. Una vez que Meta muestre estado **Aprobada/Activa** para `entrega_documento_clinico` y `entrega_video_clinico` en **Spanish (ECU)**, se revisarán el idioma, orden de las cuatro variables, acceso LAN y entrega al iPhone de prueba. Solo después, habilitar manualmente los indicadores y las plantillas del entorno local. No marcar "aprobadas" durante revisión.
+
+El asistente actualiza solo un conjunto permitido de claves en el `.env` **local protegido de Recepción**, que el launcher conserva. Preserva intactas `DATABASE_URL`, `WHATSAPP_ENABLED`, las alarmas, AZUR, la configuración de citas, archivos clínicos y datos de pacientes. El `.env` contiene secretos locales en texto; no subirlo a repositorios, enviarlo por WhatsApp, ni adjuntarlo a soporte. Restringir el acceso al usuario Windows autorizado y mantener las protecciones del equipo. Las claves guardadas en GitHub son para pruebas de GitHub Actions y no se sincronizan a la PC.
 
 ## Activar (solo después de configurar)
 
