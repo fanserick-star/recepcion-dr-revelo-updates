@@ -47,7 +47,7 @@ assert 'def _signed_pdf(pid, kind, doc_id):' in src
 assert 'send-self-test' in ui and 'confirmation:\'ENVIAR PRUEBA\'' in ui
 assert 'WHATSAPP_TEST_PHONE' in ui
 assert 'data-profile-tab="documentos"' in (root/"recepcion/app/static/app.js").read_text(encoding="utf-8")
-assert 'clinical_delivery.js?v=4.8.59' in (root/"recepcion/app/static/index.html").read_text(encoding="utf-8")
+assert 'clinical_delivery.js?v=4.8.60' in (root/"recepcion/app/static/index.html").read_text(encoding="utf-8")
 assert 'noindex,nofollow' in page and 'SIN DATOS' in page
 assert 'No enviado por Meta'.lower() in page.lower() or 'no enviado por Meta' in page
 assert 'from cloud_sync import _load_env' in hist
