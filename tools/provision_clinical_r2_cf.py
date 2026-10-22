@@ -29,7 +29,13 @@ def call(method, path, body=None):
         # Do not surface tokens, raw request headers or private account identifiers.
         code=int(exc.code)
         if code in (401,403):
-            raise RuntimeError("R2_ACCESS_DENIED: existing Cloudflare token lacks Workers R2 Storage permission") from None
+            try:
+                body=json.loads(exc.read().decode("utf-8","replace"))
+                codes=",".join(str(e.get("code",""))[:12] for e in body.get("errors",[]) if isinstance(e,dict))
+            except Exception:
+                codes="unavailable"
+            # Only numeric Cloudflare error identifiers; never emit provider messages or tokens.
+            raise RuntimeError(f"R2_ACCESS_DENIED_HTTP_{code}_CODES_{codes}") from None
         if code in (402,424):
             raise RuntimeError("R2_BILLING_REQUIRED: account needs R2 plan/billing activated") from None
         raise RuntimeError(f"R2_API_HTTP_{code} while executing {method}") from None
