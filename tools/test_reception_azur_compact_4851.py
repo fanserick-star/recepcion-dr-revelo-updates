@@ -85,6 +85,6 @@ assert "/api/azur/readonly/pos80-preview" in preview
 assert "/api/azur/readonly/pos80-print" in preview
 assert "/api/billing/emit" not in preview
 assert "v4851-azur-paper" in css
-assert 'azur_pos80_ui.js?v=4.8.59' in html
-assert 'billing_advanced.css?v=4.8.59' in html
+assert 'azur_pos80_ui.js?v=4.8.60' in html
+assert 'billing_advanced.css?v=4.8.60' in html
 print("AZUR_RIDE_COMPACT_80MM_XML_AUTHORIZED_FISCAL_UNCHANGED_4851_OK")
