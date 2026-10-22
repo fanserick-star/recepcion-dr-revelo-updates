@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.52",
-  "app_version": "4.8.52",
-  "runtime_version": "4.8.52",
+  "version": "4.8.53",
+  "app_version": "4.8.53",
+  "runtime_version": "4.8.53",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Llamado manual Llamar/Repetir desde Historia Clínica por LAN en Pantalla TV con sonido y voz. Un evento por pulsación, 7 segundos, sin nombres ni estados clínicos alterados. Conserva AZUR 4.8.51.",
-    "previous_version": "4.8.51",
+    "purpose": "Recepción 4.8.53: factura térmica 80 mm con Tahoma de mayor legibilidad, texto de un solo bit sin bordes grises, columnas reequilibradas para no partir Cant ni Subtotal, y clave de acceso completa en dos renglones. Mantiene XML SRI autorizado, importes, márgenes de impresión, AZUR, pacientes, Neon, agenda, WhatsApp e Historia sin alteraciones.",
+    "previous_version": "4.8.52",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
