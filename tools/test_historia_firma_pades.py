@@ -92,6 +92,7 @@ def main() -> None:
         source = root / "origen.pdf"
         signed = root / "firmado.pdf"
         _minimal_pdf(source)
+        assert fe._pdf_page_count(source) == 1
         meta_signed = fe._sign_pdf(
             root,
             source,
