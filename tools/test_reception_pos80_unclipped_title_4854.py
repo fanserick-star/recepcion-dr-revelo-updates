@@ -12,7 +12,7 @@ css=(root/"static"/"billing_advanced.css").read_text(encoding="utf-8")
 html=(root/"static"/"index.html").read_text(encoding="utf-8")
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version=="4.8.54"
+assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version in {"4.8.54","4.8.55"}
 
 nodes={n.name:n for n in ast.parse(src).body if isinstance(n,ast.FunctionDef)}
 body=ast.get_source_segment(src,nodes["_print_ticket_windows"])
@@ -20,7 +20,7 @@ assert body
 for marker in (
  'PointF(x + width / 2.0, y)', # point drawing with no clipping rectangle for title
  'g.DrawString(text, f_title, Brushes.Black,',
- 'y += 10.0',
+ 'y += 13.0',
  'write_title()',
  'write_detail_row(("Cant", "Descripción", "Subtotal"), True)',
  'write_detail_row((item["cantidad"], item["descripcion"], item["total"]))',
@@ -45,8 +45,8 @@ for needle in ('class="v4854-azur-prices"', 'colspan="2"', 'v4854-azur-detail',
                "esc(x.unitario)","esc(x.descuento||'0.00')"):
  assert needle in preview,needle
 assert ".v4854-azur-detail" in css
-for token in ('azur_pos80_ui.js?v=4.8.54',
-              'billing_advanced.css?v=4.8.54',
-              'billing_advanced.js?v=4.8.54'):
+for token in ('azur_pos80_ui.js?v=4.8.55',
+              'billing_advanced.css?v=4.8.55',
+              'billing_advanced.js?v=4.8.55'):
  assert token in html,token
 print("AZUR_80MM_UNCLIPPED_TITLE_LEGIBLE_THREE_COLUMNS_AND_FULL_XML_4854_OK")
