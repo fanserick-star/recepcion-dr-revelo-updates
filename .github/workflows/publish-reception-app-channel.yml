@@ -23,6 +23,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install test-only FastAPI for Reception–Historia contract checks
+        run: python -m pip install --disable-pip-version-check 'fastapi>=0.110,<1'
+
       - name: Enforce canonical Reception source
         run: |
           python tools/test_reception_canonical_source.py
