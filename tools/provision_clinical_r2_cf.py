@@ -23,8 +23,17 @@ def call(method, path, body=None):
     req=urllib.request.Request(url,method=method,headers=headers,
                                data=(json.dumps(body,separators=(",",":")).encode() if body is not None else None))
     try:
-        with urllib.request.urlopen(req,timeout=30) as response:
-            result=json.load(response)
+        # Retry read-only calls only; never blindly repeat bucket creation or rule edits.
+        attempts=3 if method=="GET" else 1
+        for attempt in range(attempts):
+            try:
+                with urllib.request.urlopen(req,timeout=12) as response:
+                    result=json.load(response)
+                break
+            except TimeoutError:
+                if attempt + 1 >= attempts:
+                    raise RuntimeError("R2_PROVIDER_TIMEOUT_REPEATED") from None
+                print(f"R2_GET_TIMEOUT_RETRY_{attempt+1}")
     except urllib.error.HTTPError as exc:
         # Do not surface tokens, raw request headers or private account identifiers.
         code=int(exc.code)
