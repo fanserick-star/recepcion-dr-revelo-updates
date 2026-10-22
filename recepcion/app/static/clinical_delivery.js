@@ -35,6 +35,14 @@
     preview.textContent='Ver ejemplo en mi iPhone (no envía nada)';
     preview.className='rp-clinical-preview';
     block.append(preview);
+    addButton(block,'Comprobar Cloudflare R2 sin pacientes',async()=>{
+      try{
+        const r=await api('/api/clinical-delivery/check-r2',{method:'POST'});
+        notice(r.lifecycle_7_day_header_verified?
+          'Cloudflare R2 correcto: subida, descarga y regla de 7 días detectadas.':
+          'Subida y descarga R2 correctas, pero no se confirmó la regla de borrado desde la cabecera del objeto. Revisa Cloudflare.',r.lifecycle_7_day_header_verified?'success':'info');
+      }catch(e){notice(e.message||'No se pudo comprobar R2','error');}
+    },!data.ready_r2);
     const input=document.createElement('input');
     input.type='tel';input.inputMode='tel';input.autocomplete='off';
     input.placeholder='Tu número de prueba: 09XXXXXXXX';
