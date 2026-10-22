@@ -95,7 +95,7 @@
     "static/clinical_delivery.js",
     "clinical_delivery_config.py",
     "clinical_delivery_setup.pyw",
-    "Configurar envios clinicos.vbs"
+    "Configurar_envios_clinicos.vbs"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -189,7 +189,7 @@
     "static/clinical_delivery.js",
     "clinical_delivery_config.py",
     "clinical_delivery_setup.pyw",
-    "Configurar envios clinicos.vbs"
+    "Configurar_envios_clinicos.vbs"
   ],
   "notes": {
     "purpose": "Recepción 4.8.59: diagnóstico guiado de Cloudflare R2/WhatsApp y prueba a celular autorizado con PDF sintético sin datos médicos. Comprueba subida y descarga byte a byte antes de enviar. Muestra previsualización accesible desde iPhone. No hay envío automático, ni modificación de fichas, caja, AZUR, agenda, alarmas o firma médica.",
