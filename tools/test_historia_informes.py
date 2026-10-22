@@ -209,6 +209,22 @@ def main():
                 "SELECT COUNT(*) FROM certificates WHERE certificate_type='medical'"
             ).fetchone()[0]
             assert certs == 0
+        # Bloqueo de informes firmados: no se ofrece botón ni se borra por API.
+        with sqlite3.connect(path) as conn:
+            conn.execute("""CREATE TABLE electronic_signatures(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                document_type TEXT,document_id TEXT,signed_at TEXT,
+                certificate_subject TEXT,certificate_serial TEXT,
+                pdf_sha256 TEXT,relative_path TEXT
+            )""")
+            conn.execute("""INSERT INTO electronic_signatures(document_type,document_id,signed_at,pdf_sha256,relative_path)
+                            VALUES('informe',?,'2026-10-22T10:00:00','test','test.pdf')""", (rid,))
+            conn.commit()
+        signed_list = listing().body.decode("utf-8")
+        assert "🔒 Firmado" in signed_list
+        assert "data-report-id='" + rid + "'" not in signed_list
+        assert delete_report(rid, LocalDeleteRequest()).status_code == 409
+
         # Informes no firmados: acción manual desde la lista.
         list_html = listing().body.decode("utf-8")
         assert "report-delete-btn" in list_html
