@@ -296,8 +296,20 @@ def _wrap_thermal_text(value: str, limit: float, measure) -> list[str]:
 
 
 def _pos80_horizontal_origin(bounds_width: float, content_width: float) -> float:
-    """Small calibrated shift to left, never leaving the printable Windows margin."""
-    return max(0.0, (float(bounds_width) - float(content_width)) / 2.0 - 8.0)
+    """Keep ink anchored to the left margin instead of recentering into the right edge."""
+    return 0.0
+
+
+def _pos80_safe_content_width(bounds_width: float, printable_right: float,
+                              left_edge: float) -> float:
+    """Use the driver's printable right limit, never the nominal 80 mm edge.
+
+    Windows paper sizes are in hundredths of an inch. POS-80C drivers can
+    expose only 72.1 mm of the nominal 80 mm roll as printable; reserve
+    an additional safety gutter for bold glyphs and monetary decimals.
+    """
+    return min(255.0, float(bounds_width) - 20.0,
+               float(printable_right) - float(left_edge) - 16.0)
 
 
 def _pos80_text_line_box(y: float, measured_height: float, minheight: float) -> tuple[float, float, float]:
@@ -320,7 +332,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         raise RuntimeError("Configura primero la impresora térmica en Recepción → Configuración → Recibos e impresora")
     import clr  # type: ignore
     clr.AddReference("System.Drawing")
-    from System.Drawing import Font, FontStyle, Brushes, RectangleF, PointF, StringFormat, StringAlignment, Pen, Color
+    from System.Drawing import Font, FontStyle, Brushes, RectangleF, StringFormat, StringAlignment, StringFormatFlags, Pen, Color
     from System.Drawing.Printing import PrintDocument, PrinterSettings, PaperSize, Margins
     from System.Drawing.Text import TextRenderingHint
     installed = [str(p) for p in PrinterSettings.InstalledPrinters]
@@ -337,9 +349,8 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     doc.DocumentName = "Factura electronica autorizada 80mm"
     doc.OriginAtMargins = True
     doc.DefaultPageSettings.PaperSize = PaperSize("Factura RIDE 80 mm", 315, est)
-    # On the consultorio's 80mm printer, previous margins left a visibly
-    # unused left gutter. Preserve the right safe margin but use ~71mm content.
-    # Hard printer margins remain enforced by PrintDocument/Windows.
+    # Preserve the nominal roll; PrintPage limits ink using the real
+    # driver PrintableArea instead of trusting the full 80 mm width.
     doc.DefaultPageSettings.Margins = Margins(11, 13, 16, 10)
     fonts = []
     def make_font(size, bold=False):
@@ -364,13 +375,13 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         # this is a thermal paper ticket, not a photo document.
         g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit
         bounds_width = float(e.MarginBounds.Width)
-        # Use the printable 80mm width, with 8pt of safety inside the driver.
-        # The origin helper always clamps left to zero in MarginBounds units.
-        width = min(279.0, bounds_width - 8.0)
+        printable = e.PageSettings.PrintableArea
+        width = _pos80_safe_content_width(
+            bounds_width, float(printable.Right), float(e.MarginBounds.Left))
         if width < 145.0:
-            raise RuntimeError("El ancho imprimible es insuficiente para un RIDE de 80 mm")
+            raise RuntimeError("El área imprimible de la POS-80C es insuficiente para el RIDE")
         x = _pos80_horizontal_origin(bounds_width, width)
-        y = 11.0
+        y = 8.0
         right = StringFormat()
         right.Alignment = StringAlignment.Far
         centered = StringFormat()
@@ -473,15 +484,22 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
                 write(token, f_identifier)
 
         def write_title():
-            """GDI+ point drawing avoids clipping the top of bold FACTURA."""
+            """Avoid chopping the upper strokes of the bold FACTURA heading."""
             nonlocal y
             text = "FACTURA"
-            # Start below the 16pt physical top margin plus 11pt content inset.
-            # This keeps the upper strokes clear of the printer's feeding edge.
-            y += 13.0
-            g.DrawString(text, f_title, Brushes.Black,
-                         PointF(x + width / 2.0, y), center)
-            y += max(20.0, float(g.MeasureString(text, f_title).Height) + 7.0)
+            title_format = StringFormat()
+            title_format.Alignment = StringAlignment.Center
+            title_format.FormatFlags = StringFormatFlags.NoClip
+            try:
+                # Use a generous glyph rectangle with its own top bearing.
+                top, box_height, advance = _pos80_text_line_box(
+                    y + 4.0, float(g.MeasureString(text, f_title).Height), 18.0)
+                g.DrawString(text, f_title, Brushes.Black,
+                             RectangleF(x, top, width, box_height + 10.0),
+                             title_format)
+                y = max(advance + 4.0, top + box_height + 5.0)
+            finally:
+                title_format.Dispose()
 
         # All fiscal and customer values below originate in the SRI-authorized
         # signed XML already validated by _authorized_xml_to_ticket.

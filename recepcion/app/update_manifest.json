@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.55",
-  "app_version": "4.8.55",
-  "runtime_version": "4.8.55",
+  "version": "4.8.56",
+  "app_version": "4.8.56",
+  "runtime_version": "4.8.56",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.55: diseño del RIDE autorizado de AZUR en 80 mm con mayor margen superior para evitar cortar FACTURA, posición más a la izquierda, ancho aprovechado e interlineado compacto sin solapamientos. Exclusivamente cambio de geometría visual; se conservan datos XML, autorización SRI, emisión, pacientes, agenda, Neon y WhatsApp.",
-    "previous_version": "4.8.54",
+    "purpose": "Recepción 4.8.56: impresión térmica AZUR adaptada al límite físico de POS-80C (72.1 mm imprimibles): importes dentro del borde, nombres largos ajustados y título FACTURA con protección de trazos superiores. Solo geometría; XML autorizado, emisión, pacientes, agenda, Neon y WhatsApp intactos.",
+    "previous_version": "4.8.55",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,

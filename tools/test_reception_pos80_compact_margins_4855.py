@@ -18,16 +18,14 @@ line=sandbox["_pos80_text_line_box"]
 printer=ast.get_source_segment(src,nodes["_print_ticket_windows"])
 assert printer
 
-# Paper's nominal width is 315 printer points (80mm). Document keeps safe
-# margins while moving ink 9.5pt left and making text 21pt wider.
+# POS-80C: usable area is 72.1 mm, not the entire nominal 80 mm paper.
 bounds=315.0-11.0-13.0
-width=min(279.0,bounds-8.0)
+width=min(255.0,bounds-20.0,284.0-11.0-16.0)
 left=11.0+origin(bounds,width)
 right=315.0-left-width
-assert width==279.0
-assert left==11.0 and right==25.0, (left,right,width)
-old_left=14.0+origin(315.0-28.0,258.0)
-assert left<old_left-8.0
+assert width==255.0
+assert left==11.0 and right==49.0, (left,right,width)
+assert left+width <= 284.0-16.0
 
 for measured in (12.0,13.5,16.7,22.5):
     top,height,next_y=line(11.0,measured,12.0)
@@ -40,10 +38,10 @@ for measured in (12.0,13.5,16.7,22.5):
 # The fiscal feed is unchanged; these are printing-only geometry changes.
 for fragment in (
     "Margins(11, 13, 16, 10)",
-    "width = min(279.0, bounds_width - 8.0)",
-    "y = 11.0",
-    "y += 13.0",
-    "PointF(x + width / 2.0, y)",
+    "width = _pos80_safe_content_width(",
+    "y = 8.0",
+    "StringFormatFlags.NoClip",
+    "RectangleF(x, top, width, box_height + 10.0)",
     'write_access_identifier("Clave de acceso", ticket["clave"])',
     'write_detail_row(("Cant", "Descripción", "Subtotal"), True)',
     'write_detail_prices(item["unitario"], item["descuento"])',
