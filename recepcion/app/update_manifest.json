@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.56",
-  "app_version": "4.8.56",
-  "runtime_version": "4.8.56",
+  "version": "4.8.57",
+  "app_version": "4.8.57",
+  "runtime_version": "4.8.57",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.56: impresión térmica AZUR adaptada al límite físico de POS-80C (72.1 mm imprimibles): importes dentro del borde, nombres largos ajustados y título FACTURA con protección de trazos superiores. Solo geometría; XML autorizado, emisión, pacientes, agenda, Neon y WhatsApp intactos.",
-    "previous_version": "4.8.55",
+    "purpose": "Recepción 4.8.57: calibración preventiva de POS-80C para recibos de consulta, comprobantes de pago y tickets de revisión; respeta PrintableArea, nombres y descripciones largas, y expone el estado de la cola hasta entrega a Windows. Factura AZUR 4.8.56 sin cambios; sin modificaciones a SRI, caja, pacientes, agenda, Neon ni WhatsApp.",
+    "previous_version": "4.8.56",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
