@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const bill=fs.readFileSync('recepcion/app/static/billing_advanced.js','utf8');
 const src=fs.readFileSync('recepcion/app/static/azur_pos80_ui.js','utf8');
 const html=fs.readFileSync('recepcion/app/static/index.html','utf8');
-assert.match(html,/azur_pos80_ui\.js\?v=4\.8\.(?:4[7-9]|5[01])/);
+assert.match(html,/azur_pos80_ui\.js\?v=4\.8\.(?:4[7-9]|5[012])/);
 assert.ok(html.indexOf('billing_advanced.js?v=4.8.52')<html.indexOf('azur_pos80_ui.js?v=4.8.52'));
 assert.match(bill,/rpPos80PrintSelected/);
 assert.match(bill,/rpPos80PreviewSelected/);
