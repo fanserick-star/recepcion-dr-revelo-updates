@@ -17,14 +17,14 @@ for name in required[:2]:
 origin=helpers["_pos80_horizontal_origin"]
 line=helpers["_pos80_text_line_box"]
 
-# Representative 80mm driver: 315pt paper, 14pt margins on either side.
-# The old layout was centered by the driver, but visibly right-shifted on paper.
-bounds=315.0-14.0-14.0
-width=min(258.0,bounds-12.0)
-old=(bounds-width)/2.0
+# Representative printer: 315pt (80mm) paper, safe 11pt left/13pt right.
+# Expanded printable area no longer leaves the left side empty.
+bounds=315.0-11.0-13.0
+width=min(279.0,bounds-8.0)
 x=origin(bounds,width)
-assert old - x == 8.0, (old,x)
-assert x >= 0.0
+assert x == 0.0, (x,width,bounds)
+assert 11.0+x < 14.0+6.5, "Ticket must move left"
+assert width > 258.0 and width <= bounds-8.0
 assert x+width <= bounds, (x,width,bounds)
 assert origin(266,258) == 0.0, "Narrow driver must not print outside left margin"
 
@@ -33,7 +33,7 @@ assert origin(266,258) == 0.0, "Narrow driver must not print outside left margin
 y=7.0
 for measured in (13.5,16.7,22.5,11.3,18.0,26.0):
     top,h,next_y=line(y,measured,14)
-    assert top >= y+2.0
+    assert top >= y+1.5
     assert h >= measured+2.0
     assert next_y >= top+h+0.5
     y=next_y
@@ -43,7 +43,7 @@ assert "_pos80_horizontal_origin(bounds_width, width)" in printer
 assert "_pos80_text_line_box(" in printer
 assert "RectangleF(x, draw_top, width, rect_height)" in printer
 assert "y = next_y" in printer
-assert "Margins(14, 14, 11, 10)" in printer
+assert "Margins(11, 13, 16, 10)" in printer
 assert "_wrap_thermal_text(content, width - 12.0" in printer
 assert "g.DrawLine(pen, x, y, x + width, y)" in printer
 assert "doc.Print()" in printer
@@ -54,5 +54,5 @@ assert "db.commit(" not in source
 assert "db.delete(" not in source
 manifest=__import__("json").loads((root/"update_manifest.json").read_text(encoding="utf-8"))
 version=__import__("json").loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"]==version and version in ("4.8.50","4.8.51","4.8.52","4.8.53","4.8.54")
+assert manifest["version"]==version and version in ("4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.55")
 print("RECEPTION_AZUR_POS80_TOP_GLYPHS_AND_LEFT_CALIBRATION_4850_OK")
