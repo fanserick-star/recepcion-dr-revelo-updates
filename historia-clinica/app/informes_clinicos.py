@@ -440,10 +440,9 @@ def install(app, context: dict) -> None:
             "<td>"+_e(r["name"])+"</td>"
             "<td>"+_e(REPORT_TYPES[TYPE_BY_STORAGE[str(r["certificate_type"])]]["title"].title())+"</td>"
             "<td class='report-delete-actions'>"
-            + ("<span class='report-signed-protected' title='Un PDF firmado no puede eliminarse'>🔒 Firmado</span>"
-               if str(r["id"]) in signed_ids else
-               "<button type='button' class='report-delete-btn' data-report-id='"
-               + _e(str(r["id"])) + "'>🗑 Eliminar</button>")
+            + ("<span class='report-signed-protected' title='Documento firmado con respaldo conservado'>🔒 Firmado</span>" if str(r["id"]) in signed_ids else "")
+            + "<button type='button' class='report-delete-btn' data-report-id='" + _e(str(r["id"]))
+            + "' data-signed='" + ("1" if str(r["id"]) in signed_ids else "0") + "'>🗑 Eliminar</button>"
             + "<a href='/informes/"+quote(r["id"])+"/vista' target='_blank'>Ver</a>"
             + "<a href='/informes/"+quote(r["id"])+"/editar'>Editar</a>"
             + "<a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a>"
@@ -477,11 +476,13 @@ def install(app, context: dict) -> None:
   const row=button.closest('tr');
   const patient=String(row?.cells?.[1]?.textContent||'').trim();
   const study=String(row?.cells?.[2]?.textContent||'').trim();
-  if(!window.confirm('¿Eliminar este informe sin firmar de '+patient+' ('+study+')?\\n\\nSe quitará de los informes guardados. Esta acción no tiene deshacer y NO elimina la historia ni la consulta.'))return;
+  const isSigned=button.dataset.signed==='1';
+  if(!window.confirm('¿Eliminar este informe de '+patient+' ('+study+')?\\n\\nSe quitará de los informes guardados, pero NO se eliminará la consulta ni el paciente.'+(isSigned?'\\n\\nESTÁ FIRMADO: se preservarán el PDF original y la auditoría de firma como respaldo.':'')))return;
+  if(isSigned&&window.prompt('CONFIRMACIÓN DE DOCUMENTO FIRMADO\\nEscriba ELIMINAR para retirarlo del listado.\\nEl PDF original y la constancia de firma se conservarán.')!=='ELIMINAR')return;
   button.disabled=true;button.textContent='Eliminando…';
   try{
    const response=await fetch('/api/informes/'+encodeURIComponent(id)+'/eliminar',{
-    method:'POST',headers:{'X-Historia-Delete-Report':'1'},cache:'no-store'
+    method:'POST',headers:{'X-Historia-Delete-Report':'1',...(isSigned?{'X-Historia-Confirm-Signed-Delete':'ELIMINAR'}:{})},cache:'no-store'
    });
    const data=await response.json().catch(()=>({}));
    if(!response.ok||!data.ok)throw new Error(data.error||'No se pudo eliminar el informe.');
@@ -497,11 +498,10 @@ def install(app, context: dict) -> None:
 
     @app.post("/api/informes/{report_id}/eliminar")
     def delete_unsigned_report(report_id: str, request: Request):
-        """Eliminar solo informes SIN firma. El trigger del sync genera tombstone.
+        """Retirar informe (también firmado con doble confirmación).
 
-        DELETE real, no soft-delete: el sync de Historia usa el borrado de
-        filas ausentes para señalar deleted_at en Neón. Marcar deleted_at
-        localmente provocaría reaparición al sincronizar.
+        Sin destruir el PDF PAdES ni la auditoría electrónica; el borrado
+        de la fila dispara el tombstone de sincronización existente.
         """
         firma._require_local(request)
         if str(request.headers.get("x-historia-delete-report") or "") != "1":
@@ -514,8 +514,9 @@ def install(app, context: dict) -> None:
             row = _report_row(conn, report_id)
             if not row:
                 return JSONResponse({"ok":False,"error":"Informe no encontrado o ya eliminado."}, status_code=404)
-            if _has_report_signature(conn, report_id):
-                return JSONResponse({"ok":False,"error":"Este informe tiene firma electrónica y no puede eliminarse."}, status_code=409)
+            signed = _has_report_signature(conn, report_id)
+            if signed and str(request.headers.get("x-historia-confirm-signed-delete") or "") != "ELIMINAR":
+                return JSONResponse({"ok":False,"error":"Este informe firmado requiere confirmación reforzada. El PDF firmado se conservará."}, status_code=409)
             result = conn.execute(
                 """DELETE FROM certificates
                    WHERE id=? AND certificate_type IN ('report_cystoscopy','report_ultrasound')
@@ -529,13 +530,15 @@ def install(app, context: dict) -> None:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='audit_log'"
             ).fetchone():
                 # Auditoría mínima sin copiar contenido médico ni cédulas.
-                audit(conn, "delete_unsigned_report", "certificate", report_id, {
+                audit(conn, "delete_signed_report" if signed else "delete_unsigned_report", "certificate", report_id, {
                     "document_type":str(row["certificate_type"]),
                     "patient_id":str(row["patient_id"]),
+                    "signed":signed,
+                    "signed_original_retained":signed,
                     "reason":"Eliminación manual confirmada",
                 })
             conn.commit()
-        return JSONResponse({"ok":True,"id":report_id,"message":"Informe sin firmar eliminado."})
+        return JSONResponse({"ok":True,"id":report_id,"signed":signed,"original_retained":signed,"message":"Informe retirado del listado. La firma y su PDF original se conservaron." if signed else "Informe sin firmar eliminado."})
 
     @app.get("/informes/nuevo", response_class=HTMLResponse)
     def new_report(patient_id: str, tipo: str = "cistoscopia", encounter_id: str = "", queue_id: str = "", from_consultation: int = 0):
