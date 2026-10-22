@@ -56,7 +56,7 @@ assert "paper_center - w / 2.0 - 7.0" not in review
 assert "is_exam_review_no_charge" not in review  # Ticket printer never alters patient or fiscal flow.
 assert "db.commit(" not in review
 
-assert "'delivery_stage': 'queued'" in queue
+assert "_PRINT_STATE['delivery_stage'] = 'queued'" in queue
 assert "'delivery_stage'] = 'submitted_to_windows'" in queue
 assert "'physical_completion_verified': False" in queue
 assert "core._print_receipt_windows = _print_receipt_windows_v4474" in queue
