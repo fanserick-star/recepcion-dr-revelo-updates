@@ -306,9 +306,11 @@ def _pos80_text_line_box(y: float, measured_height: float, minheight: float) -> 
     Returns (draw_top, rect_height, next_y), all in GDI+ drawing units.
     A separate top inset prevents the upper strokes touching the clip rectangle.
     """
-    line_height = max(float(minheight), float(measured_height) + 3.0)
-    top_inset = 2.5
-    return float(y) + top_inset, line_height + 2.0, float(y) + line_height + 5.5
+    # A small glyph bearing plus 0.5pt separation avoids clipping but
+    # removes the excessive blank lines visible on paper at 80 mm.
+    line_height = max(float(minheight), float(measured_height) + 1.5)
+    top_inset = 1.5
+    return float(y) + top_inset, line_height + 1.0, float(y) + line_height + 3.0
 
 
 def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
@@ -335,9 +337,10 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
     doc.DocumentName = "Factura electronica autorizada 80mm"
     doc.OriginAtMargins = True
     doc.DefaultPageSettings.PaperSize = PaperSize("Factura RIDE 80 mm", 315, est)
-    # Wider safety margins: physical 80mm drivers often expose only ~72mm.
-    # Layout below also reserves an internal margin for text and divider lines.
-    doc.DefaultPageSettings.Margins = Margins(14, 14, 11, 10)
+    # On the consultorio's 80mm printer, previous margins left a visibly
+    # unused left gutter. Preserve the right safe margin but use ~71mm content.
+    # Hard printer margins remain enforced by PrintDocument/Windows.
+    doc.DefaultPageSettings.Margins = Margins(11, 13, 16, 10)
     fonts = []
     def make_font(size, bold=False):
         f = Font("Tahoma", float(size), FontStyle.Bold if bold else FontStyle.Regular)
@@ -361,12 +364,13 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         # this is a thermal paper ticket, not a photo document.
         g.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit
         bounds_width = float(e.MarginBounds.Width)
-        # Keep the previously calibrated left shift and safe printable width.
-        width = min(258.0, bounds_width - 12.0)
+        # Use the printable 80mm width, with 8pt of safety inside the driver.
+        # The origin helper always clamps left to zero in MarginBounds units.
+        width = min(279.0, bounds_width - 8.0)
         if width < 145.0:
             raise RuntimeError("El ancho imprimible es insuficiente para un RIDE de 80 mm")
         x = _pos80_horizontal_origin(bounds_width, width)
-        y = 7.0
+        y = 11.0
         right = StringFormat()
         right.Alignment = StringAlignment.Far
         centered = StringFormat()
@@ -392,7 +396,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             nonlocal y
             # Use only two subtle rules (columns and totals), not boxes.
             g.DrawLine(pen, x, y, x + width, y)
-            y += 4.0
+            y += 2.5
 
         def write_detail_row(values, header=False):
             """Readable 80 mm: Cant | Descripción | Subtotal, no split headers.
@@ -472,10 +476,12 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             """GDI+ point drawing avoids clipping the top of bold FACTURA."""
             nonlocal y
             text = "FACTURA"
-            y += 10.0
+            # Start below the 16pt physical top margin plus 11pt content inset.
+            # This keeps the upper strokes clear of the printer's feeding edge.
+            y += 13.0
             g.DrawString(text, f_title, Brushes.Black,
                          PointF(x + width / 2.0, y), center)
-            y += max(20.0, float(g.MeasureString(text, f_title).Height) + 12.0)
+            y += max(20.0, float(g.MeasureString(text, f_title).Height) + 7.0)
 
         # All fiscal and customer values below originate in the SRI-authorized
         # signed XML already validated by _authorized_xml_to_ticket.
@@ -501,7 +507,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         if ticket["fecha_autorizacion"]:
             write("Fecha y Hora Autorización: " + _format_authorization_datetime(ticket["fecha_autorizacion"]), f_small)
         write_access_identifier("Clave de acceso", ticket["clave"])
-        y += 5.0
+        y += 3.0
 
         write("Razón social / nombres: " + ticket["cliente"], f_text)
         write("Identificación: " + ticket["identificacion"], f_text)
@@ -511,7 +517,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
             write("Teléfono: " + ticket["telefono_cliente"], f_small)
         if ticket.get("correo_cliente"):
             write("Correo: " + ticket["correo_cliente"], f_small)
-        y += 4.0
+        y += 2.5
 
         write_detail_row(("Cant", "Descripción", "Subtotal"), True)
         line()
@@ -536,7 +542,7 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         if ticket["propina"] != "0.00":
             write_amount("Propina", ticket["propina"])
         write_amount("VALOR TOTAL", ticket["total"], True)
-        y += 4.0
+        y += 2.5
 
         # Contact fields already shown with buyer should not repeat at bottom.
         extra = [field for field in ticket["adicional"]
