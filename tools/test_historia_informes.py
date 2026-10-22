@@ -76,6 +76,8 @@ def main():
         listing = route("/informes", "GET")
         save = route("/api/informes", "POST")
         delete_report = route("/api/informes/{report_id}/eliminar", "POST")
+        certificate_listing = route("/certificados", "GET")
+        delete_certificate = route("/api/certificados/{cert_id}/eliminar", "POST")
 
         created_form = new(
             "p1", "cistoscopia", "visit1", "", 1
