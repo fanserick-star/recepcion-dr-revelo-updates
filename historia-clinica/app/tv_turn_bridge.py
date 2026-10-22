@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import lan_bridge
+import doctor_turn_call
 
 _INSTALLED = False
 _ORIGINAL_HANDLER_FACTORY = None
@@ -121,6 +123,9 @@ def _snapshot(db_path) -> dict:
         "waiting_count": len(waiting),
         "recent": recent,
         "procedures_excluded": True,
+        # Identificador aleatorio, número y tipo de turno, sin nombre/cédula.
+        # Evento explícito local; expira pronto y no se sincroniza con Neón.
+        "doctor_call": doctor_turn_call.latest(Path(db_path).parent.parent),
     }
 
 
