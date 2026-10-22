@@ -34,7 +34,7 @@ draw=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="_print_
 assert len(draw)==1
 paint=ast.get_source_segment(source,draw[0])
 assert "Margins(11, 13, 16, 10)" in paint, "Physical margins must protect paper edges"
-assert "min(258.0, bounds_width - 12.0)" in paint, "Use conservative printable-width cap"
+assert "min(279.0, bounds_width - 8.0)" in paint, "El ancho nuevo mantiene 8pt de seguridad en el margen de Windows"
 assert "_wrap_thermal_text(content, width - 12.0" in paint
 assert "RectangleF(x, draw_top, width, rect_height)" in paint
 assert "y = next_y" in paint, "Advance one row per wrapped line"
