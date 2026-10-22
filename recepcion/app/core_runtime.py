@@ -6334,6 +6334,16 @@ def _exam_review_ticket_data(visit_id: int) -> dict:
         }
 
 
+def _safe_pos80_print_width(bounds_width: float, printable_right: float, left_edge: float) -> float:
+    """Safe GDI+ width for 80mm POS paper; match the proven AZUR RIDE geometry.
+
+    Coordinates are hundredths of an inch. POS-80C exposes less than the roll's
+    nominal 80mm width. Reserve 16 units at the right printable boundary.
+    """
+    return min(255.0, float(bounds_width) - 20.0,
+               float(printable_right) - float(left_edge) - 16.0)
+
+
 def _print_exam_review_ticket_windows(ticket: dict, printer_name: str = "") -> str:
     """Windows thermal ticket on the SAME installed printer as consultation receipts."""
     if os.name != "nt":
@@ -6366,18 +6376,33 @@ def _print_exam_review_ticket_windows(ticket: dict, printer_name: str = "") -> s
 
     def draw(_sender, e):
         g = e.Graphics
-        # POS-80C: center the text on the physical 80 mm paper rather than
-        # trusting the driver's printable area's asymmetric origin. The small
-        # left correction (about 1.8 mm) addresses the offset of the existing
-        # thermal layout; unlike scaling, it does not distort the text.
-        w = float(e.MarginBounds.Width)
-        paper_center = float(e.PageBounds.Width) / 2.0 - float(e.MarginBounds.Left)
-        left = paper_center - w / 2.0 - 7.0
+        # Keep centered text inside the actual POS-80C printable right edge.
+        w = _safe_pos80_print_width(
+            float(e.MarginBounds.Width),
+            float(e.PageSettings.PrintableArea.Right),
+            float(e.MarginBounds.Left))
+        if w < 145.0:
+            raise RuntimeError("El área imprimible del ticket de revisión es insuficiente")
         def centered_line(y, height):
-            return RectangleF(left, float(y), w, float(height))
+            return RectangleF(0.0, float(y) + 3.0, w, float(height) + 5.0)
         g.DrawString("DR. ARMANDO REVELO", font_title, Brushes.Black, centered_line(8, 25), center)
         g.DrawString("TURNO N.º", font_label, Brushes.Black, centered_line(42, 24), center)
-        g.DrawString(str(ticket["turn"]), font_turn, Brushes.Black, centered_line(68, 99), center)
+        # Keep the turn large but scale long numbers to stay fully inside ink.
+        turn_text = str(ticket["turn"])
+        turn_font = font_turn
+        temp_turn_font = None
+        try:
+            measured = float(g.MeasureString(turn_text, font_turn).Width)
+            if measured > w - 10.0:
+                temp_turn_font = Font("Arial", max(17.0, 47.0 * (w - 10.0) / measured), FontStyle.Bold)
+                turn_font = temp_turn_font
+        except AttributeError:
+            pass  # Lightweight test graphics do not expose font measurement.
+        try:
+            g.DrawString(turn_text, turn_font, Brushes.Black, centered_line(68, 99), center)
+        finally:
+            if temp_turn_font is not None:
+                temp_turn_font.Dispose()
         g.DrawString("REVISIÓN DE EXÁMENES", font_label, Brushes.Black, centered_line(181, 27), center)
         g.DrawString("SIN COBRO · SIN FACTURA", font_normal, Brushes.Black, centered_line(217, 20), center)
         g.DrawString(str(ticket["fecha"]), font_normal, Brushes.Black, centered_line(249, 20), center)
