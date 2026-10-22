@@ -2913,3 +2913,241 @@ body.app-dialog-open{overflow:hidden}
     padding-left:14px!important
   }
 }
+
+
+/* v1.4.16 · focos luminosos en lista de espera del doctor
+   Presentación CSS sin relojes, sondeos, JS extra ni escrituras en Neon.
+   La animación afecta solo un anillo circular, no toda la ficha (PC antigua).
+   No modifica los controles existentes: Inicio, Llamar/Repetir, Abrir ficha. */
+.cp-remaster-app .home-queue-v107 .queue-spotlight-totals{
+  display:flex!important;flex-wrap:wrap;align-items:center;gap:9px;
+  padding:11px 14px 2px;background:#f3f7fb;
+}
+.cp-remaster-app .home-queue-v107 .queue-spotlight-totals span{
+  display:inline-flex;align-items:center;border-radius:8px;
+  padding:8px 11px;font-size:12px;line-height:1.1;font-weight:850;
+}
+.cp-remaster-app .home-queue-v107 .queue-total-consult{
+  color:#076495;background:#e0f3ff;border:1px solid #bee4f9;
+}
+.cp-remaster-app .home-queue-v107 .queue-total-review{
+  color:#985605;background:#fff0d0;border:1px solid #f4d69d;
+}
+.cp-remaster-app .home-queue-v107 .home-scroll-region{
+  background:#f3f7fb!important;padding:13px!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:12px!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row{
+  position:relative!important;display:flex!important;flex-direction:column!important;
+  align-items:stretch!important;gap:0!important;min-width:0!important;
+  padding:0!important;border:1px solid #bddcf1!important;
+  border-left:7px solid #1493db!important;border-radius:12px!important;
+  background:#fafdff!important;box-shadow:0 4px 13px rgba(22,86,121,.10)!important;
+  overflow:hidden!important;transform:none!important;
+  transition:border-color .15s ease,box-shadow .15s ease!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row:hover,
+.cp-remaster-app .home-queue-v107 .queue-row:focus-within{
+  border-color:#78bbe3!important;border-left-color:#087cba!important;
+  box-shadow:0 7px 17px rgba(22,86,121,.15)!important;
+  transform:none!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row:first-child{
+  grid-column:1/-1!important;border:2px solid #86c4e6!important;
+  border-left:7px solid #108ecf!important;
+  background:#fafdff!important;box-shadow:0 5px 17px rgba(23,104,152,.14)!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row:first-child::before{
+  content:'SIGUIENTE PACIENTE';background:#145779!important;
+  color:#fff!important;font-size:10px!important;
+  padding:6px 14px!important;letter-spacing:.09em!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-attending:first-child::before{
+  content:'PACIENTE EN ATENCIÓN';
+  background:#5f7182!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review{
+  background:#fffbf2!important;border-color:#efd4a4!important;
+  border-left-color:#e99b23!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review:first-child{
+  background:#fffbf2!important;border-color:#f0c77c!important;
+  border-left-color:#e99b23!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review:first-child::before{
+  background:#9f5b0e!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review:hover,
+.cp-remaster-app .home-queue-v107 .queue-row-review:focus-within{
+  border-color:#e8bb65!important;border-left-color:#c9800e!important;
+  box-shadow:0 7px 16px rgba(169,99,12,.15)!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-procedure-muted,
+.cp-remaster-app .home-queue-v107 .queue-row-procedure-muted:first-child{
+  background:#fbf9fd!important;border-color:#dcd2e9!important;
+  border-left-color:#9575ae!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-spotlight-head{
+  display:flex;align-items:center;gap:10px;min-width:0;
+  padding:15px 47px 0 15px;min-height:38px;
+}
+.cp-remaster-app .home-queue-v107 .queue-spotlight-label{
+  min-width:0;font-size:12px;line-height:1.25;font-weight:900;
+  letter-spacing:.035em;color:#076b9d;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-spotlight-label{color:#9b5b09}
+.cp-remaster-app .home-queue-v107 .queue-row-procedure-muted .queue-spotlight-label{color:#72548f}
+.cp-remaster-app .home-queue-v107 .queue-spotlight-state{
+  white-space:nowrap;font-size:10px;font-weight:800;
+  color:#677d90;border:1px solid #d6e4ee;background:#fff;
+  border-radius:999px;padding:5px 8px;margin-left:auto;
+}
+.cp-remaster-app .home-queue-v107 .queue-beacon{
+  position:relative;display:inline-block;flex:0 0 21px;
+  width:21px;height:21px;border-radius:50%;
+  background:#21baff;box-shadow:0 0 0 4px #d9f4ff,0 0 13px 2px rgba(0,152,231,.60);
+}
+.cp-remaster-app .home-queue-v107 .queue-beacon::before{
+  content:"";position:absolute;inset:-7px;border:3px solid #20acfa;
+  border-radius:50%;pointer-events:none;
+  animation:doctor-beacon-ring 1.8s ease-out infinite;
+}
+.cp-remaster-app .home-queue-v107 .queue-beacon::after{
+  content:"";position:absolute;left:5px;top:4px;width:6px;height:6px;
+  border-radius:50%;background:#fff;opacity:.93;pointer-events:none;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-beacon{
+  background:#ffb332;box-shadow:0 0 0 4px #fff0c7,0 0 14px 3px rgba(255,165,22,.58);
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-beacon::before{
+  border-color:#f7a620;animation-delay:-.65s;
+}
+@keyframes doctor-beacon-ring{
+  0%{opacity:.85;transform:scale(.77)}
+  76%{opacity:.05;transform:scale(1.28)}
+  100%{opacity:0;transform:scale(1.28)}
+}
+.cp-remaster-app .home-queue-v107 .queue-row-attending .queue-beacon{
+  background:#849aaa;box-shadow:0 0 0 3px #e4eaef!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-attending .queue-beacon::before{
+  animation:none!important;opacity:0!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-attending .queue-spotlight-label{color:#61788c}
+.cp-remaster-app .home-queue-v107 .queue-row-attending .queue-spotlight-state{
+  background:#e7edf2;color:#466477;border-color:#cddae4;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-main,
+.cp-remaster-app .home-queue-v107 .queue-row-procedure .queue-row-main{
+  position:static!important;display:grid!important;flex:1 1 auto!important;
+  align-content:start!important;min-width:0!important;
+  grid-template-columns:minmax(0,1fr) 82px!important;
+  grid-template-areas:'patient turn' 'time turn' 'action action'!important;
+  gap:6px 10px!important;min-height:153px!important;
+  padding:9px 14px 56px 15px!important;
+  text-decoration:none!important;background:transparent!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-procedure .queue-row-main{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-areas:'patient' 'time' 'action'!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-main:hover{background:transparent!important}
+.cp-remaster-app .home-queue-v107 .queue-patient-copy{
+  grid-area:patient!important;align-self:center!important;min-width:0!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-patient-copy>b{
+  display:block!important;font-size:19px!important;line-height:1.27!important;
+  font-weight:900!important;white-space:normal!important;color:#19334b!important;
+  overflow-wrap:anywhere!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row:first-child .queue-patient-copy>b{
+  font-size:22px!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-patient-meta{
+  font-size:12.5px!important;margin-top:5px!important;color:#65798c!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-turn-number{
+  grid-area:turn!important;align-self:start!important;justify-self:end!important;
+  min-height:72px!important;width:82px!important;
+  background:#ddf2ff!important;border:1px solid #badff5!important;
+  border-radius:8px!important;color:#075d92!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-turn-number span{
+  font-size:10px!important;color:#276e99!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-turn-number b{
+  font-size:27px!important;color:#005c95!important;font-weight:900!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-turn-number{
+  background:#ffebc6!important;border-color:#f4d292!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-turn-number b{
+  color:#a96108!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-turn-number span{
+  color:#a46917!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-main>time{
+  grid-area:time!important;justify-self:start!important;align-self:center!important;
+  font-size:12px!important;color:#71849a!important;font-weight:700!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-main>time::before{content:'En espera desde '}
+.cp-remaster-app .home-queue-v107 .queue-row-attending .queue-row-main>time::before{content:'Registrado '}
+.cp-remaster-app .home-queue-v107 .queue-row-action,
+.cp-remaster-app .home-queue-v107 .queue-row:first-child .queue-row-action{
+  position:absolute!important;bottom:13px!important;right:43px!important;
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:41px!important;padding:8px 13px!important;z-index:1;
+  border-radius:8px!important;background:#174f73!important;
+  color:#fff!important;font-size:12px!important;font-weight:850!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review .queue-row-action{
+  background:#995b12!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row>.js-doctor-call{
+  position:absolute!important;bottom:13px!important;left:16px!important;z-index:2!important;
+  min-height:41px!important;max-width:calc(100% - 180px)!important;
+  padding:9px 12px!important;font-size:12px!important;
+  background:#0781bc!important;color:#fff!important;border:1px solid #0781bc!important;
+  box-shadow:0 2px 5px rgba(0,86,142,.20)!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row-review>.js-doctor-call{
+  background:#ad6917!important;border-color:#ad6917!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-dismiss-form{
+  z-index:3!important;position:absolute!important;top:8px!important;right:8px!important;
+}
+.cp-remaster-app .home-queue-v107 .queue-row:first-child .queue-dismiss-form{top:36px!important}
+.cp-remaster-app .home-queue-v107 .queue-dismiss-btn{opacity:.7!important}
+.cp-remaster-app .home-queue-v107 .queue-row-attending{
+  border-left-color:#91a4b5!important;background:#f6f8fa!important;
+}
+@media(max-width:1150px){
+  .cp-remaster-app .home-queue-v107 .home-scroll-region{grid-template-columns:1fr!important}
+  .cp-remaster-app .home-queue-v107 .queue-row:first-child{grid-column:auto!important}
+}
+@media(max-width:560px){
+  .cp-remaster-app .home-queue-v107 .queue-spotlight-head{gap:7px;padding-left:11px}
+  .cp-remaster-app .home-queue-v107 .queue-spotlight-label{font-size:11px}
+  .cp-remaster-app .home-queue-v107 .queue-spotlight-state{font-size:9px}
+  .cp-remaster-app .home-queue-v107 .queue-row-main{
+    grid-template-columns:minmax(0,1fr) 66px!important;
+    min-height:160px!important;padding:9px 10px 58px 11px!important;
+  }
+  .cp-remaster-app .home-queue-v107 .queue-turn-number{width:66px!important;min-height:65px!important}
+  .cp-remaster-app .home-queue-v107 .queue-patient-copy>b,
+  .cp-remaster-app .home-queue-v107 .queue-row:first-child .queue-patient-copy>b{
+    font-size:16px!important;
+  }
+  .cp-remaster-app .home-queue-v107 .queue-row>.js-doctor-call{
+    left:10px!important;padding:9px!important;font-size:11px!important;
+  }
+  .cp-remaster-app .home-queue-v107 .queue-row-action,
+  .cp-remaster-app .home-queue-v107 .queue-row:first-child .queue-row-action{
+    right:36px!important;padding:8px!important;font-size:11px!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .cp-remaster-app .home-queue-v107 .queue-beacon::before{animation:none!important;opacity:.65!important;transform:scale(.9)}
+}
