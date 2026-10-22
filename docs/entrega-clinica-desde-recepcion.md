@@ -1,4 +1,4 @@
-# Entrega clínica desde Recepción — 4.8.58 / Historia 1.4.20
+# Entrega clínica desde Recepción — 4.8.58 / Historia 1.4.21
 
 ## Separación de responsabilidades
 - Historia Clínica: el doctor crea, guarda y firma. No se envía WhatsApp desde Historia.
