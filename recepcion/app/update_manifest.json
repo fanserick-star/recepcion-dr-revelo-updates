@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.57",
-  "app_version": "4.8.57",
-  "runtime_version": "4.8.57",
+  "version": "4.8.58",
+  "app_version": "4.8.58",
+  "runtime_version": "4.8.58",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -90,7 +90,9 @@
     "reception_tv_http.py",
     "reception_tv_voice_selector.py",
     "tv_display.html",
-    "tv_control.html"
+    "tv_control.html",
+    "clinical_delivery.py",
+    "static/clinical_delivery.js"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -179,11 +181,13 @@
     "reception_tv_http.py",
     "reception_tv_voice_selector.py",
     "tv_display.html",
-    "tv_control.html"
+    "tv_control.html",
+    "clinical_delivery.py",
+    "static/clinical_delivery.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.57: calibración preventiva de POS-80C para recibos de consulta, comprobantes de pago y tickets de revisión; respeta PrintableArea, nombres y descripciones largas, y expone el estado de la cola hasta entrega a Windows. Factura AZUR 4.8.56 sin cambios; sin modificaciones a SRI, caja, pacientes, agenda, Neon ni WhatsApp.",
-    "previous_version": "4.8.56",
+    "purpose": "Recepción 4.8.58: pestaña de documentos médicos en ficha, índice clínico solo lectura por vínculo verificado, recuperación de PDF firmado original por LAN y envío manual de documentos/MP4 usando R2 privado y plantillas Meta, inactivo hasta configurar claves, retención de 7 días y plantillas aprobadas. Sin enviar datos automáticamente ni modificar facturación, pacientes, citas, Neón o alarmas de WhatsApp.",
+    "previous_version": "4.8.57",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -569,7 +573,15 @@
     "tv_idle_clock_header_date_time_preserved": true,
     "doctor_turn_call_lan": true,
     "doctor_turn_call_event_dedup": true,
-    "doctor_turn_call_patient_data": false
+    "doctor_turn_call_patient_data": false,
+    "clinical_documents_read_only": true,
+    "clinical_delivery_manual_only": true,
+    "clinical_delivery_r2_private_lifecycle_required": true,
+    "clinical_delivery_meta_approved_template_required": true,
+    "clinical_delivery_signed_pdf_original": true,
+    "clinical_delivery_auto_send": false,
+    "clinical_delivery_physical_release_enabled": false,
+    "clinical_delivery_no_neon_writes": true
   },
   "channel": "launcher-v1-stable"
 }
