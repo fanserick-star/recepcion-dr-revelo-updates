@@ -64,14 +64,19 @@ def main():
         created_form = new(
             "p1", "cistoscopia", "visit1", "", 1
         ).body.decode("utf-8")
-        assert "Uretra" in created_form
+        assert "Uretra anterior" in created_form
+        assert "Uretra posterior" in created_form
+        assert "data-field='uretra_anterior'" in created_form
+        assert "data-field='uretra_posterior'" in created_form
+        assert "data-field='uretra'" not in created_form
         assert "Guardar e imprimir" in created_form
         assert "Estrechez" not in created_form
         assert "Diagnóstico" in created_form
 
         fields = {
             "equipo": "Óptica de prueba",
-            "uretra": "Hallazgo <script>alert('x')</script>",
+            "uretra_anterior": "Hallazgo anterior <script>alert('x')</script>",
+            "uretra_posterior": "Hallazgo posterior de prueba",
             "conclusion": "Texto de prueba redactado por el médico",
         }
         payload = {
@@ -91,10 +96,17 @@ def main():
         assert row[0] == "p1" and row[1] == "visit1"
         assert row[2] == "report_cystoscopy"
         assert "Óptica de prueba" in row[3]
-        assert json.loads(row[4])["fields"]["uretra"] == fields["uretra"]
+        saved_fields = json.loads(row[4])["fields"]
+        assert saved_fields["uretra_anterior"] == fields["uretra_anterior"]
+        assert saved_fields["uretra_posterior"] == fields["uretra_posterior"]
+        assert "uretra" not in saved_fields
+        assert "URETRA ANTERIOR:" in row[3]
+        assert "URETRA POSTERIOR:" in row[3]
 
         preview_html = preview(rid).body.decode("utf-8")
         assert "INFORME DE CISTOSCOPIA" in preview_html
+        assert "<h3>Uretra anterior</h3>" in preview_html
+        assert "<h3>Uretra posterior</h3>" in preview_html
         assert "&lt;script&gt;" in preview_html
         assert "<script>alert('x')</script>" not in preview_html
         assert "DR. ARMANDO REVELO" in preview_html
@@ -127,6 +139,47 @@ def main():
         invalid = dict(payload, type="no_valido")
         denied = asyncio.run(save(FakeRequest(invalid)))
         assert denied.status_code == 400
+
+        # El campo genérico ya no forma parte de los informes nuevos.
+        old_client = dict(payload, fields={"uretra": "No admitir este campo en informes nuevos"})
+        assert asyncio.run(save(FakeRequest(old_client))).status_code == 400
+
+        # Compatibilidad retroactiva: el contenido ya registrado como Uretra
+        # permanece visible y no debe asignarse arbitrariamente a anterior/posterior.
+        legacy_note = "Hallazgo histórico de uretra sin subregión"
+        legacy_json = json.dumps({"version":1, "report_type":"cistoscopia",
+                                  "fields":{"equipo":"Equipo antiguo", "uretra": legacy_note}},
+                                 ensure_ascii=False)
+        with sqlite3.connect(path) as conn:
+            conn.execute("UPDATE certificates SET extra_json=?,body_text=? WHERE id=?",
+                         (legacy_json, "URETRA: "+legacy_note, rid))
+            conn.commit()
+        legacy_form = edit(rid).body.decode("utf-8")
+        assert "data-field='uretra_anterior'" in legacy_form
+        assert "data-field='uretra_posterior'" in legacy_form
+        assert "Uretra (registro anterior, conservado)" in legacy_form
+        assert legacy_note in legacy_form
+        assert "data-field='uretra'" not in legacy_form
+        original_preview = preview(rid).body.decode("utf-8")
+        assert "Uretra (registro anterior)" in original_preview
+        assert legacy_note in original_preview
+
+        payload["fields"] = {"uretra_anterior":"Hallazgo anterior nuevo",
+                             "uretra_posterior":"Hallazgo posterior nuevo"}
+        saved_legacy = response_json(asyncio.run(save(FakeRequest(payload))))
+        assert saved_legacy["ok"] and saved_legacy["id"] == rid
+        with sqlite3.connect(path) as conn:
+            check = conn.execute("SELECT extra_json,body_text FROM certificates WHERE id=?",
+                                 (rid,)).fetchone()
+        retained = json.loads(check[0])["fields"]
+        assert retained["uretra"] == legacy_note
+        assert retained["uretra_anterior"] == "Hallazgo anterior nuevo"
+        assert retained["uretra_posterior"] == "Hallazgo posterior nuevo"
+        assert legacy_note in check[1]
+        edited_preview = preview(rid).body.decode("utf-8")
+        assert "Hallazgo anterior nuevo" in edited_preview
+        assert "Hallazgo posterior nuevo" in edited_preview
+        assert legacy_note in edited_preview
 
         ultrasound = {
             "patient_id":"p2","type":"ecografia","issued_date":"2026-10-21",
