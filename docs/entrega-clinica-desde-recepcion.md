@@ -12,7 +12,7 @@
 
 El bucket `dr-revelo-clinical-2026` ya se creó con retención R2 de 7 días; la prueba real de S3 desde GitHub validó PUT, GET, hash SHA-256, DELETE y 404 tras borrar. **Esto no instala las claves en la PC:** GitHub Actions Secrets no pueden leerse desde el programa ni publicarse en un canal de actualizaciones. No intentar copiar tokens desde los logs.
 
-1. En Windows, actualizar Recepción con su launcher a **4.8.60**. Desde la carpeta de instalación del programa, abrir **`Configurar envios clinicos.vbs`** con doble clic; inicia el asistente gráfico usando su `.venv\\Scripts\\pythonw.exe`, sin CMD.
+1. En Windows, actualizar Recepción con su launcher a **4.8.60**. Desde la carpeta de instalación del programa, abrir **`Configurar_envios_clinicos.vbs`** con doble clic; inicia el asistente gráfico usando su `.venv\\Scripts\\pythonw.exe`, sin CMD.
 2. En el asistente introducir **Account ID** de Cloudflare y la pareja R2 S3 **Access Key ID / Secret Access Key** restringida al bucket. No confundir con el token general **`CLOUDFLARE_R2_API_TOKEN`**. Si la clave secreta se perdió, emitir otra credencial R2 específica desde Cloudflare, no copiarla de GitHub ni pegarla en chats.
 3. Opcional por ahora: **Phone Number ID** y un **token Meta con permisos de envío**, correspondientes al mismo número de citas; el Worker de Cloudflare mantiene su propio secreto y este asistente nunca lo lee ni modifica. Añadir celular de prueba autorizado si se conoce.
 4. Generar y guardar la clave compartida **LAN** de Recepción. Configurar **exactamente el mismo valor** en el archivo privado `.env` de la PC de Historia Clínica (`CLINICAL_DELIVERY_LAN_SECRET`) usando un canal local controlado, no mensajería externa. No cambiarla si ya estaba configurada.
