@@ -294,6 +294,16 @@ def main():
             assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
             assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
             assert conn.execute("SELECT COUNT(*) FROM electronic_signatures WHERE document_type IN ('certificado','reposo')").fetchone()[0] == 2
+        signed_report_removed = response_json(delete_report(
+            rid, LocalDeleteRequest(signed_confirm=True)
+        ))
+        assert signed_report_removed["ok"] and signed_report_removed["signed"]
+        assert signed_report_removed["original_retained"]
+        assert preview(rid).status_code == 404
+        with sqlite3.connect(path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM electronic_signatures WHERE document_type='informe'").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
+            assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
         print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
