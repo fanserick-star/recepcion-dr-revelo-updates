@@ -27,7 +27,8 @@ window.rpPos80PreviewSelected=async function(){
   var response=await api("/api/azur/readonly/pos80-preview",{method:"POST",body:JSON.stringify(payload)});
   var t=response.ticket||{};
   var detail=(t.servicios||[]).map(function(x){
-    return '<tr><td>'+esc(x.cantidad)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.unitario)+'</td><td>'+esc(x.descuento||'0.00')+'</td><td>'+esc(x.total)+'</td></tr>';
+    return '<tr><td>'+esc(x.cantidad)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.total)+'</td></tr>'+
+      '<tr class="v4854-azur-prices"><td></td><td colspan="2">P.V.P: '+esc(x.unitario)+' &nbsp; Descto: '+esc(x.descuento||'0.00')+'</td></tr>';
   }).join('');
   var extras=(t.adicional||[]).filter(function(x){
     return !/^(tel[eé]fono|celular|correo|correo electr[oó]nico|email|e-mail)$/i.test(String(x.nombre||''));
@@ -58,7 +59,7 @@ window.rpPos80PreviewSelected=async function(){
     (t.direccion_cliente?'<div>Dirección: '+esc(t.direccion_cliente)+'</div>':'')+
     (t.telefono_cliente?'<div>Teléfono: '+esc(t.telefono_cliente)+'</div>':'')+
     (t.correo_cliente?'<div>Correo: '+esc(t.correo_cliente)+'</div>':'')+'</div>'+
-    '<table class="v4851-azur-detail"><thead><tr><th>Cant</th><th>Descripción</th><th>P.V.P</th><th>Descto</th><th>Subtotal</th></tr></thead><tbody>'+detail+'</tbody></table>'+
+    '<table class="v4851-azur-detail v4854-azur-detail"><thead><tr><th>Cant</th><th>Descripción</th><th>Subtotal</th></tr></thead><tbody>'+detail+'</tbody></table>'+
     '<div class="v4851-azur-totals"><div><span>Total sin impuestos</span><b>'+esc(t.subtotal)+'</b></div>'+
     '<div><span>Descuento</span><b>'+esc(t.total_descuento||'0.00')+'</b></div>'+
     '<div><span>Valor ICE</span><b>'+esc(ice.toFixed(2))+'</b></div>'+
