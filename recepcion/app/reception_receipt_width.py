@@ -101,19 +101,28 @@ try:
         if not doc.PrinterSettings.IsValid:
             raise RuntimeError(f'Windows no puede usar la impresora ‘{chosen}’')
         doc.DocumentName = 'Recibo de consulta médica'
-        doc.OriginAtMargins = False
+        # Match the physically tested AZUR printing origin and margins.
+        doc.OriginAtMargins = True
         doc.DefaultPageSettings.PaperSize = PaperSize('Recibo 80 mm largo', 315, 1050)
-        doc.DefaultPageSettings.Margins = Margins(0, 0, 0, 0)
+        doc.DefaultPageSettings.Margins = Margins(11, 13, 8, 10)
         holder = {'stream': None, 'img': None}
 
         def on_print_page(sender, e):
             arr = Array[Byte](bytearray(png))
             holder['stream'] = MemoryStream(arr)
             holder['img'] = Image.FromStream(holder['stream'])
-            target_w = 283.5
+            # 72mm bitmap is scaled into safe ink bounds. Never assume that
+            # the POS-80C can print across all 80mm of the installed roll.
+            target_w = core._safe_pos80_print_width(
+                float(e.MarginBounds.Width),
+                float(e.PageSettings.PrintableArea.Right),
+                float(e.MarginBounds.Left))
+            if target_w < 145.0:
+                raise RuntimeError('El área imprimible es insuficiente para el recibo')
             target_h = target_w * float(holder['img'].Height) / float(holder['img'].Width)
-            x = 9.84
-            e.Graphics.DrawImage(holder['img'], RectangleF(x, 0.0, target_w, target_h))
+            if target_h > float(e.MarginBounds.Height) - 16.0:
+                raise RuntimeError('El recibo supera el largo de papel disponible')
+            e.Graphics.DrawImage(holder['img'], RectangleF(0.0, 8.0, target_w, target_h))
             e.HasMorePages = False
         doc.PrintPage += on_print_page
         try:
