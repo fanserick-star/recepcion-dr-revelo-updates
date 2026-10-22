@@ -513,15 +513,11 @@ def _print_ticket_windows(ticket: dict, printer_name: str) -> str:
         for field in extra:
             write(field["nombre"] + ": " + field["valor"], f_small)
         if ticket["pagos"]:
-            write_row(("Forma de pago", "", "Valor", "Plazo", "Tiempo"), True)
             for pago in ticket["pagos"]:
-                write(_payment_method_label(pago["tipo"]), f_small)
-                write("Valor: " + pago["total"], f_small)
+                write("Forma de pago: " + _payment_method_label(pago["tipo"]), f_small)
                 plazo = str(pago.get("plazo") or "0")
                 unidad = str(pago.get("unidad_tiempo") or "")
-                if plazo:
-                    # Show the original XML payment term (including zero days).
-                    write("Plazo: " + plazo + " " + unidad, f_small)
+                write("Valor: " + pago["total"] + "   Plazo: " + plazo + " " + unidad, f_small)
         # No extra boxes, advertising footers or repeated access keys.
         # Preserve the no-truncation safeguard already calibrated for Windows.
         if y > float(e.MarginBounds.Height) - 10:
