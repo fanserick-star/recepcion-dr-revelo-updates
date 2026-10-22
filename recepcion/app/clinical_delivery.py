@@ -180,7 +180,11 @@ def _setup():
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
     wa_ready=all((core.WHATSAPP_GRAPH_VERSION,core.WHATSAPP_PHONE_NUMBER_ID,core.WHATSAPP_ACCESS_TOKEN))
     lan_ready=len(os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip())>=32
-    return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,
+    test_phone=re.sub(r"\D","",core.WHATSAPP_TEST_PHONE or "")
+    if len(test_phone)==10 and test_phone.startswith("09"):
+        test_phone="593"+test_phone[1:]
+    ready_test=bool(ready_r2 and wa_ready and template_doc and re.fullmatch(r"5939\d{8}",test_phone))
+    return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,"ready_test":ready_test,
             "ready_document":bool(ready_r2 and wa_ready and template_doc and lan_ready),
             "ready_video":bool(ready_r2 and wa_ready and template_video),
             "missing":[name for name,present in [
@@ -190,6 +194,12 @@ def _setup():
                 ("Plantilla de documentos aprobada",bool(template_doc)),
                 ("Clave LAN compartida con Historia",lan_ready),
                 ("Plantilla de video aprobada",bool(template_video)),
+            ] if not present],
+            "test_missing":[name for name,present in [
+                ("Almacenamiento R2 y eliminación a 7 días",ready_r2),
+                ("Número y credenciales WhatsApp de Recepción",wa_ready),
+                ("Plantilla de documentos aprobada por Meta",bool(template_doc)),
+                ("WHATSAPP_TEST_PHONE de tu iPhone",bool(re.fullmatch(r"5939\d{8}",test_phone))),
             ] if not present]}
 
 
@@ -245,7 +255,7 @@ def _upload_r2(filename, key, media_type):
         conn.close()
 
 
-def _send_template(phone, name, kind, expiry, url):
+def _send_template(phone, name, kind, expiry, url, label_override=None):
     template = (os.getenv("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","").strip()
                 if kind=="video" else os.getenv("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","").strip())
     if not template:
@@ -253,7 +263,7 @@ def _send_template(phone, name, kind, expiry, url):
     payload = core.whatsapp_build_template_payload(
         to=phone,template_name=template,
         language_code=os.getenv("WHATSAPP_CLINICAL_LANGUAGE","es_EC"),
-        body_params=[name,LABELS[kind],expiry,url],
+        body_params=[name,label_override or LABELS[kind],expiry,url],
     )
     response=core.whatsapp_send_template(
         graph_version=core.WHATSAPP_GRAPH_VERSION,
@@ -316,6 +326,146 @@ def _deliver_temp(pid,kind,doc_id,file_path,media_type,patient,user):
     finally:
         with _MUTEX:
             _BUSY.discard(lock_id)
+
+
+# Self-test never touches patients, encounters, clinical files or medical database.
+_LAST_TEST_SEND = 0.0
+_TEST_SEND_LOCK = threading.Lock()
+
+
+def _test_pdf():
+    """Minimal valid self-contained PDF: synthetic text only, no patient data."""
+    stream = b"BT /F1 20 Tf 46 160 Td (PRUEBA SIN DATOS MEDICOS) Tj ET"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 550 240] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = b"%PDF-1.4\n"
+    positions = [0]
+    for i, body in enumerate(objects, 1):
+        positions.append(len(out))
+        out += f"{i} 0 obj\n".encode() + body + b"\nendobj\n"
+    position = len(out)
+    out += b"xref\n0 6\n0000000000 65535 f \n"
+    for offset in positions[1:]:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n" + str(position).encode() + b"\n%%EOF\n"
+    return out
+
+
+def _test_send(phone: str):
+    """Real Meta/R2 test only to preapproved self-test number, operator initiated."""
+    global _LAST_TEST_SEND
+    if not _setup()["ready_test"]:
+        raise core.HTTPException(503, "Faltan R2, plantilla aprobada o número de pruebas")
+    raw = re.sub(r"\D", "", str(phone or ""))
+    if len(raw) == 10 and raw.startswith("09"):
+        raw = "593" + raw[1:]
+    allow = re.sub(r"\D", "", str(core.WHATSAPP_TEST_PHONE or ""))
+    if len(allow) == 10 and allow.startswith("09"):
+        allow = "593" + allow[1:]
+    if not raw or not hmac.compare_digest(raw, allow):
+        raise core.HTTPException(403, "Solo se permite enviar al celular autorizado como WHATSAPP_TEST_PHONE")
+    with _TEST_SEND_LOCK:
+        if time.monotonic() - _LAST_TEST_SEND < 300:
+            raise core.HTTPException(429, "Ya se hizo una prueba. Se admite otra en cinco minutos")
+        _LAST_TEST_SEND = time.monotonic()
+    now = datetime.now(TZ)
+    expires_at = now + timedelta(days=7)
+    key = "clinical-temp/self-test/" + secrets.token_hex(24) + ".pdf"
+    temp_name = None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_synthetic_test_",suffix=".pdf",delete=False) as tmp:
+            temp_name=tmp.name
+            pdf=_test_pdf()
+            tmp.write(pdf)
+        _upload_r2(temp_name, key, "application/pdf")
+        url = _r2_url("GET", key, 604800)
+        # Verify the R2 object is readable and byte-identical before sending.
+        with urllib.request.urlopen(url, timeout=25) as response:
+            downloaded = response.read(len(pdf)+1)
+        if not hmac.compare_digest(hashlib.sha256(downloaded).digest(),hashlib.sha256(pdf).digest()):
+            raise RuntimeError("El PDF de prueba descargado desde R2 no coincide con el original")
+        message_id = _send_template(raw, "PACIENTE DE PRUEBA", "receta",
+            expires_at.strftime("%d/%m/%Y a las %H:%M"), url,
+            label_override="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)")
+        return {"ok": True, "sent": True, "message_id": message_id,
+                "expires_at": expires_at.isoformat(),
+                "note": "Meta aceptó el envío. Confirma personalmente su recepción y descarga en tu iPhone."}
+    finally:
+        if temp_name:
+            try:os.unlink(temp_name)
+            except OSError:pass
+
+
+class TestDelivery(BaseModel):
+    phone: str
+    confirmation: str
+
+
+@app.post("/api/clinical-delivery/send-self-test")
+async def delivery_self_test(data: TestDelivery, user=core.Depends(core.current_user)):
+    if data.confirmation != "ENVIAR PRUEBA":
+        raise core.HTTPException(400, "Confirma explícitamente ENVIAR PRUEBA")
+    return await asyncio.to_thread(_test_send,data.phone)
+
+
+def _check_r2():
+    """Probe isolated synthetic bytes, expiration metadata, and cleanup; no patients."""
+    if not _setup()["ready_r2"]:
+        raise core.HTTPException(503, "Completa primero el bucket privado, claves y la regla de 7 días")
+    from email.utils import parsedate_to_datetime
+    key = "clinical-temp/self-test/r2-check-" + secrets.token_hex(16) + ".bin"
+    temp = None
+    uploaded = False
+    expected = secrets.token_bytes(144)
+    deletion_ok = False
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_r2_probe_",suffix=".bin",delete=False) as out:
+            temp=out.name
+            out.write(expected)
+        _upload_r2(temp,key,"application/octet-stream")
+        uploaded = True
+        with urllib.request.urlopen(_r2_url("GET",key,180),timeout=20) as resp:
+            actual = resp.read(len(expected)+1)
+        if not hmac.compare_digest(actual,expected):
+            raise RuntimeError("R2 devolvió contenido diferente al enviado")
+        signed_head = _r2_url("HEAD",key,180)
+        with urllib.request.urlopen(urllib.request.Request(signed_head,method="HEAD"),timeout=20) as resp:
+            expiration_header=resp.headers.get("x-amz-expiration","")
+        lifecycle_verified=False
+        match=re.search(r'expiry-date="([^"]+)"',expiration_header or "",flags=re.I)
+        if match:
+            try:
+                expire=parsedate_to_datetime(match.group(1))
+                days=(expire-datetime.now(timezone.utc)).total_seconds()/86400
+                lifecycle_verified=6.0<=days<=8.1
+            except (ValueError,TypeError):
+                pass
+        return {"ok":True,"r2_upload_download_verified":True,
+                "lifecycle_7_day_header_verified":lifecycle_verified,
+                "note":"Comprobación R2 correcta. La política de borrado "
+                       +("refleja aproximadamente 7 días." if lifecycle_verified
+                         else "no pudo verificarse por cabecera: revisa Object Lifecycles.")}
+    finally:
+        if uploaded:
+            try:
+                delete=urllib.request.Request(_r2_url("DELETE",key,180),method="DELETE")
+                with urllib.request.urlopen(delete,timeout=15):
+                    deletion_ok=True
+            except Exception:
+                pass  # Existing 7-day lifecycle remains the cleanup fallback.
+        if temp:
+            try:os.unlink(temp)
+            except OSError:pass
+
+
+@app.post("/api/clinical-delivery/check-r2")
+async def delivery_check_r2(user=core.Depends(core.current_user)):
+    return await asyncio.to_thread(_check_r2)
 
 
 @app.get("/api/clinical-delivery/status")

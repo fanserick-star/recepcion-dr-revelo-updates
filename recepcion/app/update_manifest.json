@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.58",
-  "app_version": "4.8.58",
-  "runtime_version": "4.8.58",
+  "version": "4.8.59",
+  "app_version": "4.8.59",
+  "runtime_version": "4.8.59",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -186,8 +186,8 @@
     "static/clinical_delivery.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.58: pestaña de documentos médicos en ficha, índice clínico solo lectura por vínculo verificado, recuperación de PDF firmado original por LAN y envío manual de documentos/MP4 usando R2 privado y plantillas Meta, inactivo hasta configurar claves, retención de 7 días y plantillas aprobadas. Sin enviar datos automáticamente ni modificar facturación, pacientes, citas, Neón o alarmas de WhatsApp.",
-    "previous_version": "4.8.57",
+    "purpose": "Recepción 4.8.59: diagnóstico guiado de Cloudflare R2/WhatsApp y prueba a celular autorizado con PDF sintético sin datos médicos. Comprueba subida y descarga byte a byte antes de enviar. Muestra previsualización accesible desde iPhone. No hay envío automático, ni modificación de fichas, caja, AZUR, agenda, alarmas o firma médica.",
+    "previous_version": "4.8.58",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -581,7 +581,12 @@
     "clinical_delivery_signed_pdf_original": true,
     "clinical_delivery_auto_send": false,
     "clinical_delivery_physical_release_enabled": false,
-    "clinical_delivery_no_neon_writes": true
+    "clinical_delivery_no_neon_writes": true,
+    "clinical_delivery_self_test": true,
+    "clinical_delivery_test_phone_allowlist": true,
+    "clinical_delivery_synthetic_pdf_only": true,
+    "clinical_delivery_r2_roundtrip_verified_before_test_send": true,
+    "clinical_delivery_mobile_demo_no_patient_data": true
   },
   "channel": "launcher-v1-stable"
 }

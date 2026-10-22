@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#eff6f2">
+<title>Prueba de entrega clínica · Dr. Armando Revelo</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eaf2ef;color:#1c342d;font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+main{max-width:520px;margin:auto;padding:24px 18px 64px}.mast{text-align:center;padding:8px 8px 20px}.mast strong{display:block;font-size:21px}.mast p{color:#526a60;font-size:13px;margin:5px 0}
+.pill{background:#f4eacc;color:#634b08;border:1px solid #dfcd9d;border-radius:20px;font-weight:700;padding:6px 12px;display:inline-flex;font-size:12px;gap:6px}
+.controls{display:flex;gap:8px;margin:16px 0}.controls button{flex:1;background:white;border:1px solid #bacfc5;border-radius:12px;padding:12px 8px;font-weight:800;color:#1c342d;cursor:pointer}.controls button.active{background:#166a47;color:white;border-color:#166a47}
+.chat{background:#dce9e2;border:1px solid #c6d8cc;border-radius:16px;box-shadow:0 4px 18px #1c342d13;overflow:hidden}
+.chat-head{background:#126545;color:white;padding:13px 15px;display:flex;gap:10px;align-items:center}.avatar{width:40px;height:40px;border-radius:50%;background:#edf6ef;color:#166b4b;display:grid;place-items:center;font-weight:900}.chat-head b{display:block;font-size:15px}.chat-head small{font-size:11px;opacity:.83}
+.bubble{background:#fff;margin:22px 18px;padding:18px 16px;border-radius:3px 13px 13px 13px;box-shadow:0 2px 9px #103e2616;white-space:pre-line;font-size:14px;line-height:1.65}
+.bubble strong{font-weight:800}.file{background:#f1f6f4;border:1px solid #e1eae5;padding:13px;border-radius:12px;display:flex;gap:10px;align-items:center;margin:15px 0}.file span{font-size:25px}.file b{font-size:13px;display:block}.file small{font-size:11px;color:#61786a}.action{display:block;width:100%;padding:11px;border-radius:9px;border:1px solid #167850;background:#e5f5eb;color:#156440;font-weight:900;text-align:center;text-decoration:none;cursor:pointer}
+.small{font-size:12px;color:#587060;margin:12px 0 0}.details{margin-top:20px;border:1px solid #c6d8ce;background:#fff;border-radius:13px;padding:16px}.details b{display:block}.details p{font-size:13px;color:#415f4d}.details a{color:#146e4c}
+</style></head>
+<body><main><div class="mast"><strong>Consultorio del Dr. Armando Revelo</strong><p>Cómo verá el paciente su aviso de WhatsApp</p><span class="pill">SIMULACIÓN · Sin pacientes ni mensajes reales</span></div>
+<div class="controls"><button id="documento" class="active">📄 Documento</button><button id="video">🎥 Videocistoscopía</button></div>
+<section class="chat"><div class="chat-head"><div class="avatar">AR</div><div><b>Consultorio Dr. Armando Revelo</b><small>Ejemplo de mensaje · no enviado por Meta</small></div></div><div class="bubble">
+<div id="message"></div><div class="file"><span id="fileicon">📄</span><div><b id="filename">Documento de prueba.pdf</b><small id="filesize">Archivo ficticio · sin datos médicos</small></div></div>
+<button class="action" id="open" type="button">Ver documento de prueba</button><div class="small">🔒 La entrega real utilizará un enlace privado con vencimiento a los 7 días. Este ejemplo público no contiene información médica.</div>
+</div></section>
+<div class="details"><b>¿Qué estás probando en tu iPhone?</b><p>El diseño y el texto que recibirá el paciente. Cuando configuremos Cloudflare R2 y Meta, el botón de prueba de Recepción podrá enviar un <strong>WhatsApp auténtico</strong> a tu número autorizado.</p><p>Esta demostración no comprueba todavía el envío real, la descarga de R2 ni la eliminación automática.</p></div>
+</main><script>
+const $=s=>document.querySelector(s);
+const future=new Date(Date.now()+7*86400000);
+const expiry=new Intl.DateTimeFormat("es-EC",{day:"2-digit",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit",timeZone:"America/Guayaquil"}).format(future);
+const msg={
+documento:`Estimado/a PACIENTE DE PRUEBA:
+
+Reciba un cordial saludo del consultorio del Dr. Armando Revelo, cirujano urólogo.
+
+Le compartimos su DOCUMENTO DE PRUEBA (sin información médica).
+
+📄 Descárguelo desde el enlace privado que se incluirá en el mensaje real.
+
+⏳ Disponible hasta: ${expiry}.
+
+Le recomendamos guardarlo antes del vencimiento y no compartir el enlace.
+
+Atentamente,
+Consultorio del Dr. Armando Revelo`,
+video:`Estimado/a PACIENTE DE PRUEBA:
+
+Reciba un cordial saludo del consultorio del Dr. Armando Revelo, cirujano urólogo.
+
+Le compartimos el video de su videocistoscopía.
+
+🎥 Descárguelo en calidad original desde el enlace privado que se incluirá en el mensaje real.
+
+⏳ Disponible hasta: ${expiry}.
+
+Guarde su copia antes de la fecha indicada y no comparta el enlace.
+
+Atentamente,
+Consultorio del Dr. Armando Revelo`
+};
+let current="documento";
+function render(mode){current=mode;$("#message").textContent=msg[mode];$("#filename").textContent=mode==="video"?"Videocistoscopía · ejemplo.mp4":"Documento de prueba.pdf";$("#fileicon").textContent=mode==="video"?"🎥":"📄";$("#filesize").textContent=mode==="video"?"Vista ilustrativa · sin video clínico":"PDF sintético · sin datos médicos";$("#open").textContent=mode==="video"?"Ver información del video de prueba":"Descargar documento de prueba";["documento","video"].forEach(id=>$("#"+id).classList.toggle("active",id===mode));}
+function pdf(){const data="BT /F1 20 Tf 45 150 Td (PRUEBA SIN DATOS MEDICOS) Tj ET";
+const objects=["<< /Type /Catalog /Pages 2 0 R >>","<< /Type /Pages /Kids [3 0 R] /Count 1 >>","<< /Type /Page /Parent 2 0 R /MediaBox [0 0 550 240] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",`<< /Length ${data.length} >>\nstream\n${data}\nendstream`,"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];let text="%PDF-1.4\n",offsets=[0];objects.forEach((s,i)=>{offsets.push(text.length);text+=`${i+1} 0 obj\n${s}\nendobj\n`;});const at=text.length;text+=`xref\n0 6\n0000000000 65535 f \n`;for(let i=1;i<=5;i++)text+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";text+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${at}\n%%EOF\n`;return new Blob([text],{type:"application/pdf"});}
+$("#documento").onclick=()=>render("documento");$("#video").onclick=()=>render("video");
+$("#open").onclick=()=>{if(current==="video"){alert("En la prueba real recibirás un enlace para descargar el MP4 original. Esta página no contiene videos de pacientes.");return;}const u=URL.createObjectURL(pdf());const a=document.createElement("a");a.href=u;a.download="Documento_de_prueba_Revelo.pdf";a.click();setTimeout(()=>URL.revokeObjectURL(u),5000);};
+render("documento");
+</script></body></html>

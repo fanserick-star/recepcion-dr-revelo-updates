@@ -518,7 +518,8 @@ class LanService:
     def _valid_delivery_proof(self, reception_id: str, kind: str, doc_id: str,
                               timestamp: str, digest: str) -> bool:
         """Document delivery uses independent HMAC; /challenge alone is not authorization."""
-        secret = os.getenv("CLINICAL_DELIVERY_LAN_SECRET", "").strip()
+        from cloud_sync import _load_env
+        secret = str(_load_env(self.root).get("CLINICAL_DELIVERY_LAN_SECRET") or "").strip()
         if len(secret) < 32:
             return False
         try:

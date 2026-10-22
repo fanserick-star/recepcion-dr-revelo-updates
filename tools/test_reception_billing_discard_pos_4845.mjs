@@ -6,7 +6,7 @@ const root='recepcion/app/';
 const src=fs.readFileSync(root+'static/billing_advanced.js','utf8');
 const backend=fs.readFileSync(root+'reception_billing_discard.py','utf8');
 const version=JSON.parse(fs.readFileSync(root+'recepcion-version.json','utf8')).version;
-assert.ok(['4.8.45','4.8.46','4.8.47','4.8.48','4.8.49','4.8.50','4.8.51','4.8.52','4.8.53','4.8.54','4.8.56','4.8.57','4.8.58'].includes(version));
+assert.ok(['4.8.45','4.8.46','4.8.47','4.8.48','4.8.49','4.8.50','4.8.51','4.8.52','4.8.53','4.8.54','4.8.56','4.8.57','4.8.58','4.8.59'].includes(version));
 // Existing audited server action is reused. Nothing is deleted from the database.
 assert.match(backend,/@app.post\('\/api\/v4477\/billing\/discard'\)/);
 assert.match(backend,/billing\.estado = 'DESCARTADA'/);
