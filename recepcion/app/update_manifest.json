@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.54",
-  "app_version": "4.8.54",
-  "runtime_version": "4.8.54",
+  "version": "4.8.55",
+  "app_version": "4.8.55",
+  "runtime_version": "4.8.55",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.54: protege el título FACTURA contra el recorte superior con trazado de texto sin recuadro, y presenta detalle térmico en tres columnas legibles más una línea de P.V.P/Descto. Mantiene todos los importes de XML SRI autorizado, impresión de 80 mm, AZUR, agenda, WhatsApp, Neon, pacientes e Historia sin alteraciones funcionales.",
-    "previous_version": "4.8.53",
+    "purpose": "Recepción 4.8.55: diseño del RIDE autorizado de AZUR en 80 mm con mayor margen superior para evitar cortar FACTURA, posición más a la izquierda, ancho aprovechado e interlineado compacto sin solapamientos. Exclusivamente cambio de geometría visual; se conservan datos XML, autorización SRI, emisión, pacientes, agenda, Neon y WhatsApp.",
+    "previous_version": "4.8.54",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
