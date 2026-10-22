@@ -515,6 +515,21 @@ class LanService:
         except Exception as exc:
             return {"ok": False, "message": f"No se pudo abrir el permiso de Windows: {type(exc).__name__}"}
 
+    def _valid_delivery_proof(self, reception_id: str, kind: str, doc_id: str,
+                              timestamp: str, digest: str) -> bool:
+        """Document delivery uses independent HMAC; /challenge alone is not authorization."""
+        secret = os.getenv("CLINICAL_DELIVERY_LAN_SECRET", "").strip()
+        if len(secret) < 32:
+            return False
+        try:
+            if abs(time.time() - int(timestamp)) > 60:
+                return False
+        except (ValueError, TypeError):
+            return False
+        material = f"{reception_id}|{kind}|{doc_id}|{timestamp}".encode("utf-8")
+        expected = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(str(digest or ""), expected)
+
     def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str) -> bytes:
         """Read-only, verified signed original; never signs or edits a document."""
         reception_id = _clean(reception_id, 100)
@@ -620,6 +635,12 @@ class LanService:
                         return
                     args = parse_qs(urlsplit(self.path).query, keep_blank_values=False)
                     val = lambda key: str((args.get(key) or [""])[0])
+                    if not service._valid_delivery_proof(
+                        val("reception_id"), val("kind"), val("doc_id"),
+                        self.headers.get("X-Revelo-Delivery-Time", ""),
+                        self.headers.get("X-Revelo-Delivery-Proof", "")):
+                        self._send(403, {"ok": False, "error": "Autorización clínica inválida"})
+                        return
                     try:
                         data = service.signed_document_for_reception(
                             val("reception_id"), val("kind"), val("doc_id"))
