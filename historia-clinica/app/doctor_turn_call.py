@@ -132,6 +132,53 @@ def install(app, db_factory, root: Path, queue_turn_number, is_procedure):
         })
 
 
+
+def queue_button(row, number, is_procedure) -> str:
+    """Botón separado de la tarjeta de navegación; nunca dispara Atender."""
+    if not number or is_procedure(row):
+        return ""
+    if str(row["status"] or "") not in {"waiting", "in_consultation"}:
+        return ""
+    if not str(row["clinical_patient_id"] or ""):
+        return ""
+    queue_id = str(row["id"] or "")
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", queue_id):
+        return ""
+    return (
+        '<button type="button" class="js-doctor-call" data-queue-id="' +
+        queue_id + '" title="Anunciar este turno en la TV, sin iniciar la consulta">' +
+        '🔊 Llamar #' + str(int(number)) + '</button>'
+    )
+
+
+def patient_button(db_factory, patient_id, queue_turn_number, is_procedure) -> str:
+    """Se muestra al revisar ficha ANTES de pulsar atender; no cambia su estado."""
+    with db_factory() as conn:
+        rows = conn.execute(
+            """SELECT * FROM waiting_queue
+               WHERE clinical_patient_id=? AND status IN ('waiting','in_consultation')
+               ORDER BY CASE status WHEN 'waiting' THEN 0 ELSE 1 END,
+                        queued_at DESC LIMIT 8""", (patient_id,),
+        ).fetchall()
+        for row in rows:
+            if str(row["queued_at"] or "")[:10] != datetime.now().date().isoformat():
+                continue
+            number = queue_turn_number(conn, str(row["id"]))
+            if number:
+                button = queue_button(row, number, is_procedure)
+                if button:
+                    return button
+    return ""
+
+
+def consultation_button(row, turn, patient_id, is_procedure) -> str:
+    if row is None:
+        return ""
+    if str(row["clinical_patient_id"] or "") != str(patient_id):
+        return ""
+    button = queue_button(row, turn, is_procedure)
+    return '<div class="consult-turn-call">' + button + '</div>' if button else ""
+
 # Añadido solo a base() de Historia: NO reemplaza ni oculta el botón INICIO.
 CALL_SCRIPT = r"""<style>
 .js-doctor-call{border:1px solid #167a9e!important;background:#e8f7ff!important;color:#07577c!important;border-radius:10px!important;padding:10px 13px!important;font-weight:850!important;font-size:14px!important;cursor:pointer!important;white-space:nowrap}
