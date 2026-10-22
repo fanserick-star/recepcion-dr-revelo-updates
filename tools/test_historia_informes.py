@@ -60,6 +60,9 @@ def main():
         informes_clinicos.install(
             app, {"DB_PATH": path, "base": lambda title, body, active: body}
         )
+        documentos_clinicos.install(
+            app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
+        )
 
         def route(path, method):
             return next(
