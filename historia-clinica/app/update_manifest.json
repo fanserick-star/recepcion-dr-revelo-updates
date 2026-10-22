@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.20",
-  "app_version": "1.4.20",
-  "runtime_version": "1.4.20",
+  "version": "1.4.21",
+  "app_version": "1.4.21",
+  "runtime_version": "1.4.21",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Mostrar botón Eliminar grande en ambos listados Informes y Certificados (incluido reposo). Permitir retirar documentos firmados solo con confirmación adicional ELIMINAR; conservar firma/auditoría y PDF PAdES original como evidencia, retirando el documento del listado local y sincronizado. No se eliminan pacientes, consultas ni recetas.",
-    "previous_version": "1.4.19",
+    "purpose": "Historia 1.4.21: expone únicamente el PDF firmado original por LAN a la Recepción autorizada, comprobando vínculo, token temporal, HMAC compartida, huella SHA-256 y ubicación permitida. Conserva sin alterar informes y correcciones de Historia 1.4.20. Sin nuevas firmas, ni edición, ni cambios de pacientes, recetas, certificados, agenda o Neón.",
+    "previous_version": "1.4.20",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -276,6 +276,11 @@
     "signed_document_removal_requires_keyword_confirmation": true,
     "signed_document_pdf_original_retained": true,
     "signed_document_signature_audit_retained": true,
-    "document_delete_neon_tombstone_via_existing_sync": true
+    "document_delete_neon_tombstone_via_existing_sync": true,
+    "clinical_signed_pdf_verified_lan_only": true,
+    "clinical_signed_pdf_sha256_checked": true,
+    "clinical_signed_pdf_never_resigned": true,
+    "clinical_signed_pdf_hmac_required": true,
+    "clinical_signed_pdf_no_patient_changes": true
   }
 }
