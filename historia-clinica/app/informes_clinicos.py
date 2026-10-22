@@ -439,13 +439,14 @@ def install(app, context: dict) -> None:
             "<tr><td>"+_e(str(r["issued_at"] or "")[:10])+"</td>"
             "<td>"+_e(r["name"])+"</td>"
             "<td>"+_e(REPORT_TYPES[TYPE_BY_STORAGE[str(r["certificate_type"])]]["title"].title())+"</td>"
-            "<td><a href='/informes/"+quote(r["id"])+"/vista' target='_blank'>Ver</a>"
-            " · <a href='/informes/"+quote(r["id"])+"/editar'>Editar</a>"
-            " · <a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a>"
-            + (" · <span class='report-signed-protected' title='Un PDF firmado no puede eliminarse'>🔒 Firmado</span>"
+            "<td class='report-delete-actions'>"
+            + ("<span class='report-signed-protected' title='Un PDF firmado no puede eliminarse'>🔒 Firmado</span>"
                if str(r["id"]) in signed_ids else
-               " · <button type='button' class='report-delete-btn' data-report-id='"
-               + _e(str(r["id"])) + "'>Eliminar</button>")
+               "<button type='button' class='report-delete-btn' data-report-id='"
+               + _e(str(r["id"])) + "'>🗑 Eliminar</button>")
+            + "<a href='/informes/"+quote(r["id"])+"/vista' target='_blank'>Ver</a>"
+            + "<a href='/informes/"+quote(r["id"])+"/editar'>Editar</a>"
+            + "<a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a>"
             + "</td></tr>"
             for r in rows
         ) or "<tr><td colspan='4'>No existen informes guardados.</td></tr>"
@@ -456,10 +457,13 @@ def install(app, context: dict) -> None:
             "<a class='doc-light' href='/informes/nuevo?patient_id="+quote(patient_id)+"&tipo=ecografia"+context+"'>+ Ecografía</a>"
             "</div>" if patient_id else ""
         )
-        body = _styles() + "<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>DOCUMENTOS</span><h1>Informes médicos</h1><p>Ecografías y cistoscopias del paciente.</p>"+start+"</div></div><div class='docs-card'><table class='list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Estudio</th><th>Acciones</th></tr></thead><tbody>"+table_rows+"</tbody></table></div></section>"
+        body = _styles() + "<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>DOCUMENTOS</span><h1>Informes médicos</h1><p>Ecografías y cistoscopias del paciente.</p>"+start+"</div></div><div class='docs-card report-list-card'><table class='list-table report-list-table'><thead><tr><th>Fecha</th><th>Paciente</th><th>Estudio</th><th>Acciones</th></tr></thead><tbody>"+table_rows+"</tbody></table></div></section>"
         body += """<style>
-.report-delete-btn{border:1px solid #e9b9b9;color:#9e3030;background:#fff7f7;
- padding:7px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.report-list-card{overflow-x:auto}
+.report-list-table .report-delete-actions{min-width:195px;white-space:normal}
+.report-delete-actions a{display:inline-block;margin:4px 9px 4px 0}
+.report-delete-btn{border:1px solid #cc8989;color:#992b2b;background:#fff0f0;
+ margin:4px 9px 4px 0;padding:8px 11px;border-radius:7px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .report-delete-btn:hover{background:#ffebeb;border-color:#d17d7d}
 .report-delete-btn:disabled{opacity:.6;cursor:wait}
 .report-signed-protected{font-size:12px;color:#687a8b;font-weight:750;white-space:nowrap}
@@ -484,7 +488,7 @@ def install(app, context: dict) -> None:
    location.reload();
   }catch(e){
    window.alert(e.message||'No se pudo eliminar el informe.');
-   button.disabled=false;button.textContent='Eliminar';
+   button.disabled=false;button.textContent='🗑 Eliminar';
   }
  });
 })();
