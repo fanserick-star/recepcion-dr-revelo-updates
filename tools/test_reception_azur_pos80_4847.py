@@ -78,7 +78,7 @@ for scenario in [
     except ExpectedReject:pass
     else:raise AssertionError("A malformed or unverified XML reached print preparation")
 manifest=json.loads((base/"update_manifest.json").read_text())
-assert manifest["version"] in {"4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57"}
+assert manifest["version"] in {"4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57","4.8.58"}
 for field in ("copy","required_dependencies"):assert "reception_azur_pos80.py" in manifest[field]
 assert "import reception_azur_pos80 as _azur_pos80" in (base/"app.py").read_text()
 print("AZUR_AUTHORIZED_XML_POS80_SAFE_PARSER_4847_OK")
