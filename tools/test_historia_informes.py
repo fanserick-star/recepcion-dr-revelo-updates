@@ -25,11 +25,11 @@ class FakeRequest:
 class LocalDeleteRequest:
     base_url = "http://127.0.0.1:8000/"
 
-    def __init__(self, allow=True, host="127.0.0.1"):
+    def __init__(self, allow=True, host="127.0.0.1", certificate=False):
         self.client = SimpleNamespace(host=host)
         self.headers = {"origin": "http://127.0.0.1:8000"}
         if allow:
-            self.headers["x-historia-delete-report"] = "1"
+            self.headers["x-historia-delete-certificate" if certificate else "x-historia-delete-report"] = "1"
 
 
 def response_json(response):
