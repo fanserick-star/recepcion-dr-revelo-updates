@@ -249,6 +249,22 @@ def main():
             assert conn.execute("SELECT COUNT(*) FROM patients").fetchone()[0] == 2
             assert conn.execute("SELECT COUNT(*) FROM encounters").fetchone()[0] == 1
             assert conn.execute("SELECT COUNT(*) FROM certificates WHERE id=?", (rid,)).fetchone()[0] == 1
+        # Certificados normales y reposo ficticios, sin alterar consultas.
+        with sqlite3.connect(path) as conn:
+            for cid, kind in (
+                ("cert-unsigned", "medical"), ("rest-unsigned", "rest_isolation"),
+                ("cert-signed", "medical"), ("rest-signed", "rest_isolation"),
+            ):
+                conn.execute(
+                    "INSERT INTO certificates(id,patient_id,encounter_id,issued_at,body_text,certificate_type) VALUES(?,?,?,?,?,?)",
+                    (cid, "p1", "visit1", "2026-10-22T13:00:00", "Documento de prueba", kind),
+                )
+            for cid, kind in (("cert-signed", "certificado"), ("rest-signed", "reposo")):
+                conn.execute(
+                    "INSERT INTO electronic_signatures(document_type,document_id,signed_at,pdf_sha256,relative_path) VALUES(?,?,?,?,?)",
+                    (kind, cid, "2026-10-22T13:00:00", "hash-test", "pdf-test"),
+                )
+            conn.commit()
         print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
