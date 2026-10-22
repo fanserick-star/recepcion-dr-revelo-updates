@@ -123,6 +123,12 @@ def _signed_pdf(pid, kind, doc_id):
     docs, rid = _documents(pid)
     if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
         raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
+    secret=os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip()
+    if len(secret)<32:
+        raise core.HTTPException(503,"Falta la clave privada compartida de entrega clínica por LAN")
+    stamp=str(int(time.time()))
+    proof=hmac.new(secret.encode("utf-8"),
+                   f"{rid}|{kind}|{doc_id}|{stamp}".encode("utf-8"),hashlib.sha256).hexdigest()
     query = urllib.parse.urlencode({"reception_id":rid,"kind":kind,"doc_id":doc_id})
     for host in lan._candidate_hosts():
         challenge = lan._challenge(host, timeout=0.7)
@@ -131,6 +137,8 @@ def _signed_pdf(pid, kind, doc_id):
         url = f"http://{host}:{lan.LAN_HTTP_PORT}/delivery/signed-pdf?{query}"
         req = urllib.request.Request(url, headers={
             "X-Historia-LAN-Token":str(challenge["token"]),
+            "X-Revelo-Delivery-Time":stamp,
+            "X-Revelo-Delivery-Proof":proof,
             "Cache-Control":"no-store",
         })
         try:
