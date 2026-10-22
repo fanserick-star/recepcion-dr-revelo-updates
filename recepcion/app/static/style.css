@@ -1362,3 +1362,21 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 
 /* Un ancho visual fijo para las cifras de las horas: evita el efecto amontonado. */
 #agenda.agenda-remaster-dark .native-slot.free .native-free-time{font-variant-numeric:tabular-nums!important}
+
+/* Patient-scoped clinical delivery: Reception only (v4.8.58). */
+#rpClinicalDocs{display:grid;gap:12px;padding:14px 4px 18px}
+.rp-clinical-subtitle{font-size:13px;font-weight:900;color:#1f415f}
+.rp-clinical-help,.rp-clinical-footnote{font-size:12px;line-height:1.5;color:#5a6b7e;margin:0}
+.rp-clinical-warning{font-size:12px;line-height:1.55;color:#815b15;background:#fff8e8;border:1px solid #f0dfb9;padding:10px;border-radius:9px;margin:0}
+.rp-clinical-error{font-size:12px;color:#a72e2e;font-weight:800}
+.rp-clinical-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #dce4ed;background:#fff;padding:13px;border-radius:11px}
+.rp-clinical-info{display:grid;gap:5px;min-width:0}
+.rp-clinical-info strong{font-size:13px;color:#203c54}
+.rp-clinical-info small{font-size:11px;color:#657c90;line-height:1.4}
+.rp-clinical-actions{display:flex;gap:7px;flex-wrap:wrap}
+.rp-clinical-actions button{font-size:12px!important;min-height:34px!important}
+.rp-clinical-actions button:disabled,#rpClinicalDocs button:disabled{opacity:.5;cursor:not-allowed}
+.rp-clinical-video{padding:14px;background:#f8fafc;border:1px dashed #b5c5d5;border-radius:11px;display:grid;gap:10px}
+.rp-clinical-video input{max-width:100%;font-size:12px}
+.rp-clinical-video button{justify-self:start}
+@media(max-width:700px){.rp-clinical-row{flex-direction:column;align-items:stretch}.rp-clinical-actions{width:100%}}
