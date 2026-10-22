@@ -1380,3 +1380,10 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .rp-clinical-video input{max-width:100%;font-size:12px}
 .rp-clinical-video button{justify-self:start}
 @media(max-width:700px){.rp-clinical-row{flex-direction:column;align-items:stretch}.rp-clinical-actions{width:100%}}
+
+/* v4.8.59: self-test controls are isolated from patient send actions. */
+.rp-clinical-test{display:grid;gap:10px;padding:15px;border-radius:12px;border:1px solid #b9d6c9;background:#f3faf6}
+.rp-clinical-test strong{font-size:14px;color:#155b42}
+.rp-clinical-test input{max-width:300px;font:inherit;padding:10px 12px;border:1px solid #a8c1b5;border-radius:9px;background:#fff}
+.rp-clinical-test button{justify-self:start;min-height:38px}
+.rp-clinical-preview{display:block;justify-self:start;color:#106b4e;font-weight:800;font-size:13px;text-decoration:underline}
