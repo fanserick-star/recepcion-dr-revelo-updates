@@ -26,19 +26,47 @@ window.rpPos80PreviewSelected=async function(){
  try{
   var response=await api("/api/azur/readonly/pos80-preview",{method:"POST",body:JSON.stringify(payload)});
   var t=response.ticket||{};
-  var items=(t.servicios||[]).map(function(x){return '<div class="v4847-preview-line"><span>'+esc(x.descripcion)+'<small>'+esc(x.cantidad)+' x '+esc(x.unitario)+'</small></span><b>'+esc(x.total)+'</b></div>';}).join("");
-  var taxes=(t.impuestos||[]).map(function(x){return '<div class="v4847-preview-line"><span>Impuesto '+esc(x.codigo)+' ('+esc(x.porcentaje)+')</span><b>'+esc(x.valor)+'</b></div>';}).join("");
-  var body='<div class="v4847-preview"><div class="modal-form-heading"><h2>Vista previa de factura 80 mm</h2><p>Obtenida del XML AUTORIZADO del SRI. No se ha impreso nada.</p></div>'+
-    '<div class="v4847-paper"><strong>'+esc(t.emisor)+'</strong><span>RUC '+esc(t.ruc)+'</span><hr>'+
-    '<b>FACTURA ELECTRONICA</b><b>'+esc(t.numero)+'</b><span>AUTORIZADA POR SRI</span><hr>'+
-    '<span>Fecha '+esc(t.fecha_emision)+'</span><span>Cliente '+esc(t.cliente)+'</span><span>ID '+esc(t.identificacion)+'</span><hr>'+
-    items+'<hr><div class="v4847-preview-line"><span>Subtotal</span><b>'+esc(t.subtotal)+'</b></div>'+
-    taxes+'<div class="v4847-preview-total">TOTAL '+esc(t.total)+'</div><hr>'+
-    '<small>CLAVE DE ACCESO</small><code>'+esc(t.clave)+'</code>'+
-    '<small>Representacion impresa desde XML SRI</small></div>'+
-    '<p class="muted">Impresora: '+esc(response.printer||"No configurada en Windows")+
-      (response.printer_source?' · '+esc(response.printer_source):'')+
-      '. La impresion real incluye campos adicionales del XML autorizado. Puede diferir del POS del portal AZUR.</p>'+
+  var detail=(t.servicios||[]).map(function(x){
+    return '<tr><td>'+esc(x.cantidad)+'</td><td>'+esc(x.descripcion)+'</td><td>'+esc(x.unitario)+'</td><td>'+esc(x.descuento||'0.00')+'</td><td>'+esc(x.total)+'</td></tr>';
+  }).join('');
+  var extras=(t.adicional||[]).filter(function(x){
+    return !/^(tel[eé]fono|celular|correo|correo electr[oó]nico|email|e-mail)$/i.test(String(x.nombre||''));
+  }).map(function(x){return '<div>'+esc(x.nombre)+': '+esc(x.valor)+'</div>';}).join('');
+  var payments=(t.pagos||[]).map(function(x){
+    return '<div>Forma de pago: '+esc(x.tipo==='01'?'SIN UTILIZACIÓN DEL SISTEMA FINANCIERO':'Código '+x.tipo)+'</div>'+
+      '<div>Valor: '+esc(x.total)+' · Plazo: '+esc(x.plazo||'0')+' '+esc(x.unidad_tiempo||'')+'</div>';
+  }).join('');
+  var taxes=(t.impuestos||[]).filter(function(x){return Number(x.valor||0)!==0 && x.codigo!=='3';}).map(function(x){
+    return '<div><span>'+esc(x.codigo==='2'?'IVA ('+x.porcentaje+')':'Impuesto '+x.codigo+' ('+x.porcentaje+')')+'</span><b>'+esc(x.valor)+'</b></div>';
+  }).join('');
+  var ice=(t.impuestos||[]).filter(function(x){return x.codigo==='3';}).reduce(function(n,x){return n+Number(x.valor||0);},0);
+  var body='<div class="v4847-preview"><div class="modal-form-heading"><h2>Factura 80 mm · Estilo AZUR</h2>'+
+    '<p>Vista previa obtenida del XML AUTORIZADO del SRI. No se ha impreso nada.</p></div>'+
+    '<div class="v4847-paper v4851-azur-paper">'+
+    '<div class="v4851-azur-head"><b class="v4851-azur-title">FACTURA</b>'+
+    '<b>RUC: '+esc(t.ruc)+'</b><strong>'+esc(t.emisor)+'</strong>'+
+    (t.nombre_comercial&&t.nombre_comercial!==t.emisor?'<strong>'+esc(t.nombre_comercial)+'</strong>':'')+
+    (t.direccion_matriz?'<span>Matriz: '+esc(t.direccion_matriz)+'</span>':'')+
+    (t.obligado_contabilidad?'<span>Obligado a llevar contabilidad: '+esc(t.obligado_contabilidad)+'</span>':'')+
+    '<span>Fecha emisión: '+esc(t.fecha_emision)+'</span><b>No. '+esc(t.numero)+'</b>'+
+    '<span>Ambiente: '+esc(t.ambiente||'PRODUCCION')+'</span>'+
+    '<span>Autorización: '+esc(t.autorizacion||t.clave)+'</span>'+
+    (t.fecha_autorizacion?'<span>Fecha y Hora Autorización: '+esc(t.fecha_autorizacion)+'</span>':'')+
+    '<span>Clave de acceso: '+esc(t.clave)+'</span></div>'+
+    '<div class="v4851-azur-client"><div>Razón social / nombres: '+esc(t.cliente)+'</div>'+
+    '<div>Identificación: '+esc(t.identificacion)+'</div>'+
+    (t.direccion_cliente?'<div>Dirección: '+esc(t.direccion_cliente)+'</div>':'')+
+    (t.telefono_cliente?'<div>Teléfono: '+esc(t.telefono_cliente)+'</div>':'')+
+    (t.correo_cliente?'<div>Correo: '+esc(t.correo_cliente)+'</div>':'')+'</div>'+
+    '<table class="v4851-azur-detail"><thead><tr><th>Cant</th><th>Descripción</th><th>P.V.P</th><th>Descto</th><th>Subtotal</th></tr></thead><tbody>'+detail+'</tbody></table>'+
+    '<div class="v4851-azur-totals"><div><span>Total sin impuestos</span><b>'+esc(t.subtotal)+'</b></div>'+
+    '<div><span>Descuento</span><b>'+esc(t.total_descuento||'0.00')+'</b></div>'+
+    '<div><span>Valor ICE</span><b>'+esc(ice.toFixed(2))+'</b></div>'+
+    taxes+(t.propina&&Number(t.propina)?'<div><span>Propina</span><b>'+esc(t.propina)+'</b></div>':'')+
+    '<div class="v4851-azur-grand"><span>VALOR TOTAL</span><b>'+esc(t.total)+'</b></div></div>'+
+    (extras||payments?'<div class="v4851-azur-add"><b>Información adicional</b>'+extras+payments+'</div>':'')+
+    '</div><p class="muted">Impresora: '+esc(response.printer||'No configurada en Windows')+
+    '. La impresión utiliza el XML autorizado y conserva exactamente los datos tributarios.</p>'+
     '<div class="actions"><button onclick="closeModal()">Cerrar sin imprimir</button>'+
     '<button class="primary" onclick="closeModal();rpPos80PrintSelected()">Imprimir 80 mm</button></div></div>';
   if(typeof openModal==="function")openModal(body);else notice("La factura está validada, pero no se pudo abrir la vista previa.");
