@@ -28,7 +28,7 @@
   function addSelfTest(host,data){
     const block=document.createElement('div');block.className='rp-clinical-test';
     block.append(cell('strong','📱 Prueba de WhatsApp en mi celular'));
-    block.append(cell('p','Esta prueba usa un PDF ficticio, sin datos de pacientes. Se envía únicamente al número autorizado para pruebas.','rp-clinical-help'));
+    block.append(cell('p','Esta prueba usa un PDF ficticio y solo podrá enviarse al número configurado como WHATSAPP_TEST_PHONE en la PC. No incluye datos de pacientes.','rp-clinical-help'));
     const preview=document.createElement('a');
     preview.href='https://fanserick-star.github.io/recepcion-dr-revelo-updates/prueba-envio-clinico.html';
     preview.target='_blank';preview.rel='noopener noreferrer';
