@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.19",
-  "app_version": "1.4.19",
-  "runtime_version": "1.4.19",
+  "version": "1.4.20",
+  "app_version": "1.4.20",
+  "runtime_version": "1.4.20",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Informes médicos: nuevo botón Eliminar con confirmación individual para cistoscopías/ecografías sin firma. Bloquea documentos firmados también en servidor. Elimina solo la fila del informe para que el sincronizador marque borrado en Neón; conserva pacientes, consultas, recetas y certificados. Registra auditoría sin datos médicos en la PC clínica.",
-    "previous_version": "1.4.18",
+    "purpose": "Mostrar botón Eliminar grande en ambos listados Informes y Certificados (incluido reposo). Permitir retirar documentos firmados solo con confirmación adicional ELIMINAR; conservar firma/auditoría y PDF PAdES original como evidencia, retirando el documento del listado local y sincronizado. No se eliminan pacientes, consultas ni recetas.",
+    "previous_version": "1.4.19",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -270,6 +270,12 @@
     "report_delete_no_patient_or_encounter_mutation": true,
     "report_delete_cloud_tombstone_via_existing_sync": true,
     "report_delete_local_only": true,
-    "report_delete_confirmation_required": true
+    "report_delete_confirmation_required": true,
+    "certificate_delete_visible_in_list": true,
+    "report_delete_prominent_in_list": true,
+    "signed_document_removal_requires_keyword_confirmation": true,
+    "signed_document_pdf_original_retained": true,
+    "signed_document_signature_audit_retained": true,
+    "document_delete_neon_tombstone_via_existing_sync": true
   }
 }
