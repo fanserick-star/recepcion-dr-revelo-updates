@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.53",
-  "app_version": "4.8.53",
-  "runtime_version": "4.8.53",
+  "version": "4.8.54",
+  "app_version": "4.8.54",
+  "runtime_version": "4.8.54",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -182,8 +182,8 @@
     "tv_control.html"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.53: factura térmica 80 mm con Tahoma de mayor legibilidad, texto de un solo bit sin bordes grises, columnas reequilibradas para no partir Cant ni Subtotal, y clave de acceso completa en dos renglones. Mantiene XML SRI autorizado, importes, márgenes de impresión, AZUR, pacientes, Neon, agenda, WhatsApp e Historia sin alteraciones.",
-    "previous_version": "4.8.52",
+    "purpose": "Recepción 4.8.54: protege el título FACTURA contra el recorte superior con trazado de texto sin recuadro, y presenta detalle térmico en tres columnas legibles más una línea de P.V.P/Descto. Mantiene todos los importes de XML SRI autorizado, impresión de 80 mm, AZUR, agenda, WhatsApp, Neon, pacientes e Historia sin alteraciones funcionales.",
+    "previous_version": "4.8.53",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
