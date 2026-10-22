@@ -268,6 +268,18 @@ def main():
                     (kind, cid, "2026-10-22T13:00:00", "hash-test", "pdf-test"),
                 )
             conn.commit()
+        cert_html = certificate_listing().body.decode("utf-8")
+        assert "data-cert-id='cert-unsigned'" in cert_html
+        assert "data-cert-id='rest-unsigned'" in cert_html
+        assert "data-cert-id='cert-signed'" in cert_html
+        assert "data-cert-id='rest-signed'" in cert_html
+        assert cert_html.count("🔒 Firmado") == 2
+        assert "document-delete-btn" in cert_html
+        assert "report-delete-actions" in listing().body.decode("utf-8")
+        assert delete_certificate("cert-unsigned", LocalDeleteRequest(allow=False, certificate=True)).status_code == 403
+        assert delete_certificate(rid, LocalDeleteRequest(certificate=True)).status_code == 404
+        assert delete_certificate("cert-signed", LocalDeleteRequest(certificate=True)).status_code == 409
+        assert delete_certificate("rest-signed", LocalDeleteRequest(certificate=True)).status_code == 409
         print("INFORMES_DELETE_UNSIGNED_OK")
         print("INFORMES_CLINICOS_SMOKE_OK", rid)
 
