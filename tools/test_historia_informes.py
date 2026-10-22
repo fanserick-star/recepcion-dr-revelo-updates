@@ -99,6 +99,10 @@ def main():
         assert "<script>alert('x')</script>" not in preview_html
         assert "DR. ARMANDO REVELO" in preview_html
         assert "PACIENTE DE PRUEBA" in preview_html
+        assert "padding:8mm 12mm 7mm" in preview_html
+        assert "font-size:12pt" in preview_html
+        assert "min-height:0;height:auto" in preview_html
+        assert "padding:7mm 11mm 6mm" in preview(rid, compact=1).body.decode("utf-8")
 
         edit_html = edit(rid).body.decode("utf-8")
         assert "Óptica de prueba" in edit_html
