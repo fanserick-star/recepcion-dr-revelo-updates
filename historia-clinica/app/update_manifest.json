@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.33",
-  "app_version": "1.4.33",
-  "runtime_version": "1.4.33",
+  "version": "1.4.34",
+  "app_version": "1.4.34",
+  "runtime_version": "1.4.34",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Historia 1.4.33: mejorar fluidez de reproducción MP4 por LAN entre Recepción e Historia con lectura anticipada limitada a 6 MB por video, streaming de fragmentos de 512 KB, pausa de otros reproductores y estado de segundos de video cargados. Mantiene byte Range HTTP, autorización HMAC, MP4 original, fichas y firma clínica; no cambia Reception, Neon, turnos o facturación.",
-    "previous_version": "1.4.32",
+    "purpose": "Corregir recorte horizontal de recetas A4 tanto desde impresión directa como desde vista previa: área interna 194 mm con márgenes de seguridad de 8 mm a cada lado dentro de hoja real A4 de 210 mm, dos mitades de 97 mm, sin cambiar altura ni escala tipográfica. Mitad izquierda de recetas nuevas: nombre y presentación/cantidad seguidos en un único bloque en negritas; mitad derecha conserva nombre e indicaciones en líneas distintas. Mantiene 7 mm de separación superior añadida, historiales y firmas PAdES intactos.",
+    "previous_version": "1.4.33",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -320,6 +320,13 @@
     "prescription_new_layout_medicine_top_mm": 82,
     "prescription_legacy_layout_preserved": true,
     "prescription_legacy_signed_original_preserved": true,
-    "prescription_neon_schema_changes": false
+    "prescription_neon_schema_changes": false,
+    "rx_a4_left_right_8mm_safe_gutters": true,
+    "rx_a4_sheet_width_210mm_preserved": true,
+    "rx_a4_each_half_width_97mm": true,
+    "rx_left_name_presentation_inline_bold": true,
+    "rx_right_name_then_indications": true,
+    "rx_legacy_data_and_original_pades_unchanged": true,
+    "rx_no_neon_schema_changes": true
   }
 }
