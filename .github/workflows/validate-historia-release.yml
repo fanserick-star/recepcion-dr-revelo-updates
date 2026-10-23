@@ -87,7 +87,9 @@ jobs:
       - name: Test medical report creation and patient isolation
         env:
           PYTHONPATH: historia-clinica/app
-        run: python tools/test_historia_informes.py
+        run: |
+          python tools/test_historia_informes.py
+          python tools/test_historia_document_editor_print_guard_1437.py
 
       - name: Smoke-test electronic signature PAdES
         env:
