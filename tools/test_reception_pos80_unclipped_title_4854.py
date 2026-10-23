@@ -12,7 +12,7 @@ css=(root/"static"/"billing_advanced.css").read_text(encoding="utf-8")
 html=(root/"static"/"index.html").read_text(encoding="utf-8")
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version in {"4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60"}
+assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version in {"4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61"}
 
 nodes={n.name:n for n in ast.parse(src).body if isinstance(n,ast.FunctionDef)}
 body=ast.get_source_segment(src,nodes["_print_ticket_windows"])
