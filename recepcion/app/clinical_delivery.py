@@ -131,7 +131,7 @@ def _documents(pid):
         """, (clinical_id, clinical_id))
         rows = cur.fetchall() or []
         return [{"id":str(a),"date":str(b)[:16],"kind":str(c),
-                 "label": LABELS.get(str(c),"Documento clínico")} for a,b,c in rows],rid
+                 "label": LABELS.get(str(c),"Documento clínico")} for a,b,c in rows],rid,clinical_id
     finally:
         conn.close()
 
@@ -151,6 +151,12 @@ def _lan_pdf_failure(exc):
             return (404, "El documento está guardado, pero todavía no tiene PDF firmado. El doctor debe firmarlo en Historia Clínica.")
         if "copia original firmada no está disponible" in reason:
             return (404, "Existe un registro de firma, pero el PDF original no está disponible en la PC de Historia. No se ha generado otra copia.")
+        if "documento no está sincronizado" in reason:
+            return (404, "El documento está en Neon, pero falta en la base local de Historia. Comprueba su sincronización; el PDF no se ha modificado.")
+        if "vinculación local difiere" in reason or "vinculación local contradictoria" in reason:
+            return (409, "Historia tiene una vinculación local distinta de la ficha verificada en Neon. Se bloqueó la lectura para proteger los datos; revisa la sincronización en Historia.")
+        if "tipo de documento no coincide" in reason:
+            return (409, "Historia y Neon no coinciden en la clasificación de este documento. Se bloqueó el acceso hasta verificar el tipo correcto.")
         if "vinculación clínica verificada" in reason or "no pertenece a la ficha" in reason or "tipo de documento no coincide" in reason:
             return (409, "Historia no reconoce la vinculación o el documento de esta ficha. Revisa la sincronización de fichas; no se modificó ninguna.")
         if "integridad" in reason or "límite de seguridad" in reason:
@@ -163,7 +169,7 @@ def _lan_pdf_failure(exc):
 def _signed_pdf(pid, kind, doc_id):
     if kind not in LABELS or kind == "video" or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", doc_id):
         raise core.HTTPException(400, "Documento inválido")
-    docs, rid = _documents(pid)
+    docs, rid, clinical_id = _documents(pid)
     if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
         raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
     secret=_clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
@@ -171,8 +177,9 @@ def _signed_pdf(pid, kind, doc_id):
         raise core.HTTPException(503,"Falta la clave privada compartida de entrega clínica por LAN")
     stamp=str(int(time.time()))
     proof=hmac.new(secret.encode("utf-8"),
-                   f"{rid}|{kind}|{doc_id}|{stamp}".encode("utf-8"),hashlib.sha256).hexdigest()
-    query = urllib.parse.urlencode({"reception_id":rid,"kind":kind,"doc_id":doc_id})
+                   f"{rid}|{clinical_id}|{kind}|{doc_id}|{stamp}".encode("utf-8"),hashlib.sha256).hexdigest()
+    query = urllib.parse.urlencode({"reception_id":rid,"clinical_patient_id":clinical_id,
+                                   "kind":kind,"doc_id":doc_id})
     for host in lan._candidate_hosts():
         challenge = lan._challenge(host, timeout=0.7)
         if not challenge:
@@ -535,7 +542,7 @@ def delivery_status(user=core.Depends(core.current_user)):
 def delivery_documents(pid:int,db=core.Depends(core.get_db),user=core.Depends(core.current_user)):
     _patient(db,pid)
     try:
-        docs,_=_documents(pid)
+        docs,_,_=_documents(pid)
         return {"ok":True,"documents":docs,**_setup()}
     except core.HTTPException:raise
     except Exception:

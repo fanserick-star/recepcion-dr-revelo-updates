@@ -61,6 +61,6 @@ assert '"ready_video":bool(live_enabled and approved' in delivery
 manifest=json.loads((APP/"update_manifest.json").read_text())
 for filename in ("clinical_delivery_config.py","clinical_delivery_setup.pyw","Configurar_envios_clinicos.vbs"):
     assert filename in manifest["copy"] and (APP/filename).is_file()
-assert manifest["version"]=="4.8.63"
+assert manifest["version"]=="4.8.64"
 assert 'pythonw.exe' in (APP/"Configurar_envios_clinicos.vbs").read_text()
 print("CLINICAL_SETUP_4860_NO_PATIENTS_FAIL_CLOSED_OK")
