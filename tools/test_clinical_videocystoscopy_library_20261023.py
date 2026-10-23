@@ -18,6 +18,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime,timezone
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -62,7 +63,8 @@ names={"_db","_safe_row","_local_file","_backup_path","_has_backup","_backup_cop
 nodes=[]
 for child in tree.body:
     if isinstance(child,(ast.FunctionDef,ast.AsyncFunctionDef)) and child.name in names:
-        child.decorator_list=[]
+        if child.name != "_db":
+            child.decorator_list=[]
         nodes.append(child)
 assert len(nodes)==len(names)
 module=ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[]))
@@ -73,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix="private_clinical_video_synthetic_") as 
     index=base/"library.sqlite3"
     scope=dict(core=fakecore, Request=object, BASE=base, STORE=store, INDEX=index,
          MAX_VIDEO=2*1024*1024*1024, CHUNK=1024*1024, _UUID=re.compile(r"^[A-Za-z0-9_-]{1,100}$"),
-         _FILENAME=re.compile(r"[^a-zA-Z0-9_. -]"), Path=Path,sqlite3=sqlite3,
+         _FILENAME=re.compile(r"[^a-zA-Z0-9_. -]"), Path=Path,sqlite3=sqlite3,contextmanager=contextmanager,
          os=os,re=re,hmac=hmac,hashlib=hashlib,secrets=secrets,ipaddress=ipaddress,
          tempfile=tempfile,time=time,shutil=shutil,datetime=datetime,timezone=timezone)
     exec(compile(module,"video_store_offline","exec"),scope)
