@@ -32,6 +32,7 @@ jobs:
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
           python tools/test_reception_clinical_setup_4860.py
+          python tools/test_reception_clinical_preview_4863.py
           python tools/test_reception_clinical_config_4861.py
           node --check recepcion/app/static/clinical_delivery.js
           python -m py_compile recepcion/app/clinical_delivery.py recepcion/app/clinical_delivery_config.py historia-clinica/app/lan_bridge.py
