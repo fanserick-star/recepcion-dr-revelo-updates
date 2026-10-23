@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.23",
-  "app_version": "1.4.23",
-  "runtime_version": "1.4.23",
+  "version": "1.4.24",
+  "app_version": "1.4.24",
+  "runtime_version": "1.4.24",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,9 +82,9 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Corregir Error 500 al pulsar Ver PDF firmado original: inicializar ruta ROOT en módulo de informes y servir PDF firmado ya archivado; Ver e Imprimir abren PDF firmado original si existe registro de firma, sin volver a firmar ni alterar QR. Controlar falta o alteración del archivo y conservar documento. Pruebas con PDF de muestra y SHA-256.",
-    "previous_version": "1.4.22",
-    "functional_changes": false,
+    "purpose": "Historia 1.4.24: entrega LAN de PDF firmado con identidad clínica verificada por Recepción/Neon incluida en el HMAC. Admite lectura si el vínculo local no terminó de sincronizar, pero rechaza vínculos contradictorios o archivos de otra ficha; nunca modifica registros, firmas, ni las claves de la LAN de turnos. Mensajes de documento local faltante diferenciados.",
+    "previous_version": "1.4.23",
+    "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,

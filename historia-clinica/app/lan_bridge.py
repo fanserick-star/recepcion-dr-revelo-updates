@@ -516,7 +516,8 @@ class LanService:
             return {"ok": False, "message": f"No se pudo abrir el permiso de Windows: {type(exc).__name__}"}
 
     def _valid_delivery_proof(self, reception_id: str, kind: str, doc_id: str,
-                              timestamp: str, digest: str) -> bool:
+                              timestamp: str, digest: str,
+                              verified_clinical_id: str = "") -> bool:
         """Document delivery uses independent HMAC; /challenge alone is not authorization."""
         from cloud_sync import _load_env
         secret = str(_load_env(self.root).get("CLINICAL_DELIVERY_LAN_SECRET") or "").strip()
@@ -527,17 +528,27 @@ class LanService:
                 return False
         except (ValueError, TypeError):
             return False
-        material = f"{reception_id}|{kind}|{doc_id}|{timestamp}".encode("utf-8")
+        # New clients bind the Neon-verified clinical identity inside the HMAC.
+        # Legacy format remains read-only compatible during staggered updates.
+        clinical_id = _clean(verified_clinical_id, 100)
+        if clinical_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", clinical_id):
+            return False
+        material = (f"{reception_id}|{clinical_id}|{kind}|{doc_id}|{timestamp}"
+                    if clinical_id else f"{reception_id}|{kind}|{doc_id}|{timestamp}").encode("utf-8")
         expected = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
         return hmac.compare_digest(str(digest or ""), expected)
 
-    def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str) -> bytes:
+    def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str,
+                                      verified_clinical_id: str = "") -> bytes:
         """Read-only, verified signed original; never signs or edits a document."""
         reception_id = _clean(reception_id, 100)
         doc_id = _clean(doc_id, 100)
         kind = _clean(kind, 30).lower()
+        verified_clinical_id = _clean(verified_clinical_id, 100)
         if not reception_id or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", doc_id):
             raise ValueError("Identificador de documento inválido")
+        if verified_clinical_id and not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", verified_clinical_id):
+            raise ValueError("Identificador clínico verificado inválido")
         types = {
             "receta": ("prescriptions", None),
             "certificado": ("certificates", "medical"),
@@ -549,22 +560,39 @@ class LanService:
         table, subtype = types[kind]
         with sqlite3.connect(self.db_path, timeout=8) as conn:
             conn.row_factory = sqlite3.Row
-            link = conn.execute(
+            # The reception endpoint already verified the patient link against
+            # the dedicated clinical Neon before signing this identity with HMAC.
+            # Do not WRITE/repair local links: the doctor is never link authority.
+            links = conn.execute(
                 """SELECT clinical_patient_id FROM patient_links
-                   WHERE reception_patient_id=? AND verified=1 LIMIT 1""",
+                   WHERE reception_patient_id=? AND verified=1 LIMIT 2""",
                 (reception_id,),
-            ).fetchone()
-            if not link or not str(link["clinical_patient_id"] or ""):
-                raise PermissionError("No existe una vinculación clínica verificada")
-            clinical_id = str(link["clinical_patient_id"])
+            ).fetchall()
+            local_ids = {str(link["clinical_patient_id"]) for link in links
+                         if str(link["clinical_patient_id"] or "")}
+            if len(local_ids) > 1:
+                raise PermissionError("Vinculación local contradictoria: requiere revisión en Recepción")
+            if verified_clinical_id:
+                if local_ids and verified_clinical_id not in local_ids:
+                    raise PermissionError("La vinculación local difiere de Neon: requiere revisión en Recepción")
+                # A missing local link is harmless when Reception proves the
+                # authoritative Neon mapping. The document itself must ALSO
+                # belong to that exact clinical ID in this local SQLite.
+                clinical_id = verified_clinical_id
+            else:
+                if not local_ids:
+                    raise PermissionError("No existe una vinculación clínica verificada")
+                clinical_id = next(iter(local_ids))
             row = conn.execute(
                 f"SELECT id,patient_id,certificate_type FROM {table} WHERE id=? AND COALESCE(deleted_at,'')=''"
                 if table == "certificates"
                 else "SELECT id,patient_id FROM prescriptions WHERE id=? AND COALESCE(deleted_at,'')=''",
                 (doc_id,),
             ).fetchone()
-            if not row or str(row["patient_id"]) != clinical_id:
-                raise PermissionError("Documento no pertenece a la ficha vinculada")
+            if not row:
+                raise FileNotFoundError("El documento no está sincronizado en la PC de Historia")
+            if str(row["patient_id"]) != clinical_id:
+                raise PermissionError("Documento no pertenece a la ficha clínica verificada")
             if table == "certificates":
                 actual_type = str(row["certificate_type"] or "medical")
                 valid = (actual_type in ("report_cystoscopy", "report_ultrasound")
@@ -639,12 +667,14 @@ class LanService:
                     if not service._valid_delivery_proof(
                         val("reception_id"), val("kind"), val("doc_id"),
                         self.headers.get("X-Revelo-Delivery-Time", ""),
-                        self.headers.get("X-Revelo-Delivery-Proof", "")):
+                        self.headers.get("X-Revelo-Delivery-Proof", ""),
+                        val("clinical_patient_id")):
                         self._send(403, {"ok": False, "error": "Autorización clínica inválida"})
                         return
                     try:
                         data = service.signed_document_for_reception(
-                            val("reception_id"), val("kind"), val("doc_id"))
+                            val("reception_id"), val("kind"), val("doc_id"),
+                            val("clinical_patient_id"))
                     except (PermissionError, FileNotFoundError, ValueError) as exc:
                         self._send(404, {"ok": False, "error": str(exc)[:150]})
                         return

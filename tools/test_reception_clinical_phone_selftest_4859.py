@@ -57,5 +57,5 @@ versions={
     "historia":json.loads((root/"historia-clinica/app/historia-version.json").read_text(encoding="utf-8"))["version"]
 }
 assert versions["recepcion"]=="4.8.63"
-assert versions["historia"] in {"1.4.22","1.4.23"}  # El envío clínico móvil es compatible con la corrección del visor de PDF
+assert versions["historia"] in {"1.4.22","1.4.23","1.4.24"}  # El envío clínico móvil es compatible con la corrección del visor de PDF
 print("CLINICAL_MOBILE_SYNTHETIC_PDF_SELFTEST_4859_OK")
