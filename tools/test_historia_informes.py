@@ -60,7 +60,7 @@ def main():
         documentos_clinicos.ensure_schema(path)
         app = FastAPI()
         informes_clinicos.install(
-            app, {"DB_PATH": path, "base": lambda title, body, active: body}
+            app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
         )
         documentos_clinicos.install(
             app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
