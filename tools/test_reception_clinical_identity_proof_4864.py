@@ -46,6 +46,7 @@ def only_linked_document(pid):
     return docs,"reception-remote-id","clinical-verified-id"
 ns={"re":re,"hashlib":hashlib,"hmac":hmac,"urllib":url,"time":time,
     "core":SimpleNamespace(HTTPException=HTTPException),
+    "LABELS":{"certificado":"Certificado médico","receta":"Receta médica"},
     "_documents":only_linked_document,
     "_clinical_setting":lambda k:secret if k=="CLINICAL_DELIVERY_LAN_SECRET" else "",
     "lan":SimpleNamespace(_candidate_hosts=lambda:["synthetic-local-host"],
