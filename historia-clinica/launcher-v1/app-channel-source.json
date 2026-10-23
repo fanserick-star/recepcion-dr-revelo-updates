@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.29: visor de videocistoscopías archivadas físicamente en Recepción mediante LAN autenticada y Range streaming, accesible únicamente dentro de Documentos de la ficha individual. Sin video ni datos clínicos nuevos en Neon."
+  "notes": "Historia 1.4.30: reparar consulta de videocistoscopías en fichas SQLite históricas y sustituir error JSON / Internal Server Error por diagnóstico legible; sin modificar videos, firma o sincronización."
 }
