@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.25: reparación aditiva de metadatos antiguos de informes/reposos en Neon desde SQLite local verificado, sin cambios en firmas, textos, PDF ni identidad; con control de una sola ejecución y consultas limitadas."
+  "notes": "Historia 1.4.27: añade vista sin firma de solo lectura por LAN protegida, conserva los PDF firmados y todas las mejoras recientes del panel de documentos y ficha."
 }
