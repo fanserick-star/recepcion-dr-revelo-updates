@@ -210,6 +210,57 @@ def _signed_pdf(pid, kind, doc_id):
     raise core.HTTPException(503, "La PC de Historia no está disponible para recuperar el PDF original firmado")
 
 
+
+def _unsigned_preview_html(pid, kind, doc_id):
+    """Read-only unsigned HTML preview; never creates or signs a PDF."""
+    if kind not in {"receta", "certificado", "reposo", "informe"} or not re.fullmatch(
+        r"[a-zA-Z0-9_-]{1,100}", doc_id):
+        raise core.HTTPException(400, "Documento inválido")
+    docs, rid, clinical_id = _documents(pid)
+    if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
+        raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
+    secret = _clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
+    if len(secret) < 32:
+        raise core.HTTPException(503, "Falta la autorización privada LAN de Historia")
+    stamp = str(int(time.time()))
+    proof = hmac.new(secret.encode("utf-8"),
+                     f"{rid}|{clinical_id}|{kind}|{doc_id}|{stamp}".encode("utf-8"),
+                     hashlib.sha256).hexdigest()
+    query = urllib.parse.urlencode({
+        "reception_id": rid, "clinical_patient_id": clinical_id,
+        "kind": kind, "doc_id": doc_id,
+    })
+    for host in lan._candidate_hosts():
+        challenge = lan._challenge(host, timeout=0.7)
+        if not challenge:
+            continue
+        url = f"http://{host}:{lan.LAN_HTTP_PORT}/delivery/unsigned-preview?{query}"
+        req = urllib.request.Request(url, headers={
+            "X-Historia-LAN-Token": str(challenge["token"]),
+            "X-Revelo-Delivery-Time": stamp,
+            "X-Revelo-Delivery-Proof": proof,
+            "Cache-Control": "no-store",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=25) as result:
+                if result.headers.get("Content-Type", "").split(";")[0] != "text/html":
+                    raise ValueError("Historia no devolvió una vista segura")
+                if result.headers.get("X-Clinical-Preview-Unsigned") != "1":
+                    raise ValueError("Historia no identificó la vista como no firmada")
+                if int(result.headers.get("Content-Length", "0") or 0) > 2 * 1024 * 1024:
+                    raise ValueError("Vista demasiado grande")
+                data = result.read(2 * 1024 * 1024 + 1)
+                if len(data) > 2 * 1024 * 1024 or b"SIN FIRMA ELECTR" not in data:
+                    raise ValueError("Vista sin identificación de firma inválida")
+                return data
+        except urllib.error.HTTPError as exc:
+            code, message = _lan_pdf_failure(exc)
+            raise core.HTTPException(code, message) from exc
+        except Exception:
+            continue
+    raise core.HTTPException(503, "No se pudo consultar la vista sin firma en la PC de Historia")
+
+
 def _phone(patient):
     raw = re.sub(r"\D", "", str(getattr(patient,"celular","") or ""))
     if len(raw) == 10 and raw.startswith("09"):
@@ -555,6 +606,21 @@ def delivery_signed_preview(pid:int,kind:str,doc_id:str,user=core.Depends(core.c
     return Response(data,media_type="application/pdf",headers={
         "Cache-Control":"private, no-store",
         "Content-Disposition":'inline; filename="Documento_firmado.pdf"',
+        "X-Content-Type-Options":"nosniff",
+    })
+
+
+@app.get("/api/clinical-delivery/patients/{pid}/unsigned/{kind}/{doc_id}")
+def delivery_unsigned_preview(pid:int,kind:str,doc_id:str,user=core.Depends(core.current_user)):
+    data=_unsigned_preview_html(pid,kind,doc_id)
+    return Response(data,media_type="text/html; charset=utf-8",headers={
+        "Cache-Control":"private, no-store",
+        "X-Clinical-Preview-Unsigned":"1",
+        "Content-Security-Policy":(
+            "default-src 'none'; sandbox; script-src 'none'; connect-src 'none'; "
+            "style-src 'unsafe-inline'; img-src data: blob:; "
+            "font-src data:; form-action 'none'; base-uri 'none'"
+        ),
         "X-Content-Type-Options":"nosniff",
     })
 
