@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.63",
-  "app_version": "4.8.63",
-  "runtime_version": "4.8.63",
+  "version": "4.8.64",
+  "app_version": "4.8.64",
+  "runtime_version": "4.8.64",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -192,8 +192,8 @@
     "Configurar_envios_clinicos.vbs"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.63: vista previa de PDF firmado dentro de Recepción sin abrir Edge automáticamente. Distingue documento aún no firmado, original ausente, autorización LAN e identidad no verificada. No genera firmas ni altera documentos, Neon, pacientes, turnos, facturas, AZUR ni alarmas de citas. Los envíos clínicos permanecen bloqueados hasta aprobación Meta y habilitación expresa.",
-    "previous_version": "4.8.62",
+    "purpose": "Recepción 4.8.64: el PDF firmado se solicita a Historia con identificación clínica previamente verificada en Neon e incluida en el HMAC LAN de documentos, compatible con Historia 1.4.24. Muestra causas específicas de falta de sincronización sin modificar ni crear vínculos. No envía documentos ni cambia firma, QR, pacientes, turnos, facturación, AZUR ni alarmas WhatsApp.",
+    "previous_version": "4.8.63",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
