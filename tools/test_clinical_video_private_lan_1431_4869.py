@@ -51,6 +51,8 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
             not hmac.compare_digest(proof,expected) or
             abs(int(time.time())-int(stamp))>90):
             raise ValueError("synthetic unauthorized access")
+    class FakeClinicalHttpError(Exception):
+        status_code=404
     synthetic_video=SimpleNamespace(
         _verify_lan=check,
         _records=lambda patient: [{"id":"test-video-1","recorded_at":"2026-10-23T12:00:00",
@@ -58,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
              if patient=="patient-1" else [],
         _row_by_id=lambda vid,patient:
             {"file":"synthetic.mp4"} if vid=="test-video-1" and patient=="patient-1"
-            else (_ for _ in ()).throw(FileNotFoundError()),
+            else (_ for _ in ()).throw(FakeClinicalHttpError()),
         _local_file=lambda row:mp4,
         BASE=Path(tmp),
     )
