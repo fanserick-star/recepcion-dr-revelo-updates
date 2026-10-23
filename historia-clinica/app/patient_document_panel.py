@@ -98,8 +98,9 @@ def read_documents(conn: sqlite3.Connection, patient_id: str) -> list[dict]:
     return documents
 
 
-def render_patient_documents(conn: sqlite3.Connection, patient_id: str) -> str:
-    docs = read_documents(conn, patient_id)
+def render_patient_documents(conn: sqlite3.Connection, patient_id: str, documents: list[dict] | None = None) -> str:
+    """Dibujar los documentos sin repetir la lectura si la ficha ya los consultó."""
+    docs = documents if documents is not None else read_documents(conn, patient_id)
     counts = {
         "informe": sum(x["kind"] == "informe" for x in docs),
         "certificado": sum(x["kind"] in {"certificado", "reposo"} for x in docs),
