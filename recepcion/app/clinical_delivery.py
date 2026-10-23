@@ -593,8 +593,9 @@ def delivery_status(user=core.Depends(core.current_user)):
 def delivery_documents(pid:int,db=core.Depends(core.get_db),user=core.Depends(core.current_user)):
     _patient(db,pid)
     try:
-        docs,_,_=_documents(pid)
-        return {"ok":True,"documents":docs,**_setup()}
+        docs,_,clinical_id=_documents(pid)
+        from clinical_video_library import _records
+        return {"ok":True,"documents":docs,"videos":_records(clinical_id),**_setup()}
     except core.HTTPException:raise
     except Exception:
         return {"ok":False,"documents":[],"error":"No se pudo consultar Historia Clínica; vuelve a intentarlo"}
