@@ -941,6 +941,42 @@ def install(app, context: dict) -> None:
         if not meds:
             meds = "<div class='med-empty'>Sin medicamentos registrados.</div>"
 
+        # Las recetas anteriores siguen imprimiéndose como se guardaron:
+        # dos copias idénticas con su campo antiguo "dose".
+        # Sólo los ítems nuevos llevan presentación e indicaciones separadas.
+        split_prescription = any(
+            isinstance(item, dict) and (
+                "presentation_quantity" in item or "indications" in item
+            )
+            for item in items
+        )
+        left_meds = meds
+        right_meds = meds
+        if split_prescription:
+            def new_medication_rows(side: str) -> str:
+                blocks = []
+                for i, item in enumerate(items):
+                    if not isinstance(item, dict):
+                        continue
+                    name = _e(str(item.get("medication") or "").strip().upper())
+                    if not name:
+                        continue
+                    value = (
+                        item.get("presentation_quantity")
+                        if side == "left"
+                        else item.get("indications")
+                    )
+                    detail = _e(str(value or "").strip().upper())
+                    blocks.append(
+                        "<div class='med-item'>"
+                        + f"<div class='med-name'>{i+1}. {name}</div>"
+                        + (f"<div class='med-line'>{detail}</div>" if detail else "")
+                        + "</div>"
+                    )
+                return "".join(blocks) or "<div class='med-empty'>Sin medicamentos registrados.</div>"
+            left_meds = new_medication_rows("left")
+            right_meds = new_medication_rows("right")
+
         instructions = str(row["instructions"] or "").strip()
         allergy_detail = str(row["allergies_detail"] or "").strip()
         allergy = str(row["allergies"] or "NO").strip().upper()
@@ -993,8 +1029,8 @@ def install(app, context: dict) -> None:
           </div>
 
           <div class='rp'>
-            {meds}
-            {f"<div class='extra'>{_e(instructions).replace(chr(10),'<br>')}</div>" if instructions else ""}
+            __RX_MEDICATIONS_PLACEHOLDER_1432__
+            __RX_EXTRA_PLACEHOLDER_1432__
           </div>
 
           <img class='watermark' src='/static/doctor_logo.png' alt=''>
@@ -1007,6 +1043,30 @@ def install(app, context: dict) -> None:
           </footer>
         </section>
         """
+
+        # Sólo la vista HTML/PDF nueva separa las mitades; los PDFs PAdES
+        # ya firmados no se regeneran ni se sobrescriben.
+        extra_html = (
+            f"<div class='extra'>{_e(instructions).replace(chr(10),'<br>')}</div>"
+            if instructions else ""
+        )
+        left_copy = (
+            one.replace("__RX_MEDICATIONS_PLACEHOLDER_1432__", left_meds)
+               .replace("__RX_EXTRA_PLACEHOLDER_1432__", "" if split_prescription else extra_html)
+        )
+        right_copy = (
+            one.replace("__RX_MEDICATIONS_PLACEHOLDER_1432__", right_meds)
+               .replace("__RX_EXTRA_PLACEHOLDER_1432__", extra_html)
+        )
+        if split_prescription:
+            left_copy = left_copy.replace(
+                "<section class='rx-copy'>",
+                "<section class='rx-copy rx-copy-v2'>", 1,
+            )
+            right_copy = right_copy.replace(
+                "<section class='rx-copy'>",
+                "<section class='rx-copy rx-copy-v2'>", 1,
+            )
 
         html_doc = f"""<!doctype html>
 <html>
@@ -1062,6 +1122,7 @@ body{{background:#dfe5ea;padding:14px}}
 .series{{color:#3c8daf;font-size:9.8pt;font-weight:900;white-space:nowrap}}
 .rp-title{{position:absolute;top:73mm;left:3.5mm;font-family:Georgia,serif;font-size:14pt;font-weight:900;margin:0}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
+.rx-copy-v2 .rp{{top:82mm}}
 .med-item{{margin:0 0 2.8mm}}
 .med-name{{font-weight:900;font-size:10.2pt}}
 .med-line{{margin:.7mm 0 0 2mm;font-size:9.1pt}}
@@ -1092,9 +1153,9 @@ footer{{
 <body>
 <div class='toolbar'>
   <button onclick='window.print()'>Imprimir / Guardar PDF</button>
-  <span>A4 vertical · 2 recetas iguales · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
+  <span>{"A4 vertical · Izquierda: nombre y presentación/cantidad · Derecha: nombre e indicaciones" if split_prescription else "A4 vertical · 2 recetas iguales"} · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
 </div>
-<main class='sheet'>{one}{one}</main>
+<main class='sheet'>{left_copy}{right_copy}</main>
 {"<script>(()=>{let fired=false;const go=()=>{if(fired)return;fired=true;try{window.focus()}catch(_e){};setTimeout(()=>{try{window.print()}catch(_e){}},450)};if(document.readyState==='complete')go();else window.addEventListener('load',go,{once:true});window.addEventListener('pageshow',go,{once:true});})();</script>" if print_now else ""}
 </body>
 </html>"""
