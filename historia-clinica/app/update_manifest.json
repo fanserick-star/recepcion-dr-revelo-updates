@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.28",
-  "app_version": "1.4.28",
-  "runtime_version": "1.4.28",
+  "version": "1.4.29",
+  "app_version": "1.4.29",
+  "runtime_version": "1.4.29",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -81,11 +81,13 @@
     "historia-version.json",
     "update_manifest.json",
     "doctor_turn_call.py",
-    "patient_document_panel.py"
+    "patient_document_panel.py",
+    "clinical_video_library.py",
+    "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Ficha individual del paciente: historia clínica aparece primero, sin bloque de documentos visible que la desplace. Botón Documentos con contador junto al título de Historia clínica abre ventana modal nativa grande con recetas, informes y certificados ya asociados, firmas originales intactas y sin cambiar lugar del historial. Cerrar con X o Esc restaura foco y posición de lectura, usando una sola consulta de documentos local. Sin cambios de base de datos, firmas ni Neón.",
-    "previous_version": "1.4.27",
+    "purpose": "Historia 1.4.29: ver videocistoscopías originales archivadas exclusivamente en la PC de Recepción desde Documentos de la ficha individual, por LAN privada autenticada con HMAC, reproducción por rangos y control de identidad. No copia videos en Neon o Historia. Conserva historial y firma electrónica.",
+    "previous_version": "1.4.28",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
