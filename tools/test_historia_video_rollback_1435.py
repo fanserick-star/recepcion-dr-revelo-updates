@@ -3,6 +3,7 @@ Tests only synthetic source code; never reads patient files or Neon.
 """
 from pathlib import Path
 import ast
+import json
 root=Path(__file__).resolve().parents[1]
 py=(root/"historia-clinica/app/clinical_video_library.py").read_text(encoding="utf-8")
 js=(root/"historia-clinica/app/static/clinical_video_library.js").read_text(encoding="utf-8")
@@ -25,6 +26,7 @@ assert "markWaiting" not in js
 assert "Cargando por LAN desde Recepción" not in js
 assert "source.src=url+'/play/'+encodeURIComponent(item.id)" in js
 assert "clinical_video_library.js?v=1.4.35" in panel
-assert '"version": "1.4.35"' in manifest
+# Video rollback 1.4.35 permanece vigente también en correcciones posteriores.
+assert tuple(map(int, json.loads(manifest)["version"].split("."))) >= (1, 4, 35)
 assert "documentos_clinicos.py" in manifest and "informes_clinicos.py" in manifest
 print("HISTORIA_VIDEO_ROLLBACK_1435_PRESERVES_RANGE_PATIENT_GUARDS_AND_DOCS_OK")
