@@ -83,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
                                hashlib.sha256).hexdigest()
             qs=urllib.parse.urlencode({"clinical_id":patient,"ts":stamp,"proof":signature})
             base=f"http://127.0.0.1:{port}/api/clinical-videos/lan/"
-            return base+("catalog" if action=="catalog" else "stream/"+video)+"?"+qs
+            return base+("catalog" if action=="catalog" else "speed" if action=="speed" else "stream/"+video)+"?"+qs
         def get(link,headers=None):
             return opener.open(urllib.request.Request(link,headers=headers or {}),timeout=5)
         catalog=url("catalog",video="-")
