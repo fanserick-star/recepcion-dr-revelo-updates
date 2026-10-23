@@ -68,6 +68,8 @@ with patch.dict(os.environ, {
     saved["WHATSAPP_CLINICAL_TEMPLATES_APPROVED"] = "1"
     status = ns["_setup"]()
     assert status["ready_document"] is False, "Explicit live opt-in is mandatory"
+    assert status["ready_test"] is True, "Synthetic self-test must be available before patient delivery"
+    assert status["ready_video"] is False, "Patient delivery must remain blocked until separate activation"
     saved["CLINICAL_DELIVERY_LIVE_ENABLED"] = "1"
     status = ns["_setup"]()
     assert status["ready_document"] is True
