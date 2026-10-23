@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.61: corrige lectura del .env clínico local y consulta de documentos tras ampliación aditiva de columnas en Neon Historia. Envíos clínicos siguen desactivados hasta aprobación de Meta; sin cambios a pacientes en espera, facturación, AZUR, LAN ni alarmas WhatsApp. CI: amplía listas permitidas en pruebas legacy a Recepción 4.8.61; sin cambios runtime adicionales."
+  "notes": "Recepción 4.8.61: corrige lectura del .env clínico local y consulta de documentos tras ampliación aditiva de columnas en Neon Historia. Envíos clínicos siguen desactivados hasta aprobación de Meta; sin cambios a pacientes en espera, facturación, AZUR, LAN ni alarmas WhatsApp. CI: amplía listas permitidas en pruebas legacy a Recepción 4.8.61; sin cambios runtime adicionales. Validación CI de activos fiscales estáticos corregida para 4.8.61."
 }
