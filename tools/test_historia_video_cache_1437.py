@@ -10,8 +10,26 @@ import io
 import json
 import tempfile
 import time
+import sys
+import types
 from pathlib import Path
-from fastapi import HTTPException
+from types import SimpleNamespace
+
+# Canonical-source CI runs before runtime requirements are installed.
+# Stub the three FastAPI types in this isolated test only.
+class HTTPException(Exception):
+    def __init__(self,status_code,detail):
+        self.status_code=status_code
+        self.detail=detail
+        super().__init__(detail)
+fake_fastapi=types.ModuleType("fastapi")
+fake_fastapi.HTTPException=HTTPException
+fake_fastapi.Request=object
+fake_responses=types.ModuleType("fastapi.responses")
+fake_responses.FileResponse=lambda path,**kw:SimpleNamespace(path=path,headers=kw.get("headers",{}))
+fake_responses.JSONResponse=lambda *args,**kw:SimpleNamespace(args=args,kwargs=kw)
+sys.modules["fastapi"]=fake_fastapi
+sys.modules["fastapi.responses"]=fake_responses
 
 ROOT=Path(__file__).resolve().parents[1]
 path=ROOT/"historia-clinica/app/clinical_video_cache.py"
