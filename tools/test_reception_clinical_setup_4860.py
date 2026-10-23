@@ -53,14 +53,14 @@ with tempfile.TemporaryDirectory(prefix="rp_clinical_4860_") as d:
         else:raise AssertionError("Unexpected acceptance of forbidden settings")
     assert m.parse_existing(p)["WHATSAPP_AUTO_CITA_AGENDADA"]=="1"
 delivery=(APP/"clinical_delivery.py").read_text(encoding="utf-8")
-assert 'live_enabled=os.getenv("CLINICAL_DELIVERY_LIVE_ENABLED","0")=="1"' in delivery
-assert 'approved=os.getenv("WHATSAPP_CLINICAL_TEMPLATES_APPROVED","0")=="1"' in delivery
+assert 'live_enabled=cfg["CLINICAL_DELIVERY_LIVE_ENABLED"]=="1"' in delivery
+assert 'approved=cfg["WHATSAPP_CLINICAL_TEMPLATES_APPROVED"]=="1"' in delivery
 assert 'ready_test=bool(live_enabled and approved and ready_r2' in delivery
 assert '"ready_document":bool(live_enabled and approved' in delivery
 assert '"ready_video":bool(live_enabled and approved' in delivery
 manifest=json.loads((APP/"update_manifest.json").read_text())
 for filename in ("clinical_delivery_config.py","clinical_delivery_setup.pyw","Configurar_envios_clinicos.vbs"):
     assert filename in manifest["copy"] and (APP/filename).is_file()
-assert manifest["version"]=="4.8.60"
+assert manifest["version"]=="4.8.61"
 assert 'pythonw.exe' in (APP/"Configurar_envios_clinicos.vbs").read_text()
 print("CLINICAL_SETUP_4860_NO_PATIENTS_FAIL_CLOSED_OK")

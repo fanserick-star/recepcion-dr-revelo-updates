@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import core_runtime as core
+import clinical_delivery_config as clinical_config
 import historia_lan_transport as lan
 import reception_history_identity_consolidated as identity
 from fastapi import Request
@@ -37,6 +38,24 @@ ROOT = Path(__file__).resolve().parent
 AUDIT_DB = ROOT / "data" / "clinical_delivery_audit.db"
 LIMIT_VIDEO = 550 * 1024 * 1024
 LIMIT_PDF = 20 * 1024 * 1024
+
+
+def _clinical_settings():
+    """Read the wizard's local .env only for clinical delivery, without mutating
+    environment variables, appointment messaging or the Cloudflare Worker.
+    Reflect updates saved by the wizard even when Reception is already open.
+    """
+    saved = clinical_config.parse_existing()
+    return {
+        key: str(saved.get(key) or os.getenv(key, "") or "").strip()
+        for key in clinical_config.ALLOWED
+    }
+
+
+def _clinical_setting(key):
+    return _clinical_settings().get(key, "")
+
+
 _MUTEX = threading.Lock()
 _BUSY = set()
 
@@ -123,7 +142,7 @@ def _signed_pdf(pid, kind, doc_id):
     docs, rid = _documents(pid)
     if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
         raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
-    secret=os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip()
+    secret=_clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
     if len(secret)<32:
         raise core.HTTPException(503,"Falta la clave privada compartida de entrega clínica por LAN")
     stamp=str(int(time.time()))
@@ -170,21 +189,24 @@ def _phone(patient):
 
 
 def _setup():
-    account=os.getenv("CLINICAL_R2_ACCOUNT_ID","").strip()
-    bucket=os.getenv("CLINICAL_R2_BUCKET","").strip()
-    key=os.getenv("CLINICAL_R2_ACCESS_KEY_ID","").strip()
-    secret=os.getenv("CLINICAL_R2_SECRET_ACCESS_KEY","").strip()
-    template_doc=os.getenv("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","").strip()
-    template_video=os.getenv("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","").strip()
+    cfg = _clinical_settings()
+    account=cfg["CLINICAL_R2_ACCOUNT_ID"]
+    bucket=cfg["CLINICAL_R2_BUCKET"]
+    key=cfg["CLINICAL_R2_ACCESS_KEY_ID"]
+    secret=cfg["CLINICAL_R2_SECRET_ACCESS_KEY"]
+    template_doc=cfg["WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE"]
+    template_video=cfg["WHATSAPP_CLINICAL_VIDEO_TEMPLATE"]
     # Fail closed while either Meta template is in review. Saving API keys or
     # naming templates alone must never unlock patient messaging.
-    approved=os.getenv("WHATSAPP_CLINICAL_TEMPLATES_APPROVED","0")=="1"
-    live_enabled=os.getenv("CLINICAL_DELIVERY_LIVE_ENABLED","0")=="1"
-    retention=os.getenv("CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED","")=="1"
+    approved=cfg["WHATSAPP_CLINICAL_TEMPLATES_APPROVED"]=="1"
+    live_enabled=cfg["CLINICAL_DELIVERY_LIVE_ENABLED"]=="1"
+    retention=cfg["CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED"]=="1"
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
-    wa_ready=all((core.WHATSAPP_GRAPH_VERSION,core.WHATSAPP_PHONE_NUMBER_ID,core.WHATSAPP_ACCESS_TOKEN))
-    lan_ready=len(os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip())>=32
-    test_phone=re.sub(r"\D","",core.WHATSAPP_TEST_PHONE or "")
+    wa_ready=all((cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,\
+                  cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,\
+                  cfg["WHATSAPP_ACCESS_TOKEN"] or core.WHATSAPP_ACCESS_TOKEN))
+    lan_ready=len(cfg["CLINICAL_DELIVERY_LAN_SECRET"])>=32
+    test_phone=re.sub(r"\D","",cfg["WHATSAPP_TEST_PHONE"] or core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
         test_phone="593"+test_phone[1:]
     ready_test=bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and re.fullmatch(r"5939\d{8}",test_phone))
@@ -214,10 +236,11 @@ def _setup():
 
 
 def _r2_url(method, key, expires=604800):
-    account=os.environ["CLINICAL_R2_ACCOUNT_ID"].strip()
-    bucket=os.environ["CLINICAL_R2_BUCKET"].strip()
-    access=os.environ["CLINICAL_R2_ACCESS_KEY_ID"].strip()
-    secret=os.environ["CLINICAL_R2_SECRET_ACCESS_KEY"].strip()
+    cfg = _clinical_settings()
+    account=cfg["CLINICAL_R2_ACCOUNT_ID"]
+    bucket=cfg["CLINICAL_R2_BUCKET"]
+    access=cfg["CLINICAL_R2_ACCESS_KEY_ID"]
+    secret=cfg["CLINICAL_R2_SECRET_ACCESS_KEY"]
     host=f"{account}.r2.cloudflarestorage.com"
     path="/"+urllib.parse.quote(bucket+"/"+key,safe="/-_.~")
     now=datetime.now(timezone.utc)
@@ -266,19 +289,20 @@ def _upload_r2(filename, key, media_type):
 
 
 def _send_template(phone, name, kind, expiry, url, label_override=None):
-    template = (os.getenv("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","").strip()
-                if kind=="video" else os.getenv("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","").strip())
+    cfg = _clinical_settings()
+    template = (cfg["WHATSAPP_CLINICAL_VIDEO_TEMPLATE"]
+                if kind=="video" else cfg["WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE"])
     if not template:
         raise RuntimeError("Falta configurar la plantilla aprobada por Meta")
     payload = core.whatsapp_build_template_payload(
         to=phone,template_name=template,
-        language_code=os.getenv("WHATSAPP_CLINICAL_LANGUAGE","es_EC"),
+        language_code=cfg["WHATSAPP_CLINICAL_LANGUAGE"] or "es_EC",
         body_params=[name,label_override or LABELS[kind],expiry,url],
     )
     response=core.whatsapp_send_template(
-        graph_version=core.WHATSAPP_GRAPH_VERSION,
-        phone_number_id=core.WHATSAPP_PHONE_NUMBER_ID,
-        access_token=core.WHATSAPP_ACCESS_TOKEN,
+        graph_version=cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,
+        phone_number_id=cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,
+        access_token=cfg["WHATSAPP_ACCESS_TOKEN"] or core.WHATSAPP_ACCESS_TOKEN,
         payload=payload,
     )
     mid=str((response.get("messages") or [{}])[0].get("id") or "")
@@ -374,7 +398,7 @@ def _test_send(phone: str):
     raw = re.sub(r"\D", "", str(phone or ""))
     if len(raw) == 10 and raw.startswith("09"):
         raw = "593" + raw[1:]
-    allow = re.sub(r"\D", "", str(core.WHATSAPP_TEST_PHONE or ""))
+    allow = re.sub(r"\D", "", str(_clinical_setting("WHATSAPP_TEST_PHONE") or core.WHATSAPP_TEST_PHONE or ""))
     if len(allow) == 10 and allow.startswith("09"):
         allow = "593" + allow[1:]
     if not raw or not hmac.compare_digest(raw, allow):
