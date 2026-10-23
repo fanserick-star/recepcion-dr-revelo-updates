@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.24: verificación read-only del PDF firmado por el identificador clínico validado en Neon y protegido con HMAC de entrega, compatible con Recepción anterior. No modifica SQLite, Neon, cola de espera, firma, QR ni otros puentes LAN."
+  "notes": "Historia 1.4.25: reparación aditiva de metadatos antiguos de informes/reposos en Neon desde SQLite local verificado, sin cambios en firmas, textos, PDF ni identidad; con control de una sola ejecución y consultas limitadas."
 }

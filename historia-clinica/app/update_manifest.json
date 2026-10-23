@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.24",
-  "app_version": "1.4.24",
-  "runtime_version": "1.4.24",
+  "version": "1.4.25",
+  "app_version": "1.4.25",
+  "runtime_version": "1.4.25",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.24: entrega LAN de PDF firmado con identidad clínica verificada por Recepción/Neon incluida en el HMAC. Admite lectura si el vínculo local no terminó de sincronizar, pero rechaza vínculos contradictorios o archivos de otra ficha; nunca modifica registros, firmas, ni las claves de la LAN de turnos. Mensajes de documento local faltante diferenciados.",
-    "previous_version": "1.4.23",
+    "purpose": "Historia 1.4.25: restaura una sola vez la clasificación original de informes y certificados de reposo desde SQLite de Historia a Neon clínico, exclusivamente en documentos coincidentes por ID y paciente cuyo tipo remoto sigue siendo 'medical'. Preserva firmas, QR, PDF, texto clínico, pacientes, turnos, facturas y LAN. Proceso idempotente y sin consultas continuas a Neon.",
+    "previous_version": "1.4.24",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -101,8 +101,8 @@
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
     "clinical_data_changes": true,
-    "cloud_logic_changes": false,
-    "cloud_sync_data_logic_changes": false,
+    "cloud_logic_changes": true,
+    "cloud_sync_data_logic_changes": true,
     "cloud_status_write_resilience": true,
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,

@@ -631,6 +631,53 @@ class CloudSyncService:
         finally:
             sconn.close()
 
+    def _restore_document_types_from_local_once(self, pg) -> int:
+        """Reconcile only pre-existing Neon 'medical' TYPE metadata from SQLite.
+
+        The doctor's SQLite stores the original rest/report classification.
+        No certificate text, signatures, patient identity or clinical history is
+        changed. Exact document ID AND patient ID must match Neon.
+        """
+        marker = "document_types_restored_neon_1425"
+        remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, "certificates")
+        required = {"id", "patient_id", "certificate_type", "cloud_updated_at", "deleted_at"}
+        if not required.issubset(remote_cols):
+            return 0
+        with sqlite3.connect(self.db_path, timeout=20) as local:
+            if self._get_state(local, marker, "0") == "1":
+                return 0
+            try:
+                candidates = local.execute(
+                    """SELECT id, patient_id, certificate_type
+                       FROM certificates
+                       WHERE COALESCE(deleted_at,'')=''
+                         AND certificate_type IN
+                         ('rest_isolation','report_cystoscopy','report_ultrasound')"""
+                ).fetchall()
+            except sqlite3.Error:
+                return 0
+            if not candidates:
+                # An empty/newly installed PC has no authoritative local types.
+                # Do not mark complete; idle retries are rate-limited in _cycle.
+                return 0
+            cursor = pg.cursor()
+            changed = 0
+            for doc_id, patient_id, document_type in candidates:
+                cursor.execute(
+                    """UPDATE public.certificates
+                       SET certificate_type=%s,cloud_updated_at=now()
+                       WHERE id=%s AND patient_id=%s
+                         AND certificate_type='medical'
+                         AND deleted_at IS NULL""",
+                    (document_type, doc_id, patient_id),
+                )
+                changed += max(0, int(cursor.rowcount or 0))
+            # Never mark done unless all remote writes succeeded.
+            pg.commit()
+            self._set_state(local, marker, "1")
+            local.commit()
+            return changed
+
     def _cycle(self):
         sconn = sqlite3.connect(self.db_path, timeout=20)
         sconn.row_factory = sqlite3.Row
@@ -644,7 +691,16 @@ class CloudSyncService:
                 not bootstrap_done
                 or (active and (time.monotonic() - self._last_pull_monotonic >= 90))
             )
-            if pending == 0 and not pull_due:
+            # One-time safe restoration may be due even with no dirty rows.
+            # If this PC has no original report/repose metadata, retry only
+            # every 30 minutes to avoid constant Neon connections.
+            type_recovery_done = (
+                self._get_state(sconn, "document_types_restored_neon_1425", "0") == "1"
+            )
+            now_mono = time.monotonic()
+            last_try = getattr(self, "_last_document_type_recovery_attempt", 0.0)
+            type_recovery_due = not type_recovery_done and now_mono - last_try >= 1800
+            if pending == 0 and not pull_due and not type_recovery_due:
                 _write_status(self.data_dir, pending=0)
                 return
         finally:
@@ -760,10 +816,14 @@ class CloudSyncService:
             # cursor remoto NUEVO, posterior a ese push, para que la siguiente
             # vuelta no confunda nuestro propio push con un cambio de otra PC.
             pushed = self._push(pg)
+            restored_types = 0
+            if type_recovery_due:
+                self._last_document_type_recovery_attempt = time.monotonic()
+                restored_types = self._restore_document_types_from_local_once(pg)
             cur = pg.cursor()
             remote_now = _remote_now(cur)
             pg.commit()
-            effective_pull_due = pull_due or pushed > 0
+            effective_pull_due = pull_due or pushed > 0 or restored_types > 0
             pulled = self._pull(pg, remote_now) if effective_pull_due else 0
             self._register_device(pg)
             pg.commit()
