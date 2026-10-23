@@ -19,6 +19,7 @@ import firma_electronica as firma
 from documentos_clinicos import (
     _age, _canonical_patient_id, _connect, _e, _id, _now,
     _patient, _row_value, _settings, _styles, _inline_signature_activation_dialog,
+    _document_editor_shell,
 )
 
 REPORT_TYPES = {
@@ -230,7 +231,7 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
             "</div>" + body[actions_end + len("</div>"):])
         body = body.replace("class='report-input' data-field=", "class='report-input' readonly data-field=")
         body = body.replace("id='report-date' type='date'", "id='report-date' disabled type='date'")
-        return HTMLResponse(base("Informe médico firmado", body, "informes"))
+        return HTMLResponse(_document_editor_shell(base, "Informe médico firmado", body, "informes"))
     script = """
 <script>
 (()=>{
@@ -262,23 +263,23 @@ async function act(mode){
     const data=await saveReport();
     if(mode==='print'){
       if(!window.historiaNativePrint)throw Error('Reabra Historia Clínica para habilitar la impresión directa.');
-      await window.historiaNativePrint(data.preview_url,'certificate');
+      return await window.historiaNativePrint(data.preview_url,'certificate');
     }else if(mode==='sign'){
       window.open('/api/firma/documento/informe/'+encodeURIComponent(data.id),'_blank');
     }else if(mode==='preview'){
       window.open(data.preview_url,'_blank');
     }
-  }catch(e){alert(e.message||String(e));}
+  }catch(e){alert(e.message||String(e));return false;}
   finally{buttons.forEach(x=>x.disabled=false);}
 }
-document.getElementById('report-save').onclick=()=>act('save');
-document.getElementById('report-preview').onclick=()=>act('preview');
-document.getElementById('report-print').onclick=()=>act('print');
-document.getElementById('report-sign').onclick=()=>act('sign');
+document.getElementById('report-save').onclick=()=>window.historiaDocumentAction('save',['report-save','report-preview','report-print','report-sign'],'report-state',()=>act('save'));
+document.getElementById('report-preview').onclick=()=>window.historiaDocumentAction('preview',['report-save','report-preview','report-print','report-sign'],'report-state',()=>act('preview'));
+document.getElementById('report-print').onclick=()=>window.historiaDocumentAction('print',['report-save','report-preview','report-print','report-sign'],'report-state',()=>act('print'));
+document.getElementById('report-sign').onclick=()=>window.historiaDocumentAction('sign',['report-save','report-preview','report-print','report-sign'],'report-state',()=>act('sign'));
 })();
 </script>
 """.replace("REPORT_CONTEXT", report_json)
-    return HTMLResponse(base("Informes médicos", body + script, "informes"))
+    return HTMLResponse(_document_editor_shell(base, "Informes médicos", body + script, "informes"))
 
 
 def _print_html(row, settings, print_now: bool, compact: bool = False) -> str:
