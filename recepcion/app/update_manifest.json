@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.68",
-  "app_version": "4.8.68",
-  "runtime_version": "4.8.68",
+  "version": "4.8.69",
+  "app_version": "4.8.69",
+  "runtime_version": "4.8.69",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -190,11 +190,12 @@
     "clinical_delivery_config.py",
     "clinical_delivery_setup.pyw",
     "Configurar_envios_clinicos.vbs",
-    "clinical_video_library.py"
+    "clinical_video_library.py",
+    "clinical_video_lan_server.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.68: permite seleccionar 2 a 20 videocistoscopías MP4 por lote y archivarlas una por una en la ficha verificada, con confirmación integrada de paciente, nombres y tamaño total, progreso individual, detección de duplicados, resumen de éxito/errores e interrupción si cambia la ficha. Protege el flujo WhatsApp: si se seleccionan varios, no envía ninguno; requiere selección individual. No se modifica servidor de videos, contenido de archivos, Neon, Cloudflare, Historia, firmas ni facturación.",
-    "previous_version": "4.8.67",
+    "purpose": "Recepción 4.8.69: servidor LAN separado exclusivo para listar y reproducir videocistoscopías mediante HMAC en puerto privado 8766. No expone Recepción/administración en 8000; el permiso de firewall restringido a la subred privada requiere confirmación explícita de Windows desde la ficha. Los MP4 originales, pacientes, Neon, turnos, facturas, firmas y WhatsApp permanecen intactos.",
+    "previous_version": "4.8.68",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
