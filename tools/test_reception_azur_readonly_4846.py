@@ -48,8 +48,8 @@ for section in ("copy","required_dependencies"):
 
 html=(root/"static/index.html").read_text()
 assert 'azur_readonly_config.js?v=4.8.46' in html
-assert f'billing_advanced.js?v={v}' in html
-assert f'billing_advanced.css?v={v}' in html
+assert 'billing_advanced.js?v=4.8.60' in html
+assert 'billing_advanced.css?v=4.8.60' in html
 app=(root/"app.py").read_text()
 assert "import reception_azur_readonly as _azur_readonly" in app
 print("AZUR_V2_LOCAL_READONLY_STATIC_SAFE_4846_OK")
