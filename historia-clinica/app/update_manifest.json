@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.25",
-  "app_version": "1.4.25",
-  "runtime_version": "1.4.25",
+  "version": "1.4.26",
+  "app_version": "1.4.26",
+  "runtime_version": "1.4.26",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -29,7 +29,8 @@
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
-    "doctor_turn_call.py"
+    "doctor_turn_call.py",
+    "patient_document_panel.py"
   ],
   "required_python_packages": [
     {
@@ -79,11 +80,12 @@
     "static/doctor_icon.b64",
     "historia-version.json",
     "update_manifest.json",
-    "doctor_turn_call.py"
+    "doctor_turn_call.py",
+    "patient_document_panel.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.25: restaura una sola vez la clasificación original de informes y certificados de reposo desde SQLite de Historia a Neon clínico, exclusivamente en documentos coincidentes por ID y paciente cuyo tipo remoto sigue siendo 'medical'. Preserva firmas, QR, PDF, texto clínico, pacientes, turnos, facturas y LAN. Proceso idempotente y sin consultas continuas a Neon.",
-    "previous_version": "1.4.24",
+    "purpose": "Ficha de paciente: Atender/Nueva consulta como acción principal separada; Editar datos, Receta, Certificado, Informes y Llamar en segunda fila alineada derecha. Panel Documentos del paciente con recetas, informes, certificados y reposo por patient_id y fechas; PDF PAdES original con SHA verificado en enlace Ver/Imprimir sin re-firmar, documentos eliminados ocultos y sin duplicar archivos ni cambiar Neón.",
+    "previous_version": "1.4.25",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -288,6 +290,14 @@
     "signed_report_print_original_pdf": true,
     "signed_report_no_regeneration": true,
     "signed_report_hash_integrity_checked": true,
-    "neon_changes": false
+    "neon_changes": false,
+    "patient_documents_panel": true,
+    "patient_documents_by_exact_id": true,
+    "patient_documents_signed_original_readonly": true,
+    "patient_documents_no_cloud_write": true,
+    "patient_documents_no_database_schema_changes": true,
+    "patient_secondary_actions_lower_right": true,
+    "patient_primary_consult_button_preserved": true,
+    "patient_documents_deleted_hidden": true
   }
 }

@@ -3151,3 +3151,135 @@ body.app-dialog-open{overflow:hidden}
 @media(prefers-reduced-motion:reduce){
   .cp-remaster-app .home-queue-v107 .queue-beacon::before{animation:none!important;opacity:.65!important;transform:scale(.9)}
 }
+
+
+/* Historia v1.4.26 — Ficha ABIERTA, no tarjetas de espera.
+   Atender / Nueva consulta queda en la primera fila; acciones secundarias
+   una fila hacia abajo, alineadas a la derecha. Sin JS ni cambios clínicos. */
+.cp-remaster-app .legacy-remaster .cp-patient-primary-action{
+  display:flex!important;align-items:flex-end!important;justify-content:flex-end!important;
+  min-width:170px!important;
+}
+.cp-remaster-app .legacy-remaster .cp-patient-primary-action .cp-new-consult{
+  height:auto!important;min-height:45px!important;padding:8px 18px!important;
+  font-size:15px!important;font-weight:900!important;border-radius:9px!important;
+  white-space:nowrap!important;
+}
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions{
+  display:flex!important;align-items:center!important;justify-content:flex-end!important;
+  flex-wrap:wrap!important;gap:9px!important;
+  margin:13px 0 14px!important;padding:12px 1px 0!important;
+  border-top:1px solid #dce4ed!important;
+}
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions .btn-link,
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions .js-doctor-call{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:42px!important;height:auto!important;max-width:100%!important;
+  padding:9px 13px!important;font-size:13px!important;
+  font-weight:800!important;line-height:1.25!important;border-radius:8px!important;
+  white-space:normal!important;text-align:center!important;
+  position:static!important;transform:none!important;
+}
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions .js-doctor-call{
+  background:#e9f6ff!important;border:1px solid #73b5d3!important;color:#075b7d!important;
+}
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions a:focus-visible,
+.cp-remaster-app .legacy-remaster .cp-patient-secondary-actions button:focus-visible,
+.cp-remaster-app .legacy-remaster .cp-patient-primary-action a:focus-visible{
+  outline:3px solid #3487c2!important;outline-offset:3px!important;
+}
+@media(max-width:1100px){
+  .cp-remaster-app .legacy-remaster .cp-patient-secondary-actions{
+    justify-content:flex-end!important;gap:8px!important;
+  }
+  .cp-remaster-app .legacy-remaster .cp-patient-secondary-actions .btn-link,
+  .cp-remaster-app .legacy-remaster .cp-patient-secondary-actions .js-doctor-call{
+    font-size:12.5px!important;
+  }
+}
+@media(max-width:620px){
+  .cp-remaster-app .legacy-remaster .cp-patient-primary-action{min-width:0!important;width:100%!important}
+  .cp-remaster-app .legacy-remaster .cp-patient-primary-action .cp-new-consult{width:100%!important}
+  .cp-remaster-app .legacy-remaster .cp-patient-secondary-actions{justify-content:flex-end!important}
+}
+
+/* Documentos del paciente: consultan registros ya asociados a la ficha.
+   PDF firmado se lee del archivo PAdES original, no de la vista imprimible. */
+.cp-remaster-app .cp-patient-documents{
+  margin:12px 0 13px!important;border:1px solid #cfdae5!important;
+  border-top:4px solid #26749d!important;border-radius:12px!important;
+  overflow:hidden!important;background:#fff!important;
+  box-shadow:0 4px 14px rgba(22,60,90,.07)!important;
+}
+.cp-remaster-app .cp-patient-documents-title{
+  padding:15px 17px 11px!important;display:flex!important;
+  align-items:center!important;justify-content:space-between!important;
+  flex-wrap:wrap!important;gap:11px!important;
+}
+.cp-remaster-app .cp-patient-documents-title h2{
+  margin:3px 0!important;color:#183c58!important;
+  font-size:21px!important;font-weight:900!important;
+}
+.cp-remaster-app .cp-patient-documents-title p{
+  color:#697e91!important;margin:4px 0 0!important;font-size:12.5px!important;
+}
+.cp-remaster-app .cp-docs-kicker{
+  color:#397a9f!important;font-size:10px!important;letter-spacing:.09em!important;font-weight:850!important;
+}
+.cp-remaster-app .cp-docs-total{
+  color:#335a74!important;font-size:13px!important;background:#e9f2f8!important;
+  border-radius:100px!important;padding:7px 11px!important;white-space:nowrap!important;
+}
+.cp-remaster-app .cp-docs-counts{
+  padding:1px 16px 13px!important;display:flex!important;flex-wrap:wrap!important;gap:9px!important;
+}
+.cp-remaster-app .cp-docs-chip{
+  display:inline-flex!important;align-items:center!important;gap:5px!important;
+  padding:8px 11px!important;border-radius:8px!important;font-size:12px!important;font-weight:750!important;
+}
+.cp-remaster-app .cp-docs-chip strong{font-size:17px!important;font-weight:900!important}
+.cp-remaster-app .cp-docs-info{background:#e4f4fd!important;color:#096798!important}
+.cp-remaster-app .cp-docs-cert{background:#eaf7ee!important;color:#26764c!important}
+.cp-remaster-app .cp-docs-rx{background:#eff0f8!important;color:#4a5a83!important}
+.cp-remaster-app .cp-docs-list{
+  max-height:425px!important;overflow-y:auto!important;border-top:1px solid #e0e8f0!important;
+}
+.cp-remaster-app .cp-docs-item{
+  display:flex!important;align-items:center!important;flex-wrap:wrap!important;
+  gap:12px!important;padding:13px 16px!important;border-bottom:1px solid #ecf0f4!important;
+}
+.cp-remaster-app .cp-docs-item:last-child{border-bottom:0!important}
+.cp-remaster-app .cp-docs-item-copy{flex:1 1 260px!important;min-width:0!important}
+.cp-remaster-app .cp-docs-item-copy strong{
+  display:block!important;font-size:15px!important;font-weight:850!important;color:#1b354a!important;
+}
+.cp-remaster-app .cp-docs-item-copy span{
+  display:block!important;color:#728396!important;font-size:12px!important;
+  line-height:1.4!important;margin-top:4px!important;overflow-wrap:anywhere!important;
+}
+.cp-remaster-app .cp-docs-status{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  font-size:11.5px!important;font-weight:850!important;
+  border:1px solid #d4dee8!important;background:#f5f8fa!important;color:#687a86!important;
+  border-radius:30px!important;padding:6px 10px!important;white-space:nowrap!important;
+}
+.cp-remaster-app .cp-docs-status.signed{
+  background:#e9f6ed!important;border-color:#c9e5d2!important;color:#237e4c!important;
+}
+.cp-remaster-app .cp-docs-item-actions{
+  display:flex!important;flex-wrap:wrap!important;gap:8px!important;justify-content:flex-end!important;
+}
+.cp-remaster-app .cp-docs-item-actions a{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:38px!important;padding:8px 12px!important;border-radius:7px!important;
+  font-size:12.5px!important;font-weight:800!important;border:1px solid #c6d9e8!important;
+  background:#f2f8fc!important;color:#185e8c!important;text-decoration:none!important;
+}
+.cp-remaster-app .cp-docs-item-actions a:hover{background:#e3f3fc!important}
+.cp-remaster-app .cp-docs-item-actions a:focus-visible{outline:3px solid #3791c6!important}
+.cp-remaster-app .cp-docs-empty{padding:20px!important;color:#657b8f!important;font-size:13px!important}
+@media(max-width:700px){
+  .cp-remaster-app .cp-docs-list{max-height:375px!important}
+  .cp-remaster-app .cp-docs-item{gap:9px!important}
+  .cp-remaster-app .cp-docs-item-actions{width:100%!important;justify-content:flex-end!important}
+}
