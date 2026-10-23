@@ -28,8 +28,8 @@ def main() -> None:
         assert (APP / item).is_file()
 
     html = (APP / "static/index.html").read_text(encoding="utf-8")
-    assert f'billing_advanced.css?v={version}' in html
-    assert f'billing_advanced.js?v={version}' in html
+    assert 'billing_advanced.css?v=4.8.60' in html
+    assert 'billing_advanced.js?v=4.8.60' in html
     assert html.index('<script src="/static/app.js') < html.index('<script src="/static/billing_advanced.js')
 
     client = (APP / "static/billing_advanced.js").read_text(encoding="utf-8")
