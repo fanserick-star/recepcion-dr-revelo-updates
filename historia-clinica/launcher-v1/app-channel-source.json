@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.30: reparar consulta de videocistoscopías en fichas SQLite históricas y sustituir error JSON / Internal Server Error por diagnóstico legible; sin modificar videos, firma o sincronización."
+  "notes": "Historia 1.4.31: consume servidor de videos privado de Recepción en 8766, sin abrir puerto completo 8000, con mensajes separados de LAN y autenticación. Sin cambios en clínica y PDFs."
 }
