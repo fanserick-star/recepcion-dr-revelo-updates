@@ -144,14 +144,29 @@ def main():
         app_source=(root.parent / "not-real")
         real_app=Path(__file__).resolve().parents[1]/"historia-clinica/app/app.py"
         code=real_app.read_text(encoding="utf-8")
-        assert "documents_html = patient_document_panel.render_patient_documents(conn, patient_id)" in code
-        assert "{documents_html}\n<section class=\"cp-history-window\">" in code
+        assert "patient_documents = patient_document_panel.read_documents(conn, patient_id)" in code
+        assert "documents_html = patient_document_panel.render_patient_documents(" in code
+        assert "documents=patient_documents" in code
+        assert "{alert_html}\n<section class=\"cp-history-window\">" in code
+        assert "id=\"patient-docs-open\"" in code
+        assert "📁 Documentos <strong>{document_count}</strong>" in code
+        assert "id=\"patient-docs-dialog\"" in code
+        assert 'aria-modal="true"' in code
+        assert "{documents_html}\n  </div>\n</dialog>" in code
+        assert "dialog.showModal();" in code
+        assert "dialog.close()" in code
+        assert "previousFocus.focus({preventScroll:true})" in code
+        assert code.index('{alert_html}\n<section class="cp-history-window">') < code.index('id="patient-docs-dialog"')
         assert "cp-patient-primary-action" in code
         assert "cp-patient-secondary-actions" in code
         assert code.index("{consult_action}</div>") < code.index("{secondary_actions}")
         css=(Path(__file__).resolve().parents[1]/"historia-clinica/app/static/style.css").read_text("utf-8")
         assert "Ficha ABIERTA, no tarjetas de espera" in css
         assert "justify-content:flex-end!important" in css
+        assert ".cp-patient-documents-dialog:not([open]){display:none!important}" in css
+        assert ".cp-patient-documents-dialog[open]" in css
+        assert ".cp-patient-documents-dialog::backdrop" in css
+        assert ".cp-docs-dialog-content .cp-docs-list" in css
         print("HISTORIA_PATIENT_DOCUMENTS_ACTIONS_1426_OK")
 
 

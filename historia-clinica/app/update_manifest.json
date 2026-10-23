@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.27",
-  "app_version": "1.4.27",
-  "runtime_version": "1.4.27",
+  "version": "1.4.28",
+  "app_version": "1.4.28",
+  "runtime_version": "1.4.28",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -84,8 +84,8 @@
     "patient_document_panel.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.27: vista HTML de solo lectura de recetas, certificados, reposos e informes guardados sin firma, exclusivamente mediante LAN clínica autenticada, vinculación y HMAC. Visor con advertencia SIN FIRMA y scripts bloqueados; no genera PDFs ni altera documentos, firmas PAdES, historial, Neon, turnos o facturación. Conserva mejoras de ficha 1.4.26.",
-    "previous_version": "1.4.26",
+    "purpose": "Ficha individual del paciente: historia clínica aparece primero, sin bloque de documentos visible que la desplace. Botón Documentos con contador junto al título de Historia clínica abre ventana modal nativa grande con recetas, informes y certificados ya asociados, firmas originales intactas y sin cambiar lugar del historial. Cerrar con X o Esc restaura foco y posición de lectura, usando una sola consulta de documentos local. Sin cambios de base de datos, firmas ni Neón.",
+    "previous_version": "1.4.27",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -298,6 +298,14 @@
     "patient_documents_no_database_schema_changes": true,
     "patient_secondary_actions_lower_right": true,
     "patient_primary_consult_button_preserved": true,
-    "patient_documents_deleted_hidden": true
+    "patient_documents_deleted_hidden": true,
+    "patient_history_first": true,
+    "patient_document_modal": true,
+    "patient_document_modal_trigger_in_history_header": true,
+    "patient_document_modal_keyboard_escape": true,
+    "patient_document_modal_preserves_reading_position": true,
+    "patient_document_modal_focus_restore": true,
+    "patient_documents_no_schema_change": true,
+    "patient_documents_original_signed_pdf_unchanged": true
   }
 }

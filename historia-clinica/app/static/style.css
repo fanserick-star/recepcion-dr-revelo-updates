@@ -3283,3 +3283,106 @@ body.app-dialog-open{overflow:hidden}
   .cp-remaster-app .cp-docs-item{gap:9px!important}
   .cp-remaster-app .cp-docs-item-actions{width:100%!important;justify-content:flex-end!important}
 }
+
+
+/* Historia 1.4.28: ficha orientada al historial. El panel Documentos
+   se abre solo a petición mediante un diálogo nativo, sin desplazar lectura. */
+.cp-remaster-app .cp-history-titlebar{
+  gap:12px!important;justify-content:space-between!important;
+  flex-wrap:wrap!important;padding:9px 13px!important;
+  min-height:61px!important;
+}
+.cp-remaster-app .cp-history-documents-trigger{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  flex:0 0 auto!important;gap:8px!important;
+  min-height:39px!important;padding:8px 12px!important;
+  color:#195779!important;background:#fff!important;
+  border:1px solid #b1cddb!important;border-radius:9px!important;
+  font-family:inherit!important;font-weight:850!important;font-size:13.5px!important;
+  line-height:1.25!important;cursor:pointer!important;
+  box-shadow:0 2px 5px rgba(24,74,105,.07)!important;
+}
+.cp-remaster-app .cp-history-documents-trigger strong{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-width:25px!important;height:25px!important;padding:0 6px!important;
+  border-radius:50px!important;background:#dbedf9!important;color:#135b88!important;
+  font-size:13px!important;font-weight:900!important;
+}
+.cp-remaster-app .cp-history-documents-trigger:hover{background:#eaf6fc!important}
+.cp-remaster-app .cp-history-documents-trigger:focus-visible,
+.cp-remaster-app .cp-docs-dialog-close:focus-visible{
+  outline:3px solid #257eb4!important;outline-offset:3px!important;
+}
+.cp-remaster-app .cp-patient-documents-dialog:not([open]){display:none!important}
+.cp-remaster-app .cp-patient-documents-dialog[open]{
+  display:flex!important;flex-direction:column!important;
+  box-sizing:border-box!important;
+  width:min(980px,calc(100vw - 40px))!important;
+  max-width:calc(100vw - 40px)!important;
+  height:min(81vh,850px)!important;max-height:calc(100vh - 32px)!important;
+  padding:0!important;margin:auto!important;
+  border:1px solid #bad0df!important;border-radius:15px!important;
+  background:#fff!important;overflow:hidden!important;
+  box-shadow:0 24px 80px rgba(12,36,55,.33)!important;
+  color:#203449!important;
+}
+.cp-remaster-app .cp-patient-documents-dialog::backdrop{
+  background:rgba(12,32,51,.58)!important;
+}
+.cp-remaster-app .cp-docs-dialog-head{
+  flex:0 0 auto!important;display:flex!important;gap:12px!important;
+  align-items:center!important;justify-content:space-between!important;
+  padding:16px 20px!important;border-bottom:1px solid #dde7ef!important;
+  background:linear-gradient(180deg,#f9fcff,#f0f6fb)!important;
+}
+.cp-remaster-app .cp-docs-modal-overline{
+  font-size:10px!important;letter-spacing:.09em!important;
+  font-weight:900!important;color:#397fa5!important;
+}
+.cp-remaster-app .cp-docs-dialog-head h2{
+  margin:4px 0 3px!important;font-size:23px!important;
+  font-weight:900!important;color:#173b58!important;
+}
+.cp-remaster-app .cp-docs-dialog-head p{
+  margin:2px 0 0!important;color:#6b7f8d!important;font-size:13px!important;
+}
+.cp-remaster-app .cp-docs-dialog-close{
+  flex:0 0 auto!important;display:inline-flex!important;align-items:center!important;
+  min-height:44px!important;padding:9px 16px!important;cursor:pointer!important;
+  background:#fff!important;border:1px solid #b7cad7!important;
+  border-radius:9px!important;color:#244963!important;font-size:15px!important;
+  font-weight:850!important;
+}
+.cp-remaster-app .cp-docs-dialog-close:hover{background:#e4eff8!important}
+.cp-remaster-app .cp-docs-dialog-content{
+  flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;
+  overscroll-behavior:contain!important;padding:0 16px 18px!important;
+}
+.cp-remaster-app .cp-docs-dialog-content .cp-patient-documents{
+  margin:14px 0 0!important;border-top-width:1px!important;
+  box-shadow:none!important;
+}
+.cp-remaster-app .cp-docs-dialog-content .cp-docs-list{
+  max-height:none!important;overflow:visible!important;
+}
+@media(max-width:960px){
+  .cp-remaster-app .cp-history-window-head{
+    grid-template-columns:minmax(280px,1fr) 145px 145px!important;
+  }
+  .cp-remaster-app .cp-history-titlebar span{font-size:18px!important}
+  .cp-remaster-app .cp-history-documents-trigger{font-size:12.5px!important}
+}
+@media(max-width:680px){
+  .cp-remaster-app .cp-history-window-head{display:flex!important;flex-wrap:wrap!important}
+  .cp-remaster-app .cp-history-titlebar{width:100%!important;justify-content:space-between!important}
+  .cp-remaster-app .cp-history-summary{flex:1 1 135px!important}
+  .cp-remaster-app .cp-patient-documents-dialog[open]{
+    width:calc(100vw - 18px)!important;max-width:calc(100vw - 18px)!important;
+    height:calc(100vh - 24px)!important;max-height:calc(100vh - 24px)!important;
+  }
+  .cp-remaster-app .cp-docs-dialog-head{padding:12px!important}
+  .cp-remaster-app .cp-docs-dialog-head h2{font-size:19px!important}
+  .cp-remaster-app .cp-docs-dialog-head p{font-size:11px!important}
+  .cp-remaster-app .cp-docs-dialog-close{min-height:40px!important;padding:8px 10px!important}
+  .cp-remaster-app .cp-docs-dialog-content{padding:0 9px 9px!important}
+}
