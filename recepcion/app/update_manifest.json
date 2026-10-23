@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.69",
-  "app_version": "4.8.69",
-  "runtime_version": "4.8.69",
+  "version": "4.8.70",
+  "app_version": "4.8.70",
+  "runtime_version": "4.8.70",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -194,8 +194,8 @@
     "clinical_video_lan_server.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.69: servidor LAN separado exclusivo para listar y reproducir videocistoscopías mediante HMAC en puerto privado 8766. No expone Recepción/administración en 8000; el permiso de firewall restringido a la subred privada requiere confirmación explícita de Windows desde la ficha. Los MP4 originales, pacientes, Neon, turnos, facturas, firmas y WhatsApp permanecen intactos.",
-    "previous_version": "4.8.68",
+    "purpose": "Recepción 4.8.70: añade prueba LAN privada de velocidad con 8 MB sintéticos, sin videos clínicos, y SHA-256 del original exclusivamente al catálogo HMAC de videos para verificar caché temporal en Historia 1.4.37. Videos originales, pacientes, factura, turnos, firmas, WhatsApp, Neon y Cloudflare no se modifican.",
+    "previous_version": "4.8.69",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
