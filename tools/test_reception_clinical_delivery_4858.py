@@ -41,7 +41,7 @@ for marker in [
     'WHERE document_type=? AND document_id=?',
     'hmac.compare_digest(digest',
     'source.is_relative_to(archive)',
-    'if path == "/delivery/signed-pdf"',
+    'if path in ("/delivery/signed-pdf", "/delivery/unsigned-preview")',
     'service._valid_token(self.remote_ip, token)',
     'self.send_header("Cache-Control", "no-store, private")',
     'X-Revelo-Delivery-Proof',
