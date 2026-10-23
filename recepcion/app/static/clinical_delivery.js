@@ -5,7 +5,7 @@
   const $=(s,r=document)=>r.querySelector(s);
   const escText=v=>String(v==null?'':v);
   const safeId=v=>String(v||'').replace(/[^a-zA-Z0-9_-]/g,'');
-  const state={pid:0,name:'',phone:'',documents:[],ready_document:false,ready_video:false,sending:false};
+  const state={pid:0,name:'',phone:'',documents:[],videos:[],ready_document:false,ready_video:false,sending:false,saving_video:false};
   async function api(path,options={}){
     const response=await fetch(path,{cache:'no-store',...options});
     const data=await response.json().catch(()=>({}));
@@ -185,12 +185,20 @@
       row.append(actions);host.append(row);
     }
     const section=document.createElement('div');section.className='rp-clinical-video';
-    section.append(cell('strong','Videocistoscopía desde memoria USB'));
-    section.append(cell('p','Selecciona el video MP4 original. Solo se subirá cuando confirmes el envío.','rp-clinical-help'));
+    section.append(cell('strong','🎥 Archivo de videocistoscopías del paciente'));
+    section.append(cell('p','Selecciona un MP4 desde la memoria USB. «Guardar en Recepción» conserva el archivo original en esta PC y lo muestra en la ficha de Historia. No lo envía a internet.','rp-clinical-help'));
     const file=document.createElement('input');file.type='file';file.accept='.mp4,video/mp4';
-    file.id='rpClinicalVideoFile';file.disabled=!state.ready_video||state.sending;
+    file.id='rpClinicalVideoFile';file.disabled=state.sending||state.saving_video;
     section.append(file);
-    addButton(section,'Enviar video por WhatsApp',()=>sendVideo(file),!state.ready_video||state.sending);
+    addButton(section,'Guardar en Recepción',()=>saveVideo(file),state.sending||state.saving_video);
+    addButton(section,'Enviar video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video);
+    const archived=Array.isArray(data.videos)?data.videos:state.videos;
+    section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
+    archived.forEach(v=>{
+      const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
+      const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
+      section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
+    });
     host.append(section);
     const warning=data.missing||[];
     if(warning.length){
@@ -207,7 +215,7 @@
     try{
       const data=await api('/api/clinical-delivery/patients/'+state.pid+'/documents');
       if(!container()||state.pid!==Number(pid))return;
-      Object.assign(state,{documents:data.documents||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
+      Object.assign(state,{documents:data.documents||[],videos:data.videos||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
       draw({...status,...data});
     }catch(e){
       draw({...status,ok:false,error:e.message||'Historia no está disponible'});
@@ -234,6 +242,33 @@
       notice('Mensaje aceptado por WhatsApp. Vence el '+new Date(r.expires_at).toLocaleString('es-EC')+'.','success');
     }catch(e){notice(e.message||'No se envió el documento','error');}
     finally{state.sending=false;draw({ok:true,documents:state.documents,missing:[],...state});}
+  }
+  async function saveVideo(file){
+    if(state.saving_video||state.sending)return;
+    const chosen=file.files&&file.files[0];
+    if(!chosen){notice('Selecciona un video MP4 de la memoria USB.','error');return;}
+    if(!/\.mp4$/i.test(chosen.name)||chosen.size<1024||chosen.size>2*1024*1024*1024){
+      notice('Selecciona un MP4 válido de máximo 2 GB.','error');return;
+    }
+    if(!window.confirm('GUARDAR VIDEOCISTOSCOPÍA\nPaciente: '+state.name+
+      '\nArchivo: '+chosen.name+
+      '\n\n¿Verificaste que este video pertenece a la ficha de este paciente?\nSe archivará solamente en esta PC, sin enviar por WhatsApp ni subir a Cloudflare.'))return;
+    state.saving_video=true;
+    const host=container();
+    const progress=cell('p','Guardando el video original en Recepción… Mantén abierta esta ventana.','rp-clinical-help');
+    if(host)host.append(progress);
+    try{
+      const url='/api/clinical-videos/patients/'+state.pid+'/import?filename='+encodeURIComponent(chosen.name);
+      const result=await api(url,{method:'POST',headers:{'Content-Type':'video/mp4'},body:chosen});
+      notice(result.duplicate?'Este video ya estaba guardado para el paciente.':
+        'Video archivado correctamente en Recepción.'+(result.backup?' Con respaldo.':' Respaldo externo aún pendiente.'),'success');
+      await load(state.pid,state.phone,state.name);
+    }catch(error){
+      notice(error.message||'No se pudo guardar la videocistoscopía','error');
+    }finally{
+      state.saving_video=false;
+      progress.remove();
+    }
   }
   async function sendVideo(file){
     if(state.sending||!state.ready_video)return;

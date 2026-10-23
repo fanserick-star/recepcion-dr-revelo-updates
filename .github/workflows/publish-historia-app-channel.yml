@@ -29,6 +29,8 @@ jobs:
           python tools/test_reception_clinical_phone_selftest_4859.py
           python tools/test_historia_clinical_lan_verified_1424.py
           python tools/test_historia_unsigned_preview_1426.py
+          python tools/test_clinical_videocystoscopy_library_20261023.py
+          node --check historia-clinica/app/static/clinical_video_library.js
           python tools/test_historia_certificate_type_reconcile_1425.py
           node --check recepcion/app/static/clinical_delivery.js
           python -m py_compile recepcion/app/clinical_delivery.py historia-clinica/app/lan_bridge.py

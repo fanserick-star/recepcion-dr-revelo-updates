@@ -14,6 +14,7 @@ import reception_azur_readonly as _azur_readonly
 import reception_azur_pos80 as _azur_pos80
 # Feature-isolated read-only clinical index and manual, config-gated delivery.
 import clinical_delivery as _clinical_delivery
+import clinical_video_library as _clinical_video_library
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()

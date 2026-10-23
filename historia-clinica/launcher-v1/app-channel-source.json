@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.27: añade vista sin firma de solo lectura por LAN protegida, conserva los PDF firmados y todas las mejoras recientes del panel de documentos y ficha."
+  "notes": "Historia 1.4.29: visor de videocistoscopías archivadas físicamente en Recepción mediante LAN autenticada y Range streaming, accesible únicamente dentro de Documentos de la ficha individual. Sin video ni datos clínicos nuevos en Neon."
 }
