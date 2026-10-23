@@ -667,7 +667,7 @@ class LanService:
         page = data.decode("utf-8", "replace")
         # Force a noninteractive isolated preview. UI additionally uses a
         # sandboxed opaque-origin iframe; scripts/network/forms remain blocked.
-        page = re.sub(r"(?is)<script\\b[^>]*>.*?</script\\s*>", "", page)
+        page = re.sub(r"(?is)<script\b[^>]*>.*?</script\s*>", "", page)
         csp = ("default-src 'none'; script-src 'none'; connect-src 'none'; "
                "style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
                "form-action 'none'; base-uri 'none'; frame-src 'none'")
@@ -683,9 +683,9 @@ class LanService:
                      'color:rgba(135,27,27,.22);font:bold 35px Arial,sans-serif;'
                      'text-align:center;z-index:2147482000;pointer-events:none">'
                      'SIN FIRMA ELECTRÓNICA</div>')
-        if not re.search(r"(?i)<body\\b", page):
+        if not re.search(r"(?i)<body\b", page):
             raise ValueError("La vista del documento no tiene formato HTML válido")
-        page = re.sub(r"(?i)(<body\\b[^>]*>)", lambda m: m.group(1) + watermark,
+        page = re.sub(r"(?i)(<body\b[^>]*>)", lambda m: m.group(1) + watermark,
                       page, count=1)
         return page.encode("utf-8")
 
