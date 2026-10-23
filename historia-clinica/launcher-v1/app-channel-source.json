@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.37: copia temporal MP4 verificada con SHA-256 en la PC del doctor y medidor Wi-Fi sintético, sin afectar originales, firmas, turnos, Neon ni recetas."
+  "notes": "Historia 1.4.38: ventanas de documentos más amplias, sin menú duplicado y con aviso/bloqueo de reimpresiones rápidas; conserva cache MP4 segura y diagnóstico Wi-Fi de 1.4.37, recetas A4, firma PAdES, fichas y Neón sin cambios."
 }
