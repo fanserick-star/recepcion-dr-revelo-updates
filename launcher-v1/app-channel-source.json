@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.63: vista previa de PDF firmado dentro de la aplicación sin apertura automática en Edge, y mensajes seguros para PDF aún no firmado, original faltante o vínculo/autorización LAN no coincidentes. Sin cambios en Neon, Historia, LAN de turnos, fichas, facturas, AZUR ni alarmas WhatsApp. Envíos clínicos siguen deshabilitados."
+  "notes": "Recepción 4.8.64: pasa identificación clínica Neon verificada dentro del HMAC LAN independiente al consultar PDF firmado. Historia 1.4.24 valida la pertenencia exacta del archivo y rechaza vínculos contradictorios. Sin cambios a pacientes, firmas, turnos, TV, facturas, AZUR, Workers o WhatsApp de citas."
 }
