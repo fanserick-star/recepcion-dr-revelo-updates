@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.65: vista integrada de documentos guardados sin firma con marca clara y visor HTML en iframe aislado; documentos firmados conservan su PDF original. Envíos clínicos requieren PDF firmado y habilitación Meta. Sin cambios en Neon, turnos, facturas ni citas."
+  "notes": "Recepción 4.8.66: importación y conservación local segura de videocistoscopías originales MP4, vinculación clínica comprobada, SHA-256 y reproducción por LAN en Historia. Respaldo externo opcional, nunca sube el archivo a Neon; WhatsApp y Cloudflare solo en envío manual separado."
 }
