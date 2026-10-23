@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.37",
-  "app_version": "1.4.37",
-  "runtime_version": "1.4.37",
+  "version": "1.4.38",
+  "app_version": "1.4.38",
+  "runtime_version": "1.4.38",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.37: reproducción de videocistoscopías MP4 desde copia temporal local protegida, descargada completa por LAN 2,4 GHz con progreso y comprobación SHA-256 frente al original de Recepción. Diagnóstico de velocidad mediante 8 MB sintéticos sin información clínica. Caché limitada a 3 GB y 2 horas, limpieza al reiniciar, controles de ficha y Wi-Fi. Mantiene reproducción LAN actual y recetas A4 1.4.36, firmas, historial, Neon, turnos y caja intactos.",
-    "previous_version": "1.4.36",
+    "purpose": "Historia 1.4.38: editores de recetas, certificados, reposos e informes más amplios y sin navegación duplicada, con indicador destacado de preparación de documentos, bloqueo de acciones simultáneas desde el primer clic y protección contra impresiones repetidas (20 segundos tras envío a Windows). Preserva v1.4.37: caché privada temporal de videocistoscopías MP4 con SHA-256 y diagnóstico Wi-Fi, sin alterar originales. Conserva recetas A4 1.4.36, firma PAdES, historias, pacientes, Recepción, turnos, Neón y facturación.",
+    "previous_version": "1.4.37",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -336,6 +336,15 @@
     "rx_a4_copy_height_mm": 292,
     "rx_a4_stripe_bottom_clearance_mm": 8,
     "rx_a4_both_print_paths_css": true,
-    "rx_preserve_legacy_print_content": true
+    "rx_preserve_legacy_print_content": true,
+    "document_editor_independent_shell": true,
+    "document_editor_navigation_duplicate_removed": true,
+    "document_editor_max_width_px": 1600,
+    "document_editor_shared_action_guard": true,
+    "document_editor_print_in_flight_disabled": true,
+    "document_editor_print_resend_cooldown_seconds": 20,
+    "document_editor_print_status_windows_handoff_only": true,
+    "document_editor_receipts_or_invoice_changes": false,
+    "document_editor_windows_physical_print_validation_pending": true
   }
 }
