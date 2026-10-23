@@ -19,8 +19,19 @@
     status.textContent='Consultando archivos de Recepción…';
     try{
       const response=await fetch(url,{cache:'no-store',headers:{Accept:'application/json'}});
-      const data=await response.json();
-      if(!response.ok||!data.ok)throw new Error(data.error||'No se pudo consultar Recepción');
+      const media=(response.headers.get('Content-Type')||'').toLowerCase();
+      // An older installation may send a plain-text 500 instead of JSON.
+      // Never display a raw parser error or the server's internal contents.
+      let data=null;
+      if(media.includes('application/json')){
+        try{data=await response.json();}catch(_ignored){}
+      }
+      if(!data||typeof data!=='object'){
+        throw new Error(response.ok?
+          'Historia devolvió una respuesta inesperada. Actualiza Historia y vuelve a intentarlo.':
+          'Historia no pudo consultar las videocistoscopías (HTTP '+response.status+'). Actualiza Historia y pulsa Actualizar.');
+      }
+      if(!response.ok||!data.ok)throw new Error(data.error||data.detail||'No se pudo consultar Recepción.');
       list.replaceChildren();
       const videos=Array.isArray(data.videos)?data.videos:[];
       status.textContent=videos.length?videos.length+' videocistoscopía(s) archivadas en Recepción':
@@ -51,7 +62,7 @@
       });
       loaded=true;
     }catch(error){
-      status.textContent=error.message||'PC de Recepción desconectada';
+      status.textContent=(error&&error.message)||'No se pudo conectar con Recepción. Pulsa Actualizar para reintentar.';
       list.replaceChildren();
       loaded=false;
     }finally{busy=false}

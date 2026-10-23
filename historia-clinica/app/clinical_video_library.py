@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import logging
 import re
 import sqlite3
 import time
@@ -32,13 +33,32 @@ def install(app, root: Path, db_path: Path, lan_service):
             raise HTTPException(403, "Los videos clínicos se consultan solo desde esta PC")
 
     def _existing_patient(patient_id):
+        """Read-only patient lookup compatible with older imported SQLite files.
+
+        The base schema includes deleted_at, but migrated legacy databases may
+        not. Never alter a clinical table merely to list reception-hosted MP4s.
+        """
         if not _SAFE.fullmatch(patient_id):
             raise HTTPException(400, "Ficha inválida")
-        with sqlite3.connect(db_path, timeout=5) as db:
-            row = db.execute("""SELECT 1 FROM patients
-                WHERE id=? AND COALESCE(deleted_at,'')='' LIMIT 1""", (patient_id,)).fetchone()
+        try:
+            with sqlite3.connect(db_path, timeout=5) as db:
+                columns = {str(row[1]) for row in db.execute("PRAGMA table_info(patients)")}
+                if "id" not in columns:
+                    raise sqlite3.OperationalError("patients schema unavailable")
+                clauses = ["id=?"]
+                if "deleted_at" in columns:
+                    clauses.append("COALESCE(deleted_at,'')=''")
+                if "merged_into_patient_id" in columns:
+                    clauses.append("COALESCE(merged_into_patient_id,'')=''")
+                sql = "SELECT 1 FROM patients WHERE " + " AND ".join(clauses) + " LIMIT 1"
+                row = db.execute(sql, (patient_id,)).fetchone()
+        except sqlite3.Error:
+            raise HTTPException(
+                503, "Historia no pudo consultar su base local de pacientes. "
+                     "Comprueba que la base de datos esté disponible."
+            ) from None
         if not row:
-            raise HTTPException(404, "La ficha clínica no existe")
+            raise HTTPException(404, "La ficha clínica no existe o fue fusionada")
         return patient_id
 
     def _host():
@@ -78,32 +98,46 @@ def install(app, root: Path, db_path: Path, lan_service):
 
     @app.get("/api/clinical-videos/patient/{patient_id}")
     def patient_videos(patient_id: str, request: Request):
-        _local_only(request)
-        _existing_patient(patient_id)
-        url = _url("catalog", patient_id, "-", "/api/clinical-videos/lan/catalog")
         try:
-            with _fetch(url, timeout=3) as resp:
-                data = resp.read(_JSON_LIMIT + 1)
-                if len(data) > _JSON_LIMIT:
-                    raise ValueError("Catálogo excede límite")
-                payload = json.loads(data.decode("utf-8"))
-                if not isinstance(payload.get("videos"), list):
-                    raise ValueError("Catálogo inválido")
-                videos = []
-                for item in payload["videos"][:150]:
-                    vid = str(item.get("id") or "")
-                    if not _SAFE.fullmatch(vid):
-                        continue
-                    videos.append({
-                        "id": vid,
-                        "recorded_at": str(item.get("recorded_at") or "")[:32],
-                        "size_bytes": int(item.get("size_bytes") or 0),
-                        "backup": bool(item.get("backup")),
-                    })
-                return {"ok": True, "videos": videos}
-        except (OSError, ValueError, urllib.error.URLError, json.JSONDecodeError):
+            _local_only(request)
+            _existing_patient(patient_id)
+            url = _url("catalog", patient_id, "-", "/api/clinical-videos/lan/catalog")
+            try:
+                with _fetch(url, timeout=3) as resp:
+                    data = resp.read(_JSON_LIMIT + 1)
+                    if len(data) > _JSON_LIMIT:
+                        raise ValueError("Catálogo excede límite")
+                    payload = json.loads(data.decode("utf-8"))
+                    if not isinstance(payload, dict) or not isinstance(payload.get("videos"), list):
+                        raise ValueError("Catálogo inválido")
+                    videos = []
+                    for item in payload["videos"][:150]:
+                        if not isinstance(item, dict):
+                            continue
+                        vid = str(item.get("id") or "")
+                        if not _SAFE.fullmatch(vid):
+                            continue
+                        videos.append({
+                            "id": vid,
+                            "recorded_at": str(item.get("recorded_at") or "")[:32],
+                            "size_bytes": max(0, int(item.get("size_bytes") or 0)),
+                            "backup": bool(item.get("backup")),
+                        })
+                    return {"ok": True, "videos": videos}
+            except (OSError, ValueError, TypeError, urllib.error.URLError, json.JSONDecodeError):
+                return JSONResponse({"ok": False, "videos": [],
+                    "error": "No se pudo consultar el archivo de Recepción. "
+                             "Comprueba que esa PC esté encendida y conectada a la LAN."},
+                    status_code=503)
+        except HTTPException:
+            raise
+        except Exception:
+            # Never return FastAPI's plain-text 'Internal Server Error' to the
+            # Javascript JSON viewer. Log the traceback locally without patient data.
+            logging.getLogger(__name__).exception("Fallo interno del catálogo de videocistoscopías")
             return JSONResponse({"ok": False, "videos": [],
-                "error": "PC de Recepción no disponible para consultar videos. Comprueba que esté encendida y conectada a la LAN."},
+                "error": "Historia no pudo leer el catálogo de videos. "
+                         "Reinicia Historia y vuelve a comprobar la conexión LAN."},
                 status_code=503)
 
     @app.get("/api/clinical-videos/patient/{patient_id}/play/{video_id}")
