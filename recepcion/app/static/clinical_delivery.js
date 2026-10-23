@@ -1,4 +1,4 @@
-/* v4.8.58 · Reception-only patient clinical document delivery.
+/* v4.8.63 · Reception-only patient clinical document delivery.
    No automatic sends, no exposure of medical content in search results. */
 (()=>{
   'use strict';
@@ -15,6 +15,87 @@
   function notice(value,type='info'){
     if(typeof window.showAppToast==='function')window.showAppToast(value,type);
     else window.alert(value);
+  }
+  let closeClinicalPreview=null;
+  function showSignedPdf(blob,label){
+    // PDF stays in browser memory; never upload or alter the signed original.
+    if(closeClinicalPreview)closeClinicalPreview();
+    const blobUrl=URL.createObjectURL(blob);
+    const shade=document.createElement('div');
+    shade.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(12,23,38,.77);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
+    shade.setAttribute('role','dialog');
+    shade.setAttribute('aria-modal','true');
+    shade.setAttribute('aria-label','Vista previa de PDF firmado');
+    const panel=document.createElement('div');
+    panel.style.cssText='width:min(1100px,98vw);height:min(900px,94vh);background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 14px 65px #0008';
+    const bar=document.createElement('div');
+    bar.style.cssText='padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #d8e0ea';
+    const caption=cell('strong','PDF firmado · '+label);
+    caption.style.cssText='flex:1;font-size:15px;color:#18273d';
+    const external=document.createElement('button');
+    external.type='button';
+    external.textContent='Abrir en visor externo (opcional)';
+    external.onclick=()=>window.open(blobUrl,'_blank','noopener,noreferrer');
+    const close=document.createElement('button');
+    close.type='button';
+    close.textContent='Cerrar PDF';
+    close.style.cssText='font-weight:700';
+    const frame=document.createElement('iframe');
+    frame.title='Documento PDF firmado';
+    frame.src=blobUrl;
+    frame.style.cssText='width:100%;flex:1;border:0;min-height:200px';
+    const help=cell('p','Si el visor integrado de esta PC no admite PDF, usa «Abrir en visor externo». La consulta no firma ni envía documentos.','');
+    help.style.cssText='margin:5px 12px 9px;font-size:12px;color:#5d6777';
+    let closed=false;
+    function dismiss(){
+      if(closed)return;
+      closed=true;
+      document.removeEventListener('keydown',onKey);
+      frame.removeAttribute('src');
+      shade.remove();
+      URL.revokeObjectURL(blobUrl);
+      if(closeClinicalPreview===dismiss)closeClinicalPreview=null;
+    }
+    function onKey(e){if(e.key==='Escape')dismiss();}
+    close.onclick=dismiss;
+    bar.append(caption,external,close);
+    panel.append(bar,frame,help);
+    shade.append(panel);
+    document.body.append(shade);
+    document.addEventListener('keydown',onKey);
+    closeClinicalPreview=dismiss;
+    close.focus();
+  }
+  async function previewSignedPdf(kind,id,pid,button,row,label){
+    if(state.pid!==pid||button.disabled)return;
+    const original=button.textContent;
+    button.disabled=true;
+    button.textContent='Comprobando PDF…';
+    try{
+      const path='/api/clinical-delivery/patients/'+pid+'/signed/'+kind+'/'+id;
+      const response=await fetch(path,{cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
+      if(!response.ok){
+        const data=await response.json().catch(()=>({}));
+        throw Error(data.detail||data.error||'No fue posible recuperar el documento firmado.');
+      }
+      const media=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
+      if(media!=='application/pdf')throw Error('Historia no devolvió un PDF válido.');
+      const blob=await response.blob();
+      if(blob.size<5||blob.size>20*1024*1024)throw Error('El PDF no supera la verificación de tamaño.');
+      if(state.pid!==pid)return;
+      showSignedPdf(blob,label);
+    }catch(e){
+      const message=e.message||'No se pudo abrir el PDF firmado.';
+      const previous=row.querySelector('.rp-clinical-pdf-error');
+      if(previous)previous.remove();
+      const error=cell('p',message,'rp-clinical-pdf-error');
+      error.style.cssText='color:#ad3e2c;font-size:13px;font-weight:650;margin:8px 12px';
+      row.append(error);
+      notice(message,'error');
+    }finally{
+      button.disabled=false;
+      button.textContent=original;
+    }
   }
   function container(){return $('#rpClinicalDocs');}
   function cell(tag,text,cls=''){
@@ -83,7 +164,7 @@
       row.append(info);
       const actions=document.createElement('div');actions.className='rp-clinical-actions';
       const kind=safeId(doc.kind),id=safeId(doc.id),pid=Number(state.pid);
-      addButton(actions,'Ver PDF',()=>window.open('/api/clinical-delivery/patients/'+pid+'/signed/'+kind+'/'+id,'_blank'));
+      const view=addButton(actions,'Ver PDF',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
       addButton(actions,'Enviar WhatsApp',()=>sendDoc(doc),!state.ready_document||state.sending);
       row.append(actions);host.append(row);
     }

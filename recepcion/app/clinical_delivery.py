@@ -136,6 +136,30 @@ def _documents(pid):
         conn.close()
 
 
+
+def _lan_pdf_failure(exc):
+    """Translate Historia's legacy LAN errors without exposing paths or clinical data."""
+    try:
+        payload = json.loads(exc.read(1024).decode("utf-8", "replace"))
+        reason = str(payload.get("error") or "").lower()
+    except (OSError, ValueError, AttributeError, TypeError):
+        reason = ""
+    if exc.code == 403:
+        return (503, "Historia rechazó la autorización de PDF. Comprueba que ambas PC tengan la misma clave LAN de entrega clínica.")
+    if exc.code == 404:
+        if "todavía no ha guardado un pdf firmado" in reason:
+            return (404, "El documento está guardado, pero todavía no tiene PDF firmado. El doctor debe firmarlo en Historia Clínica.")
+        if "copia original firmada no está disponible" in reason:
+            return (404, "Existe un registro de firma, pero el PDF original no está disponible en la PC de Historia. No se ha generado otra copia.")
+        if "vinculación clínica verificada" in reason or "no pertenece a la ficha" in reason or "tipo de documento no coincide" in reason:
+            return (409, "Historia no reconoce la vinculación o el documento de esta ficha. Revisa la sincronización de fichas; no se modificó ninguna.")
+        if "integridad" in reason or "límite de seguridad" in reason:
+            return (409, "Historia rechazó el PDF firmado por una comprobación de integridad o tamaño. El original no se modificó.")
+        return (409, "Historia no pudo verificar este PDF. Comprueba la vinculación y que exista la firma original en la PC del doctor.")
+    if exc.code == 503:
+        return (503, "Historia respondió, pero no pudo consultar su archivo clínico local. Revisa Historia en la PC del doctor.")
+    return (503, "Historia no pudo completar la consulta segura de este PDF.")
+
 def _signed_pdf(pid, kind, doc_id):
     if kind not in LABELS or kind == "video" or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", doc_id):
         raise core.HTTPException(400, "Documento inválido")
@@ -172,8 +196,8 @@ def _signed_pdf(pid, kind, doc_id):
                     raise ValueError("El PDF firmado es inválido")
                 return data
         except urllib.error.HTTPError as exc:
-            if exc.code in (403,404):
-                raise core.HTTPException(409, "PDF firmado no disponible o ficha sin vinculación verificada") from exc
+            code, message = _lan_pdf_failure(exc)
+            raise core.HTTPException(code, message) from exc
         except Exception:
             continue
     raise core.HTTPException(503, "La PC de Historia no está disponible para recuperar el PDF original firmado")

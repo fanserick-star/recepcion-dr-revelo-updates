@@ -41,7 +41,7 @@ assert context["_field"]({"numero":"001-001-000000123"},"numero")=="001-001-0000
 
 m=json.loads((root/"update_manifest.json").read_text())
 v=json.loads((root/"recepcion-version.json").read_text())["version"]
-assert m["version"] == m["app_version"] == m["runtime_version"] == v in {"4.8.46","4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62"}
+assert m["version"] == m["app_version"] == m["runtime_version"] == v in {"4.8.46","4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62","4.8.63"}
 for section in ("copy","required_dependencies"):
     assert "reception_azur_readonly.py" in m[section]
     assert "static/azur_readonly_config.js" in m[section]

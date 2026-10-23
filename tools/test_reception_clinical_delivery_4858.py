@@ -28,7 +28,7 @@ assert "import clinical_delivery as _clinical_delivery" in main
 assert 'data-profile-tab="documentos"' in profile
 assert 'data-profile-panel="documentos"' in profile
 assert 'window.loadClinicalDelivery' in profile
-assert 'clinical_delivery.js?v=4.8.60' in html
+assert 'clinical_delivery.js?v=4.8.63' in html
 assert 'consent_confirmed:true' in ui and 'identity_confirmed:true' in ui
 assert 'send-document' in ui and 'send-video' in ui
 assert 'document.getElementById("rx-save")' not in ui
