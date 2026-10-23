@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.69: servidor privado de videocistoscopías protegido con HMAC en 8766, independiente de la aplicación y de la LAN de turnos. Opción manual de autorizar solo ese puerto en firewall privado de Windows."
+  "notes": "Recepción 4.8.70: servicio privado 8766 añade prueba Wi-Fi con 8 MB ficticios y huella SHA-256 a catálogo HMAC para reproducir MP4 de manera local en Historia 1.4.37."
 }

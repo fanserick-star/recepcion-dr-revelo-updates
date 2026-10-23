@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
                                    "size_bytes":len(contents),"backup":False}]
              if patient=="patient-1" else [],
         _row_by_id=lambda vid,patient:
-            {"file":"synthetic.mp4"} if vid=="test-video-1" and patient=="patient-1"
+            {"file":"synthetic.mp4","sha256":hashlib.sha256(contents).hexdigest()} if vid=="test-video-1" and patient=="patient-1"
             else (_ for _ in ()).throw(FakeClinicalHttpError()),
         _local_file=lambda row:mp4,
         BASE=Path(tmp),
@@ -83,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
                                hashlib.sha256).hexdigest()
             qs=urllib.parse.urlencode({"clinical_id":patient,"ts":stamp,"proof":signature})
             base=f"http://127.0.0.1:{port}/api/clinical-videos/lan/"
-            return base+("catalog" if action=="catalog" else "stream/"+video)+"?"+qs
+            return base+("catalog" if action=="catalog" else "speed" if action=="speed" else "stream/"+video)+"?"+qs
         def get(link,headers=None):
             return opener.open(urllib.request.Request(link,headers=headers or {}),timeout=5)
         catalog=url("catalog",video="-")
@@ -92,6 +92,12 @@ with tempfile.TemporaryDirectory(prefix="clinical_video_private_listener_") as t
             assert response.status==200
             assert len(doc["videos"])==1
             assert doc["videos"][0]["size_bytes"]==len(contents)
+            assert doc["videos"][0]["sha256"]==hashlib.sha256(contents).hexdigest()
+        with get(url("speed",patient="-",video="-")) as response:
+            assert response.status==200
+            assert response.headers["Content-Type"]=="application/octet-stream"
+            packet=response.read()
+            assert len(packet)==8*1024*1024 and not any(packet)
         with get(url("stream")) as response:
             assert response.status==200
             assert response.read()==contents

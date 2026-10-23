@@ -20,6 +20,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+import clinical_video_cache
 
 _SAFE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _JSON_LIMIT = 256 * 1024
@@ -97,6 +98,10 @@ def install(app, root: Path, db_path: Path, lan_service):
             **(headers or {}),
         })
         return urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=timeout)
+
+    # Only private localhost endpoints can start a download or read local
+    # cached patient files. Existing instant LAN playback stays unchanged.
+    clinical_video_cache.install(app, root, _url, _fetch, _local_only, _existing_patient)
 
     @app.get("/api/clinical-videos/patient/{patient_id}")
     def patient_videos(patient_id: str, request: Request):
