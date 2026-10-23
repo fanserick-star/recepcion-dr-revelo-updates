@@ -113,11 +113,15 @@ def main():
         assert "INDICACIONES ADICIONALES DE PRUEBA" not in left
         assert ".rx-copy-v2 .rp{top:82mm}" in page
         assert ".rp{position:absolute;top:75mm;" in page
-        # El papel sigue midiendo 210mm A4; ambas mitades se meten
-        # 8 mm desde los bordes no imprimibles de la impresora.
-        assert "padding:0 8mm;grid-template-columns:97mm 97mm;" in page
-        assert "width:97mm;height:279mm;" in page
-        assert "grid-template-columns:97mm 97mm;box-shadow:none" in page
+        # Hoja 210x297 mm. La mitad izquierda conserva margen seguro de 8mm;
+        # la derecha gana sólo 2mm, dejando 6mm + 3.5mm de espacio interior.
+        # La franja inferior queda a 8mm del borde del papel (292-8+5=289).
+        assert "padding:0 6mm 0 8mm;grid-template-columns:97mm 99mm;" in page
+        assert "width:97mm;height:292mm;" in page
+        assert ".rx-copy:last-child{width:99mm}" in page
+        assert "grid-template-columns:97mm 99mm;box-shadow:none" in page
+        assert "footer{\n  position:absolute;left:3.5mm;right:3.5mm;bottom:8mm;" in page
+        assert "bottom:-5mm;width:100%;height:2.7mm;" in page
         assert "@page{size:A4 portrait;margin:0}" in page
         assert page.count("DR. ARMANDO REVELO") == 2
         assert page.count("Serie No: 00117") == 2
@@ -151,6 +155,8 @@ def main():
         assert "INSTRUCCIONES LEGADAS" in old_left
         assert ".rp{position:absolute;top:75mm;" in old
         assert "2 recetas iguales" in old
+        assert "width:97mm;height:292mm;" in old
+        assert ".rx-copy:last-child{width:99mm}" in old
         with sqlite3.connect(db_path) as conn:
             assert conn.execute("SELECT COUNT(*) FROM prescriptions").fetchone()[0] == 2
         print("HISTORIA_RECETAS_DIVIDIDAS_1432_OK")
