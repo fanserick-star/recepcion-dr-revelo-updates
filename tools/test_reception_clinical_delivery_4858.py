@@ -34,7 +34,8 @@ assert 'send-document' in ui and 'send-video' in ui
 assert 'document.getElementById("rx-save")' not in ui
 
 for marker in [
-    "def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str)",
+    "def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str,",
+    "verified_clinical_id: str = \"\") -> bytes:",
     "SELECT clinical_patient_id FROM patient_links",
     "verified=1 LIMIT 1",
     'WHERE document_type=? AND document_id=?',
