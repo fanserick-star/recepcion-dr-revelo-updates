@@ -96,19 +96,23 @@ def _backup_copy(row, source):
         return False
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
+        already_copied = False
         if dest.is_file() and dest.stat().st_size == int(row["size_bytes"]):
-            return True
+            with dest.open("rb") as check:
+                already_copied = hmac.compare_digest(
+                    hashlib.file_digest(check, "sha256").hexdigest(), row["sha256"])
         temp = dest.with_name(dest.name + "." + secrets.token_hex(4) + ".part")
         try:
-            with source.open("rb") as src, temp.open("xb") as target:
-                shutil.copyfileobj(src, target, CHUNK)
-                target.flush()
-                os.fsync(target.fileno())
-            with temp.open("rb") as check:
-                backup_hash = hashlib.file_digest(check, "sha256").hexdigest()
-            if backup_hash != row["sha256"]:
-                raise OSError("Backup checksum mismatch")
-            os.replace(temp, dest)
+            if not already_copied:
+                with source.open("rb") as src, temp.open("xb") as target:
+                    shutil.copyfileobj(src, target, CHUNK)
+                    target.flush()
+                    os.fsync(target.fileno())
+                with temp.open("rb") as check:
+                    backup_hash = hashlib.file_digest(check, "sha256").hexdigest()
+                if backup_hash != row["sha256"]:
+                    raise OSError("Backup checksum mismatch")
+                os.replace(temp, dest)
             # A backup without the patient-to-file index is not recoverable.
             # Use SQLite's online backup API; never copy an open WAL file.
             index_tmp = dest.parent / ("library.sqlite3." + secrets.token_hex(5) + ".part")
