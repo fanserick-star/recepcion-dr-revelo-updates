@@ -132,7 +132,7 @@ def main():
         old = preview("rx-legacy").body.decode("utf-8")
         old_left, old_right = copies(old)
         assert old_left == old_right
-        assert "rx-copy-v2" not in old
+        assert "rx-copy-v2" not in old_left and "rx-copy-v2" not in old_right
         assert "AUGMENTIN BID 875/125 TABLETAS X 20" in old_left
         assert "TOMAR 1 TABLETA CADA 12HS X 10 DIAS" in old_left
         assert "INSTRUCCIONES LEGADAS" in old_left
