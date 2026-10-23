@@ -24,6 +24,7 @@ import informes_clinicos
 import firma_electronica
 import doctor_turn_call
 import patient_document_panel
+import clinical_video_library
 import cloud_presence_patch
 cloud_presence_patch.install()
 
@@ -603,6 +604,7 @@ SYNC_SERVICE = build_sync_service(ROOT, DB_PATH)
 
 import lan_bridge
 LAN_SERVICE = lan_bridge.install(app, ROOT, DB_PATH, APP_VERSION, SYNC_SERVICE)
+clinical_video_library.install(app, ROOT, DB_PATH, LAN_SERVICE)
 
 
 @app.on_event("startup")
