@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.32",
-  "app_version": "1.4.32",
-  "runtime_version": "1.4.32",
+  "version": "1.4.33",
+  "app_version": "1.4.33",
+  "runtime_version": "1.4.33",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Recetas nuevas: 3 campos por medicamento (Nombre, Presentación y cantidad, Indicaciones). En A4 izquierda imprime nombre + presentación/cantidad sin indicaciones; derecha nombre + indicaciones, con indicaciones adicionales sólo a la derecha. Desplazar el bloque de medicamentos 7 mm hacia abajo en ambas mitades. Recetas históricas usan su estructura dose/frequency/duration y conservan impresión duplicada anterior. No altera encabezado, dos membretes, serie, datos de paciente, firma PDF PAdES, Neón ni esquema.",
-    "previous_version": "1.4.31",
+    "purpose": "Historia 1.4.33: mejorar fluidez de reproducción MP4 por LAN entre Recepción e Historia con lectura anticipada limitada a 6 MB por video, streaming de fragmentos de 512 KB, pausa de otros reproductores y estado de segundos de video cargados. Mantiene byte Range HTTP, autorización HMAC, MP4 original, fichas y firma clínica; no cambia Reception, Neon, turnos o facturación.",
+    "previous_version": "1.4.32",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
