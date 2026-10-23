@@ -1,4 +1,4 @@
-/* v4.8.63 · Reception-only patient clinical document delivery.
+/* v4.8.65 · Reception-only patient clinical document delivery.
    No automatic sends, no exposure of medical content in search results. */
 (()=>{
   'use strict';
@@ -17,7 +17,7 @@
     else window.alert(value);
   }
   let closeClinicalPreview=null;
-  function showSignedPdf(blob,label){
+  function showSignedPdf(blob,label,unsigned=false){
     // PDF stays in browser memory; never upload or alter the signed original.
     if(closeClinicalPreview)closeClinicalPreview();
     const blobUrl=URL.createObjectURL(blob);
@@ -25,26 +25,27 @@
     shade.style.cssText='position:fixed;inset:0;z-index:2147483000;background:rgba(12,23,38,.77);display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box';
     shade.setAttribute('role','dialog');
     shade.setAttribute('aria-modal','true');
-    shade.setAttribute('aria-label','Vista previa de PDF firmado');
+    shade.setAttribute('aria-label',unsigned?'Vista previa sin firma electrónica':'Vista previa de PDF firmado');
     const panel=document.createElement('div');
     panel.style.cssText='width:min(1100px,98vw);height:min(900px,94vh);background:#fff;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 14px 65px #0008';
     const bar=document.createElement('div');
     bar.style.cssText='padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #d8e0ea';
-    const caption=cell('strong','PDF firmado · '+label);
+    const caption=cell('strong',(unsigned?'SIN FIRMA ELECTRÓNICA · Solo consulta · ':'PDF firmado · ')+label);
     caption.style.cssText='flex:1;font-size:15px;color:#18273d';
     const external=document.createElement('button');
     external.type='button';
-    external.textContent='Abrir en visor externo (opcional)';
+    external.textContent=unsigned?'Abrir vista sin firma (opcional)':'Abrir en visor externo (opcional)';
     external.onclick=()=>window.open(blobUrl,'_blank','noopener,noreferrer');
     const close=document.createElement('button');
     close.type='button';
     close.textContent='Cerrar PDF';
     close.style.cssText='font-weight:700';
     const frame=document.createElement('iframe');
-    frame.title='Documento PDF firmado';
+    frame.title=unsigned?'Documento guardado sin firma electrónica':'Documento PDF firmado';
+    if(unsigned)frame.setAttribute('sandbox','');
     frame.src=blobUrl;
     frame.style.cssText='width:100%;flex:1;border:0;min-height:200px';
-    const help=cell('p','Si el visor integrado de esta PC no admite PDF, usa «Abrir en visor externo». La consulta no firma ni envía documentos.','');
+    const help=cell('p',unsigned?'VISTA PREVIA SIN FIRMA ELECTRÓNICA. No es un PDF firmado, no tiene QR de validación y no puede enviarse desde aquí.':'Si el visor integrado de esta PC no admite PDF, usa «Abrir en visor externo». La consulta no firma ni envía documentos.','');
     help.style.cssText='margin:5px 12px 9px;font-size:12px;color:#5d6777';
     let closed=false;
     function dismiss(){
@@ -73,17 +74,29 @@
     button.textContent='Comprobando PDF…';
     try{
       const path='/api/clinical-delivery/patients/'+pid+'/signed/'+kind+'/'+id;
-      const response=await fetch(path,{cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
+      let response=await fetch(path,{cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
+      let unsigned=false;
       if(!response.ok){
         const data=await response.json().catch(()=>({}));
-        throw Error(data.detail||data.error||'No fue posible recuperar el documento firmado.');
+        const message=data.detail||data.error||'No fue posible recuperar el documento firmado.';
+        if(response.status===404 && /todavía no tiene PDF firmado/i.test(message)){
+          // Only a proven unsigned document may use the isolated HTML preview.
+          response=await fetch('/api/clinical-delivery/patients/'+pid+'/unsigned/'+kind+'/'+id,{cache:'no-store',credentials:'same-origin',headers:{Accept:'text/html'}});
+          unsigned=true;
+          if(!response.ok){const problem=await response.json().catch(()=>({}));throw Error(problem.detail||problem.error||'Historia no pudo generar la vista sin firma.');}
+        }else throw Error(message);
       }
       const media=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
-      if(media!=='application/pdf')throw Error('Historia no devolvió un PDF válido.');
+      if(media!==(unsigned?'text/html':'application/pdf'))throw Error('Historia no devolvió una vista válida.');
+      if(unsigned && response.headers.get('X-Clinical-Preview-Unsigned')!=='1')throw Error('La vista no está identificada como sin firma.');
       const blob=await response.blob();
-      if(blob.size<5||blob.size>20*1024*1024)throw Error('El PDF no supera la verificación de tamaño.');
+      if(blob.size<5||blob.size>(unsigned?2:20)*1024*1024)throw Error('La vista no supera la verificación de tamaño.');
       if(state.pid!==pid)return;
-      showSignedPdf(blob,label);
+      showSignedPdf(blob,label,unsigned);
+      const note=row.querySelector('.rp-clinical-signature-state');
+      if(note)note.textContent=unsigned?'Sin firma electrónica · Solo vista previa':'Firmado electrónicamente · PDF original';
+      const send=row.querySelector('.rp-clinical-send-document');
+      if(unsigned && send)send.disabled=true;
     }catch(e){
       const message=e.message||'No se pudo abrir el PDF firmado.';
       const previous=row.querySelector('.rp-clinical-pdf-error');
@@ -160,12 +173,13 @@
     for(const doc of docs){
       const row=document.createElement('div');row.className='rp-clinical-row';
       const info=document.createElement('div');info.className='rp-clinical-info';
-      info.append(cell('strong',doc.label),cell('small',(doc.date||'')+' · El PDF original firmado se comprueba al abrir'));
+      info.append(cell('strong',doc.label),cell('small',(doc.date||'')+' · Firma electrónica: se comprueba al abrir','rp-clinical-signature-state'));
       row.append(info);
       const actions=document.createElement('div');actions.className='rp-clinical-actions';
       const kind=safeId(doc.kind),id=safeId(doc.id),pid=Number(state.pid);
       const view=addButton(actions,'Ver PDF',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
-      addButton(actions,'Enviar WhatsApp',()=>sendDoc(doc),!state.ready_document||state.sending);
+      const send=addButton(actions,'Enviar WhatsApp',()=>sendDoc(doc),!state.ready_document||state.sending);
+      send.classList.add('rp-clinical-send-document');
       row.append(actions);host.append(row);
     }
     const section=document.createElement('div');section.className='rp-clinical-video';
