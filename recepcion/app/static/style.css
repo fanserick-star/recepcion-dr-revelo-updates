@@ -1387,3 +1387,32 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .rp-clinical-test input{max-width:300px;font:inherit;padding:10px 12px;border:1px solid #a8c1b5;border-radius:9px;background:#fff}
 .rp-clinical-test button{justify-self:start;min-height:38px}
 .rp-clinical-preview{display:block;justify-self:start;color:#106b4e;font-weight:800;font-size:13px;text-decoration:underline}
+
+/* v4.8.67 · Patient-safe local videocystoscopy confirmation.
+   This isolated overlay never changes legacy Reception dialogs or invoices. */
+.rp-video-confirm-shade{position:fixed;inset:0;z-index:2147483300;background:rgba(14,27,44,.62);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+.rp-video-confirm-dialog{width:min(570px,100%);max-height:min(92vh,850px);overflow-y:auto;background:#fff;border:1px solid #e3eaf2;border-radius:22px;box-shadow:0 30px 90px rgba(5,23,42,.28);padding:27px 28px;color:#1d3248;display:grid;gap:18px;animation:rp-video-dialog-in .16s ease-out}
+@keyframes rp-video-dialog-in{from{transform:translateY(8px);opacity:.4}to{transform:translateY(0);opacity:1}}
+.rp-video-confirm-head{display:flex;gap:15px;align-items:center}
+.rp-video-confirm-icon{height:54px;width:54px;flex:none;display:grid;place-items:center;border-radius:16px;background:#ebf4ff;border:1px solid #d4e6fa;font-size:27px}
+.rp-video-confirm-head>div:last-child{display:grid;gap:4px}
+.rp-video-confirm-kicker{font-size:10px;color:#507496;font-weight:850;letter-spacing:1.1px}
+.rp-video-confirm-title{font-size:24px;line-height:1.15;color:#162e48;margin:0;font-weight:850;letter-spacing:-.35px}
+.rp-video-confirm-desc{font-size:14px;line-height:1.55;color:#5a6d80;margin:0}
+.rp-video-confirm-details{display:grid;gap:0;border:1px solid #dee8f2;border-radius:14px;overflow:hidden;background:#f9fbff}
+.rp-video-confirm-detail{padding:12px 15px;display:grid;gap:5px;min-width:0}
+.rp-video-confirm-detail+.rp-video-confirm-detail{border-top:1px solid #e3eaf2}
+.rp-video-confirm-detail span{font-size:10px;color:#617890;font-weight:850;letter-spacing:.9px}
+.rp-video-confirm-detail strong{font-size:15px;font-weight:750;color:#1c334b;overflow-wrap:anywhere;line-height:1.42}
+.rp-video-confirm-local{margin:0;background:#eaf7f1;border:1px solid #c9e6d7;border-radius:13px;color:#215c44;font-size:12px;font-weight:650;line-height:1.55;padding:12px 14px}
+.rp-video-confirm-checkbox{display:flex;align-items:flex-start;gap:11px;cursor:pointer;padding:12px 13px;border:1px solid #d8e3ee;border-radius:12px;background:#fff;color:#263e56;font-size:13px;font-weight:650;line-height:1.5}
+.rp-video-confirm-checkbox:focus-within{outline:2px solid #84aee5;outline-offset:2px}
+.rp-video-confirm-checkbox input{width:19px;height:19px;margin:1px 0 0;accent-color:#1665ab;flex:none;cursor:pointer}
+.rp-video-confirm-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:3px}
+.rp-video-confirm-actions button{font-family:inherit;font-size:14px;font-weight:750;min-height:44px;padding:11px 17px;border-radius:11px;cursor:pointer;transition:background .15s,border-color .15s}
+.rp-video-confirm-cancel{border:1px solid #d7e1ed!important;background:#fff!important;color:#355069!important}
+.rp-video-confirm-accept{border:1px solid #17629e!important;background:#17629e!important;color:#fff!important}
+.rp-video-confirm-accept:disabled{opacity:.42;cursor:not-allowed}
+.rp-video-confirm-actions button:focus-visible{outline:3px solid #a3ccf6;outline-offset:2px}
+@media(max-width:600px){.rp-video-confirm-shade{padding:10px}.rp-video-confirm-dialog{border-radius:17px;padding:20px 18px;gap:15px}.rp-video-confirm-title{font-size:21px}.rp-video-confirm-actions{flex-direction:column-reverse}.rp-video-confirm-actions button{width:100%}}
+@media(prefers-reduced-motion:reduce){.rp-video-confirm-dialog{animation:none}.rp-video-confirm-actions button{transition:none}}

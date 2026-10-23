@@ -1,4 +1,4 @@
-/* v4.8.65 · Reception-only patient clinical document delivery.
+/* v4.8.67 · Reception-only patient clinical document delivery.
    No automatic sends, no exposure of medical content in search results. */
 (()=>{
   'use strict';
@@ -243,6 +243,93 @@
     }catch(e){notice(e.message||'No se envió el documento','error');}
     finally{state.sending=false;draw({ok:true,documents:state.documents,missing:[],...state});}
   }
+  // Independent patient-identity gate for local MP4 archive. Never uses the
+  // browser's native confirm/alert or sends data until the operator accepts.
+  let archiveConfirmationOpen=false;
+  function confirmVideoArchive(chosen){
+    if(archiveConfirmationOpen)return Promise.resolve(false);
+    archiveConfirmationOpen=true;
+    const currentPatientId=state.pid;
+    const opener=document.activeElement;
+    return new Promise(resolve=>{
+      const shade=document.createElement('div');
+      shade.className='rp-video-confirm-shade';
+      shade.setAttribute('role','presentation');
+      const dialog=document.createElement('section');
+      dialog.className='rp-video-confirm-dialog';
+      dialog.setAttribute('role','dialog');
+      dialog.setAttribute('aria-modal','true');
+      dialog.setAttribute('aria-labelledby','rpVideoArchiveTitle');
+      dialog.setAttribute('aria-describedby','rpVideoArchiveDesc');
+      const head=document.createElement('div');
+      head.className='rp-video-confirm-head';
+      const mark=cell('div','🎥','rp-video-confirm-icon');
+      mark.setAttribute('aria-hidden','true');
+      const intro=document.createElement('div');
+      intro.append(
+        cell('span','ARCHIVO CLÍNICO · RECEPCIÓN','rp-video-confirm-kicker'),
+        cell('h2','Guardar videocistoscopía','rp-video-confirm-title')
+      );
+      intro.lastChild.id='rpVideoArchiveTitle';
+      head.append(mark,intro);
+      const info=cell('p','Antes de guardar, verifica que esta grabación pertenezca a la ficha clínica indicada.','rp-video-confirm-desc');
+      info.id='rpVideoArchiveDesc';
+      const details=document.createElement('div');
+      details.className='rp-video-confirm-details';
+      const appendDetail=(label,value)=>{
+        const group=document.createElement('div');
+        group.className='rp-video-confirm-detail';
+        group.append(cell('span',label),cell('strong',value));
+        details.append(group);
+      };
+      appendDetail('PACIENTE',state.name||'Paciente sin nombre');
+      appendDetail('ARCHIVO ORIGINAL',chosen.name);
+      appendDetail('TAMAÑO',(chosen.size/(1024*1024)).toLocaleString('es-EC',{maximumFractionDigits:1})+' MB');
+      const local=cell('p','Se guardará únicamente en esta PC. No se enviará por WhatsApp ni se subirá a Cloudflare o Neon.','rp-video-confirm-local');
+      const checkLine=document.createElement('label');
+      checkLine.className='rp-video-confirm-checkbox';
+      const check=document.createElement('input');
+      check.type='checkbox';
+      const checkCopy=cell('span','Confirmo que el video corresponde a este paciente y que revisé la ficha correcta.');
+      checkLine.append(check,checkCopy);
+      const actions=document.createElement('div');
+      actions.className='rp-video-confirm-actions';
+      const cancel=cell('button','Cancelar','rp-video-confirm-cancel');
+      cancel.type='button';
+      const accept=cell('button','Guardar video en Recepción','rp-video-confirm-accept');
+      accept.type='button';
+      accept.disabled=true;
+      check.addEventListener('change',()=>{accept.disabled=!check.checked;});
+      actions.append(cancel,accept);
+      dialog.append(head,info,details,local,checkLine,actions);
+      shade.append(dialog);
+      let settled=false;
+      function finish(approved){
+        if(settled)return;
+        settled=true;
+        document.removeEventListener('keydown',onKey,true);
+        shade.remove();
+        archiveConfirmationOpen=false;
+        if(opener && opener.isConnected && typeof opener.focus==='function')opener.focus();
+        resolve(Boolean(approved&&check.checked&&currentPatientId===state.pid));
+      }
+      function onKey(e){
+        if(e.key==='Escape'){e.preventDefault();finish(false);return;}
+        if(e.key!=='Tab')return;
+        const focusable=[check,cancel,accept].filter(el=>!el.disabled);
+        if(!focusable.length)return;
+        const first=focusable[0],last=focusable[focusable.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+      cancel.addEventListener('click',()=>finish(false));
+      accept.addEventListener('click',()=>finish(true));
+      shade.addEventListener('click',e=>{if(e.target===shade)finish(false);});
+      document.body.append(shade);
+      document.addEventListener('keydown',onKey,true);
+      check.focus();
+    });
+  }
   async function saveVideo(file){
     if(state.saving_video||state.sending)return;
     const chosen=file.files&&file.files[0];
@@ -250,9 +337,8 @@
     if(!/\.mp4$/i.test(chosen.name)||chosen.size<1024||chosen.size>2*1024*1024*1024){
       notice('Selecciona un MP4 válido de máximo 2 GB.','error');return;
     }
-    if(!window.confirm('GUARDAR VIDEOCISTOSCOPÍA\nPaciente: '+state.name+
-      '\nArchivo: '+chosen.name+
-      '\n\n¿Verificaste que este video pertenece a la ficha de este paciente?\nSe archivará solamente en esta PC, sin enviar por WhatsApp ni subir a Cloudflare.'))return;
+    if(!await confirmVideoArchive(chosen))return;
+    if(state.sending||state.saving_video)return;
     state.saving_video=true;
     const host=container();
     const progress=cell('p','Guardando el video original en Recepción… Mantén abierta esta ventana.','rp-clinical-help');

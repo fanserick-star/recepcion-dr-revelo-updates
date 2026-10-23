@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.66: importación y conservación local segura de videocistoscopías originales MP4, vinculación clínica comprobada, SHA-256 y reproducción por LAN en Historia. Respaldo externo opcional, nunca sube el archivo a Neon; WhatsApp y Cloudflare solo en envío manual separado."
+  "notes": "Recepción 4.8.67: confirmación moderna e integrada al archivar videocistoscopías; identificación de paciente obligatoria y ninguna importación antes de confirmar. Sin cambios de datos ni transporte LAN."
 }

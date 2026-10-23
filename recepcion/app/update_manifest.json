@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.66",
-  "app_version": "4.8.66",
-  "runtime_version": "4.8.66",
+  "version": "4.8.67",
+  "app_version": "4.8.67",
+  "runtime_version": "4.8.67",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -193,8 +193,8 @@
     "clinical_video_library.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.66: archivo privado local de videocistoscopías originales MP4 por paciente vinculado y verificado, sin Neon, R2 ni WhatsApp automático. Importación por fragmentos, SHA-256, detección duplicados, copia de respaldo externa opcional con índice SQLite y reproducción LAN privada con Range para Historia 1.4.29. No modifica facturación, turnos ni firmas.",
-    "previous_version": "4.8.65",
+    "purpose": "Recepción 4.8.67: sustituye exclusivamente el popup nativo de confirmar archivo de videocistoscopía por ventana elegante y accesible, con paciente, archivo, tamaño, checkbox de identidad y dos acciones claras. Sin cambios de datos, LAN, Neon, video original, facturas, turnos o WhatsApp.",
+    "previous_version": "4.8.66",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
