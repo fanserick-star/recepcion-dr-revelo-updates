@@ -1096,15 +1096,16 @@ body{{background:#dfe5ea;padding:14px}}
 .toolbar span{{font-size:12px;color:#475569}}
 .sheet{{
   width:210mm;height:297mm;margin:0 auto;background:white;display:grid;
-  /* Reserva márgenes reales de 8 mm a ambos bordes del papel A4.
-     Evita que impresión directa y vista previa recorten letras en los extremos. */
-  padding:0 8mm;grid-template-columns:97mm 97mm;
+  /* A4 real: conservar izquierda segura (8 mm) y aprovechar 2 mm más
+     de la mitad derecha. Margen exterior derecho 6 mm + 3,5 mm internos. */
+  padding:0 6mm 0 8mm;grid-template-columns:97mm 99mm;
   overflow:hidden;box-shadow:0 8px 28px #0f172a2c;
 }}
 .rx-copy{{
-  width:97mm;height:279mm;position:relative;overflow:hidden;padding:0 3.5mm;
+  width:97mm;height:292mm;position:relative;overflow:hidden;padding:0 3.5mm;
   background:#fff;
 }}
+.rx-copy:last-child{{width:99mm}}
 .rx-copy:first-child{{border-right:.25mm solid #e5e7eb}}
 .brand-box{{
   height:36mm;border:1px solid #8fb3aa;border-radius:2.2mm;display:grid;
@@ -1161,8 +1162,8 @@ footer{{
 @media print{{
   html,body{{width:210mm;height:297mm;background:#fff;padding:0}}
   .toolbar{{display:none!important}}
-  .sheet{{width:210mm;height:297mm;margin:0 auto;padding:0 8mm;
-    grid-template-columns:97mm 97mm;box-shadow:none}}
+  .sheet{{width:210mm;height:297mm;margin:0 auto;padding:0 6mm 0 8mm;
+    grid-template-columns:97mm 99mm;box-shadow:none}}
   .rx-copy:first-child{{border-right:none}}
 }}
 </style>

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.35",
-  "app_version": "1.4.35",
-  "runtime_version": "1.4.35",
+  "version": "1.4.36",
+  "app_version": "1.4.36",
+  "runtime_version": "1.4.36",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Historia 1.4.35: revertir exclusivamente la lectura anticipada y los cambios de reproducción de videocistoscopías introducidos en 1.4.33 porque empeoraron las pausas en la PC del doctor. Restaura el flujo MP4/HTTP Range de 1.4.32 (fragmentos de 256 KB, sin cola de 6 MB) y conserva íntegros los cambios de recetas 1.4.34, documentos firmados, fichas, sincronización de turnos, LAN privada 8766, Neon, facturación y videos originales.",
-    "previous_version": "1.4.34",
+    "purpose": "Perfeccionar impresión de recetas A4 según fotografía real: mantener margen izquierdo 8mm probado, permitir extender 2mm únicamente la mitad derecha (6mm de margen externo + 3.5mm interior), conservando separación central y tamaño de letra; aumentar alto de las mitades de 279 a 292mm para bajar membrete de pie, contacto y franja 13mm, dejando franja a 8mm del borde inferior imprimible. Sin alterar cabecera, historia clínica, nombre/presentación/indicaciones, firmas, recetas guardadas ni Neón. Igual resultado desde impresión directa y vista previa.",
+    "previous_version": "1.4.35",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -327,6 +327,14 @@
     "rx_left_name_presentation_inline_bold": true,
     "rx_right_name_then_indications": true,
     "rx_legacy_data_and_original_pades_unchanged": true,
-    "rx_no_neon_schema_changes": true
+    "rx_no_neon_schema_changes": true,
+    "rx_a4_left_margin_mm": 8,
+    "rx_a4_right_margin_mm": 6,
+    "rx_a4_left_copy_width_mm": 97,
+    "rx_a4_right_copy_width_mm": 99,
+    "rx_a4_copy_height_mm": 292,
+    "rx_a4_stripe_bottom_clearance_mm": 8,
+    "rx_a4_both_print_paths_css": true,
+    "rx_preserve_legacy_print_content": true
   }
 }
