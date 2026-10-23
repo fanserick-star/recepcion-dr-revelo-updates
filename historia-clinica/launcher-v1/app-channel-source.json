@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.33: lectura anticipada acotada de MP4 para reproducción más continua desde Recepción, sin descargar ni convertir originales; indicador de búfer y reproducción única en PC antigua, sin cambiar datos clínicos."
+  "notes": "Historia 1.4.35: recuperar reproducción MP4 original por LAN y eliminar búfer de 6 MB que empeoró fluidez, conservando corrección de recetas 1.4.34 y todos los historiales y firmas."
 }

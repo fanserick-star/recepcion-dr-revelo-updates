@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.34",
-  "app_version": "1.4.34",
-  "runtime_version": "1.4.34",
+  "version": "1.4.35",
+  "app_version": "1.4.35",
+  "runtime_version": "1.4.35",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Corregir recorte horizontal de recetas A4 tanto desde impresión directa como desde vista previa: área interna 194 mm con márgenes de seguridad de 8 mm a cada lado dentro de hoja real A4 de 210 mm, dos mitades de 97 mm, sin cambiar altura ni escala tipográfica. Mitad izquierda de recetas nuevas: nombre y presentación/cantidad seguidos en un único bloque en negritas; mitad derecha conserva nombre e indicaciones en líneas distintas. Mantiene 7 mm de separación superior añadida, historiales y firmas PAdES intactos.",
-    "previous_version": "1.4.33",
+    "purpose": "Historia 1.4.35: revertir exclusivamente la lectura anticipada y los cambios de reproducción de videocistoscopías introducidos en 1.4.33 porque empeoraron las pausas en la PC del doctor. Restaura el flujo MP4/HTTP Range de 1.4.32 (fragmentos de 256 KB, sin cola de 6 MB) y conserva íntegros los cambios de recetas 1.4.34, documentos firmados, fichas, sincronización de turnos, LAN privada 8766, Neon, facturación y videos originales.",
+    "previous_version": "1.4.34",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,

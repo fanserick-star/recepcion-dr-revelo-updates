@@ -116,6 +116,6 @@ assert "media.includes('application/json')" in browser
 assert "data=await response.json()" in browser
 assert "HTTP '+response.status+" in browser
 assert "status.textContent=(error&&error.message)" in browser
-assert "clinical_video_library.js?v=1.4.33" in (
+assert "clinical_video_library.js?v=1.4.35" in (
     ROOT/"historia-clinica/app/patient_document_panel.py").read_text(encoding="utf-8")
 print("HISTORIA_VIDEO_1430_LEGACY_SQLITE_JSON_ERRORS_FAIL_SAFE_OK")
