@@ -622,6 +622,73 @@ class LanService:
             return data
 
 
+    def unsigned_document_for_reception(self, reception_id: str, kind: str,
+                                        doc_id: str, verified_clinical_id: str) -> bytes:
+        """Render existing Historia HTML read-only; never sign, save or send.
+
+        Reuse *all* existing signed PDF permission and ownership checks first.
+        A signed document cannot be downgraded into unsigned preview, even if
+        its signed original is missing, modified or otherwise unavailable.
+        """
+        if not verified_clinical_id:
+            raise PermissionError("La vista sin firma requiere identidad clínica verificada")
+        try:
+            self.signed_document_for_reception(
+                reception_id, kind, doc_id, verified_clinical_id)
+        except FileNotFoundError as exc:
+            if str(exc) != "El doctor todavía no ha guardado un PDF firmado":
+                raise
+        else:
+            raise ValueError("El documento está firmado; utilice su PDF original")
+
+        routes = {
+            "receta": ("/recetas/{rx_id}/vista", "rx_id"),
+            "certificado": ("/certificados/{cert_id}/vista", "cert_id"),
+            "reposo": ("/certificados/reposo/{cert_id}/vista", "cert_id"),
+            "informe": ("/informes/{report_id}/vista", "report_id"),
+        }
+        target = routes.get(kind)
+        if not target:
+            raise ValueError("Tipo de documento inválido")
+        route_path, argument = target
+        app = getattr(self, "_clinical_preview_app", None)
+        endpoints = [route.endpoint for route in getattr(app, "routes", [])
+                     if getattr(route, "path", "") == route_path]
+        if len(endpoints) != 1:
+            raise RuntimeError("La vista del documento no está disponible")
+        # These four endpoints are local read-only HTML views. No HTTP loopback,
+        # no signing, no writes, and no database export.
+        response = endpoints[0](**{argument: doc_id})
+        if getattr(response, "status_code", 500) != 200:
+            raise FileNotFoundError("No se pudo generar la vista local del documento")
+        data = bytes(getattr(response, "body", b""))
+        if not data or len(data) > 2 * 1024 * 1024:
+            raise ValueError("La vista supera el límite permitido")
+        page = data.decode("utf-8", "replace")
+        # Force a noninteractive isolated preview. UI additionally uses a
+        # sandboxed opaque-origin iframe; scripts/network/forms remain blocked.
+        page = re.sub(r"(?is)<script\b[^>]*>.*?</script\s*>", "", page)
+        csp = ("default-src 'none'; script-src 'none'; connect-src 'none'; "
+               "style-src 'unsafe-inline'; img-src data: blob:; font-src data:; "
+               "form-action 'none'; base-uri 'none'; frame-src 'none'")
+        guard = ('<meta http-equiv="Content-Security-Policy" content="' + csp + '">')
+        page = re.sub(r"(?i)</head>", guard + "</head>", page, count=1)
+        watermark = ('<div role="note" style="position:fixed;top:0;left:0;right:0;'
+                     'z-index:2147483000;background:#892323;color:white;'
+                     'font:700 17px Arial,sans-serif;text-align:center;'
+                     'padding:10px;pointer-events:none">'
+                     'VISTA PREVIA · SIN FIRMA ELECTRÓNICA</div>'
+                     '<div aria-hidden="true" style="position:fixed;'
+                     'top:45%;left:8%;right:8%;transform:rotate(-25deg);'
+                     'color:rgba(135,27,27,.22);font:bold 35px Arial,sans-serif;'
+                     'text-align:center;z-index:2147482000;pointer-events:none">'
+                     'SIN FIRMA ELECTRÓNICA</div>')
+        if not re.search(r"(?i)<body\b", page):
+            raise ValueError("La vista del documento no tiene formato HTML válido")
+        page = re.sub(r"(?i)(<body\b[^>]*>)", lambda m: m.group(1) + watermark,
+                      page, count=1)
+        return page.encode("utf-8")
+
     def _handler_class(self):
         service = self
 
@@ -657,7 +724,7 @@ class LanService:
                         "port": LAN_HTTP_PORT,
                     })
                     return
-                if path == "/delivery/signed-pdf":
+                if path in ("/delivery/signed-pdf", "/delivery/unsigned-preview"):
                     token = self.headers.get("X-Historia-LAN-Token", "")
                     if not service._valid_token(self.remote_ip, token):
                         self._send(403, {"ok": False, "error": "No autorizado"})
@@ -672,9 +739,14 @@ class LanService:
                         self._send(403, {"ok": False, "error": "Autorización clínica inválida"})
                         return
                     try:
-                        data = service.signed_document_for_reception(
-                            val("reception_id"), val("kind"), val("doc_id"),
-                            val("clinical_patient_id"))
+                        if path == "/delivery/unsigned-preview":
+                            data = service.unsigned_document_for_reception(
+                                val("reception_id"), val("kind"), val("doc_id"),
+                                val("clinical_patient_id"))
+                        else:
+                            data = service.signed_document_for_reception(
+                                val("reception_id"), val("kind"), val("doc_id"),
+                                val("clinical_patient_id"))
                     except (PermissionError, FileNotFoundError, ValueError) as exc:
                         self._send(404, {"ok": False, "error": str(exc)[:150]})
                         return
@@ -682,9 +754,14 @@ class LanService:
                         self._send(503, {"ok": False, "error": "No se pudo recuperar el PDF firmado"})
                         return
                     self.send_response(200)
-                    self.send_header("Content-Type", "application/pdf")
+                    unsigned = path == "/delivery/unsigned-preview"
+                    self.send_header("Content-Type", "text/html; charset=utf-8" if unsigned else "application/pdf")
                     self.send_header("Content-Length", str(len(data)))
-                    self.send_header("Content-Disposition", 'attachment; filename="Documento_firmado.pdf"')
+                    if unsigned:
+                        self.send_header("X-Clinical-Preview-Unsigned", "1")
+                        self.send_header("Content-Security-Policy", "default-src 'none'; sandbox; script-src 'none'; connect-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'")
+                    else:
+                        self.send_header("Content-Disposition", 'attachment; filename="Documento_firmado.pdf"')
                     self.send_header("Cache-Control", "no-store, private")
                     self.send_header("X-Content-Type-Options", "nosniff")
                     self.send_header("Connection", "close")
@@ -803,6 +880,7 @@ class LanService:
 
 def install(app, root: Path, db_path: Path, app_version: str, sync_service=None):
     service = LanService(root, db_path, app_version, sync_service)
+    service._clinical_preview_app = app
 
     @app.on_event("startup")
     def _start_lan_service():

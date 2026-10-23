@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.26",
-  "app_version": "1.4.26",
-  "runtime_version": "1.4.26",
+  "version": "1.4.27",
+  "app_version": "1.4.27",
+  "runtime_version": "1.4.27",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -84,8 +84,8 @@
     "patient_document_panel.py"
   ],
   "notes": {
-    "purpose": "Ficha de paciente: Atender/Nueva consulta como acción principal separada; Editar datos, Receta, Certificado, Informes y Llamar en segunda fila alineada derecha. Panel Documentos del paciente con recetas, informes, certificados y reposo por patient_id y fechas; PDF PAdES original con SHA verificado en enlace Ver/Imprimir sin re-firmar, documentos eliminados ocultos y sin duplicar archivos ni cambiar Neón.",
-    "previous_version": "1.4.25",
+    "purpose": "Historia 1.4.27: vista HTML de solo lectura de recetas, certificados, reposos e informes guardados sin firma, exclusivamente mediante LAN clínica autenticada, vinculación y HMAC. Visor con advertencia SIN FIRMA y scripts bloqueados; no genera PDFs ni altera documentos, firmas PAdES, historial, Neon, turnos o facturación. Conserva mejoras de ficha 1.4.26.",
+    "previous_version": "1.4.26",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -103,8 +103,8 @@
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
     "clinical_data_changes": true,
-    "cloud_logic_changes": true,
-    "cloud_sync_data_logic_changes": true,
+    "cloud_logic_changes": false,
+    "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
