@@ -103,7 +103,9 @@ def _backup_copy(row, source):
                 shutil.copyfileobj(src, target, CHUNK)
                 target.flush()
                 os.fsync(target.fileno())
-            if hashlib.file_digest(temp.open("rb"), "sha256").hexdigest() != row["sha256"]:
+            with temp.open("rb") as check:
+                backup_hash = hashlib.file_digest(check, "sha256").hexdigest()
+            if backup_hash != row["sha256"]:
                 raise OSError("Backup checksum mismatch")
             os.replace(temp, dest)
             return True
