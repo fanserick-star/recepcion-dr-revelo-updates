@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.64: pasa identificación clínica Neon verificada dentro del HMAC LAN independiente al consultar PDF firmado. Historia 1.4.24 valida la pertenencia exacta del archivo y rechaza vínculos contradictorios. Sin cambios a pacientes, firmas, turnos, TV, facturas, AZUR, Workers o WhatsApp de citas."
+  "notes": "Recepción 4.8.65: vista integrada de documentos guardados sin firma con marca clara y visor HTML en iframe aislado; documentos firmados conservan su PDF original. Envíos clínicos requieren PDF firmado y habilitación Meta. Sin cambios en Neon, turnos, facturas ni citas."
 }
