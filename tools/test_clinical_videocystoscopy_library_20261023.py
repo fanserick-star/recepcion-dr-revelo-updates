@@ -59,7 +59,7 @@ fakecore=SimpleNamespace(Depends=Depends,get_db=None,current_user=None,
 
 tree=ast.parse(rs)
 names={"_db","_safe_row","_local_file","_backup_path","_has_backup","_backup_copy",
-       "_verify_lan","_records","_row_by_id","import_video"}
+       "_secret","_verify_lan","_records","_row_by_id","import_video"}
 nodes=[]
 for child in tree.body:
     if isinstance(child,(ast.FunctionDef,ast.AsyncFunctionDef)) and child.name in names:
