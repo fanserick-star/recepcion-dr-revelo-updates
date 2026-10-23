@@ -10,8 +10,10 @@ import hmac
 import ipaddress
 import json
 import logging
+import queue
 import re
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -23,6 +25,65 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 _SAFE = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _JSON_LIMIT = 256 * 1024
+
+# Read ahead over the private LAN while the doctor's browser decodes prior
+# chunks. 12 x 512 KiB = maximum 6 MiB of additional RAM per active stream.
+# Unlike a full download, this leaves the original MP4 on Reception and
+# supports byte Range seeks with their existing authenticated request.
+_VIDEO_CHUNK_BYTES = 512 * 1024
+_VIDEO_PREFETCH_CHUNKS = 12
+
+
+def _buffered_video_body(upstream):
+    pending = queue.Queue(maxsize=_VIDEO_PREFETCH_CHUNKS)
+    cancelled = threading.Event()
+    complete = object()
+
+    def enqueue(value):
+        while not cancelled.is_set():
+            try:
+                pending.put(value, timeout=0.2)
+                return True
+            except queue.Full:
+                continue
+        return False
+
+    def read_ahead():
+        try:
+            while not cancelled.is_set():
+                block = upstream.read(_VIDEO_CHUNK_BYTES)
+                if not block:
+                    break
+                if not enqueue(block):
+                    break
+        except (OSError, ValueError):
+            # An interrupted LAN transfer must not be disguised as success.
+            # The browser can re-request remaining bytes using HTTP Range.
+            logging.getLogger(__name__).warning(
+                "Interrupción en la lectura LAN de un video clínico")
+        finally:
+            enqueue(complete)
+            upstream.close()
+
+    worker = threading.Thread(target=read_ahead, name="historia-video-lan-buffer", daemon=True)
+    worker.start()
+    try:
+        while True:
+            try:
+                block = pending.get(timeout=0.5)
+            except queue.Empty:
+                if not worker.is_alive():
+                    break
+                continue
+            if block is complete:
+                break
+            yield block
+    finally:
+        cancelled.set()
+        # Don't block the History UI shutdown waiting for a network read.
+        upstream.close()
+        worker.join(timeout=0.1)
+
 
 def install(app, root: Path, db_path: Path, lan_service):
     from cloud_sync import _load_env
@@ -189,14 +250,6 @@ def install(app, root: Path, db_path: Path, lan_service):
         for key in ("Content-Range", "Content-Length"):
             if upstream.headers.get(key):
                 headers[key] = upstream.headers[key]
-        def stream():
-            try:
-                while True:
-                    block = upstream.read(256 * 1024)
-                    if not block:
-                        break
-                    yield block
-            finally:
-                upstream.close()
-        return StreamingResponse(stream(), status_code=upstream.status,
+        return StreamingResponse(_buffered_video_body(upstream),
+                                 status_code=upstream.status,
                                  media_type="video/mp4", headers=headers)
