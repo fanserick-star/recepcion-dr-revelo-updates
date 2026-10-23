@@ -85,7 +85,8 @@ def _backup_path(row):
 def _has_backup(row):
     path = _backup_path(row)
     try:
-        return bool(path and path.is_file() and path.stat().st_size == int(row["size_bytes"]))
+        return bool(path and path.is_file() and path.stat().st_size == int(row["size_bytes"])
+                    and (path.parent / "library.sqlite3").is_file())
     except OSError:
         return False
 
@@ -108,6 +109,16 @@ def _backup_copy(row, source):
             if backup_hash != row["sha256"]:
                 raise OSError("Backup checksum mismatch")
             os.replace(temp, dest)
+            # A backup without the patient-to-file index is not recoverable.
+            # Use SQLite's online backup API; never copy an open WAL file.
+            index_tmp = dest.parent / ("library.sqlite3." + secrets.token_hex(5) + ".part")
+            try:
+                with sqlite3.connect(str(INDEX), timeout=20) as original:
+                    with sqlite3.connect(str(index_tmp), timeout=20) as copy:
+                        original.backup(copy)
+                os.replace(index_tmp, dest.parent / "library.sqlite3")
+            finally:
+                index_tmp.unlink(missing_ok=True)
             return True
         finally:
             temp.unlink(missing_ok=True)
