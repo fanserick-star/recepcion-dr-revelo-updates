@@ -209,7 +209,7 @@ def _setup():
     test_phone=re.sub(r"\D","",cfg["WHATSAPP_TEST_PHONE"] or core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
         test_phone="593"+test_phone[1:]
-    ready_test=bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and re.fullmatch(r"5939\d{8}",test_phone))
+    ready_test=bool(approved and ready_r2 and wa_ready and template_doc and template_video and re.fullmatch(r"5939\d{8}",test_phone))
     return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,"ready_test":ready_test,
             "clinical_delivery_enabled":live_enabled,
             "clinical_templates_approved":approved,
@@ -226,11 +226,11 @@ def _setup():
                 ("Plantilla de video aprobada",bool(template_video)),
             ] if not present],
             "test_missing":[name for name,present in [
-                ("Envíos clínicos habilitados expresamente",live_enabled),
                 ("Plantillas Meta aprobadas",approved),
                 ("Almacenamiento R2 y eliminación a 7 días",ready_r2),
                 ("Número y credenciales WhatsApp de Recepción",wa_ready),
                 ("Plantilla de documentos aprobada por Meta",bool(template_doc)),
+                ("Plantilla de video aprobada por Meta",bool(template_video)),
                 ("WHATSAPP_TEST_PHONE de tu iPhone",bool(re.fullmatch(r"5939\d{8}",test_phone))),
             ] if not present]}
 
