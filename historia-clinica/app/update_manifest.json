@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.22",
-  "app_version": "1.4.22",
-  "runtime_version": "1.4.22",
+  "version": "1.4.23",
+  "app_version": "1.4.23",
+  "runtime_version": "1.4.23",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -82,8 +82,8 @@
     "doctor_turn_call.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.22: permite leer la clave privada HMAC del puente de documentos firmados desde el .env local protegido de Historia. No cambia consultas, informes, recetas, certificados, impresión, sincronización ni firma electrónica.",
-    "previous_version": "1.4.21",
+    "purpose": "Corregir Error 500 al pulsar Ver PDF firmado original: inicializar ruta ROOT en módulo de informes y servir PDF firmado ya archivado; Ver e Imprimir abren PDF firmado original si existe registro de firma, sin volver a firmar ni alterar QR. Controlar falta o alteración del archivo y conservar documento. Pruebas con PDF de muestra y SHA-256.",
+    "previous_version": "1.4.22",
     "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -282,6 +282,12 @@
     "clinical_signed_pdf_never_resigned": true,
     "clinical_signed_pdf_hmac_required": true,
     "clinical_signed_pdf_no_patient_changes": true,
-    "clinical_delivery_lan_shared_secret_private_env": true
+    "clinical_delivery_lan_shared_secret_private_env": true,
+    "signed_report_original_root_fix": true,
+    "signed_report_view_original_pdf": true,
+    "signed_report_print_original_pdf": true,
+    "signed_report_no_regeneration": true,
+    "signed_report_hash_integrity_checked": true,
+    "neon_changes": false
   }
 }

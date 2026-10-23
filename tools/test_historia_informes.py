@@ -60,7 +60,7 @@ def main():
         documentos_clinicos.ensure_schema(path)
         app = FastAPI()
         informes_clinicos.install(
-            app, {"DB_PATH": path, "base": lambda title, body, active: body}
+            app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
         )
         documentos_clinicos.install(
             app, {"DB_PATH": path, "ROOT": Path(tmp), "base": lambda title, body, active: body}
@@ -313,3 +313,5 @@ if __name__ == "__main__":
     from test_doctor_turn_call import main as test_doctor_call
     test_doctor_call()
     import test_historia_queue_beacon_1416  # visual contract, no DB writes
+    from test_historia_informe_firmado_original_1423 import main as signed_report_view
+    signed_report_view()

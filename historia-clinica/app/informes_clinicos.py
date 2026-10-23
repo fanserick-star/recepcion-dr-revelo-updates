@@ -407,6 +407,7 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
 
 def install(app, context: dict) -> None:
     db_path = context["DB_PATH"]
+    root = Path(context["ROOT"])
     base = context["base"]
 
     @app.get("/informes", response_class=HTMLResponse)
@@ -443,9 +444,10 @@ def install(app, context: dict) -> None:
             + ("<span class='report-signed-protected' title='Documento firmado con respaldo conservado'>🔒 Firmado</span>" if str(r["id"]) in signed_ids else "")
             + "<button type='button' class='report-delete-btn' data-report-id='" + _e(str(r["id"]))
             + "' data-signed='" + ("1" if str(r["id"]) in signed_ids else "0") + "'>🗑 Eliminar</button>"
-            + "<a href='/informes/"+quote(r["id"])+"/vista' target='_blank'>Ver</a>"
-            + "<a href='/informes/"+quote(r["id"])+"/editar'>Editar</a>"
-            + "<a href='/informes/"+quote(r["id"])+"/vista?print_now=1' target='_blank'>Imprimir</a>"
+            + "<a href='/informes/"+quote(r["id"])+("/firmado" if str(r["id"]) in signed_ids else "/vista")+"' target='_blank'>"
+            + ("Ver PDF firmado" if str(r["id"]) in signed_ids else "Ver")+"</a>"
+            + "<a href='/informes/"+quote(r["id"])+"/editar'>"+("Detalles" if str(r["id"]) in signed_ids else "Editar")+"</a>"
+            + "<a href='/informes/"+quote(r["id"])+("/firmado" if str(r["id"]) in signed_ids else "/vista?print_now=1")+"' target='_blank'>Imprimir</a>"
             + "</td></tr>"
             for r in rows
         ) or "<tr><td colspan='4'>No existen informes guardados.</td></tr>"
