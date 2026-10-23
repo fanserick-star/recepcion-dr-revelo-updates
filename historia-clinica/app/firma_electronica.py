@@ -997,6 +997,52 @@ def install(app, context: dict) -> None:
         _session_clear()
         return JSONResponse({"ok": True, **_status(root)})
 
+    @app.get("/api/firma/original/{kind}/{doc_id}")
+    def signed_original_readonly(request: Request, kind: str, doc_id: str):
+        """Sólo lectura: no recrea, no firma, no pide clave, no altera pacientes.
+
+        Enlaces de la ficha individual usan este visor para recetas,
+        certificados (incluido reposo) e informes con firma registrada.
+        """
+        _require_local(request)
+        kind = str(kind or "").strip().lower()
+        if kind not in {"receta", "certificado", "reposo", "informe"}:
+            raise HTTPException(status_code=404, detail="Tipo de documento desconocido.")
+        try:
+            doc_id = _safe_doc_id(doc_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not _document_exists(db_path, kind, doc_id):
+            raise HTTPException(status_code=404, detail="Documento no disponible en esta ficha.")
+        with sqlite3.connect(db_path, timeout=15) as conn:
+            conn.row_factory = sqlite3.Row
+            signed = conn.execute(
+                """SELECT relative_path,pdf_sha256 FROM electronic_signatures
+                   WHERE document_type=? AND document_id=?
+                   ORDER BY id DESC LIMIT 1""",
+                (kind, doc_id),
+            ).fetchone()
+        if not signed:
+            raise HTTPException(status_code=404, detail="Este documento no tiene PDF firmado.")
+        archive_dir = _paths(root)["signed_dir"].resolve()
+        pdf_path = (root / str(signed["relative_path"] or "")).resolve()
+        if not pdf_path.is_relative_to(archive_dir) or not pdf_path.is_file():
+            raise HTTPException(status_code=404, detail="El PDF firmado original no está disponible en esta computadora.")
+        digest = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+        if not secrets.compare_digest(digest, str(signed["pdf_sha256"] or "")):
+            raise HTTPException(status_code=409, detail="La huella del PDF firmado no coincide. No se modificó el documento.")
+        filename = {
+            "receta": "Receta_firmada.pdf",
+            "certificado": "Certificado_firmado.pdf",
+            "reposo": "Reposo_firmado.pdf",
+            "informe": "Informe_firmado.pdf",
+        }[kind]
+        return FileResponse(
+            pdf_path, media_type="application/pdf", filename=filename,
+            content_disposition_type="inline",
+            headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+        )
+
     @app.get("/api/firma/documento/{kind}/{doc_id}")
     def firma_document(request: Request, kind: str, doc_id: str):
         _require_local(request)
