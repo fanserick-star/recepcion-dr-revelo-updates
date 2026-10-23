@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.29",
-  "app_version": "1.4.29",
-  "runtime_version": "1.4.29",
+  "version": "1.4.30",
+  "app_version": "1.4.30",
+  "runtime_version": "1.4.30",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Historia 1.4.29: ver videocistoscopías originales archivadas exclusivamente en la PC de Recepción desde Documentos de la ficha individual, por LAN privada autenticada con HMAC, reproducción por rangos y control de identidad. No copia videos en Neon o Historia. Conserva historial y firma electrónica.",
-    "previous_version": "1.4.28",
+    "purpose": "Historia 1.4.30: reparar HTTP 500 y error Unexpected token / Internal Server Error al consultar videocistoscopías. Validar pacientes en SQLite antiguo o actual sin exigir columnas inexistentes; nunca alterar bases ni fichas. Catálogo entrega siempre respuesta JSON segura y mensajes específicos de desconexión de Recepción. Cache-busting de visor. Conserva MP4 original, LAN/HMAC, firmas, historial, turnos, facturas y sincronización Neon.",
+    "previous_version": "1.4.29",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -104,7 +104,7 @@
     "tv_turn_state_lan_authenticated": true,
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
-    "clinical_data_changes": true,
+    "clinical_data_changes": false,
     "cloud_logic_changes": false,
     "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
