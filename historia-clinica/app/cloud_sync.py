@@ -631,6 +631,54 @@ class CloudSyncService:
         finally:
             sconn.close()
 
+    def _backfill_clinical_document_types_once(self, pg) -> int:
+        """Restore only the document TYPE metadata missing from old Neon.
+
+        Older public.certificates omitted certificate_type, so previously signed
+        cystoscopy/ultrasound reports and rest certificates were all displayed
+        as generic medical certificates in Reception. The doctor's local
+        SQLite record is authoritative for this metadata. Never copy document
+        text, encounter notes, signatures, links or patient demographics here.
+        """
+        marker = "certificate_type_neon_backfill_1423"
+        remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, "certificates")
+        if not {"id", "patient_id", "certificate_type", "cloud_updated_at", "deleted_at"}.issubset(remote_cols):
+            return 0
+        with sqlite3.connect(self.db_path, timeout=20) as sconn:
+            if self._get_state(sconn, marker, "0") == "1":
+                return 0
+            try:
+                rows = sconn.execute(
+                    """SELECT id, patient_id, certificate_type
+                       FROM certificates
+                       WHERE COALESCE(deleted_at,'')=''
+                         AND certificate_type IN
+                           ('rest_isolation', 'report_cystoscopy', 'report_ultrasound')"""
+                ).fetchall()
+            except sqlite3.Error:
+                return 0
+            if not rows:
+                # On a newly installed/empty PC, wait for the clinical cards
+                # to arrive. No cloud writes or additional remote polling.
+                return 0
+            cur = pg.cursor()
+            changed = 0
+            for doc_id, patient_id, doc_type in rows:
+                cur.execute(
+                    """UPDATE public.certificates
+                       SET certificate_type=%s, cloud_updated_at=now()
+                       WHERE id=%s AND patient_id=%s
+                         AND certificate_type='medical' AND deleted_at IS NULL""",
+                    (doc_type, doc_id, patient_id),
+                )
+                changed += max(0, int(cur.rowcount or 0))
+            # First commit the cloud metadata update. If this fails, the local
+            # marker is not written and the next cycle retries idempotently.
+            pg.commit()
+            self._set_state(sconn, marker, "1")
+            sconn.commit()
+            return changed
+
     def _cycle(self):
         sconn = sqlite3.connect(self.db_path, timeout=20)
         sconn.row_factory = sqlite3.Row
@@ -760,10 +808,11 @@ class CloudSyncService:
             # cursor remoto NUEVO, posterior a ese push, para que la siguiente
             # vuelta no confunda nuestro propio push con un cambio de otra PC.
             pushed = self._push(pg)
+            restored_document_types = self._backfill_clinical_document_types_once(pg)
             cur = pg.cursor()
             remote_now = _remote_now(cur)
             pg.commit()
-            effective_pull_due = pull_due or pushed > 0
+            effective_pull_due = pull_due or pushed > 0 or restored_document_types > 0
             pulled = self._pull(pg, remote_now) if effective_pull_due else 0
             self._register_device(pg)
             pg.commit()

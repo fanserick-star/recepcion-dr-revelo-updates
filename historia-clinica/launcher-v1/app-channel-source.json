@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Runtime autocontenido de Historia Clínica. La versión se toma exclusivamente de historia-version.json y el payload de update_manifest.json."
+  "notes": "Historia 1.4.23: restablece metadatos de tipo de certificados/informes antiguos en Neon sin tocar contenido clínico, firmas ni estados de pacientes; runtime autocontenido y fuente canónica."
 }
