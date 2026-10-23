@@ -48,7 +48,8 @@ def main():
                     id TEXT PRIMARY KEY,name TEXT,national_id TEXT,birth_date TEXT,sex TEXT,deleted_at TEXT
                 );
                 CREATE TABLE encounters(
-                    id TEXT PRIMARY KEY,patient_id TEXT,deleted_at TEXT
+                    id TEXT PRIMARY KEY,patient_id TEXT,queue_id TEXT,
+                    note_status TEXT,deleted_at TEXT
                 );
                 INSERT INTO patients(id,name,national_id,birth_date,sex)
                   VALUES('p1','PACIENTE FICTICIO','0000000000','1985-03-02','M');
