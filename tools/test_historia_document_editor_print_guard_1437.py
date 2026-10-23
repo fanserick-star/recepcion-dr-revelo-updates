@@ -3,7 +3,10 @@
 Todos los datos son sintéticos y se crean en un SQLite temporal.
 No se conecta a Neón, Windows ni una impresora real.
 """
+import json
+import re
 import sqlite3
+import subprocess
 import tempfile
 import sys
 from pathlib import Path
@@ -91,6 +94,61 @@ def main():
         assert documentos_clinicos._document_editor_shell(
             lambda title, body, active: body, "Prueba", "CONTENIDO", "recetas"
         ) == "CONTENIDO"
+
+        # Ejecución real del guard JS con DOM simulado: cinco clics
+        # simultáneos deben producir una sola petición. No usa impresora.
+        guarded = re.search(
+            r"<script>\s*(window\.historiaDocumentAction=\(function\(\)\{.*?\}\)\(\);)\s*</script>",
+            forms["rx"], re.S,
+        )
+        assert guarded, "No se encontró el controlador común de documentos"
+        scenario = r"""
+const vm=require('node:vm');
+const ids=['rx-save','rx-preview','rx-print','rx-pdf'];
+const elements={};
+for(const id of ids)elements[id]={textContent:id,disabled:false};
+elements['rx-state']={textContent:'Sin guardar'};
+elements['clinical-document-progress']={textContent:'',dataset:{},hidden:true};
+const ctx={
+  window:{},document:{getElementById(id){return elements[id]||null;}},
+  Date,Math,setTimeout(){return 1;},clearTimeout(){},
+};
+vm.runInNewContext(ACTION_CODE,ctx);
+const action=ctx.window.historiaDocumentAction;
+let jobs=0;
+async function work(){jobs++;await Promise.resolve();return true;}
+async function test(){
+  const results=await Promise.all(Array.from({length:5},()=>
+    action('print',ids,'rx-state',work)));
+  if(jobs!==1 || results.filter(x=>x===true).length!==1)
+    throw Error('Cinco clics crearon '+jobs+' solicitudes');
+  if(elements['rx-print'].disabled!==true)
+    throw Error('La protección de 20 s no bloqueó el botón');
+  await action('print',ids,'rx-state',work);
+  if(jobs!==1)throw Error('Doble impresión aceptada durante cooldown');
+  if(!elements['clinical-document-progress'].textContent.includes('Impresión ya solicitada'))
+    throw Error('No se avisó al usuario sobre la impresión previa');
+  await action('save',ids,'rx-state',async()=>true);
+  if(elements['rx-print'].disabled!==true)
+    throw Error('Guardar desbloqueó incorrectamente la reimpresión');
+  // El fallo de envío no debe activar un nuevo periodo de bloqueo.
+  const elements2={};
+  for(const id of ids)elements2[id]={textContent:id,disabled:false};
+  elements2['rx-state']={textContent:'Sin guardar'};
+  elements2['clinical-document-progress']={textContent:'',dataset:{},hidden:true};
+  const ctx2={window:{},document:{getElementById(id){return elements2[id]||null;}},
+    Date,Math,setTimeout(){return 1;},clearTimeout(){}};
+  vm.runInNewContext(ACTION_CODE,ctx2);
+  let retries=0;
+  const doAction=ctx2.window.historiaDocumentAction;
+  await doAction('print',ids,'rx-state',async()=>{retries++;return false;});
+  await doAction('print',ids,'rx-state',async()=>{retries++;return true;});
+  if(retries!==2)throw Error('Fallo previo impidió reintentar');
+  console.log('HISTORIA_JS_5_CLICS_1_IMPRESION_OK');
+}
+test().catch(e=>{console.error(e);process.exitCode=1});
+""".replace("ACTION_CODE", json.dumps(guarded.group(1)))
+        subprocess.run(["node", "-e", scenario], check=True, timeout=15)
         print("HISTORIA_EDITOR_PRINT_GUARD_1437_OK")
 
 
