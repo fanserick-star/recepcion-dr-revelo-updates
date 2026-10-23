@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.60",
-  "app_version": "4.8.60",
-  "runtime_version": "4.8.60",
+  "version": "4.8.61",
+  "app_version": "4.8.61",
+  "runtime_version": "4.8.61",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -192,12 +192,12 @@
     "Configurar_envios_clinicos.vbs"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.59: diagnóstico guiado de Cloudflare R2/WhatsApp y prueba a celular autorizado con PDF sintético sin datos médicos. Comprueba subida y descarga byte a byte antes de enviar. Muestra previsualización accesible desde iPhone. No hay envío automático, ni modificación de fichas, caja, AZUR, agenda, alarmas o firma médica.",
-    "previous_version": "4.8.58",
+    "purpose": "Recepción 4.8.61: acceso de solo lectura a documentos clínicos después de reparar columnas de certificados en Neon; las credenciales clínicas se leen del .env local del asistente sin alterar el entorno global, las citas, facturas ni el Worker de WhatsApp. Envíos y plantillas Meta continúan bloqueados hasta aprobación y habilitación expresa.",
+    "previous_version": "4.8.60",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
-    "database_schema_changes": false,
+    "database_schema_changes": true,
     "patient_data_changes": true,
     "patient_data_destructive_changes": false,
     "billing_logic_changes": false,
