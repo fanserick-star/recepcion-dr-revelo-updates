@@ -32,7 +32,7 @@ historia_app=(root/"historia-clinica/app/app.py").read_text(encoding="utf-8")
 assert "import clinical_video_library" in reception_app
 assert "clinical_video_library.install(app, ROOT, DB_PATH, LAN_SERVICE)" in historia_app
 assert "data-clinical-video-patient" in (root/"historia-clinica/app/patient_document_panel.py").read_text(encoding="utf-8")
-assert "video.controls=true" in js
+assert "player.controls=true" in js
 assert "video/mp4" in js
 assert "preload='none'" not in js or "preload='none'" in js
 assert "saveVideo(file)" in client and "Guardar en Recepción" in client
