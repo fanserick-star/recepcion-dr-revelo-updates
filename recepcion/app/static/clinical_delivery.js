@@ -59,7 +59,9 @@
     }
     function onKey(e){if(e.key==='Escape')dismiss();}
     close.onclick=dismiss;
-    bar.append(caption,external,close);
+    bar.append(caption);
+    if(!unsigned)bar.append(external);
+    bar.append(close);
     panel.append(bar,frame,help);
     shade.append(panel);
     document.body.append(shade);
@@ -71,7 +73,7 @@
     if(state.pid!==pid||button.disabled)return;
     const original=button.textContent;
     button.disabled=true;
-    button.textContent='Comprobando PDF…';
+    button.textContent='Consultando documento…';
     try{
       const path='/api/clinical-delivery/patients/'+pid+'/signed/'+kind+'/'+id;
       let response=await fetch(path,{cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
@@ -177,7 +179,7 @@
       row.append(info);
       const actions=document.createElement('div');actions.className='rp-clinical-actions';
       const kind=safeId(doc.kind),id=safeId(doc.id),pid=Number(state.pid);
-      const view=addButton(actions,'Ver PDF',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
+      const view=addButton(actions,'Ver documento',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
       const send=addButton(actions,'Enviar WhatsApp',()=>sendDoc(doc),!state.ready_document||state.sending);
       send.classList.add('rp-clinical-send-document');
       row.append(actions);host.append(row);
