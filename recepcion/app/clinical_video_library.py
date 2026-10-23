@@ -17,6 +17,7 @@ import sqlite3
 import tempfile
 import time
 from datetime import datetime, timezone
+from contextlib import contextmanager, closing
 from pathlib import Path
 
 import core_runtime as core
@@ -32,6 +33,7 @@ CHUNK = 1024 * 1024
 _UUID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 _FILENAME = re.compile(r"[^a-zA-Z0-9_. -]")
 
+@contextmanager
 def _db():
     BASE.mkdir(parents=True, exist_ok=True)
     STORE.mkdir(parents=True, exist_ok=True)
@@ -53,7 +55,11 @@ def _db():
     )""")
     db.execute("CREATE INDEX IF NOT EXISTS ix_videos_clinical ON videos(clinical_patient_id,recorded_at DESC)")
     db.commit()
-    return db
+    try:
+        with db:
+            yield db
+    finally:
+        db.close()
 
 def _safe_row(row):
     return {
@@ -117,8 +123,8 @@ def _backup_copy(row, source):
             # Use SQLite's online backup API; never copy an open WAL file.
             index_tmp = dest.parent / ("library.sqlite3." + secrets.token_hex(5) + ".part")
             try:
-                with sqlite3.connect(str(INDEX), timeout=20) as original:
-                    with sqlite3.connect(str(index_tmp), timeout=20) as copy:
+                with closing(sqlite3.connect(str(INDEX), timeout=20)) as original:
+                    with closing(sqlite3.connect(str(index_tmp), timeout=20)) as copy:
                         original.backup(copy)
                 os.replace(index_tmp, dest.parent / "library.sqlite3")
             finally:
