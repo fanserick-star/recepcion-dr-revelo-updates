@@ -104,6 +104,8 @@ class PrivateVideoLanServer:
                         action = ""
                         if parts.path == "/api/clinical-videos/lan/catalog":
                             action = "catalog"
+                        elif parts.path == "/api/clinical-videos/lan/speed":
+                            action = "speed"
                         elif re.fullmatch(r"/api/clinical-videos/lan/stream/[A-Za-z0-9_-]{1,100}", parts.path):
                             action = "stream"
                             v_id = parts.path.rsplit("/", 1)[-1]
@@ -121,7 +123,18 @@ class PrivateVideoLanServer:
                             return
                         if action == "catalog":
                             records = videos._records(clinical_id)
+                            # The hash is returned ONLY from the HMAC-protected
+                            # LAN catalogue, never exposed by Reception's UI.
+                            for item in records:
+                                source = videos._row_by_id(item["id"], clinical_id)
+                                item["sha256"] = str(source["sha256"])
                             self._json(200, {"ok": True, "videos": records})
+                            return
+                        if action == "speed":
+                            if clinical_id != "-" or v_id != "-":
+                                self._json(403, {"ok": False, "error": "Prueba LAN inválida"})
+                                return
+                            self._synthetic_speed()
                             return
                         record = videos._row_by_id(v_id, clinical_id)
                         source = videos._local_file(record)
@@ -135,6 +148,17 @@ class PrivateVideoLanServer:
                             status = 503
                         self._json(status, {"ok": False, "error":
                             "Archivo no encontrado" if status == 404 else "No se pudo consultar el video"})
+
+                def _synthetic_speed(self):
+                    """Fixed 8 MiB in-memory zeros; no clinical data ever read."""
+                    total = 8 * 1024 * 1024
+                    self._headers(200, total, "application/octet-stream")
+                    data = bytes(256 * 1024)
+                    try:
+                        for _ in range(32):
+                            self.wfile.write(data)
+                    except (OSError, BrokenPipeError):
+                        pass
 
                 def _stream(self, source: Path):
                     total = source.stat().st_size
