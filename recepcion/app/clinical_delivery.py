@@ -205,7 +205,7 @@ def _setup():
     wa_ready=all((cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,\
                   cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,\
                   cfg["WHATSAPP_ACCESS_TOKEN"] or core.WHATSAPP_ACCESS_TOKEN))
-    lan_ready=len(os.getenv("CLINICAL_DELIVERY_LAN_SECRET","").strip())>=32
+    lan_ready=len(cfg["CLINICAL_DELIVERY_LAN_SECRET"])>=32
     test_phone=re.sub(r"\D","",cfg["WHATSAPP_TEST_PHONE"] or core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
         test_phone="593"+test_phone[1:]
