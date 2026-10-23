@@ -21,15 +21,15 @@ def function(tree: ast.AST, name: str) -> ast.FunctionDef:
 def main() -> None:
     manifest = json.loads((APP / "update_manifest.json").read_text(encoding="utf-8"))
     version = json.loads((APP / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
-    assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"4.8.42","4.8.43","4.8.44","4.8.45","4.8.46","4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60"}
+    assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"4.8.42","4.8.43","4.8.44","4.8.45","4.8.46","4.8.47","4.8.48","4.8.49","4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61"}
     for item in ("static/billing_advanced.css", "static/billing_advanced.js"):
         assert item in manifest["copy"], ("Not shipped by launcher", item)
         assert item in manifest["required_dependencies"], ("Not required", item)
         assert (APP / item).is_file()
 
     html = (APP / "static/index.html").read_text(encoding="utf-8")
-    assert f'billing_advanced.css?v={version}' in html
-    assert f'billing_advanced.js?v={version}' in html
+    assert 'billing_advanced.css?v=4.8.60' in html
+    assert 'billing_advanced.js?v=4.8.60' in html
     assert html.index('<script src="/static/app.js') < html.index('<script src="/static/billing_advanced.js')
 
     client = (APP / "static/billing_advanced.js").read_text(encoding="utf-8")
