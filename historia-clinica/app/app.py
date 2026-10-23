@@ -2889,7 +2889,11 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         last_signed = all_histories[0] if all_histories else None
         addenda_rows = conn.execute("SELECT * FROM encounter_addenda WHERE encounter_id IN (SELECT id FROM encounters WHERE patient_id=?) ORDER BY created_at", (patient_id,)).fetchall()
         # Sólo lectura, usando patient_id canónico, sin duplicar datos ni llamar a Neón.
-        documents_html = patient_document_panel.render_patient_documents(conn, patient_id)
+        patient_documents = patient_document_panel.read_documents(conn, patient_id)
+        documents_html = patient_document_panel.render_patient_documents(
+            conn, patient_id, documents=patient_documents
+        )
+        document_count = len(patient_documents)
         audit(conn, "view", "patient", patient_id)
         conn.commit()
 
@@ -2953,10 +2957,15 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   {f'<div class="cp-observations"><label>Otros datos / observaciones</label><div>{display_text(p["legacy_notes"])}</div></div>' if p['legacy_notes'] else ''}
 </section>
 {alert_html}
-{documents_html}
 <section class="cp-history-window">
   <div class="cp-history-window-head">
-    <div class="cp-history-titlebar"><span>Historia Clínica:</span></div>
+    <div class="cp-history-titlebar"><span>Historia Clínica:</span>
+      <button type="button" class="cp-history-documents-trigger" id="patient-docs-open"
+        aria-controls="patient-docs-dialog" aria-haspopup="dialog"
+        aria-label="Abrir documentos del paciente: {document_count} documentos">
+        📁 Documentos <strong>{document_count}</strong>
+      </button>
+    </div>
     <div class="cp-history-summary"><span>Último control</span><strong>{e(last_date)}</strong></div>
     <div class="cp-history-summary"><span>Número de registros</span><strong>{display_history_count}</strong></div>
   </div>
@@ -2966,10 +2975,47 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   </div>
   <section class="timeline cp-timeline">{timeline if timeline else '<div class="empty"><strong>No hay registros que coincidan.</strong><span>Pruebe otra palabra o limpie la búsqueda.</span></div>'}</section>
 </section>
-
 </div>
+<dialog id="patient-docs-dialog" class="cp-patient-documents-dialog"
+  aria-modal="true" aria-labelledby="patient-documents-modal-title">
+  <div class="cp-docs-dialog-head">
+    <div>
+      <span class="cp-docs-modal-overline">FICHA CLÍNICA · ARCHIVO DEL PACIENTE</span>
+      <h2 id="patient-documents-modal-title">Documentos del paciente</h2>
+      <p>Consulta sus documentos sin salir del historial.</p>
+    </div>
+    <button type="button" class="cp-docs-dialog-close" id="patient-docs-close"
+      aria-label="Cerrar documentos y volver a la historia">✕ Cerrar</button>
+  </div>
+  <div class="cp-docs-dialog-content">
+    {documents_html}
+  </div>
+</dialog>
 """
     script = """<script>
+(()=>{
+  const dialog=document.getElementById('patient-docs-dialog');
+  const open=document.getElementById('patient-docs-open');
+  const close=document.getElementById('patient-docs-close');
+  if(!dialog||!open||!close)return;
+  let previousFocus=null;
+  open.addEventListener('click',()=>{
+    if(dialog.open)return;
+    previousFocus=document.activeElement;
+    dialog.showModal();
+    close.focus({preventScroll:true});
+  });
+  close.addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('close',()=>{
+    if(previousFocus&&previousFocus.isConnected)previousFocus.focus({preventScroll:true});
+  });
+  dialog.addEventListener('click',(event)=>{
+    if(event.target!==dialog)return;
+    const rect=dialog.getBoundingClientRect();
+    if(event.clientX<rect.left||event.clientX>rect.right||
+       event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();
+  });
+})();
 document.querySelectorAll('.js-edit-history').forEach(btn=>btn.addEventListener('click',async()=>{
   if(!await window.appConfirm('Se abrirá esta historia para continuar editándola. Antes de modificarla se conservará una revisión interna del texto anterior.',{title:'Continuar edición',confirmText:'Continuar edición'}))return;
   btn.disabled=true;
