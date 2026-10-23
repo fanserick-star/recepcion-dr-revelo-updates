@@ -64,5 +64,5 @@ assert "if(!unsigned)bar.append(external)" in ui
 assert "response.status===404 && /todavía no tiene PDF firmado/i.test(message)" in ui
 assert "delivery_unsigned_preview(" in api
 assert '"X-Clinical-Preview-Unsigned":"1"' in api
-assert '_signed_pdf(pid,data.kind,data.document_id)' in api
+assert 'asyncio.to_thread(_signed_pdf,pid,data.kind,data.document_id)' in api
 print("CLINICAL_UNSIGNED_PREVIEW_1426_4865_READONLY_FAIL_CLOSED_OK")
