@@ -99,6 +99,13 @@ def main():
         assert "rx-copy-v2" in left and "rx-copy-v2" in right
         assert "1. AUGMENTIN BID" in left and "1. AUGMENTIN BID" in right
         assert "875/125 TABLETAS X 20" in left
+        # Izquierda: nombre y presentación juntos dentro de UN solo
+        # bloque en negrita; jamás bajo .med-line.
+        assert "1. AUGMENTIN BID <span class='med-presentation'>875/125 TABLETAS X 20</span></div>" in left
+        assert "<div class='med-line'>" not in left
+        assert "<div class='med-name'>1. AUGMENTIN BID</div>" in right
+        assert "<div class='med-line'>TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS</div>" in right
+        assert ".med-presentation{font-weight:900}" in page
         assert "875/125 TABLETAS X 20" not in right
         assert "TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS" in right
         assert "TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS" not in left
@@ -106,6 +113,12 @@ def main():
         assert "INDICACIONES ADICIONALES DE PRUEBA" not in left
         assert ".rx-copy-v2 .rp{top:82mm}" in page
         assert ".rp{position:absolute;top:75mm;" in page
+        # El papel sigue midiendo 210mm A4; ambas mitades se meten
+        # 8 mm desde los bordes no imprimibles de la impresora.
+        assert "padding:0 8mm;grid-template-columns:97mm 97mm;" in page
+        assert "width:97mm;height:279mm;" in page
+        assert "grid-template-columns:97mm 97mm;box-shadow:none" in page
+        assert "@page{size:A4 portrait;margin:0}" in page
         assert page.count("DR. ARMANDO REVELO") == 2
         assert page.count("Serie No: 00117") == 2
         assert page.count("Telf: 0968840690") == 2
