@@ -27,6 +27,7 @@ jobs:
           python tools/test_historia_canonical_source.py
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
+          python tools/test_historia_certificate_type_backfill_1423.py
           node --check recepcion/app/static/clinical_delivery.js
           python -m py_compile recepcion/app/clinical_delivery.py historia-clinica/app/lan_bridge.py
           node --check recepcion/app/static/clinical_delivery.js
