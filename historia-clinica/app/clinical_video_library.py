@@ -63,15 +63,17 @@ def install(app, root: Path, db_path: Path, lan_service):
 
     def _host():
         values = _load_env(root)
-        candidate = str(getattr(lan_service, "_last_reception_ip", "") or
-                        values.get("RECEPTION_VIDEO_LAN_HOST") or "").strip()
+        # Explicit operator override wins; if missing, reuse the LAN source
+        # observed by the existing Reception -> Historia waiting queue.
+        candidate = str(values.get("RECEPTION_VIDEO_LAN_HOST") or
+                        getattr(lan_service, "_last_reception_ip", "") or "").strip()
         try:
             ip = ipaddress.ip_address(candidate)
             if not ip.is_private and not ip.is_loopback:
                 raise ValueError("Untrusted address")
         except ValueError:
-            raise HTTPException(503, "Recepción desconectada: abre Recepción y comprueba la conexión LAN") from None
-        port = str(values.get("RECEPTION_VIDEO_LAN_PORT") or "8000")
+            raise HTTPException(503, "Historia no conoce la IP de Recepción. Comprueba que los turnos LAN estén conectados y vuelve a abrir Documentos") from None
+        port = str(values.get("RECEPTION_VIDEO_LAN_PORT") or "8766")
         if not port.isdigit() or not (1024 <= int(port) <= 65535):
             raise HTTPException(503, "Puerto LAN de Recepción inválido")
         host = f"[{candidate}]" if ":" in candidate else candidate
@@ -124,10 +126,26 @@ def install(app, root: Path, db_path: Path, lan_service):
                             "backup": bool(item.get("backup")),
                         })
                     return {"ok": True, "videos": videos}
+            except urllib.error.HTTPError as exc:
+                if exc.code == 403:
+                    message = ("Recepción respondió, pero rechazó la clave privada de videos. "
+                               "Comprueba que CLINICAL_DELIVERY_LAN_SECRET coincida en ambas PC.")
+                elif exc.code == 404:
+                    message = ("Recepción respondió, pero el servicio privado de videos no está instalado. "
+                               "Actualiza Recepción a la versión compatible y reiníciala.")
+                elif exc.code == 503:
+                    message = ("Recepción respondió, pero su archivo local de videos no está disponible. "
+                               "Comprueba el almacenamiento y el servicio de videos.")
+                else:
+                    message = ("El servicio privado de videos de Recepción respondió con error HTTP "
+                               + str(exc.code) + ".")
+                return JSONResponse({"ok": False, "videos": [], "error": message},
+                                    status_code=503)
             except (OSError, ValueError, TypeError, urllib.error.URLError, json.JSONDecodeError):
                 return JSONResponse({"ok": False, "videos": [],
-                    "error": "No se pudo consultar el archivo de Recepción. "
-                             "Comprueba que esa PC esté encendida y conectada a la LAN."},
+                    "error": "No se puede alcanzar el puerto privado 8766 de Recepción. "
+                             "Abre Recepción y pulsa «Habilitar acceso de Historia» "
+                             "en el archivo de videocistoscopías para autorizar Windows."},
                     status_code=503)
         except HTTPException:
             raise
@@ -154,10 +172,13 @@ def install(app, root: Path, db_path: Path, lan_service):
         try:
             upstream = _fetch(url, headers={"Range": incoming_range} if incoming_range else {}, timeout=15)
         except urllib.error.HTTPError as exc:
-            raise HTTPException(404 if exc.code == 404 else 503,
-                                "El video no está disponible en Recepción") from None
+            if exc.code == 404:
+                raise HTTPException(404, "Este video no pertenece a la ficha o el original no está disponible") from None
+            if exc.code == 403:
+                raise HTTPException(503, "Recepción rechazó la autorización privada de reproducción") from None
+            raise HTTPException(503, "Recepción no pudo entregar el video original") from None
         except (OSError, urllib.error.URLError):
-            raise HTTPException(503, "No hay conexión con Recepción para reproducir el video") from None
+            raise HTTPException(503, "No se puede alcanzar el servidor privado de videos en Recepción") from None
         media = str(upstream.headers.get("Content-Type") or "").split(";")[0].strip()
         if media != "video/mp4":
             upstream.close()

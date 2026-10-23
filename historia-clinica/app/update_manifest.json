@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.30",
-  "app_version": "1.4.30",
-  "runtime_version": "1.4.30",
+  "version": "1.4.31",
+  "app_version": "1.4.31",
+  "runtime_version": "1.4.31",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Historia 1.4.30: reparar HTTP 500 y error Unexpected token / Internal Server Error al consultar videocistoscopías. Validar pacientes en SQLite antiguo o actual sin exigir columnas inexistentes; nunca alterar bases ni fichas. Catálogo entrega siempre respuesta JSON segura y mensajes específicos de desconexión de Recepción. Cache-busting de visor. Conserva MP4 original, LAN/HMAC, firmas, historial, turnos, facturas y sincronización Neon.",
-    "previous_version": "1.4.29",
+    "purpose": "Historia 1.4.31: consultar videocistoscopías desde servidor exclusivo de Recepción en puerto privado 8766; distingue inaccesibilidad de red, autorización HMAC 403, servicio antiguo 404 y fallo de archivo. Respeta override manual IP/puerto y conserva flujo LAN de turnos 8765 sin modificar historias, firmas, Neon o MP4.",
+    "previous_version": "1.4.30",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,

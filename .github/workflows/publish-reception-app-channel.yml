@@ -37,6 +37,7 @@ jobs:
           python tools/test_clinical_unsigned_preview_1426_4865.py
           python tools/test_reception_unsigned_preview_4865.py
           python tools/test_clinical_videocystoscopy_library_20261023.py
+          python tools/test_clinical_video_private_lan_1431_4869.py
           python tools/test_reception_video_archive_confirm_4867.py
           node tools/test_reception_video_multi_import_4868.mjs
           node --check recepcion/app/static/clinical_delivery.js

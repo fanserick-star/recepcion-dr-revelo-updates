@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.68: importación de hasta 20 videocistoscopías MP4 por lote con confirmación de ficha y archivos, guardado secuencial, control de duplicados, progreso y resumen; WhatsApp permanece exclusivamente de un video por envío."
+  "notes": "Recepción 4.8.69: servidor privado de videocistoscopías protegido con HMAC en 8766, independiente de la aplicación y de la LAN de turnos. Opción manual de autorizar solo ese puerto en firewall privado de Windows."
 }

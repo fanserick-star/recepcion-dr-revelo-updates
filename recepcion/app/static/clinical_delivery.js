@@ -163,6 +163,40 @@
     }
     host.append(block);
   }
+  function addPrivateVideoLanTools(section){
+    const box=document.createElement('div');
+    box.className='rp-clinical-lan-video-tools';
+    const stateLine=cell('p','Comprobando el servicio privado de reproducción LAN…','rp-clinical-help');
+    box.append(stateLine);
+    const btn=addButton(box,'Habilitar acceso de Historia (Windows)',async()=>{
+      btn.disabled=true;
+      try{
+        const answer=await api('/api/clinical-videos/lan-firewall',{method:'POST'});
+        stateLine.textContent=answer.message||'Permiso de red solicitado a Windows.';
+        notice(answer.message||'Confirma el permiso de Windows.','success');
+      }catch(e){
+        stateLine.textContent=e.message||'No se pudo pedir el permiso de Windows.';
+        notice(stateLine.textContent,'error');
+      }finally{btn.disabled=false;}
+    });
+    section.append(box);
+    api('/api/clinical-videos/lan-status').then(data=>{
+      if(!box.isConnected)return;
+      const status=data.ready?'Servicio privado de videos activo en el puerto '+data.port+'.':
+        'El servicio privado de videos no pudo iniciarse en esta PC.';
+      if(data.firewall_rule===true){
+        stateLine.textContent=status+' Permiso privado de Windows registrado.';
+      }else if(data.firewall_rule===false){
+        stateLine.textContent=status+' Falta permitir videos al doctor desde Windows. Pulsa «Habilitar acceso de Historia» y acepta la ventana de Windows.';
+      }else{
+        stateLine.textContent=status+' Comprueba que el puerto de videos esté permitido en la red privada.';
+      }
+      btn.disabled=!data.ready;
+    }).catch(()=>{
+      if(box.isConnected)stateLine.textContent='No se pudo comprobar el acceso privado de Historia. Reinicia Recepción.';
+      btn.disabled=true;
+    });
+  }
   function draw(data={}){
     const host=container();if(!host)return;
     host.replaceChildren();
@@ -192,6 +226,7 @@
     section.append(file);
     addButton(section,'Guardar videos en Recepción',()=>saveVideo(file),state.sending||state.saving_video);
     addButton(section,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video);
+    addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
     archived.forEach(v=>{
