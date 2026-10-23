@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.62: separa la prueba de PDF ficticio a teléfono personal de la habilitación de envíos clínicos a pacientes. La prueba sigue bloqueada hasta comprobar aprobación de ambas plantillas Meta y credenciales; la entrega a pacientes mantiene su interruptor independiente apagado. No altera Neon, historias, pacientes, LAN de espera, facturas, AZUR, citas ni alarmas WhatsApp."
+  "notes": "Recepción 4.8.63: vista previa de PDF firmado dentro de la aplicación sin apertura automática en Edge, y mensajes seguros para PDF aún no firmado, original faltante o vínculo/autorización LAN no coincidentes. Sin cambios en Neon, Historia, LAN de turnos, fichas, facturas, AZUR ni alarmas WhatsApp. Envíos clínicos siguen deshabilitados."
 }
