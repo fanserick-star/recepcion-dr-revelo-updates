@@ -157,6 +157,6 @@ def render_patient_documents(conn: sqlite3.Connection, patient_id: str, document
         "<button type='button' class='cp-video-refresh'>Actualizar</button></div>"
         "<p class='cp-video-status'>Abre Documentos para consultar los videos de Recepción.</p>"
         "<div class='cp-video-list'></div></section>"
-        "<script defer src='/static/clinical_video_library.js?v=1.4.28'></script>"
+        "<script defer src='/static/clinical_video_library.js?v=1.4.29'></script>"
         "</section>"
     )
