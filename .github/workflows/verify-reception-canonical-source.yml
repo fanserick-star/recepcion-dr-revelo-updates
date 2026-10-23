@@ -60,6 +60,8 @@ jobs:
           python tools/test_reception_clinical_setup_4860.py
           python tools/test_reception_clinical_preview_4863.py
           python tools/test_reception_clinical_identity_proof_4864.py
+          python tools/test_clinical_unsigned_preview_1426_4865.py
+          python tools/test_reception_unsigned_preview_4865.py
           node --check recepcion/app/static/clinical_delivery.js
           python -m py_compile recepcion/app/clinical_delivery.py recepcion/app/clinical_delivery_config.py historia-clinica/app/lan_bridge.py
           node --check recepcion/app/static/clinical_delivery.js
