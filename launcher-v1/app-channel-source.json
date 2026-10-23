@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.67: confirmación moderna e integrada al archivar videocistoscopías; identificación de paciente obligatoria y ninguna importación antes de confirmar. Sin cambios de datos ni transporte LAN."
+  "notes": "Recepción 4.8.68: importación de hasta 20 videocistoscopías MP4 por lote con confirmación de ficha y archivos, guardado secuencial, control de duplicados, progreso y resumen; WhatsApp permanece exclusivamente de un video por envío."
 }

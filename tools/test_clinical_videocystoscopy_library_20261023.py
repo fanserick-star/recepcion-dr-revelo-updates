@@ -35,7 +35,7 @@ assert "data-clinical-video-patient" in (root/"historia-clinica/app/patient_docu
 assert "player.controls=true" in js
 assert "video/mp4" in js
 assert "preload='none'" not in js or "preload='none'" in js
-assert "saveVideo(file)" in client and "Guardar en Recepción" in client
+assert "saveVideo(file)" in client and "Guardar videos en Recepción" in client
 assert "sendVideo(file)" in client
 assert "ready_video" not in client.split("async function saveVideo",1)[1].split("async function sendVideo",1)[0]
 assert "CLINICAL_VIDEO_BACKUP_DIR" in rs

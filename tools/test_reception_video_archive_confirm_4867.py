@@ -11,11 +11,11 @@ js=(root/"recepcion/app/static/clinical_delivery.js").read_text(encoding="utf-8"
 css=(root/"recepcion/app/static/style.css").read_text(encoding="utf-8")
 html=(root/"recepcion/app/static/index.html").read_text(encoding="utf-8")
 version=(root/"recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
-assert '"4.8.67"' in version
-assert "clinical_delivery.js?v=4.8.67" in html
+assert '"4.8.68"' in version
+assert "clinical_delivery.js?v=4.8.68" in html
 assert "function confirmVideoArchive(chosen)" in js
-assert "if(!await confirmVideoArchive(chosen))return;" in js
-assert "if(state.sending||state.saving_video)return;" in js
+assert "if(!await confirmVideoArchive(selected))return;" in js
+assert "if(state.sending||state.saving_video||state.pid!==pid)return;" in js
 assert "accept.disabled=true" in js
 assert "accept.disabled=!check.checked" in js
 assert "Boolean(approved&&check.checked&&currentPatientId===state.pid)" in js
@@ -29,8 +29,8 @@ assert "finish(false)" in js and "finish(true)" in js
 assert "document.removeEventListener('keydown',onKey,true)" in js
 assert "opener.focus()" in js
 assert "appendDetail('PACIENTE',state.name" in js
-assert "appendDetail('ARCHIVO ORIGINAL',chosen.name)" in js
-assert "appendDetail('TAMAÑO'" in js
+assert "appendDetail(chosen.length===1?'ARCHIVO ORIGINAL'" in js
+assert "appendDetail('TAMAÑO TOTAL'" in js
 assert "No se enviará" in js or "No se enviará por WhatsApp" in js
 assert "Guardar video en Recepción" in js
 assert "fetch(path" in js or "api(url,{method:'POST'" in js
