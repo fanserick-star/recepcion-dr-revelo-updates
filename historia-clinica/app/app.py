@@ -23,6 +23,7 @@ import documentos_clinicos
 import informes_clinicos
 import firma_electronica
 import doctor_turn_call
+import patient_document_panel
 import cloud_presence_patch
 cloud_presence_patch.install()
 
@@ -2887,6 +2888,8 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         """, (patient_id,)).fetchone()
         last_signed = all_histories[0] if all_histories else None
         addenda_rows = conn.execute("SELECT * FROM encounter_addenda WHERE encounter_id IN (SELECT id FROM encounters WHERE patient_id=?) ORDER BY created_at", (patient_id,)).fetchall()
+        # Sólo lectura, usando patient_id canónico, sin duplicar datos ni llamar a Neón.
+        documents_html = patient_document_panel.render_patient_documents(conn, patient_id)
         audit(conn, "view", "patient", patient_id)
         conn.commit()
 
@@ -2909,14 +2912,16 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         if active_edit else
         f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva">+ Nueva consulta</a>'
     )
-    action = (
-        f"<div class='cp-patient-actions'>"
+    # Sólo la acción principal junto al identificador de ficha;
+    # herramientas secundarias una fila más abajo, a la DERECHA.
+    secondary_actions = (
+        f"<nav class='cp-patient-secondary-actions' aria-label='Otras acciones del paciente'>"
         f"<a class='secondary btn-link cp-edit-patient' href='/paciente/{e(patient_id)}/editar'>Editar datos</a>"
         f"<a class='secondary btn-link cp-prescription' target='_blank' href='/recetas/nueva?patient_id={e(patient_id)}'>Receta médica</a>"
         f"<a class='secondary btn-link cp-certificate' target='_blank' href='/certificados/nuevo?patient_id={e(patient_id)}'>Certificado médico</a>"
         f"<a class='secondary btn-link cp-reports' href='/informes?patient_id={e(patient_id)}'>Informes médicos</a>"
         f"{doctor_turn_call.patient_button(db, patient_id, _queue_turn_number, _queue_is_procedure)}"
-        f"{consult_action}</div>"
+        f"</nav>"
     )
 
     def value_or_empty(value, transform=False):
@@ -2934,8 +2939,9 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
     <div class="cp-short-field"><label>Sexo:</label><div>{e(sex_label(p['sex']) or '—')}</div></div>
     <div class="cp-short-field age"><label>Edad:</label><div>{e(str(age) + ' años') if age else '—'}</div></div>
     <div class="cp-id-field"><label>ID Num:</label><div>{value_or_empty(ident)}</div></div>
-    <div class="cp-patient-action">{action}</div>
+    <div class="cp-patient-action cp-patient-primary-action">{consult_action}</div>
   </div>
+  {secondary_actions}
   <div class="cp-patient-grid">
     <div class="cp-data-field"><label>Fecha de nacimiento</label><div>{value_or_empty(human_date(p['birth_date']))}</div></div>
     <div class="cp-data-field"><label>Teléfono</label><div>{value_or_empty(p['phone'])}</div></div>
@@ -2947,6 +2953,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   {f'<div class="cp-observations"><label>Otros datos / observaciones</label><div>{display_text(p["legacy_notes"])}</div></div>' if p['legacy_notes'] else ''}
 </section>
 {alert_html}
+{documents_html}
 <section class="cp-history-window">
   <div class="cp-history-window-head">
     <div class="cp-history-titlebar"><span>Historia Clínica:</span></div>
