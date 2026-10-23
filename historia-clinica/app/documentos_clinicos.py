@@ -511,7 +511,7 @@ def _styles() -> str:
 .doc-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
 .doc-actions button,.doc-actions a{border:0;border-radius:9px;padding:10px 14px;font-weight:800;text-decoration:none;cursor:pointer}
 .doc-primary{background:#2b6aa7;color:#fff}.doc-light{background:#edf3f9;color:#173b66}.doc-muted{background:#e5e7eb;color:#374151}
-.med-table{width:100%;border-collapse:collapse;table-layout:fixed}.med-table th,.med-table td{padding:7px;border-bottom:1px solid #e5e7eb;text-align:left}.med-table th:first-child,.med-table td:first-child{width:43%}.med-table th:nth-child(2),.med-table td:nth-child(2){width:57%}.med-table input{width:100%;box-sizing:border-box;min-height:48px;padding:12px 13px;font-size:15px}.med-table .m-direction{font-size:15px}
+.med-table{width:100%;border-collapse:collapse;table-layout:fixed}.med-table th,.med-table td{padding:7px 5px;border-bottom:1px solid #e5e7eb;text-align:left;overflow-wrap:break-word}.med-table th:first-child,.med-table td:first-child{width:32%}.med-table th:nth-child(2),.med-table td:nth-child(2){width:33%}.med-table th:nth-child(3),.med-table td:nth-child(3){width:35%}.med-table input{width:100%;box-sizing:border-box;min-height:48px;padding:10px 8px;font-size:14px}.med-table .m-presentation,.med-table .m-indications{font-size:14px}.med-table th{font-size:12px;line-height:1.3}
 .list-table{width:100%;border-collapse:collapse}.list-table th,.list-table td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}
 .config-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.config-nav a{padding:8px 10px;border-radius:8px;background:#edf3f9;color:#173b66;text-decoration:none;font-weight:800}
 .config-status-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
@@ -756,8 +756,9 @@ def install(app, context: dict) -> None:
             </div>
             <div class='docs-card'>
               <h3>Medicamentos / Indicaciones</h3>
-              <table class='med-table' id='med-table'><thead><tr><th>Medicamento</th><th>Indicaciones</th></tr></thead><tbody>
-                {''.join("<tr><td><input class='m-name' placeholder='Nombre del medicamento'></td><td><input class='m-direction' placeholder='Ej. 500 mg cada 12 horas por 7 días'></td></tr>" for _ in range(4))}
+              <p style='color:#64748b;font-size:12px;line-height:1.5'>Izquierda: nombre y presentación/cantidad. Derecha: nombre e indicaciones. Cada dato se escribe una sola vez.</p>
+              <table class='med-table' id='med-table'><thead><tr><th>Nombre</th><th>Presentación y cantidad</th><th>Indicaciones</th></tr></thead><tbody>
+                {''.join("<tr><td><input class='m-name' placeholder='Ej. AUGMENTIN BID' aria-label='Nombre del medicamento'></td><td><input class='m-presentation' placeholder='Ej. 875/125 MG TABLETAS X 20' aria-label='Presentación y cantidad'></td><td><input class='m-indications' placeholder='Ej. Tomar 1 tableta cada 12 horas' aria-label='Indicaciones'></td></tr>" for _ in range(4))}
               </tbody></table>
               <div class='doc-actions'><button class='doc-light' type='button' id='add-med'>Agregar medicamento</button></div>
               <label>Indicaciones adicionales<textarea id='rx-instructions'></textarea></label>
@@ -777,16 +778,15 @@ def install(app, context: dict) -> None:
         let encounterId={json.dumps(encounter_id)}, prescriptionId=null;
         function addRow(){{
           const tr=document.createElement('tr');
-          tr.innerHTML="<td><input class='m-name' placeholder='Nombre del medicamento'></td><td><input class='m-direction' placeholder='Ej. 500 mg cada 12 horas por 7 días'></td>";
+          tr.innerHTML="<td><input class='m-name' placeholder='Ej. AUGMENTIN BID' aria-label='Nombre del medicamento'></td><td><input class='m-presentation' placeholder='Ej. 875/125 MG TABLETAS X 20' aria-label='Presentación y cantidad'></td><td><input class='m-indications' placeholder='Ej. Tomar 1 tableta cada 12 horas' aria-label='Indicaciones'></td>";
           document.querySelector('#med-table tbody').appendChild(tr);
         }}
         document.getElementById('add-med').onclick=addRow;
         function items(){{
           return [...document.querySelectorAll('#med-table tbody tr')].map(tr=>({{
             medication:tr.querySelector('.m-name').value.trim(),
-            dose:tr.querySelector('.m-direction').value.trim(),
-            frequency:"",
-            duration:""
+            presentation_quantity:tr.querySelector('.m-presentation').value.trim(),
+            indications:tr.querySelector('.m-indications').value.trim()
           }})).filter(x=>x.medication);
         }}
         function notifyParent(encId){{
@@ -941,6 +941,42 @@ def install(app, context: dict) -> None:
         if not meds:
             meds = "<div class='med-empty'>Sin medicamentos registrados.</div>"
 
+        # Las recetas anteriores siguen imprimiéndose como se guardaron:
+        # dos copias idénticas con su campo antiguo "dose".
+        # Sólo los ítems nuevos llevan presentación e indicaciones separadas.
+        split_prescription = any(
+            isinstance(item, dict) and (
+                "presentation_quantity" in item or "indications" in item
+            )
+            for item in items
+        )
+        left_meds = meds
+        right_meds = meds
+        if split_prescription:
+            def new_medication_rows(side: str) -> str:
+                blocks = []
+                for i, item in enumerate(items):
+                    if not isinstance(item, dict):
+                        continue
+                    name = _e(str(item.get("medication") or "").strip().upper())
+                    if not name:
+                        continue
+                    value = (
+                        item.get("presentation_quantity")
+                        if side == "left"
+                        else item.get("indications")
+                    )
+                    detail = _e(str(value or "").strip().upper())
+                    blocks.append(
+                        "<div class='med-item'>"
+                        + f"<div class='med-name'>{i+1}. {name}</div>"
+                        + (f"<div class='med-line'>{detail}</div>" if detail else "")
+                        + "</div>"
+                    )
+                return "".join(blocks) or "<div class='med-empty'>Sin medicamentos registrados.</div>"
+            left_meds = new_medication_rows("left")
+            right_meds = new_medication_rows("right")
+
         instructions = str(row["instructions"] or "").strip()
         allergy_detail = str(row["allergies_detail"] or "").strip()
         allergy = str(row["allergies"] or "NO").strip().upper()
@@ -993,8 +1029,8 @@ def install(app, context: dict) -> None:
           </div>
 
           <div class='rp'>
-            {meds}
-            {f"<div class='extra'>{_e(instructions).replace(chr(10),'<br>')}</div>" if instructions else ""}
+            __RX_MEDICATIONS_PLACEHOLDER_1432__
+            __RX_EXTRA_PLACEHOLDER_1432__
           </div>
 
           <img class='watermark' src='/static/doctor_logo.png' alt=''>
@@ -1007,6 +1043,30 @@ def install(app, context: dict) -> None:
           </footer>
         </section>
         """
+
+        # Sólo la vista HTML/PDF nueva separa las mitades; los PDFs PAdES
+        # ya firmados no se regeneran ni se sobrescriben.
+        extra_html = (
+            f"<div class='extra'>{_e(instructions).replace(chr(10),'<br>')}</div>"
+            if instructions else ""
+        )
+        left_copy = (
+            one.replace("__RX_MEDICATIONS_PLACEHOLDER_1432__", left_meds)
+               .replace("__RX_EXTRA_PLACEHOLDER_1432__", "" if split_prescription else extra_html)
+        )
+        right_copy = (
+            one.replace("__RX_MEDICATIONS_PLACEHOLDER_1432__", right_meds)
+               .replace("__RX_EXTRA_PLACEHOLDER_1432__", extra_html)
+        )
+        if split_prescription:
+            left_copy = left_copy.replace(
+                "<section class='rx-copy'>",
+                "<section class='rx-copy rx-copy-v2'>", 1,
+            )
+            right_copy = right_copy.replace(
+                "<section class='rx-copy'>",
+                "<section class='rx-copy rx-copy-v2'>", 1,
+            )
 
         html_doc = f"""<!doctype html>
 <html>
@@ -1062,6 +1122,7 @@ body{{background:#dfe5ea;padding:14px}}
 .series{{color:#3c8daf;font-size:9.8pt;font-weight:900;white-space:nowrap}}
 .rp-title{{position:absolute;top:73mm;left:3.5mm;font-family:Georgia,serif;font-size:14pt;font-weight:900;margin:0}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
+.rx-copy-v2 .rp{{top:82mm}}
 .med-item{{margin:0 0 2.8mm}}
 .med-name{{font-weight:900;font-size:10.2pt}}
 .med-line{{margin:.7mm 0 0 2mm;font-size:9.1pt}}
@@ -1092,9 +1153,9 @@ footer{{
 <body>
 <div class='toolbar'>
   <button onclick='window.print()'>Imprimir / Guardar PDF</button>
-  <span>A4 vertical · 2 recetas iguales · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
+  <span>{"A4 vertical · Izquierda: nombre y presentación/cantidad · Derecha: nombre e indicaciones" if split_prescription else "A4 vertical · 2 recetas iguales"} · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
 </div>
-<main class='sheet'>{one}{one}</main>
+<main class='sheet'>{left_copy}{right_copy}</main>
 {"<script>(()=>{let fired=false;const go=()=>{if(fired)return;fired=true;try{window.focus()}catch(_e){};setTimeout(()=>{try{window.print()}catch(_e){}},450)};if(document.readyState==='complete')go();else window.addEventListener('load',go,{once:true});window.addEventListener('pageshow',go,{once:true});})();</script>" if print_now else ""}
 </body>
 </html>"""

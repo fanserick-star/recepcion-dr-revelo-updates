@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.31",
-  "app_version": "1.4.31",
-  "runtime_version": "1.4.31",
+  "version": "1.4.32",
+  "app_version": "1.4.32",
+  "runtime_version": "1.4.32",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -86,8 +86,8 @@
     "static/clinical_video_library.js"
   ],
   "notes": {
-    "purpose": "Historia 1.4.31: consultar videocistoscopías desde servidor exclusivo de Recepción en puerto privado 8766; distingue inaccesibilidad de red, autorización HMAC 403, servicio antiguo 404 y fallo de archivo. Respeta override manual IP/puerto y conserva flujo LAN de turnos 8765 sin modificar historias, firmas, Neon o MP4.",
-    "previous_version": "1.4.30",
+    "purpose": "Recetas nuevas: 3 campos por medicamento (Nombre, Presentación y cantidad, Indicaciones). En A4 izquierda imprime nombre + presentación/cantidad sin indicaciones; derecha nombre + indicaciones, con indicaciones adicionales sólo a la derecha. Desplazar el bloque de medicamentos 7 mm hacia abajo en ambas mitades. Recetas históricas usan su estructura dose/frequency/duration y conservan impresión duplicada anterior. No altera encabezado, dos membretes, serie, datos de paciente, firma PDF PAdES, Neón ni esquema.",
+    "previous_version": "1.4.31",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -308,6 +308,18 @@
     "patient_document_modal_preserves_reading_position": true,
     "patient_document_modal_focus_restore": true,
     "patient_documents_no_schema_change": true,
-    "patient_documents_original_signed_pdf_unchanged": true
+    "patient_documents_original_signed_pdf_unchanged": true,
+    "prescription_split_layout": true,
+    "prescription_three_fields": [
+      "Nombre",
+      "Presentación y cantidad",
+      "Indicaciones"
+    ],
+    "prescription_left_medication_and_presentation_only": true,
+    "prescription_right_medication_and_indications_only": true,
+    "prescription_new_layout_medicine_top_mm": 82,
+    "prescription_legacy_layout_preserved": true,
+    "prescription_legacy_signed_original_preserved": true,
+    "prescription_neon_schema_changes": false
   }
 }

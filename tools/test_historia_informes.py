@@ -317,3 +317,5 @@ if __name__ == "__main__":
     signed_report_view()
     from test_historia_patient_documents_1426 import main as patient_docs_actions
     patient_docs_actions()
+    from test_historia_recetas_divididas_1432 import main as split_prescriptions
+    split_prescriptions()
