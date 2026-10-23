@@ -532,6 +532,124 @@ def _styles() -> str:
 
 
 
+
+def _document_editor_shell(base, title: str, body: str, active: str) -> str:
+    """Ventana de documento amplia, sin duplicar la navegación de Historia.
+
+    El envoltorio normal conserva sus scripts y seguridad; solo el editor
+    recibe una presentación independiente y protección de acciones repetidas.
+    """
+    page = base(title, body, active)
+    marker = '<body class="cp-remaster-app">'
+    if marker not in page:
+        return page  # wrappers de pruebas y compatibilidad antigua
+    page = page.replace(marker, '<body class="cp-remaster-app clinical-document-editor">', 1)
+    page = page.replace("</head>", """
+<style>
+body.clinical-document-editor > header.topbar,
+body.clinical-document-editor > footer{display:none!important}
+body.clinical-document-editor > main{width:100%;max-width:1690px;box-sizing:border-box;
+  padding:16px clamp(12px,2vw,32px) 40px}
+body.clinical-document-editor .docs-wrap{max-width:1600px;padding:10px 0 26px}
+body.clinical-document-editor .docs-head h1{font-size:clamp(24px,2.4vw,31px)}
+body.clinical-document-editor .docs-card{padding:clamp(15px,1.6vw,24px)}
+body.clinical-document-editor .docs-card label{font-size:14px}
+body.clinical-document-editor .docs-card input,
+body.clinical-document-editor .docs-card select,
+body.clinical-document-editor .docs-card textarea{font-size:16px;min-height:43px}
+body.clinical-document-editor .doc-actions button{min-height:48px;font-size:15px}
+body.clinical-document-editor .doc-actions button:disabled{opacity:.58;cursor:wait}
+body.clinical-document-editor .doc-progress{position:fixed;z-index:9990;bottom:18px;
+  left:50%;transform:translateX(-50%);width:min(92vw,640px);box-sizing:border-box;
+  padding:17px 22px;text-align:center;border-radius:12px;
+  border:2px solid #2b6aa7;background:#fff;color:#173b66;
+  box-shadow:0 12px 40px #173b6640;font-size:17px;font-weight:800}
+body.clinical-document-editor .doc-progress[data-state="done"]{border-color:#21744e}
+body.clinical-document-editor .doc-progress[data-state="error"]{border-color:#b42318}
+body.clinical-document-editor .doc-progress[hidden]{display:none!important}
+@media(max-width:850px){
+  body.clinical-document-editor > main{padding:12px 12px 30px}
+  body.clinical-document-editor .docs-wrap{padding:8px 0}
+}
+@media print{body.clinical-document-editor .doc-progress{display:none!important}}
+</style>
+</head>""", 1)
+    page = page.replace("</body>", """
+<div id="clinical-document-progress" class="doc-progress" role="status" aria-live="polite" hidden></div>
+<script>
+window.historiaDocumentAction=(function(){
+  'use strict';
+  let busy=false,lastPrintAt=0,releaseTimer=0;
+  const REPEAT_WAIT_MS=20000;
+  const banner=document.getElementById('clinical-document-progress');
+  function announce(message,level){
+    banner.textContent=message;
+    banner.dataset.state=level||'working';
+    banner.hidden=false;
+  }
+  function updatePrintGate(id){
+    const button=document.getElementById(id);
+    if(!button)return;
+    clearTimeout(releaseTimer);
+    const wait=Math.max(0,REPEAT_WAIT_MS-(Date.now()-lastPrintAt));
+    button.disabled=busy||wait>0;
+    if(wait>0)releaseTimer=setTimeout(()=>{if(!busy)button.disabled=false;},wait+30);
+  }
+  return async function(mode, ids, stateId, work){
+    const printing=mode==='print';
+    const printId=ids.find(id=>id.endsWith('-print'));
+    const remaining=REPEAT_WAIT_MS-(Date.now()-lastPrintAt);
+    if(busy){announce('Ya estamos preparando este documento. Evite pulsar de nuevo.','working');return false;}
+    if(printing&&remaining>0){
+      announce('Impresión ya solicitada. Espere '+Math.ceil(remaining/1000)+' segundos para otra copia.','done');
+      return false;
+    }
+    busy=true;
+    const buttons=ids.map(id=>document.getElementById(id)).filter(Boolean);
+    const printButton=document.getElementById(printId);
+    const original=printButton?printButton.textContent:'';
+    const state=document.getElementById(stateId);
+    buttons.forEach(button=>button.disabled=true);
+    if(printing){
+      if(printButton)printButton.textContent='Preparando impresión…';
+      if(state)state.textContent='Preparando documento e impresora…';
+      announce('Preparando documento y enviando a la impresora…','working');
+    }else{
+      announce(mode==='save'?'Guardando documento…':mode==='sign'?'Preparando firma…':'Preparando vista previa…','working');
+    }
+    let sent=false;
+    try{
+      const result=await work();
+      if(printing){
+        sent=result===true;
+        if(sent){
+          lastPrintAt=Date.now();
+          if(state)state.textContent='Solicitud de impresión enviada';
+          announce('Solicitud enviada a Windows. Espere antes de solicitar otra copia.','done');
+        }else{
+          announce('No se confirmó el envío de impresión. Revise el aviso y la impresora.','error');
+        }
+      }else if(result!==false){
+        banner.hidden=true;
+      }else{
+        banner.hidden=true;
+      }
+      return result;
+    }catch(error){
+      announce(error&&error.message?error.message:'No se pudo procesar el documento.','error');
+      return false;
+    }finally{
+      busy=false;
+      buttons.forEach(button=>button.disabled=false);
+      if(printButton)printButton.textContent=original;
+      updatePrintGate(printId);
+    }
+  };
+})();
+</script>
+</body>""", 1)
+    return page
+
 def _inline_signature_activation_dialog() -> str:
     """Activación local de firma sin abandonar el editor o guardar el documento."""
     return """
@@ -830,8 +948,7 @@ def install(app, context: dict) -> None:
                 }}
               }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
-              await window.historiaNativePrint(j.preview_url,'recipe');
-              return;
+              return await window.historiaNativePrint(j.preview_url,'recipe');
             }}
             if(mode==='pdf'){{
               const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
@@ -842,14 +959,14 @@ def install(app, context: dict) -> None:
               return;
             }}
             window.open(j.preview_url,'_blank');
-          }}catch(e){{alert(e.message)}}
+          }}catch(e){{alert(e.message);return false;}}
         }}
-        document.getElementById('rx-save').onclick=()=>saveRx(true).catch(e=>alert(e.message));
-        document.getElementById('rx-preview').onclick=()=>openPreview('preview');
-        document.getElementById('rx-print').onclick=()=>openPreview('print');
-        document.getElementById('rx-pdf').onclick=()=>openPreview('pdf');
+        document.getElementById('rx-save').onclick=()=>window.historiaDocumentAction('save',['rx-save','rx-preview','rx-print','rx-pdf'],'rx-state',()=>saveRx(true));
+        document.getElementById('rx-preview').onclick=()=>window.historiaDocumentAction('preview',['rx-save','rx-preview','rx-print','rx-pdf'],'rx-state',()=>openPreview('preview'));
+        document.getElementById('rx-print').onclick=()=>window.historiaDocumentAction('print',['rx-save','rx-preview','rx-print','rx-pdf'],'rx-state',()=>openPreview('print'));
+        document.getElementById('rx-pdf').onclick=()=>window.historiaDocumentAction('sign',['rx-save','rx-preview','rx-print','rx-pdf'],'rx-state',()=>openPreview('pdf'));
         </script>"""
-        return HTMLResponse(base("Receta médica", body, "recetas"))
+        return HTMLResponse(_document_editor_shell(base, "Receta médica", body, "recetas"))
 
     @app.post("/api/recetas")
     async def prescription_save(request: Request):
@@ -1488,8 +1605,7 @@ footer{{
                 }}
               }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
-              await window.historiaNativePrint(j.preview_url,'certificate');
-              return;
+              return await window.historiaNativePrint(j.preview_url,'certificate');
             }}
             if(mode==='pdf'){{
               const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
@@ -1500,14 +1616,14 @@ footer{{
               return;
             }}
             window.open(j.preview_url,'_blank');
-          }}catch(e){{alert(e.message)}}
+          }}catch(e){{alert(e.message);return false;}}
         }}
-        document.getElementById('cert-save').onclick=()=>saveCert(true).catch(e=>alert(e.message));
-        document.getElementById('cert-preview').onclick=()=>openCert('preview');
-        document.getElementById('cert-print').onclick=()=>openCert('print');
-        document.getElementById('cert-pdf').onclick=()=>openCert('pdf');
+        document.getElementById('cert-save').onclick=()=>window.historiaDocumentAction('save',['cert-save','cert-preview','cert-print','cert-pdf'],'cert-state',()=>saveCert(true));
+        document.getElementById('cert-preview').onclick=()=>window.historiaDocumentAction('preview',['cert-save','cert-preview','cert-print','cert-pdf'],'cert-state',()=>openCert('preview'));
+        document.getElementById('cert-print').onclick=()=>window.historiaDocumentAction('print',['cert-save','cert-preview','cert-print','cert-pdf'],'cert-state',()=>openCert('print'));
+        document.getElementById('cert-pdf').onclick=()=>window.historiaDocumentAction('sign',['cert-save','cert-preview','cert-print','cert-pdf'],'cert-state',()=>openCert('pdf'));
         </script>"""
-        return HTMLResponse(base("Certificado médico", body, "certificados"))
+        return HTMLResponse(_document_editor_shell(base, "Certificado médico", body, "certificados"))
 
     @app.post("/api/certificados/texto")
     async def certificate_text(request: Request):
@@ -1934,8 +2050,7 @@ footer{{
                 }}
               }}catch(_sigError){{if(window.showAppToast)showAppToast('No se pudo archivar la copia firmada; la impresión continuará.','info')}}
               if(!window.historiaNativePrint)throw new Error('Reabra Historia Clínica para activar la impresión directa.');
-              await window.historiaNativePrint(j.preview_url,'certificate');
-              return;
+              return await window.historiaNativePrint(j.preview_url,'certificate');
             }}
             if(mode==='pdf'){{
               const sr=await fetch('/api/firma/status?t='+Date.now(),{{cache:'no-store'}});
@@ -1946,14 +2061,14 @@ footer{{
               return;
             }}
             window.open(j.preview_url,'_blank');
-          }}catch(e){{alert(e.message)}}
+          }}catch(e){{alert(e.message);return false;}}
         }}
-        document.getElementById('rest-save').onclick=()=>saveRest(true).catch(e=>alert(e.message));
-        document.getElementById('rest-preview').onclick=()=>openRest('preview');
-        document.getElementById('rest-print').onclick=()=>openRest('print');
-        document.getElementById('rest-pdf').onclick=()=>openRest('pdf');
+        document.getElementById('rest-save').onclick=()=>window.historiaDocumentAction('save',['rest-save','rest-preview','rest-print','rest-pdf'],'rest-state',()=>saveRest(true));
+        document.getElementById('rest-preview').onclick=()=>window.historiaDocumentAction('preview',['rest-save','rest-preview','rest-print','rest-pdf'],'rest-state',()=>openRest('preview'));
+        document.getElementById('rest-print').onclick=()=>window.historiaDocumentAction('print',['rest-save','rest-preview','rest-print','rest-pdf'],'rest-state',()=>openRest('print'));
+        document.getElementById('rest-pdf').onclick=()=>window.historiaDocumentAction('sign',['rest-save','rest-preview','rest-print','rest-pdf'],'rest-state',()=>openRest('pdf'));
         </script>"""
-        return HTMLResponse(base("Certificado de reposo / aislamiento", body, "certificados"))
+        return HTMLResponse(_document_editor_shell(base, "Certificado de reposo / aislamiento", body, "certificados"))
 
 
     @app.post("/api/certificados/reposo")
