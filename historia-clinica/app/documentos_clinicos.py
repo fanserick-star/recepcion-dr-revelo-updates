@@ -967,12 +967,24 @@ def install(app, context: dict) -> None:
                         else item.get("indications")
                     )
                     detail = _e(str(value or "").strip().upper())
-                    blocks.append(
-                        "<div class='med-item'>"
-                        + f"<div class='med-name'>{i+1}. {name}</div>"
-                        + (f"<div class='med-line'>{detail}</div>" if detail else "")
-                        + "</div>"
-                    )
+                    if side == "left":
+                        # Nombre + presentación/cantidad, seguidos y EN NEGRITA.
+                        # El texto puede saltar de línea si es largo, sin cortarse.
+                        item_html = (
+                            "<div class='med-item'>"
+                            + f"<div class='med-name'>{i+1}. {name}"
+                            + (f" <span class='med-presentation'>{detail}</span>" if detail else "")
+                            + "</div></div>"
+                        )
+                    else:
+                        # Nombre en negrita; indicaciones debajo, en texto normal.
+                        item_html = (
+                            "<div class='med-item'>"
+                            + f"<div class='med-name'>{i+1}. {name}</div>"
+                            + (f"<div class='med-line'>{detail}</div>" if detail else "")
+                            + "</div>"
+                        )
+                    blocks.append(item_html)
                 return "".join(blocks) or "<div class='med-empty'>Sin medicamentos registrados.</div>"
             left_meds = new_medication_rows("left")
             right_meds = new_medication_rows("right")
@@ -1084,10 +1096,13 @@ body{{background:#dfe5ea;padding:14px}}
 .toolbar span{{font-size:12px;color:#475569}}
 .sheet{{
   width:210mm;height:297mm;margin:0 auto;background:white;display:grid;
-  grid-template-columns:105mm 105mm;overflow:hidden;box-shadow:0 8px 28px #0f172a2c;
+  /* Reserva márgenes reales de 8 mm a ambos bordes del papel A4.
+     Evita que impresión directa y vista previa recorten letras en los extremos. */
+  padding:0 8mm;grid-template-columns:97mm 97mm;
+  overflow:hidden;box-shadow:0 8px 28px #0f172a2c;
 }}
 .rx-copy{{
-  width:105mm;height:279mm;position:relative;overflow:hidden;padding:0 3.5mm;
+  width:97mm;height:279mm;position:relative;overflow:hidden;padding:0 3.5mm;
   background:#fff;
 }}
 .rx-copy:first-child{{border-right:.25mm solid #e5e7eb}}
@@ -1124,7 +1139,8 @@ body{{background:#dfe5ea;padding:14px}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
 .rx-copy-v2 .rp{{top:82mm}}
 .med-item{{margin:0 0 2.8mm}}
-.med-name{{font-weight:900;font-size:10.2pt}}
+.med-name{{font-weight:900;font-size:10.2pt;overflow-wrap:anywhere}}
+.med-presentation{{font-weight:900}}
 .med-line{{margin:.7mm 0 0 2mm;font-size:9.1pt}}
 .med-empty{{color:#94a3b8;font-style:italic}}
 .extra{{margin-top:2.5mm;padding-top:1.5mm;border-top:.25mm dashed #cbd5e1;white-space:pre-wrap}}
@@ -1145,7 +1161,8 @@ footer{{
 @media print{{
   html,body{{width:210mm;height:297mm;background:#fff;padding:0}}
   .toolbar{{display:none!important}}
-  .sheet{{width:210mm;height:297mm;margin:0 auto;box-shadow:none}}
+  .sheet{{width:210mm;height:297mm;margin:0 auto;padding:0 8mm;
+    grid-template-columns:97mm 97mm;box-shadow:none}}
   .rx-copy:first-child{{border-right:none}}
 }}
 </style>
