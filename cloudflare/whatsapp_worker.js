@@ -7340,7 +7340,7 @@ async function serveClinicalShortLink(request,env,pathname) {
   if(!match || !env.CLINICAL_LINKS_R2) return deny();
   let record;
   try {
-    const obj=await env.CLINICAL_LINKS_R2.get("clinical-links/"+match[1]+".json");
+    const obj=await env.CLINICAL_LINKS_R2.get("clinical-temp/short-links/"+match[1]+".json");
     if(!obj) return deny();
     const raw=await obj.text();
     if(raw.length>2700) return deny();
