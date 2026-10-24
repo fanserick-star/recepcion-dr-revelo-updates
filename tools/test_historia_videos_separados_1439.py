@@ -19,7 +19,7 @@ css = (app_root / "static" / "style.css").read_text(encoding="utf-8")
 backend = (app_root / "clinical_video_library.py").read_text(encoding="utf-8")
 version = json.loads((app_root / "historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest = json.loads((app_root / "update_manifest.json").read_text(encoding="utf-8"))
-assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40", "1.4.41"}
+assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40", "1.4.41", "1.4.42"}
 ast.parse(app_source, filename="app.py")
 ast.parse(source, filename="patient_document_panel.py")
 spec = importlib.util.spec_from_file_location("isolated_documents_panel", panel_path)
@@ -33,7 +33,7 @@ assert "cp-clinical-videos" not in documents
 assert "clinical_video_library.js" not in documents
 assert "cp-clinical-videos" in videos
 assert "data-clinical-video-patient='patient-synthetic'" in videos
-assert "clinical_video_library.js?v=1.4.41" in videos
+assert "clinical_video_library.js?v=1.4.42" in videos
 assert "<script defer" in videos
 assert "patient-videos-open" in app_source and "patient-docs-open" in app_source
 assert "patient-videos-dialog" in app_source and "patient-docs-dialog" in app_source
@@ -42,12 +42,13 @@ assert "bindPatientDialog('videos');" in app_source
 assert "dialog.querySelectorAll('video').forEach(video=>video.pause());" in app_source
 assert "const open=document.getElementById('patient-videos-open');" in javascript
 assert "const open=document.getElementById('patient-docs-open');" not in javascript
-assert "Medir velocidad LAN" in javascript
+assert "Medir velocidad LAN" not in javascript
+assert "Preparar video para reproducir sin cortes" not in javascript
 assert ".cp-history-archive-actions" in css
 assert "cp-patient-videos-dialog" in app_source
 assert "source.src=url+'/play/'" in javascript
-assert "url+'/prepare/'" in javascript
-assert "url+'/cached-play/'" in javascript
+assert "cp-video-gallery-card" in javascript
+assert "cp-video-gallery-viewer" in javascript
 assert "RECEPTION_VIDEO_LAN_HOST" in backend
 assert "StreamingResponse(stream()" in backend
 assert "_existing_patient(patient_id)" in backend
