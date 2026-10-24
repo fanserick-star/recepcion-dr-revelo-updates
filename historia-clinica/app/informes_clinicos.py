@@ -497,7 +497,9 @@ def install(app, context: dict) -> None:
  });
 })();
 </script>"""
-        return HTMLResponse(base("Informes médicos", body, "informes"))
+        # El listado también se abre en una ventana independiente, igual que
+        # el editor; no debe llevar una segunda cabecera ni botón Inicio.
+        return HTMLResponse(_document_editor_shell(base, "Informes médicos", body, "informes"))
 
     @app.post("/api/informes/{report_id}/eliminar")
     def delete_unsigned_report(report_id: str, request: Request):
