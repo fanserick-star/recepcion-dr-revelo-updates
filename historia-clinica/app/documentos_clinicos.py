@@ -1259,8 +1259,9 @@ body{{background:#dfe5ea;padding:14px}}
 .rp-title{{position:absolute;top:73mm;left:3.5mm;font-family:Georgia,serif;font-size:14pt;font-weight:900;margin:0}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
 .rx-copy-v2 .rp{{top:82mm}}
-/* El doctor pide más aire sólo entre nombres/presentaciones en la copia izquierda. */
-.rx-copy-v2:first-child .med-item{{margin-bottom:8mm}}
+/* Más aire ENTRE medicamentos en ambas copias. La indicación sigue junto
+   a su medicamento porque .med-line conserva su margen superior de .7 mm. */
+.rx-copy-v2 .med-item{{margin-bottom:8mm}}
 /* El PDF PAdES reserva exclusivamente en la copia izquierda un área sin texto
    de medicinas para la firma visible; no alterar la copia derecha ni la vista normal. */
 .rx-signed-preview .rx-copy:first-child .rp{{bottom:59mm}}
