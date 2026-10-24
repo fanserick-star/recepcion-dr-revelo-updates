@@ -19,6 +19,7 @@ import sqlite3
 import tempfile
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
