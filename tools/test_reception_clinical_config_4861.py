@@ -36,6 +36,7 @@ config = SimpleNamespace(ALLOWED=(set(saved) - {"WHATSAPP_ACCESS_TOKEN"}) | {
 core = SimpleNamespace(
     WHATSAPP_GRAPH_VERSION="", WHATSAPP_PHONE_NUMBER_ID="",
     WHATSAPP_ACCESS_TOKEN="", WHATSAPP_TEST_PHONE="",
+    CloudSessionLocal=object(), FORCE_OFFLINE=False,
 )
 ns = {"clinical_config": config, "os": os, "re": re, "core": core}
 exec(compile(isolated, "clinical_config_offline_4861", "exec"), ns)
@@ -57,13 +58,16 @@ with patch.dict(os.environ, {
     status = ns["_setup"]()
     assert status["ready_r2"] is True
     assert status["ready_whatsapp"] is True
+    core.CloudSessionLocal=None
+    assert ns["_setup"]()["ready_whatsapp"] is False
+    core.CloudSessionLocal=object()
     assert status["ready_document"] is False
     assert status["ready_video"] is False
     assert status["ready_test"] is False
     assert status["clinical_templates_approved"] is False
     saved.pop("WHATSAPP_CLINICAL_ACCESS_TOKEN")
     with patch.dict(os.environ, {"WHATSAPP_CLINICAL_ACCESS_TOKEN": ""}):
-        assert ns["_setup"]()["ready_whatsapp"] is False, "Legacy appointment token must never unlock clinical sends"
+        assert ns["_setup"]()["ready_whatsapp"] is True, "Worker readiness depends on Neon, not local token"
     saved["WHATSAPP_CLINICAL_ACCESS_TOKEN"] = "F" * 80
     assert status["clinical_delivery_enabled"] is False
     assert dict(os.environ) == original_env

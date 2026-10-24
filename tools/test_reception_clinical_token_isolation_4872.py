@@ -49,62 +49,44 @@ with tempfile.TemporaryDirectory(prefix="clinical_token_test_") as directory:
     else:
         raise AssertionError("Clinical wizard must not change appointment token")
 
-# In the wizard, importing previously-saved token is manual, explicit, and non-destructive.
-assert 'def save_clinical_token_only():' in wizard
-assert 'def copy_existing_token_to_clinical():' in wizard
-assert 'existing.get("WHATSAPP_ACCESS_TOKEN"' in wizard
-assert 'save_local_settings({"WHATSAPP_CLINICAL_ACCESS_TOKEN":old_token})' in wizard
-assert 'save_local_settings({"WHATSAPP_CLINICAL_ACCESS_TOKEN":token})' in wizard
+# Wizard no longer requests a local Meta token, while keeping older .env
+# values intact to avoid impacting any legacy or appointment configuration.
+assert "WHATSAPP_CLINICAL_ACCESS_TOKEN" not in wizard
+assert "WHATSAPP_ACCESS_TOKEN" not in wizard
 assert '"WHATSAPP_CLINICAL_TEMPLATES_APPROVED":"0"' not in wizard
+assert '"CLINICAL_DELIVERY_LIVE_ENABLED":"0"' in wizard
 
 ast_tree = ast.parse(source)
 functions = {node.name: node for node in ast_tree.body if isinstance(node, ast.FunctionDef)}
-target_functions = [functions["_setup"], functions["_send_template"]]
 ns = {}
-exec(compile(ast.Module(body=target_functions, type_ignores=[]), "clinical_token_runtime_test", "exec"), ns)
-captured = {}
-core = SimpleNamespace(
-    WHATSAPP_GRAPH_VERSION="v26.0",
-    WHATSAPP_PHONE_NUMBER_ID="1234567890",
-    WHATSAPP_TEST_PHONE="",
-    whatsapp_build_template_payload=lambda **kw: kw,
-    whatsapp_send_template=lambda **kw: captured.setdefault("send", kw) or {"messages":[{"id":"synthetic"}]},
-)
-# Use stub response with Meta-shaped ID, not real network.
-def fake_send(**kw):
-    captured["send"] = kw
-    return {"messages": [{"id": "synthetic-test-only"}]}
-core.whatsapp_send_template = fake_send
-ns.update(core=core, re=re, LABELS={"receta":"Receta médica"})
-cfg = {key:"" for key in module.ALLOWED}
+exec(compile(ast.Module(body=[functions["_setup"]],type_ignores=[]),"worker_readiness_test","exec"),ns)
+cfg={key:"" for key in module.ALLOWED}
 cfg.update({
     "CLINICAL_R2_ACCOUNT_ID":"a"*32,
     "CLINICAL_R2_BUCKET":"dr-revelo-clinical-2026",
     "CLINICAL_R2_ACCESS_KEY_ID":"b"*32,
     "CLINICAL_R2_SECRET_ACCESS_KEY":"c"*64,
     "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED":"1",
-    "WHATSAPP_PHONE_NUMBER_ID":"1234567890",
-    "WHATSAPP_GRAPH_VERSION":"v26.0",
     "WHATSAPP_TEST_PHONE":"0999999999",
     "WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE":"entrega_documento_clinico",
     "WHATSAPP_CLINICAL_VIDEO_TEMPLATE":"entrega_video_clinico",
     "WHATSAPP_CLINICAL_TEMPLATES_APPROVED":"1",
     "CLINICAL_DELIVERY_LIVE_ENABLED":"0",
-    "WHATSAPP_CLINICAL_LANGUAGE":"es_EC",
 })
-ns["_clinical_settings"] = lambda: cfg
-# Legacy appointment token never grants clinical readiness.
+core=SimpleNamespace(WHATSAPP_TEST_PHONE="", CloudSessionLocal=None, FORCE_OFFLINE=False)
+ns.update(core=core,re=re,_clinical_settings=lambda:cfg)
 assert not ns["_setup"]()["ready_test"]
+core.CloudSessionLocal=object()
+assert ns["_setup"]()["ready_test"]
 assert not ns["_setup"]()["ready_document"]
-cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"] = "dedicated-clinical-token-12345678901234567890"
-status = ns["_setup"]()
-assert status["ready_test"] and status["ready_whatsapp"]
-assert not status["ready_document"] and not status["ready_video"]
-assert status["clinical_delivery_enabled"] is False
-message_id = ns["_send_template"]("593999999999", "PRUEBA", "receta", "7 dias", "https://example.invalid/test")
-assert message_id == "synthetic-test-only"
-assert captured["send"]["access_token"] == cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"]
-assert captured["send"]["payload"]["body_params"] == ["PRUEBA", "Receta médica", "7 dias", "https://example.invalid/test"]
-assert 'core.WHATSAPP_ACCESS_TOKEN' not in source
-assert 'cfg["WHATSAPP_ACCESS_TOKEN"]' not in source
-print("CLINICAL_META_TOKEN_ISOLATION_SYNTHETIC_OK")
+cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"]="intentionally-ignored"
+assert ns["_setup"]()["ready_test"]
+core.FORCE_OFFLINE=True
+assert not ns["_setup"]()["ready_test"]
+send_section=source.split("def _send_template(",1)[1].split("def _audit(",1)[0]
+assert "core.whatsapp_send_template" not in send_section
+assert "core.WHATSAPP_ACCESS_TOKEN" not in send_section
+assert 'WHATSAPP_CLINICAL_ACCESS_TOKEN' not in send_section
+assert "CLINICAL_WORKER_URL" in source
+assert 'whatsapp_cloud.clinical_delivery_caps' in source
+print("CLINICAL_WORKER_TOKEN_ISOLATION_SYNTHETIC_OK")

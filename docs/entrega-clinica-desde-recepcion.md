@@ -8,6 +8,45 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Motor WhatsApp unificado — Recepción 4.8.75
+
+**Esta sección sustituye la configuración de tokens locales descrita en
+versiones anteriores.** La entrega clínica utiliza ahora exactamente el Worker
+Cloudflare de citas (`dr-revelo-whatsapp-cloud`), con una puerta y una
+autorización independientes en `/clinical/dispatch`.
+
+1. Recepción valida identidad, teléfono, consentimiento y vínculo histórico.
+   `CLINICAL_DELIVERY_LIVE_ENABLED=0` continúa bloqueando pacientes.
+2. El PDF o MP4 se sube **directamente desde Recepción a R2**, sin enviar el
+   archivo al Worker ni a Neón. Se firma el enlace temporal a siete días.
+3. Recepción genera un permiso aleatorio efímero de 256 bits. En la tabla
+   independiente `whatsapp_cloud.clinical_delivery_caps` (solo creada una vez)
+   se guardan exclusivamente SHA-256 del permiso y un hash del destinatario ligado al permiso secreto, modalidad,
+   caducidad y marca de consumo. No contiene teléfonos, nombres ni URLs.
+4. Recepción llama a `/clinical/dispatch` con un cuerpo acotado.
+   Cloudflare reclama el permiso en una actualización atómica y **solo entonces**
+   llama al mismo `sendMeta` que utiliza la mensajería de citas. No utiliza
+   cron, colas de citas ni alarma Durable Object.
+5. Si la respuesta de Meta es incierta, nunca hay un reintento automático.
+   Una ID de Meta significa *aceptación*, no recepción en el teléfono.
+
+**Ya no se necesita `WHATSAPP_CLINICAL_ACCESS_TOKEN` ni
+`WHATSAPP_ACCESS_TOKEN` local para entrega clínica.** Los valores
+preexistentes en el `.env` quedan intactos para evitar pérdidas, pero
+el módulo clínico no los consulta al enviar. El token emisor vigente
+permanece como secreto en el Worker, donde hoy funciona para citas.
+
+La primera prueba debe usar exclusivamente el PDF ficticio y
+`WHATSAPP_TEST_PHONE`. Probar el botón de envío real a pacientes solo después
+de autorización, pruebas sintéticas aprobadas y consentimiento, manteniendo
+el control independiente de habilitación.
+
+**Sobre rendimiento**: este cambio reduce el salto de mensajería y elimina
+duplicados de configuración, pero la transferencia de MP4 de ~500 MB sigue
+limitada por la subida de Internet de Recepción. La optimización multipart
+con barra de progreso es una etapa separada, que requiere benchmark seguro
+del almacenamiento R2 y no debe improvisarse en producción.
+
 ## Diagnóstico Meta sin mensajes — Recepción 4.8.73
 
 En **Documentos médicos → Prueba de WhatsApp en mi celular**, presiona

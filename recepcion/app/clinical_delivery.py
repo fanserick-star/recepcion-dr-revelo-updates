@@ -284,9 +284,11 @@ def _setup():
     live_enabled=cfg["CLINICAL_DELIVERY_LIVE_ENABLED"]=="1"
     retention=cfg["CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED"]=="1"
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
-    wa_ready=all((cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,\
-                  cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,\
-                  cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"]))
+    # The Cloudflare Worker owns the proven Meta sender credential. Reception
+    # issues a bounded, single-use capability via its existing Neon connection.
+    # Local WhatsApp access tokens are deliberately NOT used for clinical sends.
+    wa_ready=bool(getattr(core,"CloudSessionLocal",None)
+                  and not getattr(core,"FORCE_OFFLINE",False))
     lan_ready=len(cfg["CLINICAL_DELIVERY_LAN_SECRET"])>=32
     test_phone=re.sub(r"\D","",cfg["WHATSAPP_TEST_PHONE"] or core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
@@ -302,7 +304,7 @@ def _setup():
                 ("Aprobación de ambas plantillas en Meta",approved),
                 ("Cuenta/bucket y claves R2",all((account,bucket,key,secret))),
                 ("Regla de borrado R2 a 7 días",retention),
-                ("Credenciales WhatsApp clínicas (token independiente)",wa_ready),
+                ("Conexión Neon para el Worker clínico",wa_ready),
                 ("Plantilla de documentos aprobada",bool(template_doc)),
                 ("Clave LAN compartida con Historia",lan_ready),
                 ("Plantilla de video aprobada",bool(template_video)),
@@ -310,7 +312,7 @@ def _setup():
             "test_missing":[name for name,present in [
                 ("Plantillas Meta aprobadas",approved),
                 ("Almacenamiento R2 y eliminación a 7 días",ready_r2),
-                ("Número y token clínico independiente de WhatsApp",wa_ready),
+                ("Conexión Neon al Worker de WhatsApp",wa_ready),
                 ("Plantilla de documentos aprobada por Meta",bool(template_doc)),
                 ("Plantilla de video aprobada por Meta",bool(template_video)),
                 ("WHATSAPP_TEST_PHONE de tu iPhone",bool(re.fullmatch(r"5939\d{8}",test_phone))),
@@ -370,25 +372,85 @@ def _upload_r2(filename, key, media_type):
         conn.close()
 
 
-def _send_template(phone, name, kind, expiry, url, label_override=None):
-    cfg = _clinical_settings()
-    template = (cfg["WHATSAPP_CLINICAL_VIDEO_TEMPLATE"]
-                if kind=="video" else cfg["WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE"])
-    if not template:
-        raise RuntimeError("Falta configurar la plantilla aprobada por Meta")
-    payload = core.whatsapp_build_template_payload(
-        to=phone,template_name=template,
-        language_code=cfg["WHATSAPP_CLINICAL_LANGUAGE"] or "es_EC",
-        body_params=[name,label_override or LABELS[kind],expiry,url],
+CLINICAL_WORKER_URL = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/clinical/dispatch"
+
+
+def _issue_clinical_capability(phone, mode):
+    """Neon holds only random capability and recipient hashes; no PHI or URLs."""
+    if mode not in ("test","patient") or not re.fullmatch(r"5939\d{8}",phone):
+        raise core.HTTPException(400,"Permiso clínico inválido")
+    session_factory = getattr(core,"CloudSessionLocal",None)
+    if not session_factory or getattr(core,"FORCE_OFFLINE",False):
+        raise core.HTTPException(503,"Se necesita conexión segura a Neón para solicitar el envío")
+    token=secrets.token_urlsafe(32)
+    digest=hashlib.sha256(token.encode("ascii")).hexdigest()
+    recipient_hash=hashlib.sha256((token+"|"+phone).encode("ascii")).hexdigest()
+    try:
+        with session_factory() as session:
+            session.execute(core.text("""
+                INSERT INTO whatsapp_cloud.clinical_delivery_caps
+                    (token_hash,recipient_hash,mode,expires_at)
+                VALUES (:token_hash,:recipient_hash,:mode,now()+interval '120 seconds')
+            """),{"token_hash":digest,"recipient_hash":recipient_hash,"mode":mode})
+            session.commit()
+    except Exception as exc:
+        raise core.HTTPException(503,"No se pudo solicitar autorización clínica temporal al Worker") from exc
+    return token
+
+
+def _send_template(phone, name, kind, expiry, url, label_override=None, *, test_mode=False):
+    cfg=_clinical_settings()
+    template=(cfg["WHATSAPP_CLINICAL_VIDEO_TEMPLATE"]
+              if kind=="video" else cfg["WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE"])
+    if template not in ("entrega_documento_clinico","entrega_video_clinico"):
+        raise core.HTTPException(503,"Configura las plantillas clínicas aprobadas en Meta")
+    if not re.fullmatch(r"5939\d{8}",str(phone)):
+        raise core.HTTPException(400,"Número clínico inválido")
+    if test_mode:
+        if name!="PACIENTE DE PRUEBA" or label_override!="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)" or kind=="video":
+            raise core.HTTPException(400,"Solo se permiten archivos ficticios en la prueba")
+    elif _setup()["clinical_delivery_enabled"] is not True:
+        raise core.HTTPException(503,"Las entregas a pacientes continúan desactivadas")
+    # The file was already uploaded directly from Reception to R2. Only a
+    # short text payload and single-use capability cross the Worker.
+    capability=_issue_clinical_capability(phone,"test" if test_mode else "patient")
+    payload={
+      "token":capability,
+      "mode":"test" if test_mode else "patient",
+      "phone":phone,
+      "template":template,
+      "body_params":[name,label_override or LABELS[kind],expiry,url],
+    }
+    request=urllib.request.Request(
+        CLINICAL_WORKER_URL,
+        data=json.dumps(payload,ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type":"application/json","Accept":"application/json",
+                 "User-Agent":"curl/8.10.1"},
+        method="POST",
     )
-    response=core.whatsapp_send_template(
-        graph_version=cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,
-        phone_number_id=cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,
-        access_token=cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"],
-        payload=payload,
-    )
-    mid=str((response.get("messages") or [{}])[0].get("id") or "")
-    if not mid:raise RuntimeError("Meta no confirmó el identificador del mensaje")
+    try:
+        with urllib.request.urlopen(request,timeout=25) as response:
+            answer=json.loads(response.read(4096).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # Never surface raw Worker/Meta responses, signed URLs or phone data.
+        try:
+            result=json.loads(exc.read(2048).decode("utf-8"))
+        except (UnicodeError,ValueError):
+            result={}
+        error=str(result.get("error","")) if isinstance(result,dict) else ""
+        allowed={"sender_unavailable","clinical_permission_unavailable",
+                 "expired_or_used_clinical_permission","invalid_clinical_request",
+                 "invalid_url","meta_rejected_no_retry","meta_unconfirmed_no_retry"}
+        err=error if error in allowed else "worker_rejected"
+        code=result.get("meta_code") if isinstance(result,dict) else None
+        suffix=(f" · Meta {code}" if type(code) is int and 0<code<1000000 else "")
+        raise core.HTTPException(502,"Worker clínico: "+err+suffix+
+                  ". No repetir automáticamente; verificar el resultado en WhatsApp.") from exc
+    except (urllib.error.URLError,TimeoutError) as exc:
+        raise core.HTTPException(502,"No se confirmó la respuesta del Worker. No reintentar sin verificar WhatsApp.") from exc
+    mid=str((answer.get("message_id") or "") if isinstance(answer,dict) else "")
+    if not (answer.get("accepted_by_meta") is True and mid):
+        raise core.HTTPException(502,"Worker no confirmó la aceptación del mensaje; no repetir automáticamente")
     return mid
 
 
@@ -511,7 +573,7 @@ def _test_send(phone: str):
         stage = "solicitud a Meta"
         message_id = _send_template(raw, "PACIENTE DE PRUEBA", "receta",
             expires_at.strftime("%d/%m/%Y a las %H:%M"), url,
-            label_override="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)")
+            label_override="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)",test_mode=True)
         return {"ok": True, "sent": True, "message_id": message_id,
                 "expires_at": expires_at.isoformat(),
                 "note": "Meta aceptó el envío. Confirma personalmente su recepción y descarga en tu iPhone."}

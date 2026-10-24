@@ -85,6 +85,6 @@ else:
 
 assert '@app.post("/api/clinical-delivery/check-meta")' in source
 assert 'user=core.Depends(core.current_user)' in source
-assert "check-meta" in ui
-assert "sin enviar mensajes" in ui
+assert "check-meta" not in ui  # Historical direct-token probe must not confuse Worker operator
+assert "Worker WhatsApp de Cloudflare" in ui
 print("CLINICAL_META_READ_ONLY_NO_SEND_NO_SECRETS_OK")

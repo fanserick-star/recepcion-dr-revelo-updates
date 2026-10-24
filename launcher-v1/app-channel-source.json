@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.73: diagnóstico read-only de identidad del token clínico y lectura del número de Meta; no envía WhatsApp, no toca R2, pacientes, citas, Neon ni facturación."
+  "notes": "Recepción 4.8.75: Worker WhatsApp único para citas y entregas clínicas, permiso clínico efímero independiente en Neon; documentos permanecen R2 privado con enlace de 7 días, pacientes apagados por defecto."
 }
