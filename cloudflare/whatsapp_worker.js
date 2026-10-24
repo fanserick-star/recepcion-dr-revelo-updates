@@ -7172,6 +7172,75 @@ async function serveReceptionGateway(request,env) {
   }catch(e){console.error("reception_gateway_refresh_failed",String(e?.name||"Error"));return json({ok:false,error:"scheduler_unavailable"},503);}
 }
 
+// Entrega clinica aislada: mismo emisor Meta que citas, autorizacion Neon propia.
+// NO usa cron, tablas de citas, outbox de agenda ni hace streaming de archivos.
+// El token de 256 bits se emite en Recepcion, solo se guarda su SHA-256.
+// Neon almacena exclusivamente hash del permiso y del destinatario.
+async function serveClinicalDispatch(request, env) {
+  if (request.method !== "POST") return json({ok:false,error:"method_not_allowed"},405);
+  if (!env.DATABASE_URL || !env.WHATSAPP_ACCESS_TOKEN || !env.WHATSAPP_PHONE_NUMBER_ID)
+    return json({ok:false,error:"sender_unavailable"},503);
+  let payload;
+  try {
+    const raw = await request.text();
+    if (raw.length > 6000) return json({ok:false,error:"request_too_large"},413);
+    payload = JSON.parse(raw);
+  } catch { return json({ok:false,error:"invalid_request"},400); }
+  const token = String(payload?.token || "");
+  const phone = String(payload?.phone || "");
+  const mode = String(payload?.mode || "");
+  const template = String(payload?.template || "");
+  const params = payload?.body_params;
+  const allowedTemplates = new Set(["entrega_documento_clinico","entrega_video_clinico"]);
+  if (!/^[A-Za-z0-9_-]{40,64}$/.test(token) ||
+      !/^5939\d{8}$/.test(phone) ||
+      !["test","patient"].includes(mode) ||
+      !allowedTemplates.has(template) ||
+      !Array.isArray(params) || params.length !== 4 ||
+      params.some((v,i)=>typeof v !== "string" || v.length === 0 || v.length > (i===3?2500:180)) ||
+      (mode==="test" && (template!=="entrega_documento_clinico" ||
+                         params[0]!=="PACIENTE DE PRUEBA" ||
+                         params[1]!=="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)")))
+    return json({ok:false,error:"invalid_clinical_request"},400);
+  let signed;
+  try { signed = new URL(params[3]); } catch { return json({ok:false,error:"invalid_url"},400); }
+  if (signed.protocol!=="https:" ||
+      !/^[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/.test(signed.hostname) ||
+      !signed.pathname.startsWith("/dr-revelo-clinical-2026/clinical-temp/") ||
+      !signed.searchParams.has("X-Amz-Signature") ||
+      !signed.searchParams.has("X-Amz-Expires"))
+    return json({ok:false,error:"invalid_url"},400);
+  let claimed = false;
+  try {
+    const digest = await sha256(token);
+    const recipientDigest = await sha256(phone);
+    claimed = await withClient(env, async client => {
+      const r = await client.query(`UPDATE whatsapp_cloud.clinical_delivery_caps
+          SET claimed_at=now()
+        WHERE token_hash=$1 AND recipient_hash=$2 AND mode=$3
+          AND expires_at>now() AND claimed_at IS NULL
+        RETURNING token_hash`, [digest, recipientDigest, mode]);
+      return !!r.rows?.length;
+    });
+  } catch {
+    return json({ok:false,error:"clinical_permission_unavailable"},503);
+  }
+  if (!claimed) return json({ok:false,error:"expired_or_used_clinical_permission"},403);
+  // Once claimed, NEVER retry automatically (outcome may be ambiguous).
+  try {
+    const result = await sendMeta({
+      phone, template_name:template, language:"es_EC", body_params:params
+    }, env);
+    const mid = String(result?.messages?.[0]?.id || "");
+    if (!mid) return json({ok:false,error:"meta_unconfirmed_no_retry"},502);
+    return json({ok:true,accepted_by_meta:true,message_id:mid,no_automatic_retry:true});
+  } catch (err) {
+    const code = Number(err?.code);
+    return json({ok:false,error:"meta_rejected_no_retry",
+      ...(Number.isInteger(code)&&code>0&&code<1000000?{meta_code:code}:{})},502);
+  }
+}
+
 // Invocación exclusiva de Recepción: un envío manual con HMAC, NO un cron.
 async function serveManualBookingNotice(request, env, appointmentId, gatewayAuthorized = false) {
   if (request.method !== "POST" || !Number.isSafeInteger(appointmentId) || appointmentId < 1)
@@ -7269,6 +7338,7 @@ var whatsapp_worker_v2_6_responses_default = {
     }
     // Diagnóstico de firma solicitado explícitamente, sin envío ni alarmas.
     if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
+    if (u.pathname === "/clinical/dispatch") return serveClinicalDispatch(request,env);
     if (u.pathname === "/reception/gateway") return serveReceptionGateway(request,env);
     if (u.pathname === "/run" && request.method === "POST") {
       if (!env.ADMIN_TOKEN || request.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) return text("Forbidden", 403);
