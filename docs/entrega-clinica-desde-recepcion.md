@@ -41,6 +41,28 @@ pruebas ya autorizado y consentimiento específico.
   CLINICAL_DELIVERY_LIVE_ENABLED=0. No cambiar alarmas, citas, facturas,
   sincronización ni Worker de WhatsApp.
 
+## Instalación guiada de FFmpeg — Recepción 4.8.82
+
+- Si falta FFmpeg, **Recepción no sube ni envía la videocistoscopía**.
+  En Documentos médicos aparece «Instalar FFmpeg en esta PC (Windows)».
+  La instalación solo se inicia tras confirmar explícitamente el operador.
+- El servidor acepta este cambio **únicamente desde localhost** y usa
+  un comando fijo de `winget`: paquete `Gyan.FFmpeg`, versión `9.0.2`,
+  origen `winget`, alcance de usuario y modo silencioso. No hay shell,
+  argumentos provenientes de pacientes ni descargas de binarios a GitHub.
+- La barra de estado local distingue instalando, disponible y error.
+  WinGet es quien obtiene el paquete y valida sus hashes de distribución.
+  La ruta `%LOCALAPPDATA%/Microsoft/WinGet/Links/ffmpeg.exe` y las carpetas
+  portables del paquete se buscan sin depender del PATH del launcher.
+- Si WinGet o el instalador no funciona, **no se relaja el bloqueo**;
+  se muestra un mensaje para instalar App Installer de Microsoft o
+  FFmpeg desde `https://ffmpeg.org/download.html#build-windows`.
+- El paquete FFmpeg **no** está integrado en el actualizador de Recepción
+  y su instalación puede requerir internet/espacio libre. No cambia el
+  almacenamiento original, Neon, las alarmas de citas ni los mensajes.
+- Tras el éxito, repetir el diagnóstico. El video real solo se envía
+  mediante su botón habitual y con identidad/consentimiento verificados.
+
 ## Diagnóstico de reproducción iPhone/Safari — Recepción 4.8.80
 
 Un MP4 de videocistoscopía real ya se entregó correctamente por WhatsApp
