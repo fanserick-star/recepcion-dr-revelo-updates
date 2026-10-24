@@ -52,6 +52,7 @@ jobs:
           python tools/test_reception_ios_faststart_4881.py
           python tools/test_reception_ffmpeg_winget_4882.py
           python tools/test_reception_ffmpeg_pypi_4883.py
+          python tools/test_reception_video_download_4884.py
           node tools/test_whatsapp_clinical_shortlinks_4876.mjs
           node tools/test_whatsapp_clinical_gateway_4875.mjs
           python tools/test_reception_clinical_meta_readonly_4873.py

@@ -245,16 +245,21 @@
     addButton(section,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),!data.ready_r2||state.sending||state.saving_video||state.benchmarking);
     section.append(cell('p','Mide una videocistoscopía real de hasta 550 MiB, con porcentaje y velocidad. Tras verificarla, elimina la copia temporal de R2. NO envía WhatsApp ni activa envíos a pacientes. Requiere autorización para la prueba.','rp-clinical-help'));
     if(data.ffmpeg_available===false){
-      section.append(cell('p','FFmpeg no está disponible para preparar la copia Faststart. Puedes instalarlo únicamente en esta PC: si falta WinGet, Recepción descargará una copia de FFmpeg desde PyPI y verificará su SHA-256. No se envían archivos clínicos.','rp-clinical-help'));
-      const install=addButton(section,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
+      const advanced=document.createElement('details');
+      const summary=document.createElement('summary');
+      summary.textContent='Opcional: FFmpeg para reproducción (NO es necesario para descargar el MP4)';
+      advanced.append(summary);
+      advanced.append(cell('p','FFmpeg sirve solamente para preparar una copia de reproducción Faststart. La descarga del MP4 original funciona sin FFmpeg, no recodifica y no altera la videocistoscopía.','rp-clinical-help'));
+      const install=addButton(advanced,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
         state.sending||state.saving_video||state.benchmarking);
       install.classList.add('rp-clinical-ffmpeg-install');
+      section.append(advanced);
     }
     addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
     if(archived.length){
-      section.append(cell('p','PRUEBA PRIVADA: para enviar una videocistoscopía archivada a tu propio WhatsApp, introduce el número autorizado de pruebas. Este contenido es REAL: confirma permiso del paciente para compartirlo contigo. El enlace vence a los 7 días.','rp-clinical-help'));
+      section.append(cell('p','DESCARGA PRIVADA: envía el MP4 original como archivo descargable a tu WhatsApp autorizado de pruebas. El paciente no necesita reproducirlo en Safari: podrá guardarlo en Archivos y abrirlo con un reproductor compatible. Confirma su autorización para compartirlo a ese número. El enlace vence a los 7 días.','rp-clinical-help'));
     }
     const testPhone=document.createElement('input');
     testPhone.type='tel';testPhone.inputMode='tel';testPhone.autocomplete='off';
@@ -265,7 +270,7 @@
       const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
       const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
       section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
-      const btn=addButton(section,'Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
+      const btn=addButton(section,'Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
         !state.ready_test||state.sending||state.saving_video||state.benchmarking);
       btn.classList.add('rp-clinical-send-archived-test');
       const diagnose=addButton(section,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
@@ -432,6 +437,7 @@
           recibiendo_archivo:'Copiando el video desde el selector a Recepción…',
           preparando_r2:'Archivo recibido. Conectando con Cloudflare R2…',
           preparando_iphone:'Preparando copia optimizada para iPhone (sin recomprimir)…',
+          preparando_descarga:'Preparando descarga del MP4 original sin convertirlo…',
           subiendo_r2:'Enviando videocistoscopía a Cloudflare R2…',
           verificando_r2:'100 % enviado. Confirmando la copia en R2…',
           eliminando_copia:'Copia confirmada. Eliminando video temporal de la nube…',
@@ -441,7 +447,7 @@
           error:'Prueba incompleta'
         };
         label.textContent=stage==='complete'&&mode==='envio_prueba'?
-          'Meta aceptó el envío: revisa tu WhatsApp de pruebas.':titles[stage]||'Procesando transferencia…';
+          'Meta aceptó el enlace de descarga: revisa tu WhatsApp de pruebas.':titles[stage]||'Procesando transferencia…';
         const active=['subiendo_r2','verificando_r2','eliminando_copia','preparando_enlace','enviando_whatsapp','complete'].includes(stage);
         const rateNum=Number(rate)||0;
         const extra=active?' · '+rateNum.toFixed(2)+' MiB/s':'';
@@ -449,12 +455,15 @@
         detail.textContent=percent+' % · '+mib(bytes)+' / '+mib(total)+' MiB'+extra+
           (elapsed?' · '+Number(elapsed).toFixed(1)+' s':'')+eta;
         if(stage==='preparando_iphone'){
-          help.textContent='Procesando una COPIA temporal. No se recomprime ni altera la grabación original; aún no se está subiendo ni enviando WhatsApp.';
+          help.textContent='Preparando reproducción optimizada; no altera la grabación original.';
+        }
+        if(stage==='preparando_descarga'){
+          help.textContent='El MP4 original se enviará como archivo descargable; no requiere FFmpeg, no se comprime ni se convierte.';
         }
         if(stage==='complete'){
           wrap.style.background='#edf9f3';wrap.style.borderColor='#83b99a';
           help.textContent=mode==='envio_prueba'?
-            'Meta aceptó el mensaje, aún falta confirmar la recepción en tu celular. El archivo privado permanece disponible hasta 7 días y la copia local no cambia.':
+            'Meta aceptó el enlace para DESCARGAR el MP4 original. Comprueba que el iPhone pueda guardarlo en Archivos. Disponible hasta 7 días.':
             'El original sigue guardado en la PC. La copia temporal de la nube se eliminó. No se envió WhatsApp.';
         }else if(stage==='error'){
           wrap.style.background='#fff5f2';wrap.style.borderColor='#d28c81';
@@ -610,7 +619,7 @@
       '\nVideocistoscopía archivada: '+size+' MiB\nDestino: +'+phone+
       '\n\n¿Confirmas que este video pertenece a la ficha del paciente y es exactamente el que deseas enviar?'))return;
     if(!window.confirm('CONFIDENCIALIDAD CLÍNICA\n\n¿El paciente autorizó expresamente que su videocistoscopía REAL se comparta a TU número WhatsApp +'+phone+
-      ' para esta prueba?\n\nEl enlace podría abrirlo quien lo reciba y estará vigente hasta 7 días. No se enviará a otros pacientes.'))return;
+      ' para esta prueba?\n\nEl enlace permite DESCARGAR el archivo original y podría abrirlo quien lo reciba durante 7 días. No se enviará a otros pacientes.'))return;
     const host=container();if(!host)return;
     state.benchmarking=true;
     const display=createSpeedProgress(host);
@@ -636,7 +645,7 @@
           if(timer)window.clearInterval(timer);
           timer=null;state.benchmarking=false;
           if(progress.stage==='complete'&&progress.whatsapp_accepted){
-            notice('Meta aceptó la videocistoscopía para tu WhatsApp de prueba. Abre el enlace corto y comprueba la reproducción.','success');
+            notice('Meta aceptó el enlace de descarga del MP4. Ábrelo en tu iPhone y comprueba que puedes guardar el archivo completo en Archivos.','success');
           }else{
             display.fail(progress.error||'No se confirmó el envío. Antes de repetir, revisa tu WhatsApp.');
             notice('No se confirmó el mensaje. Revisa primero tu WhatsApp para evitar duplicados.','error');

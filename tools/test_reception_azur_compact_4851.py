@@ -16,7 +16,7 @@ css = (base / "static" / "billing_advanced.css").read_text(encoding="utf-8")
 html = (base / "static" / "index.html").read_text(encoding="utf-8")
 manifest = json.loads((base / "update_manifest.json").read_text(encoding="utf-8"))
 version = json.loads((base / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version in {"4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62","4.8.63","4.8.64","4.8.65","4.8.66","4.8.67","4.8.68","4.8.69","4.8.70","4.8.71","4.8.72","4.8.73","4.8.75","4.8.76","4.8.77","4.8.78","4.8.79","4.8.80","4.8.81","4.8.82","4.8.83"}
+assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version in {"4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62","4.8.63","4.8.64","4.8.65","4.8.66","4.8.67","4.8.68","4.8.69","4.8.70","4.8.71","4.8.72","4.8.73","4.8.75","4.8.76","4.8.77","4.8.78","4.8.79","4.8.80","4.8.81","4.8.82","4.8.83","4.8.84"}
 assert "reception_azur_pos80.py" in manifest["copy"]
 assert "static/azur_pos80_ui.js" in manifest["copy"]
 assert "static/billing_advanced.css" in manifest["copy"]

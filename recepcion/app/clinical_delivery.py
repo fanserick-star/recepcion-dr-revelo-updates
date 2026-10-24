@@ -368,6 +368,12 @@ def _upload_r2(filename, key, media_type, progress_callback=None):
         conn.putrequest("PUT",url.path+"?"+url.query)
         conn.putheader("Content-Length",str(size))
         conn.putheader("Content-Type",media_type)
+        # Cloudflare R2 stores this as HTTP object metadata and returns it
+        # on the presigned GET. Safari should download instead of showing an
+        # unsupported embedded video player. No re-encoding or worker proxy.
+        if media_type=="video/mp4" and key.startswith("clinical-temp/"):
+            conn.putheader("Content-Disposition",'attachment; filename="Videocistoscopia.mp4"')
+            conn.putheader("Cache-Control","private, no-store")
         conn.endheaders()
         with open(filename,"rb") as f:
             while True:
@@ -617,12 +623,20 @@ def _upload_progress_hook(job_id):
     return report
 
 
-def _verify_benchmark_r2(key,expected_size):
+def _verify_benchmark_r2(key,expected_size,require_download=False):
     req=urllib.request.Request(_r2_url("HEAD",key,180),method="HEAD")
     with urllib.request.urlopen(req,timeout=30) as response:
         length=response.headers.get("Content-Length")
         if response.status!=200 or str(length)!=str(expected_size):
             raise RuntimeError("R2 no confirmó la integridad del tamaño del video")
+        if require_download:
+            # A 302 at the Worker cannot set metadata on the final R2 GET.
+            disposition=str(response.headers.get("Content-Disposition",""))
+            content_type=str(response.headers.get("Content-Type","")).split(";",1)[0].strip().lower()
+            if not disposition.lower().strip().startswith("attachment;"):
+                raise RuntimeError("R2 no confirmó la descarga de video como archivo adjunto")
+            if content_type!="video/mp4":
+                raise RuntimeError("R2 no confirmó el tipo MP4 de la descarga")
     return True
 
 
@@ -1265,17 +1279,18 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
     key="clinical-temp/authorized-test/"+secrets.token_hex(24)+".mp4"
     meta_attempted=False
     uploaded=False
-    prepared_tmp=None
     try:
-        _progress_set(job_id,stage="preparando_iphone")
-        ready_source,prepared_tmp=_delivery_faststart_copy(source)
-        expected=Path(ready_source).stat().st_size
-        _progress_set(job_id,size=expected,local_bytes=expected,prepared_faststart=bool(prepared_tmp))
+        # The patient needs the ORIGINAL MP4 as a downloadable file.
+        # Do not remux, recode, require FFmpeg or change archived bytes.
+        _progress_set(job_id,stage="preparando_descarga")
+        ready_source=Path(source).resolve(strict=True)
+        expected=ready_source.stat().st_size
+        _progress_set(job_id,size=expected,local_bytes=expected,prepared_faststart=False)
         _progress_set(job_id,stage="subiendo_r2",r2_started=time.monotonic())
         _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id))
         uploaded=True
         _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
-        _verify_benchmark_r2(key,expected)
+        _verify_benchmark_r2(key,expected,require_download=True)
         _progress_set(job_id,stage="preparando_enlace",r2_verified=True)
         signed=_r2_url("GET",key,604800)
         short=_short_r2_link(signed,expiry_dt)
@@ -1305,19 +1320,13 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
                 _progress_set(job_id,r2_deleted=True)
             except Exception:
                 pass
-            error=("Falta FFmpeg en Recepción para preparar la copia compatible. "
-                   "No se envió WhatsApp." if not _faststart_ffmpeg_path()
-                   else "No se pudo preparar o verificar la copia iPhone. No se envió WhatsApp.")
+            error="No se pudo verificar la descarga del MP4 desde R2. No se envió WhatsApp."
         else:
             # Keep the link if Meta's result is ambiguous: the recipient could
             # still receive it. Automatic R2 lifecycle removes it after 7 days.
             error="Meta no confirmó la aceptación. Comprueba tu WhatsApp antes de repetir."
         _progress_set(job_id,stage="error",error=error)
-    finally:
-        # Remove only the temporary remux. The archived source stays unchanged.
-        if prepared_tmp:
-            try:Path(prepared_tmp).unlink()
-            except OSError:pass
+
 
 
 @app.post("/api/clinical-delivery/patients/{pid}/archived-video/{video_id}/send-to-test-phone")
@@ -1346,19 +1355,16 @@ async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRe
     from clinical_video_library import _row_by_id, _local_file
     row=_row_by_id(video_id,clinical_id)  # must belong to VERIFIED patient chart
     path=_local_file(row)
-    # Fail before reserving a job or sending clinical bytes when faststart is
-    # required but the trusted local remux tool is not installed.
+    # Validate the archived MP4 container; downloading does NOT depend on
+    # Safari support, Faststart or FFmpeg. No file transformations occur.
     try:
         meta=_mp4_atom_details(path)
     except (OSError,ValueError):
         raise core.HTTPException(415,"Video local no tiene estructura MP4 válida")
     if not meta["moov_found"]:
         raise core.HTTPException(415,"Índice MP4 no disponible; no se enviará el original")
-    if (not meta["metadata_before_video"] and not _faststart_ffmpeg_path()):
-        raise core.HTTPException(503,
-            "Falta FFmpeg en Recepción. No se ha subido ni enviado el video; instala FFmpeg para preparar copia faststart.")
-    if meta["iphone_codec_hint"]=="possible_unsupported_codec":
-        raise core.HTTPException(415,"Códec posiblemente incompatible con iPhone; requiere revisión antes de enviar")
+    # Do not reject an original MP4 due to unsupported Apple codecs: it is
+    # intentionally downloaded for playback through Files/VLC when needed.
     size=int(row["size_bytes"])
     if not (1024<=size<=LIMIT_VIDEO):
         raise core.HTTPException(413,"Solo videocistoscopías de hasta 550 MiB")
