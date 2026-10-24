@@ -1105,6 +1105,16 @@ def install(app, context: dict) -> None:
                 return "".join(blocks) or "<div class='med-empty'>Sin medicamentos registrados.</div>"
             left_meds = new_medication_rows("left")
             right_meds = new_medication_rows("right")
+            # Dar 14 mm de separación entre medicinas para listas habituales;
+            # si hay muchas, reducir solo ese intervalo para proteger el A4.
+            medication_count = sum(
+                1 for item in items if isinstance(item, dict)
+                and str(item.get("medication") or "").strip()
+            )
+            medication_density = (
+                " rx-med-many" if medication_count >= 8 else
+                (" rx-med-medium" if medication_count >= 6 else "")
+            )
 
         instructions = str(row["instructions"] or "").strip()
         allergy_detail = str(row["allergies_detail"] or "").strip()
@@ -1190,11 +1200,11 @@ def install(app, context: dict) -> None:
         if split_prescription:
             left_copy = left_copy.replace(
                 "<section class='rx-copy'>",
-                "<section class='rx-copy rx-copy-v2'>", 1,
+                f"<section class='rx-copy rx-copy-v2{medication_density}'>", 1,
             )
             right_copy = right_copy.replace(
                 "<section class='rx-copy'>",
-                "<section class='rx-copy rx-copy-v2'>", 1,
+                f"<section class='rx-copy rx-copy-v2{medication_density}'>", 1,
             )
 
         # Sólo al generar el PDF para firma se reserva un espacio para QR y sello;
@@ -1261,7 +1271,11 @@ body{{background:#dfe5ea;padding:14px}}
 .rx-copy-v2 .rp{{top:82mm}}
 /* Más aire ENTRE medicamentos en ambas copias. La indicación sigue junto
    a su medicamento porque .med-line conserva su margen superior de .7 mm. */
-.rx-copy-v2 .med-item{{margin-bottom:8mm}}
+/* 14 mm entre medicamentos, sin separar las indicaciones del nombre.
+   Listas largas usan intervalos más cortos para proteger el área imprimible. */
+.rx-copy-v2 .med-item{{margin-bottom:14mm}}
+.rx-copy-v2.rx-med-medium .med-item{{margin-bottom:10mm}}
+.rx-copy-v2.rx-med-many .med-item{{margin-bottom:5mm}}
 /* El PDF PAdES reserva exclusivamente en la copia izquierda un área sin texto
    de medicinas para la firma visible; no alterar la copia derecha ni la vista normal. */
 .rx-signed-preview .rx-copy:first-child .rp{{bottom:59mm}}
