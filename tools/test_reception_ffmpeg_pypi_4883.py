@@ -47,7 +47,7 @@ class FakeWebResponse:
 
 with tempfile.TemporaryDirectory(prefix="pypi_ffmpeg_4883_") as temp:
     storage=Path(temp)
-    payload=b"MZ"+b"Q"* (1024*1024 + 100)
+    payload=b"MZ"+os.urandom(1300000)
     packed=io.BytesIO()
     with zipfile.ZipFile(packed,"w",compression=zipfile.ZIP_DEFLATED) as wheel:
         wheel.writestr("imageio_ffmpeg/binaries/ffmpeg-win-x86_64-v7.0.exe",payload)
