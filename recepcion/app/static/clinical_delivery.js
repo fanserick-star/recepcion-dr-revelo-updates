@@ -245,10 +245,15 @@
     addButton(section,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),!data.ready_r2||state.sending||state.saving_video||state.benchmarking);
     section.append(cell('p','Mide una videocistoscopía real de hasta 550 MiB, con porcentaje y velocidad. Tras verificarla, elimina la copia temporal de R2. NO envía WhatsApp ni activa envíos a pacientes. Requiere autorización para la prueba.','rp-clinical-help'));
     if(data.ffmpeg_available===false){
-      section.append(cell('p','FFmpeg no está disponible para preparar la copia Faststart. Puedes instalarlo únicamente en esta PC: si falta WinGet, Recepción descargará una copia de FFmpeg desde PyPI y verificará su SHA-256. No se envían archivos clínicos.','rp-clinical-help'));
-      const install=addButton(section,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
+      const advanced=document.createElement('details');
+      const summary=document.createElement('summary');
+      summary.textContent='Opcional: FFmpeg para reproducción (NO es necesario para descargar el MP4)';
+      advanced.append(summary);
+      advanced.append(cell('p','FFmpeg sirve solamente para preparar una copia de reproducción Faststart. La descarga del MP4 original funciona sin FFmpeg, no recodifica y no altera la videocistoscopía.','rp-clinical-help'));
+      const install=addButton(advanced,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
         state.sending||state.saving_video||state.benchmarking);
       install.classList.add('rp-clinical-ffmpeg-install');
+      section.append(advanced);
     }
     addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
