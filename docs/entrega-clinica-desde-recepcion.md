@@ -8,6 +8,28 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Diagnóstico Meta sin mensajes — Recepción 4.8.73
+
+En **Documentos médicos → Prueba de WhatsApp en mi celular**, presiona
+**Comprobar permisos Meta sin enviar mensajes**. Realiza dos solicitudes GET a Meta
+con el token exclusivo de entregas clínicas, sin subir archivos, enviar WhatsApp,
+leer pacientes ni modificar Neon, alarmas o cuenta.
+
+- **Identidad del token**: consulta `/me?fields=id`; si la respuesta es accesible,
+  Meta reconoce ese token.
+- **Lectura del número**: consulta `/{Phone-Number-ID}?fields=id,display_phone_number`;
+  puede requerir `whatsapp_business_management`, incluso cuando
+  `whatsapp_business_messaging` está disponible. Un rechazo aquí no demuestra
+  por sí solo que la mensajería esté bloqueada.
+- Solo se muestran éxito/fallo y códigos HTTP/Meta numéricos; no se devuelven token,
+  teléfono, identidad del usuario, nombres, enlaces firmados ni mensajes de error
+  originales del proveedor.
+
+**La lectura de metadatos no valida la autorización para enviar mensajes.** Si el envío
+real sigue rechazado con código 10 después de comprobar scopes, número y asignación,
+revisar con Meta el permiso efectivo de la cuenta WhatsApp y los detalles del error.
+No cambiar `CLINICAL_DELIVERY_LIVE_ENABLED=0` ni insistir en envíos repetidos.
+
 ## Token clínico independiente — Recepción 4.8.72
 
 El Worker de citas, autoagenda y recordatorios usa sus propias plantillas y credenciales de Cloudflare. La entrega clínica es manual y se realiza desde Recepción, que toma los nombres de las dos plantillas clínicas de su configuración local. Meta no exige que los nombres estén en un `.env`; la separación es una decisión de arquitectura, no la causa directa del código de permiso 10.
