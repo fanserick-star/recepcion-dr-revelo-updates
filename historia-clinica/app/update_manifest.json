@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.38",
-  "app_version": "1.4.38",
-  "runtime_version": "1.4.38",
+  "version": "1.4.39",
+  "app_version": "1.4.39",
+  "runtime_version": "1.4.39",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.38: editores de recetas, certificados, reposos e informes más amplios y sin navegación duplicada, con indicador destacado de preparación de documentos, bloqueo de acciones simultáneas desde el primer clic y protección contra impresiones repetidas (20 segundos tras envío a Windows). Preserva v1.4.37: caché privada temporal de videocistoscopías MP4 con SHA-256 y diagnóstico Wi-Fi, sin alterar originales. Conserva recetas A4 1.4.36, firma PAdES, historias, pacientes, Recepción, turnos, Neón y facturación.",
-    "previous_version": "1.4.37",
+    "purpose": "Historia 1.4.39: Videocistoscopías junto a Documentos, con visor propio para reproducción LAN compatible con Ethernet, diagnóstico de red y descarga temporal opcional. Conserva 1.4.38: editores amplios e impresión protegida; caché MP4 SHA-256, protección HMAC, recetas, firma PAdES, historia y Neón sin cambios.",
+    "previous_version": "1.4.38",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
