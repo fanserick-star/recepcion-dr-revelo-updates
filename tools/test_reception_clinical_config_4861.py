@@ -62,7 +62,8 @@ with patch.dict(os.environ, {
     assert status["ready_test"] is False
     assert status["clinical_templates_approved"] is False
     saved.pop("WHATSAPP_CLINICAL_ACCESS_TOKEN")
-    assert ns["_setup"]()["ready_whatsapp"] is False, "Legacy appointment token must never unlock clinical sends"
+    with patch.dict(os.environ, {"WHATSAPP_CLINICAL_ACCESS_TOKEN": ""}):
+        assert ns["_setup"]()["ready_whatsapp"] is False, "Legacy appointment token must never unlock clinical sends"
     saved["WHATSAPP_CLINICAL_ACCESS_TOKEN"] = "F" * 80
     assert status["clinical_delivery_enabled"] is False
     assert dict(os.environ) == original_env
