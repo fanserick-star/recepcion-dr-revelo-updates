@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.72: credencial Meta clínica separada; prueba de publicador y de Recepción verifican que nunca use el token de citas. Sin cambios en alarmas, Neon ni facturación."
+  "notes": "Recepción 4.8.73: diagnóstico read-only de identidad del token clínico y lectura del número de Meta; no envía WhatsApp, no toca R2, pacientes, citas, Neon ni facturación."
 }
