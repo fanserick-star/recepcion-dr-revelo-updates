@@ -620,7 +620,7 @@ def _check_r2():
 
 
 def _meta_readonly_diagnostic():
-    """Two manual GET-only Graph probes. No messages, R2, Neon or patient access.
+    """Three manual GET-only Graph probes. No messages, R2, Neon or patient access.
 
     Never return token, phone, provider prose, request URLs or Graph identity.
     A successful metadata GET does not prove permission to send messages.
@@ -636,6 +636,7 @@ def _meta_readonly_diagnostic():
     probes = (
         ("token_identity", base + "/me?fields=id"),
         ("phone_metadata", base + "/" + phone_id + "?fields=id,display_phone_number"),
+        ("assigned_accounts", base + "/me/assigned_whatsapp_business_accounts?fields=id&limit=50"),
     )
     output = {}
     headers = {"Authorization":"Bearer "+token,
@@ -646,7 +647,13 @@ def _meta_readonly_diagnostic():
             req = urllib.request.Request(url, method="GET", headers=headers)
             with urllib.request.urlopen(req, timeout=12) as response:
                 data = json.loads(response.read(4096).decode("utf-8"))
-            output[name] = {"ok":bool(isinstance(data,dict) and data.get("id"))}
+            if name == "assigned_accounts":
+                accounts = data.get("data", []) if isinstance(data,dict) else None
+                output[name] = {"ok":isinstance(accounts,list),
+                                "assigned_count": min(len(accounts),50) if isinstance(accounts,list) else 0,
+                                "may_have_more":bool(isinstance(data,dict) and isinstance(data.get("paging"),dict) and data["paging"].get("next"))}
+            else:
+                output[name] = {"ok":bool(isinstance(data,dict) and data.get("id"))}
         except urllib.error.HTTPError as exc:
             # Meta can include numbers, message text, URLs or provider internals.
             # Only bounded numeric status/codes go back to the local operator.
@@ -667,8 +674,9 @@ def _meta_readonly_diagnostic():
             output[name] = {"ok":False, "network_error":True}
     return {
         "ok":True, "no_message_sent":True, "checks":output,
-        "note":"Solo lectura: comprobar identidad del token y metadatos del número. "
-               "Esta prueba no confirma permiso de envío ni la entrega en WhatsApp.",
+        "note":"Solo lectura: identidad del token, número y cuentas asignadas. "
+               "Una lista vacía no prueba por sí sola que el envío esté bloqueado. "
+               "No se verifica el permiso de envío ni la entrega en WhatsApp.",
     }
 
 
