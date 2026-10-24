@@ -5,7 +5,7 @@
   const $=(s,r=document)=>r.querySelector(s);
   const escText=v=>String(v==null?'':v);
   const safeId=v=>String(v||'').replace(/[^a-zA-Z0-9_-]/g,'');
-  const state={pid:0,name:'',phone:'',documents:[],videos:[],ready_document:false,ready_video:false,sending:false,saving_video:false};
+  const state={pid:0,name:'',phone:'',documents:[],videos:[],ready_document:false,ready_video:false,ready_r2:false,sending:false,saving_video:false,benchmarking:false};
   async function api(path,options={}){
     const response=await fetch(path,{cache:'no-store',...options});
     const data=await response.json().catch(()=>({}));
@@ -238,10 +238,12 @@
     section.append(cell('strong','🎥 Archivo de videocistoscopías del paciente'));
     section.append(cell('p','Selecciona uno o varios archivos MP4 desde la memoria USB (hasta 20 por lote). Se guardarán los originales, uno por uno, en esta PC y aparecerán en la ficha de Historia. No se envían a internet.','rp-clinical-help'));
     const file=document.createElement('input');file.type='file';file.accept='.mp4,video/mp4';
-    file.id='rpClinicalVideoFile';file.multiple=true;file.disabled=state.sending||state.saving_video;
+    file.id='rpClinicalVideoFile';file.multiple=true;file.disabled=state.sending||state.saving_video||state.benchmarking;
     section.append(file);
-    addButton(section,'Guardar videos en Recepción',()=>saveVideo(file),state.sending||state.saving_video);
-    addButton(section,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video);
+    addButton(section,'Guardar videos en Recepción',()=>saveVideo(file),state.sending||state.saving_video||state.benchmarking);
+    addButton(section,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video||state.benchmarking);
+    addButton(section,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),!data.ready_r2||state.sending||state.saving_video||state.benchmarking);
+    section.append(cell('p','Mide una videocistoscopía real de hasta 550 MiB, con porcentaje y velocidad. Tras verificarla, elimina la copia temporal de R2. NO envía WhatsApp ni activa envíos a pacientes. Requiere autorización para la prueba.','rp-clinical-help'));
     addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
@@ -266,7 +268,7 @@
     try{
       const data=await api('/api/clinical-delivery/patients/'+state.pid+'/documents');
       if(!container()||state.pid!==Number(pid))return;
-      Object.assign(state,{documents:data.documents||[],videos:data.videos||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
+      Object.assign(state,{documents:data.documents||[],videos:data.videos||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_r2:!!data.ready_r2,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
       draw({...status,...data});
     }catch(e){
       draw({...status,ok:false,error:e.message||'Historia no está disponible'});
@@ -384,8 +386,125 @@
       check.focus();
     });
   }
+  function createSpeedProgress(host){
+    const wrap=document.createElement('div');
+    wrap.setAttribute('role','status');wrap.setAttribute('aria-live','polite');
+    wrap.style.cssText='border:1px solid #9cbad6;border-radius:13px;background:#f3f8ff;color:#173550;padding:16px;margin:14px 0;max-width:780px';
+    const label=cell('strong','Preparando la prueba de velocidad…');
+    label.style.cssText='display:block;font-size:16px;margin-bottom:12px';
+    const track=document.createElement('div');
+    track.style.cssText='height:18px;border-radius:16px;background:#dce8f4;overflow:hidden;width:100%';
+    const fill=document.createElement('div');
+    fill.style.cssText='height:100%;width:0%;border-radius:16px;background:linear-gradient(90deg,#1765b3,#2aab9f);transition:width .25s';
+    track.append(fill);
+    const detail=cell('p','0 % · 0 / 0 MiB','rp-clinical-help');
+    detail.style.cssText='margin:12px 0 4px;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums';
+    const help=cell('p','El porcentaje indica bytes transmitidos. Cloudflare debe confirmar la carga antes de declararla completa.','rp-clinical-help');
+    wrap.append(label,track,detail,help);
+    host.append(wrap);
+    return {
+      update(stage,bytes,total,elapsed,rate){
+        const mib=v=>(Math.max(0,Number(v)||0)/1048576).toFixed(1);
+        const percent=total?Math.max(0,Math.min(100,Math.floor(bytes/total*100))):0;
+        fill.style.width=percent+'%';
+        const titles={
+          preparando:'Preparando prueba…',
+          recibiendo_archivo:'Copiando el video desde el selector a Recepción…',
+          preparando_r2:'Archivo recibido. Conectando con Cloudflare R2…',
+          subiendo_r2:'Enviando videocistoscopía a Cloudflare R2…',
+          verificando_r2:'100 % enviado. Confirmando la copia en R2…',
+          eliminando_copia:'Copia confirmada. Eliminando video temporal de la nube…',
+          complete:'Prueba completada: R2 confirmó el video y eliminó la copia.',
+          error:'Prueba incompleta'
+        };
+        label.textContent=titles[stage]||'Procesando transferencia…';
+        const active=['subiendo_r2','verificando_r2','eliminando_copia','complete'].includes(stage);
+        const rateNum=Number(rate)||0;
+        const extra=active?' · '+rateNum.toFixed(2)+' MiB/s':'';
+        const eta=stage==='subiendo_r2'&&rateNum>0?' · faltan aprox. '+Math.ceil((total-bytes)/1048576/rateNum)+' s':'';
+        detail.textContent=percent+' % · '+mib(bytes)+' / '+mib(total)+' MiB'+extra+
+          (elapsed?' · '+Number(elapsed).toFixed(1)+' s':'')+eta;
+        if(stage==='complete'){
+          wrap.style.background='#edf9f3';wrap.style.borderColor='#83b99a';
+          help.textContent='El original sigue guardado en la PC. La copia temporal de la nube se eliminó. No se envió WhatsApp.';
+        }else if(stage==='error'){
+          wrap.style.background='#fff5f2';wrap.style.borderColor='#d28c81';
+        }
+      },
+      fail(message){
+        label.textContent='No se completó la prueba';
+        help.textContent=message||'Comprueba la conexión a Cloudflare.';
+        wrap.style.background='#fff5f2';wrap.style.borderColor='#d28c81';
+      }
+    };
+  }
+  async function benchmarkVideo(input){
+    if(state.benchmarking||state.sending||state.saving_video||!state.ready_r2)return;
+    const chosen=input.files&&input.files[0];
+    if(!chosen||(input.files||[]).length!==1){
+      notice('Selecciona exactamente un archivo MP4 para medir la subida.','error');return;
+    }
+    if(!/\.mp4$/i.test(chosen.name)||chosen.size<1024||chosen.size>550*1024*1024){
+      notice('Selecciona un MP4 válido de hasta 550 MiB.','error');return;
+    }
+    if(!window.confirm('PRUEBA DE SUBIDA REAL\nPaciente: '+state.name+
+      '\nArchivo: '+chosen.name+'\nTamaño: '+(chosen.size/1048576).toFixed(1)+
+      ' MiB\n\n¿Confirmas que el video corresponde a la ficha correcta?'))return;
+    if(!window.confirm('¿Existe autorización para subir temporalmente este video médico a Cloudflare R2 SOLO para medir la velocidad? Después se intentará borrar la copia. No se enviará WhatsApp.'))return;
+    const pid=Number(state.pid),host=container();
+    if(!host)return;
+    state.benchmarking=true;
+    const display=createSpeedProgress(host);
+    let timer=null;
+    try{
+      const started=await api('/api/clinical-delivery/patients/'+pid+'/video-speed-test/start',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({size_bytes:chosen.size,confirmed_patient:true,upload_consent:true})
+      });
+      const progressUrl='/api/clinical-delivery/patients/'+pid+'/video-speed-test/'+encodeURIComponent(started.job_id);
+      const refresh=async()=>{
+        try{
+          const progress=await api(progressUrl);
+          const r2=['subiendo_r2','verificando_r2','eliminando_copia','complete'].includes(progress.stage);
+          display.update(progress.stage,r2?progress.r2_bytes:progress.local_bytes,
+            progress.total_bytes,progress.elapsed_seconds,progress.upload_mibps);
+          if(progress.done&&timer){window.clearInterval(timer);timer=null;}
+        }catch(_e){/* UI polling is local only; the upload continues independently. */}
+      };
+      timer=window.setInterval(refresh,1000);
+      const result=await new Promise((resolve,reject)=>{
+        const xhr=new XMLHttpRequest();
+        xhr.open('POST',progressUrl+'/upload');
+        xhr.setRequestHeader('Content-Type','video/mp4');
+        xhr.upload.onprogress=e=>{
+          if(e.lengthComputable)display.update('recibiendo_archivo',e.loaded,chosen.size,0,0);
+        };
+        xhr.onload=()=>{
+          let payload={};
+          try{payload=JSON.parse(xhr.responseText||'{}');}catch(_e){}
+          if(xhr.status>=200&&xhr.status<300&&payload.ok!==false)resolve(payload);
+          else reject(Error(payload.detail||payload.error||'No se completó la prueba'));
+        };
+        xhr.onerror=()=>reject(Error('Se interrumpió la conexión local'));
+        xhr.onabort=()=>reject(Error('Se canceló el envío a Recepción'));
+        xhr.send(chosen);
+      });
+      await refresh();
+      if(result.stage!=='complete'||!result.r2_verified||!result.r2_deleted){
+        throw Error('R2 no confirmó la verificación o eliminación de la copia temporal.');
+      }
+      notice('Subida comprobada: '+(chosen.size/1048576).toFixed(1)+' MiB a '+
+        Number(result.upload_mibps).toFixed(2)+' MiB/s. Copia temporal eliminada.','success');
+    }catch(e){
+      display.fail(e.message||'No se pudo completar la prueba');
+      notice(e.message||'Falló la subida de prueba','error');
+    }finally{
+      if(timer)window.clearInterval(timer);
+      state.benchmarking=false;
+    }
+  }
   async function saveVideo(file){
-    if(state.saving_video||state.sending)return;
+    if(state.saving_video||state.sending||state.benchmarking)return;
     const selected=Array.from(file.files||[]);
     if(!selected.length){notice('Selecciona los videos MP4 que deseas archivar.','error');return;}
     if(selected.length>20){notice('Puedes guardar hasta 20 videos por lote.','error');return;}
@@ -395,7 +514,7 @@
     if(total>10*1024*1024*1024){notice('Este lote supera 10 GB. Divídelo en dos grupos para proteger el espacio de esta PC.','error');return;}
     const pid=state.pid,phone=state.phone,name=state.name;
     if(!await confirmVideoArchive(selected))return;
-    if(state.sending||state.saving_video||state.pid!==pid)return;
+    if(state.sending||state.saving_video||state.benchmarking||state.pid!==pid)return;
     state.saving_video=true;
     const host=container();
     const progress=document.createElement('div');
@@ -441,7 +560,7 @@
     notice(failed.length?'Se completó el lote con errores. Revisa el resumen debajo.':'Videos procesados: '+saved+' nuevos y '+duplicates+' ya archivados.',failed.length?'error':'success');
   }
   async function sendVideo(file){
-    if(state.sending||!state.ready_video)return;
+    if(state.sending||state.benchmarking||!state.ready_video)return;
     const chosen=file.files&&file.files[0];
     if((file.files||[]).length>1){
       notice('WhatsApp admite un video por envío. Para enviarlo, selecciona únicamente ese MP4.','error');

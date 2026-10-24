@@ -348,12 +348,17 @@ def _r2_url(method, key, expires=604800):
     return f"https://{host}{path}?{qs}&X-Amz-Signature={sig}"
 
 
-def _upload_r2(filename, key, media_type):
-    """Upload by streaming, never loading a 400MB USB recording into memory."""
-    signed=_r2_url("PUT",key,300)
+def _upload_r2(filename, key, media_type, progress_callback=None):
+    """Stream 512 KiB at a time. Count transmitted bytes, confirm R2 response.
+
+    Progress is socket-transmitted bytes, NOT server-confirmed storage. UI must
+    show 'verificando' until the HTTP response and HEAD validation succeed.
+    """
+    signed=_r2_url("PUT",key,3600)
     url=urllib.parse.urlsplit(signed)
     size=Path(filename).stat().st_size
-    conn=http.client.HTTPSConnection(url.hostname,timeout=150)
+    conn=http.client.HTTPSConnection(url.hostname,timeout=300)
+    done=0
     try:
         conn.putrequest("PUT",url.path+"?"+url.query)
         conn.putheader("Content-Length",str(size))
@@ -364,8 +369,11 @@ def _upload_r2(filename, key, media_type):
                 chunk=f.read(512*1024)
                 if not chunk:break
                 conn.send(chunk)
+                done+=len(chunk)
+                if progress_callback:
+                    progress_callback(done,size)
         result=conn.getresponse()
-        message=result.read(1024)
+        result.read(1024)
         if result.status not in (200,201,204):
             raise RuntimeError(f"R2 rechazó la subida (HTTP {result.status})")
     finally:
@@ -558,6 +566,187 @@ def _deliver_temp(pid,kind,doc_id,file_path,media_type,patient,user):
     finally:
         with _MUTEX:
             _BUSY.discard(lock_id)
+
+
+# Manual video speed test / delivery progress. Only local process RAM has job
+# state; no polling Neon, Cloudflare Workers, appointments, or patient histories.
+_PROGRESS_LOCK=threading.Lock()
+_PROGRESS_JOBS={}
+_PROGRESS_MAX=6
+
+
+def _progress_set(job_id, **values):
+    with _PROGRESS_LOCK:
+        job=_PROGRESS_JOBS.get(job_id)
+        if job:
+            job.update(values)
+
+
+def _progress_snapshot(job_id):
+    with _PROGRESS_LOCK:
+        job=_PROGRESS_JOBS.get(job_id)
+        if not job:
+            raise core.HTTPException(404,"Prueba no disponible o expirada")
+        now=time.monotonic()
+        stage=str(job.get("stage","preparando"))
+        uploaded=int(job.get("r2_bytes",0))
+        started=float(job.get("r2_started",now))
+        finished=float(job.get("r2_finished") or now)
+        elapsed=max(0,finished-started) if job.get("r2_started") else 0
+        rate=(uploaded/1048576/elapsed) if elapsed>0 and uploaded else 0.0
+        return {"ok":True,"stage":stage,"total_bytes":job["size"],
+                "local_bytes":int(job.get("local_bytes",0)),
+                "r2_bytes":uploaded,"elapsed_seconds":round(elapsed,1),
+                "upload_mibps":round(rate,2),
+                "done":stage in ("complete","error"),
+                "error":str(job.get("error","")) if stage=="error" else "",
+                "r2_verified":bool(job.get("r2_verified",False)),
+                "r2_deleted":bool(job.get("r2_deleted",False)),
+                "whatsapp_accepted":bool(job.get("whatsapp_accepted",False)),
+                "mode":job["mode"]}
+
+
+def _upload_progress_hook(job_id):
+    def report(written,total):
+        _progress_set(job_id,stage="subiendo_r2",r2_bytes=written)
+    return report
+
+
+def _verify_benchmark_r2(key,expected_size):
+    req=urllib.request.Request(_r2_url("HEAD",key,180),method="HEAD")
+    with urllib.request.urlopen(req,timeout=30) as response:
+        length=response.headers.get("Content-Length")
+        if response.status!=200 or str(length)!=str(expected_size):
+            raise RuntimeError("R2 no confirmó la integridad del tamaño del video")
+    return True
+
+
+def _delete_benchmark_r2(key):
+    req=urllib.request.Request(_r2_url("DELETE",key,180),method="DELETE")
+    with urllib.request.urlopen(req,timeout=30) as response:
+        if response.status not in (200,202,204):
+            raise RuntimeError("R2 no confirmó la eliminación de la copia temporal")
+    return True
+
+
+def _r2_video_benchmark(job_id,filename):
+    with _PROGRESS_LOCK:
+        job=_PROGRESS_JOBS[job_id]
+        expected=int(job["size"])
+    key="clinical-temp/speed-test/"+secrets.token_hex(24)+".mp4"
+    began=time.monotonic()
+    try:
+        _progress_set(job_id,stage="subiendo_r2",r2_started=began)
+        _upload_r2(filename,key,"video/mp4",_upload_progress_hook(job_id))
+        _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
+        _verify_benchmark_r2(key,expected)
+        _progress_set(job_id,stage="eliminando_copia",r2_verified=True)
+        _delete_benchmark_r2(key)
+        _progress_set(job_id,stage="complete",r2_deleted=True,
+                      r2_elapsed_seconds=round(time.monotonic()-began,2))
+    except Exception as exc:
+        # Never return raw provider errors, signed URLs or patient identifiers.
+        _progress_set(job_id,stage="error",error="No se completó la subida, verificación o eliminación en R2")
+        try:
+            _delete_benchmark_r2(key)
+            _progress_set(job_id,r2_deleted=True)
+        except Exception:
+            # R2 7-day lifecycle is still configured and mandatory.
+            pass
+    finally:
+        try:os.unlink(filename)
+        except OSError:pass
+
+
+class VideoProgressStart(BaseModel):
+    size_bytes:int
+    confirmed_patient:bool=False
+    upload_consent:bool=False
+
+
+@app.post("/api/clinical-delivery/patients/{pid}/video-speed-test/start")
+def video_speed_start(pid:int,data:VideoProgressStart,db=core.Depends(core.get_db),
+                      user=core.Depends(core.current_user)):
+    if not _setup()["ready_r2"]:
+        raise core.HTTPException(503,"Cloudflare R2 privado y su borrado a 7 días deben estar configurados")
+    _patient(db,pid)
+    _linked_patient(pid)
+    if not data.confirmed_patient or not data.upload_consent:
+        raise core.HTTPException(400,"Confirma ficha correcta y autorización para la subida temporal")
+    if not (1024<=data.size_bytes<=LIMIT_VIDEO):
+        raise core.HTTPException(413,"Solo MP4 de 1 KB a 550 MiB")
+    with _PROGRESS_LOCK:
+        now=time.monotonic()
+        for jid,job in list(_PROGRESS_JOBS.items()):
+            if now-job["created"]>3600 and job.get("stage") in ("complete","error","preparando"):
+                del _PROGRESS_JOBS[jid]
+        if len(_PROGRESS_JOBS)>=_PROGRESS_MAX:
+            raise core.HTTPException(429,"Hay demasiadas pruebas activas; finaliza la anterior")
+        if any(job["pid"]==pid and job["stage"] not in ("complete","error") for job in _PROGRESS_JOBS.values()):
+            raise core.HTTPException(409,"Ya existe una subida activa para esta ficha")
+        job_id=secrets.token_urlsafe(24)
+        _PROGRESS_JOBS[job_id]={"pid":pid,"mode":"velocidad","size":data.size_bytes,
+                               "stage":"preparando","created":now,"local_bytes":0,
+                               "r2_bytes":0,"r2_verified":False,"r2_deleted":False}
+    return {"ok":True,"job_id":job_id,"max_bytes":LIMIT_VIDEO,
+            "note":"Mide subida a R2, verifica bytes y borra la copia; nunca envía WhatsApp."}
+
+
+@app.get("/api/clinical-delivery/patients/{pid}/video-speed-test/{job_id}")
+def video_speed_status(pid:int,job_id:str,user=core.Depends(core.current_user)):
+    with _PROGRESS_LOCK:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{32,40}",job_id) or (
+            job_id not in _PROGRESS_JOBS or _PROGRESS_JOBS[job_id]["pid"]!=pid):
+            raise core.HTTPException(404,"Prueba no disponible")
+    return _progress_snapshot(job_id)
+
+
+@app.post("/api/clinical-delivery/patients/{pid}/video-speed-test/{job_id}/upload")
+async def video_speed_upload(pid:int,job_id:str,request:Request,
+                              user=core.Depends(core.current_user)):
+    if "video/mp4" not in request.headers.get("content-type","").lower():
+        raise core.HTTPException(415,"Solo se aceptan archivos MP4")
+    with _PROGRESS_LOCK:
+        job=_PROGRESS_JOBS.get(job_id)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{32,40}",job_id) or not job or job["pid"]!=pid:
+            raise core.HTTPException(404,"Prueba inexistente")
+        if job["stage"]!="preparando":
+            raise core.HTTPException(409,"Esta prueba ya fue iniciada")
+        job["stage"]="recibiendo_archivo"
+        size=int(job["size"])
+    tmp=None
+    received=0
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_speed_video_",suffix=".mp4",delete=False) as out:
+            tmp=out.name
+            async for chunk in request.stream():
+                received+=len(chunk)
+                if received>size or received>LIMIT_VIDEO:
+                    raise core.HTTPException(413,"Video más grande de lo declarado")
+                out.write(chunk)
+                _progress_set(job_id,local_bytes=received)
+        if received!=size:
+            raise core.HTTPException(400,"La copia local quedó incompleta")
+        with open(tmp,"rb") as check:
+            header=check.read(24)
+        if b"ftyp" not in header or len(header)<24:
+            raise core.HTTPException(415,"El archivo no parece MP4")
+        _progress_set(job_id,stage="preparando_r2")
+        # Background thread handles cloud transfer; this request waits for its
+        # final outcome, while browser separately polls progress through GET.
+        await asyncio.to_thread(_r2_video_benchmark,job_id,tmp)
+        tmp=None
+        result=_progress_snapshot(job_id)
+        if result["stage"]!="complete":
+            raise core.HTTPException(502,result.get("error") or "Falló la prueba R2")
+        return result
+    except Exception:
+        _progress_set(job_id,stage="error",error="La prueba no terminó correctamente")
+        raise
+    finally:
+        if tmp:
+            try:os.unlink(tmp)
+            except OSError:pass
 
 
 # Self-test never touches patients, encounters, clinical files or medical database.

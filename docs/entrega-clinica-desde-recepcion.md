@@ -8,6 +8,18 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Prueba de subida REAL con progreso — Recepción 4.8.78
+
+En Recepción → ficha verificada → Documentos médicos → Archivo de videocistoscopías, seleccionar un MP4 real (máximo 550 MiB) y pulsar «Medir subida REAL a Cloudflare R2». Confirmar que corresponde al paciente y que existe autorización para la transferencia temporal a la nube.
+
+1. El navegador primero copia el MP4 hacia el servidor local de Recepción. La interfaz distingue esta fase del tiempo de subida a Internet.
+2. Recepción transmite el MP4 a R2 en bloques de 512 KiB; el estado solo accesible con usuario de Recepción y un identificador aleatorio reporta bytes enviados, MiB/s, tiempo transcurrido y ETA aproximado. El 100 % de bytes no equivale a entrega hasta confirmar HTTP.
+3. Se consulta HEAD de R2 y se compara Content-Length con los bytes originales. Después se solicita inmediatamente DELETE de R2. La prueba termina correctamente solo si la eliminación fue confirmada.
+4. El original de la PC se conserva; la copia temporal local se borra en finally. Si falla R2 se intenta también borrar el archivo remoto. La regla R2 clinical-temp/ de siete días sigue siendo protección adicional si la red impide el borrado inmediato.
+5. NO envía enlace por WhatsApp ni cambia CLINICAL_DELIVERY_LIVE_ENABLED=0, alarmas, citas, facturas ni datos clínicos. El envío a un paciente necesitará confirmación de identidad, teléfono, consentimiento y habilitación explícita del módulo.
+
+La velocidad indicada es de bytes enviados por el socket a R2, no prueba de persistencia hasta que HEAD lo confirme. Subida multipart/reanudable aún no se ha implementado; primero recoger tiempos reales con autorización.
+
 ## Enlaces cortos y prueba de video — Recepción 4.8.76
 
 - Recepción ahora guarda un manifiesto JSON privado en
