@@ -384,7 +384,7 @@ def _issue_clinical_capability(phone, mode):
         raise core.HTTPException(503,"Se necesita conexión segura a Neón para solicitar el envío")
     token=secrets.token_urlsafe(32)
     digest=hashlib.sha256(token.encode("ascii")).hexdigest()
-    recipient_hash=hashlib.sha256(phone.encode("ascii")).hexdigest()
+    recipient_hash=hashlib.sha256((token+"|"+phone).encode("ascii")).hexdigest()
     try:
         with session_factory() as session:
             session.execute(core.text("""
