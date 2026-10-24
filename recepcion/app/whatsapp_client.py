@@ -102,6 +102,24 @@ def send_template(
         for field, key in (("meta_error_code", "code"), ("meta_error_subcode", "error_subcode")):
             value = provider.get(key)
             setattr(error, field, int(value) if str(value).isdigit() else None)
+        # Debug-only metadata: preserve trace for Meta support and a fixed
+        # technical category. Never return provider's free-form details verbatim.
+        import re
+        trace = provider.get("fbtrace_id")
+        error.meta_trace_id = (trace if isinstance(trace, str)
+                               and re.fullmatch(r"[A-Za-z0-9_-]{12,80}", trace)
+                               else None)
+        data = provider.get("error_data")
+        details = data.get("details", "") if isinstance(data, dict) else ""
+        detail_lower = details.lower() if isinstance(details, str) else ""
+        if "error validating graph api permission checks" in detail_lower:
+            error.meta_diagnostic_category = "graph_permission_checks"
+        elif "permission" in detail_lower or "access denied" in detail_lower:
+            error.meta_diagnostic_category = "access_permissions"
+        elif "not registered" in detail_lower:
+            error.meta_diagnostic_category = "registration"
+        else:
+            error.meta_diagnostic_category = "unknown"
         raise error from exc
     except urllib.error.URLError as exc:
         raise WhatsAppError(f"No se pudo conectar con Meta: {exc.reason}") from exc
