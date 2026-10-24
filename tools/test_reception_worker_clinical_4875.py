@@ -6,6 +6,8 @@ import hashlib
 import re
 import secrets
 import urllib
+import urllib.request
+import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
