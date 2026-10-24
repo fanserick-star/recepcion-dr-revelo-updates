@@ -25,7 +25,7 @@ let answer=await code.run(req,env,path);
 assert.equal(answer.status,302);
 assert.equal(answer.headers.get('Location'),target);
 assert.equal(answer.headers.get('Cache-Control'),'private, no-store, max-age=0');
-assert.equal(seen[0],'clinical-links/'+slug+'.json');
+assert.equal(seen[0],'clinical-temp/short-links/'+slug+'.json');
 assert.equal((await code.run({method:'POST'},env,path)).status,405);
 assert.equal((await code.run(req,env,'/d/'+ 'x'.repeat(10))).status,404);
 assert.equal((await code.run(req,{},path)).status,404);
