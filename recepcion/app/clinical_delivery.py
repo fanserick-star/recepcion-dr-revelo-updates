@@ -298,7 +298,6 @@ def _setup():
         test_phone="593"+test_phone[1:]
     ready_test=bool(approved and ready_r2 and wa_ready and template_doc and template_video and re.fullmatch(r"5939\d{8}",test_phone))
     return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,"ready_test":ready_test,
-            "ffmpeg_available":bool(_faststart_ffmpeg_path()),
             "clinical_delivery_enabled":live_enabled,
             "clinical_templates_approved":approved,
             "ready_document":bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and lan_ready),
@@ -1600,7 +1599,7 @@ async def delivery_check_r2(user=core.Depends(core.current_user)):
 
 @app.get("/api/clinical-delivery/status")
 def delivery_status(user=core.Depends(core.current_user)):
-    return {"ok":True,**_setup(),"privacy":"private-bucket-presigned-link"}
+    return {"ok":True,**_setup(),"ffmpeg_available":bool(_faststart_ffmpeg_path()),"privacy":"private-bucket-presigned-link"}
 
 
 @app.get("/api/clinical-delivery/patients/{pid}/documents")
@@ -1609,7 +1608,7 @@ def delivery_documents(pid:int,db=core.Depends(core.get_db),user=core.Depends(co
     try:
         docs,_,clinical_id=_documents(pid)
         from clinical_video_library import _records
-        return {"ok":True,"documents":docs,"videos":_records(clinical_id),**_setup()}
+        return {"ok":True,"documents":docs,"videos":_records(clinical_id),**_setup(),"ffmpeg_available":bool(_faststart_ffmpeg_path())}
     except core.HTTPException:raise
     except Exception:
         return {"ok":False,"documents":[],"error":"No se pudo consultar Historia Clínica; vuelve a intentarlo"}
