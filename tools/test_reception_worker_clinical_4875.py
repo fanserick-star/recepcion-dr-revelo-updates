@@ -81,7 +81,7 @@ with patch.object(urllib.request,"urlopen",side_effect=fake_urlopen):
 
 assert len(requests)==1 and len(rows)==1
 assert rows[0]["mode"]=="test"
-assert rows[0]["recipient_hash"]==hashlib.sha256(b"593999999999").hexdigest()
+assert rows[0]["recipient_hash"]==hashlib.sha256((json.loads(requests[0].data)["token"]+"|593999999999").encode()).hexdigest()
 assert "core.whatsapp_send_template" not in source
 assert "core.WHATSAPP_ACCESS_TOKEN" not in source
 assert '"WHATSAPP_CLINICAL_ACCESS_TOKEN"]' not in source.split("def _send_template(",1)[1].split("def _audit(",1)[0]
