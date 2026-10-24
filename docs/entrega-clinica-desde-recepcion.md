@@ -64,6 +64,37 @@ tras la confirmación explícita del operador.
   No se utiliza ninguna instalación automática al actualizar Recepción:
   el usuario siempre debe autorizar expresamente la acción.
 
+## Descarga de videocistoscopias originales — Recepción 4.8.84
+
+**La necesidad clínica es que el paciente DESCARGUE el MP4 original**, no que
+Safari lo reproduzca directamente. El envío con descarga es el flujo preferido.
+No requiere FFmpeg, Faststart ni recodificación; se conservan los bytes del
+archivo médico original local y el enlace corto privado de 7 días.
+
+- Los nuevos objetos `video/mp4` almacenados dentro de `clinical-temp/`
+  se suben a R2 con **Content-Disposition: attachment** y nombre genérico
+  `Videocistoscopia.mp4`; no se incluye nombre ni identidad de paciente.
+- Antes de aceptar un envío por WhatsApp, Recepción verifica mediante HEAD
+  `Content-Length`, `Content-Type: video/mp4` y
+  `Content-Disposition: attachment`. Si alguno falla, intenta eliminar la
+  copia temporal y **no envía el mensaje**. R2 sirve directamente los bytes;
+  el Worker solo redirige el enlace y no transmite vídeos de cientos de MB.
+- En Documentos médicos, junto al archivo archivado se muestra
+  «Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas».
+  El operador confirma ficha y consentimiento para enviar a su
+  `WHATSAPP_TEST_PHONE`. La habilitación general
+  `CLINICAL_DELIVERY_LIVE_ENABLED=0` permanece desactivada.
+- En iPhone, abrir el enlace ofrece guardar el archivo en Descargas/Archivos
+  según ajustes de Safari. Si el códec no es compatible, se puede abrir el
+  archivo guardado con VLC u otro reproductor compatible; se preserva la
+  información original. **La descarga no garantiza reproducción nativa**.
+- FFmpeg sigue siendo una herramienta opcional para preparar una copia para
+  reproducción; su instalación se ubica en un panel avanzado cerrado.
+  Descargar el original no depende de ella.
+- Los enlaces previamente enviados conservan los encabezados con que se
+  subieron. El nuevo comportamiento exige una nueva entrega autorizada
+  y NO reenvía contenido automáticamente.
+
 ## Instalación guiada de FFmpeg — Recepción 4.8.82
 
 - Si falta FFmpeg, **Recepción no sube ni envía la videocistoscopía**.
