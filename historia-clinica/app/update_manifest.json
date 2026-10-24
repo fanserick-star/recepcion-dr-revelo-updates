@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.40",
-  "app_version": "1.4.40",
-  "runtime_version": "1.4.40",
+  "version": "1.4.41",
+  "app_version": "1.4.41",
+  "runtime_version": "1.4.41",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.40: Informes médicos desde la ficha abre su listado en ventana independiente (WebView2), sin abandonar la historia; acceso a nuevo informe de cistoscopia/ecografía desde esa ventana. Certificados y recetas conservan ventanas separadas. Sin cambios en grabación MP4 por LAN, firmas PAdES, impresiones, bases de datos, pacientes, Recepción o Neón.",
-    "previous_version": "1.4.39",
+    "purpose": "Historia 1.4.41: el botón de videocistoscopías muestra cantidad por ficha y distingue visualmente videos disponibles (verde), vacío (gris) y catálogo inaccesible (—). Al seleccionar una grabación se abre un reproductor ampliado con Play grande, controles nativos y pantalla completa opcional. Un solo visor, sin reproductores pequeños por fila. Se mantienen intactas la reproducción LAN, copia temporal, protección por ficha, pacientes, .env, Neón, bases de datos, recetas, certificados e informes.",
+    "previous_version": "1.4.40",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -345,6 +345,18 @@
     "document_editor_print_resend_cooldown_seconds": 20,
     "document_editor_print_status_windows_handoff_only": true,
     "document_editor_receipts_or_invoice_changes": false,
-    "document_editor_windows_physical_print_validation_pending": true
+    "document_editor_windows_physical_print_validation_pending": true,
+    "videocystoscopy_video_count_live_per_patient": true,
+    "videocystoscopy_button_green_when_nonempty": true,
+    "videocystoscopy_button_muted_when_empty": true,
+    "videocystoscopy_unavailable_count_not_treated_as_zero": true,
+    "videocystoscopy_large_single_viewer": true,
+    "videocystoscopy_player_stays_within_patient_dialog": true,
+    "videocystoscopy_large_play_control": true,
+    "videocystoscopy_optional_native_fullscreen": true,
+    "videocystoscopy_lan_transport_unchanged": true,
+    "videocystoscopy_cache_routes_preserved": true,
+    "videocystoscopy_per_patient_authorization_unchanged": true,
+    "videocystoscopy_no_background_polling": true
   }
 }
