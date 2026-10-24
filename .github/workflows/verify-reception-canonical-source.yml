@@ -55,6 +55,8 @@ jobs:
       - name: Verify canonical source contract
         run: |
           python tools/test_reception_canonical_source.py
+          python tools/test_reception_patient_delivery_4885.py
+          python -m py_compile recepcion/app/clinical_delivery_setup.pyw
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
           python tools/test_reception_clinical_meta_diagnostics_4871.py

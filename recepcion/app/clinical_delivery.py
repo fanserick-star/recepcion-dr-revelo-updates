@@ -26,6 +26,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -353,7 +354,17 @@ def _r2_url(method, key, expires=604800):
     return f"https://{host}{path}?{qs}&X-Amz-Signature={sig}"
 
 
-def _upload_r2(filename, key, media_type, progress_callback=None):
+def _clinical_download_name(patient, kind, suffix):
+    """Readable ASCII filename, never used as an R2 key or public URL."""
+    raw = str(getattr(patient, "nombre", "") or "")
+    normalized = unicodedata.normalize("NFKD", raw).encode("ascii", "ignore").decode("ascii").upper()
+    clean = re.sub(r"[^A-Z0-9]+", "_", normalized).strip("_")[:64].strip("_") or "PACIENTE"
+    label = {"receta":"RECETA","certificado":"CERTIFICADO","reposo":"REPOSO",
+             "informe":"INFORME_MEDICO","video":"VIDEOCISTOSCOPIA"}.get(kind,"DOCUMENTO")
+    return f"{label}_{clean}_{datetime.now(TZ):%Y-%m-%d}.{suffix}"
+
+
+def _upload_r2(filename, key, media_type, progress_callback=None, download_name=None):
     """Stream 512 KiB at a time. Count transmitted bytes, confirm R2 response.
 
     Progress is socket-transmitted bytes, NOT server-confirmed storage. UI must
@@ -371,8 +382,13 @@ def _upload_r2(filename, key, media_type, progress_callback=None):
         # Cloudflare R2 stores this as HTTP object metadata and returns it
         # on the presigned GET. Safari should download instead of showing an
         # unsupported embedded video player. No re-encoding or worker proxy.
-        if media_type=="video/mp4" and key.startswith("clinical-temp/"):
-            conn.putheader("Content-Disposition",'attachment; filename="Videocistoscopia.mp4"')
+        if key.startswith("clinical-temp/") and (media_type=="video/mp4" or
+                (media_type=="application/pdf" and download_name)):
+            label = download_name or "Videocistoscopia.mp4"
+            label = re.sub(r"[^A-Za-z0-9_.-]", "_", str(label))[:125]
+            if not label or label.startswith("."):
+                raise ValueError("Nombre de descarga no válido")
+            conn.putheader("Content-Disposition",f'attachment; filename="{label}"')
             conn.putheader("Cache-Control","private, no-store")
         conn.endheaders()
         with open(filename,"rb") as f:
@@ -567,7 +583,10 @@ def _deliver_temp(pid,kind,doc_id,file_path,media_type,patient,user):
         expiry_dt=now+timedelta(days=7)
         expiry=expiry_dt.strftime("%d/%m/%Y a las %H:%M")
         key="clinical-temp/"+now.strftime("%Y/%m/%d")+"/"+secrets.token_hex(24)+(".mp4" if kind=="video" else ".pdf")
-        _upload_r2(file_path,key,media_type)
+        file_name=_clinical_download_name(patient,kind,"mp4" if kind=="video" else "pdf")
+        _upload_r2(file_path,key,media_type,download_name=file_name)
+        _verify_benchmark_r2(key,Path(file_path).stat().st_size,require_download=True,
+                              expected_type=media_type,expected_name=file_name)
         url=_r2_url("GET",key,604800)
         short_url=_short_r2_link(url,expiry_dt)
         phone=_phone(patient)
@@ -623,7 +642,8 @@ def _upload_progress_hook(job_id):
     return report
 
 
-def _verify_benchmark_r2(key,expected_size,require_download=False):
+def _verify_benchmark_r2(key,expected_size,require_download=False,
+                          expected_type="video/mp4",expected_name=None):
     req=urllib.request.Request(_r2_url("HEAD",key,180),method="HEAD")
     with urllib.request.urlopen(req,timeout=30) as response:
         length=response.headers.get("Content-Length")
@@ -635,8 +655,10 @@ def _verify_benchmark_r2(key,expected_size,require_download=False):
             content_type=str(response.headers.get("Content-Type","")).split(";",1)[0].strip().lower()
             if not disposition.lower().strip().startswith("attachment;"):
                 raise RuntimeError("R2 no confirmó la descarga de video como archivo adjunto")
-            if content_type!="video/mp4":
-                raise RuntimeError("R2 no confirmó el tipo MP4 de la descarga")
+            if content_type!=expected_type:
+                raise RuntimeError("R2 no confirmó el tipo de archivo de descarga")
+            if expected_name and disposition.strip()!=f'attachment; filename="{expected_name}"':
+                raise RuntimeError("R2 no confirmó el nombre del archivo descargable")
     return True
 
 
@@ -1270,7 +1292,7 @@ class ArchivedVideoTestRequest(BaseModel):
     patient_authorized_staff_delivery:bool=False
 
 
-def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,username):
+def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,username,download_name=None):
     with _PROGRESS_LOCK:
         job=_PROGRESS_JOBS[job_id]
         expected=int(job["size"])
@@ -1287,10 +1309,17 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
         expected=ready_source.stat().st_size
         _progress_set(job_id,size=expected,local_bytes=expected,prepared_faststart=False)
         _progress_set(job_id,stage="subiendo_r2",r2_started=time.monotonic())
-        _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id))
+        if download_name:
+            _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id),
+                       download_name=download_name)
+        else:
+            _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id))
         uploaded=True
         _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
-        _verify_benchmark_r2(key,expected,require_download=True)
+        if download_name:
+            _verify_benchmark_r2(key,expected,require_download=True,expected_name=download_name)
+        else:
+            _verify_benchmark_r2(key,expected,require_download=True)
         _progress_set(job_id,stage="preparando_enlace",r2_verified=True)
         signed=_r2_url("GET",key,604800)
         short=_short_r2_link(signed,expiry_dt)
@@ -1349,7 +1378,7 @@ async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRe
         allow="593"+allow[1:]
     if not re.fullmatch(r"5939\d{8}",raw) or not hmac.compare_digest(raw,allow):
         raise core.HTTPException(403,"Solo se permite el WhatsApp configurado como número de prueba")
-    _patient(db,pid)
+    patient=_patient(db,pid)
     clinical_id,_,conn=_linked_patient(pid)
     conn.close()
     from clinical_video_library import _row_by_id, _local_file
@@ -1390,9 +1419,122 @@ async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRe
     # No names, phones or signed URLs are returned via status or stored in Neon.
     username=str(getattr(user,"username","recepcion"))
     background_tasks.add_task(_send_archived_video_to_test_phone,
-                              job_id,path,pid,video_id,raw,username)
+                              job_id,path,pid,video_id,raw,username,
+                              _clinical_download_name(patient,"video","mp4"))
     return {"ok":True,"job_id":job_id,
             "note":"Subida autorizada iniciada; el estado no confirma envío hasta Meta."}
+
+
+
+# Explicit patient delivery for one archived, Reception-verified MP4.
+class ArchivedVideoPatientRequest(BaseModel):
+    confirmed_phone:str
+    identity_confirmed:bool=False
+    consent_confirmed:bool=False
+
+
+_PATIENT_VIDEO_RECENT={}
+
+
+def _send_archived_video_to_patient(job_id,source,patient_id,video_id,phone,
+                                    patient_name,download_name,username):
+    with _PROGRESS_LOCK:
+        expected=int(_PROGRESS_JOBS[job_id]["size"])
+    now=datetime.now(TZ)
+    expiry_dt=now+timedelta(days=7)
+    key="clinical-temp/patient-video/"+secrets.token_hex(24)+".mp4"
+    meta_attempted=False
+    try:
+        _progress_set(job_id,stage="preparando_descarga")
+        ready_source=Path(source).resolve(strict=True)
+        expected=ready_source.stat().st_size
+        _progress_set(job_id,size=expected,local_bytes=expected,prepared_faststart=False,
+                      stage="subiendo_r2",r2_started=time.monotonic())
+        _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id),
+                   download_name=download_name)
+        _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
+        _verify_benchmark_r2(key,expected,require_download=True,expected_name=download_name)
+        _progress_set(job_id,stage="preparando_enlace",r2_verified=True)
+        signed=_r2_url("GET",key,604800)
+        short=_short_r2_link(signed,expiry_dt)
+        meta_attempted=True  # Never automatically retry an ambiguous Meta result
+        _progress_set(job_id,stage="enviando_whatsapp")
+        mid=_send_template(phone,patient_name,"video",
+                           expiry_dt.strftime("%d/%m/%Y a las %H:%M"),short)
+        _progress_set(job_id,stage="complete",whatsapp_accepted=True,
+                      expires_at=expiry_dt.isoformat())
+        try:
+            _audit(patient_id,"video",video_id,mid,expiry_dt.isoformat(),username)
+        except Exception:
+            _progress_set(job_id,audit_warning=True)
+    except Exception:
+        if not meta_attempted:
+            try:
+                _delete_benchmark_r2(key)
+                _progress_set(job_id,r2_deleted=True)
+            except Exception:
+                pass
+            error="No se pudo verificar el MP4 descargable; no se envió WhatsApp."
+        else:
+            error="Meta no confirmó el mensaje. Comprueba WhatsApp antes de repetir."
+        _progress_set(job_id,stage="error",error=error)
+
+
+@app.post("/api/clinical-delivery/patients/{pid}/archived-video/{video_id}/send-to-patient")
+async def delivery_send_archived_patient_video(
+        pid:int,video_id:str,data:ArchivedVideoPatientRequest,
+        background_tasks:BackgroundTasks,db=core.Depends(core.get_db),
+        user=core.Depends(core.current_user)):
+    if not _setup()["ready_video"]:
+        raise core.HTTPException(503,"Envíos a pacientes desactivados; verifica las plantillas de Meta y la activación local")
+    patient=_patient(db,pid)
+    phone=_guard(patient,DeliverDocument(document_id=video_id,kind="video",
+                    confirmed_phone=data.confirmed_phone,
+                    identity_confirmed=data.identity_confirmed,
+                    consent_confirmed=data.consent_confirmed))
+    if not re.fullmatch(r"[0-9a-f]{32}",video_id):
+        raise core.HTTPException(400,"Identificador de videocistoscopía inválido")
+    clinical_id,_,conn=_linked_patient(pid)
+    conn.close()
+    from clinical_video_library import _row_by_id,_local_file
+    row=_row_by_id(video_id,clinical_id)
+    path=_local_file(row)
+    try:
+        metadata=_mp4_atom_details(path)
+    except (OSError,ValueError):
+        raise core.HTTPException(415,"Videocistoscopía no válida")
+    if not metadata["moov_found"]:
+        raise core.HTTPException(415,"El MP4 no tiene índice válido")
+    size=int(row["size_bytes"])
+    if not (1024<=size<=LIMIT_VIDEO):
+        raise core.HTTPException(413,"Videocistoscopía mayor a 550 MiB")
+    with _PROGRESS_LOCK:
+        current=time.monotonic()
+        for jid,j in list(_PROGRESS_JOBS.items()):
+            if current-j["created"]>3600 and j["stage"] in ("complete","error","preparando"):
+                del _PROGRESS_JOBS[jid]
+        for key,when in list(_PATIENT_VIDEO_RECENT.items()):
+            if current-when>600:
+                del _PATIENT_VIDEO_RECENT[key]
+        delivery_key=(pid,video_id)
+        if delivery_key in _PATIENT_VIDEO_RECENT and current-_PATIENT_VIDEO_RECENT[delivery_key]<300:
+            raise core.HTTPException(429,"Se inició recientemente este envío. Comprueba WhatsApp antes de repetir")
+        if len(_PROGRESS_JOBS)>=_PROGRESS_MAX:
+            raise core.HTTPException(429,"Demasiadas transferencias activas")
+        if any(j["pid"]==pid and j["stage"] not in ("complete","error") for j in _PROGRESS_JOBS.values()):
+            raise core.HTTPException(409,"Esta ficha tiene otra transferencia pendiente")
+        job_id=secrets.token_urlsafe(24)
+        _PROGRESS_JOBS[job_id]={"pid":pid,"mode":"envio_paciente","size":size,
+                                "stage":"preparando","created":current,"local_bytes":size,
+                                "r2_bytes":0,"r2_verified":False,
+                                "r2_deleted":False,"whatsapp_accepted":False}
+        _PATIENT_VIDEO_RECENT[delivery_key]=current
+    name=" ".join(str(patient.nombre or "").split()).upper()
+    file_name=_clinical_download_name(patient,"video","mp4")
+    username=str(getattr(user,"username","recepcion"))
+    background_tasks.add_task(_send_archived_video_to_patient,job_id,path,pid,video_id,
+                              phone,name,file_name,username)
+    return {"ok":True,"job_id":job_id,"note":"Transferencia iniciada con autorización"}
 
 
 # Self-test never touches patients, encounters, clinical files or medical database.
@@ -1730,9 +1872,12 @@ def delivery_documents(pid:int,db=core.Depends(core.get_db),user=core.Depends(co
 @app.get("/api/clinical-delivery/patients/{pid}/signed/{kind}/{doc_id}")
 def delivery_signed_preview(pid:int,kind:str,doc_id:str,user=core.Depends(core.current_user)):
     data=_signed_pdf(pid,kind,doc_id)
+    with core.LocalSessionLocal() as local:
+        patient=_patient(local,pid)
+        file_name=_clinical_download_name(patient,kind,"pdf")
     return Response(data,media_type="application/pdf",headers={
         "Cache-Control":"private, no-store",
-        "Content-Disposition":'inline; filename="Documento_firmado.pdf"',
+        "Content-Disposition":f'inline; filename="{file_name}"',
         "X-Content-Type-Options":"nosniff",
     })
 

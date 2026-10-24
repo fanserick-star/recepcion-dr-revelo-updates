@@ -9,8 +9,8 @@ from clinical_delivery_config import parse_existing, save_local_settings, BUCKET
 existing = parse_existing()
 root = tk.Tk()
 root.title("Dr. Revelo | Preparar envíos clínicos")
-root.geometry("780x680")
-root.minsize(670,600)
+root.geometry("820x805")
+root.minsize(720,740)
 root.configure(bg="#f7fafb")
 root.columnconfigure(0, weight=1)
 main = ttk.Frame(root,padding=(22,16))
@@ -31,6 +31,8 @@ FIELDS = (
   ("WHATSAPP_PHONE_NUMBER_ID","Meta: Phone Number ID (opcional por ahora)",False),
   ("WHATSAPP_TEST_PHONE","Tu celular autorizado para la prueba: 09XXXXXXXX",False),
   ("CLINICAL_DELIVERY_LAN_SECRET","Clave privada compartida con la PC de Historia",True),
+  ("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","Plantilla aprobada: documentos",False),
+  ("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","Plantilla aprobada: videocistoscopias",False),
 )
 fields={}
 for index,(key,title,masked) in enumerate(FIELDS,3):
@@ -47,7 +49,7 @@ for index,(key,title,masked) in enumerate(FIELDS,3):
                 row=index+100,column=1,sticky="w")
 
 lane=ttk.Frame(main)
-lane.grid(row=10,column=0,columnspan=2,sticky="ew",pady=(6,8))
+lane.grid(row=11,column=0,columnspan=2,sticky="ew",pady=(6,8))
 def generate_lan():
     fields["CLINICAL_DELIVERY_LAN_SECRET"].delete(0,tk.END)
     fields["CLINICAL_DELIVERY_LAN_SECRET"].insert(0,secrets.token_hex(32))
@@ -60,19 +62,27 @@ ttk.Button(lane,text="Mostrar/ocultar clave LAN",command=show_lan).pack(side=tk.
 
 info=tk.Text(main,width=70,height=8,wrap="word",background="#edf5f7",borderwidth=0,
              font=("Segoe UI",9),padx=12,pady=9)
-info.grid(row=11,column=0,columnspan=2,sticky="ew",pady=(5,10))
+info.grid(row=12,column=0,columnspan=2,sticky="ew",pady=(5,10))
 info.insert("1.0",
     "IMPORTANTE:\n"
     "• GitHub NO instala automáticamente las claves en esta PC. Copia las originales solo desde tu gestor privado.\n"
     "• Si ya no conservas la Secret Access Key de R2, crea una clave nueva restringida al mismo bucket.\n"
     "• WhatsApp clínico utiliza el Worker de citas, con autorización independiente y sin token local.\n"
-    "• Los envíos reales a pacientes quedan DESACTIVADOS; las pruebas usan archivos ficticios.\n"
+    "• Puedes habilitar únicamente envíos MANUALES con ambas plantillas aprobadas, identidad y consentimiento por cada paciente.\n"
     "• El archivo .env queda LOCAL y el launcher lo conserva. No lo envíes por correo ni GitHub."
 )
 info.configure(state="disabled")
 
+approval_var=tk.BooleanVar(value=existing.get("WHATSAPP_CLINICAL_TEMPLATES_APPROVED")=="1")
+activate_var=tk.BooleanVar(value=existing.get("CLINICAL_DELIVERY_LIVE_ENABLED")=="1")
+ttk.Checkbutton(main,variable=approval_var,
+    text="Confirmo que AMBAS plantillas figuran APROBADAS en Meta").grid(
+    row=13,column=0,columnspan=2,sticky="w",pady=(4,5))
+ttk.Checkbutton(main,variable=activate_var,
+    text="Habilitar envíos clínicos manuales a pacientes (nunca automáticos)").grid(
+    row=14,column=0,columnspan=2,sticky="w",pady=(3,12))
 footer=ttk.Frame(main)
-footer.grid(row=12,column=0,columnspan=2,sticky="ew")
+footer.grid(row=15,column=0,columnspan=2,sticky="ew")
 def save():
     try:
         data={key:entry.get().strip() for key,entry in fields.items() if entry.get().strip()}
@@ -81,12 +91,26 @@ def save():
         for key in needed:
             if not (data.get(key) or existing.get(key)):
                 raise ValueError("Falta "+key+": debe estar también en la PC, no solo en GitHub.")
-        # Hard stop on every setup run. Never infer approval just because a
-        # template name exists; a deliberate future activation is required.
+        approved=bool(approval_var.get())
+        active=bool(activate_var.get())
+        document_name=data.get("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE") or existing.get("WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE","")
+        video_name=data.get("WHATSAPP_CLINICAL_VIDEO_TEMPLATE") or existing.get("WHATSAPP_CLINICAL_VIDEO_TEMPLATE","")
+        if active:
+            if not approved:
+                raise ValueError("Debes confirmar que AMBAS plantillas fueron aprobadas en Meta.")
+            if document_name!="entrega_documento_clinico" or video_name!="entrega_video_clinico":
+                raise ValueError("Los nombres deben corresponder a las dos plantillas clínicas aprobadas.")
+            if not (data.get("CLINICAL_DELIVERY_LAN_SECRET") or existing.get("CLINICAL_DELIVERY_LAN_SECRET")):
+                raise ValueError("Primero configura la clave LAN compartida con Historia Clínica.")
+            if not messagebox.askyesno("Confirmar habilitación clínica",
+                    "¿Comprobaste la aprobación de AMBAS plantillas en Meta, la privacidad R2 y que cada envío exigirá identidad y consentimiento?\\n\\n"
+                    "Se habilitarán únicamente entregas MANUALES reales a pacientes."):
+                return
         data.update({
             "CLINICAL_R2_BUCKET":BUCKET,
             "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED":"1",
-            "CLINICAL_DELIVERY_LIVE_ENABLED":"0",
+            "WHATSAPP_CLINICAL_TEMPLATES_APPROVED":"1" if approved else "0",
+            "CLINICAL_DELIVERY_LIVE_ENABLED":"1" if active else "0",
             "WHATSAPP_CLINICAL_LANGUAGE":"es_EC",
             "WHATSAPP_GRAPH_VERSION":existing.get("WHATSAPP_GRAPH_VERSION","v26.0"),
         })
@@ -94,13 +118,14 @@ def save():
     except Exception as exc:
         messagebox.showerror("No se guardó la configuración",str(exc))
         return
+    status = ("HABILITADOS" if activate_var.get() else "DESACTIVADOS")
     messagebox.showinfo("Preparación guardada",
         "Configuración guardada únicamente en esta PC.\n"
-        "Los envíos clínicos a pacientes siguen DESACTIVADOS.\n"
-        "Se conserva el estado de aprobación de las plantillas en Meta.\n"
-        "Reabre Recepción para comprobar el estado sin exponer credenciales.")
+        "Los envíos clínicos manuales están " + status + ".\n"
+        "Comprueba el estado en Recepción antes de enviar documentos.\n"
+        "Nunca se enviará nada sin confirmación individual.")
     root.destroy()
 
-ttk.Button(footer,text="Guardar preparación (sin activar envíos)",command=save).pack(side=tk.RIGHT)
+ttk.Button(footer,text="Guardar configuración clínica",command=save).pack(side=tk.RIGHT)
 ttk.Button(footer,text="Cancelar",command=root.destroy).pack(side=tk.RIGHT,padx=12)
 root.mainloop()

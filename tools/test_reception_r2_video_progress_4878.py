@@ -65,6 +65,7 @@ class Conn:
 
 ns={
     "Path":Path,"threading":threading,"time":time,"secrets":secrets,"os":os,
+    "re":re,
     "urllib":urllib,"http":SimpleNamespace(client=SimpleNamespace(HTTPSConnection=Conn)),
     "_r2_url":lambda method,key,expires=0:"https://fake.r2.example/dr-revelo-clinical-2026/"+key+"?sig=synthetic",
     "core":SimpleNamespace(HTTPException=HttpError),
