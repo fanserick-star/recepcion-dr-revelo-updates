@@ -44,20 +44,27 @@ def succeed(request,timeout):
     assert request.data is None
     assert urllib.parse.urlsplit(request.full_url).hostname=="graph.facebook.com"
     assert request.get_header("Authorization")=="Bearer "+config["WHATSAPP_CLINICAL_ACCESS_TOKEN"]
+    if "assigned_whatsapp_business_accounts" in request.full_url:
+        return Response({"data":[{"id":"secret-waba-id"}]})
     return Response({"id":"secret-meta-id","display_phone_number":"+593999999999"})
 
 with patch.object(urllib.request,"urlopen",side_effect=succeed):
     result = check()
-assert len(calls)==2
+assert len(calls)==3
 assert result["no_message_sent"] is True
 assert result["checks"]["token_identity"]["ok"] is True
 assert result["checks"]["phone_metadata"]["ok"] is True
+assert result["checks"]["assigned_accounts"] == {"ok":True,"assigned_count":1,"may_have_more":False}
 dump=json.dumps(result)
 assert "secret-meta-id" not in dump and "+5939" not in dump and "fake-separate" not in dump
 assert calls[0].full_url.endswith("/me?fields=id")
 assert calls[1].full_url.endswith("/1234567890?fields=id,display_phone_number")
+assert calls[2].full_url.endswith("/me/assigned_whatsapp_business_accounts?fields=id&limit=50")
+assert "secret-waba-id" not in dump
 
 def deny_phone(request,timeout):
+    if "assigned_whatsapp_business_accounts" in request.full_url:
+        return Response({"data":[]})
     if request.full_url.endswith("/me?fields=id"):
         return Response({"id":"secret-meta-id"})
     error = {"error":{"code":10,"error_subcode":2593181,
@@ -68,6 +75,7 @@ def deny_phone(request,timeout):
 with patch.object(urllib.request,"urlopen",side_effect=deny_phone):
     denied=check()
 assert denied["checks"]["token_identity"]["ok"] is True
+assert denied["checks"]["assigned_accounts"] == {"ok":True,"assigned_count":0,"may_have_more":False}
 assert denied["checks"]["phone_metadata"] == {
     "ok":False, "http_status":400, "meta_code":10
 }  # Unknown oversized subcodes are safely omitted.
