@@ -5,7 +5,7 @@
   if(window.__reveloVideoLibraryInstalled)return;
   window.__reveloVideoLibraryInstalled=true;
   const host=document.querySelector('[data-clinical-video-patient]');
-  const open=document.getElementById('patient-docs-open');
+  const open=document.getElementById('patient-videos-open');
   if(!host||!open)return;
   const id=host.getAttribute('data-clinical-video-patient');
   const status=host.querySelector('.cp-video-status');
@@ -17,7 +17,7 @@
   const diag=document.createElement('button');
   diag.type='button';
   diag.className='cp-video-diagnostic';
-  diag.textContent='Medir velocidad Wi-Fi';
+  diag.textContent='Medir velocidad LAN';
   diag.style.cssText='margin:8px 0 10px;padding:8px 13px;border:1px solid #bad1e8;border-radius:8px;background:#f6fbff;color:#1e537d;font-weight:bold;cursor:pointer';
   host.querySelector('.cp-video-status')?.before(diag);
   diag.addEventListener('click',async()=>{
@@ -88,7 +88,7 @@
         prepare.style.cssText='padding:10px 13px;border:1px solid #1a6a9d;border-radius:9px;background:#1c6ea4;color:white;font-weight:bold;cursor:pointer';
         const progress=document.createElement('span');
         progress.style.cssText='font-size:12px;line-height:1.5;color:#58748c';
-        progress.textContent='Reproducción por LAN disponible, o descarga una copia temporal para verla sin depender del Wi-Fi.';
+        progress.textContent='Reproducción por LAN disponible, o descarga una copia temporal para verla sin depender de la red durante la reproducción.';
         const itemUrl=url+'/prepare/'+encodeURIComponent(item.id);
         const statusUrl=url+'/cache-status/'+encodeURIComponent(item.id);
         const localUrl=url+'/cached-play/'+encodeURIComponent(item.id);
@@ -103,7 +103,7 @@
             if(lastTimer){clearTimeout(lastTimer);lastTimer=null;}
             prepare.disabled=false;
             prepare.textContent='Video preparado localmente';
-            progress.textContent='Listo: '+mb(d.total_bytes).toFixed(1)+' MB verificados. Reproduce sin depender del Wi-Fi.';
+            progress.textContent='Listo: '+mb(d.total_bytes).toFixed(1)+' MB verificados. Reproduce sin depender de la red durante la reproducción.';
             if(source.src!==new URL(localUrl,location.href).href){
               source.src=localUrl;
               player.load();
@@ -114,7 +114,7 @@
             if(lastTimer){clearTimeout(lastTimer);lastTimer=null;}
             prepare.disabled=false;
             prepare.textContent='Reintentar descarga temporal';
-            progress.textContent=d.error||'Error de Wi-Fi. Puedes reintentar.';
+            progress.textContent=d.error||'Error de red local. Puedes reintentar.';
             return;
           }
           if(d.state==='downloading'){
