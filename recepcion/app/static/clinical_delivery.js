@@ -213,76 +213,121 @@
       btn.disabled=true;
     });
   }
+
+  function clinicalSection(title,count,subtitle){
+    const section=document.createElement('section');section.className='rp-clinical-section';
+    const header=document.createElement('div');header.className='rp-clinical-section-head';
+    const text=document.createElement('div');
+    text.append(cell('h3',title),cell('p',subtitle,'rp-clinical-help'));
+    header.append(text,cell('span',String(count),'rp-clinical-count'));
+    section.append(header);return section;
+  }
   function draw(data={}){
     const host=container();if(!host)return;
     host.replaceChildren();
-    const top=cell('div','Documentos realizados por el doctor en Historia Clínica','rp-clinical-subtitle');
-    host.append(top);
-    addSelfTest(host,data);
-    if(!data.ok){host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));return;}
     const docs=Array.isArray(data.documents)?data.documents:[];
-    host.append(cell('p',docs.length?docs.length+' documento(s) guardado(s), del más reciente al más antiguo.':'No hay recetas, informes ni certificados guardados para esta ficha.','rp-clinical-help'));
+    const archived=Array.isArray(data.videos)?data.videos:state.videos;
+    const hero=document.createElement('header');hero.className='rp-clinical-hero';
+    const heading=document.createElement('div');heading.className='rp-clinical-hero-title';
+    heading.append(cell('span','ARCHIVO CLÍNICO · DOCUMENTOS Y VIDEOS','rp-clinical-eyebrow'),
+      cell('h2',state.name||'Paciente'),cell('p','Archivos vinculados a esta ficha, organizados para consulta y entrega privada.','rp-clinical-help'));
+    hero.append(heading);
+    const metrics=document.createElement('div');metrics.className='rp-clinical-metrics';
+    metrics.append(cell('strong',docs.length+' documentos'),cell('strong',archived.length+' videos'));
+    hero.append(metrics);host.append(hero);
+    if(!data.ok){
+      host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));return;
+    }
+    const status=cell('div',data.ready_document&&data.ready_video?
+      '✓ Envíos clínicos habilitados · Confirma identidad y consentimiento antes de cada entrega.':
+      'Envíos al paciente pendientes de activación local y verificación de plantillas Meta. La consulta y el archivo local siguen disponibles.',
+      'rp-clinical-status '+(data.ready_document&&data.ready_video?'is-ready':'is-pending'));
+    host.append(status);
+    const docSection=clinicalSection('Documentos médicos',docs.length,'Recetas, informes y certificados guardados por el doctor');
+    if(!docs.length)docSection.append(cell('p','Todavía no hay documentos médicos en esta ficha.','rp-clinical-empty'));
     for(const doc of docs){
       const row=document.createElement('div');row.className='rp-clinical-row';
       const info=document.createElement('div');info.className='rp-clinical-info';
-      info.append(cell('strong',doc.label),cell('small',(doc.date||'')+' · Firma electrónica: se comprueba al abrir','rp-clinical-signature-state'));
-      row.append(info);
+      const icon=cell('span','PDF','rp-clinical-file-type');
+      const labelBox=document.createElement('div');
+      labelBox.append(cell('strong',doc.label+' · '+state.name),
+        cell('small',(doc.date||'Fecha no disponible')+' · Firma electrónica: se comprueba al abrir','rp-clinical-signature-state'));
+      info.append(icon,labelBox);row.append(info);
       const actions=document.createElement('div');actions.className='rp-clinical-actions';
       const kind=safeId(doc.kind),id=safeId(doc.id),pid=Number(state.pid);
-      const view=addButton(actions,'Ver documento',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
-      const send=addButton(actions,'Enviar WhatsApp',()=>sendDoc(doc),!state.ready_document||state.sending);
+      const view=addButton(actions,'Ver PDF',()=>previewSignedPdf(kind,id,pid,view,row,doc.label));
+      view.classList.add('rp-clinical-secondary-button');
+      const send=addButton(actions,'Enviar al paciente',()=>sendDoc(doc),!state.ready_document||state.sending);
       send.classList.add('rp-clinical-send-document');
-      row.append(actions);host.append(row);
+      row.append(actions);docSection.append(row);
     }
-    const section=document.createElement('div');section.className='rp-clinical-video';
-    section.append(cell('strong','🎥 Archivo de videocistoscopías del paciente'));
-    section.append(cell('p','Selecciona uno o varios archivos MP4 desde la memoria USB (hasta 20 por lote). Se guardarán los originales, uno por uno, en esta PC y aparecerán en la ficha de Historia. No se envían a internet.','rp-clinical-help'));
-    const file=document.createElement('input');file.type='file';file.accept='.mp4,video/mp4';
-    file.id='rpClinicalVideoFile';file.multiple=true;file.disabled=state.sending||state.saving_video||state.benchmarking;
-    section.append(file);
-    addButton(section,'Guardar videos en Recepción',()=>saveVideo(file),state.sending||state.saving_video||state.benchmarking);
-    addButton(section,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video||state.benchmarking);
-    addButton(section,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),!data.ready_r2||state.sending||state.saving_video||state.benchmarking);
-    section.append(cell('p','Mide una videocistoscopía real de hasta 550 MiB, con porcentaje y velocidad. Tras verificarla, elimina la copia temporal de R2. NO envía WhatsApp ni activa envíos a pacientes. Requiere autorización para la prueba.','rp-clinical-help'));
-    if(data.ffmpeg_available===false){
-      const advanced=document.createElement('details');
-      const summary=document.createElement('summary');
-      summary.textContent='Opcional: FFmpeg para reproducción (NO es necesario para descargar el MP4)';
-      advanced.append(summary);
-      advanced.append(cell('p','FFmpeg sirve solamente para preparar una copia de reproducción Faststart. La descarga del MP4 original funciona sin FFmpeg, no recodifica y no altera la videocistoscopía.','rp-clinical-help'));
-      const install=addButton(advanced,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
-        state.sending||state.saving_video||state.benchmarking);
-      install.classList.add('rp-clinical-ffmpeg-install');
-      section.append(advanced);
-    }
-    addPrivateVideoLanTools(section);
-    const archived=Array.isArray(data.videos)?data.videos:state.videos;
-    section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
-    if(archived.length){
-      section.append(cell('p','DESCARGA PRIVADA: envía el MP4 original como archivo descargable a tu WhatsApp autorizado de pruebas. El paciente no necesita reproducirlo en Safari: podrá guardarlo en Archivos y abrirlo con un reproductor compatible. Confirma su autorización para compartirlo a ese número. El enlace vence a los 7 días.','rp-clinical-help'));
-    }
-    const testPhone=document.createElement('input');
-    testPhone.type='tel';testPhone.inputMode='tel';testPhone.autocomplete='off';
-    testPhone.placeholder='TU WhatsApp autorizado: 09XXXXXXXX';testPhone.maxLength=20;
-    testPhone.setAttribute('aria-label','Número personal autorizado para recibir prueba clínica');
-    if(archived.length)section.append(testPhone);
-    archived.forEach(v=>{
+    host.append(docSection);
+    const videoSection=clinicalSection('Videocistoscopias',archived.length,'Videos MP4 originales: descarga directa sin pérdida de calidad');
+    if(!archived.length)videoSection.append(cell('p','Este paciente aún no tiene videocistoscopias archivadas.','rp-clinical-empty'));
+    archived.forEach((v,i)=>{
+      const row=document.createElement('div');row.className='rp-clinical-row';
+      const info=document.createElement('div');info.className='rp-clinical-info';
+      info.append(cell('span','MP4','rp-clinical-file-type is-video'));
+      const detail=document.createElement('div');
       const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
       const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
-      section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
-      const btn=addButton(section,'Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
-        !state.ready_test||state.sending||state.saving_video||state.benchmarking);
-      btn.classList.add('rp-clinical-send-archived-test');
-      const diagnose=addButton(section,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
-        state.sending||state.saving_video||state.benchmarking);
-      diagnose.classList.add('rp-clinical-iphone-diagnostic');
+      detail.append(cell('strong','Videocistoscopia '+(archived.length-i)+' · '+state.name),
+        cell('small',(stamp||'Sin fecha')+' · '+mb+' MiB · '+(v.backup?'Con respaldo':'Respaldo pendiente')));
+      info.append(detail);row.append(info);
+      const actions=document.createElement('div');actions.className='rp-clinical-actions';
+      const send=addButton(actions,'Enviar MP4 al paciente',()=>sendArchivedVideoPatient(v),
+        !state.ready_video||state.sending||state.saving_video||state.benchmarking);
+      send.classList.add('rp-clinical-send-video-patient');
+      row.append(actions);videoSection.append(row);
     });
-    host.append(section);
-    const warning=data.missing||[];
-    if(warning.length){
-      host.append(cell('p','Envíos desactivados hasta completar configuración: '+warning.join('; ')+'. Los documentos se pueden consultar sin activar los envíos.','rp-clinical-warning'));
+    const upload=document.createElement('details');upload.className='rp-clinical-tools';
+    upload.append(cell('summary','＋ Agregar videocistoscopias desde USB'));
+    const uploadBody=document.createElement('div');uploadBody.className='rp-clinical-tool-content';
+    uploadBody.append(cell('p','Guarda archivos MP4 originales en esta PC y en la ficha de Historia Clínica (hasta 20 por lote). No se suben a internet al archivarlos.','rp-clinical-help'));
+    const file=document.createElement('input');file.type='file';file.accept='.mp4,video/mp4';
+    file.id='rpClinicalVideoFile';file.multiple=true;file.disabled=state.sending||state.saving_video||state.benchmarking;
+    uploadBody.append(file);
+    addButton(uploadBody,'Guardar videos en el archivo del paciente',()=>saveVideo(file),
+      state.sending||state.saving_video||state.benchmarking);
+    upload.append(uploadBody);videoSection.append(upload);
+    host.append(videoSection);
+    const foot=cell('p','Los enlaces de entrega duran 7 días y pueden abrirse por quien los reciba. Los originales permanecen en Historia Clínica. Nunca compartas un archivo sin verificar el número y la autorización del paciente.','rp-clinical-footnote');
+    host.append(foot);
+    const maintenance=document.createElement('details');maintenance.className='rp-clinical-maintenance';
+    maintenance.append(cell('summary','Herramientas técnicas y pruebas (solo personal autorizado)'));
+    const tools=document.createElement('div');tools.className='rp-clinical-maintenance-body';
+    addSelfTest(tools,data);
+    const testPhone=document.createElement('input');
+    testPhone.type='tel';testPhone.inputMode='tel';testPhone.autocomplete='off';
+    testPhone.placeholder='WhatsApp personal autorizado: 09XXXXXXXX';
+    testPhone.maxLength=20;testPhone.setAttribute('aria-label','Celular de prueba autorizado');
+    if(archived.length){
+      tools.append(cell('strong','Prueba de videocistoscopia real','rp-clinical-subtitle'),testPhone);
+      archived.forEach(v=>{
+        const btn=addButton(tools,'Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas',
+          ()=>sendArchivedVideoTest(v,testPhone),
+          !state.ready_test||state.sending||state.saving_video||state.benchmarking);
+        btn.classList.add('rp-clinical-send-archived-test');
+        const diagnose=addButton(tools,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
+          state.sending||state.saving_video||state.benchmarking);
+        diagnose.classList.add('rp-clinical-iphone-diagnostic');
+      });
     }
-    host.append(cell('p','Las copias temporales de entrega vencen a los 7 días. Los originales de Historia nunca se eliminan. El enlace firmado es confidencial: quien lo reciba podrá usarlo durante su vigencia.','rp-clinical-footnote'));
+    const bench=document.createElement('div');bench.className='rp-clinical-video';
+    bench.append(cell('p','Pruebas técnicas opcionales. No se enviará WhatsApp al medir velocidad. La descarga del MP4 original funciona sin FFmpeg.','rp-clinical-help'));
+    addButton(bench,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),
+      !data.ready_r2||state.sending||state.saving_video||state.benchmarking);
+    addButton(bench,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),
+      !state.ready_video||state.sending||state.saving_video||state.benchmarking);
+    if(data.ffmpeg_available===false){
+      addButton(bench,'Instalar FFmpeg aquí (opcional)',()=>installFFmpeg(),
+        state.sending||state.saving_video||state.benchmarking);
+    }
+    addPrivateVideoLanTools(bench);
+    tools.append(bench);
+    const warning=data.missing||[];
+    if(warning.length)tools.append(cell('p','Pendiente para activación: '+warning.join('; ')+'.','rp-clinical-warning'));
+    maintenance.append(tools);host.append(maintenance);
   }
   async function load(pid,phone,name){
     const root=container();if(!root)return;
@@ -603,6 +648,52 @@
         ' · Alternativa: https://ffmpeg.org/download.html#build-windows';
       info.style.background='#fff6f2';
       notice(e.message||'No se pudo iniciar la instalación de FFmpeg','error');
+    }
+  }
+
+  async function sendArchivedVideoPatient(video){
+    if(state.sending||state.saving_video||state.benchmarking||!state.ready_video)return;
+    const id=safeId(video&&video.id),pid=Number(state.pid);
+    if(!/^[0-9a-f]{32}$/.test(id)){notice('Video no válido','error');return;}
+    const approval=confirmDelivery('Videocistoscopia archivada · '+state.name);
+    if(!approval)return;
+    const host=container();if(!host)return;
+    state.sending=true;
+    const display=createSpeedProgress(host);
+    let timer=null;
+    try{
+      const res=await api('/api/clinical-delivery/patients/'+pid+'/archived-video/'+id+'/send-to-patient',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(approval)
+      });
+      const url='/api/clinical-delivery/patients/'+pid+'/video-speed-test/'+encodeURIComponent(res.job_id);
+      const poll=async()=>{
+        let progress;
+        try{progress=await api(url);}catch(err){
+          if(timer)window.clearInterval(timer);
+          timer=null;state.sending=false;
+          display.fail('No se confirmó el estado. Consulta WhatsApp antes de intentar otro envío.');
+          return;
+        }
+        display.update(progress.stage,progress.r2_bytes,progress.total_bytes,
+                       progress.elapsed_seconds,progress.upload_mibps,progress.mode);
+        if(progress.done){
+          if(timer)window.clearInterval(timer);
+          timer=null;state.sending=false;
+          if(progress.stage==='complete'&&progress.whatsapp_accepted){
+            notice('WhatsApp aceptó la videocistoscopia descargable. El enlace dura 7 días.','success');
+          }else{
+            display.fail(progress.error||'No se confirmó la entrega. Antes de repetir, verifica WhatsApp.');
+            notice('Comprueba WhatsApp antes de reenviar para evitar duplicados.','error');
+          }
+        }
+      };
+      timer=window.setInterval(poll,1000);
+      await poll();
+    }catch(err){
+      if(timer)window.clearInterval(timer);
+      state.sending=false;
+      display.fail(err.message||'No se pudo iniciar el envío');
+      notice(err.message||'No se pudo enviar el video','error');
     }
   }
   async function sendArchivedVideoTest(video,input){
