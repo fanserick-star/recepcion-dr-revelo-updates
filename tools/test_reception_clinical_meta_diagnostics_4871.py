@@ -24,7 +24,9 @@ original = client.urllib.request.urlopen
 
 def failed_meta(_request, timeout=15):
     payload = {"error": {"message": "SECRET_TOKEN_123 +593912345678 https://signed.example/path?signature=veryprivate",
-                         "code": 132001, "error_subcode": 2593006}}
+                         "code": 132001, "error_subcode": 2593006,
+                         "fbtrace_id":"Az8or2yhqkZfEZ_4Qn_Bam",
+                         "error_data":{"details":"Error validating Graph API Permission Checks; SECRET_TOKEN_123"}}}
     raise urllib.error.HTTPError("https://graph.facebook.com", 400, "Bad Request", {},
                                   io.BytesIO(json.dumps(payload).encode()))
 
@@ -39,10 +41,14 @@ try:
         assert exc.meta_http_status == 400
         assert exc.meta_error_code == 132001
         assert exc.meta_error_subcode == 2593006
+        assert exc.meta_trace_id == "Az8or2yhqkZfEZ_4Qn_Bam"
+        assert exc.meta_diagnostic_category == "graph_permission_checks"
         hint = safe(exc)
         assert "HTTP 400" in hint and "código 132001" in hint
         assert "subcódigo" not in hint  # Suppress unexpected/unbounded Meta values.
         assert "plantilla" in hint.lower()
+        assert "Graph" in hint
+        assert "Az8or2yhqkZfEZ_4Qn_Bam" in hint
         for forbidden in ("SECRET_TOKEN", "+5939", "signed.example", "veryprivate", "super-secret-value"):
             assert forbidden not in hint
 finally:
