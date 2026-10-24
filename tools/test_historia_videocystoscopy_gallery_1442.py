@@ -12,7 +12,7 @@ panel=(root/"patient_document_panel.py").read_text(encoding="utf-8")
 backend=(root/"clinical_video_library.py").read_text(encoding="utf-8")
 version=json.loads((root/"historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
-assert version==manifest["version"]==manifest["runtime_version"]==manifest["app_version"]in {"1.4.42","1.4.43"}
+assert version==manifest["version"]==manifest["runtime_version"]==manifest["app_version"]in {"1.4.42","1.4.43","1.4.44"}
 assert manifest["mandatory"] is True
 assert manifest["notes"]["database_schema_changes"] is False
 assert manifest["notes"]["patient_data_destructive_changes"] is False
