@@ -386,62 +386,6 @@
       check.focus();
     });
   }
-  async function saveVideo(file){
-    if(state.saving_video||state.sending||state.benchmarking)return;
-    const selected=Array.from(file.files||[]);
-    if(!selected.length){notice('Selecciona los videos MP4 que deseas archivar.','error');return;}
-    if(selected.length>20){notice('Puedes guardar hasta 20 videos por lote.','error');return;}
-    const invalid=selected.find(f=>!/\.mp4$/i.test(f.name)||f.size<1024||f.size>2*1024*1024*1024);
-    if(invalid){notice('Hay un archivo no válido o que supera 2 GB. Selecciona únicamente MP4 de máximo 2 GB cada uno.','error');return;}
-    const total=selected.reduce((sum,f)=>sum+f.size,0);
-    if(total>10*1024*1024*1024){notice('Este lote supera 10 GB. Divídelo en dos grupos para proteger el espacio de esta PC.','error');return;}
-    const pid=state.pid,phone=state.phone,name=state.name;
-    if(!await confirmVideoArchive(selected))return;
-    if(state.sending||state.saving_video||state.benchmarking||state.pid!==pid)return;
-    state.saving_video=true;
-    const host=container();
-    const progress=document.createElement('div');
-    progress.className='rp-clinical-batch-progress';
-    progress.setAttribute('role','status');
-    progress.setAttribute('aria-live','polite');
-    const headline=cell('strong','Preparando '+selected.length+' video(s)…');
-    const rows=selected.map((f,i)=>cell('div',(i+1)+'. '+f.name+' · Pendiente','rp-clinical-batch-row'));
-    progress.append(headline,...rows);
-    if(host)host.append(progress);
-    let saved=0,duplicates=0;
-    const failed=[];
-    try{
-      for(let i=0;i<selected.length;i++){
-        if(state.pid!==pid){failed.push('Se cambió de ficha; los videos restantes no se guardaron.');break;}
-        const chosen=selected[i];
-        headline.textContent='Guardando video '+(i+1)+' de '+selected.length+' en Recepción…';
-        rows[i].textContent=(i+1)+'. '+chosen.name+' · Guardando…';
-        try{
-          const url='/api/clinical-videos/patients/'+pid+'/import?filename='+encodeURIComponent(chosen.name);
-          const result=await api(url,{method:'POST',headers:{'Content-Type':'video/mp4'},body:chosen});
-          if(result.duplicate){duplicates++;rows[i].textContent=(i+1)+'. '+chosen.name+' · Ya estaba archivado';}
-          else{saved++;rows[i].textContent=(i+1)+'. '+chosen.name+' · Guardado correctamente'+(result.backup?' con respaldo':' · Respaldo externo pendiente');}
-        }catch(error){
-          const reason=String(error.message||'No se pudo importar').slice(0,160);
-          rows[i].textContent=(i+1)+'. '+chosen.name+' · Error: '+reason;
-          failed.push((i+1)+'. '+chosen.name+': '+reason);
-        }
-      }
-      headline.textContent='Lote finalizado: '+saved+' guardado(s), '+duplicates+' repetido(s), '+failed.length+' error(es).';
-    }finally{
-      state.saving_video=false;
-      // The original stored files are never deleted or overwritten on a failed batch.
-    }
-    if(state.pid!==pid)return;
-    await load(pid,phone,name);
-    const report=cell('div','Resultado: '+saved+' nuevo(s), '+duplicates+' ya archivado(s) y '+failed.length+' error(es).','rp-clinical-batch-summary');
-    if(failed.length){
-      const details=cell('p',failed.join('\n'),'rp-clinical-batch-failures');
-      report.append(details);
-    }
-    if(container()&&state.pid===pid)container().append(report);
-    notice(failed.length?'Se completó el lote con errores. Revisa el resumen debajo.':'Videos procesados: '+saved+' nuevos y '+duplicates+' ya archivados.',failed.length?'error':'success');
-  }
   function createSpeedProgress(host){
     const wrap=document.createElement('div');
     wrap.setAttribute('role','status');wrap.setAttribute('aria-live','polite');
@@ -558,6 +502,62 @@
       if(timer)window.clearInterval(timer);
       state.benchmarking=false;
     }
+  }
+  async function saveVideo(file){
+    if(state.saving_video||state.sending||state.benchmarking)return;
+    const selected=Array.from(file.files||[]);
+    if(!selected.length){notice('Selecciona los videos MP4 que deseas archivar.','error');return;}
+    if(selected.length>20){notice('Puedes guardar hasta 20 videos por lote.','error');return;}
+    const invalid=selected.find(f=>!/\.mp4$/i.test(f.name)||f.size<1024||f.size>2*1024*1024*1024);
+    if(invalid){notice('Hay un archivo no válido o que supera 2 GB. Selecciona únicamente MP4 de máximo 2 GB cada uno.','error');return;}
+    const total=selected.reduce((sum,f)=>sum+f.size,0);
+    if(total>10*1024*1024*1024){notice('Este lote supera 10 GB. Divídelo en dos grupos para proteger el espacio de esta PC.','error');return;}
+    const pid=state.pid,phone=state.phone,name=state.name;
+    if(!await confirmVideoArchive(selected))return;
+    if(state.sending||state.saving_video||state.benchmarking||state.pid!==pid)return;
+    state.saving_video=true;
+    const host=container();
+    const progress=document.createElement('div');
+    progress.className='rp-clinical-batch-progress';
+    progress.setAttribute('role','status');
+    progress.setAttribute('aria-live','polite');
+    const headline=cell('strong','Preparando '+selected.length+' video(s)…');
+    const rows=selected.map((f,i)=>cell('div',(i+1)+'. '+f.name+' · Pendiente','rp-clinical-batch-row'));
+    progress.append(headline,...rows);
+    if(host)host.append(progress);
+    let saved=0,duplicates=0;
+    const failed=[];
+    try{
+      for(let i=0;i<selected.length;i++){
+        if(state.pid!==pid){failed.push('Se cambió de ficha; los videos restantes no se guardaron.');break;}
+        const chosen=selected[i];
+        headline.textContent='Guardando video '+(i+1)+' de '+selected.length+' en Recepción…';
+        rows[i].textContent=(i+1)+'. '+chosen.name+' · Guardando…';
+        try{
+          const url='/api/clinical-videos/patients/'+pid+'/import?filename='+encodeURIComponent(chosen.name);
+          const result=await api(url,{method:'POST',headers:{'Content-Type':'video/mp4'},body:chosen});
+          if(result.duplicate){duplicates++;rows[i].textContent=(i+1)+'. '+chosen.name+' · Ya estaba archivado';}
+          else{saved++;rows[i].textContent=(i+1)+'. '+chosen.name+' · Guardado correctamente'+(result.backup?' con respaldo':' · Respaldo externo pendiente');}
+        }catch(error){
+          const reason=String(error.message||'No se pudo importar').slice(0,160);
+          rows[i].textContent=(i+1)+'. '+chosen.name+' · Error: '+reason;
+          failed.push((i+1)+'. '+chosen.name+': '+reason);
+        }
+      }
+      headline.textContent='Lote finalizado: '+saved+' guardado(s), '+duplicates+' repetido(s), '+failed.length+' error(es).';
+    }finally{
+      state.saving_video=false;
+      // The original stored files are never deleted or overwritten on a failed batch.
+    }
+    if(state.pid!==pid)return;
+    await load(pid,phone,name);
+    const report=cell('div','Resultado: '+saved+' nuevo(s), '+duplicates+' ya archivado(s) y '+failed.length+' error(es).','rp-clinical-batch-summary');
+    if(failed.length){
+      const details=cell('p',failed.join('\n'),'rp-clinical-batch-failures');
+      report.append(details);
+    }
+    if(container()&&state.pid===pid)container().append(report);
+    notice(failed.length?'Se completó el lote con errores. Revisa el resumen debajo.':'Videos procesados: '+saved+' nuevos y '+duplicates+' ya archivados.',failed.length?'error':'success');
   }
   async function sendVideo(file){
     if(state.sending||state.benchmarking||!state.ready_video)return;
