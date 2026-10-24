@@ -6,13 +6,92 @@
   window.__reveloVideoLibraryInstalled=true;
   const host=document.querySelector('[data-clinical-video-patient]');
   const open=document.getElementById('patient-videos-open');
-  if(!host||!open)return;
+  const dialog=document.getElementById('patient-videos-dialog');
+  if(!host||!open||!dialog)return;
   const id=host.getAttribute('data-clinical-video-patient');
   const status=host.querySelector('.cp-video-status');
   const list=host.querySelector('.cp-video-list');
   const refresh=host.querySelector('.cp-video-refresh');
   const url='/api/clinical-videos/patient/'+encodeURIComponent(id);
   let busy=false, loaded=false;
+  // Count only this patient's authorized Reception catalogue. No background polling.
+  const counter=document.createElement('strong');
+  counter.className='cp-video-trigger-count';
+  counter.setAttribute('aria-live','polite');
+  open.append(counter);
+  function setCount(count, unavailable=false){
+    const available=!unavailable && Number.isInteger(count) && count>=0;
+    const state=!available?'unavailable':count>0?'ready':'empty';
+    open.dataset.videoState=state;
+    counter.textContent=available?String(count):'—';
+    open.setAttribute('aria-label',available?
+      'Abrir videocistoscopías del paciente: '+count+' video'+(count===1?'':'s'):
+      'Abrir videocistoscopías: recuento no disponible. Consultar Recepción.');
+    counter.title=available?'Videos de esta ficha':'No se pudo consultar el catálogo';
+  }
+  open.dataset.videoState='loading';
+  counter.textContent='…';
+
+  // One enlarged viewer, reused across rows. Never embed several tiny video players.
+  const theater=document.createElement('section');
+  theater.className='cp-video-theater';
+  theater.hidden=true;
+  theater.setAttribute('aria-label','Reproductor ampliado de videocistoscopía');
+  theater.innerHTML=
+    '<div class="cp-video-theater-head"><strong class="cp-video-theater-title"></strong>'+
+    '<div class="cp-video-theater-actions"><button type="button" class="cp-video-fullscreen">⛶ Pantalla completa</button>'+
+    '<button type="button" class="cp-video-theater-close">✕ Volver a videos</button></div></div>'+
+    '<div class="cp-video-theater-stage"><button type="button" class="cp-video-theater-play" aria-label="Reproducir video">▶</button></div>'+
+    '<p class="cp-video-theater-hint">Haz clic en ▶ para reproducir. La barra espaciadora permite pausar o continuar.</p>';
+  dialog.append(theater);
+  const stage=theater.querySelector('.cp-video-theater-stage');
+  const bigPlay=theater.querySelector('.cp-video-theater-play');
+  const back=theater.querySelector('.cp-video-theater-close');
+  let activePlayer=null, previousVideoFocus=null;
+  function hideTheater(){
+    if(!activePlayer)return;
+    activePlayer.pause();
+    activePlayer.remove();
+    activePlayer=null;
+    theater.hidden=true;
+    theater.classList.remove('is-playing');
+    if(document.fullscreenElement && document.exitFullscreen)document.exitFullscreen().catch(()=>{});
+  }
+  function showTheater(player,title,launch){
+    hideTheater();
+    activePlayer=player;
+    previousVideoFocus=launch;
+    theater.querySelector('.cp-video-theater-title').textContent=title;
+    stage.prepend(player);
+    theater.hidden=false;
+    theater.classList.toggle('is-playing',!player.paused);
+    player.load();
+    player.play().catch(()=>{}); // A manual, large Play button remains if autoplay is blocked.
+    back.focus({preventScroll:true});
+  }
+  bigPlay.addEventListener('click',()=>{if(activePlayer)activePlayer.play().catch(()=>{});});
+  back.addEventListener('click',()=>{
+    hideTheater();
+    if(previousVideoFocus?.isConnected)previousVideoFocus.focus({preventScroll:true});
+  });
+  theater.querySelector('.cp-video-fullscreen').addEventListener('click',()=>{
+    if(!document.fullscreenElement && stage.requestFullscreen)stage.requestFullscreen().catch(()=>{});
+    else if(document.fullscreenElement && document.exitFullscreen)document.exitFullscreen().catch(()=>{});
+  });
+  dialog.addEventListener('cancel',event=>{
+    if(theater.hidden)return;
+    event.preventDefault();
+    hideTheater();
+    if(previousVideoFocus?.isConnected)previousVideoFocus.focus({preventScroll:true});
+  });
+  dialog.addEventListener('close',hideTheater);
+  dialog.addEventListener('keydown',event=>{
+    if(theater.hidden||!activePlayer||event.code!=='Space')return;
+    if(['BUTTON','INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+    event.preventDefault();
+    if(activePlayer.paused)activePlayer.play().catch(()=>{});
+    else activePlayer.pause();
+  });
   // This tests synthetic traffic only; never downloads patient data.
   const diag=document.createElement('button');
   diag.type='button';
@@ -55,7 +134,10 @@
       }
       if(!response.ok||!data.ok)throw new Error(data.error||data.detail||'No se pudo consultar Recepción.');
       list.replaceChildren();
-      const videos=Array.isArray(data.videos)?data.videos:[];
+      const videos=(Array.isArray(data.videos)?data.videos:[]).filter(
+        item=>item&&typeof item.id==='string'&&/^[A-Za-z0-9_-]{1,100}$/.test(item.id)
+      );
+      setCount(videos.length);
       status.textContent=videos.length?videos.length+' videocistoscopía(s) archivadas en Recepción':
         'Este paciente aún no tiene videocistoscopías guardadas en Recepción.';
       videos.forEach((item,index)=>{
@@ -73,13 +155,23 @@
         player.controls=true;
         player.preload='none';
         player.playsInline=true;
-        player.style.cssText='display:block;width:100%;max-width:820px;max-height:420px;background:#121923;border-radius:8px';
+        player.className='cp-video-enlarged-player';
+        player.style.cssText='display:block;width:100%;height:100%;object-fit:contain;background:#000';
+        player.addEventListener('play',()=>{if(activePlayer===player)theater.classList.add('is-playing');});
+        player.addEventListener('pause',()=>{if(activePlayer===player)theater.classList.remove('is-playing');});
+        player.addEventListener('ended',()=>{if(activePlayer===player)theater.classList.remove('is-playing');});
         player.setAttribute('aria-label','Reproducir '+title.textContent);
         const source=document.createElement('source');
         source.src=url+'/play/'+encodeURIComponent(item.id);
         source.type='video/mp4';
         player.append(source,document.createTextNode('Esta PC no permite reproducir el formato de video.'));
         player.addEventListener('error',()=>{meta.textContent='No se pudo reproducir el video. Comprueba la conexión y el códec compatible con esta PC.'});
+        const launch=document.createElement('button');
+        launch.type='button';
+        launch.className='cp-video-open-large';
+        launch.textContent='▶ Reproducir en grande';
+        launch.setAttribute('aria-label','Abrir reproductor ampliado: '+title.textContent);
+        launch.addEventListener('click',()=>showTheater(player,title.textContent,launch));
         const buttons=document.createElement('div');
         buttons.style.cssText='display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0';
         const prepare=document.createElement('button');
@@ -146,7 +238,7 @@
           finally{requestInProgress=false;}
         });
         buttons.append(prepare,progress);
-        row.append(title,meta,player,buttons);list.append(row);
+        row.append(title,meta,launch,buttons);list.append(row);
         // If already cached in the current consultation, restore local play.
         checkCached().catch(()=>{});
       });
@@ -155,8 +247,11 @@
       status.textContent=(error&&error.message)||'No se pudo conectar con Recepción. Pulsa Actualizar para reintentar.';
       list.replaceChildren();
       loaded=false;
+      setCount(null,true);
     }finally{busy=false}
   }
-  open.addEventListener('click',()=>load());
+  open.addEventListener('click',()=>load(true));
   refresh?.addEventListener('click',()=>load(true));
+  // Exactly one catalogue read when opening a clinical chart; no interval and no Neon.
+  load();
 })();
