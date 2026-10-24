@@ -60,7 +60,9 @@ for token in ["_sign_pdf(", "INSERT INTO", "UPDATE patients", "DELETE FROM", "R2
 ui=(root/"recepcion/app/static/clinical_delivery.js").read_text(encoding="utf-8")
 api=(root/"recepcion/app/clinical_delivery.py").read_text(encoding="utf-8")
 assert "if(unsigned)frame.setAttribute('sandbox','')" in ui
-assert "if(!unsigned)bar.append(external)" in ui
+assert "if(!unsigned){" in ui and "bar.append(download,external)" in ui
+assert "download.download=patientDownloadFileName(kind,'pdf')" in ui
+assert "if(unsigned)frame.setAttribute('sandbox','')" in ui
 assert "response.status===404 && /todavía no tiene PDF firmado/i.test(message)" in ui
 assert "delivery_unsigned_preview(" in api
 assert '"X-Clinical-Preview-Unsigned":"1"' in api
