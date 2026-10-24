@@ -3497,3 +3497,174 @@ body.app-dialog-open{overflow:hidden}
   .cp-remaster-app .cp-video-theater-actions button{min-height:41px!important;font-size:12px!important;padding:7px!important}
   .cp-remaster-app .cp-video-theater-hint{font-size:11px!important}
 }
+
+
+/* Historia 1.4.42: galería de videocistoscopías; carga del MP4 solo al seleccionar. */
+.cp-remaster-app .cp-videos-dialog-content{
+  display:flex!important;flex:1 1 auto!important;
+  min-height:0!important;overflow:hidden!important;padding:0!important;
+}
+.cp-remaster-app .cp-videos-dialog-content .cp-clinical-videos{
+  display:grid!important;
+  grid-template-columns:minmax(320px,46%) minmax(0,1fr)!important;
+  grid-template-rows:auto auto minmax(0,1fr)!important;
+  gap:0!important;flex:1 1 auto!important;width:100%!important;height:100%!important;
+  min-width:0!important;min-height:0!important;margin:0!important;padding:0!important;
+  background:#f9fbfe!important;
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-section-head{
+  grid-column:1!important;grid-row:1!important;
+  align-items:center!important;min-height:57px!important;margin:0!important;
+  padding:12px 17px!important;border-bottom:1px solid #e1e8f0!important;
+  background:#fff!important;
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-section-head strong{
+  font-size:17px!important;font-weight:850!important;color:#19344e!important;
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-refresh{
+  min-height:34px!important;padding:5px 12px!important;border-radius:8px!important;
+  border:1px solid #cfdae7!important;background:#fff!important;color:#245a7a!important;
+  font-size:12px!important;font-weight:800!important;cursor:pointer!important;
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-status{
+  grid-column:1!important;grid-row:2!important;margin:0!important;
+  padding:10px 17px!important;border-bottom:1px solid #e1e8f0!important;
+  background:#fff!important;color:#61778b!important;font-size:12px!important;
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-list{
+  grid-column:1!important;grid-row:3!important;
+  min-width:0!important;min-height:0!important;overflow-y:auto!important;
+  overscroll-behavior:contain!important;
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-auto-rows:max-content!important;align-content:start!important;gap:12px!important;
+  padding:14px!important;
+}
+.cp-remaster-app .cp-video-gallery-card{
+  display:flex!important;flex-direction:column!important;min-width:0!important;
+  overflow:hidden!important;text-align:left!important;padding:5px!important;
+  border-radius:11px!important;border:1px solid #d6e1eb!important;background:#fff!important;
+  box-shadow:0 2px 8px rgba(23,49,73,.06)!important;
+  color:#1a344c!important;cursor:pointer!important;font-family:inherit!important;
+  transition:border-color .12s ease,box-shadow .12s ease!important;
+}
+.cp-remaster-app .cp-video-gallery-card:hover{border-color:#5c9fc9!important;box-shadow:0 3px 10px #1b577a2b!important}
+.cp-remaster-app .cp-video-gallery-card.is-selected{
+  border:2px solid #2177b9!important;padding:4px!important;
+  box-shadow:0 0 0 2px rgba(29,111,185,.13)!important;
+  background:#f2f8ff!important;
+}
+.cp-remaster-app .cp-video-gallery-card:focus-visible{
+  outline:3px solid #72baf0!important;outline-offset:2px!important;
+}
+.cp-remaster-app .cp-video-card-thumbnail{
+  position:relative!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;width:100%!important;aspect-ratio:16/9!important;
+  overflow:hidden!important;border-radius:7px!important;
+  background:#142534 radial-gradient(circle at 50% 42%,#356173 0,#192f42 47%,#0b1928 100%)!important;
+  background-size:cover!important;background-position:center!important;
+}
+.cp-remaster-app .cp-video-card-thumbnail::before{
+  content:'🎥'!important;position:absolute!important;font-size:35px!important;
+  line-height:1!important;opacity:.16!important;transform:translateY(-28px)!important;
+}
+.cp-remaster-app .cp-video-card-thumbnail.has-preview::before{display:none!important}
+.cp-remaster-app .cp-video-card-play-icon{
+  display:grid!important;place-items:center!important;
+  height:49px!important;width:49px!important;padding-left:3px!important;
+  position:relative!important;z-index:1!important;
+  background:rgba(9,26,38,.70)!important;color:#fff!important;
+  border:2px solid rgba(255,255,255,.9)!important;border-radius:50%!important;
+  font-size:23px!important;
+}
+.cp-remaster-app .cp-video-card-duration{
+  position:absolute!important;bottom:7px!important;right:7px!important;
+  border-radius:5px!important;background:rgba(8,18,28,.9)!important;color:#fff!important;
+  padding:3px 6px!important;font-weight:800!important;font-size:11px!important;
+}
+.cp-remaster-app .cp-video-card-info{
+  display:flex!important;flex-direction:column!important;gap:4px!important;
+  min-width:0!important;padding:9px 6px 7px!important;
+}
+.cp-remaster-app .cp-video-card-info strong{
+  color:#18354f!important;font-size:12px!important;font-weight:800!important;
+  line-height:1.32!important;overflow-wrap:anywhere!important;
+}
+.cp-remaster-app .cp-video-card-info small{
+  color:#637a8d!important;font-size:11px!important;line-height:1.35!important;
+}
+.cp-remaster-app .cp-video-gallery-viewer{
+  display:flex!important;flex-direction:column!important;
+  grid-column:2!important;grid-row:1/4!important;min-width:0!important;min-height:0!important;
+  gap:0!important;border-left:1px solid #dde6ee!important;background:#f8fbff!important;
+}
+.cp-remaster-app .cp-video-gallery-viewer-head{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  flex-wrap:wrap!important;gap:8px!important;min-height:58px!important;
+  padding:14px 18px 6px!important;
+}
+.cp-remaster-app .cp-video-gallery-viewer-title{
+  color:#19344e!important;font-size:16px!important;font-weight:900!important;
+  overflow-wrap:anywhere!important;
+}
+.cp-remaster-app .cp-video-gallery-fullscreen{
+  min-height:36px!important;padding:6px 11px!important;background:#edf5fc!important;
+  border:1px solid #c2d6e6!important;border-radius:8px!important;
+  color:#225779!important;font-size:12px!important;font-weight:800!important;
+  cursor:pointer!important;
+}
+.cp-remaster-app .cp-video-gallery-fullscreen[hidden]{display:none!important}
+.cp-remaster-app .cp-video-gallery-viewer-meta{
+  flex:0 0 auto!important;margin:0!important;padding:0 18px 13px!important;
+  font-size:12px!important;color:#667d90!important;
+}
+.cp-remaster-app .cp-video-gallery-stage{
+  position:relative!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;flex:1 1 auto!important;min-width:0!important;
+  min-height:240px!important;margin:0 16px 16px!important;overflow:hidden!important;
+  border-radius:10px!important;background:#080c10!important;
+}
+.cp-remaster-app .cp-video-gallery-player{
+  display:block!important;position:relative!important;
+  width:100%!important;height:100%!important;max-width:100%!important;
+  max-height:100%!important;object-fit:contain!important;background:#000!important;
+}
+.cp-remaster-app .cp-video-gallery-placeholder{
+  color:#9bb9c7!important;font-size:72px!important;opacity:.42!important;
+}
+.cp-remaster-app .cp-video-gallery-placeholder[hidden]{display:none!important}
+.cp-remaster-app .cp-video-gallery-big-play{
+  position:absolute!important;top:50%!important;left:50%!important;
+  transform:translate(-50%,-50%)!important;z-index:5!important;
+  width:85px!important;height:85px!important;display:grid!important;
+  place-items:center!important;padding:0 0 0 5px!important;
+  border:2px solid white!important;border-radius:50%!important;
+  color:#fff!important;background:rgba(8,115,94,.91)!important;
+  font-size:37px!important;box-shadow:0 6px 25px #0008!important;cursor:pointer!important;
+}
+.cp-remaster-app .cp-video-gallery-big-play[hidden]{display:none!important}
+.cp-remaster-app .cp-video-gallery-stage:fullscreen{
+  margin:0!important;border-radius:0!important;
+  width:100vw!important;height:100vh!important;
+}
+@media(max-width:950px){
+  .cp-remaster-app .cp-clinical-videos .cp-video-list{
+    grid-template-columns:repeat(1,minmax(0,1fr))!important;
+  }
+  .cp-remaster-app .cp-videos-dialog-content .cp-clinical-videos{
+    grid-template-columns:minmax(240px,38%) minmax(0,1fr)!important;
+  }
+}
+@media(max-width:680px){
+  .cp-remaster-app .cp-videos-dialog-content{overflow-y:auto!important}
+  .cp-remaster-app .cp-videos-dialog-content .cp-clinical-videos{
+    height:auto!important;display:flex!important;flex-direction:column!important;
+  }
+  .cp-remaster-app .cp-clinical-videos .cp-video-list{
+    display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    max-height:38vh!important;overflow-y:auto!important;padding:10px!important;
+  }
+  .cp-remaster-app .cp-video-gallery-viewer{
+    min-height:360px!important;border-left:0!important;border-top:1px solid #dce5ed!important;
+  }
+  .cp-remaster-app .cp-video-gallery-stage{min-height:280px!important}
+}
