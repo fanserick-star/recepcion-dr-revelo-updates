@@ -70,7 +70,7 @@ with patch.object(urllib.request,"urlopen",side_effect=lambda req,timeout:FakeRe
 assert re.fullmatch(r"https://dr-revelo-whatsapp-cloud\.drrevelo\.workers\.dev/d/[A-Za-z0-9_-]{22}",short)
 assert len(sent)==1
 key,mimetype,data=sent[0]
-assert re.fullmatch(r"clinical-links/[A-Za-z0-9_-]{22}\.json",key)
+assert re.fullmatch(r"clinical-temp/short-links/[A-Za-z0-9_-]{22}\.json",key)
 assert mimetype=="application/json"
 record=json.loads(data)
 assert record["signed_get_url"]==signed
