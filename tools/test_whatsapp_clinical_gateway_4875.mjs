@@ -37,7 +37,7 @@ const ctx={
 vm.runInNewContext(section+'\nglobalThis.clinical=serveClinicalDispatch;',ctx);
 const token='x'.repeat(43);
 const phone='593999999999';
-const link='https://'+ 'a'.repeat(32)+'.r2.cloudflarestorage.com/dr-revelo-clinical-2026/clinical-temp/self-test/test.pdf?X-Amz-Signature=abc123&X-Amz-Expires=604800';
+const link='https://'+ 'a'.repeat(32)+'.r2.cloudflarestorage.com/dr-revelo-clinical-2026/clinical-temp/self-test/test.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+ 'a'.repeat(64) +'&X-Amz-Expires=604800';
 const original={token,mode:'test',phone,template:'entrega_documento_clinico',
   body_params:['PACIENTE DE PRUEBA','DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)','31/10/2026 a las 11:00',link]};
 const env={DATABASE_URL:'offline-test',WHATSAPP_ACCESS_TOKEN:'fake-worker-secret',WHATSAPP_PHONE_NUMBER_ID:'1234'};
