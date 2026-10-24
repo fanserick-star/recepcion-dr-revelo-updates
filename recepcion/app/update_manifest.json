@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.72",
-  "app_version": "4.8.72",
-  "runtime_version": "4.8.72",
+  "version": "4.8.73",
+  "app_version": "4.8.73",
+  "runtime_version": "4.8.73",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -194,8 +194,8 @@
     "clinical_video_lan_server.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.72: token Meta independiente para entrega clínica; copia explícita del token previo guardado sin alterar credenciales de citas. Mantiene bloqueados envíos clínicos a pacientes, citas, alarmas, facturas, datos y Neón intactos.",
-    "previous_version": "4.8.71",
+    "purpose": "Recepción 4.8.73: incorpora diagnóstico manual de Meta en modo solo lectura: valida identidad del token clínico y acceso a metadatos del número mediante GET, sin enviar WhatsApp, subir archivos ni consultar pacientes. Respuestas solo códigos numéricos, nunca credenciales ni números. El envío a pacientes sigue bloqueado y las citas/Neón/facturación no cambian.",
+    "previous_version": "4.8.72",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
