@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.76",
-  "app_version": "4.8.76",
-  "runtime_version": "4.8.76",
+  "version": "4.8.77",
+  "app_version": "4.8.77",
+  "runtime_version": "4.8.77",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -95,7 +95,8 @@
     "static/clinical_delivery.js",
     "clinical_delivery_config.py",
     "clinical_delivery_setup.pyw",
-    "Configurar_envios_clinicos.vbs"
+    "Configurar_envios_clinicos.vbs",
+    "clinical_selftest_mp4.b64"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -191,11 +192,12 @@
     "clinical_delivery_setup.pyw",
     "Configurar_envios_clinicos.vbs",
     "clinical_video_library.py",
-    "clinical_video_lan_server.py"
+    "clinical_video_lan_server.py",
+    "clinical_selftest_mp4.b64"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.76: enlace corto privado de R2 con caducidad real de 7 días, redirección directamente a R2, prueba de videocistoscopia sintética MP4 de 2 segundos en WhatsApp propio y cero datos de pacientes. Mantiene desactivadas las entregas reales, sin modificar citas ni alarmas.",
-    "previous_version": "4.8.75",
+    "purpose": "Recepción 4.8.77: asegurar que el actualizador incluya el MP4 ficticio obligatorio (video de 2 segundos) con verificación de integridad SHA-256. Mantiene los enlaces clínicos cortos de R2 y sin tocar citas, alarmas ni pacientes.",
+    "previous_version": "4.8.76",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -592,9 +594,10 @@
     "clinical_delivery_no_neon_writes": true,
     "clinical_delivery_self_test": true,
     "clinical_delivery_test_phone_allowlist": true,
-    "clinical_delivery_synthetic_pdf_only": true,
+    "clinical_delivery_synthetic_pdf_only": false,
     "clinical_delivery_r2_roundtrip_verified_before_test_send": true,
-    "clinical_delivery_mobile_demo_no_patient_data": true
+    "clinical_delivery_mobile_demo_no_patient_data": true,
+    "clinical_delivery_synthetic_video_only": true
   },
   "channel": "launcher-v1-stable"
 }
