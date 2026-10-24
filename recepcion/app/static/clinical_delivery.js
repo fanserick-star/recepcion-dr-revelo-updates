@@ -17,7 +17,14 @@
     else window.alert(value);
   }
   let closeClinicalPreview=null;
-  function showSignedPdf(blob,label,unsigned=false){
+  function patientDownloadFileName(kind,extension){
+    const labels={receta:'RECETA',certificado:'CERTIFICADO',reposo:'REPOSO',informe:'INFORME_MEDICO',video:'VIDEOCISTOSCOPIA'};
+    const name=String(state.name||'PACIENTE').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,64)||'PACIENTE';
+    const date=new Date().toLocaleDateString('sv-SE',{timeZone:'America/Guayaquil'});
+    return (labels[kind]||'DOCUMENTO')+'_'+name+'_'+date+'.'+extension;
+  }
+  function showSignedPdf(blob,label,unsigned=false,kind='informe'){
     // PDF stays in browser memory; never upload or alter the signed original.
     if(closeClinicalPreview)closeClinicalPreview();
     const blobUrl=URL.createObjectURL(blob);
@@ -60,7 +67,12 @@
     function onKey(e){if(e.key==='Escape')dismiss();}
     close.onclick=dismiss;
     bar.append(caption);
-    if(!unsigned)bar.append(external);
+    if(!unsigned){
+      const download=document.createElement('a');
+      download.href=blobUrl;download.download=patientDownloadFileName(kind,'pdf');
+      download.textContent='Descargar PDF';download.className='rp-clinical-download-pdf';
+      bar.append(download,external);
+    }
     bar.append(close);
     panel.append(bar,frame,help);
     shade.append(panel);
@@ -94,7 +106,7 @@
       const blob=await response.blob();
       if(blob.size<5||blob.size>(unsigned?2:20)*1024*1024)throw Error('La vista no supera la verificación de tamaño.');
       if(state.pid!==pid)return;
-      showSignedPdf(blob,label,unsigned);
+      showSignedPdf(blob,label,unsigned,kind);
       const note=row.querySelector('.rp-clinical-signature-state');
       if(note)note.textContent=unsigned?'Sin firma electrónica · Solo vista previa':'Firmado electrónicamente · PDF original';
       const send=row.querySelector('.rp-clinical-send-document');
