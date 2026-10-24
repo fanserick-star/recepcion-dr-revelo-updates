@@ -54,7 +54,8 @@ with tempfile.TemporaryDirectory(prefix="clinical_token_test_") as directory:
 assert "WHATSAPP_CLINICAL_ACCESS_TOKEN" not in wizard
 assert "WHATSAPP_ACCESS_TOKEN" not in wizard
 assert '"WHATSAPP_CLINICAL_TEMPLATES_APPROVED":"0"' not in wizard
-assert '"CLINICAL_DELIVERY_LIVE_ENABLED":"0"' in wizard
+assert '"CLINICAL_DELIVERY_LIVE_ENABLED":"1" if active else "0"' in wizard
+assert "messagebox.askyesno" in wizard and "if not approved:" in wizard
 
 ast_tree = ast.parse(source)
 functions = {node.name: node for node in ast_tree.body if isinstance(node, ast.FunctionDef)}
