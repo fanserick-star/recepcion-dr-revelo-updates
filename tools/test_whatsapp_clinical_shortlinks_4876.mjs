@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+// Offline only: mock private R2 binding, never touch patients or Meta.
+const source=fs.readFileSync(new URL('../cloudflare/whatsapp_worker.js',import.meta.url),'utf8');
+const begin=source.indexOf('function clinicalSignedGetUrl(value) {');
+const end=source.indexOf('var whatsapp_worker_v2_6_responses_default = {',begin);
+assert(begin>=0 && end>begin);
+const scoped=source.slice(begin,end);
+assert(!/sendMeta\(|runScheduler\(|registerUnifiedAgendaAlarm/.test(scoped));
+assert(source.includes('if (u.pathname.startsWith("/d/")) return serveClinicalShortLink(request,env,u.pathname);'));
+const target='https://'+ 'a'.repeat(32)+'.r2.cloudflarestorage.com/dr-revelo-clinical-2026/clinical-temp/self-test/test.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+ 'a'.repeat(64) +'&X-Amz-Expires=604800';
+const code=vm.runInNewContext(scoped+'\nglobalThis.run=serveClinicalShortLink;',{URL,Response,Date,Number,JSON,String});
+const slug='AbCdEfGh12345678_i-JK0';
+assert.equal(slug.length,22);
+const path='/d/'+slug;
+let seen=[];
+let record={expires_epoch:Math.floor(Date.now()/1000)+3500,signed_get_url:target};
+const env={CLINICAL_LINKS_R2:{get:async key=>{
+  seen.push(key);
+  return {text:async()=>JSON.stringify(record)};
+}}};
+const req={method:'GET'};
+let answer=await code.run(req,env,path);
+assert.equal(answer.status,302);
+assert.equal(answer.headers.get('Location'),target);
+assert.equal(answer.headers.get('Cache-Control'),'private, no-store, max-age=0');
+assert.equal(seen[0],'clinical-links/'+slug+'.json');
+assert.equal((await code.run({method:'POST'},env,path)).status,405);
+assert.equal((await code.run(req,env,'/d/'+ 'x'.repeat(10))).status,404);
+assert.equal((await code.run(req,{},path)).status,404);
+record={expires_epoch:Math.floor(Date.now()/1000)-1,signed_get_url:target};
+assert.equal((await code.run(req,env,path)).status,404);
+record={expires_epoch:Math.floor(Date.now()/1000)+3000,signed_get_url:'https://evil.example/phishing?X-Amz-Signature='+'a'.repeat(64)};
+assert.equal((await code.run(req,env,path)).status,404);
+record={expires_epoch:Math.floor(Date.now()/1000)+3000,signed_get_url:target};
+assert.equal((await code.run(req,env,path)).status,302);
+console.log('CLINICAL_SHORT_LINK_PRIVATE_R2_REDIRECT_NO_WORKER_PROXY_NO_META_OK');
