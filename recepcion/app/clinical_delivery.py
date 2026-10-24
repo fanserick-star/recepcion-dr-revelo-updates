@@ -936,6 +936,8 @@ async def archived_iphone_diagnostic(pid:int,video_id:str,
             "r2_range_status":range_result["status"],
             "r2_range_206":bool(range_result.get("range_206",False)),
             "recommendation":fmt["recommendation"],
+            "faststart_tool_available":bool(_faststart_ffmpeg_path()),
+            "faststart_preparation_needed":bool(fmt["moov_found"] and not fmt["metadata_before_video"]),
             "no_video_upload":True,"no_whatsapp":True}
 
 
@@ -1120,6 +1122,19 @@ async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRe
     from clinical_video_library import _row_by_id, _local_file
     row=_row_by_id(video_id,clinical_id)  # must belong to VERIFIED patient chart
     path=_local_file(row)
+    # Fail before reserving a job or sending clinical bytes when faststart is
+    # required but the trusted local remux tool is not installed.
+    try:
+        meta=_mp4_atom_details(path)
+    except (OSError,ValueError):
+        raise core.HTTPException(415,"Video local no tiene estructura MP4 válida")
+    if not meta["moov_found"]:
+        raise core.HTTPException(415,"Índice MP4 no disponible; no se enviará el original")
+    if (not meta["metadata_before_video"] and not _faststart_ffmpeg_path()):
+        raise core.HTTPException(503,
+            "Falta FFmpeg en Recepción. No se ha subido ni enviado el video; instala FFmpeg para preparar copia faststart.")
+    if meta["iphone_codec_hint"]=="possible_unsupported_codec":
+        raise core.HTTPException(415,"Códec posiblemente incompatible con iPhone; requiere revisión antes de enviar")
     size=int(row["size_bytes"])
     if not (1024<=size<=LIMIT_VIDEO):
         raise core.HTTPException(413,"Solo videocistoscopías de hasta 550 MiB")
