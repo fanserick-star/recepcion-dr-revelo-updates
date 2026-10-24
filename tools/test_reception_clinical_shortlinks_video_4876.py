@@ -17,6 +17,10 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]/"recepcion"/"app"
 source=(ROOT/"clinical_delivery.py").read_text(encoding="utf-8")
+manifest=json.loads((ROOT/"update_manifest.json").read_text(encoding="utf-8"))
+assert "clinical_selftest_mp4.b64" in manifest["copy"], "MP4 must be shipped to Windows"
+assert "clinical_selftest_mp4.b64" in manifest["required_dependencies"], "Missing fixture must fail before runtime"
+
 ui=(ROOT/"static/clinical_delivery.js").read_text(encoding="utf-8")
 tree=ast.parse(source)
 lookup={f.name:f for f in tree.body if isinstance(f,ast.FunctionDef)}
