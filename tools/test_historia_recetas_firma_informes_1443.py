@@ -13,14 +13,16 @@ reports=(root/"informes_clinicos.py").read_text(encoding="utf-8")
 app=(root/"app.py").read_text(encoding="utf-8")
 version=json.loads((root/"historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
-assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]=="1.4.43"
+assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]in {"1.4.43","1.4.44"}
 assert manifest["mandatory"] and not manifest["notes"]["database_schema_changes"]
 assert not manifest["notes"]["patient_data_destructive_changes"]
 for source in (doc,sign,reports,app):
     ast.parse(source)
 
 # V2 recipes only: consistent space between separate medications on both halves.
-assert ".rx-copy-v2 .med-item{{margin-bottom:8mm}}" in doc
+assert ".rx-copy-v2 .med-item{{margin-bottom:14mm}}" in doc
+assert ".rx-copy-v2.rx-med-medium .med-item{{margin-bottom:10mm}}" in doc
+assert ".rx-copy-v2.rx-med-many .med-item{{margin-bottom:5mm}}" in doc
 assert ".med-line{{margin:.7mm 0 0 2mm;font-size:9.1pt}}" in doc
 assert ".med-presentation{{font-weight:900}}" in doc
 assert "new_medication_rows(\"left\")" in doc and "new_medication_rows(\"right\")" in doc
