@@ -3560,7 +3560,8 @@ body.app-dialog-open{overflow:hidden}
   position:relative!important;display:flex!important;align-items:center!important;
   justify-content:center!important;width:100%!important;aspect-ratio:16/9!important;
   overflow:hidden!important;border-radius:7px!important;
-  background:#142534 radial-gradient(circle at 50% 42%,#356173 0,#192f42 47%,#0b1928 100%)!important;
+  background-color:#142534!important;
+  background-image:radial-gradient(circle at 50% 42%,#356173 0,#192f42 47%,#0b1928 100%);
   background-size:cover!important;background-position:center!important;
 }
 .cp-remaster-app .cp-video-card-thumbnail::before{
@@ -3623,7 +3624,7 @@ body.app-dialog-open{overflow:hidden}
   min-height:240px!important;margin:0 16px 16px!important;overflow:hidden!important;
   border-radius:10px!important;background:#080c10!important;
 }
-.cp-remaster-app .cp-video-gallery-player{
+.cp-remaster-app .cp-videos-dialog-content .cp-video-gallery-player{
   display:block!important;position:relative!important;
   width:100%!important;height:100%!important;max-width:100%!important;
   max-height:100%!important;object-fit:contain!important;background:#000!important;
