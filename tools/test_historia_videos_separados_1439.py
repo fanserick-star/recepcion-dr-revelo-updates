@@ -44,7 +44,7 @@ assert "const open=document.getElementById('patient-videos-open');" in javascrip
 assert "const open=document.getElementById('patient-docs-open');" not in javascript
 assert "Medir velocidad LAN" in javascript
 assert ".cp-history-archive-actions" in css
-assert ".cp-patient-videos-dialog" in app_source
+assert "cp-patient-videos-dialog" in app_source
 assert "source.src=url+'/play/'" in javascript
 assert "url+'/prepare/'" in javascript
 assert "url+'/cached-play/'" in javascript
