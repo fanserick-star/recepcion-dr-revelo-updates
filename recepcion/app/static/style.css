@@ -1463,3 +1463,6 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .rp-clinical-maintenance-body .rp-clinical-test,.rp-clinical-maintenance-body .rp-clinical-video{width:100%;box-sizing:border-box}
 .rp-clinical-footnote{padding:0 3px;font-size:11px;color:#75869a}
 @media(max-width:720px){.rp-clinical-hero{align-items:flex-start;flex-direction:column;padding:17px}.rp-clinical-metrics{align-self:auto}.rp-clinical-section{padding:12px}.rp-clinical-section-head{align-items:flex-start}.rp-clinical-section .rp-clinical-row{flex-direction:column;align-items:stretch}.rp-clinical-section .rp-clinical-actions{width:100%}}
+
+.rp-clinical-download-pdf{display:inline-flex;align-items:center;border:1px solid #bfdbcf;background:#e7f4eb;color:#215b42;font-size:12px;font-weight:800;border-radius:9px;padding:9px 13px;text-decoration:none}
+.rp-clinical-download-pdf:hover{background:#d4ecdc;color:#1a5339}
