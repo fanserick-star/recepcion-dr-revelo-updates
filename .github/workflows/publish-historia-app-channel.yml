@@ -33,6 +33,7 @@ jobs:
           python tools/test_historia_video_catalog_1430.py
           python tools/test_historia_video_rollback_1435.py
           python tools/test_historia_video_cache_1437.py
+          python tools/test_historia_videos_separados_1439.py
           python tools/test_clinical_video_private_lan_1431_4869.py
           node --check historia-clinica/app/static/clinical_video_library.js
           python tools/test_historia_certificate_type_reconcile_1425.py
