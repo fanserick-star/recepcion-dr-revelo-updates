@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.77: empaquetado íntegro del MP4 ficticio de prueba con alias R2 privado de 7 días; clínicas a pacientes desactivadas, citas intactas."
+  "notes": "Recepción 4.8.78: medición de subida real de video MP4 a R2 con barra de progreso MiB y ETA; verificación R2, borrado inmediato y envío WhatsApp apagado, sin alterar citas."
 }
