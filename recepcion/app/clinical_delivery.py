@@ -540,6 +540,7 @@ def _clinical_test_meta_failure(exc):
         132000: "Revisa el número y orden de variables de la plantilla.",
         131021: "El número destinatario no puede ser el mismo número remitente.",
         131026: "Meta no pudo entregar al destinatario; revisa elegibilidad y formato.",
+        10: "Meta negó permisos para esta acción. Revisa la asignación de la cuenta WABA al usuario de sistema y la autorización de la aplicación.",
     }
     if not isinstance(status, int) or not (100 <= status <= 599):
         return ("No se pudo confirmar la aceptación del mensaje por Meta. "
@@ -550,6 +551,17 @@ def _clinical_test_meta_failure(exc):
     if isinstance(subcode, int) and 0 <= subcode <= 999999:
         parts.append(f"subcódigo {subcode}")
     hint = hints.get(code, "Comprueba la cuenta, la plantilla, el destinatario y la autorización Meta.")
+    diagnostic = getattr(exc, "meta_diagnostic_category", "")
+    categories = {
+        "graph_permission_checks":"Meta rechazó la comprobación de permisos de Graph.",
+        "access_permissions":"Meta devolvió una denegación de acceso.",
+        "registration":"Meta indica que el número/cuenta no está registrado.",
+    }
+    if diagnostic in categories:
+        hint += " " + categories[diagnostic]
+    trace = getattr(exc, "meta_trace_id", None)
+    if isinstance(trace, str) and re.fullmatch(r"[A-Za-z0-9_-]{12,80}", trace):
+        hint += " Referencia de soporte Meta: " + trace + "."
     return ("Meta rechazó la solicitud de prueba (" + ", ".join(parts) + "). "
             + hint + " No se confirmó un envío.")
 
