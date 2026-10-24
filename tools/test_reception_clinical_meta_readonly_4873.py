@@ -70,8 +70,6 @@ with patch.object(urllib.request,"urlopen",side_effect=deny_phone):
 assert denied["checks"]["token_identity"]["ok"] is True
 assert denied["checks"]["phone_metadata"] == {
     "ok":False, "http_status":400, "meta_code":10
-} or denied["checks"]["phone_metadata"] == {
-    "ok":False, "http_status":400, "meta_code":10
 }  # Unknown oversized subcodes are safely omitted.
 dump=json.dumps(denied)
 for term in ("FAKE_TOKEN_SECRET","+593999999999","signed-url-private","secret-meta-id"):
