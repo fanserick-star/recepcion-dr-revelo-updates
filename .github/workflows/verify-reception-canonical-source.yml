@@ -133,6 +133,7 @@ jobs:
           node tools/test_whatsapp_clinical_gateway_4875.mjs
           python tools/test_reception_worker_clinical_4875.py
           python tools/test_reception_clinical_shortlinks_video_4876.py
+          python tools/test_reception_r2_video_progress_4878.py
           node tools/test_whatsapp_clinical_shortlinks_4876.mjs
           node tools/test_whatsapp_three_agendas_one_alarm.mjs
           node tools/test_whatsapp_admin_alarm_integration.mjs
