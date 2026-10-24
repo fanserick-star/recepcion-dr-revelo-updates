@@ -86,12 +86,23 @@ def send_template(
             return json.loads(raw) if raw else {"ok": True}
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
+        detail = {}
         try:
             detail = json.loads(raw)
             message = detail.get("error", {}).get("message") or raw
         except Exception:
             message = raw or str(exc)
-        raise WhatsAppError(f"Meta respondió HTTP {exc.code}: {message}") from exc
+        # Preserve structured provider error codes for clinical diagnostics without
+        # changing the exception text consumed by appointment messaging.
+        error = WhatsAppError(f"Meta respondió HTTP {exc.code}: {message}")
+        error.meta_http_status = exc.code
+        provider = detail.get("error", {}) if isinstance(detail, dict) else {}
+        if not isinstance(provider, dict):
+            provider = {}
+        for field, key in (("meta_error_code", "code"), ("meta_error_subcode", "error_subcode")):
+            value = provider.get(key)
+            setattr(error, field, int(value) if str(value).isdigit() else None)
+        raise error from exc
     except urllib.error.URLError as exc:
         raise WhatsAppError(f"No se pudo conectar con Meta: {exc.reason}") from exc
     except Exception as exc:
