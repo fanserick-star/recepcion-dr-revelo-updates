@@ -7286,7 +7286,7 @@ async function serveClinicalDispatch(request, env) {
   let claimed = false;
   try {
     const digest = await sha256(token);
-    const recipientDigest = await sha256(phone);
+    const recipientDigest = await sha256(token+"|"+phone);
     claimed = await withClient(env, async client => {
       const r = await client.query(`UPDATE whatsapp_cloud.clinical_delivery_caps
           SET claimed_at=now()
