@@ -50,6 +50,7 @@ namespace={
     "TZ":datetime.timezone(datetime.timedelta(hours=-5)),
     "secrets":secrets,
     "time":time,
+    "Path":Path,
 }
 exec(compile(ast.Module(body=[func["_progress_set"]],type_ignores=[]),"isolated_progress","exec"),namespace)
 uploaded=[]
