@@ -18,14 +18,14 @@ assert {"_delivery_faststart_copy","_faststart_ffmpeg_path"}<=functions.keys()
 assert '\"-map\",\"0\",\"-c\",\"copy\"' in source
 assert '\"-movflags\",\"+faststart\"' in source
 assert "str(original)" in source
-assert "prepared_tmp=_delivery_faststart_copy(source)" in source
-assert "if prepared_tmp:" in source
-assert "Path(prepared_tmp).unlink()" in source
-assert 'if (not meta["metadata_before_video"] and not _faststart_ffmpeg_path())' in source
-assert "preparando_iphone" in source
+assert "prepared_tmp=_delivery_faststart_copy(source)" not in source  # downloads preserve original
+assert "preparando_descarga" in source
+assert "prepared_faststart=False" in source
+assert 'if (not meta["metadata_before_video"] and not _faststart_ffmpeg_path())' not in source
+assert "preparando_descarga" in source
 assert "faststart_tool_available" in source
-assert "Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas" in ui
-assert "No se recomprime ni altera la grabación original" in ui
+assert "Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas" in ui
+assert "La descarga del MP4 original funciona sin FFmpeg" in ui
 assert "_send_template(" not in source.split("def _delivery_faststart_copy(",1)[1].split("# Real clinical video test:",1)[0]
 assert "ffmpeg" not in source.split("def _delivery_faststart_copy(",1)[1].split("# Real clinical video test:",1)[0].lower() or True
 
