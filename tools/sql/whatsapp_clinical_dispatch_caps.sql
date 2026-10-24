@@ -1,5 +1,6 @@
 -- Independent, one-use WhatsApp clinical dispatch capability store.
--- Only random 256-bit capability hashes and recipient SHA-256 hashes are retained.
+-- Only random 256-bit capability hashes and SHA-256(token|recipient) are retained;
+-- a stolen table cannot brute-force Ecuadorian phone numbers without the random token.
 -- NEVER store patient names, phone numbers, signed URLs or clinical files.
 -- This is separate from whatsapp_cloud.reception_alarm_requests (appointments).
 CREATE TABLE IF NOT EXISTS whatsapp_cloud.clinical_delivery_caps (
