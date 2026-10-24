@@ -50,6 +50,7 @@ class Connection:
     def close(self):pass
 env={
     "Path":Path,
+    "re":re,
     "urllib":urllib,
     "http":SimpleNamespace(client=SimpleNamespace(HTTPSConnection=Connection)),
     "_r2_url":lambda method,key,expiration=3600:
