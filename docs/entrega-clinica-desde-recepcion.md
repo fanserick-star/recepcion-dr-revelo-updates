@@ -8,6 +8,37 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Video archivado real a WhatsApp propio de pruebas — Recepción 4.8.79
+
+Con la videocistoscopía **ya guardada en Recepción y vinculada a la ficha
+verificada en Historia**, el operador puede efectuar un envío manual al
+número personal previamente autorizado como `WHATSAPP_TEST_PHONE`.
+
+1. En Documentos médicos, junto a cada video archivado aparece
+   **«Enviar ESTE video a MI WhatsApp de pruebas»**. No reutiliza el
+   archivo seleccionado en USB: accede a la copia local archivada, cuya
+   pertenencia a la ficha clínica se confirma en el servidor.
+2. Es obligatorio escribir el número personal de pruebas y declarar dos
+   confirmaciones: ficha y video correctos; **consentimiento explícito del
+   paciente para enviar su video médico a ese número particular**. Los
+   pacientes reales no tienen habilitado envío general.
+3. Un único trabajo envía el MP4 a R2 con progreso de bytes y velocidad.
+   Se verifica tamaño mediante HEAD y enlace corto seguro antes de Meta.
+   Solo se usa la plantilla de DOCUMENTO previamente aprobada con
+   etiqueta **VIDEO CLINICO AUTORIZADO** (sin nombres ni datos personales
+   dentro del mensaje).
+4. El Worker comparte emisor Meta de citas, pero utiliza autorización
+   clínica de un solo uso en Neon, totalmente separada de las alarmas.
+   R2 conserva el objeto durante el plazo privado de 7 días si se
+   acepta el mensaje; si se falla antes de Meta, se intenta borrar.
+   Si Meta responde con incertidumbre no se reintenta automáticamente.
+5. El resultado «Meta aceptó» NO confirma entrega ni lectura al teléfono.
+   Se requiere comprobarlo en el WhatsApp de pruebas. Auditar el
+   identificador de mensaje localmente; no escribir contenido médico a Neon.
+6. **Mantener `CLINICAL_DELIVERY_LIVE_ENABLED=0`**. El nuevo botón no
+   autoriza enviar arbitrariamente a cualquier número, no expone videos
+   en el Worker ni requiere reconfigurar credenciales de citas.
+
 ## Prueba de subida REAL con progreso — Recepción 4.8.78
 
 En Recepción → ficha verificada → Documentos médicos → Archivo de videocistoscopías, seleccionar un MP4 real (máximo 550 MiB) y pulsar «Medir subida REAL a Cloudflare R2». Confirmar que corresponde al paciente y que existe autorización para la transferencia temporal a la nube.
