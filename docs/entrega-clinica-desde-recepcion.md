@@ -8,6 +8,40 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Diagnóstico de reproducción iPhone/Safari — Recepción 4.8.80
+
+Un MP4 de videocistoscopía real ya se entregó correctamente por WhatsApp
+mediante enlace corto R2, pero Safari mostró reproductor tachado. HTTP 200,
+subida completa y tamaño por HEAD **no demuestran compatibilidad de reproducción**.
+No reenviar archivos reales ni modificar calidad diagnóstica sin identificar causa.
+
+En la ficha correcta (Documentos médicos → Archivo de videocistoscopías),
+presionar **«Diagnosticar reproducción en iPhone»** junto al MP4 ya guardado:
+
+1. El servidor comprueba que la ficha Recepción↔Historia esté vinculada
+   y que el video concreto pertenece a dicha ficha.
+2. Analiza **solo la estructura local MP4**, leyendo como máximo 12 MiB
+   del índice moov: detecta las pistas por el identificador del códec
+   (`avc1`, `hvc1`, `mp4v`, etc.), posición del índice y presencia del
+   contenedor MP4. No convierte, edita ni elimina la grabación original.
+3. En un procedimiento independiente sube **126 bytes ficticios** a R2,
+   solicita `GET Range: bytes=0-1`, exige `HTTP 206`, bytes correctos
+   y `Content-Range`, y elimina ese archivo sintético.
+   No sube material clínico ni llama al Worker/Meta.
+4. Muestra resultado y recomendación sin nombres, rutas, números ni
+   enlaces firmados. Que HTTP 206 funcione para el archivo ficticio
+   **no garantiza** que el objeto original conserve todos sus headers;
+   es un primer diagnóstico de conexión. Que el códec sea `avc1`
+   tampoco garantiza que su perfil y estructura sean soportados.
+5. Si el MP4 usa códec no compatible con Safari, planificar una **copia
+   específica para reproducción H.264** con consentimiento y revisión
+   clínica; conservar el MP4 diagnóstico original sin cambios.
+   Si moov está al final, valorar `faststart` sobre copia, sin
+   sobreescribir el original. No aplicar ninguna conversión a ciegas.
+
+La versión mantiene `CLINICAL_DELIVERY_LIVE_ENABLED=0` y no modifica
+las citas, sus alarmas ni la entrega del enlace de siete días ya enviado.
+
 ## Video archivado real a WhatsApp propio de pruebas — Recepción 4.8.79
 
 Con la videocistoscopía **ya guardada en Recepción y vinculada a la ficha
