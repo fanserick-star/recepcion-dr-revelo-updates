@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.81: copia temporal MP4 faststart sin recomprimir para iPhone; original de videocistoscopia preservado; falla cerrada si falta FFmpeg, envío clínico manual solo a teléfono de pruebas."
+  "notes": "Recepción 4.8.82: botón de instalación explícita FFmpeg 9.0.2 vía Windows WinGet en PC local, comprobación sin reinicio y modo de video privado faststart; no altera citas ni pacientes."
 }

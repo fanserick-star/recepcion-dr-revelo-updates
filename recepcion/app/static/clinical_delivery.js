@@ -244,6 +244,12 @@
     addButton(section,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),!state.ready_video||state.sending||state.saving_video||state.benchmarking);
     addButton(section,'Medir subida REAL a Cloudflare R2',()=>benchmarkVideo(file),!data.ready_r2||state.sending||state.saving_video||state.benchmarking);
     section.append(cell('p','Mide una videocistoscopía real de hasta 550 MiB, con porcentaje y velocidad. Tras verificarla, elimina la copia temporal de R2. NO envía WhatsApp ni activa envíos a pacientes. Requiere autorización para la prueba.','rp-clinical-help'));
+    if(data.ffmpeg_available===false){
+      section.append(cell('p','FFmpeg no está disponible para preparar videos compatibles con iPhone. Puedes instalarlo exclusivamente en ESTA computadora desde el catálogo WinGet de Microsoft; la instalación es manual y no envía archivos clínicos.','rp-clinical-help'));
+      const install=addButton(section,'Instalar FFmpeg en esta PC (Windows)',()=>installFFmpeg(),
+        state.sending||state.saving_video||state.benchmarking);
+      install.classList.add('rp-clinical-ffmpeg-install');
+    }
     addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
@@ -524,6 +530,70 @@
     }finally{
       if(timer)window.clearInterval(timer);
       state.benchmarking=false;
+    }
+  }
+  async function installFFmpeg(){
+    if(state.benchmarking||state.sending||state.saving_video)return;
+    if(!window.confirm('INSTALAR FFMPEG EN ESTA PC\n\nSe instalará el paquete Gyan.FFmpeg 9.0.2 desde el catálogo WinGet de Microsoft, únicamente en esta PC de Recepción. Requiere internet, no mueve ningún video ni envía WhatsApp.\n\n¿Autorizas la instalación de esta herramienta gratuita?'))return;
+    const host=container();if(!host)return;
+    state.benchmarking=true;
+    const info=document.createElement('div');
+    info.setAttribute('role','status');
+    info.setAttribute('aria-live','polite');
+    info.style.cssText='border:1px solid #afc8da;background:#f3f9ff;border-radius:12px;padding:16px;margin:12px 0';
+    const heading=cell('strong','Solicitando instalación de FFmpeg en esta computadora…');
+    const details=cell('p','WinGet validará el paquete. No se envía ningún documento.','rp-clinical-help');
+    info.append(heading,details);host.append(info);
+    let handle=null;
+    try{
+      const started=await api('/api/clinical-delivery/ffmpeg/install',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:'{}'
+      });
+      if(started.state==='ready'){
+        heading.textContent='FFmpeg ya está disponible';
+        details.textContent='Puedes ejecutar nuevamente el diagnóstico de iPhone.';
+        state.benchmarking=false;
+        return;
+      }
+      heading.textContent='Instalando FFmpeg desde WinGet de Microsoft…';
+      const start=Date.now();
+      const refresh=async()=>{
+        const status=await api('/api/clinical-delivery/ffmpeg/status');
+        if(status.state==='running'){
+          heading.textContent='Instalación de FFmpeg en curso…';
+          details.textContent='Windows está preparando la herramienta. No cierres Recepción hasta que finalice.';
+          if(Date.now()-start<8*60*1000)return;
+          throw Error('La instalación tardó demasiado. Ejecuta nuevamente el diagnóstico para comprobar FFmpeg.');
+        }
+        if(handle){window.clearInterval(handle);handle=null;}
+        state.benchmarking=false;
+        if(status.available&&status.state==='ready'){
+          heading.textContent='FFmpeg instalado y verificado';
+          details.textContent='Ya se puede preparar una copia Faststart sin recomprimir. El video original no cambia.';
+          info.style.background='#edf9f3';
+          notice('FFmpeg instalado correctamente. Ejecuta Diagnosticar reproducción en iPhone antes de volver a enviar.','success');
+        }else{
+          heading.textContent='No se pudo completar la instalación';
+          details.textContent=String(status.detail||'WinGet no finalizó; revisa la instalación de Windows.');
+          info.style.background='#fff6f2';
+          notice('FFmpeg no está disponible. Prueba la instalación oficial o revisa WinGet.','error');
+        }
+      };
+      handle=window.setInterval(()=>refresh().catch(e=>{
+        if(handle){window.clearInterval(handle);handle=null;}
+        state.benchmarking=false;heading.textContent='No se confirmó la instalación';
+        details.textContent=e.message||'Revisa el diagnóstico.';
+      }),2500);
+      await refresh();
+    }catch(e){
+      if(handle){window.clearInterval(handle);handle=null;}
+      state.benchmarking=false;
+      heading.textContent='FFmpeg no está instalado';
+      details.textContent=(e.message||'WinGet no disponible')+
+        ' · Alternativa: https://ffmpeg.org/download.html#build-windows';
+      info.style.background='#fff6f2';
+      notice(e.message||'No se pudo iniciar la instalación de FFmpeg','error');
     }
   }
   async function sendArchivedVideoTest(video,input){
