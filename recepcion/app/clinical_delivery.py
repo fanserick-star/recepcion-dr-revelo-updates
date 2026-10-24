@@ -749,6 +749,193 @@ async def video_speed_upload(pid:int,job_id:str,request:Request,
             except OSError:pass
 
 
+# iPhone compatibility diagnostics: read-only original MP4 and synthetic R2
+# byte-range probe. No real MP4 bytes are uploaded, transcoded, or exposed.
+def _mp4_atom_details(filename):
+    """Inspect MP4 box structure with bounded reads; no codec conversion."""
+    path=Path(filename)
+    size=path.stat().st_size
+    if size<32:
+        raise ValueError("MP4 demasiado pequeño")
+    boxes=[]
+    moov=None
+    ftyp=False
+    with open(path,"rb") as media:
+        offset=0
+        for _ in range(1024):
+            if offset+8>size:
+                break
+            media.seek(offset)
+            head=media.read(16)
+            if len(head)<8:
+                break
+            n=int.from_bytes(head[:4],"big")
+            kind=head[4:8]
+            header=8
+            if n==1:
+                if len(head)<16:
+                    break
+                n=int.from_bytes(head[8:16],"big")
+                header=16
+            elif n==0:
+                n=size-offset
+            if n<header or offset+n>size:
+                break
+            if kind==b"ftyp":
+                ftyp=True
+            if kind==b"moov":
+                moov=(offset,n,header)
+            if kind in (b"mdat",b"moov",b"ftyp"):
+                boxes.append((kind.decode("ascii","replace"),offset,n))
+            offset+=n
+            if offset>=size:
+                break
+        if not ftyp:
+            raise ValueError("No se encontró cabecera MP4 válida")
+        if not moov:
+            return {"container":"MP4","moov_found":False,
+                    "metadata_before_video":False,"codecs":[],
+                    "iphone_codec_hint":"unknown",
+                    "recommendation":"No se encontró el índice moov; revisar MP4 original"}
+        moov_start,moov_bytes,header=moov
+        max_probe=12*1024*1024
+        if moov_bytes>max_probe:
+            return {"container":"MP4","moov_found":True,
+                    "metadata_before_video":moov_start<next((pos for k,pos,_ in boxes if k=="mdat"),size),
+                    "codecs":[],"iphone_codec_hint":"unknown",
+                    "recommendation":"Índice MP4 grande; verificar con ffprobe en PC"}
+        media.seek(moov_start)
+        moov_data=media.read(moov_bytes)
+    found=set()
+    parents={b"moov",b"trak",b"mdia",b"minf",b"stbl"}
+    def walk(start,end,depth):
+        if depth>8:
+            return
+        pos=start
+        checked=0
+        while pos+8<=end and checked<2048:
+            checked+=1
+            length=int.from_bytes(moov_data[pos:pos+4],"big")
+            typ=moov_data[pos+4:pos+8]
+            header_len=8
+            if length==1:
+                if pos+16>end:
+                    break
+                length=int.from_bytes(moov_data[pos+8:pos+16],"big")
+                header_len=16
+            elif length==0:
+                length=end-pos
+            if length<header_len or pos+length>end:
+                break
+            content=pos+header_len
+            end_pos=pos+length
+            if typ==b"stsd" and content+8<=end_pos:
+                count=min(int.from_bytes(moov_data[content+4:content+8],"big"),24)
+                entry=content+8
+                for _ in range(count):
+                    if entry+8>end_pos:
+                        break
+                    entry_size=int.from_bytes(moov_data[entry:entry+4],"big")
+                    if entry_size<8 or entry+entry_size>end_pos:
+                        break
+                    fourcc=moov_data[entry+4:entry+8].decode("ascii","replace")
+                    if re.fullmatch(r"[a-zA-Z0-9 ]{4}",fourcc):
+                        found.add(fourcc.strip())
+                    entry+=entry_size
+            elif typ in parents:
+                walk(content,end_pos,depth+1)
+            pos=end_pos
+    if len(moov_data)>=header+8:
+        walk(header,len(moov_data),0)
+    codecs=sorted(found)
+    video_entries={"avc1","avc3","hvc1","hev1","mp4v","mjpg","jpeg","mjp2","av01","vp09","s263"}
+    supported={"avc1","avc3","hvc1","hev1"}
+    videos=set(codecs)&video_entries
+    if not videos:
+        hint="unknown"
+    elif videos<=supported:
+        hint="likely_compatible"
+    else:
+        hint="possible_unsupported_codec"
+    mdat_offset=next((pos for k,pos,_ in boxes if k=="mdat"),size)
+    faststart=moov_start<mdat_offset
+    if hint=="possible_unsupported_codec":
+        next_step="Códec posiblemente no compatible con Safari; evaluar copia de reproducción H.264 sin tocar original"
+    elif not faststart:
+        next_step="Índice moov al final; Safari necesita rangos HTTP para buscarlo, valorar faststart"
+    else:
+        next_step="Estructura compatible en principio; verificar rangos R2 y perfil del códec"
+    return {"container":"MP4","moov_found":True,"metadata_before_video":faststart,
+            "codecs":codecs,"iphone_codec_hint":hint,"recommendation":next_step}
+
+
+def _r2_synthetic_range_206():
+    """Probe HTTP 206 with 2 synthetic bytes; always delete temporary R2 object."""
+    if not _setup()["ready_r2"]:
+        return {"status":"not_configured"}
+    key="clinical-temp/self-test/ios-range-"+secrets.token_hex(16)+".bin"
+    data=b"DRREVELO_RANGE_TEST_SYNTHETIC_"+secrets.token_bytes(96)
+    name=None
+    uploaded=False
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_ios_range_",suffix=".bin",delete=False) as tmp:
+            name=tmp.name
+            tmp.write(data)
+        _upload_r2(name,key,"application/octet-stream")
+        uploaded=True
+        signed=_r2_url("GET",key,180)
+        req=urllib.request.Request(signed,method="GET",
+                                   headers={"Range":"bytes=0-1"})
+        with urllib.request.urlopen(req,timeout=20) as response:
+            status=int(response.status)
+            content_range=response.headers.get("Content-Range","")
+            chunk=response.read(3)
+        good=(status==206 and chunk==data[:2] and
+              content_range.lower()==f"bytes 0-1/{len(data)}")
+        return {"status":"ok" if good else "incompatible",
+                "range_206":good}
+    except (OSError,TimeoutError,ValueError,urllib.error.URLError):
+        return {"status":"unavailable"}
+    finally:
+        if uploaded:
+            try:
+                _delete_benchmark_r2(key)
+            except Exception:
+                pass  # 7-day lifecycle covers unexpected Cloudflare outages.
+        if name:
+            try:os.unlink(name)
+            except OSError:pass
+
+
+@app.post("/api/clinical-delivery/patients/{pid}/archived-video/{video_id}/iphone-diagnostic")
+async def archived_iphone_diagnostic(pid:int,video_id:str,
+                                     db=core.Depends(core.get_db),
+                                     user=core.Depends(core.current_user)):
+    if not re.fullmatch(r"[0-9a-f]{32}",video_id):
+        raise core.HTTPException(400,"Identificador de video inválido")
+    _patient(db,pid)
+    clinical_id,_,conn=_linked_patient(pid)
+    conn.close()
+    from clinical_video_library import _row_by_id,_local_file
+    row=_row_by_id(video_id,clinical_id)
+    media=_local_file(row)
+    try:
+        fmt=await asyncio.to_thread(_mp4_atom_details,media)
+    except (OSError,ValueError):
+        fmt={"container":"MP4","moov_found":False,"metadata_before_video":False,
+             "codecs":[],"iphone_codec_hint":"unknown",
+             "recommendation":"No se pudo analizar la estructura; revisar el archivo MP4 en Recepción"}
+    range_result=await asyncio.to_thread(_r2_synthetic_range_206)
+    return {"ok":True,"codec":fmt["codecs"],
+            "moov_found":fmt["moov_found"],
+            "metadata_before_video":fmt["metadata_before_video"],
+            "iphone_codec_hint":fmt["iphone_codec_hint"],
+            "r2_range_status":range_result["status"],
+            "r2_range_206":bool(range_result.get("range_206",False)),
+            "recommendation":fmt["recommendation"],
+            "no_video_upload":True,"no_whatsapp":True}
+
+
 # Real clinical video test: guarded by verified Reception↔Historia patient link,
 # local archived video ownership, two explicit user confirmations and preapproved
 # operator TEST PHONE only. Does NOT enable patient live sends.
