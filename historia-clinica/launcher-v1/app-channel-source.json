@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.38: ventanas de documentos más amplias, sin menú duplicado y con aviso/bloqueo de reimpresiones rápidas; conserva cache MP4 segura y diagnóstico Wi-Fi de 1.4.37, recetas A4, firma PAdES, fichas y Neón sin cambios."
+  "notes": "Historia 1.4.39: botón independiente Videocistoscopías junto a Documentos, modal de video dedicado y diagnóstico de velocidad LAN compatible con Ethernet. Conserva reproducción directa, caché privada opcional, firma, impresión, fichas, turnos y Neón intactos."
 }
