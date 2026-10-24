@@ -118,12 +118,12 @@ def save():
     except Exception as exc:
         messagebox.showerror("No se guardó la configuración",str(exc))
         return
+    status = ("HABILITADOS" if activate_var.get() else "DESACTIVADOS")
     messagebox.showinfo("Preparación guardada",
         "Configuración guardada únicamente en esta PC.\n"
-        ("Los envíos clínicos MANUALES están HABILITADOS.\\n" if activate_var.get() else
-         "Los envíos clínicos a pacientes siguen DESACTIVADOS.\\n")
-        "Verifica la aprobación de las plantillas en Meta.\\n"
-        "Reabre Recepción para comprobar el estado sin exponer credenciales.")
+        "Los envíos clínicos manuales están " + status + ".\n"
+        "Comprueba el estado en Recepción antes de enviar documentos.\n"
+        "Nunca se enviará nada sin confirmación individual.")
     root.destroy()
 
 ttk.Button(footer,text="Guardar configuración clínica",command=save).pack(side=tk.RIGHT)
