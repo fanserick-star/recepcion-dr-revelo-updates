@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.76: enlaces clínicos cortos privados desde Worker a R2 y prueba de video MP4 sintético sin pacientes; descarga directa y 7 días. Citas y alarmas sin cambios."
+  "notes": "Recepción 4.8.77: empaquetado íntegro del MP4 ficticio de prueba con alias R2 privado de 7 días; clínicas a pacientes desactivadas, citas intactas."
 }
