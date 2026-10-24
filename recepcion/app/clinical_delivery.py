@@ -298,6 +298,7 @@ def _setup():
         test_phone="593"+test_phone[1:]
     ready_test=bool(approved and ready_r2 and wa_ready and template_doc and template_video and re.fullmatch(r"5939\d{8}",test_phone))
     return {"ready_r2":ready_r2,"ready_whatsapp":wa_ready,"ready_test":ready_test,
+            "ffmpeg_available":bool(_faststart_ffmpeg_path()),
             "clinical_delivery_enabled":live_enabled,
             "clinical_templates_approved":approved,
             "ready_document":bool(live_enabled and approved and ready_r2 and wa_ready and template_doc and lan_ready),
@@ -951,6 +952,23 @@ def _faststart_ffmpeg_path():
         str(ROOT/"bin"/"ffmpeg.exe"),
         str(Path(core.DATA_DIR)/"tools"/"ffmpeg.exe"),
     ]
+    # WinGet portable installs link into the *user's* app-local location;
+    # the running launcher may have a stale PATH even after installation.
+    if os.name=="nt":
+        local=os.environ.get("LOCALAPPDATA","")
+        if local:
+            win=Path(local)/"Microsoft"/"WinGet"
+            candidates.append(str(win/"Links"/"ffmpeg.exe"))
+            packages=win/"Packages"
+            if packages.is_dir():
+                for root in packages.glob("Gyan.FFmpeg_*"):
+                    if root.is_dir():
+                        for p in root.glob("ffmpeg-*/bin/ffmpeg.exe"):
+                            candidates.append(str(p))
+                        candidates.append(str(root/"bin"/"ffmpeg.exe"))
+        system=os.environ.get("ProgramFiles","")
+        if system:
+            candidates.append(str(Path(system)/"WinGet"/"Links"/"ffmpeg.exe"))
     for item in candidates:
         if not item:
             continue
@@ -961,6 +979,106 @@ def _faststart_ffmpeg_path():
         except OSError:
             continue
     return None
+
+
+# FFmpeg installation is an EXPLICIT, local-machine user action.
+# Windows package ID/version/source are fixed (never supplied by HTTP request).
+# Existing patient data, R2, WhatsApp and appointment workers are untouched.
+_FFMPEG_SETUP_LOCK=threading.Lock()
+_FFMPEG_SETUP={"state":"idle","detail":""}
+_FFMPEG_WINGET_PACKAGE="Gyan.FFmpeg"
+_FFMPEG_WINGET_VERSION="9.0.2"
+
+
+def _clinical_install_local_only(request):
+    if os.name!="nt":
+        raise core.HTTPException(400,"Esta instalación solo se admite desde Recepción en Windows")
+    remote=str(getattr(getattr(request,"client",None),"host","") or "")
+    if remote not in ("127.0.0.1","::1","::ffff:127.0.0.1"):
+        raise core.HTTPException(403,"La instalación de programas solo se permite desde la PC local de Recepción")
+
+
+def _clinical_find_winget():
+    paths=[shutil.which("winget")]
+    local=os.environ.get("LOCALAPPDATA","")
+    if local:
+        paths.append(str(Path(local)/"Microsoft"/"WindowsApps"/"winget.exe"))
+    for item in paths:
+        if item:
+            try:
+                p=Path(item).resolve()
+                if p.is_file() and p.stat().st_size>0:
+                    return str(p)
+            except OSError:
+                pass
+    return None
+
+
+def _clinical_install_ffmpeg_winget():
+    """User-initiated WinGet install. No arbitrary commands and no patient bytes."""
+    global _FFMPEG_SETUP
+    cmd=_clinical_find_winget()
+    if not cmd:
+        with _FFMPEG_SETUP_LOCK:
+            _FFMPEG_SETUP={"state":"error",
+                "detail":"WinGet no está disponible. Instala App Installer de Microsoft y vuelve a intentar."}
+        return
+    try:
+        run=subprocess.run(
+            [cmd,"install","--exact","--id",_FFMPEG_WINGET_PACKAGE,
+             "--version",_FFMPEG_WINGET_VERSION,"--source","winget",
+             "--scope","user","--silent","--accept-source-agreements",
+             "--accept-package-agreements","--disable-interactivity"],
+            stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,timeout=420,check=False,
+            creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        candidate=_faststart_ffmpeg_path()
+        if run.returncode!=0 or not candidate:
+            raise RuntimeError("WinGet no confirmó la instalación o Windows aún no encuentra FFmpeg")
+        verify=subprocess.run([candidate,"-version"],stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,
+                              timeout=15,check=False,
+                              creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        if verify.returncode!=0:
+            raise RuntimeError("El FFmpeg instalado no pasó la comprobación")
+        with _FFMPEG_SETUP_LOCK:
+            _FFMPEG_SETUP={"state":"ready","detail":"FFmpeg instalado y verificado. Puedes ejecutar de nuevo el diagnóstico."}
+    except (OSError,subprocess.SubprocessError,RuntimeError):
+        with _FFMPEG_SETUP_LOCK:
+            _FFMPEG_SETUP={"state":"error","detail":
+                "Windows no pudo completar la instalación silenciosa. Usa WinGet o el enlace oficial de FFmpeg."}
+
+
+@app.post("/api/clinical-delivery/ffmpeg/install")
+def install_clinical_ffmpeg(request:Request,background_tasks:BackgroundTasks,
+                           user=core.Depends(core.current_user)):
+    _clinical_install_local_only(request)
+    with _FFMPEG_SETUP_LOCK:
+        if _FFMPEG_SETUP["state"]=="running":
+            return {"ok":True,"state":"running","message":"La instalación continúa"}
+        if _faststart_ffmpeg_path():
+            return {"ok":True,"state":"ready","message":"FFmpeg ya está disponible"}
+        if not _clinical_find_winget():
+            raise core.HTTPException(503,
+                "WinGet no está disponible. Instala App Installer de Microsoft o FFmpeg desde el sitio oficial")
+        _FFMPEG_SETUP.update(state="running",detail="Windows está instalando FFmpeg desde WinGet")
+    background_tasks.add_task(_clinical_install_ffmpeg_winget)
+    return {"ok":True,"state":"running",
+            "message":"Instalación iniciada en esta PC; no se envía ningún documento"}
+
+
+@app.get("/api/clinical-delivery/ffmpeg/status")
+def clinical_ffmpeg_setup_status(request:Request,
+                                 user=core.Depends(core.current_user)):
+    _clinical_install_local_only(request)
+    with _FFMPEG_SETUP_LOCK:
+        state=_FFMPEG_SETUP["state"]
+        detail=_FFMPEG_SETUP["detail"]
+    available=bool(_faststart_ffmpeg_path())
+    if available and state!="running":
+        state="ready"
+        detail="FFmpeg disponible en Recepción"
+    return {"ok":True,"state":state,"available":available,"detail":detail}
 
 
 def _delivery_faststart_copy(original):
