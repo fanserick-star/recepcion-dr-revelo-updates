@@ -38,7 +38,7 @@ assert "const player=document.createElement('video')" in js
 assert "player.preload='none'" in js
 assert "player.controls=true" in js and "player.playsInline=true" in js
 assert "const previewById=new Map()" in js
-assert "video.currentTime>0.15" in js
+assert "player.currentTime>0.15" in js
 assert "canvas.toDataURL('image/jpeg',0.68)" in js
 assert "setInterval(" not in js
 assert "document.createElement('video')" in js and js.count("document.createElement('video')")==1
