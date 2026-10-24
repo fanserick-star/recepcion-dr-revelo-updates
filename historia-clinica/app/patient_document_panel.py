@@ -163,5 +163,5 @@ def render_patient_videos(patient_id: str) -> str:
         "<button type='button' class='cp-video-refresh'>Actualizar</button></div>"
         "<p class='cp-video-status'>Consulta las grabaciones almacenadas en Recepción.</p>"
         "<div class='cp-video-list'></div></section>"
-        "<script defer src='/static/clinical_video_library.js?v=1.4.41'></script>"
+        "<script defer src='/static/clinical_video_library.js?v=1.4.42'></script>"
     )
