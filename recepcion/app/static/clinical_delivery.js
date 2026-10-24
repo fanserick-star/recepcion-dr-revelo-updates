@@ -287,7 +287,7 @@
     const file=document.createElement('input');file.type='file';file.accept='.mp4,video/mp4';
     file.id='rpClinicalVideoFile';file.multiple=true;file.disabled=state.sending||state.saving_video||state.benchmarking;
     uploadBody.append(file);
-    addButton(uploadBody,'Guardar videos en el archivo del paciente',()=>saveVideo(file),
+    addButton(uploadBody,'Guardar videos en Recepción',()=>saveVideo(file),
       state.sending||state.saving_video||state.benchmarking);
     upload.append(uploadBody);videoSection.append(upload);
     host.append(videoSection);
