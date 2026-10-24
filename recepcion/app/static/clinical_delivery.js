@@ -437,6 +437,7 @@
           recibiendo_archivo:'Copiando el video desde el selector a Recepción…',
           preparando_r2:'Archivo recibido. Conectando con Cloudflare R2…',
           preparando_iphone:'Preparando copia optimizada para iPhone (sin recomprimir)…',
+          preparando_descarga:'Preparando descarga del MP4 original sin convertirlo…',
           subiendo_r2:'Enviando videocistoscopía a Cloudflare R2…',
           verificando_r2:'100 % enviado. Confirmando la copia en R2…',
           eliminando_copia:'Copia confirmada. Eliminando video temporal de la nube…',
@@ -454,12 +455,15 @@
         detail.textContent=percent+' % · '+mib(bytes)+' / '+mib(total)+' MiB'+extra+
           (elapsed?' · '+Number(elapsed).toFixed(1)+' s':'')+eta;
         if(stage==='preparando_iphone'){
-          help.textContent='Procesando una COPIA temporal. No se recomprime ni altera la grabación original; aún no se está subiendo ni enviando WhatsApp.';
+          help.textContent='Preparando reproducción optimizada; no altera la grabación original.';
+        }
+        if(stage==='preparando_descarga'){
+          help.textContent='El MP4 original se enviará como archivo descargable; no requiere FFmpeg, no se comprime ni se convierte.';
         }
         if(stage==='complete'){
           wrap.style.background='#edf9f3';wrap.style.borderColor='#83b99a';
           help.textContent=mode==='envio_prueba'?
-            'Meta aceptó el mensaje, aún falta confirmar la recepción en tu celular. El archivo privado permanece disponible hasta 7 días y la copia local no cambia.':
+            'Meta aceptó el enlace para DESCARGAR el MP4 original. Comprueba que el iPhone pueda guardarlo en Archivos. Disponible hasta 7 días.':
             'El original sigue guardado en la PC. La copia temporal de la nube se eliminó. No se envió WhatsApp.';
         }else if(stage==='error'){
           wrap.style.background='#fff5f2';wrap.style.borderColor='#d28c81';
