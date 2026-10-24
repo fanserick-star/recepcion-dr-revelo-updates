@@ -45,7 +45,7 @@ exec(compile(ast.Module(body=[func["_clinical_download_name"]],type_ignores=[]),
 patient=SimpleNamespace(nombre="Gómez Ñáñez / Persona de Prueba")
 pdf=ns["_clinical_download_name"](patient,"receta","pdf")
 video=ns["_clinical_download_name"](patient,"video","mp4")
-assert re.fullmatch(r"RECETA_GOMEZ_NANEZ_PERSONA_DE_PRUEBA_\\d{4}-\\d{2}-\\d{2}\\.pdf",pdf),pdf
+assert re.fullmatch(r"RECETA_GOMEZ_NANEZ_PERSONA_DE_PRUEBA_\d{4}-\d{2}-\d{2}\.pdf",pdf),pdf
 assert video.startswith("VIDEOCISTOSCOPIA_GOMEZ_NANEZ_PERSONA_DE_PRUEBA_")
 assert "/" not in video and "\\n" not in video
 
