@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.82: botón de instalación explícita FFmpeg 9.0.2 vía Windows WinGet en PC local, comprobación sin reinicio y modo de video privado faststart; no altera citas ni pacientes."
+  "notes": "Recepción 4.8.83: instala FFmpeg para Faststart sin depender de WinGet, verificando SHA-256 PyPI y guardando ejecutable localmente tras aprobación. Pacientes, citas y videos originales intactos."
 }

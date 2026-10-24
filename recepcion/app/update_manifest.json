@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.82",
-  "app_version": "4.8.82",
-  "runtime_version": "4.8.82",
+  "version": "4.8.83",
+  "app_version": "4.8.83",
+  "runtime_version": "4.8.83",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -196,8 +196,8 @@
     "clinical_selftest_mp4.b64"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.82: permitir instalación explícita en Windows de FFmpeg 9.0.2 desde WinGet de Microsoft, únicamente desde PC local y por confirmación manual. Detecta rutas WinGet aunque launcher tenga PATH antiguo. No incluye binarios externos, no modifica videos originales, no activa envíos a pacientes ni cambia alarmas de citas.",
-    "previous_version": "4.8.81",
+    "purpose": "Recepción 4.8.83: instalación de FFmpeg local sin WinGet en PCs Windows antiguas. Por autorización explícita, descarga wheel imageio-ffmpeg 0.6.0 de PyPI con URL oficial fijada y SHA-256 verificado, extrae solo ffmpeg.exe, prueba ejecución y mantiene video original intacto. WinGet sigue disponible cuando exista; nunca se envía material clínico durante instalación.",
+    "previous_version": "4.8.82",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,

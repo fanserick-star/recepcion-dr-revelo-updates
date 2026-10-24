@@ -41,6 +41,29 @@ pruebas ya autorizado y consentimiento específico.
   CLINICAL_DELIVERY_LIVE_ENABLED=0. No cambiar alarmas, citas, facturas,
   sincronización ni Worker de WhatsApp.
 
+## Alternativa sin WinGet — Recepción 4.8.83
+
+Para equipos Windows antiguos sin `winget.exe`, el mismo botón
+**«Instalar FFmpeg aquí (sin requerir WinGet)»** ofrece una ruta alternativa
+tras la confirmación explícita del operador.
+
+- Descarga **solo un wheel binario Windows** de `imageio-ffmpeg 0.6.0`
+  desde una URL `files.pythonhosted.org` fijada en el código.
+- Exige que su SHA-256 coincida exactamente con el publicado por PyPI
+  para `win_amd64` o `win32`; limita bytes y verifica un ejecutable
+  Windows antes de instalarlo.
+- No ejecuta scripts del wheel ni `pip`. Extrae exclusivamente el
+  ejecutable FFmpeg a `DATA_DIR/tools/ffmpeg.exe`, ejecuta
+  `ffmpeg.exe -version` sin shell y publica el ejecutable con
+  reemplazo atómico solo tras validarlo.
+- Requiere conexión a PyPI y espacio suficiente en disco; ante fallo
+  elimina archivos temporales y mantiene los envíos bloqueados.
+- **No descarga ninguna videocistoscopia**, no cambia el video original,
+  no llama a Meta/Cloudflare ni modifica Neón o las citas.
+- Si WinGet sí está disponible, mantiene el instalador local anterior.
+  No se utiliza ninguna instalación automática al actualizar Recepción:
+  el usuario siempre debe autorizar expresamente la acción.
+
 ## Instalación guiada de FFmpeg — Recepción 4.8.82
 
 - Si falta FFmpeg, **Recepción no sube ni envía la videocistoscopía**.

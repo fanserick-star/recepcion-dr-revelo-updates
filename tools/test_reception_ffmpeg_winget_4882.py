@@ -22,8 +22,8 @@ assert '"--accept-package-agreements"' in src
 assert '"--accept-source-agreements"' in src
 assert '"--source","winget"' in src
 assert '"--scope","user"' in src
-assert "background_tasks.add_task(_clinical_install_ffmpeg_winget)" in src
-assert "Instalar FFmpeg en esta PC (Windows)" in ui
+assert "_clinical_install_ffmpeg_winget if use_winget else _clinical_install_ffmpeg_pypi" in src
+assert "Instalar FFmpeg aquí (sin requerir WinGet)" in ui
 assert "window.confirm('INSTALAR FFMPEG EN ESTA PC" in ui
 assert 'patient_authorized_staff_delivery:true' in ui
 assert 'CLINICAL_DELIVERY_LIVE_ENABLED' in src
