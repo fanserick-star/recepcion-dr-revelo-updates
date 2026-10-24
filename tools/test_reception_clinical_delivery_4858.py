@@ -19,7 +19,7 @@ for marker in [
   "WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE", "WHATSAPP_CLINICAL_VIDEO_TEMPLATE",
   "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED", '"X-Amz-Expires"',
   "604800", "LIMIT_VIDEO = 550 * 1024 * 1024", 'with open(tmp,"rb") as video_check:',
-  "_send_template(phone,name,kind,expiry,url)",
+  "_send_template(phone,name,kind,expiry,short_url)",
 ]:
   assert marker in r,marker
 assert "ZoneInfo" not in r
@@ -28,7 +28,7 @@ assert "import clinical_delivery as _clinical_delivery" in main
 assert 'data-profile-tab="documentos"' in profile
 assert 'data-profile-panel="documentos"' in profile
 assert 'window.loadClinicalDelivery' in profile
-assert 'clinical_delivery.js?v=4.8.75' in html
+assert 'clinical_delivery.js?v=4.8.76' in html
 assert 'consent_confirmed:true' in ui and 'identity_confirmed:true' in ui
 assert 'send-document' in ui and 'send-video' in ui
 assert 'document.getElementById("rx-save")' not in ui

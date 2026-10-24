@@ -158,6 +158,21 @@
         notice('Meta aceptó la prueba. Abre WhatsApp en tu iPhone y revisa el PDF. Vence el '+new Date(response.expires_at).toLocaleString('es-EC')+'.','success');
       }catch(e){notice(e.message||'No se pudo enviar la prueba','error');}
     },!allowed);
+    block.append(cell('p','🎬 Video de prueba: MP4 sintético de 2 segundos (sin pacientes). Se envía con la plantilla de documento aprobada para comprobar la descarga y reproducción; no mide aún los videos de 500 MB.','rp-clinical-help'));
+    const videoButton=addButton(block,'Enviar VIDEO DE PRUEBA a mi WhatsApp',async()=>{
+      if(!window.confirm('Se enviará un video ficticio de 2 segundos al celular autorizado. No se utilizará ningún video de pacientes. ¿Continuar?'))return;
+      const number=String(input.value||'').trim();
+      if(!number){notice('Ingresa el número autorizado para pruebas','error');return;}
+      videoButton.disabled=true;
+      try{
+        const result=await api('/api/clinical-delivery/send-self-test-video',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({phone:number,confirmation:'ENVIAR PRUEBA'})
+        });
+        notice('Meta aceptó el MP4 ficticio. Abre el enlace corto en WhatsApp y verifica el video de 2 segundos. Caduca el '+new Date(result.expires_at).toLocaleString('es-EC')+'.','success');
+      }catch(err){notice(err.message||'No se pudo enviar el MP4 de prueba','error');}
+      finally{videoButton.disabled=!allowed;}
+    },!allowed);
     if(!allowed){
       const missing=(data.test_missing||[]);
       block.append(cell('p','Envío real aún bloqueado: '+(missing.length?missing.join('; '):'falta configurar Cloudflare R2 y WhatsApp')+'.','rp-clinical-warning'));

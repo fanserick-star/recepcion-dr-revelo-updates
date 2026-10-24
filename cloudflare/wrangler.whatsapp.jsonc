@@ -26,5 +26,11 @@
   ],
   "triggers": {
     "crons": []
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "CLINICAL_LINKS_R2",
+      "bucket_name": "dr-revelo-clinical-2026"
+    }
+  ]
 }

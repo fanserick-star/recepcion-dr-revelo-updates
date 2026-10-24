@@ -1,4 +1,4 @@
-# Entrega clínica desde Recepción — actualizado para Recepción 4.8.72
+# Entrega clínica desde Recepción — actualizado para Recepción 4.8.76
 
 ## Separación de responsabilidades
 - Historia Clínica: el doctor crea, guarda y firma. No se envía WhatsApp desde Historia.
@@ -7,6 +7,34 @@
 - Si Historia está apagada, el índice puede consultarse desde Neon, pero un PDF no se puede previsualizar ni enviar.
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
+
+## Enlaces cortos y prueba de video — Recepción 4.8.76
+
+- Recepción ahora guarda un manifiesto JSON privado en
+  `clinical-temp/short-links/<token-aleatorio>.json` dentro del mismo bucket R2.
+  Solo contiene la URL firmada a R2 y su fecha de caducidad. **No se guarda en
+  Neón, ni contiene nombres, números de teléfono o fichas de pacientes.**
+- El Worker de WhatsApp usa el binding `CLINICAL_LINKS_R2` para buscar ese
+  manifiesto. `GET /d/<token>` devuelve una redirección temporal **302**
+  hacia el enlace firmado, nunca transmite el PDF ni el MP4 por el Worker.
+  El enlace es aleatorio, no enumerativo, expira tras siete días y no es
+  indexable; sigue siendo un enlace de posesión: quien lo tenga puede abrirlo.
+- El manifiesto reside dentro del prefijo `clinical-temp/`, cubierto por la
+  política de eliminación automática de 7 días. El Worker comprueba
+  independientemente `expires_epoch` y rechaza URL externas.
+- Antes de solicitar el envío WhatsApp, Recepción comprueba que el enlace corto
+  realmente resuelva al archivo R2 esperado, con petición de rango de 1 byte;
+  ante un fallo no envía el mensaje.
+- Hay dos pruebas manuales separadas en **Documentos médicos**: PDF sintético y
+  **MP4 sintético de 2 segundos**, dirigido exclusivamente a
+  `WHATSAPP_TEST_PHONE`. Ambas comparten el bloqueo de 5 minutos. La prueba MP4
+  utiliza deliberadamente la plantilla de documento ya aprobada para comprobar
+  el transporte, pero **no valida todavía la plantilla de video**.
+- **No se prueba un video de 500 MB todavía.** La subida en paralelo,
+  reanudación y progreso son una optimización posterior que requiere medición,
+  sin usar jamás videos médicos reales como datos ficticios.
+- Mantener `CLINICAL_DELIVERY_LIVE_ENABLED=0` hasta completar pruebas y
+  revisar permisos y consentimiento de entrega a pacientes.
 
 ## Motor WhatsApp unificado — Recepción 4.8.75
 

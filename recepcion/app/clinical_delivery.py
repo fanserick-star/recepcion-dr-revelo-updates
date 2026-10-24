@@ -398,6 +398,59 @@ def _issue_clinical_capability(phone, mode):
     return token
 
 
+
+CLINICAL_SHORT_BASE = "https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev/d/"
+
+
+def _short_r2_link(signed_get_url, expires_at):
+    """Create opaque 132-bit link manifest in private R2. No patient data in Neon.
+
+    Worker only redirects to signed R2; never proxies video bytes.
+    """
+    import base64
+    import urllib.error
+    if not _setup()["ready_r2"]:
+        raise core.HTTPException(503, "R2 privado no está configurado")
+    expiry_epoch=int(expires_at.timestamp())
+    remaining=expiry_epoch-int(time.time())
+    if remaining<=60 or remaining>604800:
+        raise core.HTTPException(400, "Caducidad del enlace no válida")
+    parsed=urllib.parse.urlsplit(signed_get_url)
+    cfg=_clinical_settings()
+    if (parsed.scheme!="https" or parsed.netloc!=cfg["CLINICAL_R2_ACCOUNT_ID"].lower()+".r2.cloudflarestorage.com" or
+        not parsed.path.startswith("/dr-revelo-clinical-2026/clinical-temp/") or
+        not re.fullmatch(r"[0-9a-f]{64}",urllib.parse.parse_qs(parsed.query).get("X-Amz-Signature",[""])[0])):
+        raise core.HTTPException(400, "El destino privado de R2 no es válido")
+    slug=base64.urlsafe_b64encode(secrets.token_bytes(16)).decode("ascii").rstrip("=")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{22}",slug):
+        raise RuntimeError("Identificador temporal inválido")
+    record=json.dumps({"expires_epoch":expiry_epoch,"signed_get_url":signed_get_url},
+                      separators=(",",":"),ensure_ascii=True).encode("utf-8")
+    tmpname=None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_private_link_",suffix=".json",delete=False) as tmp:
+            tmpname=tmp.name
+            tmp.write(record)
+        _upload_r2(tmpname,"clinical-temp/short-links/"+slug+".json","application/json")
+    finally:
+        if tmpname:
+            try:os.unlink(tmpname)
+            except OSError:pass
+    result=CLINICAL_SHORT_BASE+slug
+    # Fail closed: verify route, R2 mapping and signed target before any WhatsApp.
+    request=urllib.request.Request(
+        result,method="GET",headers={"User-Agent":"curl/8.10.1","Range":"bytes=0-0"})
+    try:
+        with urllib.request.urlopen(request,timeout=25) as response:
+            valid=response.read(1)
+            target=urllib.parse.urlsplit(response.geturl())
+        if not valid or target.hostname!=parsed.hostname or target.path!=parsed.path:
+            raise RuntimeError("La redirección no llegó al archivo privado")
+    except (urllib.error.HTTPError,urllib.error.URLError,TimeoutError,OSError) as exc:
+        raise core.HTTPException(502,"El enlace corto todavía no está disponible; no se envió WhatsApp") from exc
+    return result
+
+
 def _send_template(phone, name, kind, expiry, url, label_override=None, *, test_mode=False):
     cfg=_clinical_settings()
     template=(cfg["WHATSAPP_CLINICAL_VIDEO_TEMPLATE"]
@@ -407,7 +460,7 @@ def _send_template(phone, name, kind, expiry, url, label_override=None, *, test_
     if not re.fullmatch(r"5939\d{8}",str(phone)):
         raise core.HTTPException(400,"Número clínico inválido")
     if test_mode:
-        if name!="PACIENTE DE PRUEBA" or label_override!="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)" or kind=="video":
+        if name!="PACIENTE DE PRUEBA" or label_override not in ("DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)") or kind=="video":
             raise core.HTTPException(400,"Solo se permiten archivos ficticios en la prueba")
     elif _setup()["clinical_delivery_enabled"] is not True:
         raise core.HTTPException(503,"Las entregas a pacientes continúan desactivadas")
@@ -497,8 +550,9 @@ def _deliver_temp(pid,kind,doc_id,file_path,media_type,patient,user):
         key="clinical-temp/"+now.strftime("%Y/%m/%d")+"/"+secrets.token_hex(24)+(".mp4" if kind=="video" else ".pdf")
         _upload_r2(file_path,key,media_type)
         url=_r2_url("GET",key,604800)
+        short_url=_short_r2_link(url,expiry_dt)
         phone=_phone(patient)
-        message_id=_send_template(phone,name,kind,expiry,url)
+        message_id=_send_template(phone,name,kind,expiry,short_url)
         _audit(pid,kind,doc_id,message_id,expiry_dt.isoformat(),str(getattr(user,"username","recepcion")))
         return {"ok":True,"sent":True,"message_id":message_id,"expires_at":expiry_dt.isoformat()}
     finally:
@@ -570,9 +624,11 @@ def _test_send(phone: str):
             downloaded = response.read(len(pdf)+1)
         if not hmac.compare_digest(hashlib.sha256(downloaded).digest(),hashlib.sha256(pdf).digest()):
             raise RuntimeError("El PDF de prueba descargado desde R2 no coincide con el original")
+        stage = "creación y prueba del enlace corto"
+        short_url=_short_r2_link(url,expires_at)
         stage = "solicitud a Meta"
         message_id = _send_template(raw, "PACIENTE DE PRUEBA", "receta",
-            expires_at.strftime("%d/%m/%Y a las %H:%M"), url,
+            expires_at.strftime("%d/%m/%Y a las %H:%M"), short_url,
             label_override="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)",test_mode=True)
         return {"ok": True, "sent": True, "message_id": message_id,
                 "expires_at": expires_at.isoformat(),
@@ -588,6 +644,74 @@ def _test_send(phone: str):
     finally:
         if temp_name:
             try:os.unlink(temp_name)
+            except OSError:pass
+
+
+def _test_video_bytes():
+    """Bundled synthetic MP4 (2 seconds, tiny blue/white card); no patient files."""
+    import base64
+    fixture=ROOT/"clinical_selftest_mp4.b64"
+    raw=base64.b64decode(fixture.read_text(encoding="ascii").strip(),validate=True)
+    if not (1500<=len(raw)<=20000 and b"ftypisom" in raw[:32] and b"moov" in raw[:1200]):
+        raise RuntimeError("El MP4 ficticio de prueba está incompleto")
+    return raw
+
+
+def _test_send_video(phone: str):
+    """Operator-initiated synthetic MP4, own approved phone, no clinical records."""
+    global _LAST_TEST_SEND
+    if not _setup()["ready_test"]:
+        raise core.HTTPException(503,"Faltan R2, plantilla aprobada o número de prueba")
+    raw=re.sub(r"\D","",str(phone or ""))
+    if len(raw)==10 and raw.startswith("09"):
+        raw="593"+raw[1:]
+    allowed=re.sub(r"\D","",str(_clinical_setting("WHATSAPP_TEST_PHONE") or core.WHATSAPP_TEST_PHONE or ""))
+    if len(allowed)==10 and allowed.startswith("09"):
+        allowed="593"+allowed[1:]
+    if not raw or not hmac.compare_digest(raw,allowed):
+        raise core.HTTPException(403,"Solo se permite el celular autorizado como WHATSAPP_TEST_PHONE")
+    with _TEST_SEND_LOCK:
+        if time.monotonic()-_LAST_TEST_SEND<300:
+            raise core.HTTPException(429,"Ya se hizo una prueba. Se admite otra en cinco minutos")
+        _LAST_TEST_SEND=time.monotonic()
+    now=datetime.now(TZ)
+    expires_at=now+timedelta(days=7)
+    key="clinical-temp/self-test/"+secrets.token_hex(24)+".mp4"
+    tmpname=None
+    stage="preparación del MP4 ficticio"
+    try:
+        payload=_test_video_bytes()
+        with tempfile.NamedTemporaryFile(prefix="revelo_synthetic_video_",suffix=".mp4",delete=False) as tmp:
+            tmpname=tmp.name
+            tmp.write(payload)
+        stage="subida de MP4 ficticio a R2"
+        _upload_r2(tmpname,key,"video/mp4")
+        signed_url=_r2_url("GET",key,604800)
+        stage="verificación del MP4 en R2"
+        request=urllib.request.Request(signed_url,headers={"Range":"bytes=0-4095"},method="GET")
+        with urllib.request.urlopen(request,timeout=25) as resp:
+            downloaded=resp.read(len(payload)+1)
+        if not hmac.compare_digest(hashlib.sha256(downloaded).digest(),hashlib.sha256(payload).digest()):
+            raise RuntimeError("El MP4 descargado no coincide con el archivo ficticio")
+        stage="verificación del enlace corto"
+        short_url=_short_r2_link(signed_url,expires_at)
+        stage="solicitud a Meta"
+        # Reuse already approved working DOCUMENT template for the technical
+        # video proof; this does NOT prove approval of entrega_video_clinico.
+        message_id=_send_template(raw,"PACIENTE DE PRUEBA","receta",
+            expires_at.strftime("%d/%m/%Y a las %H:%M"),short_url,
+            label_override="VIDEO DE PRUEBA (SIN DATOS MEDICOS)",test_mode=True)
+        return {"ok":True,"sent":True,"message_id":message_id,
+                "expires_at":expires_at.isoformat(),"video_duration_seconds":2,
+                "note":"Meta aceptó la prueba MP4 ficticia con enlace corto. Confirma reproducción en tu iPhone."}
+    except core.HTTPException:
+        raise
+    except Exception as exc:
+        raise core.HTTPException(502,"No se completó la prueba de video durante "+stage+
+            ". No se confirmó el envío; revisa WhatsApp antes de repetir.") from exc
+    finally:
+        if tmpname:
+            try:os.unlink(tmpname)
             except OSError:pass
 
 
@@ -737,6 +861,13 @@ def _meta_readonly_diagnostic():
 @app.post("/api/clinical-delivery/check-meta")
 async def delivery_check_meta(user=core.Depends(core.current_user)):
     return await asyncio.to_thread(_meta_readonly_diagnostic)
+
+
+@app.post("/api/clinical-delivery/send-self-test-video")
+async def delivery_self_test_video(data: TestDelivery, user=core.Depends(core.current_user)):
+    if data.confirmation != "ENVIAR PRUEBA":
+        raise core.HTTPException(400, "Confirma explícitamente ENVIAR PRUEBA")
+    return await asyncio.to_thread(_test_send_video,data.phone)
 
 
 @app.post("/api/clinical-delivery/check-r2")

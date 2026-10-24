@@ -40,7 +40,7 @@ assert "await response.blob()" in ui
 assert "response.json().catch" in ui
 assert "URL.revokeObjectURL(blobUrl)" in ui
 assert "window.open('/api/clinical-delivery/patients/'" not in ui
-assert "clinical_delivery.js?v=4.8.75" in html
+assert "clinical_delivery.js?v=4.8.76" in html
 assert "CLINICAL_DELIVERY_LIVE_ENABLED" in source
 assert "WHATSAPP_CLINICAL_TEMPLATES_APPROVED" in source
 print("CLINICAL_PDF_PREVIEW_4863_FAIL_CLOSED_INLINE_NO_EDGE_OK")

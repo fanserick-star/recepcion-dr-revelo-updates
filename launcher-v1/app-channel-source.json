@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.75: Worker WhatsApp único para citas y entregas clínicas, permiso clínico efímero independiente en Neon; documentos permanecen R2 privado con enlace de 7 días, pacientes apagados por defecto."
+  "notes": "Recepción 4.8.76: enlaces clínicos cortos privados desde Worker a R2 y prueba de video MP4 sintético sin pacientes; descarga directa y 7 días. Citas y alarmas sin cambios."
 }
