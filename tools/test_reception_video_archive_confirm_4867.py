@@ -15,7 +15,7 @@ assert '"4.8.78"' in version
 assert "clinical_delivery.js?v=4.8.78" in html
 assert "function confirmVideoArchive(chosen)" in js
 assert "if(!await confirmVideoArchive(selected))return;" in js
-assert "if(state.sending||state.saving_video||state.pid!==pid)return;" in js
+assert "if(state.sending||state.saving_video||state.benchmarking||state.pid!==pid)return;" in js
 assert "accept.disabled=true" in js
 assert "accept.disabled=!check.checked" in js
 assert "Boolean(approved&&check.checked&&currentPatientId===state.pid)" in js
