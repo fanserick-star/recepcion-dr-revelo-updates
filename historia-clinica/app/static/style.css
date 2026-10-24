@@ -3386,3 +3386,13 @@ body.app-dialog-open{overflow:hidden}
   .cp-remaster-app .cp-docs-dialog-close{min-height:40px!important;padding:8px 10px!important}
   .cp-remaster-app .cp-docs-dialog-content{padding:0 9px 9px!important}
 }
+
+/* Historia 1.4.39: Videocistoscopías independientes del archivo de documentos. */
+.cp-remaster-app .cp-history-archive-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+.cp-remaster-app .cp-history-videos-trigger{color:#11645b!important;border-color:#9cd2c6!important;background:#f4fcfa!important}
+.cp-remaster-app .cp-history-videos-trigger:hover{background:#e1f5ef!important}
+.cp-remaster-app .cp-videos-dialog-content .cp-clinical-videos{margin:16px 0 0!important;padding:0 2px 14px!important}
+.cp-remaster-app .cp-video-section-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:8px}
+.cp-remaster-app .cp-videos-dialog-content video{width:100%!important;max-width:100%!important;max-height:55vh!important}
+@media(max-width:960px){.cp-remaster-app .cp-history-window-head{grid-template-columns:minmax(360px,1fr) 130px 130px!important}}
+@media(max-width:680px){.cp-remaster-app .cp-history-archive-actions{justify-content:flex-start;width:100%}}

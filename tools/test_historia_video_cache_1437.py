@@ -118,5 +118,5 @@ assert "sha256" in path.read_text(encoding="utf-8")
 assert "url+'/prepare/'" in front
 assert "url+'/cached-play/'" in front
 assert "video_cache_local" in path.read_text(encoding="utf-8")
-assert "clinical_video_library.js?v=1.4.37" in (root/"patient_document_panel.py").read_text(encoding="utf-8")
+assert "clinical_video_library.js?v=1.4.39" in (root/"patient_document_panel.py").read_text(encoding="utf-8")
 print("HISTORIA_VIDEO_1437_VERIFIED_TEMP_CACHE_NO_CLOUD_SPEED_8MB_PATIENT_ISOLATION_OK")
