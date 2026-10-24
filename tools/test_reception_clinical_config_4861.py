@@ -22,13 +22,14 @@ saved = {
     "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED": "1",
     "WHATSAPP_GRAPH_VERSION": "v26.0",
     "WHATSAPP_PHONE_NUMBER_ID": "123456789012345",
-    "WHATSAPP_ACCESS_TOKEN": "E" * 80,
+    "WHATSAPP_ACCESS_TOKEN": "E" * 80,  # legacy appointments; not a clinical credential
+    "WHATSAPP_CLINICAL_ACCESS_TOKEN": "F" * 80,
     "WHATSAPP_TEST_PHONE": "0999999999",
     "CLINICAL_DELIVERY_LAN_SECRET": "f" * 64,
     "CLINICAL_DELIVERY_LIVE_ENABLED": "0",
     "WHATSAPP_CLINICAL_TEMPLATES_APPROVED": "0",
 }
-config = SimpleNamespace(ALLOWED=set(saved) | {
+config = SimpleNamespace(ALLOWED=(set(saved) - {"WHATSAPP_ACCESS_TOKEN"}) | {
     "WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE", "WHATSAPP_CLINICAL_VIDEO_TEMPLATE",
     "WHATSAPP_CLINICAL_LANGUAGE",
 }, parse_existing=lambda: dict(saved))
@@ -42,13 +43,15 @@ with patch.dict(os.environ, {
     "CLINICAL_R2_ACCOUNT_ID": "stale-account-value",
     "CLINICAL_DELIVERY_LIVE_ENABLED": "0",
     "WHATSAPP_ACCESS_TOKEN": "stale-wrong-token",
+    "WHATSAPP_CLINICAL_ACCESS_TOKEN": "stale-clinical-token",
     "DATABASE_URL": "do-not-touch",
     "WHATSAPP_CLOUD_MODE": "1",
 }, clear=True):
     original_env = dict(os.environ)
     loaded = ns["_clinical_settings"]()
     assert loaded["CLINICAL_R2_ACCOUNT_ID"] == "a" * 32
-    assert loaded["WHATSAPP_ACCESS_TOKEN"] == "E" * 80
+    assert loaded["WHATSAPP_CLINICAL_ACCESS_TOKEN"] == "F" * 80
+    assert "WHATSAPP_ACCESS_TOKEN" not in loaded, "Clinical must not read appointment token"
     assert loaded["CLINICAL_DELIVERY_LAN_SECRET"] == "f" * 64
     assert dict(os.environ) == original_env, "Clinical read changed global application credentials"
     status = ns["_setup"]()
@@ -58,6 +61,9 @@ with patch.dict(os.environ, {
     assert status["ready_video"] is False
     assert status["ready_test"] is False
     assert status["clinical_templates_approved"] is False
+    saved.pop("WHATSAPP_CLINICAL_ACCESS_TOKEN")
+    assert ns["_setup"]()["ready_whatsapp"] is False, "Legacy appointment token must never unlock clinical sends"
+    saved["WHATSAPP_CLINICAL_ACCESS_TOKEN"] = "F" * 80
     assert status["clinical_delivery_enabled"] is False
     assert dict(os.environ) == original_env
     saved["WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE"] = "entrega_documento_clinico"
