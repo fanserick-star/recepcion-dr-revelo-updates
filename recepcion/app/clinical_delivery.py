@@ -17,6 +17,8 @@ import re
 import secrets
 import shutil
 import subprocess
+import struct
+import zipfile
 import sqlite3
 import tempfile
 import threading
@@ -1048,6 +1050,109 @@ def _clinical_install_ffmpeg_winget():
                 "Windows no pudo completar la instalación silenciosa. Usa WinGet o el enlace oficial de FFmpeg."}
 
 
+# WinGet-free fallback for older Reception PCs. These are immutable PyPI
+# imageio-ffmpeg 0.6.0 wheel URLs and the exact wheel SHA-256 hashes published
+# by the Python Package Index. No pip, installer scripts or shell are executed.
+_FFMPEG_PYPI_WHEELS={
+    "win_amd64":(
+        "https://files.pythonhosted.org/packages/2c/c6/fa760e12a2483469e2bf5058c5faff664acf66cadb4df2ad6205b016a73d/imageio_ffmpeg-0.6.0-py3-none-win_amd64.whl",
+        "02fa47c83703c37df6bfe4896aab339013f62bf02c5ebf2dce6da56af04ffc0a",
+        35*1024*1024,
+    ),
+    "win32":(
+        "https://files.pythonhosted.org/packages/a0/13/59da54728351883c3c1d9fca1710ab8eee82c7beba585df8f25ca925f08f/imageio_ffmpeg-0.6.0-py3-none-win32.whl",
+        "196faa79366b4a82f95c0f4053191d2013f4714a715780f0ad2a68ff37483cc2",
+        24*1024*1024,
+    ),
+}
+
+
+def _clinical_install_ffmpeg_pypi():
+    """Explicitly approved, pinned SHA-256 verified FFmpeg (no WinGet needed).
+
+    Install one binary only in Reception's private DATA_DIR/tools. Never
+    modify PATH, install Python or touch actual clinical video/Neon/WhatsApp.
+    """
+    target_dir=Path(core.DATA_DIR).resolve()/"tools"
+    target_dir.mkdir(parents=True,exist_ok=True)
+    package_path=None
+    stage_path=None
+    try:
+        arch="win_amd64" if struct.calcsize("P")==8 else "win32"
+        url,expected_hash,max_wheel=_FFMPEG_PYPI_WHEELS[arch]
+        if shutil.disk_usage(target_dir).free<220*1024*1024:
+            raise RuntimeError("Se requiere espacio disponible para instalar FFmpeg")
+        with tempfile.NamedTemporaryFile(prefix="ffmpeg_verified_",suffix=".whl",
+                                         dir=str(target_dir),delete=False) as tmp:
+            package_path=Path(tmp.name)
+            with urllib.request.urlopen(url,timeout=45) as response:
+                actual_url=urllib.parse.urlsplit(response.geturl())
+                if actual_url.scheme!="https" or actual_url.hostname!="files.pythonhosted.org":
+                    raise RuntimeError("El origen del paquete no está autorizado")
+                digest=hashlib.sha256()
+                received=0
+                while True:
+                    part=response.read(512*1024)
+                    if not part:
+                        break
+                    received+=len(part)
+                    if received>max_wheel:
+                        raise RuntimeError("Paquete de FFmpeg más grande de lo permitido")
+                    digest.update(part)
+                    tmp.write(part)
+            if received<1024*1024 or not hmac.compare_digest(digest.hexdigest(),expected_hash):
+                raise RuntimeError("La descarga no coincide con la huella SHA-256 publicada en PyPI")
+        with zipfile.ZipFile(package_path) as wheel:
+            matches=[entry for entry in wheel.infolist()
+                     if entry.filename.startswith("imageio_ffmpeg/binaries/")
+                     and entry.filename.lower().endswith(".exe")
+                     and not entry.is_dir()]
+            if len(matches)!=1 or not (1024*1024<matches[0].file_size<180*1024*1024):
+                raise RuntimeError("El paquete FFmpeg no contiene un único ejecutable válido")
+            with tempfile.NamedTemporaryFile(prefix="ffmpeg_candidate_",suffix=".exe",
+                                             dir=str(target_dir),delete=False) as tmp:
+                stage_path=Path(tmp.name)
+                copied=0
+                with wheel.open(matches[0],"r") as src:
+                    while True:
+                        part=src.read(512*1024)
+                        if not part:
+                            break
+                        copied+=len(part)
+                        if copied>180*1024*1024:
+                            raise RuntimeError("El ejecutable supera el límite admitido")
+                        tmp.write(part)
+                if copied!=matches[0].file_size:
+                    raise RuntimeError("La copia verificada de FFmpeg está incompleta")
+        with open(stage_path,"rb") as candidate:
+            if candidate.read(2)!=b"MZ":
+                raise RuntimeError("El paquete descargado no contiene un ejecutable Windows")
+        run=subprocess.run([str(stage_path),"-version"],
+                           stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL,timeout=20,check=False,
+                           creationflags=getattr(subprocess,"CREATE_NO_WINDOW",0))
+        if run.returncode!=0:
+            raise RuntimeError("El ejecutable FFmpeg no pudo iniciarse en esta PC")
+        os.replace(str(stage_path),str(target_dir/"ffmpeg.exe"))
+        stage_path=None
+        with _FFMPEG_SETUP_LOCK:
+            _FFMPEG_SETUP.update(
+                state="ready",
+                detail="FFmpeg verificado e instalado en Recepción sin WinGet. Repite el diagnóstico de iPhone."
+            )
+    except Exception:
+        with _FFMPEG_SETUP_LOCK:
+            _FFMPEG_SETUP.update(
+                state="error",
+                detail="No fue posible descargar o verificar FFmpeg desde PyPI. Comprueba la conexión y el espacio; no se ha enviado ningún video."
+            )
+    finally:
+        for temporary in (package_path,stage_path):
+            if temporary:
+                try:temporary.unlink(missing_ok=True)
+                except OSError:pass
+
+
 @app.post("/api/clinical-delivery/ffmpeg/install")
 def install_clinical_ffmpeg(request:Request,background_tasks:BackgroundTasks,
                            user=core.Depends(core.current_user)):
@@ -1057,11 +1162,13 @@ def install_clinical_ffmpeg(request:Request,background_tasks:BackgroundTasks,
             return {"ok":True,"state":"running","message":"La instalación continúa"}
         if _faststart_ffmpeg_path():
             return {"ok":True,"state":"ready","message":"FFmpeg ya está disponible"}
-        if not _clinical_find_winget():
-            raise core.HTTPException(503,
-                "WinGet no está disponible. Instala App Installer de Microsoft o FFmpeg desde el sitio oficial")
-        _FFMPEG_SETUP.update(state="running",detail="Windows está instalando FFmpeg desde WinGet")
-    background_tasks.add_task(_clinical_install_ffmpeg_winget)
+        use_winget=bool(_clinical_find_winget())
+        _FFMPEG_SETUP.update(state="running",detail=(
+            "Windows instala FFmpeg desde WinGet" if use_winget
+            else "Descargando FFmpeg verificado desde PyPI sin WinGet"))
+    background_tasks.add_task(
+        _clinical_install_ffmpeg_winget if use_winget else _clinical_install_ffmpeg_pypi
+    )
     return {"ok":True,"state":"running",
             "message":"Instalación iniciada en esta PC; no se envía ningún documento"}
 
