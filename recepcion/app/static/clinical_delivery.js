@@ -254,7 +254,7 @@
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
     if(archived.length){
-      section.append(cell('p','PRUEBA PRIVADA: para enviar una videocistoscopía archivada a tu propio WhatsApp, introduce el número autorizado de pruebas. Este contenido es REAL: confirma permiso del paciente para compartirlo contigo. El enlace vence a los 7 días.','rp-clinical-help'));
+      section.append(cell('p','DESCARGA PRIVADA: envía el MP4 original como archivo descargable a tu WhatsApp autorizado de pruebas. El paciente no necesita reproducirlo en Safari: podrá guardarlo en Archivos y abrirlo con un reproductor compatible. Confirma su autorización para compartirlo a ese número. El enlace vence a los 7 días.','rp-clinical-help'));
     }
     const testPhone=document.createElement('input');
     testPhone.type='tel';testPhone.inputMode='tel';testPhone.autocomplete='off';
@@ -265,7 +265,7 @@
       const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
       const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
       section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
-      const btn=addButton(section,'Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
+      const btn=addButton(section,'Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
         !state.ready_test||state.sending||state.saving_video||state.benchmarking);
       btn.classList.add('rp-clinical-send-archived-test');
       const diagnose=addButton(section,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
@@ -441,7 +441,7 @@
           error:'Prueba incompleta'
         };
         label.textContent=stage==='complete'&&mode==='envio_prueba'?
-          'Meta aceptó el envío: revisa tu WhatsApp de pruebas.':titles[stage]||'Procesando transferencia…';
+          'Meta aceptó el enlace de descarga: revisa tu WhatsApp de pruebas.':titles[stage]||'Procesando transferencia…';
         const active=['subiendo_r2','verificando_r2','eliminando_copia','preparando_enlace','enviando_whatsapp','complete'].includes(stage);
         const rateNum=Number(rate)||0;
         const extra=active?' · '+rateNum.toFixed(2)+' MiB/s':'';
@@ -610,7 +610,7 @@
       '\nVideocistoscopía archivada: '+size+' MiB\nDestino: +'+phone+
       '\n\n¿Confirmas que este video pertenece a la ficha del paciente y es exactamente el que deseas enviar?'))return;
     if(!window.confirm('CONFIDENCIALIDAD CLÍNICA\n\n¿El paciente autorizó expresamente que su videocistoscopía REAL se comparta a TU número WhatsApp +'+phone+
-      ' para esta prueba?\n\nEl enlace podría abrirlo quien lo reciba y estará vigente hasta 7 días. No se enviará a otros pacientes.'))return;
+      ' para esta prueba?\n\nEl enlace permite DESCARGAR el archivo original y podría abrirlo quien lo reciba durante 7 días. No se enviará a otros pacientes.'))return;
     const host=container();if(!host)return;
     state.benchmarking=true;
     const display=createSpeedProgress(host);
@@ -636,7 +636,7 @@
           if(timer)window.clearInterval(timer);
           timer=null;state.benchmarking=false;
           if(progress.stage==='complete'&&progress.whatsapp_accepted){
-            notice('Meta aceptó la videocistoscopía para tu WhatsApp de prueba. Abre el enlace corto y comprueba la reproducción.','success');
+            notice('Meta aceptó el enlace de descarga del MP4. Ábrelo en tu iPhone y comprueba que puedes guardar el archivo completo en Archivos.','success');
           }else{
             display.fail(progress.error||'No se confirmó el envío. Antes de repetir, revisa tu WhatsApp.');
             notice('No se confirmó el mensaje. Revisa primero tu WhatsApp para evitar duplicados.','error');
