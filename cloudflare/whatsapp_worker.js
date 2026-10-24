@@ -7273,7 +7273,7 @@ async function serveClinicalDispatch(request, env) {
       params.some((v,i)=>typeof v !== "string" || v.length === 0 || v.length > (i===3?2500:180)) ||
       (mode==="test" && (template!=="entrega_documento_clinico" ||
                          params[0]!=="PACIENTE DE PRUEBA" ||
-                         !["DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)"].includes(params[1]))))
+                         !["DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO CLINICO AUTORIZADO"].includes(params[1]))))
     return json({ok:false,error:"invalid_clinical_request"},400);
   let signed;
   try { signed = new URL(params[3]); } catch { return json({ok:false,error:"invalid_url"},400); }
