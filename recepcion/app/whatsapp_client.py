@@ -86,6 +86,7 @@ def send_template(
             return json.loads(raw) if raw else {"ok": True}
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
+        detail = {}
         try:
             detail = json.loads(raw)
             message = detail.get("error", {}).get("message") or raw
