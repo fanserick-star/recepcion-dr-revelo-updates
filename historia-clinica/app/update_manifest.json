@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.41",
-  "app_version": "1.4.41",
-  "runtime_version": "1.4.41",
+  "version": "1.4.42",
+  "app_version": "1.4.42",
+  "runtime_version": "1.4.42",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.41: el botón de videocistoscopías muestra cantidad por ficha y distingue visualmente videos disponibles (verde), vacío (gris) y catálogo inaccesible (—). Al seleccionar una grabación se abre un reproductor ampliado con Play grande, controles nativos y pantalla completa opcional. Un solo visor, sin reproductores pequeños por fila. Se mantienen intactas la reproducción LAN, copia temporal, protección por ficha, pacientes, .env, Neón, bases de datos, recetas, certificados e informes.",
-    "previous_version": "1.4.40",
+    "purpose": "Historia 1.4.42: galería de videocistoscopías por ficha clínica con tarjetas grandes y reproductor amplio en el mismo cuadro, selección visual y reproducción por LAN al hacer clic. Se eliminan de la interfaz «Medir velocidad LAN» y «Preparar video para reproducir sin cortes»; permanecen intactos los servicios privados y el cache de video disponibles en backend. Las miniaturas reales solo se capturan en memoria tras reproducir, para evitar descargas masivas de grabaciones grandes. Sin cambios en bases clínicas, vinculación, Neón, Recepción, firmas, informes, recetas ni certificados.",
+    "previous_version": "1.4.41",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -357,6 +357,12 @@
     "videocystoscopy_lan_transport_unchanged": true,
     "videocystoscopy_cache_routes_preserved": true,
     "videocystoscopy_per_patient_authorization_unchanged": true,
-    "videocystoscopy_no_background_polling": true
+    "videocystoscopy_no_background_polling": true,
+    "videocystoscopy_gallery_cards": true,
+    "videocystoscopy_technical_controls_removed": true,
+    "videocystoscopy_two_column_viewer": true,
+    "videocystoscopy_preview_after_play_only": true,
+    "videocystoscopy_no_background_video_downloads": true,
+    "videocystoscopy_player_only_on_click": true
   }
 }
