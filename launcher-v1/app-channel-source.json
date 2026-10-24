@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.70: servicio privado 8766 añade prueba Wi-Fi con 8 MB ficticios y huella SHA-256 a catálogo HMAC para reproducir MP4 de manera local en Historia 1.4.37."
+  "notes": "Recepción 4.8.71: respuesta segura y accionable ante fallos de Meta en la prueba WhatsApp clínica; sin cambios en Neón, alarmas, facturas ni envío a pacientes."
 }
