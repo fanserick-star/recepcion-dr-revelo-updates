@@ -431,7 +431,7 @@ def _short_r2_link(signed_get_url, expires_at):
         with tempfile.NamedTemporaryFile(prefix="revelo_private_link_",suffix=".json",delete=False) as tmp:
             tmpname=tmp.name
             tmp.write(record)
-        _upload_r2(tmpname,"clinical-links/"+slug+".json","application/json")
+        _upload_r2(tmpname,"clinical-temp/short-links/"+slug+".json","application/json")
     finally:
         if tmpname:
             try:os.unlink(tmpname)
