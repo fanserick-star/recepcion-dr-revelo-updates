@@ -30,7 +30,7 @@ assert 'label_override="VIDEO CLINICO AUTORIZADO",test_mode=True' in src
 assert '"VIDEO CLINICO AUTORIZADO"' in worker
 assert 'if (!claimed) return json({ok:false,error:"expired_or_used_clinical_permission"},403);' in worker
 assert "Envio a todos los pacientes" not in ui
-assert 'Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas' in ui
+assert 'Enviar ESTE video para DESCARGAR a MI WhatsApp de pruebas' in ui
 assert 'patient_authorized_staff_delivery:true' in ui
 assert 'sendArchivedVideoTest(v,testPhone)' in ui
 assert "state.ready_test" in ui
@@ -58,13 +58,13 @@ deleted=[]
 sent=[]
 audited=[]
 namespace.update({
-    "_delivery_faststart_copy":lambda src:(Path(src),None),
+    "_delivery_faststart_copy":lambda src:(_ for _ in ()).throw(AssertionError("NO FFmpeg in download mode")),
     "_faststart_ffmpeg_path":lambda:"/synthetic",
     "_upload_r2":lambda src,key,media,callback:(
         uploaded.append((src,key,media)),callback(1024,1024)),
     "_upload_progress_hook":lambda jobid:lambda written,total:
         namespace["_progress_set"](jobid,stage="subiendo_r2",r2_bytes=written),
-    "_verify_benchmark_r2":lambda key,size:True,
+    "_verify_benchmark_r2":lambda key,size,require_download=False:require_download is True,
     "_delete_benchmark_r2":lambda key:deleted.append(key),
     "_r2_url":lambda meth,key,exp:"https://synthetic-r2-only.invalid/signed",
     "_short_r2_link":lambda url,expires:"https://synthetic-worker.invalid/d/"+"x"*22,
@@ -78,6 +78,8 @@ send("success",root/"recepcion/app/clinical_selftest_mp4.b64",1,"f"*32,"59399999
 job=namespace["_PROGRESS_JOBS"]["success"]
 assert job["stage"]=="complete" and job["r2_verified"] and job["whatsapp_accepted"]
 assert len(sent)==1 and len(audited)==1 and not deleted
+assert src.split("def _send_archived_video_to_test_phone(",1)[1].split("@app.post(",1)[0].find("_delivery_faststart_copy(")==-1
+assert "_verify_benchmark_r2(key,expected,require_download=True)" in src
 assert sent[0][1]["test_mode"] is True
 assert sent[0][1]["label_override"]=="VIDEO CLINICO AUTORIZADO"
 assert sent[0][0][0]=="593999999999"
@@ -94,7 +96,7 @@ send("earlyfail",root/"recepcion/app/clinical_selftest_mp4.b64",1,"e"*32,"593999
 early=namespace["_PROGRESS_JOBS"]["earlyfail"]
 assert early["stage"]=="error" and early["r2_deleted"] and not early.get("whatsapp_accepted")
 assert len(sent)==1 and len(deleted)==1
-namespace["_verify_benchmark_r2"]=lambda key,size:True
+namespace["_verify_benchmark_r2"]=lambda key,size,require_download=False:require_download is True
 def fail_meta(*args,**kwargs):
     sent.append((args,kwargs))
     raise RuntimeError("synthetic ambiguous Meta failure")
