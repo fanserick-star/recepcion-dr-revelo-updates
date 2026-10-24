@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.43",
-  "app_version": "1.4.43",
-  "runtime_version": "1.4.43",
+  "version": "1.4.44",
+  "app_version": "1.4.44",
+  "runtime_version": "1.4.44",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.43: receta A4 con mayor separación ENTRE medicamentos tanto en la columna izquierda como en la derecha, manteniendo intacto el espacio entre medicamento e indicaciones. El PDF firmado de nuevas recetas reserva un área en la mitad izquierda para firma PAdES y QR lejos del pie y la franja, conservando la impresión normal y los PDFs históricos ya firmados. La lista de Informes médicos ahora se muestra en ventana independiente sin la cabecera duplicada de Historia Clínica. Sin cambios en datos, recetas previas, Recepción, sincronización, LAN o Neón.",
-    "previous_version": "1.4.42",
+    "purpose": "Historia Clínica 1.4.44: aumentar separación visual ENTRE medicamentos de recetas actuales en ambas mitades de 8 mm a 14 mm cuando hay hasta 5 medicamentos. Los textos de indicaciones permanecen pegados al nombre y sin espacio adicional. Recetas con 6-7 medicamentos usan 10 mm; con 8 o más, 5 mm para reducir el riesgo de cortes en la impresión A4 y en la zona del sello PAdES. Preservar las recetas antiguas, firmas previas, funciones clínicas, informes, videocistoscopías, conexión LAN, Recepción y Neon.",
+    "previous_version": "1.4.43",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -364,11 +364,17 @@
     "videocystoscopy_preview_after_play_only": true,
     "videocystoscopy_no_background_video_downloads": true,
     "videocystoscopy_player_only_on_click": true,
-    "prescription_both_columns_medication_gap_mm": 8,
+    "prescription_both_columns_medication_gap_mm": 14,
     "prescription_indications_spacing_unchanged": true,
     "prescription_signature_location_left_above_footer": true,
     "prescription_signature_pdf_only_spacing": true,
     "prescription_previous_signed_pdfs_unchanged": true,
-    "report_list_no_duplicate_clinical_header": true
+    "report_list_no_duplicate_clinical_header": true,
+    "prescription_medication_gap_adaptive": {
+      "up_to_5": 14,
+      "from_6_to_7": 10,
+      "from_8": 5,
+      "unit": "mm"
+    }
   }
 }
