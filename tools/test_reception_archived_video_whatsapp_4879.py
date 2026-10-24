@@ -73,7 +73,7 @@ namespace.update({
 exec(compile(ast.Module(body=[func["_send_archived_video_to_test_phone"]],type_ignores=[]),
              "isolated_archived_send","exec"),namespace)
 send=namespace["_send_archived_video_to_test_phone"]
-send("success",Path("/synthetic-only.mp4"),1,"f"*32,"593999999999","operator")
+send("success",root/"recepcion/app/clinical_selftest_mp4.b64",1,"f"*32,"593999999999","operator")
 job=namespace["_PROGRESS_JOBS"]["success"]
 assert job["stage"]=="complete" and job["r2_verified"] and job["whatsapp_accepted"]
 assert len(sent)==1 and len(audited)==1 and not deleted
@@ -89,7 +89,7 @@ def fail_before_meta(*args,**kwargs):
     raise ValueError("synthetic HEAD failure")
 namespace["_verify_benchmark_r2"]=fail_before_meta
 namespace["_PROGRESS_JOBS"]["earlyfail"]["size"]=1024
-send("earlyfail",Path("/synthetic-only.mp4"),1,"e"*32,"593999999999","operator")
+send("earlyfail",root/"recepcion/app/clinical_selftest_mp4.b64",1,"e"*32,"593999999999","operator")
 early=namespace["_PROGRESS_JOBS"]["earlyfail"]
 assert early["stage"]=="error" and early["r2_deleted"] and not early.get("whatsapp_accepted")
 assert len(sent)==1 and len(deleted)==1
@@ -98,7 +98,7 @@ def fail_meta(*args,**kwargs):
     sent.append((args,kwargs))
     raise RuntimeError("synthetic ambiguous Meta failure")
 namespace["_send_template"]=fail_meta
-send("ambiguous",Path("/synthetic-only.mp4"),1,"d"*32,"593999999999","operator")
+send("ambiguous",root/"recepcion/app/clinical_selftest_mp4.b64",1,"d"*32,"593999999999","operator")
 amb=namespace["_PROGRESS_JOBS"]["ambiguous"]
 assert amb["stage"]=="error" and not amb.get("whatsapp_accepted")
 assert len(sent)==2 and len(deleted)==1, "Never delete if Meta response is ambiguous"
