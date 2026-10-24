@@ -247,10 +247,21 @@
     addPrivateVideoLanTools(section);
     const archived=Array.isArray(data.videos)?data.videos:state.videos;
     section.append(cell('p',archived.length+' video(s) guardado(s) para este paciente.','rp-clinical-help'));
+    if(archived.length){
+      section.append(cell('p','PRUEBA PRIVADA: para enviar una videocistoscopía archivada a tu propio WhatsApp, introduce el número autorizado de pruebas. Este contenido es REAL: confirma permiso del paciente para compartirlo contigo. El enlace vence a los 7 días.','rp-clinical-help'));
+    }
+    const testPhone=document.createElement('input');
+    testPhone.type='tel';testPhone.inputMode='tel';testPhone.autocomplete='off';
+    testPhone.placeholder='TU WhatsApp autorizado: 09XXXXXXXX';testPhone.maxLength=20;
+    testPhone.setAttribute('aria-label','Número personal autorizado para recibir prueba clínica');
+    if(archived.length)section.append(testPhone);
     archived.forEach(v=>{
       const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
       const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
       section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
+      const btn=addButton(section,'Enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
+        !state.ready_test||state.sending||state.saving_video||state.benchmarking);
+      btn.classList.add('rp-clinical-send-archived-test');
     });
     host.append(section);
     const warning=data.missing||[];
@@ -403,7 +414,7 @@
     wrap.append(label,track,detail,help);
     host.append(wrap);
     return {
-      update(stage,bytes,total,elapsed,rate){
+      update(stage,bytes,total,elapsed,rate,mode='velocidad'){
         const mib=v=>(Math.max(0,Number(v)||0)/1048576).toFixed(1);
         const percent=total?Math.max(0,Math.min(100,Math.floor(bytes/total*100))):0;
         fill.style.width=percent+'%';
@@ -414,11 +425,14 @@
           subiendo_r2:'Enviando videocistoscopía a Cloudflare R2…',
           verificando_r2:'100 % enviado. Confirmando la copia en R2…',
           eliminando_copia:'Copia confirmada. Eliminando video temporal de la nube…',
+          preparando_enlace:'Video verificado. Creando enlace corto seguro…',
+          enviando_whatsapp:'Solicitando a Meta el envío a tu WhatsApp de pruebas…',
           complete:'Prueba completada: R2 confirmó el video y eliminó la copia.',
           error:'Prueba incompleta'
         };
-        label.textContent=titles[stage]||'Procesando transferencia…';
-        const active=['subiendo_r2','verificando_r2','eliminando_copia','complete'].includes(stage);
+        label.textContent=stage==='complete'&&mode==='envio_prueba'?
+          'Meta aceptó el envío: revisa tu WhatsApp de pruebas.':titles[stage]||'Procesando transferencia…';
+        const active=['subiendo_r2','verificando_r2','eliminando_copia','preparando_enlace','enviando_whatsapp','complete'].includes(stage);
         const rateNum=Number(rate)||0;
         const extra=active?' · '+rateNum.toFixed(2)+' MiB/s':'';
         const eta=stage==='subiendo_r2'&&rateNum>0?' · faltan aprox. '+Math.ceil((total-bytes)/1048576/rateNum)+' s':'';
@@ -426,7 +440,9 @@
           (elapsed?' · '+Number(elapsed).toFixed(1)+' s':'')+eta;
         if(stage==='complete'){
           wrap.style.background='#edf9f3';wrap.style.borderColor='#83b99a';
-          help.textContent='El original sigue guardado en la PC. La copia temporal de la nube se eliminó. No se envió WhatsApp.';
+          help.textContent=mode==='envio_prueba'?
+            'Meta aceptó el mensaje, aún falta confirmar la recepción en tu celular. El archivo privado permanece disponible hasta 7 días y la copia local no cambia.':
+            'El original sigue guardado en la PC. La copia temporal de la nube se eliminó. No se envió WhatsApp.';
         }else if(stage==='error'){
           wrap.style.background='#fff5f2';wrap.style.borderColor='#d28c81';
         }
@@ -500,6 +516,62 @@
       notice(e.message||'Falló la subida de prueba','error');
     }finally{
       if(timer)window.clearInterval(timer);
+      state.benchmarking=false;
+    }
+  }
+  async function sendArchivedVideoTest(video,input){
+    if(state.sending||state.saving_video||state.benchmarking||!state.ready_test)return;
+    const id=safeId(video&&video.id),pid=Number(state.pid);
+    const supplied=String(input.value||'').trim();
+    const digits=supplied.replace(/\D/g,'');
+    const phone=digits.startsWith('09')?'593'+digits.slice(1):digits;
+    if(!/^[0-9a-f]{32}$/.test(id)||!/^5939\d{8}$/.test(phone)){
+      notice('Selecciona una videocistoscopía archivada e ingresa tu celular autorizado de pruebas.','error');return;
+    }
+    const size=(Number(video.size_bytes||0)/1048576).toFixed(1);
+    if(!window.confirm('CONFIRMAR FICHA Y VIDEO REAL\n\nPaciente: '+state.name+
+      '\nVideocistoscopía archivada: '+size+' MiB\nDestino: +'+phone+
+      '\n\n¿Confirmas que este video pertenece a la ficha del paciente y es exactamente el que deseas enviar?'))return;
+    if(!window.confirm('CONFIDENCIALIDAD CLÍNICA\n\n¿El paciente autorizó expresamente que su videocistoscopía REAL se comparta a TU número WhatsApp +'+phone+
+      ' para esta prueba?\n\nEl enlace podría abrirlo quien lo reciba y estará vigente hasta 7 días. No se enviará a otros pacientes.'))return;
+    const host=container();if(!host)return;
+    state.benchmarking=true;
+    const display=createSpeedProgress(host);
+    let timer=null;
+    try{
+      const res=await api('/api/clinical-delivery/patients/'+pid+'/archived-video/'+id+'/send-to-test-phone',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({phone,identity_confirmed:true,patient_authorized_staff_delivery:true})
+      });
+      const url='/api/clinical-delivery/patients/'+pid+'/video-speed-test/'+encodeURIComponent(res.job_id);
+      const poll=async()=>{
+        let progress;
+        try{progress=await api(url);}
+        catch(err){
+          if(timer)window.clearInterval(timer);
+          timer=null;state.benchmarking=false;
+          display.fail('No se pudo consultar el resultado. Verifica primero tu WhatsApp antes de volver a intentar.');
+          return;
+        }
+        display.update(progress.stage,progress.r2_bytes,progress.total_bytes,
+          progress.elapsed_seconds,progress.upload_mibps,progress.mode);
+        if(progress.done){
+          if(timer)window.clearInterval(timer);
+          timer=null;state.benchmarking=false;
+          if(progress.stage==='complete'&&progress.whatsapp_accepted){
+            notice('Meta aceptó la videocistoscopía para tu WhatsApp de prueba. Abre el enlace corto y comprueba la reproducción.','success');
+          }else{
+            display.fail(progress.error||'No se confirmó el envío. Antes de repetir, revisa tu WhatsApp.');
+            notice('No se confirmó el mensaje. Revisa primero tu WhatsApp para evitar duplicados.','error');
+          }
+        }
+      };
+      timer=window.setInterval(poll,1000);
+      await poll();
+    }catch(err){
+      if(timer)window.clearInterval(timer);
+      display.fail(err.message||'No se inició el envío de prueba');
+      notice(err.message||'Falló la autorización del envío','error');
       state.benchmarking=false;
     }
   }
