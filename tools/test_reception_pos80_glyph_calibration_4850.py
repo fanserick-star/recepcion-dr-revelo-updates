@@ -55,5 +55,5 @@ assert "db.commit(" not in source
 assert "db.delete(" not in source
 manifest=__import__("json").loads((root/"update_manifest.json").read_text(encoding="utf-8"))
 version=__import__("json").loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert manifest["version"]==version and version in ("4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62","4.8.63","4.8.64","4.8.65","4.8.66","4.8.67","4.8.68","4.8.69","4.8.70","4.8.71","4.8.72","4.8.73","4.8.75")
+assert manifest["version"]==version and version in ("4.8.50","4.8.51","4.8.52","4.8.53","4.8.54","4.8.55","4.8.56","4.8.57","4.8.58","4.8.59","4.8.60","4.8.61","4.8.62","4.8.63","4.8.64","4.8.65","4.8.66","4.8.67","4.8.68","4.8.69","4.8.70","4.8.71","4.8.72","4.8.73","4.8.75","4.8.76")
 print("RECEPTION_AZUR_POS80_TOP_GLYPHS_AND_LEFT_CALIBRATION_4850_OK")
