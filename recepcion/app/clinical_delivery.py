@@ -28,7 +28,7 @@ import core_runtime as core
 import clinical_delivery_config as clinical_config
 import historia_lan_transport as lan
 import reception_history_identity_consolidated as identity
-from fastapi import Request
+from fastapi import Request, BackgroundTasks
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -468,7 +468,7 @@ def _send_template(phone, name, kind, expiry, url, label_override=None, *, test_
     if not re.fullmatch(r"5939\d{8}",str(phone)):
         raise core.HTTPException(400,"Número clínico inválido")
     if test_mode:
-        if name!="PACIENTE DE PRUEBA" or label_override not in ("DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)") or kind=="video":
+        if name!="PACIENTE DE PRUEBA" or label_override not in ("DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO CLINICO AUTORIZADO") or kind=="video":
             raise core.HTTPException(400,"Solo se permiten archivos ficticios en la prueba")
     elif _setup()["clinical_delivery_enabled"] is not True:
         raise core.HTTPException(503,"Las entregas a pacientes continúan desactivadas")
@@ -603,7 +603,7 @@ def _progress_snapshot(job_id):
                 "r2_verified":bool(job.get("r2_verified",False)),
                 "r2_deleted":bool(job.get("r2_deleted",False)),
                 "whatsapp_accepted":bool(job.get("whatsapp_accepted",False)),
-                "mode":job["mode"]}
+                "mode":job["mode"],"expires_at":str(job.get("expires_at","")) if stage=="complete" else ""}
 
 
 def _upload_progress_hook(job_id):
@@ -747,6 +747,130 @@ async def video_speed_upload(pid:int,job_id:str,request:Request,
         if tmp:
             try:os.unlink(tmp)
             except OSError:pass
+
+
+# Real clinical video test: guarded by verified Reception↔Historia patient link,
+# local archived video ownership, two explicit user confirmations and preapproved
+# operator TEST PHONE only. Does NOT enable patient live sends.
+_LAST_REAL_VIDEO_TEST=0.0
+_REAL_VIDEO_TEST_COOLDOWN=300
+
+
+class ArchivedVideoTestRequest(BaseModel):
+    phone:str
+    identity_confirmed:bool=False
+    patient_authorized_staff_delivery:bool=False
+
+
+def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,username):
+    with _PROGRESS_LOCK:
+        job=_PROGRESS_JOBS[job_id]
+        expected=int(job["size"])
+    now=datetime.now(TZ)
+    expiry_dt=now+timedelta(days=7)
+    key="clinical-temp/authorized-test/"+secrets.token_hex(24)+".mp4"
+    meta_attempted=False
+    uploaded=False
+    try:
+        _progress_set(job_id,stage="subiendo_r2",r2_started=time.monotonic())
+        _upload_r2(str(source),key,"video/mp4",_upload_progress_hook(job_id))
+        uploaded=True
+        _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
+        _verify_benchmark_r2(key,expected)
+        _progress_set(job_id,stage="preparando_enlace",r2_verified=True)
+        signed=_r2_url("GET",key,604800)
+        short=_short_r2_link(signed,expiry_dt)
+        # Record ambiguity before invoking Meta. A failed response may still
+        # mean Meta accepted the message. Never automatically retry.
+        meta_attempted=True
+        _progress_set(job_id,stage="enviando_whatsapp")
+        message_id=_send_template(
+            phone,"PACIENTE DE PRUEBA","receta",
+            expiry_dt.strftime("%d/%m/%Y a las %H:%M"),
+            short,label_override="VIDEO CLINICO AUTORIZADO",test_mode=True
+        )
+        _progress_set(job_id,stage="complete",whatsapp_accepted=True,
+                      expires_at=expiry_dt.isoformat())
+        try:
+            _audit(patient_id,"video",video_id,message_id,expiry_dt.isoformat(),
+                   username)
+        except Exception:
+            # A local audit failure must not falsely claim the already accepted
+            # message failed and tempt a second send.
+            _progress_set(job_id,audit_warning=True)
+    except Exception:
+        if not meta_attempted:
+            # No WhatsApp call occurred: remove the private R2 copy if possible.
+            try:
+                _delete_benchmark_r2(key)
+                _progress_set(job_id,r2_deleted=True)
+            except Exception:
+                pass
+            error="El video no se pudo verificar o enlazar. No se intentó enviar WhatsApp."
+        else:
+            # Keep the link if Meta's result is ambiguous: the recipient could
+            # still receive it. Automatic R2 lifecycle removes it after 7 days.
+            error="Meta no confirmó la aceptación. Comprueba tu WhatsApp antes de repetir."
+        _progress_set(job_id,stage="error",error=error)
+    finally:
+        # Never delete or change the locally archived original.
+        pass
+
+
+@app.post("/api/clinical-delivery/patients/{pid}/archived-video/{video_id}/send-to-test-phone")
+async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRequest,
+                                   background_tasks:BackgroundTasks,
+                                   db=core.Depends(core.get_db),
+                                   user=core.Depends(core.current_user)):
+    global _LAST_REAL_VIDEO_TEST
+    if not _setup()["ready_test"]:
+        raise core.HTTPException(503,"Pruebas de WhatsApp o R2 no configuradas")
+    if not data.identity_confirmed or not data.patient_authorized_staff_delivery:
+        raise core.HTTPException(400,"Verifica ficha correcta y autorización del paciente para enviar a este número")
+    if not re.fullmatch(r"[0-9a-f]{32}",video_id):
+        raise core.HTTPException(400,"Identificador de videocistoscopía inválido")
+    raw=re.sub(r"\D","",str(data.phone or ""))
+    if len(raw)==10 and raw.startswith("09"):
+        raw="593"+raw[1:]
+    allow=re.sub(r"\D","",str(_clinical_setting("WHATSAPP_TEST_PHONE") or core.WHATSAPP_TEST_PHONE or ""))
+    if len(allow)==10 and allow.startswith("09"):
+        allow="593"+allow[1:]
+    if not re.fullmatch(r"5939\d{8}",raw) or not hmac.compare_digest(raw,allow):
+        raise core.HTTPException(403,"Solo se permite el WhatsApp configurado como número de prueba")
+    _patient(db,pid)
+    clinical_id,_,conn=_linked_patient(pid)
+    conn.close()
+    from clinical_video_library import _row_by_id, _local_file
+    row=_row_by_id(video_id,clinical_id)  # must belong to VERIFIED patient chart
+    path=_local_file(row)
+    size=int(row["size_bytes"])
+    if not (1024<=size<=LIMIT_VIDEO):
+        raise core.HTTPException(413,"Solo videocistoscopías de hasta 550 MiB")
+    with _PROGRESS_LOCK:
+        now_m=time.monotonic()
+        if now_m-_LAST_REAL_VIDEO_TEST<_REAL_VIDEO_TEST_COOLDOWN:
+            raise core.HTTPException(429,"Ya se inició un envío clínico de prueba; espera cinco minutos antes de otro")
+        for jid,j in list(_PROGRESS_JOBS.items()):
+            if now_m-j["created"]>3600 and j["stage"] in ("complete","error","preparando"):
+                del _PROGRESS_JOBS[jid]
+        if len(_PROGRESS_JOBS)>=_PROGRESS_MAX:
+            raise core.HTTPException(429,"Demasiadas transferencias activas")
+        if any(j["pid"]==pid and j["stage"] not in ("complete","error") for j in _PROGRESS_JOBS.values()):
+            raise core.HTTPException(409,"Ya hay una transferencia activa para esta ficha")
+        job_id=secrets.token_urlsafe(24)
+        _PROGRESS_JOBS[job_id]={"pid":pid,"mode":"envio_prueba","size":size,
+                               "stage":"preparando","created":now_m,"local_bytes":size,
+                               "r2_bytes":0,"r2_verified":False,
+                               "r2_deleted":False,"whatsapp_accepted":False}
+        _LAST_REAL_VIDEO_TEST=now_m
+    # Start after HTTP response; the UI uses the opaque job id to monitor
+    # transfer and the single Meta attempt without blocking Reception.
+    # No names, phones or signed URLs are returned via status or stored in Neon.
+    username=str(getattr(user,"username","recepcion"))
+    background_tasks.add_task(_send_archived_video_to_test_phone,
+                              job_id,path,pid,video_id,raw,username)
+    return {"ok":True,"job_id":job_id,
+            "note":"Subida autorizada iniciada; el estado no confirma envío hasta Meta."}
 
 
 # Self-test never touches patients, encounters, clinical files or medical database.
