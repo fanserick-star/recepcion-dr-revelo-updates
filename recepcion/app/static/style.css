@@ -1425,3 +1425,41 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 .rp-clinical-batch-row:last-child{border-bottom:0}
 .rp-clinical-batch-summary{margin-top:12px;border:1px solid #cddfcf;border-radius:12px;background:#f4faf5;padding:14px 16px;font-size:13px;color:#25563f;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
 .rp-clinical-batch-failures{white-space:pre-line;color:#9c3030;font-weight:600;font-size:12px;line-height:1.55}
+
+/* v4.8.85: Archivo clínico diferenciado, aislado de citas y facturación. */
+.v4413-profile-tabs [data-profile-tab="documentos"]{background:#e8f2ff!important;color:#18528a!important;border:1px solid #bad4f1!important;border-radius:11px!important;padding:10px 17px!important;font-size:13px!important;font-weight:900!important}
+.v4413-profile-tabs [data-profile-tab="documentos"].active{background:#194e80!important;border-color:#194e80!important;color:#fff!important;box-shadow:0 5px 15px rgba(14,71,128,.22)}
+#rpClinicalDocs{display:grid;gap:19px;padding:6px 2px 24px;color:#243a51}
+.rp-clinical-hero{background:linear-gradient(115deg,#173959,#255c82);color:#fff;border-radius:17px;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.rp-clinical-hero-title{min-width:0}.rp-clinical-eyebrow{display:block;font-size:10px;font-weight:900;letter-spacing:.12em;color:#b9daf2}
+.rp-clinical-hero h2{font-size:22px;line-height:1.25;margin:6px 0;letter-spacing:-.25px;color:#fff;overflow-wrap:anywhere}
+.rp-clinical-hero .rp-clinical-help{color:#d9e9f7;font-size:12px}
+.rp-clinical-metrics{display:flex;gap:7px;flex-wrap:wrap;align-self:flex-start}
+.rp-clinical-metrics strong{white-space:nowrap;font-size:12px;border:1px solid #ffffff55;border-radius:99px;padding:7px 10px;background:#ffffff19;color:#fff}
+.rp-clinical-status{font-size:12px;line-height:1.55;padding:11px 14px;border-radius:11px;font-weight:650}
+.rp-clinical-status.is-ready{background:#e9f7f1;color:#236647;border:1px solid #c4e6d5}
+.rp-clinical-status.is-pending{background:#fff8e8;color:#815b16;border:1px solid #efdcb6}
+.rp-clinical-section{background:#fff;border:1px solid #dbe5ee;border-radius:17px;padding:18px;display:grid;gap:10px;box-shadow:0 5px 20px rgba(24,60,94,.045)}
+.rp-clinical-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px}
+.rp-clinical-section-head h3{font-size:17px;color:#183b5b;margin:0 0 3px;font-weight:850}
+.rp-clinical-count{background:#eaf2fc;color:#215988;border-radius:10px;padding:6px 11px;font-size:14px;font-weight:900;min-width:32px;text-align:center}
+.rp-clinical-section .rp-clinical-row{border-radius:12px;background:#fafcfe;padding:13px 14px;border-color:#e3eaf1;gap:12px}
+.rp-clinical-section .rp-clinical-info{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.rp-clinical-section .rp-clinical-info>div{display:grid;gap:5px;min-width:0}
+.rp-clinical-section .rp-clinical-info strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.rp-clinical-file-type{display:grid;place-items:center;flex:none;background:#e8effb;color:#1e5c95;border:1px solid #d4e2f5;border-radius:10px;font-size:11px;font-weight:950;width:45px;height:45px}
+.rp-clinical-file-type.is-video{background:#edf4f4;color:#277478;border-color:#d2e5e4}
+.rp-clinical-section .rp-clinical-actions button{border-radius:9px!important;min-height:36px!important;font-weight:780!important;padding:7px 12px!important;font-size:12px!important}
+.rp-clinical-section .rp-clinical-actions button:not(.rp-clinical-secondary-button){background:#205d91!important;color:#fff!important;border:1px solid #205d91!important}
+.rp-clinical-section .rp-clinical-actions .rp-clinical-secondary-button{color:#1f5d91!important;border:1px solid #cadced!important;background:#fff!important}
+.rp-clinical-empty{background:#f7faff;border:1px dashed #d4e2f1;color:#67809a;border-radius:11px;padding:23px;text-align:center;font-size:13px;margin:0}
+.rp-clinical-tools,.rp-clinical-maintenance{border:1px solid #dbe5ef;border-radius:11px;background:#fbfcfe;overflow:hidden}
+.rp-clinical-maintenance{background:#f8fafc}
+.rp-clinical-tools>summary,.rp-clinical-maintenance>summary{list-style-position:inside;cursor:pointer;padding:12px 14px;color:#3d617e;font-size:12px;font-weight:800}
+.rp-clinical-tools[open]>summary,.rp-clinical-maintenance[open]>summary{border-bottom:1px solid #e1eaf2}
+.rp-clinical-tool-content,.rp-clinical-maintenance-body{display:grid;align-items:start;justify-items:start;gap:11px;padding:15px}
+.rp-clinical-tool-content input[type=file]{max-width:100%;font-size:12px}
+.rp-clinical-tool-content button{padding:10px 13px;border-radius:8px}
+.rp-clinical-maintenance-body .rp-clinical-test,.rp-clinical-maintenance-body .rp-clinical-video{width:100%;box-sizing:border-box}
+.rp-clinical-footnote{padding:0 3px;font-size:11px;color:#75869a}
+@media(max-width:720px){.rp-clinical-hero{align-items:flex-start;flex-direction:column;padding:17px}.rp-clinical-metrics{align-self:auto}.rp-clinical-section{padding:12px}.rp-clinical-section-head{align-items:flex-start}.rp-clinical-section .rp-clinical-row{flex-direction:column;align-items:stretch}.rp-clinical-section .rp-clinical-actions{width:100%}}
