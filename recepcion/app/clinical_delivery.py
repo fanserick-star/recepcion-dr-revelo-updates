@@ -286,7 +286,7 @@ def _setup():
     ready_r2=all((account,bucket,key,secret,retention)) and bool(re.fullmatch(r"[a-z0-9-]{3,63}",bucket))
     wa_ready=all((cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,\
                   cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,\
-                  cfg["WHATSAPP_ACCESS_TOKEN"] or core.WHATSAPP_ACCESS_TOKEN))
+                  cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"]))
     lan_ready=len(cfg["CLINICAL_DELIVERY_LAN_SECRET"])>=32
     test_phone=re.sub(r"\D","",cfg["WHATSAPP_TEST_PHONE"] or core.WHATSAPP_TEST_PHONE or "")
     if len(test_phone)==10 and test_phone.startswith("09"):
@@ -302,7 +302,7 @@ def _setup():
                 ("Aprobación de ambas plantillas en Meta",approved),
                 ("Cuenta/bucket y claves R2",all((account,bucket,key,secret))),
                 ("Regla de borrado R2 a 7 días",retention),
-                ("Credenciales WhatsApp",wa_ready),
+                ("Credenciales WhatsApp clínicas (token independiente)",wa_ready),
                 ("Plantilla de documentos aprobada",bool(template_doc)),
                 ("Clave LAN compartida con Historia",lan_ready),
                 ("Plantilla de video aprobada",bool(template_video)),
@@ -310,7 +310,7 @@ def _setup():
             "test_missing":[name for name,present in [
                 ("Plantillas Meta aprobadas",approved),
                 ("Almacenamiento R2 y eliminación a 7 días",ready_r2),
-                ("Número y credenciales WhatsApp de Recepción",wa_ready),
+                ("Número y token clínico independiente de WhatsApp",wa_ready),
                 ("Plantilla de documentos aprobada por Meta",bool(template_doc)),
                 ("Plantilla de video aprobada por Meta",bool(template_video)),
                 ("WHATSAPP_TEST_PHONE de tu iPhone",bool(re.fullmatch(r"5939\d{8}",test_phone))),
@@ -384,7 +384,7 @@ def _send_template(phone, name, kind, expiry, url, label_override=None):
     response=core.whatsapp_send_template(
         graph_version=cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION,
         phone_number_id=cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID,
-        access_token=cfg["WHATSAPP_ACCESS_TOKEN"] or core.WHATSAPP_ACCESS_TOKEN,
+        access_token=cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"],
         payload=payload,
     )
     mid=str((response.get("messages") or [{}])[0].get("id") or "")

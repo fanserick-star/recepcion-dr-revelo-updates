@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.71: respuesta segura y accionable ante fallos de Meta en la prueba WhatsApp clínica; sin cambios en Neón, alarmas, facturas ni envío a pacientes."
+  "notes": "Recepción 4.8.72: token independiente para entregas clínicas por Meta; no cambia el Worker WhatsApp de citas ni las alarmas, pacientes, facturas o Neon."
 }

@@ -29,7 +29,7 @@ FIELDS = (
   ("CLINICAL_R2_ACCESS_KEY_ID","Access Key ID de R2",True),
   ("CLINICAL_R2_SECRET_ACCESS_KEY","Secret Access Key de R2",True),
   ("WHATSAPP_PHONE_NUMBER_ID","Meta: Phone Number ID (opcional por ahora)",False),
-  ("WHATSAPP_ACCESS_TOKEN","Meta: Access Token (opcional por ahora)",True),
+  ("WHATSAPP_CLINICAL_ACCESS_TOKEN","Meta: Token EXCLUSIVO de entrega clínica",True),
   ("WHATSAPP_TEST_PHONE","Tu celular autorizado para la prueba: 09XXXXXXXX",False),
   ("CLINICAL_DELIVERY_LAN_SECRET","Clave privada compartida con la PC de Historia",True),
 )
@@ -66,14 +66,16 @@ info.insert("1.0",
     "IMPORTANTE:\n"
     "• GitHub NO instala automáticamente las claves en esta PC. Copia las originales solo desde tu gestor privado.\n"
     "• Si ya no conservas la Secret Access Key de R2, crea una clave nueva restringida al mismo bucket.\n"
-    "• WhatsApp del Worker y sus recordatorios no se modificarán. El acceso de Meta aquí es independiente.\n"
-    "• Esta preparación deja DESACTIVADOS los envíos clínicos hasta que Meta apruebe ambas plantillas y se verifique la configuración.\n"
+    "• El token clínico se guarda por separado; no cambia el token de citas ni el Worker.\n"
+    "• Los envíos reales a pacientes quedan DESACTIVADOS; las pruebas usan archivos ficticios.\n"
     "• El archivo .env queda LOCAL y el launcher lo conserva. No lo envíes por correo ni GitHub."
 )
 info.configure(state="disabled")
 
+token_actions=ttk.Frame(main)
+token_actions.grid(row=12,column=0,columnspan=2,sticky="ew",pady=(0,6))
 footer=ttk.Frame(main)
-footer.grid(row=12,column=0,columnspan=2,sticky="ew")
+footer.grid(row=13,column=0,columnspan=2,sticky="ew")
 def save():
     try:
         data={key:entry.get().strip() for key,entry in fields.items() if entry.get().strip()}
@@ -88,7 +90,6 @@ def save():
             "CLINICAL_R2_BUCKET":BUCKET,
             "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED":"1",
             "CLINICAL_DELIVERY_LIVE_ENABLED":"0",
-            "WHATSAPP_CLINICAL_TEMPLATES_APPROVED":"0",
             "WHATSAPP_CLINICAL_LANGUAGE":"es_EC",
             "WHATSAPP_GRAPH_VERSION":existing.get("WHATSAPP_GRAPH_VERSION","v26.0"),
         })
@@ -98,10 +99,53 @@ def save():
         return
     messagebox.showinfo("Preparación guardada",
         "Configuración guardada únicamente en esta PC.\n"
-        "Los envíos clínicos siguen DESACTIVADOS.\n"
-        "Cierra y vuelve a abrir Recepción para cargarla; desde Documentos médicos podrás comprobar R2.\n"
-        "Faltan aprobación de Meta y verificación de Historia antes del primer envío.")
+        "Los envíos clínicos a pacientes siguen DESACTIVADOS.\n"
+        "Se conserva el estado de aprobación de las plantillas en Meta.\n"
+        "Reabre Recepción para comprobar el estado sin exponer credenciales.")
     root.destroy()
+
+def save_clinical_token_only():
+    token = fields["WHATSAPP_CLINICAL_ACCESS_TOKEN"].get().strip()
+    if not token:
+        messagebox.showwarning("Token clínico", "Pega el token de Meta en el campo exclusivo de entrega clínica.")
+        return
+    try:
+        save_local_settings({"WHATSAPP_CLINICAL_ACCESS_TOKEN":token})
+    except Exception as exc:
+        messagebox.showerror("No se pudo guardar", str(exc))
+        return
+    messagebox.showinfo("Token clínico protegido",
+        "Guardado solo para entrega clínica. No se cambió el token de citas, "
+        "las alarmas, la aprobación Meta ni la habilitación de pacientes.")
+    root.destroy()
+
+
+def copy_existing_token_to_clinical():
+    # Explicit one-time import from previous shared setting. Leave source unchanged.
+    old_token = existing.get("WHATSAPP_ACCESS_TOKEN", "").strip()
+    if not old_token:
+        messagebox.showwarning("Sin token previo", "No hay un token Meta anterior guardado en esta PC.")
+        return
+    if not messagebox.askyesno("Copiar solo a entrega clínica",
+        "Se copiará el token Meta que ya guardaste en WHATSAPP_ACCESS_TOKEN "
+        "a la nueva configuración exclusiva de entrega clínica. "
+        "El valor original permanecerá intacto. ¿Continuar?"):
+        return
+    try:
+        save_local_settings({"WHATSAPP_CLINICAL_ACCESS_TOKEN":old_token})
+    except Exception as exc:
+        messagebox.showerror("No se pudo copiar", str(exc))
+        return
+    messagebox.showinfo("Token clínico separado",
+        "La entrega clínica tiene su propia configuración. "
+        "No se cambiaron las citas ni se habilitaron envíos a pacientes.")
+    root.destroy()
+
+
+ttk.Button(token_actions,text="Guardar SOLO token clínico",command=save_clinical_token_only).pack(side=tk.LEFT,padx=(0,8))
+if existing.get("WHATSAPP_ACCESS_TOKEN") and not existing.get("WHATSAPP_CLINICAL_ACCESS_TOKEN"):
+    ttk.Button(token_actions,text="Copiar token ya guardado a clínica",
+               command=copy_existing_token_to_clinical).pack(side=tk.LEFT,padx=(0,8))
 
 ttk.Button(footer,text="Guardar preparación (sin activar envíos)",command=save).pack(side=tk.RIGHT)
 ttk.Button(footer,text="Cancelar",command=root.destroy).pack(side=tk.RIGHT,padx=12)

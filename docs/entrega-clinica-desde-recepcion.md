@@ -1,4 +1,4 @@
-# Entrega clínica desde Recepción — 4.8.60 / Historia 1.4.22
+# Entrega clínica desde Recepción — actualizado para Recepción 4.8.72
 
 ## Separación de responsabilidades
 - Historia Clínica: el doctor crea, guarda y firma. No se envía WhatsApp desde Historia.
@@ -7,6 +7,21 @@
 - Si Historia está apagada, el índice puede consultarse desde Neon, pero un PDF no se puede previsualizar ni enviar.
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
+
+## Token clínico independiente — Recepción 4.8.72
+
+El Worker de citas, autoagenda y recordatorios usa sus propias plantillas y credenciales de Cloudflare. La entrega clínica es manual y se realiza desde Recepción, que toma los nombres de las dos plantillas clínicas de su configuración local. Meta no exige que los nombres estén en un `.env`; la separación es una decisión de arquitectura, no la causa directa del código de permiso 10.
+
+**IMPORTANTE:** el envío de documentos/vídeos utiliza únicamente `WHATSAPP_CLINICAL_ACCESS_TOKEN`. Ya no reutiliza `WHATSAPP_ACCESS_TOKEN` ni el token del Worker de citas. No se copiaron claves a GitHub y el actualizador preserva el `.env`.
+
+Para utilizar el nuevo token de sistema que se guardó en `WHATSAPP_ACCESS_TOKEN` antes de esta versión:
+1. Actualizar Recepción mediante su launcher hasta 4.8.72.
+2. Abrir `Configurar_envios_clinicos.vbs` en Windows.
+3. Pulsar **Copiar token ya guardado a clínica** y confirmar explícitamente. Solo copia el valor a `WHATSAPP_CLINICAL_ACCESS_TOKEN`: no elimina, revoca ni cambia el original, el token de citas, la base de datos ni el Worker. Alternativamente, pegar manualmente un token clínico distinto en **Meta: Token EXCLUSIVO de entrega clínica** y pulsar **Guardar SOLO token clínico**.
+4. No usar **Guardar preparación** solo para guardar el token. Mantener `CLINICAL_DELIVERY_LIVE_ENABLED=0`, y preservar `WHATSAPP_CLINICAL_TEMPLATES_APPROVED=1` si Meta ya aprobó ambas plantillas.
+5. Reiniciar Recepción, comprobar estado en **Documentos médicos**, y solo después usar **una prueba sintética explícita** al número `WHATSAPP_TEST_PHONE`. No habilitar entregas a pacientes hasta verificar permisos y entrega.
+
+Si Meta devuelve HTTP 400, código 10, hay que comprobar asignación/autorización del token a la cuenta WABA, permisos y número; la presencia de plantillas en el `.env` no causa por sí sola ese código.
 
 ## Preparación local asistida — Recepción 4.8.60
 
@@ -37,7 +52,7 @@ WHATSAPP_CLINICAL_VIDEO_TEMPLATE=entrega_video_clinico
 WHATSAPP_CLINICAL_LANGUAGE=es_EC
 ```
 
-En la PC de Historia se requiere `CLINICAL_DELIVERY_LAN_SECRET` con el **mismo valor**, al menos 32 caracteres. Mantenerla privada y reiniciar ambos programas. Además se necesitan las variables WhatsApp Graph de Recepción `WHATSAPP_GRAPH_VERSION`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`; **deben corresponder al mismo número** utilizado para confirmación. Si actualmente estas credenciales solo están en el worker Cloudflare, hay que provisionarlas en Recepción de forma segura. No copiarlas a archivos públicos.
+En la PC de Historia se requiere `CLINICAL_DELIVERY_LAN_SECRET` con el **mismo valor**, al menos 32 caracteres. Mantenerla privada y reiniciar ambos programas. Además se necesitan las variables WhatsApp Graph de Recepción `WHATSAPP_GRAPH_VERSION`, `WHATSAPP_PHONE_NUMBER_ID` y **`WHATSAPP_CLINICAL_ACCESS_TOKEN`**, exclusivamente para la entrega clínica; deben corresponder al mismo número registrado en Meta. Si actualmente estas credenciales solo están en el worker Cloudflare, hay que provisionarlas en Recepción de forma segura. No copiarlas a archivos públicos.
 
 ### Cloudflare R2
 1. Crear bucket **privado, Standard**. No activar `r2.dev` público ni dominio público para los objetos.
@@ -101,7 +116,7 @@ No es posible provisionar Cloudflare R2 ni aprobar plantillas únicamente public
 4. El envío parte de la **misma WABA/número de confirmaciones**, con Graph API y token autorizado. Cuando las credenciales solo existan en el worker Cloudflare, se debe suministrar una credencial válida para Recepción de forma privada; no copiar la clave por chat ni tocar alarmas o confirmaciones.
 
 **Configuración local de los dos equipos:**
-- En la instalación de Recepción, usar el archivo privado `.env` situado junto a `core_runtime.py`; completar todas las variables del bloque de configuración anterior y añadir `WHATSAPP_TEST_PHONE=09XXXXXXXX` (tu teléfono de prueba).
+- En la instalación de Recepción, usar el archivo privado `.env` situado junto a `core_runtime.py`; completar todas las variables del bloque de configuración anterior y añadir `WHATSAPP_TEST_PHONE=09XXXXXXXX` (tu teléfono de prueba) y `WHATSAPP_CLINICAL_ACCESS_TOKEN` (token exclusivo, secreto).
 - En la instalación de Historia, agregar `CLINICAL_DELIVERY_LAN_SECRET=<mismo-secreto-largo>` al `.env` situado junto a `app.py`. Historia 1.4.22 lee ese archivo desde el puente LAN. El valor debe ser un secreto aleatorio de al menos 32 caracteres, idéntico en las dos PC.
 - Mantener estos archivos fuera de copias públicas y restringir su acceso al personal del consultorio. Reiniciar ambos programas para volver a cargar claves WhatsApp.
 - Consultar `/api/clinical-delivery/status` desde el equipo de Recepción para ver únicamente estados de configuración. Nunca muestra los tokens.

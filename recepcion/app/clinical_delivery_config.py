@@ -23,7 +23,7 @@ ALLOWED = {
     "CLINICAL_R2_7_DAY_LIFECYCLE_CONFIRMED",
     "WHATSAPP_GRAPH_VERSION",
     "WHATSAPP_PHONE_NUMBER_ID",
-    "WHATSAPP_ACCESS_TOKEN",
+    "WHATSAPP_CLINICAL_ACCESS_TOKEN",
     "WHATSAPP_TEST_PHONE",
     "WHATSAPP_CLINICAL_DOCUMENT_TEMPLATE",
     "WHATSAPP_CLINICAL_VIDEO_TEMPLATE",
@@ -65,7 +65,7 @@ def _validate(key: str, value: str) -> None:
         raise ValueError("Nombre de plantilla inválido")
     if key == "WHATSAPP_CLINICAL_LANGUAGE" and value != "es_EC":
         raise ValueError("El idioma clínico debe ser es_EC")
-    if key == "WHATSAPP_ACCESS_TOKEN" and not re.fullmatch(r"[a-zA-Z0-9|._+=/-]{25,1000}",value):
+    if key == "WHATSAPP_CLINICAL_ACCESS_TOKEN" and not re.fullmatch(r"[a-zA-Z0-9|._+=/-]{25,1000}",value):
         raise ValueError("Token Meta inválido")
 
 
