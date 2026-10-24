@@ -2926,7 +2926,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         f"<a class='secondary btn-link cp-edit-patient' href='/paciente/{e(patient_id)}/editar'>Editar datos</a>"
         f"<a class='secondary btn-link cp-prescription' target='_blank' href='/recetas/nueva?patient_id={e(patient_id)}'>Receta médica</a>"
         f"<a class='secondary btn-link cp-certificate' target='_blank' href='/certificados/nuevo?patient_id={e(patient_id)}'>Certificado médico</a>"
-        f"<a class='secondary btn-link cp-reports' href='/informes?patient_id={e(patient_id)}'>Informes médicos</a>"
+        f"<a class='secondary btn-link cp-reports' target='_blank' rel='noopener' href='/informes?patient_id={e(patient_id)}'>Informes médicos</a>"
         f"{doctor_turn_call.patient_button(db, patient_id, _queue_turn_number, _queue_is_procedure)}"
         f"</nav>"
     )
