@@ -3396,3 +3396,104 @@ body.app-dialog-open{overflow:hidden}
 .cp-remaster-app .cp-videos-dialog-content video{width:100%!important;max-width:100%!important;max-height:55vh!important}
 @media(max-width:960px){.cp-remaster-app .cp-history-window-head{grid-template-columns:minmax(360px,1fr) 130px 130px!important}}
 @media(max-width:680px){.cp-remaster-app .cp-history-archive-actions{justify-content:flex-start;width:100%}}
+
+/* Historia 1.4.41: visor ampliado y contador visual, sin cambiar transporte LAN. */
+.cp-remaster-app .cp-history-videos-trigger{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  gap:9px!important;transition:background .15s ease,opacity .15s ease!important;
+}
+.cp-remaster-app .cp-history-videos-trigger .cp-video-trigger-count{
+  min-width:29px!important;padding:3px 8px!important;text-align:center!important;
+  border-radius:999px!important;font-size:14px!important;font-weight:900!important;
+  background:rgba(16,100,91,.12)!important;
+}
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="ready"]{
+  background:#087b67!important;border-color:#066451!important;color:#fff!important;
+  opacity:1!important;box-shadow:0 2px 8px rgba(8,123,103,.16)!important;
+}
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="ready"]:hover{background:#076352!important}
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="ready"] .cp-video-trigger-count{
+  color:#075244!important;background:#e0fff1!important;
+}
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="empty"],
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="loading"],
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="unavailable"]{
+  background:#edf1f4!important;border-color:#d2dbe2!important;color:#74808b!important;
+  opacity:.72!important;box-shadow:none!important;
+}
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="empty"] .cp-video-trigger-count,
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="loading"] .cp-video-trigger-count,
+.cp-remaster-app .cp-history-videos-trigger[data-video-state="unavailable"] .cp-video-trigger-count{
+  color:#64717d!important;background:#dce4e9!important;
+}
+.cp-remaster-app .cp-patient-videos-dialog[open]{
+  width:min(1440px,calc(100vw - 28px))!important;
+  max-width:calc(100vw - 28px)!important;
+  height:min(94vh,1040px)!important;
+  max-height:calc(100vh - 20px)!important;
+}
+.cp-remaster-app .cp-video-item{padding:16px 0!important}
+.cp-remaster-app .cp-video-item > strong{font-size:18px!important;color:#1b4559!important}
+.cp-remaster-app .cp-video-open-large{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:52px!important;min-width:250px!important;padding:12px 20px!important;
+  border:1px solid #126457!important;border-radius:12px!important;
+  background:#087b67!important;color:#fff!important;cursor:pointer!important;
+  font-size:17px!important;font-weight:850!important;
+}
+.cp-remaster-app .cp-video-open-large:hover{background:#065f50!important}
+.cp-remaster-app .cp-video-open-large:focus-visible,
+.cp-remaster-app .cp-video-theater button:focus-visible{outline:3px solid #76c9f6!important;outline-offset:3px!important}
+.cp-remaster-app .cp-video-theater[hidden]{display:none!important}
+.cp-remaster-app .cp-video-theater{
+  position:absolute!important;inset:0!important;z-index:25!important;
+  display:flex!important;flex-direction:column!important;gap:10px!important;
+  min-width:0!important;min-height:0!important;padding:14px!important;
+  background:#101923!important;color:#fff!important;
+}
+.cp-remaster-app .cp-video-theater-head{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  flex-wrap:wrap!important;gap:12px!important;flex:0 0 auto!important;
+}
+.cp-remaster-app .cp-video-theater-title{font-size:19px!important;font-weight:850!important}
+.cp-remaster-app .cp-video-theater-actions{display:flex!important;flex-wrap:wrap!important;gap:8px!important}
+.cp-remaster-app .cp-video-theater-actions button{
+  min-height:45px!important;padding:9px 14px!important;border-radius:9px!important;
+  font-size:15px!important;font-weight:800!important;background:#233c50!important;
+  border:1px solid #547184!important;color:#fff!important;cursor:pointer!important;
+}
+.cp-remaster-app .cp-video-theater-actions .cp-video-theater-close{background:#fff!important;color:#193c50!important}
+.cp-remaster-app .cp-video-theater-stage{
+  position:relative!important;display:flex!important;flex:1 1 auto!important;
+  justify-content:center!important;align-items:center!important;min-width:0!important;
+  min-height:0!important;overflow:hidden!important;background:#000!important;
+  border-radius:12px!important;
+}
+.cp-remaster-app .cp-video-theater-stage .cp-video-enlarged-player{
+  width:100%!important;height:100%!important;max-height:100%!important;
+  max-width:100%!important;object-fit:contain!important;background:#000!important;
+}
+.cp-remaster-app .cp-video-theater-play{
+  position:absolute!important;left:50%!important;top:50%!important;
+  transform:translate(-50%,-50%)!important;z-index:2!important;
+  width:88px!important;height:88px!important;padding:0 0 0 6px!important;
+  display:grid!important;place-items:center!important;border:2px solid #fff!important;
+  background:rgba(11,106,92,.93)!important;color:white!important;border-radius:50%!important;
+  font-size:39px!important;cursor:pointer!important;box-shadow:0 5px 26px #0009!important;
+}
+.cp-remaster-app .cp-video-theater.is-playing .cp-video-theater-play{display:none!important}
+.cp-remaster-app .cp-video-theater-hint{
+  flex:0 0 auto!important;font-size:13px!important;margin:0!important;
+  color:#c2d0dc!important;text-align:center!important;
+}
+.cp-remaster-app .cp-video-theater-stage:fullscreen{width:100vw!important;height:100vh!important;border-radius:0!important}
+@media(max-width:680px){
+  .cp-remaster-app .cp-patient-videos-dialog[open]{
+    width:calc(100vw - 12px)!important;max-width:calc(100vw - 12px)!important;
+    height:calc(100vh - 12px)!important;max-height:calc(100vh - 12px)!important;
+  }
+  .cp-remaster-app .cp-video-theater{padding:8px!important;gap:8px!important}
+  .cp-remaster-app .cp-video-theater-title{font-size:15px!important}
+  .cp-remaster-app .cp-video-theater-actions button{min-height:41px!important;font-size:12px!important;padding:7px!important}
+  .cp-remaster-app .cp-video-theater-hint{font-size:11px!important}
+}
