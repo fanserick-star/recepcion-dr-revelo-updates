@@ -113,7 +113,7 @@ class LocalVideoCache:
             except HTTPException:
                 raise
             except Exception:
-                raise HTTPException(503, "No se pudo verificar el video en Recepción por Wi-Fi") from None
+                raise HTTPException(503, "No se pudo verificar el video en Recepción por la red local") from None
             space = shutil.disk_usage(self.directory).free
             if space < size + RESERVED_FREE_BYTES or existing + size > MAX_CACHE_BYTES:
                 raise HTTPException(
@@ -177,7 +177,7 @@ class LocalVideoCache:
             with self.lock:
                 job["state"] = "error"
                 job["error"] = ("No se pudo completar o verificar la copia temporal. "
-                                "Comprueba la conexión Wi-Fi y pulsa Reintentar.")
+                                "Comprueba la conexión de red local y pulsa Reintentar.")
         finally:
             try:
                 partial.unlink(missing_ok=True)
