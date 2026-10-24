@@ -591,7 +591,8 @@ def _progress_snapshot(job_id):
         stage=str(job.get("stage","preparando"))
         uploaded=int(job.get("r2_bytes",0))
         started=float(job.get("r2_started",now))
-        elapsed=max(0,now-started) if job.get("r2_started") else 0
+        finished=float(job.get("r2_finished") or now)
+        elapsed=max(0,finished-started) if job.get("r2_started") else 0
         rate=(uploaded/1048576/elapsed) if elapsed>0 and uploaded else 0.0
         return {"ok":True,"stage":stage,"total_bytes":job["size"],
                 "local_bytes":int(job.get("local_bytes",0)),
@@ -637,7 +638,7 @@ def _r2_video_benchmark(job_id,filename):
     try:
         _progress_set(job_id,stage="subiendo_r2",r2_started=began)
         _upload_r2(filename,key,"video/mp4",_upload_progress_hook(job_id))
-        _progress_set(job_id,stage="verificando_r2")
+        _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
         _verify_benchmark_r2(key,expected)
         _progress_set(job_id,stage="eliminando_copia",r2_verified=True)
         _delete_benchmark_r2(key)
