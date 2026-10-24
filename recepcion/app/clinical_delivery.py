@@ -368,6 +368,12 @@ def _upload_r2(filename, key, media_type, progress_callback=None):
         conn.putrequest("PUT",url.path+"?"+url.query)
         conn.putheader("Content-Length",str(size))
         conn.putheader("Content-Type",media_type)
+        # Cloudflare R2 stores this as HTTP object metadata and returns it
+        # on the presigned GET. Safari should download instead of showing an
+        # unsupported embedded video player. No re-encoding or worker proxy.
+        if media_type=="video/mp4" and key.startswith("clinical-temp/"):
+            conn.putheader("Content-Disposition",'attachment; filename="Videocistoscopia.mp4"')
+            conn.putheader("Cache-Control","private, no-store")
         conn.endheaders()
         with open(filename,"rb") as f:
             while True:
@@ -617,12 +623,20 @@ def _upload_progress_hook(job_id):
     return report
 
 
-def _verify_benchmark_r2(key,expected_size):
+def _verify_benchmark_r2(key,expected_size,require_download=False):
     req=urllib.request.Request(_r2_url("HEAD",key,180),method="HEAD")
     with urllib.request.urlopen(req,timeout=30) as response:
         length=response.headers.get("Content-Length")
         if response.status!=200 or str(length)!=str(expected_size):
             raise RuntimeError("R2 no confirmó la integridad del tamaño del video")
+        if require_download:
+            # A 302 at the Worker cannot set metadata on the final R2 GET.
+            disposition=str(response.headers.get("Content-Disposition",""))
+            content_type=str(response.headers.get("Content-Type","")).split(";",1)[0].strip().lower()
+            if not re.match(r"^attachment(?:\\s*;|\\s*$)",disposition,re.IGNORECASE):
+                raise RuntimeError("R2 no confirmó la descarga de video como archivo adjunto")
+            if content_type!="video/mp4":
+                raise RuntimeError("R2 no confirmó el tipo MP4 de la descarga")
     return True
 
 
@@ -1275,7 +1289,7 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
         _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id))
         uploaded=True
         _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
-        _verify_benchmark_r2(key,expected)
+        _verify_benchmark_r2(key,expected,require_download=True)
         _progress_set(job_id,stage="preparando_enlace",r2_verified=True)
         signed=_r2_url("GET",key,604800)
         short=_short_r2_link(signed,expiry_dt)
