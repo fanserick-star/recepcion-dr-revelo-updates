@@ -25,7 +25,7 @@ assert "player.preload='auto'" not in js
 assert "markWaiting" not in js
 assert "Cargando por LAN desde Recepción" not in js
 assert "source.src=url+'/play/'+encodeURIComponent(item.id)" in js
-assert "clinical_video_library.js?v=1.4.41" in panel
+assert "clinical_video_library.js?v=1.4.42" in panel
 # Video rollback 1.4.35 permanece vigente también en correcciones posteriores.
 assert tuple(map(int, json.loads(manifest)["version"].split("."))) >= (1, 4, 35)
 assert "documentos_clinicos.py" in manifest and "informes_clinicos.py" in manifest
