@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.72: token independiente para entregas clínicas por Meta; no cambia el Worker WhatsApp de citas ni las alarmas, pacientes, facturas o Neon."
+  "notes": "Recepción 4.8.72: credencial Meta clínica separada; prueba de publicador y de Recepción verifican que nunca use el token de citas. Sin cambios en alarmas, Neon ni facturación."
 }
