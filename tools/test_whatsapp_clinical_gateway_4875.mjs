@@ -46,7 +46,7 @@ let denied=await call(original);
 assert.equal(denied.status,403);
 assert.equal(deliveries,0);
 assert.equal(claims,1);
-authRows.set('sha-'+token,{recipient:'sha-'+phone,mode:'test',used:false});
+authRows.set('sha-'+token,{recipient:'sha-'+token+'|'+phone,mode:'test',used:false});
 let wrong={...original,phone:'593988888888'};
 assert.equal((await call(wrong)).status,403);
 assert.equal(deliveries,0);
