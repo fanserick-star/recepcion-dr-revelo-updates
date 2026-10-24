@@ -332,7 +332,7 @@
     addButton(bench,'Enviar un video por WhatsApp (no guarda)',()=>sendVideo(file),
       !state.ready_video||state.sending||state.saving_video||state.benchmarking);
     if(data.ffmpeg_available===false){
-      addButton(bench,'Instalar FFmpeg aquí (opcional)',()=>installFFmpeg(),
+      addButton(bench,'Instalar FFmpeg aquí (sin requerir WinGet)',()=>installFFmpeg(),
         state.sending||state.saving_video||state.benchmarking);
     }
     addPrivateVideoLanTools(bench);
