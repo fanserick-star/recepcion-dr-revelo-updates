@@ -11,8 +11,8 @@ js=(root/"recepcion/app/static/clinical_delivery.js").read_text(encoding="utf-8"
 css=(root/"recepcion/app/static/style.css").read_text(encoding="utf-8")
 html=(root/"recepcion/app/static/index.html").read_text(encoding="utf-8")
 version=(root/"recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
-assert '"4.8.83"' in version
-assert "clinical_delivery.js?v=4.8.83" in html
+assert '"4.8.84"' in version
+assert "clinical_delivery.js?v=4.8.84" in html
 assert "function confirmVideoArchive(chosen)" in js
 assert "if(!await confirmVideoArchive(selected))return;" in js
 assert "if(state.sending||state.saving_video||state.benchmarking||state.pid!==pid)return;" in js
