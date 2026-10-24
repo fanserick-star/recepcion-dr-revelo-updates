@@ -9,7 +9,7 @@ documents = (root / "documentos_clinicos.py").read_text(encoding="utf-8")
 reports = (root / "informes_clinicos.py").read_text(encoding="utf-8")
 version = json.loads((root / "historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest = json.loads((root / "update_manifest.json").read_text(encoding="utf-8"))
-assert version == manifest["version"] == manifest["app_version"] in {"1.4.40", "1.4.41", "1.4.42"}
+assert version == manifest["version"] == manifest["app_version"] in {"1.4.40", "1.4.41", "1.4.42", "1.4.43"}
 ast.parse(app, filename="app.py")
 ast.parse(documents, filename="documentos_clinicos.py")
 ast.parse(reports, filename="informes_clinicos.py")
