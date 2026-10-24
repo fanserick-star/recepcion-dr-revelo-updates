@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.78: medición de subida real de video MP4 a R2 con barra de progreso MiB y ETA; verificación R2, borrado inmediato y envío WhatsApp apagado, sin alterar citas."
+  "notes": "Recepción 4.8.79: envío de prueba autorizado de videocistoscopia ya archivada solo al WhatsApp de prueba, con barra R2 y enlace corto de siete días; envío a pacientes continúa desactivado, alarmas intactas."
 }
