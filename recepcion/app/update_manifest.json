@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.77",
-  "app_version": "4.8.77",
-  "runtime_version": "4.8.77",
+  "version": "4.8.78",
+  "app_version": "4.8.78",
+  "runtime_version": "4.8.78",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -196,8 +196,8 @@
     "clinical_selftest_mp4.b64"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.77: asegurar que el actualizador incluya el MP4 ficticio obligatorio (video de 2 segundos) con verificación de integridad SHA-256. Mantiene los enlaces clínicos cortos de R2 y sin tocar citas, alarmas ni pacientes.",
-    "previous_version": "4.8.76",
+    "purpose": "Recepción 4.8.78: prueba de velocidad de videocistoscopia real con consentimiento, porcentaje real R2, MiB/s, segundos y ETA, verificación HEAD y eliminación de copia; no envía WhatsApp, no toca fichas, citas ni facturación y conserva CLINICAL_DELIVERY_LIVE_ENABLED=0.",
+    "previous_version": "4.8.77",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -597,7 +597,10 @@
     "clinical_delivery_synthetic_pdf_only": false,
     "clinical_delivery_r2_roundtrip_verified_before_test_send": true,
     "clinical_delivery_mobile_demo_no_patient_data": true,
-    "clinical_delivery_synthetic_video_only": true
+    "clinical_delivery_synthetic_video_only": true,
+    "clinical_delivery_real_video_speed_test": true,
+    "clinical_delivery_real_video_benchmark_no_whatsapp": true,
+    "clinical_delivery_benchmark_immediate_r2_delete": true
   },
   "channel": "launcher-v1-stable"
 }
