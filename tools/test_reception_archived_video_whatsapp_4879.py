@@ -30,7 +30,7 @@ assert 'label_override="VIDEO CLINICO AUTORIZADO",test_mode=True' in src
 assert '"VIDEO CLINICO AUTORIZADO"' in worker
 assert 'if (!claimed) return json({ok:false,error:"expired_or_used_clinical_permission"},403);' in worker
 assert "Envio a todos los pacientes" not in ui
-assert 'Enviar ESTE video a MI WhatsApp de pruebas' in ui
+assert 'Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas' in ui
 assert 'patient_authorized_staff_delivery:true' in ui
 assert 'sendArchivedVideoTest(v,testPhone)' in ui
 assert "state.ready_test" in ui
@@ -57,6 +57,8 @@ deleted=[]
 sent=[]
 audited=[]
 namespace.update({
+    "_delivery_faststart_copy":lambda src:(Path(src),None),
+    "_faststart_ffmpeg_path":lambda:"/synthetic",
     "_upload_r2":lambda src,key,media,callback:(
         uploaded.append((src,key,media)),callback(1024,1024)),
     "_upload_progress_hook":lambda jobid:lambda written,total:
