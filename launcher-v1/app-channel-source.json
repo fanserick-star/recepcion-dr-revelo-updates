@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.80: diagnóstico de reproducción en iPhone sin reenvíos: analiza solo códec y faststart local y comprueba HTTP 206 de R2 con archivo sintético que se borra. WhatsApp y citas intactos."
+  "notes": "Recepción 4.8.81: copia temporal MP4 faststart sin recomprimir para iPhone; original de videocistoscopia preservado; falla cerrada si falta FFmpeg, envío clínico manual solo a teléfono de pruebas."
 }

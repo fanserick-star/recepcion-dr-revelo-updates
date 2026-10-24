@@ -8,6 +8,39 @@
 - Un documento sin PDF firmado no se envía como firmado.
 - Recepción no cambia atenciones, fichas clínicas, recetas, cobros, AZUR, agenda ni alarmas del worker WhatsApp.
 
+## Copia faststart de entrega para iPhone — Recepción 4.8.81
+
+Con diagnóstico clínico **avc1, moov al final y R2 HTTP 206 correcto**,
+preparar únicamente una copia temporal de entrega. El MP4 diagnóstico original
+y la videocistoscopía archivada permanecen inmutables. La entrega anterior
+con enlace temporal no cambia; se requiere **nuevo envío manual** a número de
+pruebas ya autorizado y consentimiento específico.
+
+- Al pulsar **«Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas»**,
+  Recepción identifica si moov está al final. Si es así, comprueba primero
+  que FFmpeg esté instalado en el PATH o en una ruta local permitida y haya
+  espacio en disco para otra copia completa. Si no lo está, responde 503
+  ANTES de subir nada y sin intentar WhatsApp. No descarga ni ejecuta
+  binarios de Internet automáticamente.
+- Crea una copia privada bajo DATA_DIR/clinical_delivery_tmp con
+  **FFmpeg -map 0 -c copy -movflags +faststart**: copia los flujos de audio
+  y video sin recomprimir ni alterar los originales. No reduce calidad.
+  Después vuelve a verificar que moov esté antes de mdat, que los
+  identificadores de códec se conserven y que respete el límite 550 MiB.
+- La copia es exclusivamente para R2. Se borra en un bloque finally
+  independiente de éxito o fallo. La fase «Preparando copia iPhone» es
+  anterior a la barra R2, para no falsificar velocidades de Internet.
+- R2 se verifica con HEAD y URL corta, tras lo cual se solicita una única
+  entrega manual mediante la plantilla aprobada a WHATSAPP_TEST_PHONE.
+  En respuesta incierta, NO se reintenta ni se elimina el enlace de 7 días
+  (el receptor podría haberlo recibido); comprobar primero en WhatsApp.
+- Si incluso la copia faststart falla en iPhone, estudiar perfil/nivel,
+  pixel format, audio y headers del archivo concreto. **No reducir ni
+  recodificar un video clínico real a ciegas.**
+- El envío general a pacientes sigue desactivado mediante
+  CLINICAL_DELIVERY_LIVE_ENABLED=0. No cambiar alarmas, citas, facturas,
+  sincronización ni Worker de WhatsApp.
+
 ## Diagnóstico de reproducción iPhone/Safari — Recepción 4.8.80
 
 Un MP4 de videocistoscopía real ya se entregó correctamente por WhatsApp

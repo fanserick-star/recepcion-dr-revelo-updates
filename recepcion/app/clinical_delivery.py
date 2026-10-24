@@ -15,6 +15,8 @@ import json
 import os
 import re
 import secrets
+import shutil
+import subprocess
 import sqlite3
 import tempfile
 import threading
@@ -934,7 +936,87 @@ async def archived_iphone_diagnostic(pid:int,video_id:str,
             "r2_range_status":range_result["status"],
             "r2_range_206":bool(range_result.get("range_206",False)),
             "recommendation":fmt["recommendation"],
+            "faststart_tool_available":bool(_faststart_ffmpeg_path()),
+            "faststart_preparation_needed":bool(fmt["moov_found"] and not fmt["metadata_before_video"]),
             "no_video_upload":True,"no_whatsapp":True}
+
+
+# Remux an independent temporary delivery copy for iPhone without changing
+# compressed audio/video streams. Never mutate the archived diagnostic original.
+# If FFmpeg is unavailable or verification fails, fail before any R2 or Meta call.
+def _faststart_ffmpeg_path():
+    candidates=[
+        shutil.which("ffmpeg"),
+        str(ROOT/"tools"/"ffmpeg.exe"),
+        str(ROOT/"bin"/"ffmpeg.exe"),
+        str(Path(core.DATA_DIR)/"tools"/"ffmpeg.exe"),
+    ]
+    for item in candidates:
+        if not item:
+            continue
+        try:
+            binary=Path(item).resolve()
+            if binary.is_file() and binary.stat().st_size>0:
+                return str(binary)
+        except OSError:
+            continue
+    return None
+
+
+def _delivery_faststart_copy(original):
+    """Return (path_for_upload, temporary_path_or_None), fail closed.
+
+    -c copy guarantees the video/audio codec payload is NOT re-encoded.
+    +faststart moves moov metadata before mdat for Safari progressive loading.
+    Source never modified; private temporary derivative is removed after use.
+    """
+    original=Path(original).resolve(strict=True)
+    source_meta=_mp4_atom_details(original)
+    if not source_meta["moov_found"]:
+        raise RuntimeError("El MP4 no contiene un índice moov válido")
+    if source_meta["metadata_before_video"]:
+        return original,None
+    if source_meta["iphone_codec_hint"]=="possible_unsupported_codec":
+        raise RuntimeError("Códec no compatible; no transformar video diagnóstico automáticamente")
+    executable=_faststart_ffmpeg_path()
+    if not executable:
+        raise RuntimeError("Falta FFmpeg en Recepción para preparar la copia compatible con iPhone")
+    size=original.stat().st_size
+    temp_dir=Path(core.DATA_DIR).resolve()/"clinical_delivery_tmp"
+    temp_dir.mkdir(parents=True,exist_ok=True)
+    try:
+        temp_dir.chmod(0o700)
+    except OSError:
+        pass
+    # Keep enough disk for a full second copy plus margin. No R2 cost yet.
+    free=shutil.disk_usage(temp_dir).free
+    if free<size+max(128*1024*1024,int(size*0.08)):
+        raise RuntimeError("Espacio libre insuficiente para crear copia temporal sin alterar el original")
+    target=None
+    try:
+        with tempfile.NamedTemporaryFile(prefix="revelo_ios_faststart_",suffix=".mp4",
+                                         dir=str(temp_dir),delete=False) as tmp:
+            target=Path(tmp.name)
+        cmd=[executable,"-hide_banner","-nostdin","-loglevel","error",
+             "-y","-i",str(original),"-map","0","-c","copy",
+             "-movflags","+faststart",str(target)]
+        completed=subprocess.run(cmd,stdin=subprocess.DEVNULL,
+                                 stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,
+                                 timeout=600,check=False)
+        if completed.returncode!=0:
+            raise RuntimeError("FFmpeg no pudo preparar la copia sin recodificar")
+        if not target.is_file() or not 1024<target.stat().st_size<=LIMIT_VIDEO:
+            raise RuntimeError("Copia MP4 temporal inválida o superior al límite clínico")
+        output_meta=_mp4_atom_details(target)
+        if (not output_meta["moov_found"] or not output_meta["metadata_before_video"]
+              or set(output_meta["codecs"])!=set(source_meta["codecs"])):
+            raise RuntimeError("La copia temporal no conservó la estructura de video esperada")
+        return target,target
+    except Exception:
+        if target:
+            try:target.unlink()
+            except OSError:pass
+        raise
 
 
 # Real clinical video test: guarded by verified Reception↔Historia patient link,
@@ -959,9 +1041,14 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
     key="clinical-temp/authorized-test/"+secrets.token_hex(24)+".mp4"
     meta_attempted=False
     uploaded=False
+    prepared_tmp=None
     try:
+        _progress_set(job_id,stage="preparando_iphone")
+        ready_source,prepared_tmp=_delivery_faststart_copy(source)
+        expected=Path(ready_source).stat().st_size
+        _progress_set(job_id,size=expected,local_bytes=expected,prepared_faststart=bool(prepared_tmp))
         _progress_set(job_id,stage="subiendo_r2",r2_started=time.monotonic())
-        _upload_r2(str(source),key,"video/mp4",_upload_progress_hook(job_id))
+        _upload_r2(str(ready_source),key,"video/mp4",_upload_progress_hook(job_id))
         uploaded=True
         _progress_set(job_id,stage="verificando_r2",r2_finished=time.monotonic())
         _verify_benchmark_r2(key,expected)
@@ -994,15 +1081,19 @@ def _send_archived_video_to_test_phone(job_id,source,patient_id,video_id,phone,u
                 _progress_set(job_id,r2_deleted=True)
             except Exception:
                 pass
-            error="El video no se pudo verificar o enlazar. No se intentó enviar WhatsApp."
+            error=("Falta FFmpeg en Recepción para preparar la copia compatible. "
+                   "No se envió WhatsApp." if not _faststart_ffmpeg_path()
+                   else "No se pudo preparar o verificar la copia iPhone. No se envió WhatsApp.")
         else:
             # Keep the link if Meta's result is ambiguous: the recipient could
             # still receive it. Automatic R2 lifecycle removes it after 7 days.
             error="Meta no confirmó la aceptación. Comprueba tu WhatsApp antes de repetir."
         _progress_set(job_id,stage="error",error=error)
     finally:
-        # Never delete or change the locally archived original.
-        pass
+        # Remove only the temporary remux. The archived source stays unchanged.
+        if prepared_tmp:
+            try:Path(prepared_tmp).unlink()
+            except OSError:pass
 
 
 @app.post("/api/clinical-delivery/patients/{pid}/archived-video/{video_id}/send-to-test-phone")
@@ -1031,6 +1122,19 @@ async def send_archived_video_test(pid:int,video_id:str,data:ArchivedVideoTestRe
     from clinical_video_library import _row_by_id, _local_file
     row=_row_by_id(video_id,clinical_id)  # must belong to VERIFIED patient chart
     path=_local_file(row)
+    # Fail before reserving a job or sending clinical bytes when faststart is
+    # required but the trusted local remux tool is not installed.
+    try:
+        meta=_mp4_atom_details(path)
+    except (OSError,ValueError):
+        raise core.HTTPException(415,"Video local no tiene estructura MP4 válida")
+    if not meta["moov_found"]:
+        raise core.HTTPException(415,"Índice MP4 no disponible; no se enviará el original")
+    if (not meta["metadata_before_video"] and not _faststart_ffmpeg_path()):
+        raise core.HTTPException(503,
+            "Falta FFmpeg en Recepción. No se ha subido ni enviado el video; instala FFmpeg para preparar copia faststart.")
+    if meta["iphone_codec_hint"]=="possible_unsupported_codec":
+        raise core.HTTPException(415,"Códec posiblemente incompatible con iPhone; requiere revisión antes de enviar")
     size=int(row["size_bytes"])
     if not (1024<=size<=LIMIT_VIDEO):
         raise core.HTTPException(413,"Solo videocistoscopías de hasta 550 MiB")
