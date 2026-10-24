@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const src=fs.readFileSync(new URL('../cloudflare/whatsapp_worker.js',import.meta.url),'utf8');
 const start=src.indexOf('async function serveClinicalDispatch(request, env) {');
-const end=src.indexOf('// Invocaci',start);
+const end=src.indexOf('var whatsapp_worker_v2_6_responses_default = {',start);
 assert(start>0&&end>start,'Clinical-only Worker handler missing');
 const section=src.slice(start,end);
 assert(!/registerUnifiedAgendaAlarm|runScheduler|appointments|\bcron\b|reception_alarm_requests/.test(section));
