@@ -68,7 +68,7 @@ info.insert("1.0",
     "• GitHub NO instala automáticamente las claves en esta PC. Copia las originales solo desde tu gestor privado.\n"
     "• Si ya no conservas la Secret Access Key de R2, crea una clave nueva restringida al mismo bucket.\n"
     "• WhatsApp clínico utiliza el Worker de citas, con autorización independiente y sin token local.\n"
-    "• Los envíos reales a pacientes quedan DESACTIVADOS; las pruebas usan archivos ficticios.\n"
+    "• Puedes habilitar únicamente envíos MANUALES con ambas plantillas aprobadas, identidad y consentimiento por cada paciente.\n"
     "• El archivo .env queda LOCAL y el launcher lo conserva. No lo envíes por correo ni GitHub."
 )
 info.configure(state="disabled")
