@@ -37,6 +37,7 @@ jobs:
           python tools/test_historia_informes_ventana_1440.py
           python tools/test_historia_videocystoscopy_viewer_1441.py
           python tools/test_historia_videocystoscopy_gallery_1442.py
+          python tools/test_historia_recetas_firma_informes_1443.py
           python tools/test_clinical_video_private_lan_1431_4869.py
           node --check historia-clinica/app/static/clinical_video_library.js
           python tools/test_historia_certificate_type_reconcile_1425.py
