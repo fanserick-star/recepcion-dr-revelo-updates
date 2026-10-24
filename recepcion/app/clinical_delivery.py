@@ -619,6 +619,64 @@ def _check_r2():
             except OSError:pass
 
 
+def _meta_readonly_diagnostic():
+    """Two manual GET-only Graph probes. No messages, R2, Neon or patient access.
+
+    Never return token, phone, provider prose, request URLs or Graph identity.
+    A successful metadata GET does not prove permission to send messages.
+    """
+    import urllib.error
+    cfg = _clinical_settings()
+    token = cfg["WHATSAPP_CLINICAL_ACCESS_TOKEN"]
+    graph = cfg["WHATSAPP_GRAPH_VERSION"] or core.WHATSAPP_GRAPH_VERSION
+    phone_id = cfg["WHATSAPP_PHONE_NUMBER_ID"] or core.WHATSAPP_PHONE_NUMBER_ID
+    if not token or not re.fullmatch(r"v[0-9]{2,3}[.][0-9]+", graph or "") or not re.fullmatch(r"[0-9]{8,32}", phone_id or ""):
+        raise core.HTTPException(503, "Configura el token clínico, versión Graph e identificador del número")
+    base = "https://graph.facebook.com/" + graph
+    probes = (
+        ("token_identity", base + "/me?fields=id"),
+        ("phone_metadata", base + "/" + phone_id + "?fields=id,display_phone_number"),
+    )
+    output = {}
+    headers = {"Authorization":"Bearer "+token,
+               "Accept":"application/json",
+               "User-Agent":"Recepcion-Revelo-Clinical-ReadOnly/1.0"}
+    for name, url in probes:
+        try:
+            req = urllib.request.Request(url, method="GET", headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as response:
+                data = json.loads(response.read(4096).decode("utf-8"))
+            output[name] = {"ok":bool(isinstance(data,dict) and data.get("id"))}
+        except urllib.error.HTTPError as exc:
+            # Meta can include numbers, message text, URLs or provider internals.
+            # Only bounded numeric status/codes go back to the local operator.
+            try:
+                body = json.loads(exc.read(4096).decode("utf-8"))
+                error = body.get("error", {}) if isinstance(body,dict) else {}
+                if not isinstance(error,dict):
+                    error = {}
+            except (ValueError, UnicodeError, OSError):
+                error = {}
+            result = {"ok":False, "http_status":int(exc.code)}
+            for field, key in (("meta_code", "code"), ("meta_subcode", "error_subcode")):
+                number = error.get(key)
+                if isinstance(number,int) and 0 <= number <= 999999:
+                    result[field] = number
+            output[name] = result
+        except (urllib.error.URLError, TimeoutError, ValueError, UnicodeError, OSError):
+            output[name] = {"ok":False, "network_error":True}
+    return {
+        "ok":True, "no_message_sent":True, "checks":output,
+        "note":"Solo lectura: comprobar identidad del token y metadatos del número. "
+               "Esta prueba no confirma permiso de envío ni la entrega en WhatsApp.",
+    }
+
+
+@app.post("/api/clinical-delivery/check-meta")
+async def delivery_check_meta(user=core.Depends(core.current_user)):
+    return await asyncio.to_thread(_meta_readonly_diagnostic)
+
+
 @app.post("/api/clinical-delivery/check-r2")
 async def delivery_check_r2(user=core.Depends(core.current_user)):
     return await asyncio.to_thread(_check_r2)
