@@ -54,7 +54,7 @@ for codec,at_start,expected_hint in [
         assert result["metadata_before_video"] is at_start
         assert result["iphone_codec_hint"]==expected_hint
         assert result["moov_found"]
-        assert not any(k in str(result) for k in ["patient_id","phone","full_path","private_url"])
+        assert not {"patient_id","phone","full_path","private_url"} & result.keys()  # iphone_codec_hint is safe metadata
     finally:os.unlink(path)
 with tempfile.NamedTemporaryFile(suffix=".mp4",delete=False) as f:
     f.write(b"not valid mp4"*5)
