@@ -7273,16 +7273,15 @@ async function serveClinicalDispatch(request, env) {
       params.some((v,i)=>typeof v !== "string" || v.length === 0 || v.length > (i===3?2500:180)) ||
       (mode==="test" && (template!=="entrega_documento_clinico" ||
                          params[0]!=="PACIENTE DE PRUEBA" ||
-                         params[1]!=="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)")))
+                         !["DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)","VIDEO DE PRUEBA (SIN DATOS MEDICOS)"].includes(params[1]))))
     return json({ok:false,error:"invalid_clinical_request"},400);
   let signed;
   try { signed = new URL(params[3]); } catch { return json({ok:false,error:"invalid_url"},400); }
-  if (signed.protocol!=="https:" ||
-      !/^[a-f0-9]{32}\.r2\.cloudflarestorage\.com$/.test(signed.hostname) ||
-      !signed.pathname.startsWith("/dr-revelo-clinical-2026/clinical-temp/") ||
-      !signed.searchParams.has("X-Amz-Signature") ||
-      !signed.searchParams.has("X-Amz-Expires"))
-    return json({ok:false,error:"invalid_url"},400);
+  const direct=clinicalSignedGetUrl(params[3]);
+  const short=(signed.origin==="https://dr-revelo-whatsapp-cloud.drrevelo.workers.dev" &&
+               /^\/d\/[A-Za-z0-9_-]{22,32}$/.test(signed.pathname) &&
+               !signed.search && !signed.hash);
+  if(!direct && !short) return json({ok:false,error:"invalid_url"},400);
   let claimed = false;
   try {
     const digest = await sha256(token);
@@ -7314,6 +7313,50 @@ async function serveClinicalDispatch(request, env) {
   }
 }
 
+// Clinical opaque URLs resolve exclusively within the private R2 bucket.
+// Only the signed URL for the already-uploaded file is returned as 302.
+// R2 downloads, including MP4 range requests, do NOT pass through the Worker.
+function clinicalSignedGetUrl(value) {
+  try {
+    const u=new URL(value);
+    if (u.protocol!=="https:" ||
+        !/^[0-9a-f]{32}\.r2\.cloudflarestorage\.com$/.test(u.hostname) ||
+        !u.pathname.startsWith("/dr-revelo-clinical-2026/clinical-temp/") ||
+        u.searchParams.get("X-Amz-Algorithm")!=="AWS4-HMAC-SHA256" ||
+        !/^[0-9a-f]{64}$/.test(u.searchParams.get("X-Amz-Signature")||"") ||
+        !(Number(u.searchParams.get("X-Amz-Expires"))>0 &&
+          Number(u.searchParams.get("X-Amz-Expires"))<=604800))
+      return false;
+    return true;
+  } catch {return false;}
+}
+async function serveClinicalShortLink(request,env,pathname) {
+  const deny=(status=404)=>new Response("Enlace no disponible o caducado",
+    {status,headers:{"Cache-Control":"private, no-store, max-age=0",
+                     "X-Robots-Tag":"noindex, nofollow, noarchive",
+                     "Referrer-Policy":"no-referrer"}});
+  if(request.method!=="GET") return deny(405);
+  const match=/^\/d\/([A-Za-z0-9_-]{22,32})$/.exec(pathname);
+  if(!match || !env.CLINICAL_LINKS_R2) return deny();
+  let record;
+  try {
+    const obj=await env.CLINICAL_LINKS_R2.get("clinical-links/"+match[1]+".json");
+    if(!obj) return deny();
+    const raw=await obj.text();
+    if(raw.length>2700) return deny();
+    record=JSON.parse(raw);
+  } catch {return deny();}
+  const expires=Number(record?.expires_epoch);
+  const target=String(record?.signed_get_url||"");
+  if(!Number.isSafeInteger(expires) || expires<=Date.now()/1000 ||
+     expires>Date.now()/1000+604800 || !clinicalSignedGetUrl(target))
+    return deny();
+  return new Response(null,{status:302,
+    headers:{"Location":target,"Cache-Control":"private, no-store, max-age=0",
+             "X-Robots-Tag":"noindex, nofollow, noarchive",
+             "Referrer-Policy":"no-referrer","Content-Security-Policy":"default-src 'none'"}});
+}
+
 var whatsapp_worker_v2_6_responses_default = {
   async fetch(request, env, ctx) {
     const u = new URL(request.url);
@@ -7328,7 +7371,7 @@ var whatsapp_worker_v2_6_responses_default = {
       if (!r.ok) return text("Header unavailable", 502);
       return new Response(r.body, { status: 200, headers: { "content-type": r.headers.get("content-type") || "image/jpeg", "cache-control": "public, max-age=3600" } });
     }
-    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.31", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "three_sources_same_alarm_v1", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_four_line_order: "flexible_time_name_v1", autoagenda_message_formats: "three_four_lines_explicit_date_v1", manual_booking_notice: "one_time_gateway_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
+    if (u.pathname === "/health") { if (ctx?.waitUntil) ctx.waitUntil(refreshWhatsappAlarm(env, true).catch(e => console.error("alarm_bootstrap_failed", e))); return json({ ok: true, service: "dr-revelo-whatsapp-cloud", worker_version: "2.6.31", booking_schedule: "wed_10_17_break_1230_1400_v1", scheduler: "alarm_no_cron", header_image_url: String(env.WHATSAPP_HEADER_IMAGE_URL || DEFAULT_HEADER_IMAGE_URL), inbound_policy: "recordatorio_cita_only", inbound_queue: "confirmation_only", inbound_target: "origin_fallback", confirmation_window_minutes: 120, audio_proxy: "tokenized_cloudflare", neon_optimization: "v1", status_persistence: "meta_sent_delivered_read_failed", direct_message_fast_path: true, booking: "public_v1", booking_cache_seconds: 60, booking_confirmation: "three_sources_same_alarm_v1", alarm_mode: "durable_object_event_driven", alarm_delivery_policy: "preserve_24x7", assistant_booking_link: "enabled", diagnostics_read: "capability_v1", diagnostics_export: "cf_token_aesgcm_v1", autoagenda_forward: "authorized_v1", autoagenda_forward_time_policy: "schedule_window_any_minute_20m_v1", autoagenda_overlap_guard: "interval_20m_v1", public_booking_overlap_guard: "interval_20m_v1", availability_overlap_projection: "grid_from_intervals_v1", autoagenda_enrollment: "one_time_v1", autoagenda_ui: "emoji_v1", autoagenda_week_guard: "monday_sunday_v1", autoagenda_time_parser: "ampm_v2", autoagenda_four_line_order: "flexible_time_name_v1", autoagenda_message_formats: "three_four_lines_explicit_date_v1", clinical_short_links: "r2_alias_v1", manual_booking_notice: "one_time_gateway_v1", scheduler_created_at_timezone: "utc_storage_v1", scheduler_booking_grace: "12h_v1", autoagenda_recovery: "one_time_reclaim_v1", autoagenda_authorization_mode: "env_or_db_v2", autoagenda_configured: autoagendaAuthorizedPhones(env).size > 0, automation: { cita_agendada: enabled(env.ENABLE_CITA_AGENDADA), recordatorio_cita: enabled(env.ENABLE_RECORDATORIO_CITA), recordatorio_hoy: enabled(env.ENABLE_RECORDATORIO_HOY) } }); }
     if (u.pathname === "/alarms/status" && request.method === "GET") {
       const resp = await whatsappAlarmStub(env).fetch("https://alarm.internal/status", { method: "GET" });
       if (!resp.ok) return json({ ok: false, mode: "durable_object_event_driven" }, 503);
@@ -7338,6 +7381,7 @@ var whatsapp_worker_v2_6_responses_default = {
     }
     // Diagnóstico de firma solicitado explícitamente, sin envío ni alarmas.
     if (u.pathname === "/alarms/notify-web") return serveAdminAgendaAlarmHint(request, env);
+    if (u.pathname.startsWith("/d/")) return serveClinicalShortLink(request,env,u.pathname);
     if (u.pathname === "/clinical/dispatch") return serveClinicalDispatch(request,env);
     if (u.pathname === "/reception/gateway") return serveReceptionGateway(request,env);
     if (u.pathname === "/run" && request.method === "POST") {
