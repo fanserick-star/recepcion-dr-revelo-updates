@@ -57,6 +57,7 @@ jobs:
           python tools/test_reception_canonical_source.py
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
+          python tools/test_reception_clinical_meta_diagnostics_4871.py
           python tools/test_reception_clinical_setup_4860.py
           python tools/test_reception_clinical_preview_4863.py
           python tools/test_reception_clinical_identity_proof_4864.py
