@@ -139,6 +139,35 @@
           'Subida y descarga R2 correctas, pero no se confirmó la regla de borrado desde la cabecera del objeto. Revisa Cloudflare.',r.lifecycle_7_day_header_verified?'success':'info');
       }catch(e){notice(e.message||'No se pudo comprobar R2','error');}
     },!data.ready_r2);
+    const metaReadout=cell('p','Diagnóstico Meta pendiente. No envía WhatsApp.','rp-clinical-help');
+    block.append(metaReadout);
+    const readOnlyMeta=addButton(block,'Comprobar permisos Meta sin enviar mensajes',async()=>{
+      readOnlyMeta.disabled=true;
+      metaReadout.textContent='Consultando Meta en modo solo lectura, sin enviar mensajes…';
+      try{
+        const r=await api('/api/clinical-delivery/check-meta',{method:'POST'});
+        const describe=(name,detail)=>{
+          if(detail&&detail.ok)return name+': accesible';
+          if(!detail)return name+': sin respuesta';
+          if(detail.network_error)return name+': sin conexión con Meta';
+          const codes=[detail.http_status?'HTTP '+detail.http_status:'',
+                       Number.isInteger(detail.meta_code)?'código '+detail.meta_code:'',
+                       Number.isInteger(detail.meta_subcode)?'subcódigo '+detail.meta_subcode:''].filter(Boolean);
+          return name+': rechazado ('+(codes.join(', ')||'sin detalles')+')';
+        };
+        const checks=r.checks||{};
+        const identity=describe('Identidad del token',checks.token_identity);
+        const number=describe('Lectura del número',checks.phone_metadata);
+        metaReadout.textContent=identity+' · '+number+
+          '. No se envió ningún mensaje. Poder consultar el número no garantiza permiso para enviar.';
+        notice(metaReadout.textContent,'info');
+      }catch(e){
+        metaReadout.textContent=e.message||'No se pudo consultar Meta en modo solo lectura';
+        notice(metaReadout.textContent,'error');
+      }finally{
+        readOnlyMeta.disabled=false;
+      }
+    },!data.ready_whatsapp);
     const input=document.createElement('input');
     input.type='tel';input.inputMode='tel';input.autocomplete='off';
     input.placeholder='Tu número de prueba: 09XXXXXXXX';
