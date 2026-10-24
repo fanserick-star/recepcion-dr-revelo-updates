@@ -158,8 +158,17 @@
         const checks=r.checks||{};
         const identity=describe('Identidad del token',checks.token_identity);
         const number=describe('Lectura del número',checks.phone_metadata);
-        metaReadout.textContent=identity+' · '+number+
-          '. No se envió ningún mensaje. Poder consultar el número no garantiza permiso para enviar.';
+        let accounts='Cuentas WABA asignadas: no comprobadas';
+        const assigned=checks.assigned_accounts;
+        if(assigned&&assigned.ok){
+          const count=Number(assigned.assigned_count||0);
+          accounts='Cuentas WABA asignadas: '+count+(assigned.may_have_more?' o más':'')+
+            (count===0?' (investigar asignación del usuario de sistema)':' (no garantiza acceso de envío a la cuenta correcta)');
+        }else if(assigned){
+          accounts=describe('Consulta de cuentas WABA',assigned)+' (resultado no concluyente)';
+        }
+        metaReadout.textContent=identity+' · '+number+' · '+accounts+
+          '. No se envió ningún mensaje. Poder consultar un número no confirma permiso para enviar.';
         notice(metaReadout.textContent,'info');
       }catch(e){
         metaReadout.textContent=e.message||'No se pudo consultar Meta en modo solo lectura';
