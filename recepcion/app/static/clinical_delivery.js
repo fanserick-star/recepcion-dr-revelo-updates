@@ -259,7 +259,7 @@
       const stamp=String(v.recorded_at||'').slice(0,16).replace('T',' ');
       const mb=(Number(v.size_bytes||0)/1048576).toFixed(1);
       section.append(cell('p','🎬 Videocistoscopía · '+stamp+' · '+mb+' MB · '+(v.backup?'Respaldo externo disponible':'Respaldo externo pendiente'),'rp-clinical-help'));
-      const btn=addButton(section,'Enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
+      const btn=addButton(section,'Preparar para iPhone y enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
         !state.ready_test||state.sending||state.saving_video||state.benchmarking);
       btn.classList.add('rp-clinical-send-archived-test');
       const diagnose=addButton(section,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
@@ -425,6 +425,7 @@
           preparando:'Preparando prueba…',
           recibiendo_archivo:'Copiando el video desde el selector a Recepción…',
           preparando_r2:'Archivo recibido. Conectando con Cloudflare R2…',
+          preparando_iphone:'Preparando copia optimizada para iPhone (sin recomprimir)…',
           subiendo_r2:'Enviando videocistoscopía a Cloudflare R2…',
           verificando_r2:'100 % enviado. Confirmando la copia en R2…',
           eliminando_copia:'Copia confirmada. Eliminando video temporal de la nube…',
@@ -441,6 +442,9 @@
         const eta=stage==='subiendo_r2'&&rateNum>0?' · faltan aprox. '+Math.ceil((total-bytes)/1048576/rateNum)+' s':'';
         detail.textContent=percent+' % · '+mib(bytes)+' / '+mib(total)+' MiB'+extra+
           (elapsed?' · '+Number(elapsed).toFixed(1)+' s':'')+eta;
+        if(stage==='preparando_iphone'){
+          help.textContent='Procesando una COPIA temporal. No se recomprime ni altera la grabación original; aún no se está subiendo ni enviando WhatsApp.';
+        }
         if(stage==='complete'){
           wrap.style.background='#edf9f3';wrap.style.borderColor='#83b99a';
           help.textContent=mode==='envio_prueba'?
@@ -602,8 +606,13 @@
       const moov=r.moov_found?(r.metadata_before_video?'Índice al inicio (faststart)':'Índice al final del video'):
         'Índice MP4 no encontrado';
       heading.textContent='Diagnóstico técnico de reproducción en iPhone';
+      const faststartNote=r.faststart_preparation_needed?
+        (r.faststart_tool_available?
+          ' · FFmpeg disponible: al reenviar manualmente, se preparará una copia faststart sin recomprimir.' :
+          ' · FFmpeg no disponible en Recepción: no se podrá preparar la copia hasta instalarlo.') :
+        ' · Este archivo ya tiene índice al principio.';
       details.textContent='Códec detectado: '+codec+' · '+moov+' · Rangos: '+range+
-        '. '+String(r.recommendation||'');
+        '. '+String(r.recommendation||'')+faststartNote;
       if(r.iphone_codec_hint==='possible_unsupported_codec' || !r.r2_range_206){
         panel.style.background='#fff7ec';panel.style.borderColor='#d2aa73';
       }else{
