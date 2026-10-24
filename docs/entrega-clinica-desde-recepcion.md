@@ -21,7 +21,7 @@ autorización independientes en `/clinical/dispatch`.
    archivo al Worker ni a Neón. Se firma el enlace temporal a siete días.
 3. Recepción genera un permiso aleatorio efímero de 256 bits. En la tabla
    independiente `whatsapp_cloud.clinical_delivery_caps` (solo creada una vez)
-   se guardan exclusivamente SHA-256 del permiso y del destinatario, modalidad,
+   se guardan exclusivamente SHA-256 del permiso y un hash del destinatario ligado al permiso secreto, modalidad,
    caducidad y marca de consumo. No contiene teléfonos, nombres ni URLs.
 4. Recepción llama a `/clinical/dispatch` con un cuerpo acotado.
    Cloudflare reclama el permiso en una actualización atómica y **solo entonces**
