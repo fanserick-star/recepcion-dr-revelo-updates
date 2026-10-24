@@ -1022,7 +1022,7 @@ def install(app, context: dict) -> None:
         return JSONResponse({"ok": True, "id": rid, "encounter_id": enc_id, "preview_url": f"/recetas/{rid}/vista"})
 
     @app.get("/recetas/{rx_id}/vista", response_class=HTMLResponse)
-    def prescription_preview(rx_id: str, print_now: int = 0):
+    def prescription_preview(rx_id: str, print_now: int = 0, signature_space: int = 0):
         with _connect(db_path) as conn:
             row = conn.execute(
                 """SELECT r.*,p.name,p.national_id,p.birth_date,p.sex
@@ -1197,6 +1197,9 @@ def install(app, context: dict) -> None:
                 "<section class='rx-copy rx-copy-v2'>", 1,
             )
 
+        # Sólo al generar el PDF para firma se reserva un espacio para QR y sello;
+        # la vista e impresión ordinaria siguen exactamente como antes.
+        sheet_class = "sheet rx-signed-preview" if signature_space else "sheet"
         html_doc = f"""<!doctype html>
 <html>
 <head>
@@ -1256,6 +1259,11 @@ body{{background:#dfe5ea;padding:14px}}
 .rp-title{{position:absolute;top:73mm;left:3.5mm;font-family:Georgia,serif;font-size:14pt;font-weight:900;margin:0}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
 .rx-copy-v2 .rp{{top:82mm}}
+/* El doctor pide más aire sólo entre nombres/presentaciones en la copia izquierda. */
+.rx-copy-v2:first-child .med-item{{margin-bottom:8mm}}
+/* El PDF PAdES reserva exclusivamente en la copia izquierda un área sin texto
+   de medicinas para la firma visible; no alterar la copia derecha ni la vista normal. */
+.rx-signed-preview .rx-copy:first-child .rp{{bottom:59mm}}
 .med-item{{margin:0 0 2.8mm}}
 .med-name{{font-weight:900;font-size:10.2pt;overflow-wrap:anywhere}}
 .med-presentation{{font-weight:900}}
@@ -1290,7 +1298,7 @@ footer{{
   <button onclick='window.print()'>Imprimir / Guardar PDF</button>
   <span>{"A4 vertical · Izquierda: nombre y presentación/cantidad · Derecha: nombre e indicaciones" if split_prescription else "A4 vertical · 2 recetas iguales"} · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
 </div>
-<main class='sheet'>{left_copy}{right_copy}</main>
+<main class='{sheet_class}'>{left_copy}{right_copy}</main>
 {"<script>(()=>{let fired=false;const go=()=>{if(fired)return;fired=true;try{window.focus()}catch(_e){};setTimeout(()=>{try{window.print()}catch(_e){}},450)};if(document.readyState==='complete')go();else window.addEventListener('load',go,{once:true});window.addEventListener('pageshow',go,{once:true});})();</script>" if print_now else ""}
 </body>
 </html>"""
