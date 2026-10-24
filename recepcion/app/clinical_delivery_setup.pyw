@@ -72,8 +72,10 @@ info.insert("1.0",
 )
 info.configure(state="disabled")
 
+token_actions=ttk.Frame(main)
+token_actions.grid(row=12,column=0,columnspan=2,sticky="ew",pady=(0,6))
 footer=ttk.Frame(main)
-footer.grid(row=12,column=0,columnspan=2,sticky="ew")
+footer.grid(row=13,column=0,columnspan=2,sticky="ew")
 def save():
     try:
         data={key:entry.get().strip() for key,entry in fields.items() if entry.get().strip()}
@@ -140,9 +142,9 @@ def copy_existing_token_to_clinical():
     root.destroy()
 
 
-ttk.Button(footer,text="Guardar SOLO token clínico",command=save_clinical_token_only).pack(side=tk.LEFT,padx=(0,8))
+ttk.Button(token_actions,text="Guardar SOLO token clínico",command=save_clinical_token_only).pack(side=tk.LEFT,padx=(0,8))
 if existing.get("WHATSAPP_ACCESS_TOKEN") and not existing.get("WHATSAPP_CLINICAL_ACCESS_TOKEN"):
-    ttk.Button(footer,text="Copiar token ya guardado a clínica",
+    ttk.Button(token_actions,text="Copiar token ya guardado a clínica",
                command=copy_existing_token_to_clinical).pack(side=tk.LEFT,padx=(0,8))
 
 ttk.Button(footer,text="Guardar preparación (sin activar envíos)",command=save).pack(side=tk.RIGHT)
