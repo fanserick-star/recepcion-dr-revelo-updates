@@ -262,6 +262,9 @@
       const btn=addButton(section,'Enviar ESTE video a MI WhatsApp de pruebas',()=>sendArchivedVideoTest(v,testPhone),
         !state.ready_test||state.sending||state.saving_video||state.benchmarking);
       btn.classList.add('rp-clinical-send-archived-test');
+      const diagnose=addButton(section,'Diagnosticar reproducción en iPhone',()=>diagnoseVideoIphone(v),
+        state.sending||state.saving_video||state.benchmarking);
+      diagnose.classList.add('rp-clinical-iphone-diagnostic');
     });
     host.append(section);
     const warning=data.missing||[];
@@ -574,6 +577,45 @@
       notice(err.message||'Falló la autorización del envío','error');
       state.benchmarking=false;
     }
+  }
+  async function diagnoseVideoIphone(video){
+    if(state.sending||state.saving_video||state.benchmarking)return;
+    const pid=Number(state.pid),id=safeId(video?.id);
+    if(!/^[0-9a-f]{32}$/.test(id)){
+      notice('Selecciona un video archivado de la ficha correcta.','error');return;
+    }
+    const host=container();if(!host)return;
+    state.benchmarking=true;
+    const panel=document.createElement('div');
+    panel.style.cssText='border:1px solid #b5c6d5;border-radius:12px;padding:14px;margin:12px 0;background:#f4f8fc;max-width:770px';
+    panel.setAttribute('role','status');panel.setAttribute('aria-live','polite');
+    const heading=cell('strong','Comprobando formato MP4 y rangos R2 sin reenviar el video…');
+    const details=cell('p','Leyendo solo metadatos del archivo local y enviando bytes ficticios para probar R2.','rp-clinical-help');
+    panel.append(heading,details);host.append(panel);
+    try{
+      const r=await api('/api/clinical-delivery/patients/'+pid+'/archived-video/'+id+'/iphone-diagnostic',{method:'POST'});
+      if(state.pid!==pid)return;
+      const codec=Array.isArray(r.codec)&&r.codec.length?r.codec.join(', '):'No identificado';
+      const range=r.r2_range_status==='ok'&&r.r2_range_206?
+        'Correcto: R2 respondió HTTP 206':r.r2_range_status==='incompatible'?
+        'R2 no respondió HTTP 206 correctamente':'No se pudo comprobar R2';
+      const moov=r.moov_found?(r.metadata_before_video?'Índice al inicio (faststart)':'Índice al final del video'):
+        'Índice MP4 no encontrado';
+      heading.textContent='Diagnóstico técnico de reproducción en iPhone';
+      details.textContent='Códec detectado: '+codec+' · '+moov+' · Rangos: '+range+
+        '. '+String(r.recommendation||'');
+      if(r.iphone_codec_hint==='possible_unsupported_codec' || !r.r2_range_206){
+        panel.style.background='#fff7ec';panel.style.borderColor='#d2aa73';
+      }else{
+        panel.style.background='#f0faf6';panel.style.borderColor='#95bda5';
+      }
+      notice('Diagnóstico completado sin modificar ni enviar el video. Revisa el resultado debajo de los archivos.','success');
+    }catch(e){
+      heading.textContent='No se pudo completar el diagnóstico';
+      details.textContent=e.message||'Reintenta solamente el diagnóstico, sin enviar WhatsApp.';
+      panel.style.background='#fff5f2';
+      notice(e.message||'Falló el diagnóstico de video','error');
+    }finally{state.benchmarking=false;}
   }
   async function saveVideo(file){
     if(state.saving_video||state.sending||state.benchmarking)return;
