@@ -150,13 +150,18 @@ def render_patient_documents(conn: sqlite3.Connection, patient_id: str, document
         "</div>"
         f"<div class='cp-docs-counts'>{chips}</div>"
         f"<div class='cp-docs-list'>{contents}</div>"
-        f"<section class='cp-clinical-videos' data-clinical-video-patient='{_e(patient_id)}' "
-        "style='margin-top:18px;padding-top:14px;border-top:2px solid #d9e2ee'>"
-        "<div style='display:flex;justify-content:space-between;align-items:center;gap:12px'>"
+        "</section>"
+    )
+
+
+def render_patient_videos(patient_id: str) -> str:
+    """Visor separado: mantiene rutas privadas, ficha vinculada y originales intactos."""
+    return (
+        f"<section class='cp-clinical-videos' data-clinical-video-patient='{_e(patient_id)}'>"
+        "<div class='cp-video-section-head'>"
         "<strong>🎥 Videocistoscopías</strong>"
         "<button type='button' class='cp-video-refresh'>Actualizar</button></div>"
-        "<p class='cp-video-status'>Abre Documentos para consultar los videos de Recepción.</p>"
+        "<p class='cp-video-status'>Consulta las grabaciones almacenadas en Recepción.</p>"
         "<div class='cp-video-list'></div></section>"
-        "<script defer src='/static/clinical_video_library.js?v=1.4.37'></script>"
-        "</section>"
+        "<script defer src='/static/clinical_video_library.js?v=1.4.39'></script>"
     )
