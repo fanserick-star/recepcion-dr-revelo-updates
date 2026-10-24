@@ -19,7 +19,7 @@ css = (app_root / "static" / "style.css").read_text(encoding="utf-8")
 backend = (app_root / "clinical_video_library.py").read_text(encoding="utf-8")
 version = json.loads((app_root / "historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest = json.loads((app_root / "update_manifest.json").read_text(encoding="utf-8"))
-assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40"}
+assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40", "1.4.41"}
 ast.parse(app_source, filename="app.py")
 ast.parse(source, filename="patient_document_panel.py")
 spec = importlib.util.spec_from_file_location("isolated_documents_panel", panel_path)
@@ -33,7 +33,7 @@ assert "cp-clinical-videos" not in documents
 assert "clinical_video_library.js" not in documents
 assert "cp-clinical-videos" in videos
 assert "data-clinical-video-patient='patient-synthetic'" in videos
-assert "clinical_video_library.js?v=1.4.39" in videos
+assert "clinical_video_library.js?v=1.4.41" in videos
 assert "<script defer" in videos
 assert "patient-videos-open" in app_source and "patient-docs-open" in app_source
 assert "patient-videos-dialog" in app_source and "patient-docs-dialog" in app_source
