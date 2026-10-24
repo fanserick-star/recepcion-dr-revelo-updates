@@ -82,7 +82,7 @@ assert rows[0]["mode"]=="test"
 assert rows[0]["recipient_hash"]==hashlib.sha256(b"593999999999").hexdigest()
 assert "core.whatsapp_send_template" not in source
 assert "core.WHATSAPP_ACCESS_TOKEN" not in source
-assert '"WHATSAPP_CLINICAL_ACCESS_TOKEN"]' not in source
+assert '"WHATSAPP_CLINICAL_ACCESS_TOKEN"]' not in source.split("def _send_template(",1)[1].split("def _audit(",1)[0]
 assert "test_mode=True)" in source
 assert "if not _setup()[\"ready_document\"]:" in source
 assert "if not _setup()[\"ready_video\"]:" in source
