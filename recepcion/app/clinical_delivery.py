@@ -493,28 +493,65 @@ def _test_send(phone: str):
     expires_at = now + timedelta(days=7)
     key = "clinical-temp/self-test/" + secrets.token_hex(24) + ".pdf"
     temp_name = None
+    stage = "preparación del PDF ficticio"
     try:
         with tempfile.NamedTemporaryFile(prefix="revelo_synthetic_test_",suffix=".pdf",delete=False) as tmp:
             temp_name=tmp.name
             pdf=_test_pdf()
             tmp.write(pdf)
+        stage = "subida temporal a R2"
         _upload_r2(temp_name, key, "application/pdf")
         url = _r2_url("GET", key, 604800)
         # Verify the R2 object is readable and byte-identical before sending.
+        stage = "verificación de descarga R2"
         with urllib.request.urlopen(url, timeout=25) as response:
             downloaded = response.read(len(pdf)+1)
         if not hmac.compare_digest(hashlib.sha256(downloaded).digest(),hashlib.sha256(pdf).digest()):
             raise RuntimeError("El PDF de prueba descargado desde R2 no coincide con el original")
+        stage = "solicitud a Meta"
         message_id = _send_template(raw, "PACIENTE DE PRUEBA", "receta",
             expires_at.strftime("%d/%m/%Y a las %H:%M"), url,
             label_override="DOCUMENTO DE PRUEBA (SIN DATOS MEDICOS)")
         return {"ok": True, "sent": True, "message_id": message_id,
                 "expires_at": expires_at.isoformat(),
                 "note": "Meta aceptó el envío. Confirma personalmente su recepción y descarga en tu iPhone."}
+    except (core.WhatsAppError, core.HTTPException):
+        raise
+    except Exception as exc:
+        raise core.HTTPException(
+            502,
+            "No se completó la prueba durante " + stage +
+            ". No se confirmó la aceptación por Meta; verifica WhatsApp antes de repetir.",
+        ) from exc
     finally:
         if temp_name:
             try:os.unlink(temp_name)
             except OSError:pass
+
+
+def _clinical_test_meta_failure(exc):
+    """Safe coded Meta diagnostic; never echo secrets, URLs, phones or provider text."""
+    status = getattr(exc, "meta_http_status", None)
+    code = getattr(exc, "meta_error_code", None)
+    subcode = getattr(exc, "meta_error_subcode", None)
+    hints = {
+        190: "Revisa el token Meta local y sus permisos.",
+        132001: "Revisa que la plantilla aprobada, su idioma y la cuenta Meta coincidan.",
+        132000: "Revisa el número y orden de variables de la plantilla.",
+        131021: "El número destinatario no puede ser el mismo número remitente.",
+        131026: "Meta no pudo entregar al destinatario; revisa elegibilidad y formato.",
+    }
+    if not isinstance(status, int) or not (100 <= status <= 599):
+        return ("No se pudo confirmar la aceptación del mensaje por Meta. "
+                "Verifica primero tu WhatsApp antes de volver a probar.")
+    parts = [f"HTTP {status}"]
+    if isinstance(code, int) and 0 <= code <= 999999:
+        parts.append(f"código {code}")
+    if isinstance(subcode, int) and 0 <= subcode <= 999999:
+        parts.append(f"subcódigo {subcode}")
+    hint = hints.get(code, "Comprueba la cuenta, la plantilla, el destinatario y la autorización Meta.")
+    return ("Meta rechazó la solicitud de prueba (" + ", ".join(parts) + "). "
+            + hint + " No se confirmó un envío.")
 
 
 class TestDelivery(BaseModel):
@@ -526,7 +563,10 @@ class TestDelivery(BaseModel):
 async def delivery_self_test(data: TestDelivery, user=core.Depends(core.current_user)):
     if data.confirmation != "ENVIAR PRUEBA":
         raise core.HTTPException(400, "Confirma explícitamente ENVIAR PRUEBA")
-    return await asyncio.to_thread(_test_send,data.phone)
+    try:
+        return await asyncio.to_thread(_test_send,data.phone)
+    except core.WhatsAppError as exc:
+        raise core.HTTPException(502, _clinical_test_meta_failure(exc)) from exc
 
 
 def _check_r2():
