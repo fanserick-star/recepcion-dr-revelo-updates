@@ -19,7 +19,7 @@ css = (app_root / "static" / "style.css").read_text(encoding="utf-8")
 backend = (app_root / "clinical_video_library.py").read_text(encoding="utf-8")
 version = json.loads((app_root / "historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest = json.loads((app_root / "update_manifest.json").read_text(encoding="utf-8"))
-assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40", "1.4.41", "1.4.42", "1.4.43", "1.4.44"}
+assert version == manifest["version"] == manifest["app_version"] == manifest["runtime_version"] in {"1.4.39", "1.4.40", "1.4.41", "1.4.42", "1.4.43", "1.4.44","1.4.45"}
 ast.parse(app_source, filename="app.py")
 ast.parse(source, filename="patient_document_panel.py")
 spec = importlib.util.spec_from_file_location("isolated_documents_panel", panel_path)
