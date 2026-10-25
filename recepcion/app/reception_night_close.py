@@ -293,7 +293,18 @@ def _tick():
         cfg["last_date"] = today_local.date().isoformat()
         cfg["last_result"] = {"date": cfg["last_date"], "status": "started"}
         _save(cfg)
-    result = _execute(today_local.date())
+    try:
+        result = _execute(today_local.date())
+    finally:
+        # La facturación nocturna NO debe dejar conexiones SQL en el pool:
+        # de lo contrario Neon permanecería despierto después del cierre.
+        with core._state_lock:
+            still_idle = bool(core._state.get("client_idle"))
+        if still_idle and core.cloud_engine is not None:
+            try:
+                core.cloud_engine.dispose()
+            except Exception:
+                pass
     with LOCK:
         cfg = _load()
         cfg["last_result"] = result
