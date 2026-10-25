@@ -17,6 +17,9 @@ import clinical_delivery as _clinical_delivery
 import clinical_video_library as _clinical_video_library
 import clinical_video_lan_server as _clinical_video_lan_server
 _clinical_video_lan_server.install(app)
+# Cierre fiscal nocturno: desactivado por defecto, no modifica historias ni WhatsApp.
+import reception_night_close as _night_close
+_night_close.install()
 _VERSION_PATH = Path(__file__).with_name('recepcion-version.json')
 _VERSION_DOC = json.loads(_VERSION_PATH.read_text(encoding='utf-8'))
 APP_VERSION = str(_VERSION_DOC['version']).strip()
