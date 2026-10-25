@@ -307,7 +307,18 @@ try:
                 anchor_date = _date.fromisoformat(raw_anchor[:10])
                 monday = anchor_date - core.timedelta(days=anchor_date.weekday())
                 week_dates = [monday + core.timedelta(days=i) for i in range(7)]
-                _v4445_sync_cloud_agenda_for_dates(week_dates)
+                if str(request.query_params.get('refresh_cloud') or '') == '1':
+                    # Actualización EXPLÍCITA del personal: espera una sola
+                    # sincronización antes de devolver la agenda; no es sondeo.
+                    import asyncio
+                    await asyncio.to_thread(_v4449_cloud_sync_blocking, week_dates, 1.0)
+                    try:
+                        import reception_messaging_runtime_guard as _wa_guard
+                        _wa_guard._STAGED_STATE_CACHE.clear()
+                    except Exception:
+                        pass
+                else:
+                    _v4445_sync_cloud_agenda_for_dates(week_dates)
             except Exception:
                 pass
         return await call_next(request)
