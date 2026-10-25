@@ -238,7 +238,7 @@ def _execute(today):
         return {**summary, "status": "deferred", "reason": "Neon o emisión AZUR desactivados"}
     if not core.AZUR_BASE_URL or not core.AZUR_API_KEY:
         return {**summary, "status": "deferred", "reason": "Credenciales AZUR no configuradas"}
-    if not core.CloudSessionLocal or not core.check_cloud(force=False):
+    if not core.CloudSessionLocal or not core.check_cloud(force=True):
         return {**summary, "status": "deferred", "reason": "Sin conexión Neon"}
     try:
         with core.CloudSessionLocal() as db:
@@ -246,6 +246,14 @@ def _execute(today):
                 return {**summary, "status": "deferred",
                         "reason": "Falta primera factura SRI autorizada de comprobación"}
             for pid, fecha, _ in _candidate_groups(db, today):
+                # Se puede desactivar durante el lote; nunca emitir el siguiente
+                # comprobante si el personal reanudó su trabajo.
+                with core._state_lock:
+                    idle_still = bool(core._state.get("client_idle"))
+                if not _load()["enabled"] or not idle_still or core.queue_count() > 0:
+                    summary["status"] = "deferred"
+                    summary["reason"] = "Cierre interrumpido: actividad, cambios pendientes o modo desactivado"
+                    break
                 result, stop = _run_one(db, pid, fecha)
                 summary["details"].append(result)
                 if result["status"] == "sent":
