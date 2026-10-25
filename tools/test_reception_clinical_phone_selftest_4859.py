@@ -56,6 +56,6 @@ versions={
     "recepcion":json.loads((root/"recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))["version"],
     "historia":json.loads((root/"historia-clinica/app/historia-version.json").read_text(encoding="utf-8"))["version"]
 }
-assert versions["recepcion"]=="4.8.85"
+assert versions["recepcion"]=="4.8.86"
 assert versions["historia"] in {"1.4.22","1.4.23","1.4.24","1.4.25","1.4.26","1.4.27","1.4.28","1.4.29","1.4.30","1.4.31","1.4.32","1.4.33","1.4.34","1.4.35","1.4.36","1.4.37","1.4.38","1.4.39","1.4.40","1.4.41","1.4.42","1.4.43","1.4.44"}  # El envío clínico móvil es compatible con la corrección del visor de PDF
 print("CLINICAL_MOBILE_SYNTHETIC_PDF_SELFTEST_4859_OK")

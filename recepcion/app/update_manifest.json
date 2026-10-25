@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.85",
-  "app_version": "4.8.85",
-  "runtime_version": "4.8.85",
+  "version": "4.8.86",
+  "app_version": "4.8.86",
+  "runtime_version": "4.8.86",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -20,6 +20,8 @@
     "historia_lan_transport.py",
     "reception_history_lan_resilience.py",
     "static/app.js",
+    "static/home_remaster_4886.css",
+    "static/home_remaster_4886.js",
     "static/billing_advanced.js",
     "static/azur_pos80_ui.js",
     "static/azur_readonly_config.js",
@@ -115,6 +117,8 @@
     "update_manifest.json",
     "static/runtime_keep.txt",
     "static/app.js",
+    "static/home_remaster_4886.css",
+    "static/home_remaster_4886.js",
     "static/billing_advanced.js",
     "static/azur_pos80_ui.js",
     "static/azur_readonly_config.js",
@@ -196,8 +200,8 @@
     "clinical_selftest_mp4.b64"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.85: archivo clínico profesional, documento y videocistoscopia con nombre de paciente; descargas privadas R2, envío manual del MP4 archivado al número verificado y activación local explícita condicionada a Meta, con consentimientos y protección contra duplicados.",
-    "previous_version": "4.8.84",
+    "purpose": "Recepción 4.8.86: Inicio luminoso remasterizado como diseño aprobado; métricas locales, alertas y accesos sin nueva carga en Neon; control TV privado integrado en menú izquierdo y panel interno, preservando turnos, Historia, agenda, WhatsApp, AZUR y seguridad clínica.",
+    "previous_version": "4.8.85",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -602,7 +606,10 @@
     "clinical_delivery_real_video_benchmark_no_whatsapp": true,
     "clinical_delivery_benchmark_immediate_r2_delete": true,
     "clinical_archived_video_own_whatsapp_test": true,
-    "clinical_delivery_real_patient_live_switch_unchanged": true
+    "clinical_delivery_real_patient_live_switch_unchanged": true,
+    "home_remaster_4886": true,
+    "tv_control_sidebar_4886": true,
+    "tv_local_status_only_4886": true
   },
   "channel": "launcher-v1-stable"
 }
