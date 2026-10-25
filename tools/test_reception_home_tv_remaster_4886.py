@@ -11,7 +11,7 @@ server = (APP / "app.py").read_text(encoding="utf-8")
 manifest = json.loads((APP / "update_manifest.json").read_text(encoding="utf-8"))
 version = json.loads((APP / "recepcion-version.json").read_text(encoding="utf-8"))
 
-assert version["version"] == "4.8.86"
+assert tuple(map(int, version["version"].split("."))) >= (4, 8, 86)  # v4.8.86 y futuras versiones conservan el remaster
 assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version["version"]
 for name in ["static/home_remaster_4886.js", "static/home_remaster_4886.css"]:
     assert name in manifest["copy"] and name in manifest["required_dependencies"], name
