@@ -8795,6 +8795,13 @@ def _azur_rows_from_record(db: Session, record: AzurEmission) -> list[tuple[Bill
     return billing_group_records(db, int(record.patient_id), record.fecha)
 
 
+def _azur_issuance_locked(record: Optional[AzurEmission]) -> bool:
+    """Incluye intentos nocturnos con resultado incierto: nunca reenviar."""
+    return bool(record and (
+        record.clave_acceso or str(record.estado or "").upper() in {"AUTO_RESERVADA", "AUTO_INCIERTA"}
+    ))
+
+
 def _azur_mass_unlocked(db: Session) -> bool:
     """La emisión masiva se habilita solo después de validar 1 factura real.
 
@@ -8949,7 +8956,7 @@ def billing_azur_emit(data: BillingGroupIn, db: Session = Depends(get_db), user:
         raise HTTPException(409, "Primero aprueba la pre-factura nueva")
     group_key = _azur_group_key_for_rows(data.patient_id, data.fecha, rows)
     existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
-    if existing and existing.clave_acceso:
+    if _azur_issuance_locked(existing):
         raise HTTPException(409, "Esta factura ya fue enviada a AZUR. Consulta su estado; no se reenviará para evitar duplicados")
     payload = _azur_payload_for_group(data, p, rows)
     request_hash = hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
@@ -9137,7 +9144,7 @@ def billing_azur_batch_preview(db: Session = Depends(get_db), user: User = Depen
         if not rows or any(str(b.estado or "").upper() not in {"PENDIENTE", "APROBADA"} for b, _ in rows):
             skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "La factura tiene estados que ya no están disponibles para emitir"}); continue
         existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == _azur_group_key_for_rows(int(patient_id), fecha, rows)))
-        if existing and existing.clave_acceso:
+        if _azur_issuance_locked(existing):
             skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
         data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
         try:
@@ -9179,7 +9186,7 @@ def billing_azur_emit_all_pending(db: Session = Depends(get_db), user: User = De
         data = _apply_billing_preference(BillingGroupIn(patient_id=int(patient_id), fecha=fecha), db)
         group_key = _azur_group_key_for_rows(int(patient_id), fecha, rows)
         existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
-        if existing and existing.clave_acceso:
+        if _azur_issuance_locked(existing):
             skipped.append({"patient_id": int(patient_id), "nombre": p.nombre, "fecha": fecha, "reason": "Ya fue enviada a AZUR; consulta su estado"}); continue
         try:
             validate_billing_recipient(data, p)
@@ -9549,7 +9556,7 @@ def billing_approve(data: BillingGroupIn, db: Session = Depends(get_db), user: U
 
     group_key = _azur_group_key_for_rows(int(data.patient_id), data.fecha, rows)
     existing = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
-    if existing and existing.clave_acceso:
+    if _azur_issuance_locked(existing):
         raise HTTPException(409, "Esta factura ya fue enviada a AZUR. Usa Actualizar estado para consultar el SRI.")
 
     payload = _azur_payload_for_group(data, p, rows)
@@ -9686,6 +9693,12 @@ def billing_emit(data: BillingEmitIn, db: Session = Depends(get_db), user: User 
         raise HTTPException(404, "No hay atenciones aprobadas para ese día")
     if any(b.estado != "APROBADA" for b, _ in rows):
         raise HTTPException(409, "Primero debes aprobar la pre-factura completa")
+    # v4.8.88: el registro de emisión nocturna tiene prioridad sobre un
+    # número tecleado manualmente; nunca pasar por alto un intento incierto.
+    group_key = _azur_group_key_for_rows(data.patient_id, data.fecha, rows)
+    reserved = db.scalar(select(AzurEmission).where(AzurEmission.group_key == group_key))
+    if _azur_issuance_locked(reserved):
+        raise HTTPException(409, "Existe envío o intento nocturno AZUR. Verifica su estado antes de marcar EMITIDA.")
     touched = []
     for b, v in rows:
         b.estado = "EMITIDA"
