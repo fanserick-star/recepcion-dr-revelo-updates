@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.44",
-  "app_version": "1.4.44",
-  "runtime_version": "1.4.44",
+  "version": "1.4.45",
+  "app_version": "1.4.45",
+  "runtime_version": "1.4.45",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.44: aumentar separación visual ENTRE medicamentos de recetas actuales en ambas mitades de 8 mm a 14 mm cuando hay hasta 5 medicamentos. Los textos de indicaciones permanecen pegados al nombre y sin espacio adicional. Recetas con 6-7 medicamentos usan 10 mm; con 8 o más, 5 mm para reducir el riesgo de cortes en la impresión A4 y en la zona del sello PAdES. Preservar las recetas antiguas, firmas previas, funciones clínicas, informes, videocistoscopías, conexión LAN, Recepción y Neon.",
-    "previous_version": "1.4.43",
+    "purpose": "Remaster visual del Inicio según opción B: sala de espera con números grandes y botones independientes de Llamar/Repetir, Abrir ficha y Quitar; panel derecho con buscador, fichas recientes, documentos y Material para pacientes (consentimiento informado, dieta y archivos). Crear receta, certificado o informe requiere seleccionar primero la ficha; se mantienen íntegros TV, LAN, videoteca, recetas, firmas, datos y sincronización Neon.",
+    "previous_version": "1.4.44",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -112,7 +112,7 @@
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
     "cloud_status_write_failure_nonfatal": true,
-    "printing_changes": true,
+    "printing_changes": false,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
     "consentimiento_encounter_autosave_before_open": true,
@@ -375,6 +375,18 @@
       "from_6_to_7": 10,
       "from_8": 5,
       "unit": "mm"
-    }
+    },
+    "home_remaster_design": "option_b_right_panel",
+    "home_patient_queue_preserved": true,
+    "home_doctor_call_separate_from_open": true,
+    "home_doctor_call_protocol_unchanged": true,
+    "home_queue_dismiss_confirmation_preserved": true,
+    "home_documents_picker_requires_existing_patient": true,
+    "home_patient_search_local_only": true,
+    "home_material_consent_and_diet_visible": true,
+    "home_video_library_per_patient_preserved": true,
+    "home_ui_no_database_migration": true,
+    "home_ui_no_extra_neon_polling": true,
+    "mandatory": true
   }
 }
