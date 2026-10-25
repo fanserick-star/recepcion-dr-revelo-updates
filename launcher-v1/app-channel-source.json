@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.84: videocistoscopias originales MP4 descargables en iPhone vía R2 privado con cabecera attachment verificada, sin convertir ni requerir FFmpeg. Protección de pacientes/WhatsApp de citas intacta."
+  "notes": "Recepción 4.8.86: remasterización visual del Inicio con datos locales y acceso a control de TV en menú lateral izquierdo, sin cambios a turnos, facturación, Neon ni WhatsApp."
 }
