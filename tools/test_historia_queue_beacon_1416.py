@@ -24,12 +24,29 @@ assert "if not is_procedure else" in source
 assert "waiting_consult_count = sum(" in source
 assert "waiting_review_count = sum(" in source
 assert 'if row["status"] == "waiting"' in source
-assert "queue-spotlight-totals" in source and "queue-spotlight-head" in source
+# Desde 1.4.45 la remasterización B sustituye el foco duplicado por tarjetas
+# con todas las acciones. Se valida el nuevo contrato sin debilitar los turnos.
+remaster_b = "hc-b-wait-card" in source
+if remaster_b:
+    assert "hc-b-wait-content" in source and "hc-b-wait-actions" in source
+    assert "hc-b-review" in source and "hc-b-wait-state" in source
+    assert "turn_visual = turn_badge" in source
+    assert "home-queue-count" in source
+    assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in source
+    assert "js-queue-dismiss" in source
+    assert "class='hc-b-open'" in source
+else:
+    assert "queue-spotlight-totals" in source and "queue-spotlight-head" in source
 
 # Acciones existentes y navegación del doctor conservadas.
 assert 'href="/" title="Volver al inicio"' in source
 assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in source
-assert "f\"<a class='queue-row-main' href='{href}'" in source
+if remaster_b:
+    assert 'class="hc-b-queue-list"' in source
+    assert "open_link = (" in source
+    assert "Pendiente de Recepción" in source
+else:
+    assert "f\"<a class='queue-row-main' href='{href}'" in source
 assert "class='queue-dismiss-form js-queue-dismiss'" in source
 assert "clinic" not in calls.lower() or "/api/doctor-turn-call/" in calls
 assert "def new_consultation_v135" in source
@@ -46,6 +63,11 @@ assert "queue-row>.js-doctor-call" in css
 assert ".queue-row-action" in css
 assert "queue-row:first-child" in css
 assert "font-size:22px!important" in css
+if remaster_b:
+    assert "hc-b-app .hc-b-wait-actions .js-doctor-call" in css
+    assert ".hc-b-wait-card" in css
+    assert ".hc-b-wait-state" in css
+    assert "body.hc-b-app>.topbar" in css
 assert "grid-template-columns:1fr!important" in css
 
 print("HISTORIA_QUEUE_BEACON_UI_1416_OK")
