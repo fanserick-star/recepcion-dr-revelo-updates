@@ -1216,7 +1216,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css?v={e(APP_VERSION)}">{extra_head}</head>
-<body class="cp-remaster-app">
+<body class="cp-remaster-app {'hc-b-app' if active=='inicio' else ''}">
 <header class="topbar">
   <div class="brand">
     <a class="brand-home-link {'active' if active=='inicio' else ''}" href="/" title="Volver al inicio">⌂ <span>INICIO</span></a>
@@ -1937,20 +1937,34 @@ def home():
             )
             can_open = bool(r["clinical_patient_id"]) or r["status"] == "in_consultation"
             href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
+            # Remaster B: acciones separadas, sin cambiar rutas, turnos ni estados.
+            open_link = (
+                f"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>"
+                if can_open else
+                "<span class='hc-b-open hc-b-disabled' aria-disabled='true'>Pendiente de Recepción</span>"
+            )
+            turn_visual = turn_badge if turn_badge else (
+                "<div class='hc-b-no-turn' aria-label='Procedimiento sin turno'>PROC.</div>"
+                if is_procedure else ""
+            )
             parts.append(
-                f"<div class='queue-row queue-row-clickable {'queue-row-new' if is_new else ''} {'queue-row-procedure' if is_procedure else 'queue-row-consultation'} {queue_kind_class} {queue_status_class}'>"
-                f"{spotlight_heading}"
-                f"<a class='queue-row-main' href='{href}' title='{e(action_label)}'>"
-                f"{turn_badge}"
-                f"<span class='queue-patient-copy'><b>{e(r['display_name'])}</b>"
-                f"<small class='queue-patient-meta'>{e(patient_meta)}</small>"
-                f"<span class='queue-tags'><span class='queue-type queue-type-{e(attention_key)}'>{'★ PACIENTE NUEVO' if is_new else e(attention_label)}</span>"
-                f"{service_tag}<span class='queue-status'>{e(status_text)}</span></span></span>"
-                f"<time>{queued}</time><span class='queue-row-action'>{e(action_label)} ›</span></a>"
-                f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
-                f"<form class='queue-dismiss-form js-queue-dismiss' method='post' action='/cola/{e(r['id'])}/descartar'>"
-                f"<button type='submit' class='queue-dismiss-btn' title='Quitar de espera'>×</button></form>"
+                f"<article class='queue-row hc-b-wait-card {'hc-b-review' if exam_review else ''} "
+                f"{queue_status_class} {queue_kind_class}'>"
+                f"<div class='hc-b-wait-content'>"
+                f"<div class='hc-b-wait-turn'>{turn_visual}</div>"
+                f"<div class='hc-b-wait-name'><strong>{e(r['display_name'])}</strong>"
+                f"<small>{e(patient_meta)}</small></div>"
+                f"<div class='hc-b-wait-details'>"
+                f"<span class='hc-b-attention hc-b-kind-{e(attention_key)}'>{'N · Nueva' if is_new else e(attention_label)}</span>"
+                f"{service_tag}<small>Hora: {queued}</small></div>"
+                f"<span class='hc-b-wait-state'>{e(status_text)}</span>"
                 f"</div>"
+                f"<div class='hc-b-wait-actions'>"
+                f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
+                f"{open_link}"
+                f"<form class='queue-dismiss-form js-queue-dismiss' method='post' action='/cola/{e(r['id'])}/descartar'>"
+                f"<button type='submit' class='hc-b-remove' title='Quitar de espera'>Quitar</button></form>"
+                f"</div></article>"
             )
         qhtml = "".join(parts)
     else:
@@ -2035,51 +2049,93 @@ def home():
         )
 
     body = f"""
-<section class="home-heading home-heading-v107">
-  <div><span class="eyebrow">PANEL MÉDICO</span><h1>{greeting}, Dr. Revelo</h1><p>Acceda a una historia clínica o continúe con el siguiente paciente.</p></div>
-  <div class="stats">
-    <div><span>Pacientes</span><strong>{patient_count:,}</strong></div>
-    <div><span>Historias</span><strong>{encounter_count:,}</strong></div>
-    <div><span>Atendidos hoy</span><strong>{today_count}</strong></div>
-    <div><span>En espera</span><strong id="home-queue-count">{queue_count}</strong></div>
-  </div>
-</section>
-{pending_banner}
-<section class="search-card home-search home-search-v107">
-  <div class="home-search-line">
-    <div class="patient-live-search" data-live-patient-search>
-      <form action="/pacientes" method="get"><label class="sr-only">Buscar historia clínica</label><div class="searchbox"><input name="q" autofocus autocomplete="off" placeholder="Escriba nombres en cualquier orden, identificación o teléfono"><button>Buscar paciente</button></div></form>
-      <div class="live-search-results" hidden></div>
+<div class="hc-b-shell">
+  <header class="hc-b-header">
+    <div class="hc-b-brand">
+      <img src="/static/doctor_logo.png" alt="Emblema del consultorio">
+      <div><strong>Historia Clínica</strong><span>Dr. Armando Revelo</span><small>Urólogo · Cirujano Urólogo</small></div>
     </div>
-    <a class="new-patient-home" href="/pacientes/nuevo">+ Nuevo paciente</a>
-  </div>
-  <p class="search-help">Puede escribir, por ejemplo, <b>CARLOS BRAVO</b> aunque la ficha esté registrada como BRAVO BURBANO CARLOS EMILIO.</p>
-</section>
-<section class="home-workspace">
-  <section class="panel queue-panel home-queue-v107">
-    <div class="panel-title"><div><span class="dot"></span><div><h2>Pacientes en espera</h2><p>{queue_count} paciente{'s' if queue_count!=1 else ''} en la cola del doctor</p></div></div>{next_button}</div>
-    <div class="queue-spotlight-totals" aria-label="Pacientes pendientes por tipo">
-      <span class="queue-total-consult">● {waiting_consult_count} consulta{'s' if waiting_consult_count!=1 else ''}</span>
-      <span class="queue-total-review">● {waiting_review_count} revisión{'es' if waiting_review_count!=1 else ''}</span>
-    </div>
-    <div class="home-scroll-region">{qhtml}</div>
-  </section>
-  <aside class="home-side-stack">
-    <section class="panel recent-panel">
-      <div class="panel-title compact"><div><div><h2>Pacientes recientes</h2><p>Acceso rápido a las últimas fichas abiertas</p></div></div>{continue_button}</div>
-      <div class="recent-list">{recent_html}</div>
-    </section>
-    <section class="panel system-panel">
-      <div class="system-panel-head"><div><span class="eyebrow">ESTADO DEL SISTEMA</span><h2>Todo lo importante, de un vistazo</h2></div></div>
-      <div class="system-status-grid">
-        <div class="system-status ok"><span class="status-mark">✓</span><span><b>Base local</b><small>Activa y disponible</small></span></div>
-        <div class="system-status pending" id="lan-status-card"><span class="status-mark" id="lan-status-mark">•</span><span><b>LAN</b><small id="lan-status-text">Preparando enlace con Recepción…</small></span></div>
-        <div class="system-status {cloud_class}" id="cloud-status-card"><span class="status-mark" id="cloud-status-mark">{cloud_mark}</span><span><b>Nube</b><small id="cloud-status-text">{e(cloud_text)}</small><div class="cloud-progress-wrap" id="cloud-progress-wrap" hidden><div class="cloud-progress-track"><i id="cloud-progress-bar"></i></div><em id="cloud-progress-caption"></em></div></span></div>
-        <div class="system-status {backup_class}"><span class="status-mark">{backup_mark}</span><span><b>Respaldo</b><small>{e(backup_text)}</small></span></div>
+    <div class="hc-b-header-status" aria-label="Estado de la conexión">
+      <div class="hc-b-indicator pending" id="lan-status-card">
+        <span class="hc-b-indicator-icon" id="lan-status-mark">•</span>
+        <span><b>Recepción · LAN</b><small id="lan-status-text">Preparando enlace…</small></span>
       </div>
+      <div class="hc-b-indicator {cloud_class}" id="cloud-status-card">
+        <span class="hc-b-indicator-icon" id="cloud-status-mark">{cloud_mark}</span>
+        <span><b>Neón</b><small id="cloud-status-text">{e(cloud_text)}</small>
+          <span class="cloud-progress-wrap" id="cloud-progress-wrap" hidden><span class="cloud-progress-track"><i id="cloud-progress-bar"></i></span><em id="cloud-progress-caption"></em></span>
+        </span>
+      </div>
+      <div class="hc-b-indicator ok"><span class="hc-b-indicator-icon">✓</span>
+        <span><b>Base local</b><small>Activa</small></span></div>
+      <div class="hc-b-indicator {backup_class}"><span class="hc-b-indicator-icon">{backup_mark}</span>
+        <span><b>Respaldo</b><small>{e(backup_text)}</small></span></div>
+    </div>
+  </header>
+  <div class="hc-b-layout">
+    <aside class="hc-b-sidebar" aria-label="Navegación de Historia Clínica">
+      <nav class="hc-b-navigation" aria-label="Navegación principal">
+        <a class="hc-b-nav-active" href="/">⌂ <span>Inicio</span></a>
+        <a href="#pacientes-en-espera">♙ <span>Pacientes en espera</span><b id="home-queue-count">{queue_count}</b></a>
+        <a href="#pacientes-recientes">◷ <span>Pacientes recientes</span></a>
+        <div class="hc-b-nav-title">DOCUMENTOS MÉDICOS</div>
+        <a href="/recetas">▤ <span>Recetas</span></a>
+        <a href="/certificados">♧ <span>Certificados</span></a>
+        <a href="/informes">▧ <span>Informes</span></a>
+        <a href="/pacientes" title="Seleccione primero la ficha del paciente">▣ <span>Videocistoscopías</span></a>
+        <div class="hc-b-nav-title">MATERIAL PARA PACIENTES</div>
+        <a href="/material">▤ <span>Material</span></a>
+        <div class="hc-b-nav-title">HERRAMIENTAS</div>
+        <a href="/macros">▢ <span>Frases rápidas</span></a>
+        <a href="/configuracion">⚙ <span>Configuración</span></a>
+      </nav>
+      <div class="hc-b-clock"><span>HOY · {now.strftime('%d/%m/%Y')}</span><strong>{now.strftime('%H:%M')}</strong></div>
+    </aside>
+    <section class="hc-b-center" id="pacientes-en-espera">
+      <div class="hc-b-section-heading">
+        <h1>♟ Pacientes en espera <span>({queue_count})</span></h1>
+        <div class="hc-b-queue-controls"><a href="/" class="hc-b-refresh" aria-label="Actualizar pacientes en espera">⟳ Actualizar</a></div>
+      </div>
+      {pending_banner}
+      <div class="hc-b-queue-list">{qhtml}</div>
+      {f'<div class="hc-b-queue-next">{next_button}</div>' if queue_count else ''}
     </section>
-  </aside>
-</section>
+    <aside class="hc-b-right" aria-label="Buscar y acceder a herramientas">
+      <section class="hc-b-panel hc-b-search-panel">
+        <h2>⌕ Buscar paciente</h2>
+        <div class="patient-live-search" data-live-patient-search>
+          <form action="/pacientes" method="get">
+            <label class="sr-only" for="hc-b-search-input">Nombre, cédula o teléfono</label>
+            <div class="hc-b-searchbox"><input id="hc-b-search-input" name="q" autocomplete="off" placeholder="Nombre, cédula o código..." autofocus><button type="submit">Buscar</button></div>
+          </form>
+          <div class="live-search-results" hidden></div>
+        </div>
+        <a class="hc-b-new-patient" href="/pacientes/nuevo">+ Paciente nuevo</a>
+      </section>
+      <section class="hc-b-panel hc-b-recents" id="pacientes-recientes">
+        <div class="hc-b-panel-head"><h2>◷ Pacientes recientes</h2><a href="/pacientes">Ver todos</a></div>
+        <div class="recent-list">{recent_html}</div>
+      </section>
+      <section class="hc-b-panel hc-b-documents">
+        <h2>▤ Accesos rápidos · Documentos médicos</h2>
+        <div class="hc-b-shortcut-grid">
+          <a class="hc-b-shortcut hc-b-blue" href="/recetas"><span>▤</span><b>Nueva receta</b></a>
+          <a class="hc-b-shortcut hc-b-green" href="/certificados"><span>♧</span><b>Nuevo certificado</b></a>
+          <a class="hc-b-shortcut hc-b-purple" href="/informes"><span>▧</span><b>Nuevo informe</b></a>
+          <a class="hc-b-shortcut hc-b-rose" href="/pacientes" title="Seleccione la ficha del paciente"><span>▣</span><b>Videocistoscopías</b></a>
+        </div>
+      </section>
+      <section class="hc-b-panel hc-b-material">
+        <h2>▤ Material para pacientes</h2>
+        <div class="hc-b-material-grid">
+          <a class="hc-b-material-tile hc-b-blue" href="/consentimiento/nuevo"><span>▤</span><b>Consentimiento informado</b><small>Declaración, negativa y revocatoria</small></a>
+          <a class="hc-b-material-tile hc-b-green" href="/material/dieta-calculos"><span>♧</span><b>Dieta para cálculos</b></a>
+          <a class="hc-b-material-tile hc-b-amber" href="/material"><span>▱</span><b>Archivos del consultorio</b></a>
+        </div>
+      </section>
+    </aside>
+  </div>
+</div>
 """
     home_script = r"""
 <script>
