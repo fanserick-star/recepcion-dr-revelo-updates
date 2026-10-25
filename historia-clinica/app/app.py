@@ -2119,9 +2119,9 @@ def home():
       <section class="hc-b-panel hc-b-documents">
         <h2>▤ Accesos rápidos · Documentos médicos</h2>
         <div class="hc-b-shortcut-grid">
-          <a class="hc-b-shortcut hc-b-blue" href="/recetas"><span>▤</span><b>Nueva receta</b></a>
-          <a class="hc-b-shortcut hc-b-green" href="/certificados"><span>♧</span><b>Nuevo certificado</b></a>
-          <a class="hc-b-shortcut hc-b-purple" href="/informes"><span>▧</span><b>Nuevo informe</b></a>
+          <button class="hc-b-shortcut hc-b-blue" type="button" data-hc-create="receta"><span>▤</span><b>Nueva receta</b></button>
+          <button class="hc-b-shortcut hc-b-green" type="button" data-hc-create="certificado"><span>♧</span><b>Nuevo certificado</b></button>
+          <button class="hc-b-shortcut hc-b-purple" type="button" data-hc-create="informe"><span>▧</span><b>Nuevo informe</b></button>
           <a class="hc-b-shortcut hc-b-rose" href="/pacientes" title="Seleccione la ficha del paciente"><span>▣</span><b>Videocistoscopías</b></a>
         </div>
       </section>
@@ -2135,6 +2135,14 @@ def home():
       </section>
     </aside>
   </div>
+  <dialog class="hc-b-create-dialog" id="hc-b-create-dialog" aria-labelledby="hc-b-create-title">
+    <div class="hc-b-dialog-head"><h2 id="hc-b-create-title">Seleccionar paciente</h2>
+      <button type="button" id="hc-b-create-close" aria-label="Cerrar">✕</button></div>
+    <p>Busque la ficha correcta antes de crear el documento médico.</p>
+    <label for="hc-b-create-query">Nombre o identificación del paciente</label>
+    <input id="hc-b-create-query" autocomplete="off" placeholder="Escriba al menos 2 caracteres">
+    <div id="hc-b-create-results" class="hc-b-create-results" aria-live="polite">Ingrese el nombre del paciente.</div>
+  </dialog>
 </div>
 """
     home_script = r"""
@@ -2229,6 +2237,55 @@ def home():
   runTool('repair-lan-btn','/api/system/lan-firewall','Permiso LAN solicitado');
   runTool('sync-now-btn','/api/sync/now','Sincronización solicitada');
   runTool('open-folder-btn','/api/system/open-folder','Carpeta abierta');
+  // Nuevos documentos desde Inicio: primero confirmar ficha; nunca crear duplicados.
+  const picker=document.getElementById('hc-b-create-dialog');
+  const pickerInput=document.getElementById('hc-b-create-query');
+  const pickerResults=document.getElementById('hc-b-create-results');
+  const pickerTitle=document.getElementById('hc-b-create-title');
+  let pickerKind='receta',pickerTimer=0,pickerRequest=null;
+  const pickerLabels={receta:'Nueva receta',certificado:'Nuevo certificado',informe:'Nuevo informe'};
+  const pickerPaths={
+    receta:'/recetas/nueva?patient_id=',
+    certificado:'/certificados/nuevo?patient_id=',
+    informe:'/informes?patient_id='
+  };
+  document.querySelectorAll('[data-hc-create]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      pickerKind=String(btn.dataset.hcCreate||'receta');
+      if(!pickerPaths[pickerKind]||!picker)return;
+      if(pickerTitle)pickerTitle.textContent=pickerLabels[pickerKind]+' · Seleccionar paciente';
+      if(pickerInput)pickerInput.value='';
+      if(pickerResults)pickerResults.textContent='Ingrese el nombre del paciente.';
+      picker.showModal();pickerInput?.focus();
+    });
+  });
+  document.getElementById('hc-b-create-close')?.addEventListener('click',()=>picker?.close());
+  pickerInput?.addEventListener('input',()=>{
+    clearTimeout(pickerTimer);pickerRequest?.abort();
+    const term=pickerInput.value.trim();
+    if(term.length<2){pickerResults.textContent='Escriba al menos 2 caracteres.';return}
+    pickerResults.textContent='Buscando en fichas clínicas…';
+    pickerTimer=setTimeout(async()=>{
+      const ctl=new AbortController();pickerRequest=ctl;
+      try{
+        const response=await fetch('/api/pacientes/buscar?q='+encodeURIComponent(term)+'&limit=12',{signal:ctl.signal,cache:'no-store'});
+        if(!response.ok)throw new Error('No se pudo consultar las fichas');
+        const rows=await response.json();
+        if(ctl.signal.aborted)return;
+        pickerResults.replaceChildren();
+        if(!Array.isArray(rows)||!rows.length){pickerResults.textContent='No hay coincidencias. Verifique en Recepción si corresponde.';return}
+        rows.forEach(p=>{
+          const a=document.createElement('button');a.type='button';a.className='hc-b-patient-option';
+          const b=document.createElement('strong');b.textContent=String(p.name||'Paciente');
+          const sm=document.createElement('small');sm.textContent=String(p.detail||'');
+          a.append(b,sm);
+          a.addEventListener('click',()=>{if(p.id)window.location.assign(pickerPaths[pickerKind]+encodeURIComponent(String(p.id)))});
+          pickerResults.append(a);
+        });
+      }catch(err){if(err?.name!=='AbortError')pickerResults.textContent='No se pudo buscar. Intente nuevamente.'}
+    },180);
+  });
+  picker?.addEventListener('close',()=>{clearTimeout(pickerTimer);pickerRequest?.abort()});
   refreshCloud(); refreshQueue(); refreshLan();
   setInterval(refreshCloud,2000); setInterval(refreshQueue,4000); setInterval(refreshLan,3000);
 })();
