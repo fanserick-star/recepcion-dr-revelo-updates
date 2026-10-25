@@ -39,8 +39,8 @@ assert 'booking_cache_seconds: 60' in worker  # public booking still cached
 assert '"worker_cycle_minutes": 0' in source  # tests wake an alarm, not a cron
 
 # Both agenda fetchers are throttled; do not revert either to 5 seconds.
-assert "def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=60.0)" in agenda
-assert "def _v4449_cloud_sync_background(dates, min_interval: float=60.0)" in agenda
+assert "def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=600.0)" in agenda
+assert "def _v4449_cloud_sync_background(dates, min_interval: float=600.0)" in agenda
 assert "last < max(1.0, float(min_interval or 60.0))" in agenda
 assert "def _sync_agenda_states_from_cloud(db: Session, dates: list[date], min_interval: float = 60.0)" in source
 assert "_v4445_cloud_agenda_at[key] = core.time.time()" in agenda
@@ -64,6 +64,17 @@ assert "def process_offline_queue(" in source
 assert "_schedule_clinical_chart_retry()" in source
 assert '"/api/billing"' in source
 assert '"/api/agenda/week"' in source
+
+# Permanent low-power contract: local alerts and manual refresh never lose data.
+assert 'def auto_bookings_recent_v4425(user: User = Depends(current_user))' in source
+assert 'db = LocalSessionLocal()' in source.split('def auto_bookings_recent_v4425(', 1)[1].split('@app.get("/api/whatsapp-responses/count")', 1)[0]
+assert 'finally:\n        db.close()' in source.split('def auto_bookings_recent_v4425(', 1)[1].split('@app.get("/api/whatsapp-responses/count")', 1)[0]
+assert 'agenda_cloud_catchup_enabled' in source and 'agenda_cloud_catchup_enabled = True' in agenda
+assert 'await asyncio.to_thread(_v4449_cloud_sync_blocking, week_dates, 1.0)' in agenda
+assert '_v4887_passive_agenda_seconds = 10 * 60' in agenda
+assert 'refresh_cloud=1' in front and 'agendaWhatsappLoadedAt<600000' in front
+assert 'if(!agendaNativeWeek)return;' in front
+assert '_STAGED_STATE_TTL = 600.0' in (ROOT / "recepcion/app/reception_messaging_runtime_guard.py").read_text(encoding="utf-8")
 
 # Runtime and manifests still parse; no patch import chain reintroduced.
 ast.parse(source)
