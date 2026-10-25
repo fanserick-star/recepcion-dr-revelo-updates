@@ -235,7 +235,11 @@ function scheduleIdleCountdown(){
   idleTimer=setTimeout(()=>enterIdleMode(),IDLE_AFTER_MS);
 }
 async function enterIdleMode(){
-  if(appIdleMode || $('#app')?.classList.contains('hidden'))return;
+  // No considerar a Recepción inactiva mientras haya un formulario abierto.
+  if(appIdleMode || $('#app')?.classList.contains('hidden') || !$('#modal')?.classList.contains('hidden')){
+    if(!appIdleMode)scheduleIdleCountdown();
+    return;
+  }
   appIdleMode=true;
   stopConnectivityMonitor();
   setConnectionBadge('idle','En espera','Ahorro de nube activo · Neon no se consulta mientras no uses Recepción');
