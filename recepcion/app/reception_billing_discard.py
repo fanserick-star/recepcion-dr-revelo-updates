@@ -32,7 +32,7 @@ try:
             raise core.HTTPException(404, 'Esta factura ya no está en Por emitir.')
         group_key = core._azur_group_key_for_rows(int(data.patient_id), data.fecha, rows)
         emission = db.scalar(core.select(core.AzurEmission).where(core.AzurEmission.group_key == group_key))
-        if emission and (str(getattr(emission, 'clave_acceso', '') or '').strip() or str(getattr(emission, 'numero_factura', '') or '').strip()):
+        if emission and (str(getattr(emission, 'clave_acceso', '') or '').strip() or str(getattr(emission, 'numero_factura', '') or '').strip() or str(getattr(emission, 'estado', '') or '').upper() in {'AUTO_RESERVADA','AUTO_INCIERTA'}):
             raise core.HTTPException(409, 'Esta factura ya fue enviada a AZUR y no puede eliminarse de Por emitir.')
         touched = []
         for billing, _visit in rows:

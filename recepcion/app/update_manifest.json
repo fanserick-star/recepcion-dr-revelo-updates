@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.87",
-  "app_version": "4.8.87",
-  "runtime_version": "4.8.87",
+  "version": "4.8.88",
+  "app_version": "4.8.88",
+  "runtime_version": "4.8.88",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -98,7 +98,9 @@
     "clinical_delivery_config.py",
     "clinical_delivery_setup.pyw",
     "Configurar_envios_clinicos.vbs",
-    "clinical_selftest_mp4.b64"
+    "clinical_selftest_mp4.b64",
+    "reception_night_close.py",
+    "static/night_closing_4888.js"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -197,19 +199,21 @@
     "Configurar_envios_clinicos.vbs",
     "clinical_video_library.py",
     "clinical_video_lan_server.py",
-    "clinical_selftest_mp4.b64"
+    "clinical_selftest_mp4.b64",
+    "reception_night_close.py",
+    "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.87: optimización permanente de Neon con agenda Cloud bajo demanda, actualización manual y avisos locales. Base 4.8.86: Inicio luminoso remasterizado como diseño aprobado; métricas locales, alertas y accesos sin nueva carga en Neon; control TV privado integrado en menú izquierdo y panel interno, preservando turnos, Historia, agenda, WhatsApp, AZUR y seguridad clínica.",
-    "previous_version": "4.8.85",
+    "purpose": "Recepción 4.8.88: cierre fiscal inteligente opcional a las 19:00, con emisión a AZUR solo si el administrador lo activa expresamente. Guardias antirreenvío, registro preventivo, solo citas facturables del día, no se modifica Historia; conserva optimización Neon v4.8.87.",
+    "previous_version": "4.8.87",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
     "patient_data_changes": false,
     "patient_data_destructive_changes": false,
-    "billing_logic_changes": false,
-    "azur_logic_changes": false,
+    "billing_logic_changes": true,
+    "azur_logic_changes": true,
     "whatsapp_logic_changes": false,
     "whatsapp_send_schedule_changes": false,
     "whatsapp_template_changes": false,
@@ -221,7 +225,7 @@
     "whatsapp_cloud_24_7_preserved": true,
     "whatsapp_unlinked_state_from_inbound": true,
     "whatsapp_unlinked_state_batch_query": true,
-    "whatsapp_unlinked_state_cache_seconds": 30,
+    "whatsapp_unlinked_state_cache_seconds": 600,
     "agenda_native_primary": true,
     "agenda_confirmafy_ui": false,
     "agenda_confirmafy_import_export": false,
@@ -532,8 +536,8 @@
     "billing_issued_uses_emitted_at": true,
     "billing_issued_utc_to_ecuador_hours": -5,
     "billing_issued_legacy_without_emitted_at_fallback_visit_date": true,
-    "neon_agenda_catchup_min_interval_seconds": 60,
-    "neon_agenda_state_min_interval_seconds": 60,
+    "neon_agenda_catchup_min_interval_seconds": 600,
+    "neon_agenda_state_min_interval_seconds": 600,
     "whatsapp_cloud_cron_minutes": 30,
     "whatsapp_cloud_event_driven_confirmation_preserved": true,
     "tv_logic_changes": false,
@@ -609,7 +613,14 @@
     "clinical_delivery_real_patient_live_switch_unchanged": true,
     "home_remaster_4886": true,
     "tv_control_sidebar_4886": true,
-    "tv_local_status_only_4886": true
+    "tv_local_status_only_4886": true,
+    "night_close_fiscal_enabled_by_default": false,
+    "night_close_fiscal_user_opt_in_required": true,
+    "night_close_time_local": "19:00 America/Guayaquil",
+    "night_close_fiscal_requires_pc_running": true,
+    "night_close_fiscal_auto_retry_after_ambiguous_response": false,
+    "night_close_fiscal_mark_emitted_only_after_sri_authorization": true,
+    "night_close_shutdown_force_enabled": false
   },
   "channel": "launcher-v1-stable"
 }

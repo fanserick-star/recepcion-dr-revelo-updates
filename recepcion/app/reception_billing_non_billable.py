@@ -59,6 +59,12 @@ try:
             raise core.HTTPException(404, 'Paciente no encontrado')
         if target == NON_BILLABLE_STATE and str(getattr(patient, 'cedula', '') or '').strip():
             raise core.HTTPException(409, 'Esta opción es solo para pacientes sin cédula/identificación.')
+        # No reclasificar facturas ya enviadas o con resultado nocturno incierto.
+        previous = db.scalar(core.select(core.AzurEmission).where(
+            core.AzurEmission.patient_id == pid, core.AzurEmission.fecha == fecha
+        ).limit(1))
+        if core._azur_issuance_locked(previous):
+            raise core.HTTPException(409, 'Existe envío o intento AZUR previo. Verifica antes de cambiar la clasificación fiscal.')
         rows = core.billing_group_records(db, pid, fecha)
         if not rows:
             raise core.HTTPException(409, 'Esta factura ya fue emitida o ya no está disponible.')
