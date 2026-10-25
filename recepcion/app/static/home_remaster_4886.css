@@ -1,0 +1,93 @@
+/* Recepción 4.8.86 — estilo aprobado: escritorio médico luminoso, TV lateral.
+   Prioridad a Inicio; los motores clínicos, impresión, TV y agenda se conservan. */
+@media(min-width:901px){
+  body.r486-ui #app{grid-template-columns:235px minmax(0,1fr)!important;background:#f4f7fa!important}
+  body.r486-ui aside{background:linear-gradient(180deg,#fbfdff,#f0f5fa)!important;box-shadow:5px 0 24px rgba(24,52,90,.07)!important;border-right:1px solid #e1e8f0!important;padding:20px 12px!important}
+  body.r486-ui aside .brand.brand-wide{border-bottom:1px solid #dce7f1!important;padding-bottom:18px!important}
+  body.r486-ui aside .brand-copy b{color:#193755!important;font-size:20px!important}
+  body.r486-ui aside .brand-copy span{color:#285a86!important;font-size:11px!important}
+  body.r486-ui aside .brand-copy small{color:#70869a!important}
+  body.r486-ui aside .doctor-brand-isotype{background:transparent!important;box-shadow:none!important}
+  body.r486-ui aside .nav-btn{background:transparent!important;color:#3e5772!important;border:1px solid transparent!important;box-shadow:none!important;font-size:13px!important;min-height:45px}
+  body.r486-ui aside .nav-btn:hover{background:#eaf2fb!important;border-color:#dce8f5!important;transform:none!important}
+  body.r486-ui aside .nav-btn.active{background:linear-gradient(90deg,#d6e7fb,#ecf4fc)!important;color:#194e91!important;box-shadow:inset 4px 0 0 #2b70c8!important;border-color:#d9e8f9!important}
+  body.r486-ui aside .nav-btn .nav-icon{color:#355b88!important;background:#e9f1fa!important}
+  body.r486-ui aside .nav-btn.active .nav-icon{color:#1a58a7!important;background:#c7ddf8!important}
+  body.r486-ui aside .nav-btn>span:not(.nav-icon):not(.nav-count-badge){color:inherit!important}
+  body.r486-ui aside .connection-badge.sidebar-status{background:#f6fafc!important;border:1px solid #d9e6f1!important;color:#294d72!important;box-shadow:none!important}
+  body.r486-ui aside .nav-count-badge{color:#543809!important}
+}
+body.r486-ui main{background:#f4f7fa!important}
+body.r486-ui .global-search-wrap{border:1px solid #cedcea!important;border-radius:12px!important;box-shadow:0 3px 13px rgba(20,47,79,.05)!important;background:#fff!important}
+body.r486-ui #inicio .home-title-row{align-items:center!important;margin:4px 0 14px!important}
+body.r486-ui #inicio .page-heading h1{font-size:29px!important;font-weight:900!important;color:#132a46!important;line-height:1.1!important}
+body.r486-ui #inicio .page-heading p{font-size:12px!important;color:#6b7f97!important}
+body.r486-ui #inicio .page-eyebrow{font-size:10px!important;color:#50729a!important}
+body.r486-ui #inicio .new-attention-main{min-height:49px!important;min-width:205px!important;border-radius:11px!important;background:#2369c6!important;color:white!important;box-shadow:0 6px 15px rgba(35,105,198,.13)!important;font-size:14px!important}
+body.r486-ui #inicio .new-attention-main:hover{background:#1558b0!important}
+body.r486-ui #inicio .r486-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:0 0 13px}
+body.r486-ui #inicio .r486-metric{min-width:0;min-height:108px;display:flex;flex-direction:column;gap:5px;padding:13px 12px;border:1px solid #dee8f1;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgba(31,53,86,.035)}
+body.r486-ui #inicio .r486-metric-head{display:flex;align-items:center;gap:7px;min-height:20px;font-size:11px;font-weight:650;color:#536981;line-height:1.18}
+body.r486-ui #inicio .r486-metric-icon{display:grid;place-items:center;flex:0 0 25px;width:25px;height:25px;border-radius:7px;background:#edf4fb;color:#416994;font-size:16px;font-weight:800}
+body.r486-ui #inicio .r486-metric strong{font-weight:900;font-size:26px;letter-spacing:-.04em;color:#182b49;line-height:1.1;margin-left:32px}
+body.r486-ui #inicio .r486-metric small{font-size:10px;color:#6d7f93;margin-left:32px;line-height:1.25}
+body.r486-ui #inicio .r486-metric.r486-money strong{font-size:23px;color:#173960}
+body.r486-ui #inicio .r486-metric.r486-reviews small{color:#31754f}
+body.r486-ui #inicio .r486-metric.r486-waiting small{color:#b06245}
+body.r486-ui #inicio .r486-action-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 12px}
+body.r486-ui #inicio .r486-shortcut{display:flex;align-items:center;gap:11px;min-width:0;min-height:65px;padding:11px 14px;text-align:left;color:#244567;border:1px solid #dce6f1;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(33,54,85,.03);cursor:pointer}
+body.r486-ui #inicio .r486-shortcut:hover{background:#f7fbff;border-color:#b4d3f0}
+body.r486-ui #inicio .r486-shortcut .r486-shortcut-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px;background:#e9f1fc;color:#275da3;font-size:19px;font-weight:800}
+body.r486-ui #inicio .r486-shortcut.whatsapp .r486-shortcut-icon{background:#e6f6ed;color:#16754a}
+body.r486-ui #inicio .r486-shortcut.billing .r486-shortcut-icon{background:#fff3d9;color:#9b6813}
+body.r486-ui #inicio .r486-shortcut.system .r486-shortcut-icon{background:#e8f3f0;color:#247b69}
+body.r486-ui #inicio .r486-shortcut b{display:block;font-size:12px;color:#1d3552}
+body.r486-ui #inicio .r486-shortcut small{display:block;font-size:10px;font-weight:500;line-height:1.3;color:#6a7c92;margin-top:2px}
+body.r486-ui #inicio .r486-shortcut-arrow{margin-left:auto;color:#8a9cb0;font-size:20px}
+body.r486-ui #inicio #homeWhatsappReviewStrip{margin:0 0 9px!important}
+body.r486-ui #inicio #homePendingStrip{margin:0 0 7px!important;gap:8px!important}
+body.r486-ui #inicio .home-reminder-card{min-height:60px!important;padding:9px 12px!important;border-radius:11px!important}
+body.r486-ui #inicio #homeSmartAlertsButton{margin:5px 0 8px!important;font-size:11px!important}
+body.r486-ui #inicio #homeDaySummary4816{display:none!important}
+body.r486-ui #inicio .home-week-nav{margin:12px 0 9px!important;justify-content:flex-start!important}
+body.r486-ui #inicio .tiny-week-label{font-size:12px!important;font-weight:800!important;background:#fff!important;padding:8px 13px!important;color:#27435f!important}
+body.r486-ui #inicio .tiny-week-btn{min-height:35px!important;min-width:36px!important;border-radius:9px!important;font-size:13px!important}
+body.r486-ui #inicio .week-cards{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;margin:0 0 12px!important}
+body.r486-ui #inicio .week-card.v478-week-chip{min-height:98px!important;display:grid!important;grid-template-columns:1fr auto!important;grid-template-areas:'day count' 'meta count' 'total total'!important;align-content:center!important;gap:5px 8px!important;padding:15px 16px!important;border-radius:13px!important;background:#fff!important;border:1px solid #dce5ef!important;box-shadow:0 2px 9px rgba(20,41,70,.04)!important}
+body.r486-ui #inicio .v478-week-chip .week-day{font-size:14px!important;font-weight:850!important;color:#243c5c!important}
+body.r486-ui #inicio .v478-week-chip .v478-week-count{font-size:26px!important;color:#234e7f!important}
+body.r486-ui #inicio .v478-week-chip .v478-week-meta{font-size:10px!important;color:#71839b!important}
+body.r486-ui #inicio .v478-week-chip .v478-week-total{font-size:13px!important;color:#168057!important}
+body.r486-ui #inicio .week-card.v478-week-chip.active{background:#eaf3ff!important;border:2px solid #4d8ded!important;box-shadow:inset 0 0 0 1px #d6e9ff!important}
+body.r486-ui #inicio .v478-week-total-card{display:none!important}
+body.r486-ui #inicio .selected-day-title{margin:10px 0 10px!important}
+body.r486-ui #inicio .v478-day-head h2{font-size:20px!important;color:#203956!important}
+body.r486-ui #inicio .v478-day-kicker{font-size:9px!important;color:#51769e!important}
+body.r486-ui #inicio .v478-day-stats span{background:#e9f1fa!important;color:#315c8e!important;font-size:11px!important}
+body.r486-ui #inicio #todayTable{border:1px solid #dfe8f1!important;border-radius:13px!important;background:#fff!important;overflow-x:auto!important;box-shadow:0 3px 14px rgba(28,47,72,.045)!important}
+body.r486-ui #inicio .home-patient-table thead th{background:#edf2f7!important;font-size:10px!important;padding:10px 11px!important;color:#445e7d!important}
+body.r486-ui #inicio .home-patient-table td{padding:9px 11px!important;border-color:#e8edf3!important}
+body.r486-ui #inicio .v478-home-table .patient-name-line>a{font-size:13px!important;font-weight:850!important}
+body.r486-ui #inicio .v478-home-table .money-pill{font-size:11px!important;padding:6px 8px!important}
+body.r486-ui #inicio .v478-home-actions>button{font-size:10px!important;padding:7px 9px!important;min-height:32px!important}
+body.r486-ui #inicio .v478-home-table .service-badge{font-size:10px!important;padding:5px 8px!important}
+body.r486-ui #inicio .v478-home-table .row-number{font-size:13px!important}
+body.r486-ui .r486-tv-card{display:grid;gap:5px;min-height:104px;padding:12px;margin:7px 3px;border:1px solid #dce6f1;border-radius:13px;background:#fff;text-align:left;color:#284463;box-shadow:0 3px 11px rgba(22,48,80,.04);cursor:pointer}
+body.r486-ui .r486-tv-card:hover{border-color:#a9c9e9;background:#f7fbff}
+body.r486-ui .r486-tv-card b{font-size:12px;color:#234260}
+body.r486-ui .r486-tv-card small{font-size:10px;color:#74859a;line-height:1.3}
+body.r486-ui .r486-tv-pill{display:inline-flex;align-items:center;width:max-content;padding:4px 8px;font-size:10px;font-weight:850;border-radius:999px}
+body.r486-ui .r486-tv-pill.online{background:#e3f7ec;color:#147b47}
+body.r486-ui .r486-tv-pill.offline{background:#f4f0e8;color:#80684d}
+body.r486-ui .r486-tv-head{display:flex;align-items:center;gap:8px}
+body.r486-ui .r486-tv-screen{font-size:17px;color:#2767ae}
+body.r486-ui #tv .r486-tv-page-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px}
+body.r486-ui #tv .r486-tv-page-head h1{font-size:27px;margin:0;color:#173657}
+body.r486-ui #tv .r486-tv-page-head p{font-size:12px;color:#657994;margin:5px 0 0}
+body.r486-ui #tv .r486-tv-note{border:1px solid #cfe2f3;background:#eaf4fe;border-radius:12px;padding:12px 14px;font-size:12px;color:#345c82;margin-bottom:13px}
+body.r486-ui #tv .r486-tv-frame{display:block;width:100%;height:calc(100vh - 255px);min-height:620px;border:1px solid #dce7f2;background:#fff;border-radius:15px}
+body.r486-ui #tv .r486-tv-reload{padding:10px 16px;border-radius:10px;background:#e8f0fa;color:#235993;border:1px solid #bfd5ef;font-weight:850;cursor:pointer}
+@media(max-width:1400px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-metric{min-height:93px}body.r486-ui #inicio .r486-action-strip{gap:7px}}
+@media(max-width:1050px){body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr 1fr}body.r486-ui #inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.r486-ui #inicio .r486-shortcut.system{grid-column:1/-1}}
+@media(max-width:900px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr}body.r486-ui #inicio .r486-shortcut.system{grid-column:auto}body.r486-ui .r486-tv-card{display:none!important}}
+@media(max-width:640px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.r486-ui #inicio .week-cards{grid-template-columns:1fr!important}body.r486-ui #tv .r486-tv-page-head{align-items:flex-start;flex-direction:column}}
