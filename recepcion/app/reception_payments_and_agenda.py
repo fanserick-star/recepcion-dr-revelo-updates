@@ -223,7 +223,11 @@ try:
     _v4445_cloud_agenda_lock = core.threading.Lock()
     _v4445_cloud_agenda_at = {}
 
-    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=60.0) -> int:
+    # v4.8.87: nunca sincronizar pasivamente con una frecuencia que impida
+    # que Neon entre en suspensión. Las mutaciones conservan sus rutas Cloud.
+    _v4887_passive_agenda_seconds = 10 * 60
+
+    def _v4445_sync_cloud_agenda_for_dates(dates, min_interval: float=600.0) -> int:
         normalized = []
         for value in dates or []:
             try:
@@ -303,7 +307,18 @@ try:
                 anchor_date = _date.fromisoformat(raw_anchor[:10])
                 monday = anchor_date - core.timedelta(days=anchor_date.weekday())
                 week_dates = [monday + core.timedelta(days=i) for i in range(7)]
-                _v4445_sync_cloud_agenda_for_dates(week_dates)
+                if str(request.query_params.get('refresh_cloud') or '') == '1':
+                    # Actualización EXPLÍCITA del personal: espera una sola
+                    # sincronización antes de devolver la agenda; no es sondeo.
+                    import asyncio
+                    await asyncio.to_thread(_v4449_cloud_sync_blocking, week_dates, 1.0)
+                    try:
+                        import reception_messaging_runtime_guard as _wa_guard
+                        _wa_guard._STAGED_STATE_CACHE.clear()
+                    except Exception:
+                        pass
+                else:
+                    _v4445_sync_cloud_agenda_for_dates(week_dates)
             except Exception:
                 pass
         return await call_next(request)
@@ -335,7 +350,7 @@ try:
     _v4449_cloud_bg_guard = core.threading.Lock()
     _v4449_cloud_bg_keys: set[str] = set()
 
-    def _v4449_cloud_sync_background(dates, min_interval: float=60.0) -> int:
+    def _v4449_cloud_sync_background(dates, min_interval: float=600.0) -> int:
         normalized = []
         for value in dates or []:
             try:
@@ -361,6 +376,9 @@ try:
         core.threading.Thread(target=worker, daemon=True, name='rp-agenda-cloud-catchup').start()
         return 0
     _v4445_sync_cloud_agenda_for_dates = _v4449_cloud_sync_background
+    # v4.8.87: el middleware ya trae estados de citas vinculadas.
+    # Evitar que core.agenda_week dispare una segunda consulta de respaldo.
+    core.app.state.agenda_cloud_catchup_enabled = True
     _v4449_timeline_defs_stable = core._wa_timeline_defs
 
     def _v4449_timeline_defs(fecha, hora, created_at=None):

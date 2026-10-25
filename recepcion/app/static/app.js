@@ -3433,7 +3433,9 @@ function renderAgendaWhatsappToolbar(week=agendaNativeWeek,data=null){
 }
 async function loadAgendaWhatsappOverlay(week=agendaNativeWeek,force=false){
   if(!week||appIdleMode)return null;
-  const key=agendaWhatsappWeekKeyFor(week),fresh=agendaWhatsappLoadedAt&&Date.now()-agendaWhatsappLoadedAt<120000;
+  // v4.8.87: no repetir sondeos pasivos que mantengan Neon despierto.
+  // El botón «Actualizar WhatsApp» conserva force=true para revisión inmediata.
+  const key=agendaWhatsappWeekKeyFor(week),fresh=agendaWhatsappLoadedAt&&Date.now()-agendaWhatsappLoadedAt<600000;
   if(!force&&fresh&&key===agendaWhatsappWeekKey){renderNativeAgenda(week);renderAgendaWhatsappToolbar(week);return {items:agendaWhatsappItems}}
   try{
     const d=await api('/api/whatsapp-responses?scope=all&limit=200');
@@ -3443,7 +3445,16 @@ async function loadAgendaWhatsappOverlay(week=agendaNativeWeek,force=false){
     renderNativeAgenda(week);renderAgendaWhatsappToolbar(week,d);return d;
   }catch(e){agendaWhatsappAvailable=false;renderAgendaWhatsappToolbar(week);return null}
 }
-async function refreshAgendaWhatsapp(){agendaWhatsappLoadedAt=0;if(agendaNativeWeek)await loadAgendaWhatsappOverlay(agendaNativeWeek,true)}
+async function refreshAgendaWhatsapp(){
+  if(!agendaNativeWeek)return;
+  agendaWhatsappLoadedAt=0;
+  // Acción manual: trae citas y confirmaciones actuales de Neon. Las aperturas
+  // normales usan SQLite y respetan la ventana pasiva de bajo consumo.
+  try{
+    await api('/api/agenda/week?anchor='+encodeURIComponent(agendaNativeAnchor)+'&refresh_cloud=1');
+  }catch(e){console.warn('agenda_manual_cloud_sync_unavailable',e)}
+  await loadAgenda();
+}
 function toggleAgendaWhatsappReviewPanel(){
   if(!agendaWhatsappAvailable)return;agendaWhatsappReviewPanelOpen=!agendaWhatsappReviewPanelOpen;renderAgendaWhatsappToolbar(agendaNativeWeek);
 }

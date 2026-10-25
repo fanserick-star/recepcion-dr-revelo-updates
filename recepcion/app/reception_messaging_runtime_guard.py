@@ -11,7 +11,9 @@ APP_VERSION = "4.6.40"
 _INSTALLED = False
 _ORIGINAL_INSTALL = messaging.install
 _STAGED_STATE_CACHE: dict[int, tuple[float, str]] = {}
-_STAGED_STATE_TTL = 30.0
+# v4.8.87: las confirmaciones visuales usan caché; la actualización manual
+# de WhatsApp permanece disponible y el envío de alarmas no se modifica.
+_STAGED_STATE_TTL = 600.0
 
 
 def _iso(value) -> str:

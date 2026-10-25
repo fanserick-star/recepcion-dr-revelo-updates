@@ -7950,7 +7950,11 @@ def agenda_week(anchor: date, db: Session = Depends(get_db), user: User = Depend
     dates = [d for _, d in day_defs]
     # Refresca únicamente CONFIRMADA / NO_ASISTIRA y demás estados cambiados
     # desde WhatsApp Cloud antes de dibujar la semana.
-    _kick_agenda_status_sync(dates)
+    # v4.8.87: la sincronización Cloud de v4449 ya incorpora estado,
+    # pacientes y citas. No lanzar una segunda conexión independiente a Neon.
+    # Conservamos el puente original como fallback si el instalador no se carga.
+    if not getattr(app.state, "agenda_cloud_catchup_enabled", False):
+        _kick_agenda_status_sync(dates)
     linked_rows = db.execute(
         select(Appointment, Patient).join(Patient)
         .where(Appointment.fecha.in_(dates), Appointment.origen != CONFIRMAFY_ATTENDED_ORIGIN)
@@ -13209,7 +13213,10 @@ def _wa_apply_ok(result: str) -> bool:
 
 
 @app.get("/api/auto-bookings/recent")
-def auto_bookings_recent_v4425(db: Session = Depends(get_db), user: User = Depends(current_user)):
+def auto_bookings_recent_v4425(user: User = Depends(current_user)):
+    # Esta notificación es únicamente visual: jamás debe despertar Neon.
+    # La agenda Cloud se incorpora a SQLite por el sincronizador de agenda.
+    db = LocalSessionLocal()
     try:
         cutoff = date.today() - timedelta(days=1)
         rows = list(db.scalars(
@@ -13238,6 +13245,8 @@ def auto_bookings_recent_v4425(db: Session = Depends(get_db), user: User = Depen
         }
     except Exception as exc:
         return {"items": [], "source": "sqlite-local", "error": str(exc)[:160]}
+    finally:
+        db.close()
 
 @app.get("/api/whatsapp-responses/count")
 def whatsapp_responses_count(user: User = Depends(current_user)):
