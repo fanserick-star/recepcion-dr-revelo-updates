@@ -234,6 +234,10 @@ def _execute(today):
                "uncertain": 0, "details": [], "status": "complete"}
     if core.queue_count() > 0:
         return {**summary, "status": "deferred", "reason": "Hay cambios pendientes de sincronizar"}
+    if _local_summary() == 0:
+        # Ninguna factura pendiente en la copia local: no despertar Neon de
+        # noche ni abrir una conexión fiscal inútil.
+        return {**summary, "status": "complete", "reason": "No hay facturas del día"}
     if not core.cloud_configured() or not core.AZUR_LIVE_EMISSION:
         return {**summary, "status": "deferred", "reason": "Neon o emisión AZUR desactivados"}
     if not core.AZUR_BASE_URL or not core.AZUR_API_KEY:
