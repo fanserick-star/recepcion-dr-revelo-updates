@@ -31,7 +31,7 @@
       '<div class="rp-night-close-status" id="rpNightState">Consultando configuración…</div>' +
       '<small id="rpNightPending"></small><small id="rpNightLast"></small>' +
       '<div class="rp-night-close-actions"><button id="rpNightToggle" type="button" disabled>Configurando…</button><button id="rpNightRefresh" type="button">↻ Revisar estado</button></div>' +
-      '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No se cierra Historia Clínica.</small>';
+      '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Antes de activarlo, verifica que los datos de facturación alternativa estén guardados en Preferencias y que la forma de pago predeterminada de AZUR sea correcta. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No se cierra Historia Clínica.</small>';
     section.insertBefore(panel,section.firstElementChild);
     panel.querySelector('#rpNightRefresh')?.addEventListener('click',refresh);
     panel.querySelector('#rpNightToggle')?.addEventListener('click',toggle);
@@ -56,7 +56,7 @@
     const enabled=panel.dataset.enabled==='1';
     let confirmation='';
     if(!enabled){
-      if(!window.confirm('Esto habilitará la EMISIÓN REAL automática de facturas electrónicas hacia AZUR/SRI, sin pedir permiso por cada factura.\n\nSolo se procesan las facturas elegibles del mismo día, con Recepción abierta y sin actividad. No se reenvían intentos inciertos.\n\n¿Deseas habilitarlo?'))return;
+      if(!window.confirm('Esto habilitará la EMISIÓN REAL automática de facturas electrónicas hacia AZUR/SRI, sin pedir permiso por cada factura.\n\nSolo se procesan las facturas elegibles del mismo día, con Recepción abierta y sin actividad. Se usa el receptor guardado y la forma de pago de AZUR configurada; compruébalos antes de activar. No se reenvían intentos inciertos.\n\n¿Deseas habilitarlo?'))return;
       confirmation=window.prompt('Para activarlo escribe exactamente: FACTURAR AUTOMATICAMENTE')||'';
       if(confirmation.trim().toUpperCase()!=='FACTURAR AUTOMATICAMENTE'){
         window.alert('No se activó. La frase de confirmación no coincide.');
