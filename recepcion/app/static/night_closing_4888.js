@@ -30,8 +30,9 @@
       '<p>Al activarlo, Recepción intentará emitir <strong>solo las facturas elegibles de hoy</strong> cuando esté inactiva. No reenvía intentos con resultado incierto. Debes dejar la PC y Recepción encendidas.</p>' +
       '<div class="rp-night-close-status" id="rpNightState">Consultando configuración…</div>' +
       '<small id="rpNightPending"></small><small id="rpNightLast"></small>' +
+      '<small id="rpNightOpenPolicy">Recepción e Historia Clínica permanecerán abiertas toda la noche.</small>' +
       '<div class="rp-night-close-actions"><button id="rpNightToggle" type="button" disabled>Configurando…</button><button id="rpNightRefresh" type="button">↻ Revisar estado</button></div>' +
-      '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Antes de activarlo, verifica que los datos de facturación alternativa estén guardados en Preferencias y que la forma de pago predeterminada de AZUR sea correcta. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No se cierra Historia Clínica.</small>';
+      '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Antes de activarlo, verifica que los datos de facturación alternativa estén guardados en Preferencias y que la forma de pago predeterminada de AZUR sea correcta. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No hay cierre automático de Recepción, Historia Clínica, Windows o el servidor LAN.</small>';
     section.insertBefore(panel,section.firstElementChild);
     panel.querySelector('#rpNightRefresh')?.addEventListener('click',refresh);
     panel.querySelector('#rpNightToggle')?.addEventListener('click',toggle);
@@ -42,6 +43,9 @@
     try{
       const d=await req('/api/night-close/status');
       panel.dataset.enabled=d.enabled?'1':'0';
+      setText('rpNightOpenPolicy',d.programs_remain_open===true && d.auto_close_programs===false
+        ? '✓ Recepción e Historia Clínica permanecen abiertas. El descanso no apaga ni cierra programas.'
+        : '⚠ No se pudo comprobar la política de no cerrar programas; revisa la actualización.');
       panel.querySelector('#rpNightState')?.classList.toggle('active',!!d.enabled);
       setText('rpNightState',d.enabled?'ACTIVADO · emisión fiscal automática desde las 19:00':'DESACTIVADO · ninguna emisión automática');
       setText('rpNightPending','Hoy: '+(d.local_groups_to_review||0)+' grupo(s) por revisar · '+(d.pending_local_sync||0)+' cambio(s) pendientes de sincronización');
