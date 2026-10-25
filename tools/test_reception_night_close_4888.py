@@ -79,6 +79,7 @@ fake_core = SimpleNamespace(
     _state_lock=threading.Lock(),
     _state={"client_idle": True, "idle_since": time.time() - 1200},
     queue_count=lambda: 0,
+    cloud_engine=None,
 )
 def load():
     return dict(state)
