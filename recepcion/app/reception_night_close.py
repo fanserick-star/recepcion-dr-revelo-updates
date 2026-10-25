@@ -23,6 +23,11 @@ LOCK = threading.Lock()
 _STARTED = False
 MAX_GROUPS = 25
 CONFIRMATION = "FACTURAR AUTOMATICAMENTE"
+# Política del consultorio: el descanso nocturno NUNCA cierra Recepción,
+# Historia Clínica, WebView2, Windows ni el servidor LAN. Solo reduce
+# consultas a Neon y (si está habilitado) procesa la cola fiscal aprobada.
+# Esta regla también forma parte del contrato de regresión en CI.
+NIGHT_REST_AUTO_CLOSE_PROGRAMS = False
 
 
 def _now():
@@ -86,6 +91,8 @@ def night_close_status(user=core.Depends(core.current_user)):
         "last_result": cfg.get("last_result") or {},
         "requires_pc_on": True,
         "emits_only_current_day": True,
+        "auto_close_programs": NIGHT_REST_AUTO_CLOSE_PROGRAMS,
+        "programs_remain_open": True,
     }
 
 
@@ -101,7 +108,11 @@ def night_close_config(data: ConfigIn, user=core.Depends(core.current_user)):
         cfg = _load()
         cfg["enabled"] = bool(data.enabled)
         _save(cfg)
-    return {"ok": True, "enabled": bool(data.enabled), "hour": 19}
+    return {
+        "ok": True, "enabled": bool(data.enabled), "hour": 19,
+        "auto_close_programs": NIGHT_REST_AUTO_CLOSE_PROGRAMS,
+        "programs_remain_open": True,
+    }
 
 
 def _candidate_groups(db, today):
@@ -316,6 +327,8 @@ def _tick():
 
 
 def _watch():
+    # El vigilante nocturno permanece dentro del proceso actual: nunca intenta
+    # terminar procesos ni ventanas. Los usuarios los cierran manualmente.
     while True:
         try:
             _tick()
