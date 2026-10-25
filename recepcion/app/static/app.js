@@ -236,7 +236,8 @@ function scheduleIdleCountdown(){
 }
 async function enterIdleMode(){
   // No considerar a Recepción inactiva mientras haya un formulario abierto.
-  if(appIdleMode || $('#app')?.classList.contains('hidden') || !$('#modal')?.classList.contains('hidden')){
+  const editing=document.activeElement?.matches?.('input,textarea,select,[contenteditable="true"]');
+  if(appIdleMode || $('#app')?.classList.contains('hidden') || !$('#modal')?.classList.contains('hidden') || editing){
     if(!appIdleMode)scheduleIdleCountdown();
     return;
   }
