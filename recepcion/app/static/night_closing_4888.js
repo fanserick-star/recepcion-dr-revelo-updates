@@ -32,7 +32,7 @@
       '<small id="rpNightPending"></small><small id="rpNightLast"></small>' +
       '<div class="rp-night-close-actions"><button id="rpNightToggle" type="button" disabled>Configurando…</button><button id="rpNightRefresh" type="button">↻ Revisar estado</button></div>' +
       '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No se cierra Historia Clínica.</small>';
-    section.insertBefore(panel,section.querySelector('.billing-summary')||section.firstElementChild);
+    section.insertBefore(panel,section.firstElementChild);
     panel.querySelector('#rpNightRefresh')?.addEventListener('click',refresh);
     panel.querySelector('#rpNightToggle')?.addEventListener('click',toggle);
     refresh();
