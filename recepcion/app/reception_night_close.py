@@ -274,8 +274,9 @@ def _tick():
         # No emitir mientras Recepción se usa activamente. Evitar procesar
         # formularios o cobrar pacientes a mitad de jornada.
         with core._state_lock:
-            idle_secs = time.time() - float(core._state.get("last_activity") or time.time())
-        if idle_secs < 15 * 60:
+            app_is_idle = bool(core._state.get("client_idle"))
+            idle_secs = time.time() - float(core._state.get("idle_since") or time.time())
+        if not app_is_idle or idle_secs < 15 * 60:
             return
         if int(core.queue_count()) > 0:
             return
