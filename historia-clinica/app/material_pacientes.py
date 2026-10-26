@@ -216,8 +216,10 @@ def _nav(path: str) -> str:
     def link(href: str, label: str, active: bool = False) -> str:
         return f"<a class='{'active' if active else ''}' href='{href}'>{label}</a>"
     return (
-        "<header class='topbar'><div class='brand'><div class='brand-mark'>H</div>"
-        "<div><strong>Historia Clínica</strong><span>Dr. Armando Revelo</span></div></div><nav>"
+        "<header class='topbar'><div class='brand'>"
+        "<img class='brand-logo' src='/static/doctor_logo.png' alt='Logo del consultorio'>"
+        "<div class='brand-copy'><strong>Historia Clínica</strong><small>Dr. Armando Revelo</small></div>"
+        "</div><nav>"
         + link("/", "Inicio")
         + link("/pacientes", "Pacientes")
         + link("/recetas", "Recetas")
