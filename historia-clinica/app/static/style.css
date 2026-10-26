@@ -4246,6 +4246,10 @@ body.hc-b-app>main{max-width:none!important;width:100%!important;margin:0!import
 /* Inicio B v1.4.52 · jerarquía visual restaurada en lista de espera.
    Sólo estilos: no cambia turnos, prioridad, llamadas TV ni enlaces clínicos. */
 @media screen and (min-width:761px){
+  /* Inicio no muestra la topbar clásica; aprovecha todo el alto del monitor. */
+  body.hc-b-app>main{
+    height:100vh!important;min-height:100vh!important;overflow:hidden!important;
+  }
   body.hc-b-app .hc-b-center{
     display:flex!important;flex-direction:column!important;
     height:calc(100vh - 103px)!important;min-height:0!important;
