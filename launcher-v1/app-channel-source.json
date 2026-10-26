@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.93: preserva Inicio 4.8.92; cola LAN justa frente a 30+ turnos, reintentos SQLite durables, cancelaciones seguras y estado LAN independiente de los turnos pendientes. CI comprueba todo antes de publicar."
+  "notes": "Recepción 4.8.94: pacientes atendidos arriba del resumen semanal con tabla amplia; sin accesos redundantes WhatsApp/facturación/sistema ni panel/atajo flotante de TV. TV y estados técnicos permanecen disponibles en menú y barra compacta."
 }
