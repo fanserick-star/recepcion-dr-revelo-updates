@@ -112,7 +112,7 @@ def check_delivery_worker_and_badge():
     app = (ROOT / "recepcion/app/app.py").read_text(encoding="utf-8")
     assert "RUNTIME_CONSOLIDATED = True" in app
     version = (ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
-    assert '"4.8.91"' in version
+    assert any('"' + v + '"' in version for v in ('4.8.91', '4.8.92'))
 
 
 if __name__ == "__main__":
