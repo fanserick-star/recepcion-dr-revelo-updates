@@ -4210,3 +4210,34 @@ body.hc-b-app>main{max-width:none!important;width:100%!important;margin:0!import
     width:100%!important;margin:0!important;padding:0!important;
   }
 }
+
+
+/* Historia v1.4.51 · listado de informes con navegación y acceso rápido limpio. */
+@media screen{
+  body.hc-b-app .hc-b-documents .hc-b-shortcut-grid > :last-child:nth-child(odd){
+    grid-column:1/-1;
+    min-height:63px;
+    flex-direction:row;
+    gap:12px;
+  }
+  body.hc-b-app .hc-b-documents .hc-b-shortcut-grid > :last-child:nth-child(odd) span{
+    font-size:23px;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor):has(.report-list-card) > main{
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    scrollbar-gutter:stable;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .report-list-card{
+    overflow-x:auto;
+    border:1px solid #d4e5f4!important;
+    border-radius:11px!important;
+    background:#fff!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .report-list-table th{
+    color:#214e7c;background:#f1f7fe;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .report-list-table td{
+    background:#fff;border-color:#e0ebf5;
+  }
+}
