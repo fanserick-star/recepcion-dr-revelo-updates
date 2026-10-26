@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.94",
-  "app_version": "4.8.94",
-  "runtime_version": "4.8.94",
+  "version": "4.8.95",
+  "app_version": "4.8.95",
+  "runtime_version": "4.8.95",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.94: Inicio prioriza la tabla de pacientes (antes del resumen semanal, más altura visible y encabezado fijo); retira tres accesos inferiores redundantes, panel duplicado TV lateral y botón flotante TV; conserva TV en menú, funciones WhatsApp/facturación/sistema y estados técnicos compactos y legibles junto al buscador. Sin modificar turnos, datos, Neón, facturación ni mensajes.",
-    "previous_version": "4.8.93",
+    "purpose": "Recepción 4.8.95: indicadores En línea, Historia LAN y versión regresan al pie del menú lateral en tarjetas compactas y legibles sin tapar el Inicio. Cierre fiscal inteligente sale de la pantalla Facturación y queda en Configuración → Facturación y cobros → Cierre fiscal inteligente (desplegable). Preserva emisión nocturna opt-in y salvaguardas, pacientes, facturas, LAN, impresoras y WhatsApp.",
+    "previous_version": "4.8.94",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -656,7 +656,11 @@
     "home_duplicated_tv_panel_removed": true,
     "home_floating_tv_removed": true,
     "home_secondary_shortcuts_removed": true,
-    "technical_status_compact_outside_sidebar": true
+    "technical_status_compact_outside_sidebar": true,
+    "sidebar_status_readable_bottom": true,
+    "home_status_strip_removed": true,
+    "fiscal_automation_config_only": true,
+    "fiscal_automation_protected_optin_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }
