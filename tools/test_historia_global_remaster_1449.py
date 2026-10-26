@@ -76,7 +76,7 @@ assert patient_page.count('class="hc-g-sidebar"')==1, "No se montó el menú lat
 assert 'href="/" title="Volver al inicio"' in patient_page, "No existe enlace Inicio"
 assert '<span class="hc-g-side-name">Inicio</span>' in patient_page
 assert patient_page.index('class="hc-g-sidebar"') < patient_page.index("<main>")
-assert 'id="ficha-clinica"' in patient_page
+assert "id='ficha-clinica'" in patient_page
 consult_page=isolated["base"]("Atención","<div id='consulta'></div>","pacientes")
 assert consult_page.count('class="hc-g-sidebar"')==1
 doc_page=isolated["base"]("Receta","<div class='docs-wrap'></div>","recetas")
