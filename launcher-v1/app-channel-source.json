@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.91: recuperación rápida del indicador LAN y pacientes en espera mediante monitor exclusivo de red y worker independiente para entrega verificada. No cambia Historia, facturación ni WhatsApp."
+  "notes": "Inicio más ágil: atenciones del día en primer plano, tabla de pacientes más clara y accesos secundarios preservados. Conserva las mejoras LAN de 4.8.91 y no cambia Historia, facturación, WhatsApp ni Neón."
 }
