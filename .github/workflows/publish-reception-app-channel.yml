@@ -78,6 +78,7 @@ jobs:
           python tools/test_reception_auto_clinical_chart.py
           python tools/test_reception_fast_save_4890.py
           python tools/test_reception_lan_fast_reconnect_4891.py
+          python tools/test_reception_historia_queue_hardening_4892.py
           python tools/test_reception_whatsapp_timeline_4820.py
           python tools/test_reception_active_messaging_panel_4822.py
           python tools/test_reception_smart_alerts_4814.py
