@@ -88,4 +88,28 @@ assert 'class="hc-g-sidebar"' not in home_page
 assert 'display:inline-flex!important' in css and ".brand-home-link" in css
 print("HISTORIA_REAL_RENDER_SIDEBAR_VISIBLE_1450_OK")
 
+
+# Contrato 1.4.51: listado de informes dentro del shell lateral, editor separado.
+report_tree=ast.parse(reports)
+report_install=next(n for n in report_tree.body if isinstance(n,ast.FunctionDef) and n.name=="install")
+list_node=next(n for n in report_install.body if isinstance(n,ast.FunctionDef) and n.name=="list_reports")
+returns=[n.value for n in ast.walk(list_node) if isinstance(n,ast.Return)]
+assert len(returns)==1
+outer=returns[0]
+assert isinstance(outer,ast.Call) and isinstance(outer.func,ast.Name) and outer.func.id=="HTMLResponse"
+assert len(outer.args)==1
+inner=outer.args[0]
+assert isinstance(inner,ast.Call) and isinstance(inner.func,ast.Name) and inner.func.id=="base", "Informes ocultó navegación izquierda"
+assert [x.value for x in inner.args[::2] if isinstance(x,ast.Constant)][:1]==["Informes médicos"]
+assert 'return HTMLResponse(_document_editor_shell(base, "Informes médicos", body + script, "informes"))' in reports, "Editor de informes debe permanecer independiente"
+home_right=app.split('<div class="hc-b-shortcut-grid">',1)[1].split('</div>',1)[0]
+assert 'data-hc-create="receta"' in home_right
+assert 'data-hc-create="certificado"' in home_right
+assert 'data-hc-create="informe"' in home_right
+assert "Videocistoscopías" not in home_right, "Atajo duplicado en Inicio"
+assert 'id="patient-videos-open"' in app, "Se perdió galería de videocistoscopías del paciente"
+assert '("videos", "▣", "Videocistoscopías", "/pacientes")' in app, "Se perdió navegador lateral"
+assert 'body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor):has(.report-list-card) > main' in css
+print("HISTORIA_1451_REPORT_LIST_SIDEBAR_HOME_VIDEO_TILE_REMOVED_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
