@@ -112,7 +112,10 @@ def check_delivery_worker_and_badge():
     app = (ROOT / "recepcion/app/app.py").read_text(encoding="utf-8")
     assert "RUNTIME_CONSOLIDATED = True" in app
     version = (ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
-    assert '"4.8.91"' in version
+    # La protección LAN se exige desde 4.8.91; no debe bloquear futuras versiones.
+    import json
+    release = tuple(int(part) for part in json.loads(version)["version"].split("."))
+    assert release >= (4, 8, 91), release
 
 
 if __name__ == "__main__":
