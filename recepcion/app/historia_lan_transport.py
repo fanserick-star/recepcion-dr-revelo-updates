@@ -279,7 +279,8 @@ def send_lan(payload: dict) -> bool:
             timeout=1.25,
         )
         if not result.get("ok"):
-            raise RuntimeError(str(result.get("error") or "Historia rechazó el turno"))
+            _set_state(lan_last_error=str(result.get("error") or "Historia rechazó el turno")[:160])
+            return False
         _set_state(
             lan_online=True,
             lan_last_seen=_now(),
@@ -313,7 +314,12 @@ def send_lan(payload: dict) -> bool:
                         return True
                 except Exception:
                     pass
-        _set_state(lan_online=False, lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
+        # HTTP 400/409/500 means Historia answered: do not report a cable
+        # failure or trigger a needless 500-host subnet rediscovery.
+        if exc.code != 403:
+            _set_state(lan_last_error=f"Historia rechazó turno (HTTP {exc.code})")
+        else:
+            _set_state(lan_online=False, lan_last_error="Historia rechazó token LAN (403)")
         return False
     except Exception as exc:
         _set_state(lan_online=False, lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
@@ -594,6 +600,7 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
         return
     try:
         _expire_stale_lan_outbox()
+        neon_unavailable = False
         batch_size = max(1, int(max_items))
         with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
             rows = conn.execute(
@@ -631,6 +638,7 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
                         # Connection failure affects the entire Neon endpoint.
                         # Stop probing repeatedly in this cycle; keep new events safe.
                         if transient:
+                            neon_unavailable = True
                             break
                         continue
                     verified_by_patient[patient_id] = verified_id
@@ -650,7 +658,7 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
                 continue
         # New visits after a backlog receive a chance every bounded batch.
         # Retries with future deadlines are excluded, preventing busy loops.
-        if len(rows) >= batch_size and _ready_lan_count() > 0:
+        if not neon_unavailable and len(rows) >= batch_size and _ready_lan_count() > 0:
             _DELIVERY_WAKE.set()
     finally:
         _HANDOFF_FLUSH_LOCK.release()
@@ -860,7 +868,8 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
                     lan_last_error="",
                 )
                 return True
-            raise RuntimeError(str(result.get("error") or "Historia rechazó la acción"))
+            _set_state(lan_last_error=str(result.get("error") or "Historia rechazó la acción")[:160])
+            return False
         except urllib.error.HTTPError as exc:
             if exc.code == 403 and attempt == 0:
                 _set_state(token="", token_host="")
@@ -869,7 +878,10 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
                 token = str(fresh.get("token") or "")
                 if host and token:
                     continue
-            _set_state(lan_online=False, lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
+            if exc.code != 403:
+                _set_state(lan_last_error=f"Historia rechazó control (HTTP {exc.code})")
+            else:
+                _set_state(lan_online=False, lan_last_error="Historia rechazó token LAN (403)")
             return False
         except Exception as exc:
             _set_state(lan_online=False, lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
