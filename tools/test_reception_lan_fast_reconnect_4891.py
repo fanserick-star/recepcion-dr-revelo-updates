@@ -47,7 +47,7 @@ def check_monitor_never_waits_for_neon():
     original_control = lan._flush_control_outbox
     original_wake = lan._DELIVERY_WAKE
     calls = []
-    class Stop(Exception): pass
+    class Stop(BaseException): pass
     class Wake:
         def set(self):
             calls.append("wake")
@@ -78,7 +78,7 @@ def check_delivery_worker_and_badge():
     original_control = lan._flush_control_outbox
     original_wake = lan._DELIVERY_WAKE
     calls = []
-    class Stop(Exception): pass
+    class Stop(BaseException): pass
     class FakeWake:
         def wait(self, timeout):
             assert timeout == 45
