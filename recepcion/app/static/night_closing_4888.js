@@ -22,9 +22,10 @@
   function setText(id,value){const target=panel?.querySelector('#'+id);if(target)target.textContent=String(value)}
   function mount(){
     if(panel?.isConnected)return;
-    const section=document.getElementById('facturacion');
-    if(!section)return;
-    panel=document.createElement('aside');
+    const slot=document.getElementById('nightFiscalConfigSlot');
+    const disclosure=document.getElementById('nightFiscalSettings');
+    if(!slot||!disclosure)return;
+    panel=document.createElement('div');
     panel.className='rp-night-close';
     panel.innerHTML='<div class="rp-night-close-head"><h3>🌙 Cierre fiscal inteligente · 19:00</h3><small>Ecuador · uso opcional</small></div>' +
       '<p>Al activarlo, Recepción intentará emitir <strong>solo las facturas elegibles de hoy</strong> cuando esté inactiva. No reenvía intentos con resultado incierto. Debes dejar la PC y Recepción encendidas.</p>' +
@@ -33,10 +34,13 @@
       '<small id="rpNightOpenPolicy">Recepción e Historia Clínica permanecerán abiertas toda la noche.</small>' +
       '<div class="rp-night-close-actions"><button id="rpNightToggle" type="button" disabled>Configurando…</button><button id="rpNightRefresh" type="button">↻ Revisar estado</button></div>' +
       '<small>Solo el administrador puede habilitar la emisión real ante AZUR/SRI. Antes de activarlo, verifica que los datos de facturación alternativa estén guardados en Preferencias y que la forma de pago predeterminada de AZUR sea correcta. Se omiten revisiones gratuitas, grupos incompletos y envíos anteriores. No hay cierre automático de Recepción, Historia Clínica, Windows o el servidor LAN.</small>';
-    section.insertBefore(panel,section.firstElementChild);
+    slot.appendChild(panel);
     panel.querySelector('#rpNightRefresh')?.addEventListener('click',refresh);
     panel.querySelector('#rpNightToggle')?.addEventListener('click',toggle);
-    refresh();
+    disclosure.addEventListener('toggle',()=>{
+      if(disclosure.open && !document.getElementById('config')?.classList.contains('hidden'))refresh();
+    });
+    if(disclosure.open && !document.getElementById('config')?.classList.contains('hidden'))refresh();
   }
   async function refresh(){
     if(!panel||busy)return;
@@ -79,5 +83,9 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});
   else mount();
-  setInterval(()=>{if(panel&&!document.getElementById('facturacion')?.classList.contains('hidden'))refresh();},120000);
+  setInterval(()=>{
+    if(panel&&document.getElementById('nightFiscalSettings')?.open
+      &&!document.getElementById('config')?.classList.contains('hidden')
+      &&!document.querySelector('[data-config-section="facturacion"]')?.classList.contains('hidden'))refresh();
+  },120000);
 })();

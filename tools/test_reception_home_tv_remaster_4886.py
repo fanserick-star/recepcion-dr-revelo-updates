@@ -33,7 +33,8 @@ assert "#inicio .week-cards" in css
 assert "grid-template-columns:repeat(4,minmax(0,1fr))" in css
 assert "r486-tv-card" not in html
 assert "r486-shortcut" not in html
-assert 'class="r494-connection-strip"' in html
+assert 'class="r495-sidebar-status"' in html
+assert 'class="r494-connection-strip"' not in html
 assert 'id="connectionBadge"' in html
 assert "Revisiones" in js and "Sin cobro" in js
 assert "patient_id" not in js.lower()
