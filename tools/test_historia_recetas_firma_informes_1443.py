@@ -53,9 +53,10 @@ assert 'on_page=-1' in sign
 assert '"receta": "R"' in sign
 assert 'relative_path,pdf_sha256' in sign
 
-# Reports list must use the standalone editor shell, just like a report editor.
-assert 'return HTMLResponse(_document_editor_shell(base, "Informes médicos", body, "informes"))' in reports
-assert 'return HTMLResponse(base("Informes médicos", body, "informes"))' not in reports
+# The reports LIST inherits the global navigation; editing remains isolated.
+assert 'return HTMLResponse(base("Informes médicos", body, "informes"))' in reports
+assert 'return HTMLResponse(_document_editor_shell(base, "Informes médicos", body + script, "informes"))' in reports
+assert 'return HTMLResponse(_document_editor_shell(base, "Informe médico firmado", body, "informes"))' in reports
 assert 'body.clinical-document-editor > header.topbar,' in doc
 assert 'body.clinical-document-editor > footer{display:none!important}' in doc
 assert 'body.clinical-document-editor > main{width:100%' in doc
