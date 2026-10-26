@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.86: remasterización visual del Inicio con datos locales y acceso a control de TV en menú lateral izquierdo, sin cambios a turnos, facturación, Neon ni WhatsApp."
+  "notes": "Recepción 4.8.90: guarda primero en SQLite y encola turnos LAN de forma durable; verifica la ficha clínica en segundo plano antes de entregarla, evita consulta Neon repetida al guardar e incluye pruebas de seguridad y rendimiento."
 }
