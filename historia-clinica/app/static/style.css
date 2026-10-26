@@ -3844,3 +3844,268 @@ body.hc-b-app>main{max-width:none!important;width:100%!important;margin:0!import
 .hc-b-app .hc-b-patient-option:hover{background:#edf6ff;border-color:#a9cbe7}
 .hc-b-app .hc-b-patient-option strong{font-size:15px;color:#18375f}
 .hc-b-app .hc-b-patient-option small{font-size:12px;color:#617895}
+
+
+/* ====================================================================
+   Historia 1.4.49 · Tema global azul médico (remaster B)
+   Navegación transversal con el mismo carácter del Inicio 1.4.45.
+   Visual-only: sin endpoints nuevos, modificaciones clínicas ni timers.
+   Los documentos A4 y la impresión siguen con sus estilos oficiales.
+   ==================================================================== */
+@media screen {
+  body.cp-remaster-app:not(.hc-b-app){
+    --bg:#f1f6fd;--card:#fff;--ink:#19345b;--muted:#58718b;
+    --muted-2:#778ca5;--line:#d8e6f3;--line-strong:#bdd4e9;
+    --brand:#177bce;--brand-dark:#0e619f;--brand-soft:#e8f3ff;
+    --accent:#1880bb;--green:#168552;--green-soft:#e8f9ef;
+    --shadow:0 4px 16px rgba(24,65,111,.06);
+    --shadow-soft:0 2px 9px rgba(24,65,111,.045);
+    background:#f1f6fd!important;color:#19345b;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar {
+    z-index:60!important;height:56px!important;min-height:56px!important;
+    flex:0 0 56px!important;background:#fff!important;
+    border-bottom:1px solid #cbdfee!important;
+    box-shadow:0 1px 5px #1a4e7710!important;padding:0 20px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-home-link{
+    display:none!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-logo{
+    width:37px!important;height:37px!important;object-fit:contain!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-copy strong{
+    font-family:"Segoe UI",Arial,sans-serif!important;
+    font-size:18px!important;color:#092b60!important;font-weight:900!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-copy small{
+    font-size:11.5px!important;color:#4a6d99!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar > nav{
+    display:none!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app) > .topbar .hc-runtime-version{
+    font-size:11px!important;background:#eaf5ff!important;color:#175d91!important;
+    border-radius:7px!important;padding:5px 9px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) > main{
+    max-width:none!important;width:calc(100% - 218px)!important;
+    margin:0 0 0 218px!important;padding:14px 19px 18px!important;
+    height:calc(100vh - 56px)!important;
+    min-height:0!important;box-sizing:border-box!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) > footer{
+    margin-left:218px!important;width:calc(100% - 218px)!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .hc-g-sidebar,
+  body.hc-global-material .hc-g-sidebar{
+    display:flex!important;flex-direction:column!important;
+  }
+  .hc-g-sidebar{
+    display:none;position:fixed;left:0;top:56px;bottom:0;width:218px;
+    background:linear-gradient(180deg,#fff,#edf5fe);
+    border-right:1px solid #d1e1f1;z-index:42;
+    padding:13px 11px 15px;overflow:auto;overflow-x:hidden;
+  }
+  .hc-g-side-caption{
+    font-size:11px;font-weight:850;color:#4f729c;letter-spacing:.08em;
+    padding:3px 10px 11px;
+  }
+  body.cp-remaster-app .hc-g-side-links,
+  body.hc-global-material .hc-g-side-links{
+    display:flex!important;flex-direction:column!important;
+    align-items:stretch!important;gap:2px!important;height:auto!important;
+    width:100%!important;
+  }
+  .hc-g-side-heading{
+    border-top:1px solid #d7e4f1;margin:15px 3px 6px;padding:13px 7px 1px;
+    font-size:10.5px;line-height:1.25;font-weight:900;color:#54759b;
+    letter-spacing:.035em;
+  }
+  body.cp-remaster-app .hc-g-side-links .hc-g-side-link,
+  body.hc-global-material .hc-g-side-links .hc-g-side-link{
+    display:flex!important;align-items:center!important;gap:10px!important;
+    width:100%!important;min-height:40px!important;padding:8px 9px!important;
+    border:0!important;border-radius:8px!important;
+    background:transparent!important;text-decoration:none!important;
+    font-size:13px!important;font-weight:700!important;line-height:1.3!important;
+    color:#1a416e!important;white-space:normal!important;
+    box-shadow:none!important;transition:none!important;
+  }
+  body.cp-remaster-app .hc-g-side-links .hc-g-side-link:hover,
+  body.hc-global-material .hc-g-side-links .hc-g-side-link:hover{
+    background:#e1effd!important;color:#0f528c!important;
+  }
+  body.cp-remaster-app .hc-g-side-links .hc-g-active,
+  body.hc-global-material .hc-g-side-links .hc-g-active{
+    color:white!important;background:#187fd5!important;
+  }
+  .hc-g-side-icon{display:inline-flex;justify-content:center;align-items:center;
+    flex:0 0 24px;width:24px;font-size:17px;line-height:1.2}
+  .hc-g-side-name{min-width:0;flex:1}
+  .hc-g-side-version{font-size:10.5px;line-height:1.4;color:#56779e;
+    border-top:1px solid #d3e3f1;padding:13px 9px;margin-top:auto}
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .panel,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .search-card,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .cp-patient-card,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .cp-history-window,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .consult-patient-bar,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .clinical-editor,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .previous-panel,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .macro-create,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .editor-main,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .new-patient-form{
+    background:#fff!important;border:1px solid #d5e5f3!important;
+    border-radius:11px!important;
+    box-shadow:0 3px 12px rgba(25,74,118,.045)!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.page-head,.new-patient-title){
+    background:#fff!important;border:1px solid #d9e6f2!important;
+    border-left:4px solid #177dcb!important;border-radius:10px!important;
+    color:#153a6d!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.page-head h1,.new-patient-title h1,.consult-patient-bar h1,.cp-history-titlebar span){
+    font-family:"Segoe UI",Arial,sans-serif!important;
+    color:#12345f!important;font-weight:850!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .panel-title,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.cp-history-window-head,.previous-panel-head,.editor-section-head){
+    background:#f8fbff!important;border-bottom:1px solid #dce8f4!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.panel-title h2,.previous-panel-head h2,.editor-section-head h2){
+    font-family:"Segoe UI",Arial,sans-serif!important;
+    color:#1a416e!important;font-weight:850!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.cp-box-caption,.clinical-editor::before,.consult-patient-bar::before,.macro-create::before){
+    background:#e4f2ff!important;color:#175d96!important;
+    border-color:#c7dff1!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.patient-row,.macro-admin-row,.draft-row){
+    border-bottom-color:#e1edf6!important;background:#fff!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.patient-row,.macro-admin-row,.draft-row):hover{
+    background:#f1f8ff!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.searchbox input,.history-search input,.new-patient-form input,
+      .new-patient-form select,.new-patient-form textarea,
+      .macro-create input,.macro-create textarea){
+    border:1px solid #bdd5e9!important;border-radius:8px!important;
+    background:#fff!important;color:#1a3557!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.searchbox input,.history-search input,.new-patient-form input,
+      .new-patient-form select,.new-patient-form textarea,
+      .macro-create input,.macro-create textarea):focus{
+    border-color:#238bce!important;box-shadow:0 0 0 3px #dcefff!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.searchbox button,.primary,.finish-btn,.cp-new-consult){
+    background:#167dcc!important;color:#fff!important;
+    border-radius:8px!important;border-color:#167dcc!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.secondary,.history-search button,.new-patient-btn){
+    border-radius:8px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .cp-patient-grid .cp-data-field>div{
+    border:1px solid #dce8f4!important;background:#f9fcff!important;
+    border-radius:7px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  :is(.cp-history-window,.cp-patient-documents-dialog,.cp-patient-videos-dialog){
+    border-color:#cce0f0!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .clinical-editor .editor-field textarea{
+    background:#fff!important;border-color:#c2d9eb!important;
+    font-size:max(16px,1em)!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .new-patient-form fieldset{
+    background:#f8fbff!important;border:1px solid #d7e6f3!important;
+    border-radius:10px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .new-patient-form legend{
+    font-family:"Segoe UI",Arial,sans-serif!important;
+    color:#155b94!important;background:#e7f3ff!important;
+    border-radius:6px!important;border-color:#d3e6f6!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .modal{
+    background:#fff!important;border:1px solid #d4e4f2!important;
+    border-radius:12px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)
+  .modal h3{font-family:"Segoe UI",Arial,sans-serif!important;color:#183960!important}
+  /* Formularios clínicos independientes: mismo color y tipografía, sin estrechar
+     la edición ni modificar sus modelos de impresión, firmas o controles. */
+  body.cp-remaster-app.clinical-document-editor{
+    background:#f1f6fd!important;color:#19345b!important;
+  }
+  body.cp-remaster-app.clinical-document-editor .docs-card,
+  body.cp-remaster-app.clinical-document-editor .docs-head,
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .docs-card{
+    border:1px solid #d2e4f3!important;background:#fff!important;
+    border-radius:11px!important;box-shadow:0 3px 14px #18466c0b!important;
+  }
+  body.cp-remaster-app .docs-wrap .docs-head h1{
+    font-family:"Segoe UI",Arial,sans-serif!important;color:#143864!important;
+  }
+  body.cp-remaster-app .docs-wrap .doc-primary{
+    background:#177ac7!important;color:#fff!important;border-radius:9px!important;
+  }
+  body.cp-remaster-app .docs-wrap .doc-light{
+    background:#eaf4fe!important;color:#175b90!important;border-radius:9px!important;
+  }
+  body.cp-remaster-app .docs-wrap :is(input,textarea,select):focus-visible{
+    border-color:#248bce!important;outline:2px solid #c3e5ff!important;
+  }
+}
+@media screen and (max-width:1350px) and (min-width:901px){
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)>main{
+    width:calc(100% - 187px)!important;margin-left:187px!important;
+    padding:10px 12px!important;
+  }
+  .hc-g-sidebar{width:187px;padding:9px 7px}
+  body.cp-remaster-app .hc-g-side-links .hc-g-side-link{font-size:11.5px!important;padding:8px 6px!important}
+  .hc-g-side-heading{font-size:10px}
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) .comparison-layout{
+    grid-template-columns:minmax(0,1.25fr) minmax(330px,.75fr)!important;
+  }
+}
+@media screen and (max-width:1050px) and (min-width:901px){
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)>main{
+    width:calc(100% - 64px)!important;margin-left:64px!important;
+  }
+  .hc-g-sidebar{width:64px;padding:10px 4px}
+  .hc-g-side-name,.hc-g-side-heading,.hc-g-side-caption,.hc-g-side-version{display:none!important}
+  body.cp-remaster-app .hc-g-side-links .hc-g-side-link{
+    justify-content:center!important;padding:8px 4px!important;
+  }
+  .hc-g-side-icon{font-size:19px;flex:0 0 28px}
+}
+@media screen and (max-width:900px){
+  .hc-g-sidebar{display:none!important}
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor)>main{
+    margin-left:0!important;width:100%!important;max-width:none!important;
+    height:auto!important;min-height:0!important;padding:12px!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app)>header.topbar>nav{
+    display:flex!important;flex-wrap:wrap!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app)>header.topbar .brand-home-link{display:flex!important}
+}
+@media print{
+  .hc-g-sidebar{display:none!important}
+  body.cp-remaster-app:not(.hc-b-app)>main{margin:0!important;width:100%!important}
+}
