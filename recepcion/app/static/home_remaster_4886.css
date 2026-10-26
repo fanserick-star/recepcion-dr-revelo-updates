@@ -68,6 +68,9 @@ body.r486-ui #tv .r486-tv-page-head p{font-size:12px;color:#657994;margin:5px 0 
 body.r486-ui #tv .r486-tv-note{border:1px solid #cfe2f3;background:#eaf4fe;border-radius:12px;padding:12px 14px;font-size:12px;color:#345c82;margin-bottom:13px}
 body.r486-ui #tv .r486-tv-frame{display:block;width:100%;height:calc(100vh - 255px);min-height:620px;border:1px solid #dce7f2;background:#fff;border-radius:15px}
 body.r486-ui #tv .r486-tv-reload{padding:10px 16px;border-radius:10px;background:#e8f0fa;color:#235993;border:1px solid #bfd5ef;font-weight:850;cursor:pointer}
+@media(max-width:1400px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-metric{min-height:93px}}
+@media(max-width:1050px){body.r486-ui #inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:900px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:640px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.r486-ui #inicio .week-cards{grid-template-columns:1fr!important}body.r486-ui #tv .r486-tv-page-head{align-items:flex-start;flex-direction:column}}
 
 
