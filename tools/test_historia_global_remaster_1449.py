@@ -38,7 +38,7 @@ assert "def _material_remaster_sidebar" in materials
 assert "class='hc-global-material'" in materials
 assert "{_material_remaster_sidebar()}" in materials
 assert "material_index.json" in materials
-assert "Estos archivos quedan únicamente en esta PC" in materials
+assert "estos archivos quedan únicamente en esta PC" in materials
 assert "DECLARACIÓN DE CONSENTIMIENTO INFORMADO" in consent
 assert "NEGATIVA DEL CONSENTIMIENTO INFORMADO" in consent
 assert "REVOCATORIA DE CONSENTIMIENTO INFORMADO" in consent
