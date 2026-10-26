@@ -20,7 +20,7 @@ for name in ["static/home_remaster_4886.js", "static/home_remaster_4886.css"]:
 assert 'data-section="tv"' in html
 assert 'onclick="show(\'tv\')"' in html
 assert 'id="r486TvFrame"' in html
-assert 'id="r486TvState"' in html
+assert 'id="r486TvState"' not in html  # control duplicado de TV retirado del lateral
 assert 'id="r486Metrics"' in html
 assert "http://127.0.0.1:8899/control" in js
 assert "http://127.0.0.1:8899/api/status" in server
@@ -31,8 +31,10 @@ assert "setInterval(" not in js
 assert "WHATSAPP_ACCESS_TOKEN" not in js
 assert "#inicio .week-cards" in css
 assert "grid-template-columns:repeat(4,minmax(0,1fr))" in css
-assert "r486-tv-card" in css
-assert "r486-shortcut" in html
+assert "r486-tv-card" not in html
+assert "r486-shortcut" not in html
+assert 'class="r494-connection-strip"' in html
+assert 'id="connectionBadge"' in html
 assert "Revisiones" in js and "Sin cobro" in js
 assert "patient_id" not in js.lower()
 print("RECEPTION_HOME_TV_REMASTER_4886_OK")
