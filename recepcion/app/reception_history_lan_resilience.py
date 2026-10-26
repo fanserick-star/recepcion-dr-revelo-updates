@@ -8,8 +8,10 @@ import time
 
 import historia_lan_transport as _lan
 
-PATCH_VERSION = "4.6.36"
+PATCH_VERSION = "4.8.91"
 _SCAN_LOCK = threading.Lock()
+_DELIVERY_THREAD_STARTED = False
+_DELIVERY_THREAD_LOCK = threading.Lock()
 _SCAN_COOLDOWN_SECONDS = 12.0
 _LAST_SCAN_MONOTONIC = 0.0
 
@@ -164,8 +166,25 @@ def _active_subnet_scan(*, force: bool = False) -> dict | None:
 
 
 def resilient_discover(force_subnet_scan: bool = False) -> dict | None:
-    # 1) IP conocida, variable de entorno y vecinos ARP; en paralelo para que
-    # una IP vieja no bloquee varios segundos el redescubrimiento.
+    # 1) La LAN ya cableada responde rápido en la última IP válida.
+    # Nunca esperar al comando ARP (hasta 4s) para probar una IP conocida.
+    known = []
+    try:
+        known.extend((
+            str(_lan.os.getenv("HISTORIA_LAN_HOST") or "").strip(),
+            str(_lan._snapshot().get("lan_host") or "").strip(),
+            str(_lan._load_cache().get("host") or "").strip(),
+        ))
+    except Exception:
+        pass
+    for host in dict.fromkeys(h for h in known if h):
+        found = _lan._challenge(host, timeout=0.40)
+        if found:
+            found = dict(found)
+            found["method"] = "cached-direct"
+            return found
+
+    # 2) Descubrimiento paralelo conocido/ARP si IP anterior ya cambió.
     found = _challenge_many(_quick_hosts(), 0.24, "known-or-arp")
     if found:
         return found
@@ -202,7 +221,9 @@ def resilient_probe_once(force_subnet_scan: bool = False) -> dict:
     version = str(found.get("version") or "")
     token = str(found.get("token") or "")
     method = str(found.get("method") or "auto")
-    _lan._save_cache(host, version)
+    # Evitar reescrituras de disco en cada comprobación LAN.
+    if str(_lan._load_cache().get("host") or "") != host:
+        _lan._save_cache(host, version)
     _lan._set_state(
         lan_online=True,
         lan_host=host,
@@ -259,18 +280,40 @@ def resilient_bridge_status() -> dict:
 
 
 def resilient_monitor_loop() -> None:
+    """Solo comprueba LAN; un Neon lento no vuelve rojo el indicador."""
+    was_online = False
     while True:
         online = False
         try:
             state = resilient_probe_once(force_subnet_scan=False)
             online = bool(state.get("lan_online"))
-            if online:
-                _lan._flush_control_outbox()
-                _lan._flush_lan_outbox()
+            if online and not was_online:
+                # Al recuperar cable/IP, vuelve a entregar pendientes en worker.
+                _lan._DELIVERY_WAKE.set()
+            was_online = online
         except Exception:
             pass
-        # Caído: vuelve a buscar rápido. Conectado: conserva el sondeo liviano.
-        time.sleep(6 if not online else 20)
+        # Sondeos solo LAN, independientes del guardado y de Neon.
+        time.sleep(4 if not online else 8)
+
+
+def resilient_delivery_loop() -> None:
+    """Único worker de entrega. Nunca interrumpe la comprobación LAN."""
+    while True:
+        # Un nuevo paciente despierta el worker INMEDIATAMENTE.
+        # La espera periódica también rescata pendientes tras reinicios/fallos.
+        _lan._DELIVERY_WAKE.wait(timeout=45)
+        _lan._DELIVERY_WAKE.clear()
+        try:
+            if _lan._snapshot().get("lan_online"):
+                _lan._flush_control_outbox()
+                _lan._flush_lan_outbox()
+        except Exception as exc:
+            try:
+                import logging
+                logging.getLogger(__name__).warning("Entrega LAN pendiente: %s", exc)
+            except Exception:
+                pass
 
 
 def _install() -> None:
@@ -289,6 +332,17 @@ def _install() -> None:
     # monitor reforzado. Si ya estaba instalado, sus wrappers consultan los
     # globals parcheados y siguen funcionando con el nuevo redescubrimiento.
     _lan.install()
+    global _DELIVERY_THREAD_STARTED
+    with _DELIVERY_THREAD_LOCK:
+        if not _DELIVERY_THREAD_STARTED:
+            _DELIVERY_THREAD_STARTED = True
+            threading.Thread(
+                target=resilient_delivery_loop,
+                daemon=True,
+                name="historia-lan-delivery",
+            ).start()
+    # Revisar el outbox preexistente una vez el monitor detecte conexión.
+    _lan._DELIVERY_WAKE.set()
     try:
         _lan._cloud.bridge_status = resilient_bridge_status
     except Exception:
