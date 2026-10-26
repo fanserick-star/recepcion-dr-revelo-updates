@@ -267,7 +267,7 @@ def cleanup_stale_waiting_queue():
         if expired:
             conn.executemany(
                 """UPDATE waiting_queue
-                   SET status='expired',updated_at=?
+                   SET status='cancelled',updated_at=?
                    WHERE id=? AND status='waiting'""",
                 [(stamp, queue_id) for queue_id in expired],
             )

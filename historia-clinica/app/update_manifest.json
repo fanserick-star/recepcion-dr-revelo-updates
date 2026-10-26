@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.45",
-  "app_version": "1.4.45",
-  "runtime_version": "1.4.45",
+  "version": "1.4.46",
+  "app_version": "1.4.46",
+  "runtime_version": "1.4.46",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Remaster visual del Inicio según opción B: sala de espera con números grandes y botones independientes de Llamar/Repetir, Abrir ficha y Quitar; panel derecho con buscador, fichas recientes, documentos y Material para pacientes (consentimiento informado, dieta y archivos). Crear receta, certificado o informe requiere seleccionar primero la ficha; se mantienen íntegros TV, LAN, videoteca, recetas, firmas, datos y sincronización Neon.",
-    "previous_version": "1.4.44",
+    "purpose": "Corrección del arranque: limpieza de turnos anteriores con estado SQLite permitido 'cancelled', conservando registros y auditoría; sin alterar consultas firmadas, ficha de pacientes, recepción, LAN ni Neon.",
+    "previous_version": "1.4.45",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -148,7 +148,7 @@
     "history_link_reception_is_identity_correction_authority": true,
     "waiting_queue_daily_scope": true,
     "waiting_queue_previous_day_waiting_expires": true,
-    "waiting_queue_expired_status": "expired",
+    "waiting_queue_expired_status": "cancelled",
     "waiting_queue_in_consultation_preserved": true,
     "waiting_queue_signed_reconciled_before_expiry": true,
     "electronic_signature_pades": true,
