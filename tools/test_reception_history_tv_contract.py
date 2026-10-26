@@ -212,11 +212,10 @@ def test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss(
                 reception_patient_id="88",
             )
             assert matched == [event_id]
-            deadline = time.monotonic() + 3
-            while time.monotonic() < deadline:
-                if lan._lan_control_pending_count() == 0:
-                    break
-                time.sleep(0.02)
+            # En producción _DELIVERY_WAKE activa el único worker LAN.
+            # En esta prueba aislada no arranca el monitor: ejecutar su tick.
+            assert lan._lan_control_pending_count() == 1
+            lan._flush_control_outbox()
             assert lan._lan_control_pending_count() == 0, "Online cancellation not acknowledged"
 
             with sqlite3.connect(doctor_db) as conn:
