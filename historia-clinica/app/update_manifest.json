@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.51",
-  "app_version": "1.4.51",
-  "runtime_version": "1.4.51",
+  "version": "1.4.52",
+  "app_version": "1.4.52",
+  "runtime_version": "1.4.52",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección visual Historia 1.4.51: listado de Informes médicos abierto desde Inicio conserva el menú lateral y botón Inicio. Editores, informes firmados e impresión continúan usando sus ventanas independientes. Retirado únicamente el acceso duplicado de Videocistoscopías en el panel derecho de Inicio; se conserva el menú lateral y la galería propia de cada paciente. Las tres tarjetas de Receta, Certificado e Informe se distribuyen mejor. Sin cambios en datos clínicos, firma PAdES, impresión, llamados de TV, LAN ni Neón.",
-    "previous_version": "1.4.50",
+    "purpose": "Mejora visual de tarjetas de pacientes en espera del Inicio: número real de turno más grande, nombres y etiquetas de atención más legibles, bordes y estados diferenciados para consultas, revisiones y pacientes en atención; mayor destaque de la primera tarjeta, botones independientes intactos y lista de espera desplazable para ver todos los pacientes. Ajuste del alto del panel Inicio en WebView. Sin cambios de datos, cola clínica, prioridad, LAN, TV, Recetas, informes, firmas o sincronización Neón.",
+    "previous_version": "1.4.51",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -409,6 +409,15 @@
     "home_right_duplicate_video_shortcut_removed": true,
     "clinical_patient_videocystoscopy_library_preserved": true,
     "home_three_document_shortcuts": true,
-    "no_clinical_logic_change": true
+    "no_clinical_logic_change": true,
+    "waiting_room_cards_visual_prominence": true,
+    "waiting_room_bigger_patient_name": true,
+    "waiting_room_turn_number_emphasis": true,
+    "waiting_room_review_and_in_progress_visual_status": true,
+    "waiting_room_first_card_highlight": true,
+    "waiting_room_internal_scroll": true,
+    "waiting_room_no_queue_logic_changes": true,
+    "waiting_room_no_tv_call_logic_changes": true,
+    "waiting_room_call_open_remove_independent": true
   }
 }
