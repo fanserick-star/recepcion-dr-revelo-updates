@@ -34,16 +34,6 @@ body.r486-ui #inicio .r486-metric small{font-size:10px;color:#6d7f93;margin-left
 body.r486-ui #inicio .r486-metric.r486-money strong{font-size:23px;color:#173960}
 body.r486-ui #inicio .r486-metric.r486-reviews small{color:#31754f}
 body.r486-ui #inicio .r486-metric.r486-waiting small{color:#b06245}
-body.r486-ui #inicio .r486-action-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 12px}
-body.r486-ui #inicio .r486-shortcut{display:flex;align-items:center;gap:11px;min-width:0;min-height:65px;padding:11px 14px;text-align:left;color:#244567;border:1px solid #dce6f1;border-radius:11px;background:#fff;box-shadow:0 2px 8px rgba(33,54,85,.03);cursor:pointer}
-body.r486-ui #inicio .r486-shortcut:hover{background:#f7fbff;border-color:#b4d3f0}
-body.r486-ui #inicio .r486-shortcut .r486-shortcut-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:10px;background:#e9f1fc;color:#275da3;font-size:19px;font-weight:800}
-body.r486-ui #inicio .r486-shortcut.whatsapp .r486-shortcut-icon{background:#e6f6ed;color:#16754a}
-body.r486-ui #inicio .r486-shortcut.billing .r486-shortcut-icon{background:#fff3d9;color:#9b6813}
-body.r486-ui #inicio .r486-shortcut.system .r486-shortcut-icon{background:#e8f3f0;color:#247b69}
-body.r486-ui #inicio .r486-shortcut b{display:block;font-size:12px;color:#1d3552}
-body.r486-ui #inicio .r486-shortcut small{display:block;font-size:10px;font-weight:500;line-height:1.3;color:#6a7c92;margin-top:2px}
-body.r486-ui #inicio .r486-shortcut-arrow{margin-left:auto;color:#8a9cb0;font-size:20px}
 body.r486-ui #inicio #homeWhatsappReviewStrip{margin:0 0 9px!important}
 body.r486-ui #inicio #homePendingStrip{margin:0 0 7px!important;gap:8px!important}
 body.r486-ui #inicio .home-reminder-card{min-height:60px!important;padding:9px 12px!important;border-radius:11px!important}
@@ -72,24 +62,12 @@ body.r486-ui #inicio .v478-home-table .money-pill{font-size:11px!important;paddi
 body.r486-ui #inicio .v478-home-actions>button{font-size:10px!important;padding:7px 9px!important;min-height:32px!important}
 body.r486-ui #inicio .v478-home-table .service-badge{font-size:10px!important;padding:5px 8px!important}
 body.r486-ui #inicio .v478-home-table .row-number{font-size:13px!important}
-body.r486-ui .r486-tv-card{display:grid;gap:5px;min-height:104px;padding:12px;margin:7px 3px;border:1px solid #dce6f1;border-radius:13px;background:#fff;text-align:left;color:#284463;box-shadow:0 3px 11px rgba(22,48,80,.04);cursor:pointer}
-body.r486-ui .r486-tv-card:hover{border-color:#a9c9e9;background:#f7fbff}
-body.r486-ui .r486-tv-card b{font-size:12px;color:#234260}
-body.r486-ui .r486-tv-card small{font-size:10px;color:#74859a;line-height:1.3}
-body.r486-ui .r486-tv-pill{display:inline-flex;align-items:center;width:max-content;padding:4px 8px;font-size:10px;font-weight:850;border-radius:999px}
-body.r486-ui .r486-tv-pill.online{background:#e3f7ec;color:#147b47}
-body.r486-ui .r486-tv-pill.offline{background:#f4f0e8;color:#80684d}
-body.r486-ui .r486-tv-head{display:flex;align-items:center;gap:8px}
-body.r486-ui .r486-tv-screen{font-size:17px;color:#2767ae}
 body.r486-ui #tv .r486-tv-page-head{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px}
 body.r486-ui #tv .r486-tv-page-head h1{font-size:27px;margin:0;color:#173657}
 body.r486-ui #tv .r486-tv-page-head p{font-size:12px;color:#657994;margin:5px 0 0}
 body.r486-ui #tv .r486-tv-note{border:1px solid #cfe2f3;background:#eaf4fe;border-radius:12px;padding:12px 14px;font-size:12px;color:#345c82;margin-bottom:13px}
 body.r486-ui #tv .r486-tv-frame{display:block;width:100%;height:calc(100vh - 255px);min-height:620px;border:1px solid #dce7f2;background:#fff;border-radius:15px}
 body.r486-ui #tv .r486-tv-reload{padding:10px 16px;border-radius:10px;background:#e8f0fa;color:#235993;border:1px solid #bfd5ef;font-weight:850;cursor:pointer}
-@media(max-width:1400px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-metric{min-height:93px}body.r486-ui #inicio .r486-action-strip{gap:7px}}
-@media(max-width:1050px){body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr 1fr}body.r486-ui #inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.r486-ui #inicio .r486-shortcut.system{grid-column:1/-1}}
-@media(max-width:900px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr}body.r486-ui #inicio .r486-shortcut.system{grid-column:auto}body.r486-ui .r486-tv-card{display:none!important}}
 @media(max-width:640px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.r486-ui #inicio .week-cards{grid-template-columns:1fr!important}body.r486-ui #tv .r486-tv-page-head{align-items:flex-start;flex-direction:column}}
 
 
@@ -178,7 +156,6 @@ body.r486-ui #inicio .r489-attentions-focus #todayTable .sub-visit-row td{
   background:#fffaf1!important;border-bottom:1px solid #f4e5cb!important;padding-top:10px!important;padding-bottom:10px!important
 }
 body.r486-ui #inicio .r489-attentions-focus #todayTable .sub-visit-row td:first-child{padding-left:19px!important}
-body.r486-ui #inicio .r489-secondary-actions{margin:17px 0 12px!important}
 @media(max-width:1150px){
   body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{min-width:1040px!important}
 }
@@ -212,3 +189,11 @@ body.r486-ui #inicio .r489-secondary-actions{margin:17px 0 12px!important}
     width:100%!important;font-size:10px!important
   }
 }
+
+/* 4.8.94 — Sidebar solo navegación; estados técnicos accesibles, discretos y legibles. */
+body.r486-ui .r494-connection-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:7px;min-height:27px;margin:-7px 0 9px;padding:0 1px;max-width:100%}
+body.r486-ui .r494-connection-strip #connectionBadge.connection-badge.sidebar-status{display:inline-flex!important;flex:0 1 auto!important;width:auto!important;max-width:100%!important;min-width:0!important;min-height:27px!important;margin:0!important;padding:5px 10px!important;gap:7px!important;border-radius:8px!important;box-shadow:none!important}
+body.r486-ui .r494-connection-strip #connectionBadge .connection-label{font-size:10px!important;max-width:190px;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+body.r486-ui .r494-connection-strip #historiaDoctorBadge{position:static!important;display:inline-flex!important;align-items:center!important;max-width:100%!important;min-height:27px!important;margin:0!important;padding:5px 10px!important;white-space:normal!important;line-height:1.25!important;font-size:10px!important;border-radius:8px!important}
+body.r486-ui .r494-connection-strip #sidebarRealVersion{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:0!important;min-height:27px!important;margin:0!important;padding:5px 10px!important;border:1px solid #dbe5ee!important;border-radius:8px!important;background:#fff!important;color:#51677d!important;font-size:10px!important;font-weight:750!important;line-height:1.2!important;white-space:nowrap!important}
+@media(max-width:850px){body.r486-ui .r494-connection-strip{justify-content:flex-start;margin:0 0 12px}body.r486-ui .r494-connection-strip #connectionBadge .connection-label{max-width:145px}}
