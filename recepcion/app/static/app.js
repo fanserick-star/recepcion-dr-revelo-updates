@@ -1729,7 +1729,7 @@ async function attentionFor(id,draft=null){
   selectedServices=new Set(draftServices.map(serviceKey).filter(Boolean));
   attentionServiceValues={...(draft?.procedureValues||{})};
   if(draft?.selectedService&&draft?.valorProc!==undefined&&draft?.selectedService!=='CONSULTA')attentionServiceValues[serviceKey(draft.selectedService)]=draft.valorProc;
-  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,stagedId:Number(draft?.stagedId||0)};
+  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,clinicalCheckedAt:0,stagedId:Number(draft?.stagedId||0)};
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
   const cancelAction=Number(draft?.stagedId||0)?`attendConfirmafyStaged(${Number(draft.stagedId)},'${esc(fecha)}')`:`openPatient(${id},currentPatientSource)`;
@@ -1743,7 +1743,9 @@ async function refreshAttentionClinicalHistory(id){
     const status=await api('/api/historia-identity/status/'+Number(id));
     if(Number(attentionContext?.patient?.id||0)!==Number(id))return;
     if(status?.ok===false||status?.reachable===false)return;
-    attentionContext.clinicalLink=!!status.linked;
+    const verified=Boolean(status.linked)&&['1','true'].includes(String(status.clinical_patient?.verified??'').toLowerCase());
+    attentionContext.clinicalLink=verified;
+    attentionContext.clinicalCheckedAt=verified?Date.now():0;
     attentionContext.clinicalHistoryCount=Number(status.history_date_count||0);
     renderAttentionStatus();
   }catch(_e){/* Recepción conserva sus visitas registradas cuando Neon está desconectado. */}
@@ -1962,18 +1964,36 @@ async function saveAttention(id){
     });
     // El historial clínico confirmado sustituye el botón manual de Subsecuente.
     let tipo=null;
-    try{
-      const clinical=await api('/api/historia-identity/status/'+Number(id));
-      if(clinical?.ok!==false&&clinical?.reachable!==false){
-        if(!clinical.linked){
-          if(typeof window.openRegistrationHistoryLink==='function')void window.openRegistrationHistoryLink(id,patient.nombre);
-          throw Error('Primero vincula la ficha de Historia Clínica desde Recepción. No se guardó la atención.');
+    // La ficha ya se verificó al abrir Nueva atención. Evitamos una SEGUNDA
+    // conexión Neon (hasta 12 segundos) al pulsar Guardar. El worker LAN
+    // vuelve a verificar el vínculo antes de entregar el turno al doctor.
+    const freshClinical=Number(attentionContext?.patient?.id||0)===Number(id)
+      &&attentionContext?.clinicalLink===true
+      &&Number(attentionContext.clinicalCheckedAt||0)>0
+      &&Date.now()-Number(attentionContext.clinicalCheckedAt)<300000;
+    if(freshClinical){
+      tipo=Number(attentionContext.clinicalHistoryCount||0)>0?'S':null;
+    }else{
+      try{
+        const clinical=await api('/api/historia-identity/status/'+Number(id));
+        if(clinical?.ok!==false&&clinical?.reachable!==false){
+          const verified=Boolean(clinical.linked)&&['1','true'].includes(String(clinical.clinical_patient?.verified??'').toLowerCase());
+          if(!verified){
+            if(typeof window.openRegistrationHistoryLink==='function')void window.openRegistrationHistoryLink(id,patient.nombre);
+            throw Error('Primero vincula la ficha de Historia Clínica desde Recepción. No se guardó la atención.');
+          }
+          tipo=Number(clinical.history_date_count||0)>0?'S':null;
+          if(Number(attentionContext?.patient?.id||0)===Number(id)){
+            attentionContext.clinicalLink=true;
+            attentionContext.clinicalCheckedAt=Date.now();
+            attentionContext.clinicalHistoryCount=Number(clinical.history_date_count||0);
+          }
         }
-        tipo=Number(clinical.history_date_count||0)>0?'S':null;
+      }catch(err){
+        if(String(err?.message||'').includes('Primero vincula'))throw err;
+        // Sin conexión se conserva el tipo calculado a partir de las visitas locales.
+        // El worker NO entrega turnos sin confirmar el vínculo en Neon.
       }
-    }catch(err){
-      if(String(err?.message||'').includes('Primero vincula'))throw err;
-      // Sin conexión se conserva el tipo calculado a partir de las visitas locales.
     }
     const saved=await api('/api/visits/batch',{method:'POST',body:JSON.stringify({patient_id:id,fecha,tipo,services,observacion:$('#aObs').value||null})});
     completed=true;
@@ -1982,7 +2002,11 @@ async function saveAttention(id){
       try{await api(`/api/agenda/confirmafy-staged/${stagedId}/attended`,{method:'POST',body:JSON.stringify({patient_id:id})});confirmafyStagedById.delete(stagedId);invalidateAttentionWeekCache()}catch(e){console.warn('No se pudo marcar la cita externa como atendida:',e)}
     }
     if(saved?.clinical_handoff_pending===true){
-      alert('Atención guardada correctamente, pero NO se envió al doctor porque falta vincular la ficha clínica.\n\nRecepción conservará el turno pendiente. Al verificar la ficha se enviará sin crear otra atención.');
+      // La cola se persiste ANTES de que el worker consulte Neon; este estado
+      // transitorio no significa que el paciente esté sin vincular.
+      if(attentionContext?.clinicalLink===false){
+        alert('Atención guardada. El turno quedó pendiente de verificar o vincular en Historia Clínica. Recepción conserva la cola local; no se enviará a una ficha sin confirmar.');
+      }
     }
     closeModal();
     if(saved?.pending){

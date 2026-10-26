@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.89",
-  "app_version": "4.8.89",
-  "runtime_version": "4.8.89",
+  "version": "4.8.90",
+  "app_version": "4.8.90",
+  "runtime_version": "4.8.90",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.89: descanso nocturno sin cierre automático de Recepción ni Historia Clínica. Mantiene reposo de Neon tras 5 minutos y facturación fiscal opt-in a las 19:00, sin apagar ventanas, Windows ni transporte LAN. Conserva las protecciones fiscales de v4.8.88 y la optimización de Neon de v4.8.87.",
-    "previous_version": "4.8.88",
+    "purpose": "Recepción 4.8.90: guardado rápido de atenciones con verificación clínica reutilizada del formulario, cola LAN durable y resolución de vínculo/entrega a Historia en segundo plano. Ningún turno llega a una ficha sin verificación en Neon; se conserva impresión térmica automática, facturación, nocturno y WhatsApp.",
+    "previous_version": "4.8.89",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -628,7 +628,13 @@
     "night_rest_idle_minutes": 5,
     "night_rest_sri_opt_in_unchanged": true,
     "night_rest_programs_remain_open": true,
-    "night_rest_no_auto_close_regression_test": true
+    "night_rest_no_auto_close_regression_test": true,
+    "fast_attention_save": true,
+    "handoff_persist_before_ack": true,
+    "handoff_verified_before_lan": true,
+    "handoff_cloud_read_on_http_request": false,
+    "attention_identity_preflight_reuse_seconds": 300,
+    "handoff_missing_link_retry_seconds": 300
   },
   "channel": "launcher-v1-stable"
 }
