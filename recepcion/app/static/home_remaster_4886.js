@@ -65,6 +65,18 @@
   };
   function boot(){
     document.body.classList.add('r486-ui');
+    // Las tarjetas semanales se ubican debajo de las atenciones. Al elegir
+    // otro día, acercar la nueva lista, sin alterar el selector ni su API.
+    document.addEventListener('click',event=>{
+      const card=event.target?.closest?.('#weekCards .week-card[data-date]');
+      if(!card)return;
+      setTimeout(()=>{
+        const block=get('selectedDayTitle');
+        if(block && !get('inicio')?.classList.contains('hidden')){
+          block.scrollIntoView({behavior:'smooth',block:'start'});
+        }
+      },120);
+    });
     renderMetrics();
     if(!get('inicio')?.classList.contains('hidden'))refreshTv();
   }
