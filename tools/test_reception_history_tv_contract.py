@@ -35,7 +35,11 @@ def test_source_contracts() -> None:
     assert "_flush_control_outbox()" in resilience
     assert "control_pending" in read(APP / "historia_lan_transport.py")
     assert "events.cancelled=0" in read(APP / "historia_lan_transport.py")
-    assert "target=_flush_control_outbox" in read(APP / "historia_lan_transport.py")
+    assert "target=_flush_control_outbox" not in read(APP / "historia_lan_transport.py")
+    assert "_DELIVERY_WAKE.set()" in read(APP / "historia_lan_transport.py")
+    assert "def resilient_delivery_loop()" in resilience
+    assert "_lan._flush_control_outbox()" in resilience
+    assert "_lan._flush_lan_outbox()" in resilience
     assert "LAN discovery has one authority" in tv
     assert "delay = 3.0" in tv
 
@@ -208,11 +212,10 @@ def test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss(
                 reception_patient_id="88",
             )
             assert matched == [event_id]
-            deadline = time.monotonic() + 3
-            while time.monotonic() < deadline:
-                if lan._lan_control_pending_count() == 0:
-                    break
-                time.sleep(0.02)
+            # En producción _DELIVERY_WAKE activa el único worker LAN.
+            # En esta prueba aislada no arranca el monitor: ejecutar su tick.
+            assert lan._lan_control_pending_count() == 1
+            lan._flush_control_outbox()
             assert lan._lan_control_pending_count() == 0, "Online cancellation not acknowledged"
 
             with sqlite3.connect(doctor_db) as conn:

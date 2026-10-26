@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.92: atenciones del día en primer plano y tabla de pacientes más legible. Conserva mejorías de LAN de 4.8.91 y no cambia Historia, facturación, WhatsApp ni Neón. Pruebas de versiones posteriores compatibles."
+  "notes": "Recepción 4.8.93: preserva Inicio 4.8.92; cola LAN justa frente a 30+ turnos, reintentos SQLite durables, cancelaciones seguras y estado LAN independiente de los turnos pendientes. CI comprueba todo antes de publicar."
 }
