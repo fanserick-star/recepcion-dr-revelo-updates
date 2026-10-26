@@ -30,6 +30,7 @@ jobs:
         run: |
           python tools/test_reception_canonical_source.py
           python tools/test_reception_home_tv_remaster_4886.py
+          python tools/test_reception_home_cleanup_4894.py
           node --check recepcion/app/static/home_remaster_4886.js
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py

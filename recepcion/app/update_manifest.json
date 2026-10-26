@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.93",
-  "app_version": "4.8.93",
-  "runtime_version": "4.8.93",
+  "version": "4.8.94",
+  "app_version": "4.8.94",
+  "runtime_version": "4.8.94",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.93: mantiene el Inicio remasterizado 4.8.92 y protege la conexión Recepción–Historia por LAN. Reintentos durables en SQLite permiten que turnos nuevos avancen frente a más de 30 pacientes sin ficha; cancelación serializada con envíos en vuelo; sin falso desconectado por rechazo HTTP; indicador muestra pendientes aunque haya cable. Ahorro de Neon y sin modificaciones a Historia, facturación, impresiones ni WhatsApp.",
-    "previous_version": "4.8.92",
+    "purpose": "Recepción 4.8.94: Inicio prioriza la tabla de pacientes (antes del resumen semanal, más altura visible y encabezado fijo); retira tres accesos inferiores redundantes, panel duplicado TV lateral y botón flotante TV; conserva TV en menú, funciones WhatsApp/facturación/sistema y estados técnicos compactos y legibles junto al buscador. Sin modificar turnos, datos, Neón, facturación ni mensajes.",
+    "previous_version": "4.8.93",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -649,7 +649,14 @@
     "handoff_no_chart_retry_seconds": 300,
     "handoff_neon_failure_retry_seconds": 30,
     "handoff_cancel_send_serialization": true,
-    "lan_status_pending_count_always_visible": true
+    "lan_status_pending_count_always_visible": true,
+    "home_patient_table_first": true,
+    "home_patient_table_scrollable": true,
+    "home_weekly_summary_secondary": true,
+    "home_duplicated_tv_panel_removed": true,
+    "home_floating_tv_removed": true,
+    "home_secondary_shortcuts_removed": true,
+    "technical_status_compact_outside_sidebar": true
   },
   "channel": "launcher-v1-stable"
 }
