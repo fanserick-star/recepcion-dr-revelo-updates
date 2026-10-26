@@ -172,7 +172,7 @@ def test_sources_and_ui():
     assert "ORDER BY CASE WHEN attempt_count=0 THEN 0 ELSE 1 END" in source
     assert "Historia: LAN conectada'+(pending>0?" in ui
     assert "setInterval(refresh,5000);" in ui
-    assert '"4.8.92"' in (ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
+    assert '"4.8.93"' in (ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":
