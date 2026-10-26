@@ -30,6 +30,10 @@ _ORIGINAL_STATUS = _cloud.bridge_status
 _LOCK = threading.Lock()
 _INSTALLED = False
 _MONITOR_STARTED = False
+# El HTTP de guardado solo encola; la red y Neon se atienden fuera de la solicitud.
+_DELIVERY_WAKE = threading.Event()
+_HANDOFF_FLUSH_LOCK = threading.Lock()
+_PENDING_LINK_RETRY_AT = {}  # event_id -> monotonic; evita despertar Neon cada 20 s.
 _STATE = {
     "lan_online": False,
     "lan_host": "",
@@ -542,43 +546,64 @@ def _cloud_link_id(reception_patient_id: object) -> str:
 
 
 def _flush_lan_outbox(max_items: int = 30) -> None:
-    _expire_stale_lan_outbox()
-    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
-        rows = conn.execute(
-            """
-            SELECT event_id,payload_json
-            FROM events
-            WHERE sent_at IS NULL AND cancelled=0
-            ORDER BY created_at
-            LIMIT ?
-            """,
-            (max(1, int(max_items)),),
-        ).fetchall()
-    for event_id, payload_json in rows:
-        try:
-            payload = json.loads(payload_json)
-            if not _clean(payload.get("clinical_patient_id"), 120):
-                # Evento local DURABLE, pero jamás entregarlo sin vínculo.
-                # No consultar Neon cada 20 s: lo despierta el alta, el enlace
-                # manual o una recuperación de conexión.
-                _lan_outbox_mark(str(event_id), error="Ficha clínica sin vincular en Recepción")
-                continue
-            verified_id = _cloud_link_id(payload.get("reception_patient_id"))
-            if not verified_id:
-                # También rechazar vínculos eliminados o cloud temporalmente caída.
-                _lan_outbox_mark(str(event_id), error="Ficha clínica sin vínculo verificado")
-                continue
-            if verified_id != _clean(payload.get("clinical_patient_id"), 120):
-                payload["clinical_patient_id"] = verified_id
-                _update_lan_outbox_payload(event_id, payload)
-            if send_lan(payload):
-                _lan_outbox_mark(str(event_id), sent=True)
-            else:
-                _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
+    """Entrega fiable en segundo plano; nunca envía sin vínculo cloud verificado."""
+    # El monitor LAN y la revinculación manual pueden coincidir: no duplicar handoffs.
+    if not _HANDOFF_FLUSH_LOCK.acquire(blocking=False):
+        _DELIVERY_WAKE.set()
+        return
+    try:
+        _expire_stale_lan_outbox()
+        with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+            rows = conn.execute(
+                """
+                SELECT event_id,payload_json
+                FROM events
+                WHERE sent_at IS NULL AND cancelled=0
+                ORDER BY created_at
+                LIMIT ?
+                """,
+                (max(1, int(max_items)),),
+            ).fetchall()
+        for event_id, payload_json in rows:
+            try:
+                payload = json.loads(payload_json)
+                patient_id = payload.get("reception_patient_id")
+                verified_id = ""
+                if not _clean(payload.get("clinical_patient_id"), 120):
+                    # Ningún paciente sale a espera antes de consultar su vínculo.
+                    # Los vínculos ausentes se reintentan como máximo cada 5 minutos,
+                    # o inmediatamente al vincular desde Recepción.
+                    now = time.monotonic()
+                    if now < _PENDING_LINK_RETRY_AT.get(str(event_id), 0):
+                        continue
+                    _PENDING_LINK_RETRY_AT[str(event_id)] = now + 300.0
+                    verified_id = _cloud_link_id(patient_id)
+                    if not verified_id:
+                        _lan_outbox_mark(str(event_id), error="Ficha clínica pendiente de verificar o vincular")
+                        continue
+                    payload["clinical_patient_id"] = verified_id
+                    _update_lan_outbox_payload(event_id, payload)
+                else:
+                    # Una ficha que estaba enlazada pudo ser corregida por Recepción.
+                    # Revalidar antes de cruzar la LAN, nunca confiar ciegamente en la cola.
+                    verified_id = _cloud_link_id(patient_id)
+                    if not verified_id:
+                        _lan_outbox_mark(str(event_id), error="Ficha clínica sin vínculo verificado")
+                        continue
+                    if verified_id != _clean(payload.get("clinical_patient_id"), 120):
+                        payload["clinical_patient_id"] = verified_id
+                        _update_lan_outbox_payload(event_id, payload)
+                if send_lan(payload):
+                    _lan_outbox_mark(str(event_id), sent=True)
+                    _PENDING_LINK_RETRY_AT.pop(str(event_id), None)
+                else:
+                    _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
+                    break
+            except Exception as exc:
+                _lan_outbox_mark(str(event_id), error=f"{type(exc).__name__}: {str(exc)[:180]}")
                 break
-        except Exception as exc:
-            _lan_outbox_mark(str(event_id), error=f"{type(exc).__name__}: {str(exc)[:180]}")
-            break
+    finally:
+        _HANDOFF_FLUSH_LOCK.release()
 
 
 def remap_pending_patient_id(local_id: object, cloud_id: object) -> int:
@@ -906,7 +931,9 @@ def _monitor_loop():
                 _flush_lan_outbox()
         except Exception:
             pass
-        time.sleep(6 if not online else 20)
+        # Un turno nuevo despierta al monitor sin crear otro proceso ni polling cloud.
+        _DELIVERY_WAKE.wait(timeout=6 if not online else 20)
+        _DELIVERY_WAKE.clear()
 
 
 def install(historia_bridge_module=None) -> None:
@@ -962,17 +989,15 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
     label = _clean(attention_type, 180).upper()
     is_procedure = label == "PROCEDIMIENTO" or label.startswith("PROCEDIMIENTO ")
     event_id = _cloud._event_id(reception_patient_id, visit_ids)
-    verified_id = _cloud_link_id(reception_patient_id)
-    # Aunque otra ruta proponga un ID, solo el enlace de Recepción verificado
-    # puede autorizar el envío. Las revisiones gratuitas quedan igualmente seguras.
-    if clinical_patient_id and _clean(clinical_patient_id, 120) != verified_id:
-        verified_id = ""
+    # La solicitud HTTP no abre conexiones Neon ni espera la LAN.
+    # Ni siquiera un clinical_patient_id suministrado se acepta como verificación.
+    # Solo el trabajador de salida consulta el enlace canónico antes de entregar.
     payload = {
         "event_id": event_id,
         "reception_patient_id": str(reception_patient_id),
         # Exam reviews pass a chart ID already checked against the verified
         # Historia link. Regular consultations keep their existing resolver.
-        "clinical_patient_id": verified_id,
+        "clinical_patient_id": "",
         "display_name": _clean(display_name, 260) or "Paciente",
         "identification": _clean(identification, 120),
         "attention_type": _clean(attention_type, 180) or "Consulta",
@@ -985,12 +1010,6 @@ def hybrid_queue_attention(*, reception_patient_id: object, display_name: object
         "address": _clean(address, 360),
         "queued_at": _now(),
     }
-    _lan_outbox_put(payload)
-    if not verified_id:
-        _lan_outbox_mark(event_id, error="Ficha clínica pendiente de vinculación en Recepción")
-        return event_id
-    if send_lan(payload):
-        _lan_outbox_mark(event_id, sent=True)
-    else:
-        _lan_outbox_mark(event_id, error=_snapshot().get("lan_last_error") or "Pendiente de entrega LAN")
+    _lan_outbox_put(payload)  # Durabilidad antes de responder al navegador.
+    _DELIVERY_WAKE.set()  # Verificar ficha y entregar en el trabajador LAN.
     return event_id
