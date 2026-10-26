@@ -1,5 +1,5 @@
-/* Recepción 4.8.86 · Inicio aprobado + acceso TV lateral.
-   Solo presentación y lecturas locales; sin cambios en turnos, Meta, facturas ni Neon. */
+/* Recepción 4.8.94 · Inicio limpio; TV solo en su módulo.
+   Métricas siguen leyendo estados locales. Sin cambios de negocio o clínica. */
 ;(()=>{
   'use strict';
   if(window.__r486HomeMounted)return;
@@ -41,15 +41,6 @@
       metric('▥','Total del día',safeMoney(local?.total),local?'Valor registrado':'Sin datos del día','r486-money')
     ].join('');
   }
-  function renderTvStatus(){
-    const pill=get('r486TvState'),desc=get('r486TvDetail'),label=get('r486TvSub');
-    if(!pill||!desc)return;
-    const server=!!tvState?.ok,active=server&&!!tvState.tv_online,linked=server&&!!tvState.history_online;
-    pill.textContent=!server?'Sin conexión':active?'En línea':'TV no detectada';
-    pill.className='r486-tv-pill '+(active?'online':'offline');
-    desc.textContent=!server?'Panel local no disponible':active?'Pantalla de sala conectada':'Pantalla de sala desconectada';
-    if(label)label.textContent=server?(linked?'Historia conectada':'Historia sin conexión'):'Revisar servicio TV';
-  }
   async function refreshTv(force=false){
     const now=Date.now();
     if(tvReading||(!force&&now-lastTvRead<45000))return;
@@ -60,7 +51,7 @@
       const value=await r.json();
       tvState=value&&typeof value==='object'?value:{ok:false};
     }catch(_){tvState={ok:false};}
-    finally{tvReading=false;renderTvStatus();renderMetrics();}
+    finally{tvReading=false;renderMetrics();}
   }
   function activateTv(){
     const frame=get('r486TvFrame');
@@ -75,7 +66,6 @@
   function boot(){
     document.body.classList.add('r486-ui');
     renderMetrics();
-    renderTvStatus();
     if(!get('inicio')?.classList.contains('hidden'))refreshTv();
   }
   const originalLoad=window.loadDashboard;
