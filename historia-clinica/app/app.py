@@ -5222,6 +5222,54 @@ def v138_health():
 doctor_turn_call.install(app, db, ROOT, _queue_turn_number, _queue_is_procedure)
 _DOCTOR_CALL_ORIGINAL_BASE = base
 
+def _global_remaster_sidebar(active: str) -> str:
+    """Menú común, sin realizar operaciones clínicas ni llamadas de red."""
+    items = [
+        ("principal", "PRINCIPAL", ""),
+        ("inicio", "⌂", "Inicio", "/"),
+        ("pacientes", "⌕", "Buscar pacientes", "/pacientes"),
+        ("espera", "◷", "Pacientes en espera", "/#pacientes-en-espera"),
+        ("recientes", "▤", "Pacientes recientes", "/#pacientes-recientes"),
+        ("documentos", "DOCUMENTOS MÉDICOS", ""),
+        ("recetas", "▧", "Recetas", "/recetas"),
+        ("certificados", "♧", "Certificados", "/certificados"),
+        ("informes", "▤", "Informes", "/informes"),
+        ("videos", "▣", "Videocistoscopías", "/pacientes"),
+        ("materiales", "MATERIAL PARA PACIENTES", ""),
+        ("material", "▥", "Material", "/material"),
+        ("herramientas", "HERRAMIENTAS", ""),
+        ("macros", "▢", "Frases rápidas", "/macros"),
+        ("configuracion", "⚙", "Configuración", "/configuracion"),
+        ("recuperacion", "↶", "Recuperación", "/recuperacion/borradores"),
+    ]
+    parts = [
+        '<aside class="hc-g-sidebar" aria-label="Navegación de Historia Clínica">',
+        '<div class="hc-g-side-caption">HISTORIA CLÍNICA</div>',
+        '<nav class="hc-g-side-links" aria-label="Secciones clínicas">',
+    ]
+    for item in items:
+        if len(item) == 3:
+            parts.append(f'<div class="hc-g-side-heading">{e(item[1])}</div>')
+            continue
+        key, icon, label, href = item
+        selected = " hc-g-active" if active == key else ""
+        # Las videocistoscopías se abren desde la ficha del paciente.
+        hint = ' title="Seleccione primero la ficha del paciente"' if key == "videos" else ""
+        parts.append(
+            f'<a class="hc-g-side-link{selected}" href="{href}"{hint}>'
+            f'<span class="hc-g-side-icon" aria-hidden="true">{icon}</span>'
+            f'<span class="hc-g-side-name">{e(label)}</span></a>'
+        )
+    parts += ['</nav>', f'<div class="hc-g-side-version">Historia Clínica · v{e(APP_VERSION)}</div>', '</aside>']
+    return "".join(parts)
+
+
 def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
     html = _DOCTOR_CALL_ORIGINAL_BASE(title, body, active, extra_head, extra_script)
+    # Inicio B conserva su shell propio. Los editores independientes esconden
+    # el menú por CSS y mantienen su tamaño de impresión y salvaguardas.
+    if active != "inicio" and '<body class="cp-remaster-app">' in html:
+        main = "<main>"
+        if main in html:
+            html = html.replace(main, _global_remaster_sidebar(active) + "\n" + main, 1)
     return html.replace("</body>", doctor_turn_call.CALL_SCRIPT + "</body>", 1)
