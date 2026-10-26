@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.90: guarda primero en SQLite y encola turnos LAN de forma durable; verifica la ficha clínica en segundo plano antes de entregarla, evita consulta Neon repetida al guardar e incluye pruebas de seguridad y rendimiento."
+  "notes": "Recepción 4.8.91: recuperación rápida del indicador LAN y pacientes en espera mediante monitor exclusivo de red y worker independiente para entrega verificada. No cambia Historia, facturación ni WhatsApp."
 }
