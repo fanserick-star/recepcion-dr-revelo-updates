@@ -112,4 +112,24 @@ assert '("videos", "▣", "Videocistoscopías", "/pacientes")' in app, "Se perdi
 assert 'body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor):has(.report-list-card) > main' in css
 print("HISTORIA_1451_REPORT_LIST_SIDEBAR_HOME_VIDEO_TILE_REMOVED_OK")
 
+
+# V1.4.52: cola más visible, sin perder navegación ni alterar el llamado.
+assert "Inicio B v1.4.52 · jerarquía visual restaurada en lista de espera" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card:first-child" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name strong" in css
+assert "font-size:43px!important" in css
+assert "overflow-y:auto!important" in css
+assert "height:100vh!important;min-height:100vh!important;overflow:hidden!important" in css
+assert "overscroll-behavior:contain" in css
+assert 'class="hc-b-queue-list"' in app
+assert 'class="hc-b-wait-content"' not in app or "hc-b-wait-content" in app
+assert 'queue_status_class = "queue-row-waiting" if is_waiting else "queue-row-attending"' in app
+assert 'doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)' in app
+assert "href = f\"/cola/{e(r['id'])}/atender\" if can_open else \"#\"" in app
+assert "js-queue-dismiss" in app and "hc-b-open" in app
+assert "queue_turns.get(str(r[\"id\"]))" in app
+print("HISTORIA_1452_PROMINENT_WAITING_CARDS_QUEUE_CONTROLS_PRESERVED_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
