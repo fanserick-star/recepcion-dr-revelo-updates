@@ -200,3 +200,50 @@ body.r486-ui .r494-connection-strip #connectionBadge .connection-label{font-size
 body.r486-ui .r494-connection-strip #historiaDoctorBadge{position:static!important;display:inline-flex!important;align-items:center!important;max-width:100%!important;min-height:27px!important;margin:0!important;padding:5px 10px!important;white-space:normal!important;line-height:1.25!important;font-size:10px!important;border-radius:8px!important}
 body.r486-ui .r494-connection-strip #sidebarRealVersion{display:inline-flex!important;align-items:center!important;justify-content:center!important;width:auto!important;min-width:0!important;min-height:27px!important;margin:0!important;padding:5px 10px!important;border:1px solid #dbe5ee!important;border-radius:8px!important;background:#fff!important;color:#51677d!important;font-size:10px!important;font-weight:750!important;line-height:1.2!important;white-space:nowrap!important}
 @media(max-width:850px){body.r486-ui .r494-connection-strip{justify-content:flex-start;margin:0 0 12px}body.r486-ui .r494-connection-strip #connectionBadge .connection-label{max-width:145px}}
+
+/* Recepción 4.8.94 — la tabla de atenciones es la pantalla principal.
+   Los pacientes, sus importes y sus botones siguen intactos; la tabla
+   crece hasta la altura visible y después desplaza SOLO sus filas. */
+body.r486-ui #inicio .r494-attentions-primary{margin:5px 0 12px!important;min-width:0}
+body.r486-ui #inicio .r494-attentions-primary .selected-day-title{margin:0 0 8px!important;padding:10px 13px!important;background:#eaf3ff!important;border-left:4px solid #2572c5!important}
+body.r486-ui #inicio .r494-attentions-primary #todayTable{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  max-height:min(59vh,640px)!important;
+  overflow-x:auto!important;overflow-y:auto!important;
+  overscroll-behavior:contain;
+  scrollbar-width:thin;
+  scrollbar-color:#a8bfd7 #f2f6fa;
+  border:1px solid #ccddeb!important;
+  border-radius:14px!important;
+  background:#fff!important;
+  box-shadow:0 7px 24px rgba(23,53,94,.085)!important
+}
+body.r486-ui #inicio .r494-attentions-primary #todayTable .home-patient-table thead th{
+  position:sticky!important;top:0!important;z-index:3!important;
+  background:#e8f0fa!important;
+  box-shadow:inset 0 -1px #cdddec!important
+}
+body.r486-ui #inicio .r494-weekly-secondary{
+  margin:12px 0 8px;
+  padding:10px 11px 2px;
+  border:1px solid #e3eaf2;
+  border-radius:12px;
+  background:#f8fafc;
+}
+body.r486-ui #inicio .r494-weekly-secondary::before{
+  content:"RESUMEN DE LA SEMANA";
+  display:block;
+  margin:0 0 8px;
+  color:#697f98;
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.055em
+}
+body.r486-ui #inicio .r494-weekly-secondary .week-cards{margin:0 0 9px!important}
+body.r486-ui #inicio .r494-weekly-secondary .week-card{min-height:73px!important;padding:9px 12px!important}
+body.r486-ui #inicio .r494-weekly-secondary .week-card strong{font-size:22px!important}
+body.r486-ui #inicio .home-week-nav{margin:3px 0 7px!important}
+@media(max-width:900px){
+  body.r486-ui #inicio .r494-attentions-primary #todayTable{max-height:54vh!important}
+  body.r486-ui #inicio .r494-weekly-secondary{padding:9px 7px 1px}
+}
