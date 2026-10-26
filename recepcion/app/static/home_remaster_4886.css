@@ -93,7 +93,7 @@ body.r486-ui #tv .r486-tv-reload{padding:10px 16px;border-radius:10px;background
 @media(max-width:640px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.r486-ui #inicio .week-cards{grid-template-columns:1fr!important}body.r486-ui #tv .r486-tv-page-head{align-items:flex-start;flex-direction:column}}
 
 
-/* Propuesta 4.8.89: destacar las atenciones del día y profesionalizar su tabla.
+/* Refinamiento visual de Inicio: destacar las atenciones del día y profesionalizar su tabla.
    Únicamente presentación. No modifica endpoints, turnos, cobros ni impresión. */
 body.r486-ui #inicio .home-title-row{margin-bottom:10px!important}
 body.r486-ui #inicio .r486-metrics{margin-bottom:9px!important}
