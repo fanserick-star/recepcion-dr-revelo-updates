@@ -10,7 +10,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import historia_bridge as _cloud
@@ -33,7 +33,9 @@ _MONITOR_STARTED = False
 # El HTTP de guardado solo encola; la red y Neon se atienden fuera de la solicitud.
 _DELIVERY_WAKE = threading.Event()
 _HANDOFF_FLUSH_LOCK = threading.Lock()
-_PENDING_LINK_RETRY_AT = {}  # event_id -> monotonic; evita despertar Neon cada 20 s.
+_PENDING_LINK_RETRY_AT = {}  # compatibilidad para diagnósticos anteriores.
+_OUTBOX_SCHEMA_PATH = None
+_LINK_LOOKUP_STATE = threading.local()
 _STATE = {
     "lan_online": False,
     "lan_host": "",
@@ -277,7 +279,8 @@ def send_lan(payload: dict) -> bool:
             timeout=1.25,
         )
         if not result.get("ok"):
-            raise RuntimeError(str(result.get("error") or "Historia rechazó el turno"))
+            _set_state(lan_last_error=str(result.get("error") or "Historia rechazó el turno")[:160])
+            return False
         _set_state(
             lan_online=True,
             lan_last_seen=_now(),
@@ -311,7 +314,12 @@ def send_lan(payload: dict) -> bool:
                         return True
                 except Exception:
                     pass
-        _set_state(lan_online=False, lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
+        # HTTP 400/409/500 means Historia answered: do not report a cable
+        # failure or trigger a needless 500-host subnet rediscovery.
+        if exc.code != 403:
+            _set_state(lan_last_error=f"Historia rechazó turno (HTTP {exc.code})")
+        else:
+            _set_state(lan_online=False, lan_last_error="Historia rechazó token LAN (403)")
         return False
     except Exception as exc:
         _set_state(lan_online=False, lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
@@ -331,7 +339,11 @@ def send_lan(payload: dict) -> bool:
 
 
 def _ensure_lan_outbox() -> None:
-    """Create/migrate the local LAN outbox without touching clinical databases."""
+    """Create/migrate the local LAN outbox once per runtime/path."""
+    global _OUTBOX_SCHEMA_PATH
+    path = str(LAN_OUTBOX_DB)
+    if _OUTBOX_SCHEMA_PATH == path and LAN_OUTBOX_DB.is_file():
+        return
     LAN_OUTBOX_DB.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
         conn.execute("PRAGMA journal_mode=WAL")
@@ -348,7 +360,9 @@ def _ensure_lan_outbox() -> None:
               control_visit_id TEXT,
               control_pending INTEGER NOT NULL DEFAULT 0,
               control_last_error TEXT,
-              control_sent_at TEXT
+              control_sent_at TEXT,
+              next_attempt_at TEXT,
+              attempt_count INTEGER NOT NULL DEFAULT 0
             )
             """
         )
@@ -359,6 +373,8 @@ def _ensure_lan_outbox() -> None:
             ("control_pending", "INTEGER NOT NULL DEFAULT 0"),
             ("control_last_error", "TEXT"),
             ("control_sent_at", "TEXT"),
+            ("next_attempt_at", "TEXT"),
+            ("attempt_count", "INTEGER NOT NULL DEFAULT 0"),
         )
         for name, ddl in migrations:
             if name not in cols:
@@ -367,7 +383,13 @@ def _ensure_lan_outbox() -> None:
             "CREATE INDEX IF NOT EXISTS idx_historia_lan_control_pending "
             "ON events(control_pending,created_at)"
         )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_historia_lan_ready "
+            "ON events(next_attempt_at,attempt_count,created_at) "
+            "WHERE sent_at IS NULL AND cancelled=0"
+        )
         conn.commit()
+    _OUTBOX_SCHEMA_PATH = path
 
 
 def _lan_outbox_put(payload: dict) -> None:
@@ -382,8 +404,10 @@ def _lan_outbox_put(payload: dict) -> None:
             VALUES(?,?,?,NULL,0,NULL)
             ON CONFLICT(event_id) DO UPDATE SET
               payload_json=excluded.payload_json,
-              sent_at=CASE WHEN events.cancelled=0 THEN NULL ELSE events.sent_at END,
-              last_error=CASE WHEN events.cancelled=0 THEN NULL ELSE events.last_error END
+              sent_at=events.sent_at,
+              last_error=CASE WHEN events.cancelled=0 THEN NULL ELSE events.last_error END,
+              next_attempt_at=CASE WHEN events.cancelled=0 THEN NULL ELSE events.next_attempt_at END,
+              attempt_count=CASE WHEN events.cancelled=0 THEN 0 ELSE events.attempt_count END
             """,
             (event_id, json.dumps(payload, ensure_ascii=False, separators=(",", ":")), _now()),
         )
@@ -511,6 +535,7 @@ def _lan_outbox_counts() -> tuple[int, int]:
 
 def _cloud_link_id(reception_patient_id: object) -> str:
     """Reads only the verified patient link from Historia Neon."""
+    _LINK_LOOKUP_STATE.error = ""
     try:
         import reception_history_identity_consolidated as identity
         import core_runtime as core
@@ -541,70 +566,102 @@ def _cloud_link_id(reception_patient_id: object) -> str:
             return _clean(row[0], 120) if row and row[0] else ""
         finally:
             conn.close()
-    except Exception:
+    except Exception as exc:
+        _LINK_LOOKUP_STATE.error = f"{type(exc).__name__}: {str(exc)[:140]}"
         return ""
 
 
-def _flush_lan_outbox(max_items: int = 30) -> None:
-    """Entrega fiable en segundo plano; nunca envía sin vínculo cloud verificado."""
-    # El monitor LAN y la revinculación manual pueden coincidir: no duplicar handoffs.
+def _defer_lan_event(event_id: str, seconds: int, error: str) -> None:
+    """Persist retry deadline across restarts; failed old rows never block new patients."""
+    deadline = (datetime.now() + timedelta(seconds=max(1, int(seconds)))).isoformat(timespec="seconds")
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        conn.execute(
+            "UPDATE events SET next_attempt_at=?,attempt_count=attempt_count+1,last_error=? "
+            "WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+            (deadline, _clean(error, 240), str(event_id)),
+        )
+        conn.commit()
+
+
+def _ready_lan_count() -> int:
+    _ensure_lan_outbox()
+    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+        return int(conn.execute(
+            "SELECT COUNT(*) FROM events WHERE sent_at IS NULL AND cancelled=0 "
+            "AND (next_attempt_at IS NULL OR next_attempt_at<=?)",
+            (_now(),),
+        ).fetchone()[0] or 0)
+
+
+def _flush_lan_outbox(max_items: int = 8) -> None:
+    """Deliver a bounded fair batch; never send an unverified chart."""
     if not _HANDOFF_FLUSH_LOCK.acquire(blocking=False):
         _DELIVERY_WAKE.set()
         return
     try:
         _expire_stale_lan_outbox()
+        neon_unavailable = False
+        batch_size = max(1, int(max_items))
         with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
             rows = conn.execute(
                 """
                 SELECT event_id,payload_json
                 FROM events
                 WHERE sent_at IS NULL AND cancelled=0
-                ORDER BY created_at
+                  AND (next_attempt_at IS NULL OR next_attempt_at<=?)
+                ORDER BY CASE WHEN attempt_count=0 THEN 0 ELSE 1 END, created_at, event_id
                 LIMIT ?
                 """,
-                (max(1, int(max_items)),),
+                (_now(), batch_size),
             ).fetchall()
+        verified_by_patient: dict[str, str] = {}
         for event_id, payload_json in rows:
             try:
                 payload = json.loads(payload_json)
-                patient_id = payload.get("reception_patient_id")
-                verified_id = ""
-                if not _clean(payload.get("clinical_patient_id"), 120):
-                    # Ningún paciente sale a espera antes de consultar su vínculo.
-                    # Los vínculos ausentes se reintentan como máximo cada 5 minutos,
-                    # o inmediatamente al vincular desde Recepción.
-                    now = time.monotonic()
-                    if now < _PENDING_LINK_RETRY_AT.get(str(event_id), 0):
-                        continue
-                    _PENDING_LINK_RETRY_AT[str(event_id)] = now + 300.0
-                    verified_id = _cloud_link_id(patient_id)
-                    if not verified_id:
-                        _lan_outbox_mark(str(event_id), error="Ficha clínica pendiente de verificar o vincular")
-                        continue
-                    payload["clinical_patient_id"] = verified_id
-                    _update_lan_outbox_payload(event_id, payload)
+                patient_id = str(payload.get("reception_patient_id") or "").strip()
+                if not patient_id:
+                    _defer_lan_event(str(event_id), 300, "Falta identificación de Recepción")
+                    continue
+                # Do not trust a queued ID, which may predate a manual correction.
+                if patient_id in verified_by_patient:
+                    verified_id = verified_by_patient[patient_id]
                 else:
-                    # Una ficha que estaba enlazada pudo ser corregida por Recepción.
-                    # Revalidar antes de cruzar la LAN, nunca confiar ciegamente en la cola.
+                    _LINK_LOOKUP_STATE.error = ""
                     verified_id = _cloud_link_id(patient_id)
                     if not verified_id:
-                        _lan_outbox_mark(str(event_id), error="Ficha clínica sin vínculo verificado")
+                        transient = bool(getattr(_LINK_LOOKUP_STATE, "error", ""))
+                        _defer_lan_event(
+                            str(event_id), 30 if transient else 300,
+                            ("Neon temporalmente no disponible: " + _LINK_LOOKUP_STATE.error)
+                            if transient else "Ficha clínica pendiente de verificar o vincular",
+                        )
+                        # Connection failure affects the entire Neon endpoint.
+                        # Stop probing repeatedly in this cycle; keep new events safe.
+                        if transient:
+                            neon_unavailable = True
+                            break
                         continue
-                    if verified_id != _clean(payload.get("clinical_patient_id"), 120):
-                        payload["clinical_patient_id"] = verified_id
-                        _update_lan_outbox_payload(event_id, payload)
+                    verified_by_patient[patient_id] = verified_id
+                if verified_id != _clean(payload.get("clinical_patient_id"), 120):
+                    payload["clinical_patient_id"] = verified_id
+                    _update_lan_outbox_payload(str(event_id), payload)
                 if send_lan(payload):
                     _lan_outbox_mark(str(event_id), sent=True)
                     _PENDING_LINK_RETRY_AT.pop(str(event_id), None)
                 else:
-                    _lan_outbox_mark(str(event_id), error=_snapshot().get("lan_last_error") or "Historia no disponible por LAN")
-                    break
+                    error = _snapshot().get("lan_last_error") or "Historia no confirmó recepción LAN"
+                    _defer_lan_event(str(event_id), 15, error)
+                    if not _snapshot().get("lan_online"):
+                        break
             except Exception as exc:
-                _lan_outbox_mark(str(event_id), error=f"{type(exc).__name__}: {str(exc)[:180]}")
-                break
+                _defer_lan_event(str(event_id), 30, f"{type(exc).__name__}: {str(exc)[:180]}")
+                continue
+        # New visits after a backlog receive a chance every bounded batch.
+        # Retries with future deadlines are excluded, preventing busy loops.
+        if not neon_unavailable and len(rows) >= batch_size and _ready_lan_count() > 0:
+            _DELIVERY_WAKE.set()
     finally:
         _HANDOFF_FLUSH_LOCK.release()
-
 
 def remap_pending_patient_id(local_id: object, cloud_id: object) -> int:
     """Conserva el ID real de Neon antes de limpiar el mapa SQLite offline."""
@@ -631,6 +688,8 @@ def remap_pending_patient_id(local_id: object, cloud_id: object) -> int:
             except (TypeError, ValueError):
                 continue
         conn.commit()
+    if changed:
+        _DELIVERY_WAKE.set()
     return changed
 
 
@@ -655,7 +714,7 @@ def resume_pending_for_patient(reception_patient_id: object) -> int:
                     continue
                 payload["clinical_patient_id"] = verified
                 conn.execute(
-                    "UPDATE events SET payload_json=?,last_error=NULL WHERE event_id=? "
+                    "UPDATE events SET payload_json=?,last_error=NULL,next_attempt_at=NULL,attempt_count=0 WHERE event_id=? "
                     "AND sent_at IS NULL AND cancelled=0",
                     (json.dumps(payload, ensure_ascii=False, separators=(",", ":")), event_id),
                 )
@@ -663,8 +722,8 @@ def resume_pending_for_patient(reception_patient_id: object) -> int:
             except (TypeError, ValueError):
                 continue
         conn.commit()
-    if resumed and _snapshot().get("lan_online"):
-        _flush_lan_outbox()
+    if resumed:
+        _DELIVERY_WAKE.set()
     return resumed
 
 
@@ -698,7 +757,7 @@ def refresh_sent_waiting_handoffs_after_link(reception_patient_id: object, event
                     continue
                 payload["clinical_patient_id"] = verified
                 conn.execute(
-                    "UPDATE events SET payload_json=?,sent_at=NULL,last_error=NULL "
+                    "UPDATE events SET payload_json=?,sent_at=NULL,last_error=NULL,next_attempt_at=NULL,attempt_count=0 "
                     "WHERE event_id=? AND cancelled=0",
                     (json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                      str(event_id)),
@@ -708,7 +767,7 @@ def refresh_sent_waiting_handoffs_after_link(reception_patient_id: object, event
                 continue
         conn.commit()
     if changed:
-        _flush_lan_outbox()
+        _DELIVERY_WAKE.set()
     return changed
 
 
@@ -717,15 +776,12 @@ def handoff_waiting_for_chart(event_id: object) -> bool:
     _ensure_lan_outbox()
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
         row = conn.execute(
-            "SELECT payload_json FROM events WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
+            "SELECT last_error FROM events WHERE event_id=? AND sent_at IS NULL AND cancelled=0",
             (str(event_id),),
         ).fetchone()
-    if not row:
-        return False
-    try:
-        return not bool(_clean(json.loads(row[0]).get("clinical_patient_id"), 120))
-    except (ValueError, TypeError):
-        return True
+    # Newly enqueued events are awaiting worker verification, not necessarily
+    # unlinked. Report missing link only once actually checked.
+    return bool(row and str(row[0] or "").startswith("Ficha clínica pendiente"))
 
 
 def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "") -> list[str]:
@@ -755,19 +811,21 @@ def _lan_event_targets(visit_id: object = "", reception_patient_id: object = "")
 
 
 def _lan_set_cancelled(event_id: str, cancelled: bool) -> tuple[bool, dict | None]:
+    """Serialise cancel/restore with the in-flight handoff, not just SQLite writes."""
     _ensure_lan_outbox()
-    with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
-        row = conn.execute(
-            "SELECT sent_at,payload_json FROM events WHERE event_id=? LIMIT 1",
-            (str(event_id),),
-        ).fetchone()
-        if not row:
-            return False, None
-        conn.execute(
-            "UPDATE events SET cancelled=? WHERE event_id=?",
-            (1 if cancelled else 0, str(event_id)),
-        )
-        conn.commit()
+    with _HANDOFF_FLUSH_LOCK:
+        with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+            row = conn.execute(
+                "SELECT sent_at,payload_json FROM events WHERE event_id=? LIMIT 1",
+                (str(event_id),),
+            ).fetchone()
+            if not row:
+                return False, None
+            conn.execute(
+                "UPDATE events SET cancelled=?,next_attempt_at=NULL WHERE event_id=?",
+                (1 if cancelled else 0, str(event_id)),
+            )
+            conn.commit()
     try:
         payload = json.loads(row[1])
     except Exception:
@@ -810,7 +868,8 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
                     lan_last_error="",
                 )
                 return True
-            raise RuntimeError(str(result.get("error") or "Historia rechazó la acción"))
+            _set_state(lan_last_error=str(result.get("error") or "Historia rechazó la acción")[:160])
+            return False
         except urllib.error.HTTPError as exc:
             if exc.code == 403 and attempt == 0:
                 _set_state(token="", token_host="")
@@ -819,7 +878,10 @@ def _send_control_lan(action: str, target_event_id: str, visit_id: object = "") 
                 token = str(fresh.get("token") or "")
                 if host and token:
                     continue
-            _set_state(lan_online=False, lan_last_error=f"HTTP {getattr(exc, 'code', '?')}")
+            if exc.code != 403:
+                _set_state(lan_last_error=f"Historia rechazó control (HTTP {exc.code})")
+            else:
+                _set_state(lan_online=False, lan_last_error="Historia rechazó token LAN (403)")
             return False
         except Exception as exc:
             _set_state(lan_online=False, lan_last_error=f"{type(exc).__name__}: {str(exc)[:160]}")
@@ -863,17 +925,9 @@ def _hybrid_control(action: str, *, visit_id: object, reception_patient_id: obje
         was_sent, payload = _lan_set_cancelled(target, action == "cancel")
         if was_sent or payload is None:
             _queue_control_intent(target, action, visit_id)
-            threading.Thread(
-                target=_flush_control_outbox,
-                daemon=True,
-                name=f"historia-lan-{action}-retry",
-            ).start()
+            _DELIVERY_WAKE.set()
         elif action == "restore" and payload:
-            threading.Thread(
-                target=_flush_lan_outbox,
-                daemon=True,
-                name="historia-lan-restore-pending",
-            ).start()
+            _DELIVERY_WAKE.set()
     return targets
 
 
