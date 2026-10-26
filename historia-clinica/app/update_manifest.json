@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.48",
-  "app_version": "1.4.48",
-  "runtime_version": "1.4.48",
+  "version": "1.4.49",
+  "app_version": "1.4.49",
+  "runtime_version": "1.4.49",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Hotfix de arranque: limpieza de turnos de días previos con estado CHECK SQLite permitido (cancelled), manteniendo pacientes y consultas intactos. Prueba sintética de regresión y validaciones de compatibilidad de versiones corregidas.",
-    "previous_version": "1.4.45",
+    "purpose": "Remaster global del tema visual B de Historia Clínica. Navegación izquierda y colores blanco/azul unificados en fichas, consultas, búsqueda, pacientes, documentos clínicos, informes, recetas, certificados, configuración, frases rápidas, recuperación y Material; barra del consentimiento adaptada sin alterar las hojas A4. Ventanas de edición independientes, firma PAdES y PDF impreso intactos. Conserva LAN, llamados TV, cola, Neón, pacientes e historias; sin migración de datos ni cambios de sincronización.",
+    "previous_version": "1.4.48",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -387,6 +387,18 @@
     "home_video_library_per_patient_preserved": true,
     "home_ui_no_database_migration": true,
     "home_ui_no_extra_neon_polling": true,
-    "mandatory": true
+    "mandatory": true,
+    "global_visual_remaster": true,
+    "global_visual_theme": "inicio_b_medical_blue",
+    "global_navigation_patient_consultation": true,
+    "global_navigation_medical_document_lists": true,
+    "global_navigation_material": true,
+    "global_navigation_editor_windows_independent": true,
+    "global_materials_local_only": true,
+    "global_consent_fixed_text_preserved": true,
+    "global_pdf_print_styles_preserved": true,
+    "global_queue_tv_calls_unchanged": true,
+    "global_cloud_lan_logic_unchanged": true,
+    "global_theme_regression_test": true
   }
 }
