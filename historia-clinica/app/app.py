@@ -1216,7 +1216,7 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
     return f"""<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(title)} · Historia Clínica</title><link rel="icon" type="image/png" href="/static/doctor_logo.png"><link rel="stylesheet" href="/static/style.css?v={e(APP_VERSION)}">{extra_head}</head>
-<body class="cp-remaster-app {'hc-b-app' if active=='inicio' else ''}">
+<body class="cp-remaster-app{' hc-b-app' if active=='inicio' else ''}">
 <header class="topbar">
   <div class="brand">
     <a class="brand-home-link {'active' if active=='inicio' else ''}" href="/" title="Volver al inicio">⌂ <span>INICIO</span></a>
@@ -4730,6 +4730,8 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
     """Aplicar shell antes de registrar los módulos clínicos y sus rutas."""
     html = _HC_GLOBAL_SOURCE_BASE(title, body, active, extra_head, extra_script)
     if active != "inicio" and '<body class="cp-remaster-app">' in html:
+        # El atributo body no debe arrastrar espacios al final: es el mismo
+        # marcador que usan los editores de documentos y las pruebas visuales.
         if '<main>' in html and 'class="hc-g-sidebar"' not in html:
             html = html.replace("<main>", _global_remaster_sidebar(active) + "\n<main>", 1)
     return html
