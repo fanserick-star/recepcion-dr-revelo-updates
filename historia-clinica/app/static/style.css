@@ -3868,8 +3868,17 @@ body.hc-b-app>main{max-width:none!important;width:100%!important;margin:0!import
     border-bottom:1px solid #cbdfee!important;
     box-shadow:0 1px 5px #1a4e7710!important;padding:0 20px!important;
   }
-  body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-home-link{
-    display:none!important;
+  /* Inicio visible incluso si el panel lateral se compacta por tamaño. */
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) > .topbar .brand-home-link{
+    display:inline-flex!important;align-items:center!important;justify-content:center!important;
+    min-height:37px!important;padding:0 12px!important;margin-right:4px!important;
+    border:1px solid #c6dcf0!important;border-radius:8px!important;
+    background:#e9f4ff!important;color:#145b98!important;
+    font:800 12px "Segoe UI",Arial,sans-serif!important;
+    white-space:nowrap!important;text-decoration:none!important;
+  }
+  body.cp-remaster-app:not(.hc-b-app):not(.clinical-document-editor) > .topbar .brand-home-link:hover{
+    background:#dceeff!important;
   }
   body.cp-remaster-app:not(.hc-b-app) > .topbar .brand-logo{
     width:37px!important;height:37px!important;object-fit:contain!important;
