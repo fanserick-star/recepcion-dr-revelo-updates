@@ -966,7 +966,9 @@ function patientNameCell(r,home=false,isNewOverride=null){
   const p=r.patient||{};
   const isNew=isNewOverride===null?r.tipo==='N':!!isNewOverride;
   const n=isNew?'<span class="new-patient-badge" title="Paciente nuevo">NUEVO</span>':'';
-  return `<div class="patient-name-line"><button type="button" class="patient-name-button" onclick="openPatient(${p.id},'home')">${esc(p.nombre||'')}</button>${home?n:''}${home?'':dataWarning(p,true)}</div>`;
+  // Solo en Inicio: identificación secundaria ya cargada en la atención, sin consultas adicionales.
+  const detail=home?[p.cedula?'C.I. '+esc(p.cedula):'',p.celular?'Cel. '+esc(formatPhoneValue(p.celular)):''].filter(Boolean).join(' · '):'';
+  return `<div class="patient-home-cell"><div class="patient-name-line"><button type="button" class="patient-name-button" onclick="openPatient(${p.id},'home')">${esc(p.nombre||'')}</button>${home?n:''}${home?'':dataWarning(p,true)}</div>${detail?'<div class="patient-home-meta">'+detail+'</div>':''}</div>`;
 }
 function statusLabel(tipo){return tipo==='N'?'Nuevo':tipo==='S'?'Subsecuente':tipo==='P'?'Procedimiento (registro anterior)':tipo||''}
 function serviceKey(name){return String(name||'').trim().toUpperCase()}
