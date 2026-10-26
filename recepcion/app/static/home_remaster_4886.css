@@ -187,3 +187,28 @@ body.r486-ui #inicio .r489-secondary-actions{margin:17px 0 12px!important}
   body.r486-ui #inicio .r489-attentions-focus .selected-day-title h2{font-size:19px!important}
   body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{gap:4px!important}
 }
+
+/* Media pantalla de recepción: botones en dos líneas sin perder la tabla. */
+@media (min-width:1000px) and (max-width:1200px) {
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{
+    min-width:0!important;width:100%!important;table-layout:fixed!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(1){width:5%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(2){width:34%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(3){width:20%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(4){width:11%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(5){width:30%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table tbody td{padding:10px 6px!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-button{font-size:13px!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-action-cell{white-space:normal!important;text-align:center!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{
+    display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important;
+    width:100%!important;margin:0 0 4px!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions button{
+    width:100%!important;font-size:9px!important;padding:6px 3px!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-action-cell>.home-delete-visit{
+    width:100%!important;font-size:10px!important
+  }
+}
