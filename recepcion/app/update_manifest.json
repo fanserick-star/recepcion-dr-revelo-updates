@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.92",
-  "app_version": "4.8.92",
-  "runtime_version": "4.8.92",
+  "version": "4.8.93",
+  "app_version": "4.8.93",
+  "runtime_version": "4.8.93",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.92: mejora visual del Inicio, atenciones del día prioritarias y tabla de pacientes más legible con identidad secundaria y botones bien distribuidos. Mantiene intactos los arreglos LAN de 4.8.91, turnos, facturación, WhatsApp, TV y Neon.",
-    "previous_version": "4.8.91",
+    "purpose": "Recepción 4.8.93: conserva la remasterización de Inicio 4.8.92 y blinda las conexiones Recepción–Historia por LAN. Los turnos pendientes sin vínculo no bloquean los nuevos; reintentos durables escalonados con ahorro de Neon; cancelación serializada con entregas; diferencia rechazos HTTP de caídas LAN; indicador muestra pendientes aun cuando el cable funciona. Sin modificar historias, facturación, impresoras ni WhatsApp.",
+    "previous_version": "4.8.92",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -642,7 +642,14 @@
     "home_daily_attentions_priority_4892": true,
     "home_patient_table_professional_4892": true,
     "home_secondary_actions_preserved_4892": true,
-    "home_visual_only_4892": true
+    "home_visual_only_4892": true,
+    "handoff_queue_fair_batches": true,
+    "handoff_batch_max": 8,
+    "handoff_retry_deadline_persisted": true,
+    "handoff_no_chart_retry_seconds": 300,
+    "handoff_neon_failure_retry_seconds": 30,
+    "handoff_cancel_send_serialization": true,
+    "lan_status_pending_count_always_visible": true
   },
   "channel": "launcher-v1-stable"
 }
