@@ -497,9 +497,10 @@ def install(app, context: dict) -> None:
  });
 })();
 </script>"""
-        # El listado también se abre en una ventana independiente, igual que
-        # el editor; no debe llevar una segunda cabecera ni botón Inicio.
-        return HTMLResponse(_document_editor_shell(base, "Informes médicos", body, "informes"))
+        # El listado forma parte de la navegación principal (menú lateral).
+        # Únicamente los editores se abren en ventana independiente para que
+        # el doctor conserve el espacio de trabajo y la protección de impresión.
+        return HTMLResponse(base("Informes médicos", body, "informes"))
 
     @app.post("/api/informes/{report_id}/eliminar")
     def delete_unsigned_report(report_id: str, request: Request):
