@@ -35,7 +35,11 @@ def test_source_contracts() -> None:
     assert "_flush_control_outbox()" in resilience
     assert "control_pending" in read(APP / "historia_lan_transport.py")
     assert "events.cancelled=0" in read(APP / "historia_lan_transport.py")
-    assert "target=_flush_control_outbox" in read(APP / "historia_lan_transport.py")
+    assert "target=_flush_control_outbox" not in read(APP / "historia_lan_transport.py")
+    assert "_DELIVERY_WAKE.set()" in read(APP / "historia_lan_transport.py")
+    assert "def resilient_delivery_loop()" in resilience
+    assert "_lan._flush_control_outbox()" in resilience
+    assert "_lan._flush_lan_outbox()" in resilience
     assert "LAN discovery has one authority" in tv
     assert "delay = 3.0" in tv
 
