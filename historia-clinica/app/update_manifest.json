@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.46",
-  "app_version": "1.4.46",
-  "runtime_version": "1.4.46",
+  "version": "1.4.47",
+  "app_version": "1.4.47",
+  "runtime_version": "1.4.47",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,7 +87,7 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección del arranque: limpieza de turnos anteriores con estado SQLite permitido 'cancelled', conservando registros y auditoría; sin alterar consultas firmadas, ficha de pacientes, recepción, LAN ni Neon.",
+    "purpose": "Hotfix de inicio: limpieza de turnos previos compatible con CHECK SQLite (cancelled), sin eliminar pacientes o consultas; prueba de regresión nueva y corrección de validación de versiones para actualizaciones futuras.",
     "previous_version": "1.4.45",
     "functional_changes": true,
     "database_schema_changes": false,
