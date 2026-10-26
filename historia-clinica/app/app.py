@@ -2122,7 +2122,6 @@ def home():
           <button class="hc-b-shortcut hc-b-blue" type="button" data-hc-create="receta"><span>▤</span><b>Nueva receta</b></button>
           <button class="hc-b-shortcut hc-b-green" type="button" data-hc-create="certificado"><span>♧</span><b>Nuevo certificado</b></button>
           <button class="hc-b-shortcut hc-b-purple" type="button" data-hc-create="informe"><span>▧</span><b>Nuevo informe</b></button>
-          <a class="hc-b-shortcut hc-b-rose" href="/pacientes" title="Seleccione la ficha del paciente"><span>▣</span><b>Videocistoscopías</b></a>
         </div>
       </section>
       <section class="hc-b-panel hc-b-material">
