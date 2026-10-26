@@ -13,7 +13,7 @@ reports=(root/"informes_clinicos.py").read_text(encoding="utf-8")
 app=(root/"app.py").read_text(encoding="utf-8")
 version=json.loads((root/"historia-version.json").read_text(encoding="utf-8"))["version"]
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
-assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]in {"1.4.43","1.4.44","1.4.45"}
+assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]and (1, 4, 43) <= tuple(map(int, version.split("."))) < (2, 0, 0)
 assert manifest["mandatory"] and not manifest["notes"]["database_schema_changes"]
 assert not manifest["notes"]["patient_data_destructive_changes"]
 for source in (doc,sign,reports,app):
