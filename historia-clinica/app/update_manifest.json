@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.50",
-  "app_version": "1.4.50",
-  "runtime_version": "1.4.50",
+  "version": "1.4.51",
+  "app_version": "1.4.51",
+  "runtime_version": "1.4.51",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección del remaster global: el HTML de fichas, consultas y módulos clínicos ya emite exactamente la clase cp-remaster-app, haciendo visible el menú lateral con accesos a Inicio, pacientes, documentos y herramientas; botón Inicio permanente en la barra superior. También restablece el marcador exacto de los editores clínicos independientes. Sin cambios en datos, lógica clínica, impresión A4, firma electrónica, llamados TV, LAN ni Neón.",
-    "previous_version": "1.4.49",
+    "purpose": "Corrección visual Historia 1.4.51: listado de Informes médicos abierto desde Inicio conserva el menú lateral y botón Inicio. Editores, informes firmados e impresión continúan usando sus ventanas independientes. Retirado únicamente el acceso duplicado de Videocistoscopías en el panel derecho de Inicio; se conserva el menú lateral y la galería propia de cada paciente. Las tres tarjetas de Receta, Certificado e Informe se distribuyen mejor. Sin cambios en datos clínicos, firma PAdES, impresión, llamados de TV, LAN ni Neón.",
+    "previous_version": "1.4.50",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -403,6 +403,12 @@
     "global_sidebar_runtime_fix": true,
     "global_sidebar_real_html_test": true,
     "global_home_button_always_visible": true,
-    "global_document_editor_marker_restored": true
+    "global_document_editor_marker_restored": true,
+    "report_list_sidebar_visible": true,
+    "report_editors_independent": true,
+    "home_right_duplicate_video_shortcut_removed": true,
+    "clinical_patient_videocystoscopy_library_preserved": true,
+    "home_three_document_shortcuts": true,
+    "no_clinical_logic_change": true
   }
 }
