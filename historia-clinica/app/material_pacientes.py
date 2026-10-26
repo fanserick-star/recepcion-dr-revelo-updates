@@ -228,6 +228,42 @@ def _nav(path: str) -> str:
     )
 
 
+def _material_remaster_sidebar() -> str:
+    """Navegación visual local de Material, misma estructura que Historia."""
+    links = [
+        ("PRINCIPAL", None),
+        ("⌂", "Inicio", "/"),
+        ("⌕", "Buscar pacientes", "/pacientes"),
+        ("◷", "Pacientes en espera", "/#pacientes-en-espera"),
+        ("▤", "Pacientes recientes", "/#pacientes-recientes"),
+        ("DOCUMENTOS MÉDICOS", None),
+        ("▧", "Recetas", "/recetas"),
+        ("♧", "Certificados", "/certificados"),
+        ("▤", "Informes", "/informes"),
+        ("▣", "Videocistoscopías", "/pacientes"),
+        ("MATERIAL PARA PACIENTES", None),
+        ("▥", "Material", "/material"),
+        ("HERRAMIENTAS", None),
+        ("▢", "Frases rápidas", "/macros"),
+        ("⚙", "Configuración", "/configuracion"),
+        ("↶", "Recuperación", "/recuperacion/borradores"),
+    ]
+    out = ['<aside class="hc-g-sidebar" aria-label="Navegación de Historia Clínica">',
+           '<div class="hc-g-side-caption">HISTORIA CLÍNICA</div>',
+           '<nav class="hc-g-side-links" aria-label="Secciones clínicas">']
+    for item in links:
+        if item[1] is None:
+            out.append(f'<div class="hc-g-side-heading">{_e(item[0])}</div>')
+        else:
+            icon, label, href = item
+            active = " hc-g-active" if href == "/material" else ""
+            out.append(f'<a class="hc-g-side-link{active}" href="{href}">'
+                       f'<span class="hc-g-side-icon" aria-hidden="true">{icon}</span>'
+                       f'<span class="hc-g-side-name">{_e(label)}</span></a>')
+    out.extend(['</nav>', '<div class="hc-g-side-version">Historia Clínica · Material</div>', '</aside>'])
+    return "".join(out)
+
+
 def _shell(title: str, content: str, *, path: str = "/material", extra_head: str = "", script: str = "") -> str:
     return f"""<!doctype html>
 <html lang='es'>
@@ -268,7 +304,7 @@ def _shell(title: str, content: str, *, path: str = "/material", extra_head: str
 {extra_head}
 </style>
 </head>
-<body>{_nav(path)}{content}{script}</body></html>"""
+<body class='hc-global-material'>{_nav(path)}{_material_remaster_sidebar()}{content}{script}</body></html>"""
 
 
 def _diet_html(print_now: bool = False) -> str:
