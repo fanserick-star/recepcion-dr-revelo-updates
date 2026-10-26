@@ -104,9 +104,9 @@ def _render_consent(
 <title>Consentimiento Informado · Historia Clínica</title>
 <style>
 *{{box-sizing:border-box}}
-html,body{{margin:0;background:#eef2f6;color:#111;font-family:Arial,Helvetica,sans-serif}}
-.toolbar{{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:#173b66;color:white;box-shadow:0 2px 10px #0002}}
-.toolbar strong{{margin-right:auto}}.toolbar button{{border:0;border-radius:9px;padding:9px 14px;font-weight:800;cursor:pointer;background:#fff;color:#173b66}}.toolbar .primary{{background:#2b6aa7;color:white;border:1px solid #8eb9df}}
+html,body{{margin:0;background:#f1f6fd;color:#111;font-family:Arial,Helvetica,sans-serif}}
+.toolbar{{position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;background:#174c7f;color:white;box-shadow:0 2px 10px #0002}}
+.toolbar strong{{margin-right:auto}}.toolbar button{{border:0;border-radius:9px;padding:9px 14px;font-weight:800;cursor:pointer;background:#fff;color:#173b66}}.toolbar .primary{{background:#1781d5;color:white;border:1px solid #78bdf3}}
 .note{{width:210mm;max-width:100%;margin:10px auto 0;background:#fff7d6;border:1px solid #efd57a;border-radius:8px;padding:9px 12px;font-size:12px;color:#664d03}}
 .sheet{{position:relative;width:210mm;height:297mm;margin:10px auto;background:#fff;box-shadow:0 8px 28px #0f172a24;overflow:hidden;font-size:9.35pt;line-height:1.2}}
 .sheet.page2,.sheet.page3{{border:.25mm solid #777}}
