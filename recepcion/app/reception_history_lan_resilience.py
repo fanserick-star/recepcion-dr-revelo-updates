@@ -8,7 +8,7 @@ import time
 
 import historia_lan_transport as _lan
 
-PATCH_VERSION = "4.8.91"
+PATCH_VERSION = "4.8.92"
 _SCAN_LOCK = threading.Lock()
 _DELIVERY_THREAD_STARTED = False
 _DELIVERY_THREAD_LOCK = threading.Lock()
@@ -244,6 +244,10 @@ def resilient_send_lan(payload: dict) -> bool:
     # fuerza redescubrimiento inmediato y se reintenta el mismo handoff.
     if _ORIGINAL_SEND_LAN(payload):
         return True
+    # Historia respondió con rechazo de aplicación (400/409/500):
+    # el transporte sigue conectado, no reescanear todas las IP.
+    if _lan._snapshot().get("lan_online"):
+        return False
 
     _lan._set_state(lan_online=False, token="", token_host="")
     state = resilient_probe_once(force_subnet_scan=True)
@@ -255,6 +259,8 @@ def resilient_send_lan(payload: dict) -> bool:
 def resilient_control_lan(action: str, target_event_id: str, visit_id: object = "") -> bool:
     if _ORIGINAL_CONTROL_LAN(action, target_event_id, visit_id):
         return True
+    if _lan._snapshot().get("lan_online"):
+        return False
 
     _lan._set_state(lan_online=False, token="", token_host="")
     state = resilient_probe_once(force_subnet_scan=True)
