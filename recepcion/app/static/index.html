@@ -77,18 +77,20 @@
         <div class="home-actions"><button class="primary new-attention-main" onclick="newAttention()"><span class="plus">＋</span> Nueva atención</button></div>
       </div>
       <div id="r486Metrics" class="r486-metrics" aria-label="Resumen operativo de hoy"></div>
-      <div class="r486-action-strip" aria-label="Accesos operativos">
-        <button type="button" class="r486-shortcut whatsapp" onclick="show('agenda')"><span class="r486-shortcut-icon">✉</span><span><b>Mensajes de WhatsApp</b><small>Citas, confirmaciones y revisiones</small></span><span class="r486-shortcut-arrow">›</span></button>
-        <button type="button" class="r486-shortcut billing" onclick="show('facturacion')"><span class="r486-shortcut-icon">▤</span><span><b>Facturación pendiente</b><small>Revisar y emitir en AZUR</small></span><span class="r486-shortcut-arrow">›</span></button>
-        <button type="button" class="r486-shortcut system" onclick="openProtectionStatus()"><span class="r486-shortcut-icon">◉</span><span><b>Sistema y respaldos</b><small>Ver conexión y protección</small></span><span class="r486-shortcut-arrow">›</span></button>
-      </div>
       <div id="homeWhatsappReviewStrip" class="wa-home-review-strip hidden"></div>
       <div id="homePendingStrip" class="home-pending-strip hidden"></div>
       <div id="homeWeekNav" class="home-week-nav"></div>
       <div id="weekCards" class="week-cards"></div>
       <div id="weekSummary" class="week-summary"></div>
-      <div id="selectedDayTitle" class="selected-day-title"></div>
-      <div id="todayTable"></div>
+      <div class="r489-attentions-focus" aria-label="Atenciones del día seleccionado">
+        <div id="selectedDayTitle" class="selected-day-title"></div>
+        <div id="todayTable"></div>
+      </div>
+      <div class="r486-action-strip r489-secondary-actions" aria-label="Accesos operativos">
+        <button type="button" class="r486-shortcut whatsapp" onclick="show('agenda')"><span class="r486-shortcut-icon">✉</span><span><b>Mensajes de WhatsApp</b><small>Citas, confirmaciones y revisiones</small></span><span class="r486-shortcut-arrow">›</span></button>
+        <button type="button" class="r486-shortcut billing" onclick="show('facturacion')"><span class="r486-shortcut-icon">▤</span><span><b>Facturación pendiente</b><small>Revisar y emitir en AZUR</small></span><span class="r486-shortcut-arrow">›</span></button>
+        <button type="button" class="r486-shortcut system" onclick="openProtectionStatus()"><span class="r486-shortcut-icon">◉</span><span><b>Sistema y respaldos</b><small>Ver conexión y protección</small></span><span class="r486-shortcut-arrow">›</span></button>
+      </div>
     </section>
 
     <section id="tv" class="hidden">

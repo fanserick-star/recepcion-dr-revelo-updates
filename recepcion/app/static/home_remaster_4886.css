@@ -91,3 +91,124 @@ body.r486-ui #tv .r486-tv-reload{padding:10px 16px;border-radius:10px;background
 @media(max-width:1050px){body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr 1fr}body.r486-ui #inicio .week-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.r486-ui #inicio .r486-shortcut.system{grid-column:1/-1}}
 @media(max-width:900px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body.r486-ui #inicio .r486-action-strip{grid-template-columns:1fr}body.r486-ui #inicio .r486-shortcut.system{grid-column:auto}body.r486-ui .r486-tv-card{display:none!important}}
 @media(max-width:640px){body.r486-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}body.r486-ui #inicio .week-cards{grid-template-columns:1fr!important}body.r486-ui #tv .r486-tv-page-head{align-items:flex-start;flex-direction:column}}
+
+
+/* Refinamiento visual de Inicio: destacar las atenciones del día y profesionalizar su tabla.
+   Únicamente presentación. No modifica endpoints, turnos, cobros ni impresión. */
+body.r486-ui #inicio .home-title-row{margin-bottom:10px!important}
+body.r486-ui #inicio .r486-metrics{margin-bottom:9px!important}
+body.r486-ui #inicio .r486-metric{min-height:85px!important;padding:10px 11px!important;gap:3px!important}
+body.r486-ui #inicio .r486-metric strong{font-size:24px!important;line-height:1.05!important}
+body.r486-ui #inicio .r486-metric.r486-money strong{font-size:21px!important}
+body.r486-ui #inicio .r486-metric small{font-size:9.5px!important;margin-top:0!important}
+body.r486-ui #inicio .home-week-nav{margin:9px 0 7px!important}
+body.r486-ui #inicio .week-cards{gap:9px!important;margin:0 0 7px!important}
+body.r486-ui #inicio .week-card{min-height:91px!important;padding:11px 13px!important;border-radius:11px!important;align-content:center!important}
+body.r486-ui #inicio .week-card .week-day{font-size:14px!important}
+body.r486-ui #inicio .week-card .week-date{font-size:11px!important}
+body.r486-ui #inicio .week-card strong{font-size:29px!important}
+body.r486-ui #inicio .week-card .week-patients{font-size:10px!important;margin-top:1px!important}
+body.r486-ui #inicio .week-card .week-money{margin-top:6px!important;padding-top:5px!important;font-size:10px!important}
+body.r486-ui #inicio .week-summary{margin-bottom:8px!important}
+body.r486-ui #inicio .r489-attentions-focus{margin:7px 0 18px;min-width:0}
+body.r486-ui #inicio .r489-attentions-focus .selected-day-title{
+  display:flex!important;align-items:center!important;gap:12px!important;flex-wrap:wrap!important;
+  margin:0 0 9px!important;padding:10px 12px!important;border-left:4px solid #2b70c8;
+  background:#edf4fc;border-radius:0 11px 11px 0
+}
+body.r486-ui #inicio .r489-attentions-focus .selected-day-title h2{font-size:22px!important;color:#193657!important;font-weight:900!important}
+body.r486-ui #inicio .r489-attentions-focus .selected-day-title span{font-size:12px!important;color:#486581!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable{
+  border:1px solid #d8e4f0!important;border-radius:14px!important;background:white!important;
+  box-shadow:0 6px 22px rgba(31,63,102,.07)!important;overflow-x:auto!important;overflow-y:visible!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{
+  width:100%!important;min-width:1000px!important;table-layout:fixed!important;border-collapse:collapse!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table thead th{
+  padding:12px 10px!important;background:#edf3f9!important;color:#38526e!important;
+  font-size:11px!important;font-weight:850!important;letter-spacing:.025em!important;vertical-align:middle!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(1){width:5%!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(2){width:34%!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(3){width:20%!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(4){width:11%!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(5){width:30%!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table tbody td{
+  padding:13px 10px!important;border-bottom:1px solid #e4edf5!important;
+  vertical-align:middle!important;font-size:12px!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table .patient-main-row:hover td{
+  background:#f7fbff!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-line{min-height:0!important;align-items:center!important;margin:0 0 3px!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-button{
+  background:transparent!important;border:0!important;box-shadow:none!important;padding:0!important;
+  margin:0!important;text-align:left!important;color:#244d82!important;font-size:14.5px!important;
+  font-weight:850!important;line-height:1.25!important;white-space:normal!important;overflow-wrap:anywhere!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .patient-home-meta{
+  font-size:10px!important;line-height:1.35!important;color:#6f8398!important;margin-top:3px!important;
+  overflow-wrap:anywhere
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .row-number{font-size:15px!important;color:#355d83!important;font-weight:850!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .service-badge{
+  font-size:10px!important;padding:6px 9px!important;line-height:1.25!important;
+  white-space:normal!important;max-width:100%!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .money-cell{text-align:right!important;white-space:nowrap!important}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .money-pill{
+  font-size:12px!important;padding:7px 8px!important;font-weight:900!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-action-cell{
+  width:auto!important;min-width:0!important;text-align:right!important;white-space:nowrap!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{
+  display:inline-flex!important;width:auto!important;grid-template-columns:none!important;
+  gap:5px!important;margin:0 5px 0 0!important;vertical-align:middle!important;align-items:center!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions button,
+body.r486-ui #inicio .r489-attentions-focus #todayTable .home-delete-visit{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-width:0!important;width:auto!important;min-height:32px!important;padding:7px 8px!important;
+  margin:0!important;border-radius:8px!important;font-size:10px!important;line-height:1.2!important;
+  white-space:nowrap!important;vertical-align:middle!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .sub-visit-row td{
+  background:#fffaf1!important;border-bottom:1px solid #f4e5cb!important;padding-top:10px!important;padding-bottom:10px!important
+}
+body.r486-ui #inicio .r489-attentions-focus #todayTable .sub-visit-row td:first-child{padding-left:19px!important}
+body.r486-ui #inicio .r489-secondary-actions{margin:17px 0 12px!important}
+@media(max-width:1150px){
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{min-width:1040px!important}
+}
+@media(max-width:900px){
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{min-width:950px!important}
+  body.r486-ui #inicio .r489-attentions-focus .selected-day-title h2{font-size:19px!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{gap:4px!important}
+}
+
+/* Media pantalla de recepción: botones en dos líneas sin perder la tabla. */
+@media (min-width:1000px) and (max-width:1200px) {
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{
+    min-width:0!important;width:100%!important;table-layout:fixed!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(1){width:5%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(2){width:34%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(3){width:20%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(4){width:11%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(5){width:30%!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table tbody td{padding:10px 6px!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-button{font-size:13px!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-action-cell{white-space:normal!important;text-align:center!important}
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{
+    display:grid!important;grid-template-columns:1fr 1fr!important;gap:4px!important;
+    width:100%!important;margin:0 0 4px!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions button{
+    width:100%!important;font-size:9px!important;padding:6px 3px!important
+  }
+  body.r486-ui #inicio .r489-attentions-focus #todayTable .home-action-cell>.home-delete-visit{
+    width:100%!important;font-size:10px!important
+  }
+}

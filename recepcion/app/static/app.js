@@ -966,7 +966,12 @@ function patientNameCell(r,home=false,isNewOverride=null){
   const p=r.patient||{};
   const isNew=isNewOverride===null?r.tipo==='N':!!isNewOverride;
   const n=isNew?'<span class="new-patient-badge" title="Paciente nuevo">NUEVO</span>':'';
-  return `<div class="patient-name-line"><button type="button" class="patient-name-button" onclick="openPatient(${p.id},'home')">${esc(p.nombre||'')}</button>${home?n:''}${home?'':dataWarning(p,true)}</div>`;
+  // El resto de pantallas conserva exactamente el HTML anterior.
+  const nameLine=`<div class="patient-name-line"><button type="button" class="patient-name-button" onclick="openPatient(${p.id},'home')">${esc(p.nombre||'')}</button>${home?n:''}${home?'':dataWarning(p,true)}</div>`;
+  if(!home)return nameLine;
+  // Únicamente Inicio añade datos que ya llegaron con la atención; sin llamadas extra.
+  const detail=[p.cedula?'C.I. '+esc(p.cedula):'',p.celular?'Cel. '+esc(formatPhoneValue(p.celular)):''].filter(Boolean).join(' · ');
+  return `<div class="patient-home-cell">${nameLine}${detail?'<div class="patient-home-meta">'+detail+'</div>':''}</div>`;
 }
 function statusLabel(tipo){return tipo==='N'?'Nuevo':tipo==='S'?'Subsecuente':tipo==='P'?'Procedimiento (registro anterior)':tipo||''}
 function serviceKey(name){return String(name||'').trim().toUpperCase()}
