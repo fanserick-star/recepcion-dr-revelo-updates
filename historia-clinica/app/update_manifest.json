@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.49",
-  "app_version": "1.4.49",
-  "runtime_version": "1.4.49",
+  "version": "1.4.50",
+  "app_version": "1.4.50",
+  "runtime_version": "1.4.50",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Remaster global del tema visual B de Historia Clínica. Navegación izquierda y colores blanco/azul unificados en fichas, consultas, búsqueda, pacientes, documentos clínicos, informes, recetas, certificados, configuración, frases rápidas, recuperación y Material; barra del consentimiento adaptada sin alterar las hojas A4. Ventanas de edición independientes, firma PAdES y PDF impreso intactos. Conserva LAN, llamados TV, cola, Neón, pacientes e historias; sin migración de datos ni cambios de sincronización.",
-    "previous_version": "1.4.48",
+    "purpose": "Corrección del remaster global: el HTML de fichas, consultas y módulos clínicos ya emite exactamente la clase cp-remaster-app, haciendo visible el menú lateral con accesos a Inicio, pacientes, documentos y herramientas; botón Inicio permanente en la barra superior. También restablece el marcador exacto de los editores clínicos independientes. Sin cambios en datos, lógica clínica, impresión A4, firma electrónica, llamados TV, LAN ni Neón.",
+    "previous_version": "1.4.49",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -399,6 +399,10 @@
     "global_pdf_print_styles_preserved": true,
     "global_queue_tv_calls_unchanged": true,
     "global_cloud_lan_logic_unchanged": true,
-    "global_theme_regression_test": true
+    "global_theme_regression_test": true,
+    "global_sidebar_runtime_fix": true,
+    "global_sidebar_real_html_test": true,
+    "global_home_button_always_visible": true,
+    "global_document_editor_marker_restored": true
   }
 }
