@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.90",
-  "app_version": "4.8.90",
-  "runtime_version": "4.8.90",
+  "version": "4.8.91",
+  "app_version": "4.8.91",
+  "runtime_version": "4.8.91",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.90: guardado rápido de atenciones con verificación clínica reutilizada del formulario, cola LAN durable y resolución de vínculo/entrega a Historia en segundo plano. Ningún turno llega a una ficha sin verificación en Neon; se conserva impresión térmica automática, facturación, nocturno y WhatsApp.",
-    "previous_version": "4.8.89",
+    "purpose": "Recepción 4.8.91: monitor de LAN independiente de los envíos y de Neon, detección inmediata por IP cableada conocida, actualización local del indicador cada 5 s; los pacientes siguen en una cola SQLite duradera con vinculación clínica verificada, sin tocar Historia, facturación ni WhatsApp.",
+    "previous_version": "4.8.90",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -634,7 +634,11 @@
     "handoff_verified_before_lan": true,
     "handoff_cloud_read_on_http_request": false,
     "attention_identity_preflight_reuse_seconds": 300,
-    "handoff_missing_link_retry_seconds": 300
+    "handoff_missing_link_retry_seconds": 300,
+    "lan_status_refresh_seconds": 5,
+    "lan_fast_known_ip_probe": true,
+    "lan_monitor_independent_of_neon": true,
+    "lan_async_delivery_worker": true
   },
   "channel": "launcher-v1-stable"
 }
