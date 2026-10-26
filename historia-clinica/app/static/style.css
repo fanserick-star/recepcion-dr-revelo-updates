@@ -4241,3 +4241,184 @@ body.hc-b-app>main{max-width:none!important;width:100%!important;margin:0!import
     background:#fff;border-color:#e0ebf5;
   }
 }
+
+
+/* Inicio B v1.4.52 · jerarquía visual restaurada en lista de espera.
+   Sólo estilos: no cambia turnos, prioridad, llamadas TV ni enlaces clínicos. */
+@media screen and (min-width:761px){
+  body.hc-b-app .hc-b-center{
+    display:flex!important;flex-direction:column!important;
+    height:calc(100vh - 103px)!important;min-height:0!important;
+    overflow:hidden!important;
+  }
+  body.hc-b-app .hc-b-center>.hc-b-section-heading,
+  body.hc-b-app .hc-b-center>.pending-consult-banner,
+  body.hc-b-app .hc-b-center>.hc-b-queue-next{
+    flex:none!important;
+  }
+  body.hc-b-app .hc-b-center>.hc-b-queue-list{
+    display:flex!important;flex:1 1 auto!important;flex-direction:column!important;
+    min-height:0!important;overflow-y:auto!important;overflow-x:hidden!important;
+    gap:12px!important;padding:3px 9px 15px 1px!important;
+    scrollbar-width:thin;scrollbar-color:#b5d2ea transparent;
+    overscroll-behavior:contain;
+  }
+}
+body.hc-b-app .hc-b-center>.hc-b-section-heading h1{
+  font-size:clamp(24px,2.1vw,30px)!important;font-weight:900!important;
+  color:#0d3166!important;letter-spacing:-.025em!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+  position:relative!important;display:flex!important;flex-direction:column!important;
+  gap:13px!important;align-items:stretch!important;min-width:0!important;
+  background:linear-gradient(100deg,#f5faff 0%,#fff 46%)!important;
+  border:1px solid #b7d8f1!important;border-left:6px solid #1981d0!important;
+  border-radius:12px!important;padding:15px 16px!important;
+  box-shadow:0 4px 12px rgba(18,75,123,.095)!important;
+  transition:box-shadow .12s ease,border-color .12s ease!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card:first-child{
+  border-color:#7cb7e6!important;border-left-color:#096bb8!important;
+  box-shadow:0 6px 19px rgba(19,85,144,.16)!important;
+  background:linear-gradient(100deg,#eaf5ff 0%,#fff 55%)!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card:first-child::before{
+  content:"";height:4px;position:absolute;left:0;right:0;top:0;
+  background:linear-gradient(90deg,#1275c7,#81c7ff);
+  border-radius:10px 10px 0 0;pointer-events:none;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card:hover,
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card:focus-within{
+  border-color:#6aafe1!important;
+  border-left-color:#076db7!important;
+  box-shadow:0 7px 20px rgba(19,85,144,.17)!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review{
+  background:linear-gradient(100deg,#fff8ec 0%,#fff 53%)!important;
+  border-color:#efd4a5!important;border-left-color:#df9120!important;
+  box-shadow:0 4px 13px rgba(161,99,24,.09)!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review:first-child{
+  border-color:#e9bd79!important;border-left-color:#c8780d!important;
+  box-shadow:0 6px 18px rgba(172,113,31,.15)!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review:first-child::before{
+  background:linear-gradient(90deg,#d7861b,#f4c97d);
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending{
+  background:linear-gradient(100deg,#f0fbf6 0%,#fff 54%)!important;
+  border-color:#b7dfcc!important;border-left-color:#189565!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending:first-child::before{
+  background:linear-gradient(90deg,#15905f,#a0e4c2);
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-content{
+  display:grid!important;grid-template-columns:82px minmax(0,1fr) minmax(112px,148px) auto!important;
+  align-items:center!important;gap:12px!important;min-width:0!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn{
+  min-height:88px!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number,
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
+  width:82px!important;min-height:88px!important;
+  background:#dceeff!important;border:1px solid #b7d9f4!important;
+  border-radius:10px!important;box-shadow:inset 0 0 0 1px #ffffffb0!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number b{
+  font-size:43px!important;font-weight:950!important;line-height:1!important;
+  color:#0e3972!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number span{
+  font-size:11px!important;letter-spacing:.055em!important;color:#1b619d!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-wait-turn .queue-turn-number{
+  background:#fff0d6!important;border-color:#efd1a0!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-turn .queue-turn-number{
+  background:#dff7ea!important;border-color:#b6ddc7!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name strong{
+  font-size:clamp(19px,1.52vw,23px)!important;line-height:1.2!important;
+  font-weight:900!important;color:#0c2c5c!important;letter-spacing:-.015em!important;
+  overflow-wrap:anywhere;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name small{
+  font-size:13px!important;color:#4c6683!important;margin-top:7px!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-attention{
+  font-size:12.5px!important;font-weight:900!important;
+  padding:8px 10px!important;border-radius:7px!important;
+  border:1px solid #c0ddf6!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-attention{
+  color:#99600e!important;background:#fff0d4!important;border-color:#f0d5a6!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card:not(.hc-b-review) .hc-b-kind-subsecuente{
+  border-color:#b7e1c9!important;color:#097647!important;background:#e6f8ed!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-details small{
+  font-size:12.5px!important;color:#536f8d!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-state{
+  gap:6px!important;background:#fff2d5!important;border:1px solid #f1d8a1!important;
+  padding:9px 11px!important;border-radius:9px!important;
+  color:#8b5b15!important;font-weight:900!important;font-size:12px!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-state::before{
+  content:"";width:7px;height:7px;flex:none;background:#e7a630;border-radius:50%;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-state{
+  background:#e1f5e9!important;border-color:#b9e2c9!important;color:#18734c!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-state::before{
+  background:#259e67!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions{
+  padding-left:94px!important;gap:10px!important;min-height:49px!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open{
+  background:#e9f4ff!important;border:1px solid #aad1f0!important;
+  color:#0b5ca2!important;font-size:14.5px!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call{
+  font-size:14.5px!important;box-shadow:0 2px 6px rgba(15,112,60,.15)!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove{
+  font-size:13px!important;
+}
+@media screen and (min-width:761px) and (max-width:1450px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    padding:13px 12px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-content{
+    grid-template-columns:72px minmax(0,1fr) minmax(105px,130px) auto!important;gap:9px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
+    width:72px!important;min-height:82px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name strong{
+    font-size:19px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions{
+    padding-left:81px!important;
+  }
+}
+@media screen and (max-width:760px){
+  body.hc-b-app .hc-b-center{height:auto!important;overflow:visible!important;}
+  body.hc-b-app .hc-b-queue-list{overflow:visible!important;}
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-content{
+    grid-template-columns:64px minmax(0,1fr)!important;gap:9px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{width:64px!important;min-height:73px!important;}
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-details,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-state{grid-column:2!important;justify-self:start!important;}
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions{
+    padding-left:0!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{transition:none!important}
+}
