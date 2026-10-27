@@ -271,4 +271,38 @@ assert css.count("{")==css.count("}")
 assert css.count("/*")==css.count("*/")
 print("HISTORIA_1457_BADGES_WAIT_METRICS_ACTIONS_OK")
 
+
+# v1.4.58: métricas visibles, aviso local a partir de 30 minutos,
+# y ninguna animación cuando Windows pide reducir movimiento.
+assert 'wait_over_30 = is_waiting and waiting_text != "Sin hora" and elapsed_minutes >= 30' in app
+assert "hc-b-wait-overdue" in app
+assert "hc-b-wait-alert" in app
+assert "+30 min de espera" in app
+assert "const metric=el.closest('.hc-b-metric-wait');" in app
+assert "const stillWaiting=!!el.closest('.queue-row-waiting');" in app
+assert "metric?.classList.toggle('hc-b-wait-overdue',stillWaiting && minutes>=30);" in app
+assert 'function refreshWaitingClocks()' in app
+assert 'setInterval(refreshWaitingClocks,60000);' in app
+clock=app.split('function refreshWaitingClocks()',1)[1].split('setInterval(refreshWaitingClocks,60000);',1)[0]
+assert "fetch(" not in clock, "La alerta no debe consultar Neón ni crear nuevos watchers"
+alert_css=css.split("/* Historia v1.4.58 · indicadores más claros y alerta suave",1)[1]
+for rule in (
+    ".hc-b-metric-wait.hc-b-wait-overdue",
+    ".hc-b-wait-alert::before",
+    "animation:hc-b-wait-soft-pulse 2.6s ease-in-out infinite!important",
+    "@keyframes hc-b-wait-soft-pulse",
+    "@media (prefers-reduced-motion:reduce)",
+    "animation:none!important",
+    ".hc-b-metric .hc-b-metric-value",
+):
+    assert rule in alert_css, "Falta estilo de aviso: "+rule
+assert "queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue" in alert_css
+assert "queue-row-attending .hc-b-metric-wait.hc-b-wait-overdue" not in alert_css
+assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in app
+assert "class='queue-dismiss-form js-queue-dismiss'" in app
+assert 'href = f"/cola/' in app and '/atender" if can_open else "#"' in app
+assert css.count("{")==css.count("}")
+assert css.count("/*")==css.count("*/")
+print("HISTORIA_1458_WAITING_ALERT_30_MIN_ACCESSIBLE_METRICS_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
