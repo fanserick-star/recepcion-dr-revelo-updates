@@ -209,4 +209,27 @@ assert "class='queue-dismiss-form js-queue-dismiss'" in app
 assert "f\"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>\"" in app
 print("HISTORIA_1455_SQUARE_TURN_TILE_OK")
 
+
+# v1.4.56: turno más grande sin perder proporción ni alterar estados.
+larger=css.split("/* Historia v1.4.56 · turno cuadrado más grande.",1)[1]
+for size in (148,132,108,82):
+    assert f"--hc-turn-square:{size}px" in larger
+    assert f"grid-template-columns:{size}px" in larger
+for shape in (
+    "width:var(--hc-turn-square)!important",
+    "height:var(--hc-turn-square)!important",
+    "min-height:var(--hc-turn-square)!important",
+    "max-height:var(--hc-turn-square)!important",
+    "aspect-ratio:1 / 1!important",
+):
+    assert shape in larger, "Turno deformable: "+shape
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending" in css
+assert "background:linear-gradient(108deg,#e5fbef,#effcf4 65%,#fff)!important" in css
+assert 'status_text = "En consulta" if r["status"] == "in_consultation" else "En espera"' in app
+assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in app
+assert "js-queue-dismiss" in app and "hc-b-open" in app
+assert css.count("{")==css.count("}")
+assert css.count("/*")==css.count("*/")
+print("HISTORIA_1456_LARGE_SQUARE_TURN_CARD_STATES_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
