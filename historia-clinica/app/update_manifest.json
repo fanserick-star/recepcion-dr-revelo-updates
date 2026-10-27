@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.60",
-  "app_version": "1.4.60",
-  "runtime_version": "1.4.60",
+  "version": "1.4.61",
+  "app_version": "1.4.61",
+  "runtime_version": "1.4.61",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Repair manual chime preview playback and errors: native Windows memory WAV playback plus temporary WAV fallback, readable diagnostics, volume zero warning, no duplicate chimes, no clinical data or cloud changes.",
-    "previous_version": "1.4.59",
+    "purpose": "Fix HTTP 422 Field required from sound test and chime settings: ensure FastAPI recognizes the Request parameter; protect both POST routes with a real HTTP regression test on Windows. Preserve playback fallback, error diagnostics, consultation/review eligibility, local settings and cloud savings.",
+    "previous_version": "1.4.60",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -476,6 +476,8 @@
     "patient_arrival_chime_no_tv_audio": true,
     "queue_chime_preview_fallback": true,
     "queue_chime_readable_errors": true,
-    "queue_chime_no_cloud_changes": true
+    "queue_chime_no_cloud_changes": true,
+    "queue_chime_request_422_fixed": true,
+    "queue_chime_http_routes_tested_on_windows": true
   }
 }
