@@ -232,4 +232,38 @@ assert css.count("{")==css.count("}")
 assert css.count("/*")==css.count("*/")
 print("HISTORIA_1456_LARGE_SQUARE_TURN_CARD_STATES_OK")
 
+
+# v1.4.57: etiquetas completas, indicadores reales y botones de referencia.
+assert '"NUEVO" if is_new else (' in app
+assert '"SUBSECUENTE" if attention_label == "Subsecuente" else attention_label' in app
+assert '\"N · Nueva\" if is_new else' not in app
+assert 'raw_arrival = str(r["queued_at"] or "").strip()' in app
+assert 'arrival_dt = datetime.fromisoformat(raw_arrival.replace("Z", "+00:00"))' in app
+assert 'datetime.now(arrival_dt.tzinfo)' in app
+assert '"Primera consulta" if is_new else "Sin atención anterior registrada"' in app
+assert 'last_date = str(r["last_encounter_date"] or "").strip()' in app
+assert 'last_visit = human_date(last_date)' in app
+assert "hc-b-metrics" in app and "hc-b-metric-wait" in app and "hc-b-metric-last" in app
+assert "js-hc-wait-clock" in app and "data-queued-at" in app
+assert "function refreshWaitingClocks()" in app
+assert "setInterval(refreshWaitingClocks,60000);" in app, "Debe actualizar sólo localmente"
+assert "fetch(" not in app.split("function refreshWaitingClocks()",1)[1].split("setInterval(refreshWaitingClocks,60000);",1)[0]
+assert 'doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)' in app
+assert "class='queue-dismiss-form js-queue-dismiss'" in app
+assert "f\"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>\"" in app
+assert 'href = f\"/cola/{e(r[\\'id\\'])}/atender\" if can_open else \"#\"' in app
+styles=css.split("/* Historia v1.4.57 · indicadores útiles y botones de referencia.",1)[1]
+for css_rule in (
+  ".hc-b-metrics", ".hc-b-metric-value", ".hc-b-metric-label",
+  ".hc-b-wait-actions .js-doctor-call", ".hc-b-wait-actions .hc-b-open",
+  ".hc-b-wait-actions .hc-b-remove", "height:54px!important",
+  "min-height:265px!important", "grid-template-columns:repeat(2,minmax(0,1fr))!important",
+):
+    assert css_rule in styles, "Falta regla de referencia: "+css_rule
+assert "grid-column:3!important;grid-row:1!important" in css
+assert "aspect-ratio:1 / 1!important" in css
+assert css.count("{")==css.count("}")
+assert css.count("/*")==css.count("*/")
+print("HISTORIA_1457_BADGES_WAIT_METRICS_ACTIONS_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
