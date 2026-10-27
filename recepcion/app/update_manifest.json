@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.95",
-  "app_version": "4.8.95",
-  "runtime_version": "4.8.95",
+  "version": "4.8.96",
+  "app_version": "4.8.96",
+  "runtime_version": "4.8.96",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -204,8 +204,8 @@
     "static/night_closing_4888.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.95: indicadores En línea, Historia LAN y versión regresan al pie del menú lateral en tarjetas compactas y legibles sin tapar el Inicio. Cierre fiscal inteligente sale de la pantalla Facturación y queda en Configuración → Facturación y cobros → Cierre fiscal inteligente (desplegable). Preserva emisión nocturna opt-in y salvaguardas, pacientes, facturas, LAN, impresoras y WhatsApp.",
-    "previous_version": "4.8.94",
+    "purpose": "Recepción 4.8.96: tema claro clínico para Agenda real (cuatro días, cuadrícula de citas, navegación y colores semánticos), y para panel privado de control TV (EN VIVO / PRUEBAS, estados, vista previa y medios). Sin cambios en agenda, pacientes, Meta/WhatsApp, servicios LAN, emisión fiscal, facturación, respaldo o pantalla física de TV y reloj.",
+    "previous_version": "4.8.95",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -660,7 +660,11 @@
     "sidebar_status_readable_bottom": true,
     "home_status_strip_removed": true,
     "fiscal_automation_config_only": true,
-    "fiscal_automation_protected_optin_unchanged": true
+    "fiscal_automation_protected_optin_unchanged": true,
+    "agenda_native_light_theme": true,
+    "tv_control_light_theme": true,
+    "tv_physical_display_unchanged": true,
+    "clinical_and_billing_logic_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }
