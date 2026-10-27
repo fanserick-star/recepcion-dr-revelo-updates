@@ -70,6 +70,10 @@ jobs:
         shell: pwsh
         run: python -m pip install --disable-pip-version-check -r "$env:TRIAL\requirements.txt"
 
+      - name: Regression test for local chime HTTP routes (no 422)
+        shell: pwsh
+        run: python tools/test_historia_chime_http_1461.py
+
       - name: Compile and import actual runtime
         shell: pwsh
         env:
