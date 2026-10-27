@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.101",
-  "app_version": "4.8.101",
-  "runtime_version": "4.8.101",
+  "version": "4.8.102",
+  "app_version": "4.8.102",
+  "runtime_version": "4.8.102",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.101: corrige el botón Archivo clínico de la ficha administrativa que se extendía verticalmente por una regla heredada del anterior diseño horizontal. La selección queda en una fila de 43px igual a las demás; no cambia la navegación, entrega de documentos, videocistoscopías, vinculación a Historia ni los datos de pacientes. Sin modificaciones a Neon, facturación, WhatsApp o TV.",
-    "previous_version": "4.8.100",
+    "purpose": "Recepción 4.8.102: Nueva atención inicia por búsqueda de paciente con opción de crear paciente nuevo; elimina el calendario incrustado y la consulta /api/agenda/week al abrir. La agenda oficial continúa independiente con citas, WhatsApp y Confirmafy. Consolidación de dos definiciones del inicio: static/app.js es única fuente funcional, core_runtime.py solo añade estilo visual. Se preservan altas, validaciones, Historia LAN, consulta/procedimientos, revisión de exámenes, cobro e impresión. Se rechazan importes de procedimientos infinitos en el frontend. Sin cambios de esquema o datos.",
+    "previous_version": "4.8.101",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -689,7 +689,12 @@
     "patient_dossier_side_navigation": true,
     "native_review_confirmation_replaced": true,
     "review_transaction_safety_unchanged": true,
-    "patient_dossier_clinical_tab_height_fixed": true
+    "patient_dossier_clinical_tab_height_fixed": true,
+    "new_attention_search_first": true,
+    "new_attention_embedded_agenda_removed": true,
+    "new_attention_legacy_override_consolidated": true,
+    "new_attention_no_new_cloud_polling": true,
+    "agenda_main_untouched": true
   },
   "channel": "launcher-v1-stable"
 }

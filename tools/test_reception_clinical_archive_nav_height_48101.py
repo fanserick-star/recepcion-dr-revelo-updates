@@ -9,8 +9,9 @@ html=(app/"static/index.html").read_text(encoding="utf-8")
 js=(app/"static/app.js").read_text(encoding="utf-8")
 m=json.loads((app/"update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((app/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert version == m["version"] == m["runtime_version"] == m["app_version"] == "4.8.101"
-assert '/static/patient_dossier_review_48100.css?v=4.8.101' in html
+assert version == m["version"] == m["runtime_version"] == m["app_version"]
+assert tuple(map(int,version.split("."))) >= (4,8,101)
+assert '/static/patient_dossier_review_48100.css?v=' + version in html
 assert "static/patient_dossier_review_48100.css" in m["copy"]
 assert "static/patient_dossier_review_48100.css" in m["required_dependencies"]
 # Regression: previous horizontal tab CSS applies flex:1 0 auto!important to

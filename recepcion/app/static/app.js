@@ -1474,8 +1474,10 @@ function attentionSearch(immediate=false){
     setAttentionSearchView(active);
     if(!active){
       attentionSearchSeq++;
-      box.innerHTML='';
-      box.classList.add('hidden');
+      box.innerHTML=q.length
+        ?'<div class="attention-search-hint">Escribe al menos 2 caracteres para buscar.</div>'
+        :'<div class="attention-search-hint">Busca por nombre, cédula o celular. También puedes crear un paciente nuevo arriba.</div>';
+      box.classList.remove('hidden');
       return;
     }
 
@@ -1497,7 +1499,7 @@ function attentionSearch(immediate=false){
         }
         const lastText=p.ultima_atencion?`Última atención: ${fmtDate(p.ultima_atencion)}`:'Sin atención registrada desde 2026';
         return `<article class="v4413-attention-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openPatient(${Number(p.id)},'attention-search')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPatient(${Number(p.id)},'attention-search')}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last ${p.ultima_atencion?'has-date':'empty'}">${esc(lastText)}</strong></div><span class="v4413-result-chevron">›</span></article>`;
-      }).join(''):'<div class="panel muted">No encontramos coincidencias. Revisa nombre, cédula, celular o correo.</div>';
+      }).join(''):'<div class="attention-search-hint">Sin coincidencias. Revisa nombres, identificación y celular antes de pulsar «Crear paciente nuevo».</div>';
     }catch(e){
       if(seq!==attentionSearchSeq)return;
       box.innerHTML=`<div class="panel err">${esc(e.message||'No se pudo buscar el paciente.')}</div>`;
@@ -1587,11 +1589,30 @@ async function loadAttentionWeek(force=false,anchorValue=null){
     if(box)box.innerHTML=`<div class="attention-week-empty wide err">${esc(e.message)}</div>`;
   }
 }
-async function newAttention(){
+/* 4.8.102 — Iniciar una atención con el paciente, no con la Agenda.
+   Citas y Confirmafy conservan su ruta independiente desde Agenda. */
+function newAttention(){
   currentPatientSource='general';
-  attentionWeekAnchor=toISO(new Date());
-  openModal(`<div class="new-attention-start-modal attention-agenda-only"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona una cita para registrar la atención.</p></div><div id="attentionWeekBlock" class="attention-week-block"><div class="attention-week-head"><div><b>Agenda</b><span>Jueves, viernes y sábado</span></div><div class="attention-week-nav"><button type="button" title="Semana anterior" onclick="moveAttentionWeek(-1)">‹</button><button type="button" class="week-today" onclick="currentAttentionWeek()">Esta semana</button><button type="button" title="Semana siguiente" onclick="moveAttentionWeek(1)">›</button></div><div class="attention-week-range"><strong id="attentionWeekLabel"></strong><span id="attentionWeekConflict" class="attention-week-conflict-note hidden"></span></div></div><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda…</div></div></div></div>`);
-  loadAttentionWeek(false,attentionWeekAnchor);
+  attentionSearchSeq++;
+  clearTimeout(attentionSearchTimer);
+  openModal(`<div class="new-attention-start-modal v477-attention-remaster attention-search-only">
+    <div class="v477-attention-top">
+      <div class="modal-form-heading">
+        <h2>Nueva atención</h2>
+        <p>Busca una ficha existente o registra al paciente para continuar con la atención.</p>
+      </div>
+      <button type="button" class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Crear paciente nuevo</button>
+    </div>
+    <div class="attention-start-search">
+      <label for="aSearch">Buscar paciente</label>
+      <input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()">
+      <small>Escribe al menos 2 caracteres. Revisa las coincidencias antes de crear una ficha nueva.</small>
+    </div>
+    <div id="aResults" class="results attention-results" aria-live="polite">
+      <div class="attention-search-hint">Busca al paciente para abrir su ficha y continuar a Consulta, Revisión o Procedimientos. La Agenda se gestiona por separado.</div>
+    </div>
+  </div>`);
+  setTimeout(()=>document.querySelector('#aSearch')?.focus(),0);
 }
 function procedureByName(name){
   const key=serviceKey(name);
@@ -2057,7 +2078,7 @@ async function saveAttention(id){
       if(name==='CONSULTA')return {procedimiento:null,valor:40};
       const raw=attentionServiceValues[name];
       if(raw===undefined||raw===null||String(raw).trim()==='')throw Error(`Ingresa el valor de ${serviceLabel(name)}.`);
-      const valor=Number(raw);if(Number.isNaN(valor)||valor<0)throw Error(`El valor de ${serviceLabel(name)} no es válido.`);
+      const valor=Number(raw);if(!Number.isFinite(valor)||valor<0)throw Error(`El valor de ${serviceLabel(name)} no es válido.`);
       return {procedimiento:name,valor};
     });
     // El historial clínico confirmado sustituye el botón manual de Subsecuente.
