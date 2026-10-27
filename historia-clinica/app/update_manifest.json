@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.52",
-  "app_version": "1.4.52",
-  "runtime_version": "1.4.52",
+  "version": "1.4.53",
+  "app_version": "1.4.53",
+  "runtime_version": "1.4.53",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Mejora visual de tarjetas de pacientes en espera del Inicio: número real de turno más grande, nombres y etiquetas de atención más legibles, bordes y estados diferenciados para consultas, revisiones y pacientes en atención; mayor destaque de la primera tarjeta, botones independientes intactos y lista de espera desplazable para ver todos los pacientes. Ajuste del alto del panel Inicio en WebView. Sin cambios de datos, cola clínica, prioridad, LAN, TV, Recetas, informes, firmas o sincronización Neón.",
-    "previous_version": "1.4.51",
+    "purpose": "Remaster fiel a la imagen elegida: tarjetas de pacientes en espera con número real en bloque azul vertical grande a la izquierda, nombre y datos de ficha reales en el centro, etiquetas Nuevo/Subsecuente/Revisión y estado juntos, botones Llamar turno, Abrir ficha y Quitar apilados a la derecha. Fondos azul suave para primer turno, blanco para generales, ámbar para revisiones y verde para atención activa. Cédula y teléfono se muestran únicamente si existen en ficha vinculada, sin inventar datos. Sin alterar cola, TV, Recepción, LAN, Neon, firmas, historiales, documentos ni impresión.",
+    "previous_version": "1.4.52",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -418,6 +418,12 @@
     "waiting_room_internal_scroll": true,
     "waiting_room_no_queue_logic_changes": true,
     "waiting_room_no_tv_call_logic_changes": true,
-    "waiting_room_call_open_remove_independent": true
+    "waiting_room_call_open_remove_independent": true,
+    "waiting_room_reference_layout": "three_columns_blue_turn_center_patient_right_stacked_actions",
+    "waiting_room_exact_visual_reference_requested": true,
+    "waiting_room_real_patient_contact_fields_only": true,
+    "waiting_room_revision_color_amber": true,
+    "waiting_room_active_color_green": true,
+    "waiting_room_call_buttons_preserved": true
   }
 }
