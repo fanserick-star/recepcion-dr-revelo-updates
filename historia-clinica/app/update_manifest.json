@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.58",
-  "app_version": "1.4.58",
-  "runtime_version": "1.4.58",
+  "version": "1.4.59",
+  "app_version": "1.4.59",
+  "runtime_version": "1.4.59",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -29,6 +29,7 @@
     "requirements.txt",
     "static/style.css",
     "static/doctor_icon.b64",
+    "queue_arrival_chime.py",
     "doctor_turn_call.py",
     "patient_document_panel.py"
   ],
@@ -80,6 +81,7 @@
     "static/doctor_icon.b64",
     "historia-version.json",
     "update_manifest.json",
+    "queue_arrival_chime.py",
     "doctor_turn_call.py",
     "patient_document_panel.py",
     "clinical_video_library.py",
@@ -87,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Pulido exclusivamente visual del Inicio de Historia Clínica: indicadores de tiempo en espera y última atención con tarjetas bien definidas, contraste elevado y tipografía legible. Si un paciente permanece 30 minutos o más en estado waiting, su métrica de tiempo se destaca en ámbar, aparece '+30 min de espera' y un punto pulsa lentamente; sin destellos de texto y respetando prefers-reduced-motion. Al cambiar a En consulta la alerta deja de mostrarse. Reloj local cada minuto, sin consultas extra a Neon, sin cambios de cola, TV, Recepción, datos clínicos, firma, impresión o bases.",
-    "previous_version": "1.4.57",
+    "purpose": "Avisos sonoros locales para nuevos pacientes de consulta o revisión de exámenes, sin sonidos para procedimientos. Monitor de la cola SQLite local cada cuatro segundos, sonido nativo Windows de dos tonos reproducido una sola vez por llegada (o un aviso si llegan varios juntos), sin sonar al reiniciar ni volver a Inicio, sin consultar Neón ni transmitir sonido a TV. Botón Avisos/Silenciado en Inicio. En Configuración, volumen individual 0-100%, elección Campanilla suave/Aviso corto y botón Probar sonido sin modificar cola ni pacientes; ajustes persistentes locales.",
+    "previous_version": "1.4.58",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -461,6 +463,16 @@
     "queue_wait_30_min_reduced_motion": true,
     "queue_metrics_legibility_polish": true,
     "queue_wait_alert_no_extra_neon_polling": true,
-    "queue_wait_alert_clinical_priority_unchanged": true
+    "queue_wait_alert_clinical_priority_unchanged": true,
+    "patient_arrival_native_chime": true,
+    "patient_arrival_only_consultation_and_review": true,
+    "patient_arrival_never_procedures": true,
+    "patient_arrival_once_per_queue_id": true,
+    "patient_arrival_startup_silent": true,
+    "patient_arrival_background_local_monitor": true,
+    "patient_arrival_config_volume_preview": true,
+    "patient_arrival_local_mute_toggle": true,
+    "patient_arrival_chime_no_extra_neon_polling": true,
+    "patient_arrival_chime_no_tv_audio": true
   }
 }
