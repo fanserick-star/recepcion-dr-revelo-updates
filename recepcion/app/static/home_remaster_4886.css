@@ -493,3 +493,85 @@ body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-pill.review{
 body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-pill.offline{
   background:#f2f5f9!important;border-color:#d9e2eb!important;color:#677b90!important
 }
+
+
+/* Recepción 4.8.97 — panel lateral unificado, alimentado por indicadores originales. */
+body.r486-ui aside .r495-sidebar-status.r497-status-hub{
+  display:flex!important;flex-direction:column!important;gap:5px!important;
+  padding:10px 8px 9px!important;margin:12px 0 0!important;
+  width:100%!important;min-width:0!important;flex:0 0 auto!important;
+  background:#ffffff!important;border:1px solid #e0e8f1!important;
+  border-radius:14px!important;box-shadow:0 3px 12px rgba(24,54,85,.055)!important;
+  box-sizing:border-box!important
+}
+body.r486-ui aside .r497-status-heading{
+  display:flex;align-items:center;gap:7px;padding:0 4px 6px;
+  color:#294664;font-size:11px;letter-spacing:.015em;font-weight:850;
+  border-bottom:1px solid #edf1f6;margin-bottom:2px
+}
+body.r486-ui aside .r497-status-heading-icon{
+  display:grid;place-items:center;width:17px;height:17px;
+  border-radius:6px;background:#edf4fc;color:#3b72ac;font-size:13px
+}
+body.r486-ui aside .r497-status-row{
+  box-sizing:border-box!important;width:100%!important;min-width:0!important;
+  min-height:34px!important;display:grid!important;
+  grid-template-columns:19px minmax(0,1fr) auto!important;
+  align-items:center!important;gap:6px!important;margin:0!important;padding:7px 6px!important;
+  border:1px solid transparent!important;border-radius:9px!important;
+  background:transparent!important;color:#385571!important;box-shadow:none!important;
+  text-align:left!important;transform:none!important
+}
+body.r486-ui aside button.r497-status-row:hover{
+  background:#f0f6fd!important;border-color:#dce9f7!important;cursor:pointer!important
+}
+body.r486-ui aside .r497-status-icon{
+  display:grid;place-items:center;width:19px;height:19px;
+  background:#edf3fa;color:#597e9f;border-radius:6px;font-size:13px
+}
+body.r486-ui aside .r497-status-name{
+  color:#50657c!important;font-size:10.5px!important;font-weight:750!important;
+  line-height:1.2!important;white-space:normal;min-width:0
+}
+body.r486-ui aside .r497-status-value{
+  display:inline-flex;align-items:center;justify-content:flex-end;
+  max-width:102px;min-width:0;gap:3px;white-space:normal;text-align:right;
+  overflow-wrap:anywhere;font-size:9.3px!important;font-weight:850!important;
+  line-height:1.2!important;color:#5e7388
+}
+body.r486-ui aside .r497-status-row[data-state="online"] .r497-status-icon{
+  background:#e9f7ee!important;color:#25724d!important
+}
+body.r486-ui aside .r497-status-row[data-state="online"] .r497-status-value{
+  color:#27744e!important
+}
+body.r486-ui aside .r497-status-row[data-state="offline"] .r497-status-icon,
+body.r486-ui aside .r497-status-row[data-state="warning"] .r497-status-icon{
+  background:#fff0e9!important;color:#9d5930!important
+}
+body.r486-ui aside .r497-status-row[data-state="offline"] .r497-status-value,
+body.r486-ui aside .r497-status-row[data-state="warning"] .r497-status-value{
+  color:#a15c32!important
+}
+body.r486-ui aside .r497-version-row{
+  margin-top:4px!important;border-top:1px solid #e7edf4!important;
+  border-radius:0!important;padding-top:10px!important
+}
+body.r486-ui aside .r497-version-row .r497-status-icon{
+  background:#f0f3f8!important;color:#7b8da2!important
+}
+body.r486-ui aside .r497-version-row .r497-status-value{
+  color:#60768c!important;font-variant-numeric:tabular-nums;font-size:10px!important
+}
+/* Fuentes originales conservadas para el monitor Neon, LAN y versión.
+   El contenedor está fuera de vista: nunca bloquear el click del nuevo panel. */
+body.r486-ui aside .r497-status-sources{
+  position:absolute!important;width:1px!important;height:1px!important;
+  clip-path:inset(50%)!important;overflow:hidden!important;
+  white-space:nowrap!important;pointer-events:none!important
+}
+@media(max-width:1050px){
+  body.r486-ui aside .r495-sidebar-status.r497-status-hub{padding:8px 5px!important}
+  body.r486-ui aside .r497-status-row{gap:4px!important;padding:6px 4px!important}
+  body.r486-ui aside .r497-status-value{max-width:90px;font-size:9px!important}
+}
