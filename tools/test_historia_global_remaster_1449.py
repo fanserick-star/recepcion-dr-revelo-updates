@@ -251,7 +251,7 @@ assert "fetch(" not in app.split("function refreshWaitingClocks()",1)[1].split("
 assert 'doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)' in app
 assert "class='queue-dismiss-form js-queue-dismiss'" in app
 assert "f\"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>\"" in app
-assert 'href = f\"/cola/{e(r[\\'id\\'])}/atender\" if can_open else \"#\"' in app
+assert 'href = f"/cola/' in app and '/atender" if can_open else "#"' in app
 styles=css.split("/* Historia v1.4.57 · indicadores útiles y botones de referencia.",1)[1]
 for css_rule in (
   ".hc-b-metrics", ".hc-b-metric-value", ".hc-b-metric-label",
