@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.59",
-  "app_version": "1.4.59",
-  "runtime_version": "1.4.59",
+  "version": "1.4.60",
+  "app_version": "1.4.60",
+  "runtime_version": "1.4.60",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Avisos sonoros locales para nuevos pacientes de consulta o revisión de exámenes, sin sonidos para procedimientos. Monitor de la cola SQLite local cada cuatro segundos, sonido nativo Windows de dos tonos reproducido una sola vez por llegada (o un aviso si llegan varios juntos), sin sonar al reiniciar ni volver a Inicio, sin consultar Neón ni transmitir sonido a TV. Botón Avisos/Silenciado en Inicio. En Configuración, volumen individual 0-100%, elección Campanilla suave/Aviso corto y botón Probar sonido sin modificar cola ni pacientes; ajustes persistentes locales.",
-    "previous_version": "1.4.58",
+    "purpose": "Repair manual chime preview playback and errors: native Windows memory WAV playback plus temporary WAV fallback, readable diagnostics, volume zero warning, no duplicate chimes, no clinical data or cloud changes.",
+    "previous_version": "1.4.59",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -473,6 +473,9 @@
     "patient_arrival_config_volume_preview": true,
     "patient_arrival_local_mute_toggle": true,
     "patient_arrival_chime_no_extra_neon_polling": true,
-    "patient_arrival_chime_no_tv_audio": true
+    "patient_arrival_chime_no_tv_audio": true,
+    "queue_chime_preview_fallback": true,
+    "queue_chime_readable_errors": true,
+    "queue_chime_no_cloud_changes": true
   }
 }
