@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Aviso sonoro local al llegar una consulta o revisión a Historia.
 
 Lee exclusivamente la cola SQLite de esta PC cada 4 segundos. NO consulta
@@ -16,7 +14,6 @@ import wave
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlsplit
-from fastapi import Request  # Debe existir a nivel de módulo: anotaciones diferidas de FastAPI
 
 _POLL_SECONDS = 4.0
 _DAY_LIMIT = 1500
@@ -273,7 +270,7 @@ class QueueArrivalChime:
 
 def install(app, db_factory, root: Path, is_procedure) -> QueueArrivalChime:
     """Registra endpoints locales de preferencia y escucha en el ciclo servidor."""
-    from fastapi import HTTPException
+    from fastapi import HTTPException, Request
     from fastapi.responses import JSONResponse
 
     monitor = QueueArrivalChime(db_factory, root, is_procedure)
