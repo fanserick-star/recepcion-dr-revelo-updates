@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.57",
-  "app_version": "1.4.57",
-  "runtime_version": "1.4.57",
+  "version": "1.4.58",
+  "app_version": "1.4.58",
+  "runtime_version": "1.4.58",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Remaster visual de pacientes en espera en Inicio: etiquetas completas NUEVO y SUBSECUENTE, tiempo de espera calculado con hora local de la cola y actualizado por reloj local sin consultas adicionales a Neon, última atención real desde encuentros firmados/legado y Primera consulta para nuevos sin historial, dos paneles informativos en espacio de tarjeta, y botones laterales más fieles a la referencia (Llamar azul, Abrir ficha azul claro con icono de carpeta y Quitar rojo suave). Mantiene turno azul cuadrado y adaptación según ancho. Las acciones de llamar, abrir ficha y quitar usan las mismas rutas y no modifican estado administrativo, sincronización o emisión a TV.",
-    "previous_version": "1.4.56",
+    "purpose": "Pulido exclusivamente visual del Inicio de Historia Clínica: indicadores de tiempo en espera y última atención con tarjetas bien definidas, contraste elevado y tipografía legible. Si un paciente permanece 30 minutos o más en estado waiting, su métrica de tiempo se destaca en ámbar, aparece '+30 min de espera' y un punto pulsa lentamente; sin destellos de texto y respetando prefers-reduced-motion. Al cambiar a En consulta la alerta deja de mostrarse. Reloj local cada minuto, sin consultas extra a Neon, sin cambios de cola, TV, Recepción, datos clínicos, firma, impresión o bases.",
+    "previous_version": "1.4.57",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -454,6 +454,13 @@
     "queue_actions_reference_buttons": true,
     "queue_tv_call_logic_changes": false,
     "queue_status_logic_changes": false,
-    "queue_patient_identity_logic_changes": false
+    "queue_patient_identity_logic_changes": false,
+    "queue_wait_30_min_visual_alert": true,
+    "queue_wait_30_min_threshold_minutes": 30,
+    "queue_wait_30_min_waiting_only": true,
+    "queue_wait_30_min_reduced_motion": true,
+    "queue_metrics_legibility_polish": true,
+    "queue_wait_alert_no_extra_neon_polling": true,
+    "queue_wait_alert_clinical_priority_unchanged": true
   }
 }
