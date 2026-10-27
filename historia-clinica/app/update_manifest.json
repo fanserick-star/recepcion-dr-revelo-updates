@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.54",
-  "app_version": "1.4.54",
-  "runtime_version": "1.4.54",
+  "version": "1.4.55",
+  "app_version": "1.4.55",
+  "runtime_version": "1.4.55",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Pulido final estrictamente visual de las tarjetas del Inicio de Historia Clínica: bloque azul de turno ligeramente más ancho, número y leyenda Turno mayores, nombre del paciente más prominente, información de edad/cédula/teléfono con más contraste y separación, etiquetas Nuevo/Subsecuente/En espera de mayor legibilidad, botones Llamar/Abrir ficha/Quitar de mayor altura y menor separación, y tarjeta con aire y sombra equilibrados. Se conserva la distribución de tres columnas ya publicada en v1.4.53 y sus tamaños adaptativos. Sin cambios clínicos, datos, llamados a la TV, cola, Recepción, LAN, Neón, documentos, firmas ni impresión.",
-    "previous_version": "1.4.53",
+    "purpose": "Corrección visual del bloque azul de turno de pacientes en espera. El cuadro permanece exactamente cuadrado (proporción 1:1), centrado en la tarjeta y sin estiramiento vertical. Tamaños adaptativos 106x106 para monitores amplios, 94x94 en medianos y 71x71 en pequeños; leyenda y número ajustados para caber dentro del cuadro. Solo CSS y prueba de regresión; se mantienen la fila, botones de llamado/abrir/quitar, cola, Recepción, LAN, TV, Neón, fichas, documentos y firmas sin cambios.",
+    "previous_version": "1.4.54",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -433,6 +433,15 @@
     "waiting_room_chips_larger": true,
     "waiting_room_buttons_taller": true,
     "waiting_room_vertical_actions_preserved": true,
-    "waiting_room_queue_calls_unchanged": true
+    "waiting_room_queue_calls_unchanged": true,
+    "waiting_room_turn_square_fixed": true,
+    "waiting_room_turn_square_ratio": "1:1",
+    "waiting_room_square_sizes_px": [
+      106,
+      94,
+      71
+    ],
+    "waiting_room_turn_no_stretch": true,
+    "waiting_room_css_only": true
   }
 }
