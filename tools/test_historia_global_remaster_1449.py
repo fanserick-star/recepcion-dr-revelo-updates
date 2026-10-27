@@ -132,4 +132,34 @@ assert "js-queue-dismiss" in app and "hc-b-open" in app
 assert "queue_turns.get(str(r[\"id\"]))" in app
 print("HISTORIA_1452_PROMINENT_WAITING_CARDS_QUEUE_CONTROLS_PRESERVED_OK")
 
+
+# v1.4.53: la imagen elegida exige TRES columnas en cada tarjeta,
+# no los tres botones en una fila debajo de los datos.
+assert "Historia v1.4.53 · sala de espera fiel a referencia visual" in css
+assert "grid-template-columns:98px minmax(0,1fr) 166px!important" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-content" in css
+assert "display:contents!important" in css
+assert "grid-column:3!important;grid-row:1!important" in css
+assert "display:flex!important;flex-direction:column!important;justify-content:center!important" in css
+assert "body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-tags" in css
+assert "background:linear-gradient(180deg,#086ee1,#0556be)!important" in css
+assert 'p.national_id AS patient_national_id' in app
+assert 'p.phone AS patient_phone' in app
+assert 'str(r["patient_phone"] or "").strip()' in app
+assert 'str(r["patient_national_id"] or "").strip()' in app
+assert 'f"CI: {raw_identification}" if raw_identification else ""' in app
+assert "patient_meta = \"  |  \".join(part for part in patient_meta_parts if part)" in app
+assert "e(patient_meta)" in app  # HTML escape de datos de la ficha
+assert "<div class='hc-b-wait-tags'>" in app
+assert "<span class='hc-b-wait-state'>" in app
+assert "▤ Revisión de exámenes" in app
+assert "f\"<div class='queue-turn-number'><span>Turno</span><b>{real_turn}</b></div>\"" in app
+assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in app
+assert "class='queue-dismiss-form js-queue-dismiss'" in app
+assert "href = f\"/cola/{e(r['id'])}/atender\" if can_open else \"#\"" in app
+assert ".hc-b-wait-actions .js-doctor-call" in css
+assert ".hc-b-wait-actions .hc-b-open" in css
+assert ".hc-b-wait-actions .hc-b-remove" in css
+print("HISTORIA_1453_REFERENCIA_FIEL_TARJETAS_TRES_COLUMNAS_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
