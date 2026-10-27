@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.98",
-  "app_version": "4.8.98",
-  "runtime_version": "4.8.98",
+  "version": "4.8.99",
+  "app_version": "4.8.99",
+  "runtime_version": "4.8.99",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -101,7 +101,8 @@
     "clinical_selftest_mp4.b64",
     "reception_night_close.py",
     "static/night_closing_4888.js",
-    "static/sidebar_status_hub_4897.js"
+    "static/sidebar_status_hub_4897.js",
+    "static/patient_profile_remaster_4899.css"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -203,11 +204,12 @@
     "clinical_selftest_mp4.b64",
     "reception_night_close.py",
     "static/night_closing_4888.js",
-    "static/sidebar_status_hub_4897.js"
+    "static/sidebar_status_hub_4897.js",
+    "static/patient_profile_remaster_4899.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.98: remaster de la barra lateral para mejorar contraste y altura útil. Menú de siete opciones más compacto, logo lateral horizontal, botones claros con texto más oscuro y selección azul diferenciada. Actividad se oculta exclusivamente del menú y conserva su registro desde Configuración → Sistema → Registro de actividad. Panel de cuatro estados visible con mayor espacio. Sin alterar datos clínicos, facturas, WhatsApp, ahorro de Neon, red LAN ni TV.",
-    "previous_version": "4.8.97",
+    "purpose": "Recepción 4.8.99: remasterización completa de la ficha de pacientes al estilo clínico luminoso sin círculo ni iniciales del paciente. Nombre protagonista, acciones reales alineadas, métricas compactas, cinco pestañas intactas, datos personales en dos columnas, observaciones en panel de lectura con acceso al editor existente y vínculo con Historia Clínica intacto. Sin crear endpoints ni guardar automáticamente; sin cambios en pacientes, facturación, Neon, LAN o WhatsApp.",
+    "previous_version": "4.8.98",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -676,7 +678,11 @@
     "sidebar_activity_moved_to_settings": true,
     "sidebar_activity_page_preserved": true,
     "sidebar_status_hub_preserved": true,
-    "sidebar_compact_short_screen": true
+    "sidebar_compact_short_screen": true,
+    "patient_profile_visual_remaster": true,
+    "patient_profile_no_initials_avatar": true,
+    "patient_profile_existing_actions_preserved": true,
+    "patient_profile_no_new_notes_endpoint": true
   },
   "channel": "launcher-v1-stable"
 }

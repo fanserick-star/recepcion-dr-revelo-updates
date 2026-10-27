@@ -31,7 +31,7 @@ assert "static/night_closing_4888.js" in manifest["required_dependencies"]
 assert 'import reception_night_close as _night_close' in app
 assert '_night_close.install()' in app
 assert 'night_closing_4888.js?v=4.8.95' in html
-assert 'app.js?v=4.8.88' in html
+assert 'app.js?v=' + version['version'] in html
 
 # 4.8.89: ninguna ruta nocturna puede cerrar Recepción ni Historia.
 assert 'NIGHT_REST_AUTO_CLOSE_PROGRAMS = False' in new

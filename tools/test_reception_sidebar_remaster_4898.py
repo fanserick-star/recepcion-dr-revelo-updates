@@ -9,8 +9,9 @@ core=(root/"core_runtime.py").read_text(encoding="utf-8")
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
 
-assert version=="4.8.98"==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]
-assert '/static/home_remaster_4886.css?v=4.8.98' in html
+assert tuple(map(int, version.split("."))) >= (4,8,98)
+assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]
+assert '/static/home_remaster_4886.css?v=' + version in html
 aside=html[html.index("<aside>"):html.index("</aside>")]
 nav=aside[aside.index("<nav"):aside.index("</nav>")]
 for name in ("inicio","agenda","facturacion","reportes","pacientes","tv","config"):
