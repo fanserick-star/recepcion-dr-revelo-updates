@@ -9,11 +9,12 @@ css=(root/"static/patient_profile_remaster_4899.css").read_text(encoding="utf-8"
 history=(root/"reception_history_identity_consolidated.py").read_text(encoding="utf-8")
 version=json.loads((root/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
 manifest=json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
-assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]=="4.8.99"
+assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]
+assert tuple(map(int,version.split("."))) >= (4,8,99)
 assert "static/patient_profile_remaster_4899.css" in manifest["copy"]
 assert "static/patient_profile_remaster_4899.css" in manifest["required_dependencies"]
 assert '/static/patient_profile_remaster_4899.css?v=4.8.99' in html
-assert '/static/app.js?v=4.8.99' in html
+assert '/static/app.js?v=' + version in html
 start=js.index("async function openPatient(id,source='general')")
 end=js.index("  if(window.loadClinicalDelivery)",start)
 p=js[start:end]

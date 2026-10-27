@@ -1419,7 +1419,7 @@ async function openPatient(id,source='general'){
   const continueAttention=fromAttentionSearch
     ? `<div class="v4417-continue-wrap"><button type="button" class="v4417-continue-attention" data-continue-attention="1" onclick="attentionFor(${Number(id)})">CONTINUAR ATENCIÓN</button></div>`
     : '';
-  openModal(`<div class="patient-profile-modal v4413-patient-profile v499-patient-redesign"><div class="v499-profile-eyebrow"><span aria-hidden="true">✚</span> Ficha del paciente</div><div class="v4413-profile-head"><div class="v4413-profile-name"><h2>${esc(p.nombre)}</h2><div class="v4413-profile-identity"><b>${esc(p.cedula||'Sin cédula')}</b><span>${esc(formatPhoneValue(p.celular||'')||'Sin celular')}</span>${p.correo?`<span>${esc(p.correo)}</span>`:''}</div><div class="v499-profile-flags"><span class="v499-profile-flag ${missing.length?'incomplete':'complete'}">${missing.length?'Datos por completar':'Datos completos'}</span></div></div><div class="v4413-profile-actions">${profileActions}</div></div>${missing.length?patientProfileWarningHtml(p):''}<div class="v4413-profile-kpis"><div><span>Última atención</span><b>${esc(last)}</b></div><div><span>Atenciones</span><b>${visits.length}</b></div><div><span>Citas en Agenda</span><b>${appointments.length}</b></div><div><span>Facturas / envíos</span><b>${emissions.length}</b></div></div><div id="v4413ProfileTabs" class="v4413-profile-tabs"><button class="active" data-profile-tab="resumen" onclick="setPatientProfileTab('resumen')">Datos</button><button data-profile-tab="atenciones" onclick="setPatientProfileTab('atenciones')">Atenciones <span>${visits.length}</span></button><button data-profile-tab="agenda" onclick="setPatientProfileTab('agenda')">Agenda <span>${appointments.length}</span></button><button data-profile-tab="facturacion" onclick="setPatientProfileTab('facturacion')">Facturación <span>${emissions.length||p.billing?.length||0}</span></button><button data-profile-tab="documentos" onclick="setPatientProfileTab('documentos')">▣ Archivo clínico</button></div><div id="v4413ProfilePanels" class="v4413-profile-panels"><section data-profile-panel="resumen"><div class="v499-profile-dashboard"><div class="v499-personal-panel"><div class="v499-section-heading"><span aria-hidden="true">▤</span><h3>Información personal</h3></div><div class="v4413-data-grid"><div><span>Cédula / identificación</span><b>${esc(p.cedula||'Sin registrar')}</b></div><div><span>Celular</span><b>${esc(formatPhoneValue(p.celular||'')||'Sin registrar')}</b></div><div><span>Correo</span><b>${esc(p.correo||'Sin registrar')}</b></div><div><span>Fecha de nacimiento</span><b>${esc(birth)}</b></div><div><span>Lugar</span><b>${esc(p.lugar||'Sin registrar')}</b></div><div><span>Estado de ficha</span><b>${missing.length?'Datos por completar':'Completa'}</b></div></div></div><aside class="v499-profile-side">
+  openModal(`<div class="patient-profile-modal v4413-patient-profile v499-patient-redesign v4100-dossier"><div class="v499-profile-eyebrow"><span aria-hidden="true">✚</span> Expediente de recepción</div><div class="v4413-profile-head"><div class="v4413-profile-name"><h2>${esc(p.nombre)}</h2><div class="v4413-profile-identity"><b>${esc(p.cedula||'Sin cédula')}</b><span>${esc(formatPhoneValue(p.celular||'')||'Sin celular')}</span>${p.correo?`<span>${esc(p.correo)}</span>`:''}</div><div class="v499-profile-flags"><span class="v499-profile-flag ${missing.length?'incomplete':'complete'}">${missing.length?'Datos por completar':'Datos completos'}</span></div></div><div class="v4413-profile-actions">${profileActions}</div></div>${missing.length?patientProfileWarningHtml(p):''}<div class="v4413-profile-kpis"><div><span>Última atención</span><b>${esc(last)}</b></div><div><span>Atenciones</span><b>${visits.length}</b></div><div><span>Citas en Agenda</span><b>${appointments.length}</b></div><div><span>Facturas / envíos</span><b>${emissions.length}</b></div></div><div id="v4413ProfileTabs" class="v4413-profile-tabs"><button class="active" data-profile-tab="resumen" onclick="setPatientProfileTab('resumen')">Datos personales</button><button data-profile-tab="atenciones" onclick="setPatientProfileTab('atenciones')">Atenciones <span>${visits.length}</span></button><button data-profile-tab="agenda" onclick="setPatientProfileTab('agenda')">Agenda <span>${appointments.length}</span></button><button data-profile-tab="facturacion" onclick="setPatientProfileTab('facturacion')">Facturación <span>${emissions.length||p.billing?.length||0}</span></button><button data-profile-tab="documentos" onclick="setPatientProfileTab('documentos')">▣ Archivo clínico</button></div><div id="v4413ProfilePanels" class="v4413-profile-panels"><section data-profile-panel="resumen"><div class="v499-profile-dashboard"><div class="v499-personal-panel"><div class="v499-section-heading"><span aria-hidden="true">▤</span><h3>Información personal</h3></div><div class="v4413-data-grid"><div><span>Cédula / identificación</span><b>${esc(p.cedula||'Sin registrar')}</b></div><div><span>Celular</span><b>${esc(formatPhoneValue(p.celular||'')||'Sin registrar')}</b></div><div><span>Correo</span><b>${esc(p.correo||'Sin registrar')}</b></div><div><span>Fecha de nacimiento</span><b>${esc(birth)}</b></div><div><span>Lugar</span><b>${esc(p.lugar||'Sin registrar')}</b></div><div><span>Estado de ficha</span><b>${missing.length?'Datos por completar':'Completa'}</b></div></div></div><aside class="v499-profile-side">
 <div class="v499-profile-note-panel"><div class="v499-section-heading"><span aria-hidden="true">▤</span><h3>Observaciones</h3></div>
 <p class="v499-note-text ${notes?'':'empty'}">${notes?esc(notes):'Sin observaciones registradas.'}</p>
 <button type="button" class="v499-note-edit" onclick="editPatient(${Number(id)},'${esc(source)}')">Editar observaciones</button>
@@ -1877,14 +1877,97 @@ async function showExamReviewTicket(visitId,autoDirectPrint=false){
   }catch(e){alert('No se pudo abrir el ticket: '+String(e.message||e))}
 }
 
+/* 4.8.100 — Diálogo nativo de Recepción para revisiones sin cobro.
+   No escribe datos; guardar/imprimir solo ocurre DESPUÉS de confirmar. */
+function examReviewDialog({title='Revisión de exámenes',patient='',clinicalName='',message='',confirmLabel='Aceptar',cancelLabel='Cancelar',kind='notice'}={}){
+  return new Promise(resolve=>{
+    const prior=document.activeElement;
+    const overlay=document.createElement('div');
+    overlay.className='r4100-review-overlay';
+    const panel=document.createElement('section');
+    panel.className='r4100-review-dialog';
+    panel.setAttribute('role',kind==='confirm'?'alertdialog':'dialog');
+    panel.setAttribute('aria-modal','true');
+    panel.setAttribute('aria-labelledby','r4100ReviewTitle');
+    panel.setAttribute('aria-describedby','r4100ReviewMessage');
+    const head=document.createElement('header');
+    head.className='r4100-review-head';
+    const badge=document.createElement('span');
+    badge.className='r4100-review-badge';
+    badge.textContent='SIN COBRO';
+    const heading=document.createElement('h2');
+    heading.id='r4100ReviewTitle';heading.textContent=title;
+    head.append(badge,heading);
+    const copy=document.createElement('div');
+    copy.className='r4100-review-copy';
+    if(patient){
+      const item=document.createElement('div');
+      item.className='r4100-review-detail';
+      const label=document.createElement('span');label.textContent='Paciente';
+      const value=document.createElement('strong');value.textContent=patient;
+      item.append(label,value);copy.appendChild(item);
+    }
+    if(clinicalName){
+      const item=document.createElement('div');
+      item.className='r4100-review-detail';
+      const label=document.createElement('span');label.textContent='Historia Clínica vinculada';
+      const value=document.createElement('strong');value.textContent=clinicalName;
+      item.append(label,value);copy.appendChild(item);
+    }
+    const messageEl=document.createElement('p');
+    messageEl.id='r4100ReviewMessage';
+    messageEl.textContent=message;
+    copy.appendChild(messageEl);
+    const actions=document.createElement('footer');
+    actions.className='r4100-review-actions';
+    let cancelled=null;
+    let completed=false;
+    const cleanup=answer=>{
+      if(completed)return;
+      completed=true;
+      document.removeEventListener('keydown',onKey,true);
+      overlay.remove();
+      if(prior&&prior.isConnected&&typeof prior.focus==='function')prior.focus();
+      resolve(answer);
+    };
+    const onKey=event=>{
+      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cleanup(false)}
+      if(event.key==='Tab'){
+        const buttons=[...actions.querySelectorAll('button')];
+        if(!buttons.length)return;
+        const index=buttons.indexOf(document.activeElement);
+        if(event.shiftKey&&index<=0){event.preventDefault();buttons[buttons.length-1].focus()}
+        else if(!event.shiftKey&&index===buttons.length-1){event.preventDefault();buttons[0].focus()}
+      }
+    };
+    if(kind==='confirm'){
+      cancelled=document.createElement('button');
+      cancelled.type='button';cancelled.className='r4100-review-cancel';
+      cancelled.textContent=cancelLabel;cancelled.onclick=()=>cleanup(false);
+      actions.appendChild(cancelled);
+    }
+    const accept=document.createElement('button');
+    accept.type='button';accept.className='r4100-review-accept';
+    accept.textContent=confirmLabel;
+    accept.onclick=()=>cleanup(true);
+    actions.appendChild(accept);
+    panel.append(head,copy,actions);
+    overlay.appendChild(panel);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click',e=>{if(e.target===overlay)cleanup(false)});
+    document.addEventListener('keydown',onKey,true);
+    (cancelled||accept).focus();
+  });
+}
+
 async function saveExamReviewTurn(id){
   if(attentionSaveInFlight)return;
   if(selectedServices.size){
-    alert('Desmarca la consulta o los procedimientos seleccionados. La revisión gratuita se registra por separado.');
+    await examReviewDialog({title:'Revisión sin cobro',message:'Desmarca la consulta o los procedimientos seleccionados. La revisión gratuita se registra por separado.'});
     return;
   }
   const fecha=$('#aFecha')?.value||toISO(new Date());
-  if(fecha!==toISO(new Date())){alert('El turno gratuito de revisión se entrega solo para hoy.');return}
+  if(fecha!==toISO(new Date())){await examReviewDialog({title:'Revisión sin cobro',message:'El turno gratuito de revisión se entrega solo para hoy.'});return}
   const name=attentionContext?.patient?.nombre||'este paciente';
   const btn=$('.exam-review-turn-btn');
   attentionSaveInFlight=true;
@@ -1901,14 +1984,20 @@ async function saveExamReviewTurn(id){
       if(typeof window.openExamReviewHistoryLink!=='function'){
         throw Error('El buscador de fichas no está disponible. Cierra y abre Recepción para actualizar.');
       }
-      alert('Para revisión de exámenes debes vincular primero la ficha de Historia Clínica. Busca al paciente y confirma la ficha correcta.');
+      await examReviewDialog({title:'Vinculación necesaria',message:'Para revisión de exámenes debes vincular primero la ficha de Historia Clínica. Busca al paciente y confirma la ficha correcta.'});
       await window.openExamReviewHistoryLink(id,name);
       return;
     }
     const clinicalName=String(status.clinical_patient?.name||'').trim();
-    if(!confirm('Revisión de exámenes · SIN COBRO\n\nPaciente: '+name
-       +(clinicalName?'\nFicha clínica vinculada: '+clinicalName:'')
-       +'\n\n¿Generar el turno y su ticket?'))return;
+    if(!await examReviewDialog({
+      title:'Confirmar revisión de exámenes',
+      patient:name,
+      clinicalName,
+      message:'Revisión de exámenes · SIN COBRO. Se generará un turno y su ticket. No genera factura.',
+      confirmLabel:'Generar turno sin cobro',
+      cancelLabel:'Cancelar',
+      kind:'confirm'
+    }))return;
     if(btn)btn.textContent='Registrando turno…';
     const result=await api('/api/visits/exam-review',{method:'POST',body:JSON.stringify({
       patient_id:id,fecha,observacion:$('#aObs')?.value||null
@@ -1936,17 +2025,16 @@ async function saveExamReviewTurn(id){
       :(!result?.historia_online?'Historia desconectada: el turno queda pendiente de entrega.':'');
     const ticketPrint=await printJob;
     if(!ticketPrint.ok){
-      alert('El turno quedó registrado, pero no se imprimió automáticamente: '
-        +ticketPrint.message+'\nPuedes reimprimirlo desde Inicio.');
+      await examReviewDialog({title:'Turno creado, impresión pendiente',message:'El turno quedó registrado, pero no se imprimió automáticamente: '+ticketPrint.message+'\nPuedes reimprimirlo desde Inicio.'});
       if(reviewId)await showExamReviewTicket(reviewId);
     }
-    if(warning)alert(warning);
+    if(warning)await examReviewDialog({title:'Estado de entrega a Historia',message:warning});
   }catch(e){
     const message=String(e?.message||e||'Error al registrar el turno');
     if(message.includes('primero vincula')&&typeof window.openExamReviewHistoryLink==='function'){
-      alert(message);
+      await examReviewDialog({title:'Verifica la ficha clínica',message});
       await window.openExamReviewHistoryLink(id,name);
-    }else alert(message);
+    }else await examReviewDialog({title:'No se pudo crear el turno',message});
   }finally{
     attentionSaveInFlight=false;
     if(btn?.isConnected){btn.disabled=false;btn.textContent='🎫 Dar turno · Revisión de exámenes (gratis)'}

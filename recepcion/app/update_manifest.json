@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.99",
-  "app_version": "4.8.99",
-  "runtime_version": "4.8.99",
+  "version": "4.8.100",
+  "app_version": "4.8.100",
+  "runtime_version": "4.8.100",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -102,7 +102,8 @@
     "reception_night_close.py",
     "static/night_closing_4888.js",
     "static/sidebar_status_hub_4897.js",
-    "static/patient_profile_remaster_4899.css"
+    "static/patient_profile_remaster_4899.css",
+    "static/patient_dossier_review_48100.css"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -205,11 +206,12 @@
     "reception_night_close.py",
     "static/night_closing_4888.js",
     "static/sidebar_status_hub_4897.js",
-    "static/patient_profile_remaster_4899.css"
+    "static/patient_profile_remaster_4899.css",
+    "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.99: remasterización completa de la ficha de pacientes al estilo clínico luminoso sin círculo ni iniciales del paciente. Nombre protagonista, acciones reales alineadas, métricas compactas, cinco pestañas intactas, datos personales en dos columnas, observaciones en panel de lectura con acceso al editor existente y vínculo con Historia Clínica intacto. Sin crear endpoints ni guardar automáticamente; sin cambios en pacientes, facturación, Neon, LAN o WhatsApp.",
-    "previous_version": "4.8.98",
+    "purpose": "Recepción 4.8.100: ficha de pacientes ahora expediente administrativo con navegación vertical y contenido amplio, sin círculo de iniciales y sin fila de tarjetas redundantes. Mantiene las cinco pestañas, acciones, edición de observaciones, validación de datos, documentos y vínculo con Historia como tarjeta hija del motor original. Revisión de exámenes sin cobro utiliza confirmación interna accesible, cancela sin escribir, valida vínculo y fecha antes de emitir turno/ticket; avisos de revisión sin alert() navegador. Sin cambios de datos, Neon, WhatsApp, facturas o backend.",
+    "previous_version": "4.8.99",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -682,7 +684,11 @@
     "patient_profile_visual_remaster": true,
     "patient_profile_no_initials_avatar": true,
     "patient_profile_existing_actions_preserved": true,
-    "patient_profile_no_new_notes_endpoint": true
+    "patient_profile_no_new_notes_endpoint": true,
+    "previous_profile_behavior_preserved": true,
+    "patient_dossier_side_navigation": true,
+    "native_review_confirmation_replaced": true,
+    "review_transaction_safety_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }

@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.99: ficha de pacientes totalmente remasterizada, ahora más profesional y sin círculo de iniciales. Se mantienen acciones, historial, vínculo de Historia Clínica, observaciones y las cinco pestañas; sin cambios de datos."
+  "notes": "Recepción 4.8.100: expediente administrativo de pacientes de dos columnas, navegación lateral profesional, vínculo con Historia intacto, sin iniciales ni recuadros repetitivos. Confirmación de turno de revisión sin cobro con diálogo propio y controles seguros; sin cambios de facturación o datos."
 }
