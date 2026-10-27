@@ -191,6 +191,37 @@
   grid-column:2!important;grid-row:7!important;
   margin:0 20px 17px!important
 }
+/* 4.8.101 — El botón Archivo clínico heredaba flex:1 0 auto!important
+   del diseño horizontal v4.8.99. En la barra vertical eso estira la última
+   opción a toda la altura restante del expediente. Fijamos su flex-basis
+   exactamente igual al resto de opciones. No modifica sus acciones. */
+#modal .v499-patient-redesign.v4100-dossier>.v4413-profile-tabs>button[data-profile-tab="documentos"]{
+  flex:0 0 43px!important;
+  flex-grow:0!important;
+  flex-shrink:0!important;
+  flex-basis:43px!important;
+  width:100%!important;
+  height:43px!important;
+  min-height:43px!important;
+  max-height:43px!important;
+  align-self:stretch!important;
+  margin:0!important;
+  padding:10px 12px!important;
+  border-radius:9px!important;
+  text-align:left!important;
+  justify-content:space-between!important;
+  white-space:normal!important;
+  font-size:12px!important;
+  line-height:1.25!important;
+}
+@media(max-width:770px){
+  #modal .v499-patient-redesign.v4100-dossier>.v4413-profile-tabs>button[data-profile-tab="documentos"]{
+    flex:0 0 auto!important;
+    width:auto!important;
+    min-width:max-content!important;
+  }
+}
+
 /* Una computadora antigua o monitor pequeño no debe perder acciones ni tabs. */
 @media(max-width:1060px){
   #modal .v4100-dossier{grid-template-columns:185px minmax(0,1fr)!important}
