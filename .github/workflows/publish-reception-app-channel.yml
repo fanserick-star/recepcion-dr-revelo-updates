@@ -35,6 +35,7 @@ jobs:
           python tools/test_reception_agenda_tv_light_4896.py
           python tools/test_reception_status_hub_4897.py
           python tools/test_reception_sidebar_remaster_4898.py
+          python tools/test_reception_patient_profile_remaster_4899.py
           node --check recepcion/app/static/sidebar_status_hub_4897.js
           node --check recepcion/app/static/home_remaster_4886.js
           python tools/test_reception_clinical_delivery_4858.py
