@@ -33,7 +33,7 @@ assert 'onclick="show(\'agenda\')"' in html
 # El lateral conserva solo menú y no pierde la consulta de conexión ni la versión.
 aside = html[html.index("<aside>"):html.index("</aside>")]
 assert 'r486-tv-card' not in aside
-assert 'class="r495-sidebar-status"' in aside
+assert 'class="r495-sidebar-status r497-status-hub"' in aside
 assert 'id="connectionBadge"' in aside
 assert 'class="r494-connection-strip"' not in html
 assert 'id="connectionBadge"' in html
