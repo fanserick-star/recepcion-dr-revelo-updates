@@ -78,6 +78,13 @@
     observer.observe(sources,{subtree:true,attributes:true,childList:true,characterData:true});
     renderOriginals();
     refreshTv(true);
+    const app=get('app');
+    if(app){
+      const authState=new MutationObserver(()=>{
+        if(!app.classList.contains('hidden'))refreshTv(true);
+      });
+      authState.observe(app,{attributes:true,attributeFilter:['class']});
+    }
     setInterval(()=>refreshTv(false),30000);
     document.addEventListener('visibilitychange',()=>{
       if(!document.hidden){renderOriginals();refreshTv(true);}
