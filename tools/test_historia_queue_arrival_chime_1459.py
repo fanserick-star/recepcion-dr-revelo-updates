@@ -93,6 +93,36 @@ with tempfile.TemporaryDirectory() as directory:
     assert mod._gentle_chime(0)!=mod._gentle_chime(80)
     assert "select" not in (root/"data"/"queue_arrival_chime.json").read_text().lower()
 
+# Simulación de Windows: si falla WAV en memoria, probar WAV por archivo.
+import os
+import sys
+import types
+from unittest.mock import patch
+calls = []
+fake_winsound = types.SimpleNamespace(SND_MEMORY=4, SND_FILENAME=2, SND_NODEFAULT=8)
+def fake_play(sound, flags):
+    calls.append((type(sound).__name__, flags))
+    if isinstance(sound, bytes):
+        raise RuntimeError("SND_MEMORY denied")
+    assert Path(sound).is_file()
+    with wave.open(sound, "rb") as w:
+        assert w.getnchannels()==1 and w.getnframes()>0
+fake_winsound.PlaySound = fake_play
+fake_os = types.SimpleNamespace(name="nt", fdopen=os.fdopen, unlink=os.unlink)
+with patch.object(mod, "os", fake_os), patch.dict(sys.modules, {"winsound": fake_winsound}):
+    result = mod._play_native_diagnostic(40, "soft")
+    assert result["ok"] is True and result["method"]=="wav", result
+    assert [name for name,flags in calls]==["bytes","str"]
+    zero = mod._play_native_diagnostic(0, "soft")
+    assert zero["ok"] is False and "0%" in zero["message"]
+    def reject_all(sound, flags):
+        raise RuntimeError("no output available")
+    fake_winsound.PlaySound=reject_all
+    result=mod._play_native_diagnostic(40,"short")
+    assert result["ok"] is False
+    assert "Windows no pudo reproducir" in result["message"]
+    assert "no output available" in result["message"]
+
 app=(ROOT/"app.py").read_text(encoding="utf-8")
 docs=(ROOT/"documentos_clinicos.py").read_text(encoding="utf-8")
 css=(ROOT/"static"/"style.css").read_text(encoding="utf-8")
@@ -109,4 +139,11 @@ for key in ("cfg-chime-volume", "cfg-chime-sound", "cfg-chime-test",
     assert key in docs, key
 assert "Avisos sonoros" in docs and "Campanilla suave" in docs
 assert "Historia v1.4.59" in css
+assert "_play_native_diagnostic" in module and "winsound.SND_FILENAME" in module
+assert "monitor.preview_result()" in module
+assert "cfgChimeReadResponse" in docs
+assert "cfgChimeErrorText" in docs
+assert "Si no lo escucha" in docs
+assert "cfgChimeStatus.textContent=message" in docs
+
 print("HISTORIA_QUEUE_ARRIVAL_CHIME_1459_OK")
