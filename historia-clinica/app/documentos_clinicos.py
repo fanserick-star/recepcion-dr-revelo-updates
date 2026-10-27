@@ -2468,7 +2468,7 @@ body{{background:#e8edf1;padding:14px}}
           try{{
             await cfgSaveChime();
             const r=await fetch('/api/queue/chime/test',{{
-              method:'POST',headers:cfgChimeHeaders,body:'{}',cache:'no-store'
+              method:'POST',headers:cfgChimeHeaders,body:'{{}}',cache:'no-store'
             }});
             const d=await r.json();
             if(!r.ok||!d.ok)throw new Error(d.message||d.detail||'Prueba no disponible.');
