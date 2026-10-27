@@ -1990,6 +1990,9 @@ def home():
                 since_label = "Hora no disponible"
             if not is_waiting:
                 waiting_text = "En consulta"
+            # Aviso visual de espera prolongada: sólo en estado waiting,
+            # nunca altera el orden, la prioridad ni el llamado de la TV.
+            wait_over_30 = is_waiting and waiting_text != "Sin hora" and elapsed_minutes >= 30
             parts.append(
                 f"<article class='queue-row hc-b-wait-card {'hc-b-review' if exam_review else ''} "
                 f"{queue_status_class} {queue_kind_class}'>"
@@ -2003,12 +2006,13 @@ def home():
                 f"<span class='hc-b-wait-state'>{e(status_text)}</span>"
                 f"</div></div>"
                 f"<div class='hc-b-metrics'>"
-                f"<div class='hc-b-metric hc-b-metric-wait'><div class='hc-b-metric-label'>◷ <span>{'Tiempo en espera' if is_waiting else 'Estado del turno'}</span></div>"
+                f"<div class='hc-b-metric hc-b-metric-wait{' hc-b-wait-overdue' if wait_over_30 else ''}'><div class='hc-b-metric-label'>◷ <span>{'Tiempo en espera' if is_waiting else 'Estado del turno'}</span></div>"
                 f"<strong class='hc-b-metric-value{' js-hc-wait-clock' if is_waiting else ''}' data-queued-at='{e(raw_arrival)}'>{e(waiting_text)}</strong>"
-                f"<small>{e(since_label)}</small></div>"
+                f"<small>{e(since_label)}</small>"
+                f"<span class='hc-b-wait-alert' aria-label='Más de 30 minutos esperando'>+30 min de espera</span></div>"
                 f"<div class='hc-b-metric hc-b-metric-last'><div class='hc-b-metric-label'>▦ <span>Última atención</span></div>"
                 f"<strong class='hc-b-metric-value'>{e(last_visit)}</strong>"
-                f"<small>{'Sin atenciones anteriores' if not last_date and is_new else 'Registro clínico' if last_date else 'No hay fecha disponible'}</small>"
+                f"<small>{'Último control registrado' if last_date else 'Sin atenciones anteriores' if is_new else 'No hay fecha disponible'}</small>"
                 f"</div></div></div></div>"
                 f"<div class='hc-b-wait-actions'>"
                 f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
@@ -2210,6 +2214,10 @@ def home():
       const minutes=Math.max(0,Math.floor((Date.now()-when)/60000));
       el.textContent=minutes<60 ? minutes+' min'
         :Math.floor(minutes/60)+' h '+String(minutes%60).padStart(2,'0')+' min';
+      // Umbral visual a los 30 min; se desactiva solo al salir de espera.
+      const metric=el.closest('.hc-b-metric-wait');
+      const stillWaiting=!!el.closest('.queue-row-waiting');
+      metric?.classList.toggle('hc-b-wait-overdue',stillWaiting && minutes>=30);
     });
   }
   refreshWaitingClocks();
