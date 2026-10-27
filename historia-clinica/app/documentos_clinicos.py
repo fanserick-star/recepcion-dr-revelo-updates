@@ -2307,10 +2307,36 @@ body{{background:#e8edf1;padding:14px}}
             for k,label in fields
         )
         body = f"""{_styles()}<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>CONFIGURACIÓN</span><h1>Historia Clínica</h1><p>Los datos y plantillas compartidos viajan por Neon. Las impresoras son locales de cada PC.</p></div></div>
-        <div class='config-nav'><a href='#consultorio'>Datos del consultorio</a><a href='#usuarios'>Usuarios</a><a href='#impresoras'>Impresoras</a><a href='#estado'>Estado y conexión</a><a href='#herramientas'>Herramientas técnicas</a><a href='#otros'>Otros ajustes</a></div>
+        <div class='config-nav'><a href='#consultorio'>Datos del consultorio</a><a href='#usuarios'>Usuarios</a><a href='#impresoras'>Impresoras</a><a href='#avisos'>Avisos sonoros</a><a href='#estado'>Estado y conexión</a><a href='#herramientas'>Herramientas técnicas</a><a href='#otros'>Otros ajustes</a></div>
         <form id='shared-form' class='docs-card'><h2 id='consultorio'>Datos del consultorio / plantillas</h2><div class='docs-fields'>{shared_html}</div><div class='doc-actions'><button class='doc-primary'>Guardar configuración compartida</button></div></form>
         <section class='docs-card'><h2 id='usuarios'>Usuarios</h2><p><b>Dr. Armando Revelo</b> · Usuario clínico principal. Esta actualización no agrega pantalla de login.</p></section>
         <form id='local-form' class='docs-card'><h2 id='impresoras'>Impresoras de esta PC</h2><div class='docs-fields'><label>Recetas<input name='prescription_printer' value='{_e(local.get('prescription_printer'))}'></label><label>Certificados<input name='certificate_printer' value='{_e(local.get('certificate_printer'))}'></label></div><div class='doc-actions'><button class='doc-primary'>Guardar en esta PC</button></div></form>
+        <section class='docs-card hc-chime-settings' id='avisos'>
+          <h2>🔔 Avisos sonoros de pacientes</h2>
+          <p>Suena una sola vez al llegar una <b>consulta</b> o <b>revisión de exámenes</b>.
+             Los procedimientos nunca producen sonido. Esta preferencia se guarda solo en esta PC.</p>
+          <div class='hc-chime-grid'>
+            <label class='hc-chime-toggle'><input type='checkbox' id='cfg-chime-enabled' checked>
+              <span>Activar avisos de nuevos pacientes</span></label>
+            <label class='hc-chime-select'>Tipo de sonido
+              <select id='cfg-chime-sound'>
+                <option value='soft'>Campanilla suave · 2 tonos</option>
+                <option value='short'>Aviso corto · 2 tonos</option>
+              </select>
+            </label>
+            <label class='hc-chime-range'>Volumen de la campanilla
+              <span class='hc-chime-volume'>
+                <input type='range' id='cfg-chime-volume' min='0' max='100' step='5' value='40'>
+                <output id='cfg-chime-volume-value'>40%</output>
+              </span>
+            </label>
+          </div>
+          <div class='doc-actions hc-chime-actions'>
+            <button type='button' class='doc-primary' id='cfg-chime-save'>Guardar avisos</button>
+            <button type='button' class='config-tool-btn hc-chime-test' id='cfg-chime-test'>🔊 Probar sonido</button>
+            <small id='cfg-chime-status' role='status' aria-live='polite'>Comprobando sonido local…</small>
+          </div>
+        </section>
         <section class='docs-card' id='estado'>
           <h2>Estado y conexión</h2>
           <p>Información técnica de la nube y del enlace privado con Recepción.</p>
@@ -2397,6 +2423,60 @@ body{{background:#e8edf1;padding:14px}}
             finally{{btn.disabled=false;btn.innerHTML=old}}
           }});
         }}
+        // Configuración local del sonido. La prueba no modifica la cola ni la TV.
+        const cfgChimeEnabled=document.getElementById('cfg-chime-enabled');
+        const cfgChimeVolume=document.getElementById('cfg-chime-volume');
+        const cfgChimeOutput=document.getElementById('cfg-chime-volume-value');
+        const cfgChimeSound=document.getElementById('cfg-chime-sound');
+        const cfgChimeStatus=document.getElementById('cfg-chime-status');
+        const cfgChimeSave=document.getElementById('cfg-chime-save');
+        const cfgChimeTest=document.getElementById('cfg-chime-test');
+        cfgChimeVolume?.addEventListener('input',()=>{{cfgChimeOutput.textContent=cfgChimeVolume.value+'%'}});
+        const cfgChimeHeaders={{'Content-Type':'application/json','X-Historia-Queue-Chime':'1'}};
+        async function cfgSaveChime(){{
+          const payload={{enabled:!!cfgChimeEnabled.checked,
+            volume:Number(cfgChimeVolume.value),sound:cfgChimeSound.value}};
+          const r=await fetch('/api/queue/chime',{{method:'POST',headers:cfgChimeHeaders,
+            body:JSON.stringify(payload),cache:'no-store'}});
+          const d=await r.json();
+          if(!r.ok||!d.ok)throw new Error(d.detail||d.error||'No se pudo guardar el sonido.');
+          cfgChimeStatus.textContent='Guardado solo en esta PC.';
+          return d;
+        }}
+        async function cfgLoadChime(){{
+          try{{
+            const r=await fetch('/api/queue/chime',{{cache:'no-store'}});
+            if(!r.ok)throw new Error('No disponible');
+            const d=await r.json();
+            cfgChimeEnabled.checked=d.enabled!==false;
+            cfgChimeVolume.value=String(d.volume??40);
+            cfgChimeSound.value=d.sound||'soft';
+            cfgChimeOutput.textContent=cfgChimeVolume.value+'%';
+            cfgChimeStatus.textContent=d.available
+              ? 'Campanilla local de Windows. Ajuste el sonido y pruebe el volumen.'
+              : 'La reproducción requiere Windows en la PC del doctor.';
+          }}catch(_e){{cfgChimeStatus.textContent='No se pudo cargar la configuración del sonido.'}}
+        }}
+        cfgChimeSave?.addEventListener('click',async()=>{{
+          cfgChimeSave.disabled=true;
+          try{{await cfgSaveChime();cfgNotify('Avisos sonoros guardados','success')}}
+          catch(err){{cfgNotify(err.message||String(err),'error')}}
+          finally{{cfgChimeSave.disabled=false}}
+        }});
+        cfgChimeTest?.addEventListener('click',async()=>{{
+          cfgChimeTest.disabled=true;
+          try{{
+            await cfgSaveChime();
+            const r=await fetch('/api/queue/chime/test',{{
+              method:'POST',headers:cfgChimeHeaders,body:'{}',cache:'no-store'
+            }});
+            const d=await r.json();
+            if(!r.ok||!d.ok)throw new Error(d.message||d.detail||'Prueba no disponible.');
+            cfgChimeStatus.textContent='Prueba reproducida en los parlantes de Windows.';
+          }}catch(err){{cfgNotify(err.message||String(err),'error')}}
+          finally{{cfgChimeTest.disabled=false}}
+        }});
+        cfgLoadChime();
         cfgAction('cfg-sync-now','/api/sync/now','Sincronización solicitada');
         cfgAction('cfg-repair-shortcut','/api/system/shortcut','Acceso directo reparado');
         cfgAction('cfg-repair-lan','/api/system/lan-firewall','Permiso LAN solicitado');
