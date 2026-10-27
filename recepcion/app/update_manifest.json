@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.97",
-  "app_version": "4.8.97",
-  "runtime_version": "4.8.97",
+  "version": "4.8.98",
+  "app_version": "4.8.98",
+  "runtime_version": "4.8.98",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -206,8 +206,8 @@
     "static/sidebar_status_hub_4897.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.97: panel único Estado del sistema en pie lateral con Sistema, Historia LAN, Pantalla TV y Versión. Muestra estados reales desde monitores ya existentes de nube/LAN/versión; TV consulta solo estado del servicio local 8899 mediante API autenticada, sin Neon, solo con app visible. Los pacientes LAN pendientes se muestran sin falso desconectado. No cambia datos, módulos, facturas, WhatsApp ni emisiones.",
-    "previous_version": "4.8.96",
+    "purpose": "Recepción 4.8.98: remaster de la barra lateral para mejorar contraste y altura útil. Menú de siete opciones más compacto, logo lateral horizontal, botones claros con texto más oscuro y selección azul diferenciada. Actividad se oculta exclusivamente del menú y conserva su registro desde Configuración → Sistema → Registro de actividad. Panel de cuatro estados visible con mayor espacio. Sin alterar datos clínicos, facturas, WhatsApp, ahorro de Neon, red LAN ni TV.",
+    "previous_version": "4.8.97",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -671,7 +671,12 @@
     "sidebar_status_hub_four_rows": true,
     "sidebar_status_lan_pending_without_disconnection": true,
     "sidebar_tv_status_local_only": true,
-    "sidebar_status_legacy_sources_preserved": true
+    "sidebar_status_legacy_sources_preserved": true,
+    "sidebar_remaster_high_contrast": true,
+    "sidebar_activity_moved_to_settings": true,
+    "sidebar_activity_page_preserved": true,
+    "sidebar_status_hub_preserved": true,
+    "sidebar_compact_short_screen": true
   },
   "channel": "launcher-v1-stable"
 }
