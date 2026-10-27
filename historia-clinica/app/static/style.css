@@ -5110,3 +5110,108 @@ body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
     height:46px!important;min-height:46px!important;
   }
 }
+
+
+/* Historia v1.4.58 · indicadores más claros y alerta suave tras 30 minutos.
+   La alerta acompaña sólo a pacientes en espera; nunca es prioridad clínica.
+   No parpadea el texto ni agrega llamadas de red. */
+@media screen {
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metrics{
+    gap:12px!important;
+    align-items:stretch!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric{
+    position:relative!important;
+    display:flex!important;flex-direction:column!important;
+    align-items:center!important;justify-content:center!important;
+    min-width:0!important;
+    min-height:112px!important;
+    gap:6px!important;
+    padding:15px 10px!important;
+    border:1px solid #bdd6f1!important;
+    border-radius:12px!important;
+    background:linear-gradient(180deg,#f5f9ff,#e8f2ff)!important;
+    box-shadow:0 3px 9px rgba(16,83,150,.09)!important;
+    color:#153b69!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-last{
+    background:linear-gradient(180deg,#f9fbff,#edf4fe)!important;
+    border-color:#c6d9ed!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label{
+    font-size:13px!important;font-weight:850!important;
+    line-height:1.25!important;
+    color:#1265b4!important;gap:7px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label span{
+    color:#234e7c!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric .hc-b-metric-value{
+    color:#102f58!important;
+    font-size:clamp(17px,1.25vw,23px)!important;
+    font-weight:900!important;
+    line-height:1.2!important;
+    margin-top:2px!important;
+    text-align:center!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric small{
+    color:#4d6988!important;font-size:12px!important;
+    font-weight:750!important;line-height:1.25!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-alert{
+    display:none!important;
+    font-size:10.5px!important;
+    font-weight:900!important;
+    line-height:1.2!important;
+    letter-spacing:.015em!important;
+    color:#92510a!important;
+    padding:4px 9px!important;
+    background:#fff1ca!important;
+    border:1px solid #efc678!important;
+    border-radius:99px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue{
+    border:2px solid #e3a13f!important;
+    background:linear-gradient(180deg,#fff7e7,#ffefcb)!important;
+    box-shadow:0 0 0 3px rgba(230,166,68,.08),0 3px 10px rgba(176,111,25,.12)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue .hc-b-metric-label,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue .hc-b-metric-label span{
+    color:#85500a!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue .hc-b-metric-value{
+    color:#834400!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue .hc-b-wait-alert{
+    display:inline-flex!important;align-items:center!important;gap:5px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-waiting .hc-b-metric-wait.hc-b-wait-overdue .hc-b-wait-alert::before{
+    content:""!important;
+    display:inline-block!important;
+    width:7px!important;height:7px!important;
+    border-radius:50%!important;
+    background:#d78514!important;
+    box-shadow:0 0 0 2px rgba(213,133,20,.13)!important;
+    animation:hc-b-wait-soft-pulse 2.6s ease-in-out infinite!important;
+  }
+}
+@keyframes hc-b-wait-soft-pulse{
+  0%,100%{opacity:1;box-shadow:0 0 0 2px rgba(213,133,20,.13)}
+  50%{opacity:.58;box-shadow:0 0 0 6px rgba(213,133,20,.05)}
+}
+@media (prefers-reduced-motion:reduce){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-alert::before{
+    animation:none!important;
+  }
+}
+@media screen and (max-width:1450px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric{
+    min-height:94px!important;padding:12px 7px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric .hc-b-metric-value{
+    font-size:18px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label{
+    font-size:12px!important;
+  }
+}
