@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.98: nuevo menú lateral de alto contraste con logo compacto, selección azul clara y estados de Sistema, Historia LAN, TV y versión más visibles. Actividad accesible desde Configuración → Sistema → Registro de actividad; no se elimina su historial."
+  "notes": "Recepción 4.8.99: ficha de pacientes totalmente remasterizada, ahora más profesional y sin círculo de iniciales. Se mantienen acciones, historial, vínculo de Historia Clínica, observaciones y las cinco pestañas; sin cambios de datos."
 }
