@@ -575,3 +575,148 @@ body.r486-ui aside .r497-status-sources{
   body.r486-ui aside .r497-status-row{gap:4px!important;padding:6px 4px!important}
   body.r486-ui aside .r497-status-value{max-width:90px;font-size:9px!important}
 }
+
+
+/* 4.8.98 — Remaster del lateral: contraste real, navegación operativa
+   compacta y los cuatro estados visibles en equipos de poca altura.
+   Actividad sigue disponible exclusivamente desde Configuración > Sistema. */
+@media(min-width:801px){
+  body.r486-ui aside{
+    display:flex!important;flex-direction:column!important;
+    background:linear-gradient(180deg,#eaf2fa 0%,#e4edf7 100%)!important;
+    border-right:1px solid #cbdbea!important;
+    box-shadow:4px 0 18px rgba(33,67,99,.085)!important;
+    padding:12px 10px 10px!important;gap:0!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    scrollbar-width:thin!important;scrollbar-color:#a4bbd2 transparent!important
+  }
+  body.r486-ui aside .brand.brand-wide{
+    display:flex!important;flex-direction:row!important;align-items:center!important;
+    gap:10px!important;min-height:66px!important;
+    padding:6px 5px 12px!important;margin:0 0 10px!important;
+    border-bottom:1px solid #cbddeb!important;flex:0 0 auto!important;
+    background:transparent!important;box-shadow:none!important
+  }
+  body.r486-ui aside .brand.brand-wide .doctor-brand-isotype{
+    flex:0 0 52px!important;width:52px!important;height:52px!important;
+    max-width:52px!important;max-height:52px!important;
+    padding:3px!important;border-radius:13px!important;
+    background:#fff!important;box-shadow:0 2px 8px rgba(32,75,116,.09)!important
+  }
+  body.r486-ui aside .brand.brand-wide .brand-copy{
+    min-width:0!important;display:grid!important;gap:3px!important;text-align:left!important;
+    align-content:center!important
+  }
+  body.r486-ui aside .brand.brand-wide .brand-copy b{
+    font-size:17px!important;font-weight:900!important;letter-spacing:-.02em!important;
+    line-height:1.05!important;color:#183b61!important
+  }
+  body.r486-ui aside .brand.brand-wide .brand-copy span{
+    display:block!important;font-size:10.5px!important;font-weight:760!important;
+    color:#3b6187!important;line-height:1.2!important;white-space:normal!important
+  }
+  body.r486-ui aside .brand.brand-wide .brand-copy small{
+    display:block!important;color:#617b93!important;
+    font-size:8px!important;letter-spacing:.035em!important;
+    line-height:1.15!important;white-space:normal!important
+  }
+  body.r486-ui aside .side-nav{
+    display:flex!important;flex-direction:column!important;align-items:stretch!important;
+    gap:5px!important;flex:0 0 auto!important;min-width:0!important;
+    margin:0!important;padding:0!important
+  }
+  body.r486-ui aside .side-nav .nav-btn{
+    display:flex!important;align-items:center!important;
+    min-height:42px!important;height:42px!important;max-height:42px!important;
+    width:100%!important;min-width:0!important;
+    margin:0!important;padding:6px 9px!important;gap:9px!important;
+    background:#f8fbff!important;border:1px solid #d5e2f0!important;
+    border-radius:10px!important;box-shadow:0 1px 2px rgba(24,57,94,.018)!important;
+    color:#284a6b!important;font-size:12.5px!important;
+    font-weight:800!important;line-height:1.1!important;letter-spacing:0!important;
+    text-align:left!important;white-space:nowrap!important;transform:none!important
+  }
+  body.r486-ui aside .side-nav .nav-btn>span:not(.nav-icon):not(.nav-count-badge){
+    color:inherit!important;font-size:12.5px!important;
+    font-weight:800!important;line-height:1.2!important;min-width:0!important
+  }
+  body.r486-ui aside .side-nav .nav-btn .nav-icon{
+    flex:0 0 27px!important;width:27px!important;height:27px!important;
+    min-width:27px!important;display:grid!important;place-items:center!important;
+    padding:0!important;font-size:15px!important;border-radius:8px!important;
+    background:#e9f1fa!important;color:#35618d!important
+  }
+  body.r486-ui aside .side-nav .nav-btn .nav-brand-icon,
+  body.r486-ui aside .side-nav .nav-btn .nav-brand-icon.whatsapp,
+  body.r486-ui aside .side-nav .nav-btn .nav-brand-icon.azur{
+    background:#fff!important;border:0!important;overflow:hidden!important
+  }
+  body.r486-ui aside .side-nav .nav-btn .nav-brand-icon img{
+    max-width:26px!important;max-height:26px!important;width:26px!important;
+    height:26px!important;object-fit:contain!important
+  }
+  body.r486-ui aside .side-nav .nav-btn:hover{
+    background:#e6f1ff!important;border-color:#aac7e9!important;
+    color:#154f89!important;transform:none!important
+  }
+  body.r486-ui aside .side-nav .nav-btn.active{
+    background:linear-gradient(90deg,#c8e0fa,#e2efff)!important;
+    border-color:#84b0e4!important;color:#154c8a!important;
+    box-shadow:inset 4px 0 0 #286ebc!important
+  }
+  body.r486-ui aside .side-nav .nav-btn.active .nav-icon{
+    background:#a9cff6!important;color:#154d91!important
+  }
+  body.r486-ui aside .side-nav .nav-btn[data-section="actividad"]{
+    display:none!important
+  }
+  body.r486-ui aside .side-nav .billing-nav-btn .nav-count-badge{
+    margin-left:auto!important;min-width:20px!important;
+    min-height:20px!important;padding:2px 5px!important
+  }
+  body.r486-ui aside .r495-sidebar-status.r497-status-hub{
+    flex:0 0 auto!important;margin:12px 0 0!important;
+    padding:9px 7px 7px!important;gap:2px!important;
+    border-color:#cdddec!important;background:#fff!important;
+    box-shadow:0 3px 13px rgba(26,61,99,.07)!important
+  }
+  body.r486-ui aside .r497-status-heading{
+    margin-bottom:2px!important;padding-bottom:6px!important;
+    color:#1f456b!important;font-size:11px!important
+  }
+  body.r486-ui aside .r497-status-row{
+    min-height:30px!important;padding:5px 6px!important;
+    gap:5px!important;border-radius:7px!important
+  }
+  body.r486-ui aside .r497-status-name{
+    font-size:10px!important;font-weight:800!important;color:#385b7e!important
+  }
+  body.r486-ui aside .r497-status-value{
+    font-size:9.5px!important;font-weight:850!important;color:#3e5a75!important
+  }
+  body.r486-ui aside .r497-version-row{
+    margin-top:2px!important;padding-top:8px!important
+  }
+  body.r486-ui aside #logoutBtn:not(.hidden){
+    flex:0 0 auto!important;min-height:38px!important;margin-top:8px!important
+  }
+}
+@media(min-width:801px) and (min-height:790px){
+  body.r486-ui aside .r495-sidebar-status.r497-status-hub{margin-top:auto!important}
+}
+@media(max-height:700px) and (min-width:801px){
+  body.r486-ui aside{padding-top:8px!important;padding-bottom:7px!important}
+  body.r486-ui aside .brand.brand-wide{min-height:54px!important;padding-bottom:7px!important;margin-bottom:7px!important}
+  body.r486-ui aside .brand.brand-wide .doctor-brand-isotype{
+    flex-basis:43px!important;width:43px!important;height:43px!important;
+    max-width:43px!important;max-height:43px!important
+  }
+  body.r486-ui aside .side-nav{gap:3px!important}
+  body.r486-ui aside .side-nav .nav-btn{
+    height:38px!important;min-height:38px!important;max-height:38px!important
+  }
+  body.r486-ui aside .r495-sidebar-status.r497-status-hub{margin-top:8px!important}
+}
+@media(max-width:800px){
+  body.r486-ui aside .side-nav [data-section="actividad"]{display:none!important}
+}
