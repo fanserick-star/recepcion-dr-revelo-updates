@@ -11304,47 +11304,18 @@ V477_ATTENTION_CSS = r"""
 V477_ATTENTION_JS = r""";(()=>{
   if(window.__v477AttentionRemaster)return;
   window.__v477AttentionRemaster=true;
-
-  const dayName=(d)=>{
-    try{return new Intl.DateTimeFormat('es-EC',{weekday:'long',day:'2-digit',month:'long'}).format(d)}catch(_e){return 'Hoy'}
-  };
-  const applyShell=()=>{
+  // 4.8.102: La definición única del flujo vive en static/app.js.
+  // Este adaptador histórico solo añade el tamaño visual, sin recrear
+  // la Agenda ni hacer otra consulta para abrir Nueva atención.
+  const mainNewAttention=window.newAttention;
+  if(typeof mainNewAttention==='function')window.newAttention=function(){
+    const result=mainNewAttention.apply(this,arguments);
     const modal=document.querySelector('#modal .modalbox');
-    if(modal&&modal.querySelector('.v477-attention-remaster'))modal.classList.add('v477-attention-modalbox');
-  };
-
-  window.renderAttentionWeek=function(d={}){
-    const box=$('#attentionWeekCalendar');if(!box)return;
-    const days=d.days||[],today=toISO(new Date());
-    const day=days.find(x=>String(x?.date||'').slice(0,10)===today)||null;
-    const title=$('#v477TodayTitle'),label=$('#attentionWeekLabel');
-    if(title)title.textContent=day?.label?`${day.label} · ${fmtDate(day.date)}`:dayName(new Date());
-    if(label)label.textContent=day?`${(day.appointments||[]).length} cita${(day.appointments||[]).length===1?'':'s'}`:'Sin consulta';
-    const conflict=$('#attentionWeekConflict');
-    if(conflict){
-      const n=day?(day.appointments||[]).filter(x=>x?.conflict).length:0;
-      conflict.textContent=n?`⚠ ${n} duplicada${n===1?'':'s'}`:'';
-      conflict.classList.toggle('hidden',n<=0);
+    if(modal&&modal.querySelector('.v477-attention-remaster')){
+      modal.classList.add('v477-attention-modalbox');
     }
-    if(!day){
-      box.innerHTML='<div class="attention-week-empty wide v477-no-clinic"><b>Hoy no hay consulta programada</b><span>Puedes buscar un paciente arriba para registrar una atención manualmente.</span></div>';
-      return;
-    }
-    const rows=(day.appointments||[]).map(attentionWeekRow).join('')||'<div class="attention-week-empty">No hay pacientes agendados para hoy.</div>';
-    box.innerHTML=`<article class="attention-week-day today v477-today-card"><header><div><b>Pacientes de hoy</b><span>${fmtDate(day.date)}</span></div><strong>${(day.appointments||[]).length}</strong></header><div class="attention-week-list">${rows}</div></article>`;
+    return result;
   };
-
-  window.newAttention=async function(){
-    currentPatientSource='general';
-    attentionSearchSeq++;
-    attentionWeekAnchor=toISO(new Date());
-    const todayText=dayName(new Date());
-    openModal(`<div class="new-attention-start-modal v477-attention-remaster"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona al paciente de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div class="v477-today-head"><div class="v477-today-title"><span class="v477-today-kicker">Agenda de hoy</span><b id="v477TodayTitle">${esc(todayText)}</b></div><div class="v477-today-meta"><strong id="attentionWeekLabel"></strong><span id="attentionWeekConflict" class="attention-week-conflict-note hidden"></span></div></div><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
-    applyShell();
-    loadAttentionWeek(false,attentionWeekAnchor);
-    setTimeout(()=>$('#aSearch')?.focus(),0);
-  };
-
   const oldClose=window.closeModal;
   if(typeof oldClose==='function')window.closeModal=function(){
     document.querySelector('#modal .modalbox')?.classList.remove('v477-attention-modalbox');
