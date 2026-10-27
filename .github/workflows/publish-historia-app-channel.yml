@@ -26,6 +26,7 @@ jobs:
         run: |
           python tools/test_historia_canonical_source.py
           python tools/test_historia_global_remaster_1449.py
+          python tools/test_historia_queue_arrival_chime_1459.py
           python tools/test_historia_queue_expiry_sqlite_1446.py
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
