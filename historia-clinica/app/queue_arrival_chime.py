@@ -66,16 +66,59 @@ def _gentle_chime(volume: int = 40, sound_type: str = "soft") -> bytes:
     return buffer.getvalue()
 
 
-def _play_native_sound(volume: int = 40, sound_type: str = "soft") -> bool:
-    """winsound es local a Windows. Fallos de audio no afectan la consulta."""
+def _play_native_diagnostic(volume: int = 40, sound_type: str = "soft") -> dict:
+    """Prueba WAV en memoria y archivo local; devuelve diagnóstico legible.
+
+    El audio no se envía a Neón, Recepción ni TV. No hay archivos clínicos.
+    La llamada bloquea hasta acabar el sonido (menos de un segundo).
+    """
     if os.name != "nt":
-        return False
+        return {"ok": False, "method": "", "message":
+                "El aviso nativo necesita Windows en la PC del doctor."}
     try:
         import winsound
-        winsound.PlaySound(_gentle_chime(volume, sound_type), winsound.SND_MEMORY)
-        return True
-    except (ImportError, OSError, RuntimeError, ValueError):
-        return False
+        import tempfile
+    except ImportError:
+        return {"ok": False, "method": "", "message":
+                "Windows no proporcionó el módulo de reproducción de sonidos."}
+
+    data = _gentle_chime(volume, sound_type)
+    try:
+        flags = winsound.SND_MEMORY | getattr(winsound, "SND_NODEFAULT", 0)
+        winsound.PlaySound(data, flags)
+        return {"ok": True, "method": "memory", "message":
+                "Campanilla enviada a la salida de audio de Windows."}
+    except (OSError, RuntimeError, ValueError) as first_error:
+        first_failure = str(first_error)[:120]
+
+    # Segundo método: algunas instalaciones de Windows no aceptan WAV en
+    # memoria pero sí reproducen correctamente un archivo WAV nativo.
+    path = None
+    try:
+        fd, path = tempfile.mkstemp(prefix="historia-chime-", suffix=".wav")
+        with os.fdopen(fd, "wb") as fp:
+            fp.write(data)
+        flags = winsound.SND_FILENAME | getattr(winsound, "SND_NODEFAULT", 0)
+        winsound.PlaySound(path, flags)
+        return {"ok": True, "method": "wav", "message":
+                "Campanilla enviada a Windows mediante audio WAV."}
+    except (OSError, RuntimeError, ValueError) as second_error:
+        detail = str(second_error)[:120]
+        return {"ok": False, "method": "", "message":
+                "Windows no pudo reproducir la campanilla. Comprueba los "
+                "altavoces y el dispositivo de salida predeterminado. "
+                "Detalle: " + (detail or first_failure or "falló la reproducción")}
+    finally:
+        if path:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+
+def _play_native_sound(volume: int = 40, sound_type: str = "soft") -> bool:
+    """El monitor automático nunca impide atender al paciente."""
+    return bool(_play_native_diagnostic(volume, sound_type)["ok"])
 
 
 class QueueArrivalChime:
@@ -146,14 +189,17 @@ class QueueArrivalChime:
         current = self.settings
         return self.set_settings(enabled, current["volume"], current["sound"])["enabled"]
 
-    def preview(self) -> bool:
-        """Prueba manual sin leer ni modificar pacientes/colas ni TV."""
+    def preview_result(self) -> dict:
+        """Respuesta diagnóstica de prueba, independiente del silencio."""
         with self._lock:
             current = dict(self._settings)
         if self._player is not _play_native_sound:
-            self._player()  # Sustituto inyectado por los tests
-            return True
-        return _play_native_sound(current["volume"], current["sound"])
+            self._player()
+            return {"ok": True, "method": "test", "message": "Prueba ejecutada."}
+        return _play_native_diagnostic(current["volume"], current["sound"])
+
+    def preview(self) -> bool:
+        return bool(self.preview_result()["ok"])
 
     def _active_today(self, day: str):
         # Lee la cola LOCAL, sin filtros de nombre ni datos sensibles.
@@ -278,8 +324,8 @@ def install(app, db_factory, root: Path, is_procedure) -> QueueArrivalChime:
     @app.post("/api/queue/chime/test")
     def test_chime(request: Request):
         _authorize_local(request)
-        return JSONResponse({"ok": monitor.preview(), "available": os.name == "nt",
-                             "message": "Sonido de prueba reproducido." if os.name == "nt"
-                                        else "Prueba disponible en Windows."})
+        result = monitor.preview_result()
+        return JSONResponse({**result, "available": os.name == "nt"},
+                            status_code=200 if result["ok"] else 503)
 
     return monitor
