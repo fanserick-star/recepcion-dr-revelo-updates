@@ -456,3 +456,40 @@ body.r486-ui #agenda.agenda-remaster-dark .agenda-hints summary,
 body.r486-ui #agenda.agenda-remaster-dark .agenda-hints p{
   color:#5b7490!important
 }
+
+
+/* Controles que conservaban colores oscuros de v4.8.34/35/36. */
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-jump,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-jump,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-more-navigation .agenda-month-row,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-extra>div{
+  background:#f6f9fd!important;border-color:#d7e4f0!important;color:#2d4e70!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-jump input,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-jump input{
+  color:#2a4c6c!important;background:#fff!important;color-scheme:light!important;
+  border-color:#d4e1ed!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-current span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-jump span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-jump span{
+  color:#5f7892!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-current b{
+  color:#203b58!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-legend span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-more-navigation>summary,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-state-details>summary,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-extra>summary{
+  color:#45627f!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-pill.clear{
+  background:#e9f7ee!important;border-color:#c2e1cd!important;color:#286648!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-pill.review{
+  background:#fff6df!important;border-color:#e7ca80!important;color:#795a18!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-pill.offline{
+  background:#f2f5f9!important;border-color:#d9e2eb!important;color:#677b90!important
+}
