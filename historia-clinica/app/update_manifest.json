@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.53",
-  "app_version": "1.4.53",
-  "runtime_version": "1.4.53",
+  "version": "1.4.54",
+  "app_version": "1.4.54",
+  "runtime_version": "1.4.54",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Remaster fiel a la imagen elegida: tarjetas de pacientes en espera con número real en bloque azul vertical grande a la izquierda, nombre y datos de ficha reales en el centro, etiquetas Nuevo/Subsecuente/Revisión y estado juntos, botones Llamar turno, Abrir ficha y Quitar apilados a la derecha. Fondos azul suave para primer turno, blanco para generales, ámbar para revisiones y verde para atención activa. Cédula y teléfono se muestran únicamente si existen en ficha vinculada, sin inventar datos. Sin alterar cola, TV, Recepción, LAN, Neon, firmas, historiales, documentos ni impresión.",
-    "previous_version": "1.4.52",
+    "purpose": "Pulido final estrictamente visual de las tarjetas del Inicio de Historia Clínica: bloque azul de turno ligeramente más ancho, número y leyenda Turno mayores, nombre del paciente más prominente, información de edad/cédula/teléfono con más contraste y separación, etiquetas Nuevo/Subsecuente/En espera de mayor legibilidad, botones Llamar/Abrir ficha/Quitar de mayor altura y menor separación, y tarjeta con aire y sombra equilibrados. Se conserva la distribución de tres columnas ya publicada en v1.4.53 y sus tamaños adaptativos. Sin cambios clínicos, datos, llamados a la TV, cola, Recepción, LAN, Neón, documentos, firmas ni impresión.",
+    "previous_version": "1.4.53",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -424,6 +424,15 @@
     "waiting_room_real_patient_contact_fields_only": true,
     "waiting_room_revision_color_amber": true,
     "waiting_room_active_color_green": true,
-    "waiting_room_call_buttons_preserved": true
+    "waiting_room_call_buttons_preserved": true,
+    "waiting_room_reference_polish": "v1.4.54",
+    "waiting_room_visual_css_only": true,
+    "waiting_room_blue_turn_tile_wider": true,
+    "waiting_room_patient_name_larger": true,
+    "waiting_room_metadata_contrast_improved": true,
+    "waiting_room_chips_larger": true,
+    "waiting_room_buttons_taller": true,
+    "waiting_room_vertical_actions_preserved": true,
+    "waiting_room_queue_calls_unchanged": true
   }
 }
