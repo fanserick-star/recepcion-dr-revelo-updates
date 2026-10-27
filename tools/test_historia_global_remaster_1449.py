@@ -56,7 +56,12 @@ base_nodes = [node for node in tree.body if isinstance(node,ast.FunctionDef) and
 core_base = next(node for node in base_nodes if node.lineno < 1300)
 sidebar = next(node for node in tree.body if isinstance(node,ast.FunctionDef)
                and node.name=="_global_remaster_sidebar")
-wrapper = next(node for node in base_nodes if 4700 < node.lineno < 4900)
+# Selección por comportamiento, no número de línea (cambia con cada remaster).
+wrapper = next(
+    node for node in base_nodes
+    if any(isinstance(item, ast.Name) and item.id == "_HC_GLOBAL_SOURCE_BASE"
+           for item in ast.walk(node))
+)
 def _load_function(node, ns):
     mini = ast.Module(body=[node],type_ignores=[])
     exec(compile(mini,"isolated_real_base_render.py","exec"),ns)
