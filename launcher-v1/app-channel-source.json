@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.101: corrección visual del botón Archivo clínico que ocupaba toda la barra lateral del expediente. Mantiene todas las secciones, Historia Clínica, documentos y videocistoscopías. No cambia datos ni flujos."
+  "notes": "Recepción 4.8.102: Nueva atención ahora abre búsqueda de pacientes y Crear paciente nuevo, sin agenda incrustada ni carga de citas al iniciar. Conserva Agenda/WhatsApp/Confirmafy en módulo independiente y todos los controles de consultas, procedimientos y revisión."
 }
