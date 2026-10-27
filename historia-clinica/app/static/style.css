@@ -5215,3 +5215,86 @@ body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
     font-size:12px!important;
   }
 }
+
+
+/* Historia v1.4.59 · avisos locales en Windows, accesibles desde Inicio/Configuración. */
+body.hc-b-app .hc-b-queue-controls{
+  display:flex!important;
+  align-items:center!important;
+  flex-wrap:wrap!important;
+  gap:9px!important;
+}
+body.hc-b-app .hc-b-chime-toggle{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:41px!important;padding:9px 12px!important;
+  background:#eef6ff!important;border:1px solid #b9d6f1!important;
+  border-radius:9px!important;color:#175d99!important;
+  font:800 12px/1.2 "Segoe UI",Arial,sans-serif!important;
+  cursor:pointer!important;white-space:nowrap!important;
+}
+body.hc-b-app .hc-b-chime-toggle:hover{background:#e0efff!important}
+body.hc-b-app .hc-b-chime-toggle[data-enabled="0"]{
+  color:#677c92!important;background:#f3f6f9!important;
+  border-color:#d1dce6!important;
+}
+body.hc-b-app .hc-b-chime-toggle:disabled{opacity:.6!important;cursor:wait!important}
+.hc-chime-settings{
+  border:1px solid #c5ddf4!important;
+  background:linear-gradient(135deg,#fafdff,#f1f7fe)!important;
+}
+.hc-chime-settings .hc-chime-grid{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:14px!important;margin:14px 0!important;
+}
+.hc-chime-settings .hc-chime-grid label{
+  display:flex!important;flex-direction:column!important;
+  align-items:stretch!important;justify-content:center!important;
+  gap:8px!important;
+  padding:12px!important;
+  min-width:0!important;
+  background:#fff!important;
+  border:1px solid #d2e3f4!important;
+  border-radius:10px!important;
+  font-size:13px!important;
+  font-weight:800!important;
+  color:#20476c!important;
+}
+.hc-chime-settings .hc-chime-grid .hc-chime-toggle{
+  flex-direction:row!important;
+  justify-content:flex-start!important;
+  align-items:center!important;
+  gap:12px!important;
+}
+.hc-chime-settings .hc-chime-toggle input[type="checkbox"]{
+  width:20px!important;height:20px!important;accent-color:#0c72ce;
+}
+.hc-chime-settings .hc-chime-grid select{
+  height:41px!important;min-width:0!important;border:1px solid #bcd7f0!important;
+  border-radius:8px!important;color:#193e69!important;background:#fff!important;
+  padding:8px!important;
+}
+.hc-chime-settings .hc-chime-volume{
+  display:flex!important;align-items:center!important;gap:12px!important;
+}
+.hc-chime-settings .hc-chime-volume input[type="range"]{
+  flex:1!important;min-width:0!important;accent-color:#0c72ce;
+}
+.hc-chime-settings .hc-chime-volume output{
+  font-size:14px!important;font-weight:900!important;min-width:39px!important;
+  color:#125c9d!important;text-align:right!important;
+}
+.hc-chime-settings .hc-chime-actions{
+  display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:12px!important;
+}
+.hc-chime-settings .hc-chime-test{
+  background:#e6f3ff!important;color:#105a9a!important;
+  border:1px solid #a9d0ee!important;min-height:43px!important;
+  padding:10px 15px!important;border-radius:9px!important;
+  font-weight:850!important;cursor:pointer!important;
+}
+.hc-chime-settings #cfg-chime-status{
+  font-size:12px!important;color:#496b88!important;
+}
+@media(max-width:800px){
+  .hc-chime-settings .hc-chime-grid{grid-template-columns:minmax(0,1fr)!important}
+}
