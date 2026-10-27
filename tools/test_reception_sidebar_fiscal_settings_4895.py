@@ -19,7 +19,7 @@ assert tuple(map(int, version["version"].split("."))) >= (4, 8, 95)
 
 aside = html[html.index("<aside>"):html.index("</aside>")]
 top = html[html.index('<div class="global-toolbar">'):html.index('<section id="inicio">')]
-assert 'class="r495-sidebar-status"' in aside
+assert 'class="r495-sidebar-status r497-status-hub"' in aside
 assert 'id="connectionBadge"' in aside
 assert 'onclick="openProtectionStatus()"' in aside
 assert 'class="r494-connection-strip"' not in html
