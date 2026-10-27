@@ -60,6 +60,7 @@ jobs:
           python tools/test_reception_sidebar_fiscal_settings_4895.py
           python tools/test_reception_agenda_tv_light_4896.py
           python tools/test_reception_status_hub_4897.py
+          python tools/test_reception_sidebar_remaster_4898.py
           node --check recepcion/app/static/sidebar_status_hub_4897.js
           node --check recepcion/app/static/home_remaster_4886.js
           python tools/test_reception_patient_delivery_4885.py
