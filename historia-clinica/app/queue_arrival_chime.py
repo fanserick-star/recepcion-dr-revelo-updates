@@ -75,6 +75,9 @@ def _play_native_diagnostic(volume: int = 40, sound_type: str = "soft") -> dict:
     if os.name != "nt":
         return {"ok": False, "method": "", "message":
                 "El aviso nativo necesita Windows en la PC del doctor."}
+    if volume <= 0:
+        return {"ok": False, "method": "", "message":
+                "El volumen de la campanilla está al 0%. Súbalo en Configuración y vuelva a probar."}
     try:
         import winsound
         import tempfile
