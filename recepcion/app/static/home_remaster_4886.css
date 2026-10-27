@@ -720,3 +720,29 @@ body.r486-ui aside .r497-status-sources{
 @media(max-width:800px){
   body.r486-ui aside .side-nav [data-section="actividad"]{display:none!important}
 }
+
+/* 4.8.102 — Nueva atención: búsqueda primero, sin agenda incrustada. */
+#modal .v477-attention-remaster.attention-search-only{
+  gap:16px!important;min-height:245px!important
+}
+#modal .v477-attention-remaster.attention-search-only .attention-start-search{
+  display:grid!important;gap:7px!important
+}
+#modal .v477-attention-remaster.attention-search-only .attention-start-search>small{
+  display:block!important;margin:0!important;color:#667d95!important;
+  font-size:11px!important;line-height:1.4!important
+}
+#modal .v477-attention-remaster.attention-search-only .attention-results{
+  display:block!important;max-height:min(48vh,410px)!important;
+  min-height:85px!important;overflow-y:auto!important;
+  padding:3px!important;margin:0!important;border-top:1px solid #e2eaf3
+}
+#modal .v477-attention-remaster.attention-search-only .attention-results.hidden{
+  display:none!important
+}
+#modal .v477-attention-remaster.attention-search-only .attention-search-hint{
+  padding:20px 16px!important;background:#f5f9fe!important;
+  border:1px dashed #cddff0!important;border-radius:12px!important;
+  color:#55718e!important;font-size:12px!important;line-height:1.5!important;
+  text-align:center!important
+}
