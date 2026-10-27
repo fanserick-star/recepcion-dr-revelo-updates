@@ -40,16 +40,20 @@ def _eligible(row, is_procedure) -> bool:
     return name in _ALLOWED_CONSULTATIONS and not is_procedure(row)
 
 
-def _gentle_chime() -> bytes:
-    """Campanilla original y discreta de dos tonos, 16 bits / 22.05 kHz."""
+def _gentle_chime(volume: int = 40, sound_type: str = "soft") -> bytes:
+    """Dos sonidos originales, con volumen independiente del volumen de Windows."""
     rate = 22050
     sound = bytearray()
-    for freq, duration in ((660, 0.15), (880, 0.19)):
+    tones = ((660, 0.15), (880, 0.19)) if sound_type == "soft" else (
+        (784, 0.11), (1047, 0.14)
+    )
+    amplitude = 0.26 * max(0, min(100, volume)) / 100.0
+    for freq, duration in tones:
         total = int(rate * duration)
         fade = max(1, int(rate * 0.022))
         for i in range(total):
             envelope = min(1.0, i / fade, (total - 1 - i) / fade)
-            sample = int(32767 * 0.105 * max(0.0, envelope)
+            sample = int(32767 * amplitude * max(0.0, envelope)
                          * math.sin(2 * math.pi * freq * i / rate))
             sound.extend(struct.pack("<h", sample))
         sound.extend(b"\0\0" * int(rate * 0.042))
@@ -62,18 +66,16 @@ def _gentle_chime() -> bytes:
     return buffer.getvalue()
 
 
-_CHIME_WAV = _gentle_chime()
-
-
-def _play_native_sound() -> None:
+def _play_native_sound(volume: int = 40, sound_type: str = "soft") -> bool:
     """winsound es local a Windows. Fallos de audio no afectan la consulta."""
     if os.name != "nt":
-        return
+        return False
     try:
         import winsound
-        winsound.PlaySound(_CHIME_WAV, winsound.SND_MEMORY)
+        winsound.PlaySound(_gentle_chime(volume, sound_type), winsound.SND_MEMORY)
+        return True
     except (ImportError, OSError, RuntimeError, ValueError):
-        pass
+        return False
 
 
 class QueueArrivalChime:
@@ -88,33 +90,70 @@ class QueueArrivalChime:
         self._started = False
         self._seen = set()
         self._day = ""
-        self._enabled = self._read_enabled()
+        self._settings = self._read_settings()
+        self._enabled = self._settings["enabled"]
 
-    def _read_enabled(self) -> bool:
+    def _read_settings(self) -> dict:
         try:
             data = json.loads(self._settings_path.read_text(encoding="utf-8"))
-            return data.get("enabled") is not False
+            if not isinstance(data, dict):
+                raise ValueError("Configuración incorrecta")
+            return {
+                "enabled": data.get("enabled") is not False,
+                "volume": self._clamp_volume(data.get("volume", 40)),
+                "sound": data.get("sound") if data.get("sound") in {"soft", "short"} else "soft",
+            }
         except (OSError, ValueError, TypeError):
-            return True  # Encendido por defecto; puede silenciarse desde Inicio.
+            return {"enabled": True, "volume": 40, "sound": "soft"}
+
+    @staticmethod
+    def _clamp_volume(value) -> int:
+        if isinstance(value, bool):
+            raise ValueError("Volumen inválido.")
+        try:
+            return max(0, min(100, int(value)))
+        except (ValueError, TypeError):
+            return 40
+
+    @property
+    def settings(self) -> dict:
+        with self._lock:
+            return dict(self._settings)
 
     @property
     def enabled(self) -> bool:
         with self._lock:
             return self._enabled
 
-    def set_enabled(self, enabled: bool) -> bool:
-        """Persistencia sólo local, no sincronizada con bases clínicas."""
-        if not isinstance(enabled, bool):
-            raise ValueError("La preferencia de sonido debe ser booleana.")
+    def set_settings(self, enabled: bool, volume: int, sound: str) -> dict:
+        """Preferencias sólo de esta PC; no forman parte del sincronizador."""
+        if not isinstance(enabled, bool) or not isinstance(volume, int) or isinstance(volume, bool):
+            raise ValueError("Configuración de sonido inválida.")
+        if volume < 0 or volume > 100 or sound not in {"soft", "short"}:
+            raise ValueError("Volumen o tipo de sonido inválido.")
+        settings = {"enabled": enabled, "volume": volume, "sound": sound}
         with self._lock:
-            # Escribir primero y cambiar la preferencia solo si se guardó.
             self._settings_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self._settings_path.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"enabled": enabled}, ensure_ascii=False),
+            tmp.write_text(json.dumps(settings, ensure_ascii=False),
                            encoding="utf-8")
             os.replace(tmp, self._settings_path)
+            self._settings = dict(settings)
             self._enabled = enabled
-            return enabled
+            return dict(settings)
+
+    def set_enabled(self, enabled: bool) -> bool:
+        current = self.settings
+        return self.set_settings(enabled, current["volume"], current["sound"])["enabled"]
+
+    def preview(self) -> bool:
+        """Prueba manual sin leer ni modificar pacientes/colas ni TV."""
+        with self._lock:
+            current = dict(self._settings)
+        if self._player is not _play_native_sound:
+            self._player()  # Sustituto inyectado por los tests
+            return True
+        return _play_native_sound(current["volume"], current["sound"])
 
     def _active_today(self, day: str):
         # Lee la cola LOCAL, sin filtros de nombre ni datos sensibles.
@@ -147,7 +186,10 @@ class QueueArrivalChime:
             # Sólo un sonido por grupo, y cada id se consume incluso silenciado.
             should_play = bool(newcomers) and self._enabled
         if should_play:
-            self._player()
+            if self._player is _play_native_sound:
+                _play_native_sound(self.settings["volume"], self.settings["sound"])
+            else:
+                self._player()
         return should_play
 
     def _run(self):
@@ -196,11 +238,9 @@ def install(app, db_factory, root: Path, is_procedure) -> QueueArrivalChime:
 
     @app.get("/api/queue/chime")
     def chime_status():
-        return JSONResponse({"enabled": monitor.enabled,
-                             "available": os.name == "nt"})
+        return JSONResponse({**monitor.settings, "available": os.name == "nt"})
 
-    @app.post("/api/queue/chime")
-    async def change_chime(request: Request):
+    def _authorize_local(request: Request) -> None:
         host = str(getattr(getattr(request, "client", None), "host", "") or "").lower()
         if host not in {"127.0.0.1", "::1", "localhost"}:
             raise HTTPException(403, "Solo desde la PC del doctor.")
@@ -213,17 +253,33 @@ def install(app, db_factory, root: Path, is_procedure) -> QueueArrivalChime:
             a, b = urlsplit(origin), urlsplit(str(request.base_url))
             if (a.scheme, a.netloc) != (b.scheme, b.netloc):
                 raise HTTPException(403, "Origen externo no autorizado.")
+
+    @app.post("/api/queue/chime")
+    async def change_chime(request: Request):
+        _authorize_local(request)
         try:
             body = await request.json()
         except (ValueError, TypeError):
             raise HTTPException(400, "Preferencia inválida.")
-        if not isinstance(body, dict) or not isinstance(body.get("enabled"), bool):
-            raise HTTPException(400, "Se requiere enabled verdadero o falso.")
+        if not isinstance(body, dict):
+            raise HTTPException(400, "Preferencia inválida.")
+        now = monitor.settings
+        enabled = body.get("enabled", now["enabled"])
+        volume = body.get("volume", now["volume"])
+        sound = body.get("sound", now["sound"])
         try:
-            enabled = monitor.set_enabled(body["enabled"])
+            settings = monitor.set_settings(enabled, volume, sound)
+        except ValueError:
+            raise HTTPException(400, "Tipo de sonido o volumen inválido.")
         except OSError:
             raise HTTPException(500, "No se pudo guardar la preferencia local.")
-        return JSONResponse({"ok": True, "enabled": enabled,
-                             "available": os.name == "nt"})
+        return JSONResponse({"ok": True, **settings, "available": os.name == "nt"})
+
+    @app.post("/api/queue/chime/test")
+    def test_chime(request: Request):
+        _authorize_local(request)
+        return JSONResponse({"ok": monitor.preview(), "available": os.name == "nt",
+                             "message": "Sonido de prueba reproducido." if os.name == "nt"
+                                        else "Prueba disponible en Windows."})
 
     return monitor
