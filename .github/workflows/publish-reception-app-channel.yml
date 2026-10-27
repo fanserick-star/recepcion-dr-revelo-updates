@@ -32,6 +32,7 @@ jobs:
           python tools/test_reception_home_tv_remaster_4886.py
           python tools/test_reception_home_cleanup_4894.py
           python tools/test_reception_sidebar_fiscal_settings_4895.py
+          python tools/test_reception_agenda_tv_light_4896.py
           node --check recepcion/app/static/home_remaster_4886.js
           python tools/test_reception_clinical_delivery_4858.py
           python tools/test_reception_clinical_phone_selftest_4859.py
