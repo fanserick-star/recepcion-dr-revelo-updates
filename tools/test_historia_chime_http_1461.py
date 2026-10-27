@@ -1,12 +1,13 @@
 """Regression: POST chime preferences/preview must never demand a query 'request'."""
 from __future__ import annotations
 import importlib.util
+import asyncio
+import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1] / "historia-clinica" / "app"
 spec = importlib.util.spec_from_file_location("queue_arrival_chime_test_http", ROOT / "queue_arrival_chime.py")
@@ -23,40 +24,61 @@ with tempfile.TemporaryDirectory() as root:
         assert not route.dependant.query_params, (path, route.dependant.query_params)
         assert not route.dependant.body_params, (path, route.dependant.body_params)
 
-    headers = {"X-Historia-Queue-Chime": "1"}
-    client = TestClient(app, base_url="http://127.0.0.1", client=("127.0.0.1", 6000))
+    def request(method, path, payload=None, authorized=True):
+        # Native ASGI HTTP simulation; avoids httpx or any network dependency.
+        raw = json.dumps(payload if payload is not None else {}).encode()
+        hdr = [(b"content-type", b"application/json")]
+        if authorized:
+            hdr.append((b"x-historia-queue-chime", b"1"))
+        scope = {
+            "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+            "method": method, "scheme": "http", "path": path,
+            "raw_path": path.encode(), "query_string": b"",
+            "root_path": "", "headers": hdr, "client": ("127.0.0.1", 6000),
+            "server": ("127.0.0.1", 80),
+        }
+        calls = 0
+        messages = []
+        async def receive():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {"type":"http.request", "body":raw, "more_body":False}
+            return {"type":"http.disconnect"}
+        async def send(message):
+            messages.append(message)
+        asyncio.run(app(scope, receive, send))
+        status = next(m["status"] for m in messages if m["type"]=="http.response.start")
+        body = b"".join(m["body"] for m in messages if m["type"]=="http.response.body")
+        return status, json.loads(body)
 
-    # This was formerly 422 "Field required" because Request was unresolved
-    # under postponed annotations imported only inside install().
-    res = client.post("/api/queue/chime", headers=headers,
-                      json={"enabled": True, "volume": 70, "sound": "soft"})
-    assert res.status_code == 200, (res.status_code, res.text)
-    assert res.json()["volume"] == 70, res.json()
-    assert monitor.settings["sound"] == "soft"
-
+    # Former bug: 422 with loc=["query","request"] before reaching the sound.
+    status, body = request("POST", "/api/queue/chime",
+                           {"enabled":True, "volume":70, "sound":"soft"})
+    assert status == 200, (status, body)
+    assert body["volume"] == 70 and monitor.settings["sound"]=="soft"
     with patch.object(mod, "_play_native_diagnostic",
-                      return_value={"ok": True, "method": "wav",
-                                    "message": "Prueba reproducida"}) as playback:
-        res = client.post("/api/queue/chime/test", headers=headers, json={})
-        assert res.status_code == 200, (res.status_code, res.text)
-        assert res.json()["ok"] is True
-        assert res.json()["method"] == "wav"
+                      return_value={"ok":True, "method":"wav",
+                                    "message":"Prueba reproducida"}) as playback:
+        status, body = request("POST", "/api/queue/chime/test")
+        assert status == 200 and body["ok"] is True, (status, body)
+        assert body["method"] == "wav"
         playback.assert_called_once_with(70, "soft")
 
     with patch.object(mod, "_play_native_diagnostic",
-                      return_value={"ok": False, "method": "",
-                                    "message": "Dispositivo de audio no disponible"}):
-        res = client.post("/api/queue/chime/test", headers=headers, json={})
-        assert res.status_code == 503, (res.status_code, res.text)
-        assert "Dispositivo de audio" in res.json()["message"]
-        assert res.status_code != 422
+                      return_value={"ok":False, "method":"",
+                                    "message":"Dispositivo de audio no disponible"}):
+        status, body = request("POST", "/api/queue/chime/test")
+        assert status == 503 and "Dispositivo de audio" in body["message"], (status, body)
+        assert status != 422
 
-    res = client.post("/api/queue/chime", json={"enabled": False}, headers={})
-    assert res.status_code == 403, (res.status_code, res.text)
-    res = client.post("/api/queue/chime/test", json={}, headers={})
-    assert res.status_code == 403, (res.status_code, res.text)
-    res = client.post("/api/queue/chime", headers=headers,
-                      json={"enabled": True, "volume": 1000})
-    assert res.status_code == 400, (res.status_code, res.text)
+    status, body = request("POST", "/api/queue/chime", {"enabled":False},
+                           authorized=False)
+    assert status == 403, (status, body)
+    status, body = request("POST", "/api/queue/chime/test", authorized=False)
+    assert status == 403, (status, body)
+    status, body = request("POST", "/api/queue/chime",
+                           {"enabled":True, "volume":1000})
+    assert status == 400, (status, body)
 
 print("HISTORIA_CHIME_HTTP_1461_REQUIRED_REQUEST_FIELD_FIXED_OK")
