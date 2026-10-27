@@ -1993,7 +1993,7 @@ async function saveExamReviewTurn(id){
       title:'Confirmar revisión de exámenes',
       patient:name,
       clinicalName,
-      message:'Se generará un turno y su ticket. Esta revisión no genera cobro ni factura.',
+      message:'Revisión de exámenes · SIN COBRO. Se generará un turno y su ticket. No genera factura.',
       confirmLabel:'Generar turno sin cobro',
       cancelLabel:'Cancelar',
       kind:'confirm'
