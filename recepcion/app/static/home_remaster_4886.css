@@ -296,3 +296,163 @@ body.r486-ui #inicio .home-week-nav{margin:3px 0 7px!important}
   body.r486-ui #inicio .r494-attentions-primary #todayTable{max-height:54vh!important}
   body.r486-ui #inicio .r494-weekly-secondary{padding:9px 7px 1px}
 }
+
+
+/* v4.8.96 — Solo presentación: Agenda nativa de cuatro días con tema claro.
+   Mantiene slots, etiquetas WhatsApp, estado administrativo, navegación y click handlers. */
+body.r486-ui #agenda.agenda-remaster-dark{
+  background:#f5f8fc!important;color:#1d3551!important;border:1px solid #dee7f1!important;
+  box-shadow:none!important
+}
+body.r486-ui #agenda.agenda-remaster-dark h1,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-title-row h1{color:#193755!important}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-title-row p,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-title-row .muted,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-footnote{
+  color:#617890!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-weekbar,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-toolbar,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-state-details,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-more-navigation{
+  background:#fff!important;border:1px solid #dce6f0!important;color:#213b57!important;
+  box-shadow:0 2px 10px rgba(25,54,83,.04)!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-current,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-jump,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-jump,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-current b,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-current span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-jump span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-jump span,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-state-details summary,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-more-navigation summary{
+  color:#365470!important
+}
+body.r486-ui #agenda.agenda-remaster-dark input[type="date"],
+body.r486-ui #agenda.agenda-remaster-dark input[type="month"],
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-prev,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-next,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-today,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-month-next,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-extra summary,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-wa-refresh{
+  background:#f9fbfe!important;color:#355675!important;
+  border:1px solid #d3e0ed!important;box-shadow:none!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-week-today{
+  background:#e7f1ff!important;border-color:#bdd5f7!important;color:#215da4!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-heading strong{
+  color:#1b3753!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-heading small{
+  color:#637c96!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-tabs{
+  background:#edf3fa!important;border:1px solid #dce6f0!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-tabs button{
+  background:transparent!important;color:#4f6d89!important;border-color:transparent!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-tabs button.active{
+  background:#2468bf!important;border-color:#2468bf!important;color:#fff!important;
+  box-shadow:0 2px 7px rgba(38,100,177,.12)!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-focus-tabs button:hover:not(.active){
+  background:#dfeaf8!important;color:#244e7c!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-grid{
+  background:#fff!important;border:1px solid #d5e2ef!important;
+  box-shadow:0 5px 16px rgba(25,54,83,.055)!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-corner,
+body.r486-ui #agenda.agenda-remaster-dark .native-day-head{
+  background:#edf4fc!important;border-color:#dbe6f1!important;color:#25435f!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-day-head b{
+  color:#193b5f!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-day-head span,
+body.r486-ui #agenda.agenda-remaster-dark .native-day-head small{
+  color:#63809d!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-time{
+  background:#f3f8fe!important;border-color:#dfe7f0!important;color:#305574!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-cell{
+  background:#fff!important;border-color:#e6edf5!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.free{
+  background:#f8fbff!important;border:1px dashed #c1d3e6!important;
+  color:#45647f!important;opacity:1!important;box-shadow:none!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.free .native-free-time,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.free span{
+  color:#45647f!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.free:hover{
+  background:#eaf3ff!important;border-color:#83afe1!important;color:#225b99!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.closed{
+  background:#f0f3f7!important;border-color:#dce3eb!important;color:#8290a0!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.closed b,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.closed span{
+  color:#8290a0!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied{
+  background:#fff3d9!important;border:1px solid #ebcb7c!important;
+  box-shadow:inset 4px 0 0 #cf9e35!important;color:#6f5318!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.confirmed,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.wa-confirmed{
+  background:#e8f6ee!important;border-color:#b8dec9!important;
+  box-shadow:inset 4px 0 0 #32936b!important;color:#1f6748!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.rescheduled{
+  background:#e9f2ff!important;border-color:#bad3f2!important;
+  box-shadow:inset 4px 0 0 #4785cb!important;color:#2b6096!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.cancelled,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.wa-no-show{
+  background:#fdeef0!important;border-color:#eabfc5!important;
+  box-shadow:inset 4px 0 0 #c4717b!important;color:#984653!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied.wa-review{
+  border-color:#deb95a!important;box-shadow:inset 4px 0 0 #d3a137!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied>b,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied .native-free-time,
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied span:not(.native-status-label):not(.agenda-wa-chip){
+  color:inherit!important;text-shadow:none!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot.occupied .native-status-label{
+  background:rgba(255,255,255,.68)!important;color:inherit!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot .native-unlinked{
+  color:#566f86!important;opacity:1!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot .agenda-wa-chip.confirmed{
+  background:#d5eee0!important;color:#195f3d!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot .agenda-wa-chip.no-show{
+  background:#fbdce0!important;color:#8f3d46!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot .agenda-wa-chip.review{
+  background:#fff0be!important;color:#735914!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .native-slot .agenda-wa-chip.resolved{
+  background:#e7edf5!important;color:#546b83!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-legend{
+  color:#4b6580!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-native-footnote,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-hints{
+  background:#f5f9fe!important;border-color:#dae7f3!important;color:#617890!important
+}
+body.r486-ui #agenda.agenda-remaster-dark .agenda-hints summary,
+body.r486-ui #agenda.agenda-remaster-dark .agenda-hints p{
+  color:#5b7490!important
+}
