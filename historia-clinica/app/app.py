@@ -23,6 +23,7 @@ import documentos_clinicos
 import informes_clinicos
 import firma_electronica
 import doctor_turn_call
+import queue_arrival_chime
 import patient_document_panel
 import clinical_video_library
 import cloud_presence_patch
@@ -2149,7 +2150,7 @@ def home():
     <section class="hc-b-center" id="pacientes-en-espera">
       <div class="hc-b-section-heading">
         <h1>♟ Pacientes en espera <span>({queue_count})</span></h1>
-        <div class="hc-b-queue-controls"><a href="/" class="hc-b-refresh" aria-label="Actualizar pacientes en espera">⟳ Actualizar</a></div>
+        <div class="hc-b-queue-controls"><button type="button" id="hc-b-chime-toggle" class="hc-b-chime-toggle" aria-label="Silenciar o activar avisos sonoros" aria-pressed="false" title="Avisos sonoros para consultas y revisiones">🔔 Avisos</button><a href="/" class="hc-b-refresh" aria-label="Actualizar pacientes en espera">⟳ Actualizar</a></div>
       </div>
       {pending_banner}
       <div class="hc-b-queue-list">{qhtml}</div>
@@ -2203,6 +2204,40 @@ def home():
 <script>
 (()=>{
   let lastQueueKey='';
+  // Avisos de cola ejecutados en Windows, incluso cuando el doctor trabaja en otra pantalla.
+  const chimeButton=document.getElementById('hc-b-chime-toggle');
+  function showChimeToggle(enabled,available){
+    if(!chimeButton)return;
+    chimeButton.textContent=enabled?'🔔 Avisos':'🔕 Silenciado';
+    chimeButton.setAttribute('aria-pressed',enabled?'true':'false');
+    chimeButton.dataset.enabled=enabled?'1':'0';
+    chimeButton.title=available?'Avisos sonoros para consultas y revisiones'
+      :'Audio local no disponible en esta PC';
+  }
+  async function loadChime(){
+    if(!chimeButton)return;
+    try{
+      const r=await fetch('/api/queue/chime',{cache:'no-store'});
+      if(!r.ok)return;
+      const s=await r.json();
+      showChimeToggle(s.enabled!==false,s.available!==false);
+    }catch(_e){}
+  }
+  chimeButton?.addEventListener('click',async()=>{
+    if(chimeButton.disabled)return;
+    const enabled=chimeButton.dataset.enabled!=='1';
+    chimeButton.disabled=true;
+    try{
+      const r=await fetch('/api/queue/chime',{
+        method:'POST',headers:{'Content-Type':'application/json','X-Historia-Queue-Chime':'1'},
+        body:JSON.stringify({enabled}),cache:'no-store'
+      });
+      const d=await r.json();
+      if(!r.ok||!d.ok)throw new Error(d.detail||'No se pudo cambiar los avisos');
+      showChimeToggle(d.enabled,d.available);
+    }catch(_e){}finally{chimeButton.disabled=false}
+  });
+  loadChime();
   // El reloj es local; sólo actualiza etiquetas visibles, sin peticiones.
   function refreshWaitingClocks(){
     document.querySelectorAll('.js-hc-wait-clock').forEach(el=>{
@@ -5348,6 +5383,8 @@ def v138_health():
 # Nuevo canal de llamados explícitos: no altera los botones Inicio existentes,
 # los flujos de consulta, los estados de Recepción ni el sincronizador Neón.
 doctor_turn_call.install(app, db, ROOT, _queue_turn_number, _queue_is_procedure)
+# Avisos nativos desde SQLite local; no envía sonido al televisor ni a Neón.
+queue_arrival_chime.install(app, db, ROOT, _queue_is_procedure)
 _DOCTOR_CALL_ORIGINAL_BASE = base
 
 def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
