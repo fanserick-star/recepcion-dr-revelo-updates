@@ -129,7 +129,7 @@ class QueueArrivalChime:
         """Preferencias sólo de esta PC; no forman parte del sincronizador."""
         if not isinstance(enabled, bool) or not isinstance(volume, int) or isinstance(volume, bool):
             raise ValueError("Configuración de sonido inválida.")
-        if volume < 0 or volume > 100 or sound not in {"soft", "short"}:
+        if volume < 0 or volume > 100 or not isinstance(sound, str) or sound not in {"soft", "short"}:
             raise ValueError("Volumen o tipo de sonido inválido.")
         settings = {"enabled": enabled, "volume": volume, "sound": sound}
         with self._lock:
