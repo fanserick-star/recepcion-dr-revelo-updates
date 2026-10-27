@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.96",
-  "app_version": "4.8.96",
-  "runtime_version": "4.8.96",
+  "version": "4.8.97",
+  "app_version": "4.8.97",
+  "runtime_version": "4.8.97",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -100,7 +100,8 @@
     "Configurar_envios_clinicos.vbs",
     "clinical_selftest_mp4.b64",
     "reception_night_close.py",
-    "static/night_closing_4888.js"
+    "static/night_closing_4888.js",
+    "static/sidebar_status_hub_4897.js"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -201,11 +202,12 @@
     "clinical_video_lan_server.py",
     "clinical_selftest_mp4.b64",
     "reception_night_close.py",
-    "static/night_closing_4888.js"
+    "static/night_closing_4888.js",
+    "static/sidebar_status_hub_4897.js"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.96: tema claro clínico para Agenda real (cuatro días, cuadrícula de citas, navegación y colores semánticos), y para panel privado de control TV (EN VIVO / PRUEBAS, estados, vista previa y medios). Sin cambios en agenda, pacientes, Meta/WhatsApp, servicios LAN, emisión fiscal, facturación, respaldo o pantalla física de TV y reloj.",
-    "previous_version": "4.8.95",
+    "purpose": "Recepción 4.8.97: panel único Estado del sistema en pie lateral con Sistema, Historia LAN, Pantalla TV y Versión. Muestra estados reales desde monitores ya existentes de nube/LAN/versión; TV consulta solo estado del servicio local 8899 mediante API autenticada, sin Neon, solo con app visible. Los pacientes LAN pendientes se muestran sin falso desconectado. No cambia datos, módulos, facturas, WhatsApp ni emisiones.",
+    "previous_version": "4.8.96",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -664,7 +666,12 @@
     "agenda_native_light_theme": true,
     "tv_control_light_theme": true,
     "tv_physical_display_unchanged": true,
-    "clinical_and_billing_logic_unchanged": true
+    "clinical_and_billing_logic_unchanged": true,
+    "sidebar_status_hub": true,
+    "sidebar_status_hub_four_rows": true,
+    "sidebar_status_lan_pending_without_disconnection": true,
+    "sidebar_tv_status_local_only": true,
+    "sidebar_status_legacy_sources_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

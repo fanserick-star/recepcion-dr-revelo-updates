@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.96: Agenda de miércoles a sábado y panel privado de control TV con colores claros, manteniendo todas sus opciones, turnos, estado WhatsApp y controles de video. Sin cambios en la pantalla física de TV ni la lógica de pacientes."
+  "notes": "Recepción 4.8.97: nuevo panel lateral Estado del sistema con cuatro indicadores en vivo (conectividad, Historia LAN con pendientes, TV física y versión), aspecto más profesional. Se conservan monitores originales y todas las funciones, sin consultas nuevas a Neon."
 }
