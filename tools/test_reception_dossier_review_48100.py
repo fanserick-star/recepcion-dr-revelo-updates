@@ -14,7 +14,7 @@ assert tuple(map(int,version.split("."))) >= (4,8,100)
 assert "static/patient_dossier_review_48100.css" in manifest["copy"]
 assert "static/patient_dossier_review_48100.css" in manifest["required_dependencies"]
 assert '/static/patient_dossier_review_48100.css?v=' + version in html
-assert '/static/app.js?v=4.8.100' in html
+assert '/static/app.js?v=' + version in html
 assert '#modal .v4100-dossier' in css
 assert 'grid-template-columns:218px minmax(0,1fr)' in css
 assert '.v4413-profile-tabs' in css and 'flex-direction:column!important' in css
