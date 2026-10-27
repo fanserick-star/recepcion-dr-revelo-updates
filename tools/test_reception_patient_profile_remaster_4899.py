@@ -14,7 +14,7 @@ assert tuple(map(int,version.split("."))) >= (4,8,99)
 assert "static/patient_profile_remaster_4899.css" in manifest["copy"]
 assert "static/patient_profile_remaster_4899.css" in manifest["required_dependencies"]
 assert '/static/patient_profile_remaster_4899.css?v=4.8.99' in html
-assert '/static/app.js?v=' + version in html
+assert '/static/app.js?v=4.8.100' in html  # El JS clínico se conserva; 4.8.101 cambia solo CSS
 start=js.index("async function openPatient(id,source='general')")
 end=js.index("  if(window.loadClinicalDelivery)",start)
 p=js[start:end]
