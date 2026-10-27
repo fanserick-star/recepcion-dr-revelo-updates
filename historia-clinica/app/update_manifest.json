@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.55",
-  "app_version": "1.4.55",
-  "runtime_version": "1.4.55",
+  "version": "1.4.56",
+  "app_version": "1.4.56",
+  "runtime_version": "1.4.56",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección visual del bloque azul de turno de pacientes en espera. El cuadro permanece exactamente cuadrado (proporción 1:1), centrado en la tarjeta y sin estiramiento vertical. Tamaños adaptativos 106x106 para monitores amplios, 94x94 en medianos y 71x71 en pequeños; leyenda y número ajustados para caber dentro del cuadro. Solo CSS y prueba de regresión; se mantienen la fila, botones de llamado/abrir/quitar, cola, Recepción, LAN, TV, Neón, fichas, documentos y firmas sin cambios.",
-    "previous_version": "1.4.54",
+    "purpose": "Corrección de proporción visual en Inicio: turnos azules cuadrados de mayor tamaño, sin volver a ser rectangulares, con la columna izquierda dimensionada de forma conjunta para no tapar nombre ni acciones. Tamaños 148x148 monitores amplios, 132x132 pantallas medianas (1101-1450px), 108x108 anchos reducidos y 82x82 móviles. Conserva colores según estado: azul esperando y verde En consulta al iniciar/registrar atención mediante Abrir siguiente. Solo presentación CSS, sin cambios en enlaces, firmas, cola, LAN, TV ni Neón.",
+    "previous_version": "1.4.55",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -437,11 +437,15 @@
     "waiting_room_turn_square_fixed": true,
     "waiting_room_turn_square_ratio": "1:1",
     "waiting_room_square_sizes_px": [
-      106,
-      94,
-      71
+      148,
+      132,
+      108,
+      82
     ],
     "waiting_room_turn_no_stretch": true,
-    "waiting_room_css_only": true
+    "waiting_room_css_only": true,
+    "waiting_room_turn_square_enlarged": true,
+    "waiting_room_card_grid_col_matches_square": true,
+    "waiting_room_consultation_green_expected": true
   }
 }
