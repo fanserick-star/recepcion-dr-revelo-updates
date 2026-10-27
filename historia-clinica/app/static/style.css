@@ -4847,3 +4847,75 @@ body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-numbe
     font-size:39px!important;
   }
 }
+
+
+/* Historia v1.4.56 · turno cuadrado más grande.
+   Crece el bloque y su columna juntos: sin solapar nombre ni botones.
+   La proporción 1:1 se conserva, incluso en filas más altas. */
+@media screen and (min-width:1451px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    --hc-turn-square:148px;
+    grid-template-columns:148px minmax(0,1fr) 174px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number b{
+    font-size:82px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number span{
+    font-size:19px!important;
+  }
+}
+@media screen and (min-width:1101px) and (max-width:1450px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    --hc-turn-square:132px;
+    grid-template-columns:132px minmax(0,1fr) 164px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number b{
+    font-size:73px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number span{
+    font-size:17px!important;
+  }
+}
+@media screen and (min-width:761px) and (max-width:1100px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    --hc-turn-square:108px;
+    grid-template-columns:108px minmax(0,1fr) 150px!important;
+    column-gap:11px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number b{
+    font-size:61px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number span{
+    font-size:14px!important;
+  }
+}
+@media screen and (max-width:760px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    --hc-turn-square:82px;
+    grid-template-columns:82px minmax(0,1fr)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number b{
+    font-size:45px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number span{
+    font-size:11px!important;
+  }
+}
+/* Mismo tamaño cuadrado para badge y columna, sin estiramiento heredado. */
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn{
+  width:var(--hc-turn-square)!important;
+  height:var(--hc-turn-square)!important;
+  min-height:0!important;
+  align-self:center!important;
+  justify-self:center!important;
+}
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-turn .queue-turn-number,
+body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
+  width:var(--hc-turn-square)!important;
+  height:var(--hc-turn-square)!important;
+  min-width:var(--hc-turn-square)!important;
+  max-width:var(--hc-turn-square)!important;
+  min-height:var(--hc-turn-square)!important;
+  max-height:var(--hc-turn-square)!important;
+  aspect-ratio:1 / 1!important;
+}
