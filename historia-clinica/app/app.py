@@ -1814,6 +1814,8 @@ def home():
         queue = conn.execute("""
             SELECT q.*,
                    p.birth_date AS patient_birth_date,
+                   p.national_id AS patient_national_id,
+                   p.phone AS patient_phone,
                    (SELECT e.encounter_date
                       FROM encounters e
                      WHERE e.patient_id=q.clinical_patient_id
@@ -1892,7 +1894,7 @@ def home():
             is_procedure = _queue_is_procedure(r)
             real_turn = queue_turns.get(str(r["id"]))
             turn_badge = (
-                f"<div class='queue-turn-number'><span>TURNO</span><b>#{real_turn}</b></div>"
+                f"<div class='queue-turn-number'><span>Turno</span><b>{real_turn}</b></div>"
                 if not is_procedure and real_turn is not None
                 else ""
             )
@@ -1917,7 +1919,21 @@ def home():
             )
             age = age_from_birth(r["patient_birth_date"]) if "patient_birth_date" in r.keys() else ""
             last_label = _v1373_last_attention_label(r["last_encounter_date"] if "last_encounter_date" in r.keys() else "")
-            patient_meta = " · ".join(x for x in ((f"{age} años" if age else ""), last_label) if x)
+            # Datos reales de la ficha vinculada. Nunca añadir cédula o teléfono
+            # inventados: al faltar se mantiene la última atención disponible.
+            raw_identification = (
+                str(r["patient_national_id"] or "").strip()
+                if r["patient_national_id"] else str(r["identification"] or "").strip()
+            )
+            raw_phone = str(r["patient_phone"] or "").strip()
+            patient_meta_parts = [
+                f"{age} años" if age is not None and age != "" else "",
+                f"CI: {raw_identification}" if raw_identification else "",
+                f"☎ {raw_phone}" if raw_phone else "",
+            ]
+            if not raw_identification and not raw_phone and last_label:
+                patient_meta_parts.append(last_label)
+            patient_meta = "  |  ".join(part for part in patient_meta_parts if part)
             queued = e((r["queued_at"] or "")[-8:-3])
             is_waiting = r["status"] == "waiting"
             queue_kind_class = "queue-row-review" if exam_review else (
@@ -1937,7 +1953,7 @@ def home():
             )
             can_open = bool(r["clinical_patient_id"]) or r["status"] == "in_consultation"
             href = f"/cola/{e(r['id'])}/atender" if can_open else "#"
-            # Remaster B: acciones separadas, sin cambiar rutas, turnos ni estados.
+            # Las acciones se mantienen independientes del llamado y de la cola.
             open_link = (
                 f"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>"
                 if can_open else
@@ -1947,18 +1963,24 @@ def home():
                 "<div class='hc-b-no-turn' aria-label='Procedimiento sin turno'>PROC.</div>"
                 if is_procedure else ""
             )
+            attention_chip = (
+                "▤ Revisión de exámenes" if exam_review else (
+                    f"Procedimiento · {procedure_name}" if is_procedure and procedure_name else (
+                        "N · Nueva" if is_new else attention_label
+                    )
+                )
+            )
             parts.append(
                 f"<article class='queue-row hc-b-wait-card {'hc-b-review' if exam_review else ''} "
                 f"{queue_status_class} {queue_kind_class}'>"
                 f"<div class='hc-b-wait-content'>"
                 f"<div class='hc-b-wait-turn'>{turn_visual}</div>"
                 f"<div class='hc-b-wait-name'><strong>{e(r['display_name'])}</strong>"
-                f"<small>{e(patient_meta)}</small></div>"
-                f"<div class='hc-b-wait-details'>"
-                f"<span class='hc-b-attention hc-b-kind-{e(attention_key)}'>{'N · Nueva' if is_new else e(attention_label)}</span>"
-                f"{service_tag}<small>Hora: {queued}</small></div>"
+                f"<small>{e(patient_meta)}</small>"
+                f"<div class='hc-b-wait-tags'>"
+                f"<span class='hc-b-attention hc-b-kind-{e(attention_key)}'>{e(attention_chip)}</span>"
                 f"<span class='hc-b-wait-state'>{e(status_text)}</span>"
-                f"</div>"
+                f"</div></div></div>"
                 f"<div class='hc-b-wait-actions'>"
                 f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
                 f"{open_link}"
