@@ -2433,13 +2433,30 @@ body{{background:#e8edf1;padding:14px}}
         const cfgChimeTest=document.getElementById('cfg-chime-test');
         cfgChimeVolume?.addEventListener('input',()=>{{cfgChimeOutput.textContent=cfgChimeVolume.value+'%'}});
         const cfgChimeHeaders={{'Content-Type':'application/json','X-Historia-Queue-Chime':'1'}};
+        function cfgChimeErrorText(value){{
+          if(typeof value==='string')return value;
+          if(Array.isArray(value))return value.map(cfgChimeErrorText).filter(Boolean).join('; ');
+          if(value && typeof value==='object'){{
+            return cfgChimeErrorText(value.msg||value.message||value.detail||value.error)
+              ||'Windows devolvió una respuesta de error.';
+          }}
+          return 'No fue posible reproducir el sonido.';
+        }}
+        async function cfgChimeReadResponse(r){{
+          let d={{}};
+          try{{d=await r.json()}}catch(_e){{}}
+          if(!r.ok||!d.ok){{
+            const reason=cfgChimeErrorText(d.message||d.detail||d.error);
+            throw new Error(reason+' (HTTP '+r.status+')');
+          }}
+          return d;
+        }}
         async function cfgSaveChime(){{
           const payload={{enabled:!!cfgChimeEnabled.checked,
             volume:Number(cfgChimeVolume.value),sound:cfgChimeSound.value}};
           const r=await fetch('/api/queue/chime',{{method:'POST',headers:cfgChimeHeaders,
             body:JSON.stringify(payload),cache:'no-store'}});
-          const d=await r.json();
-          if(!r.ok||!d.ok)throw new Error(d.detail||d.error||'No se pudo guardar el sonido.');
+          const d=await cfgChimeReadResponse(r);
           cfgChimeStatus.textContent='Guardado solo en esta PC.';
           return d;
         }}
@@ -2470,10 +2487,15 @@ body{{background:#e8edf1;padding:14px}}
             const r=await fetch('/api/queue/chime/test',{{
               method:'POST',headers:cfgChimeHeaders,body:'{{}}',cache:'no-store'
             }});
-            const d=await r.json();
-            if(!r.ok||!d.ok)throw new Error(d.message||d.detail||'Prueba no disponible.');
-            cfgChimeStatus.textContent='Prueba reproducida en los parlantes de Windows.';
-          }}catch(err){{cfgNotify(err.message||String(err),'error')}}
+            const d=await cfgChimeReadResponse(r);
+            cfgChimeStatus.textContent='Audio enviado a Windows ('+
+              (d.method==='wav'?'archivo WAV':'memoria')+
+              '). Si no lo escucha, compruebe el dispositivo de salida.';
+          }}catch(err){{
+            const message=cfgChimeErrorText(err?.message||err);
+            cfgChimeStatus.textContent=message;
+            cfgNotify(message,'error');
+          }}
           finally{{cfgChimeTest.disabled=false}}
         }});
         cfgLoadChime();
