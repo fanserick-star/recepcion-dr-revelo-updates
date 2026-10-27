@@ -162,4 +162,25 @@ assert ".hc-b-wait-actions .hc-b-open" in css
 assert ".hc-b-wait-actions .hc-b-remove" in css
 print("HISTORIA_1453_REFERENCIA_FIEL_TARJETAS_TRES_COLUMNAS_OK")
 
+
+# v1.4.54: pulido de dimensiones sin invertir la distribución.
+polish = css.split("/* Historia v1.4.54 · pulido final de las tarjetas de espera", 1)[1]
+assert "grid-template-columns:106px minmax(0,1fr) 174px!important" in polish
+assert "grid-template-columns:94px minmax(0,1fr) 164px!important" in polish
+assert "width:94px!important;min-height:155px!important" in polish
+assert "font-size:68px!important" in polish
+assert "font-size:22px!important" in polish
+assert "font-size:13.5px!important" in polish
+assert "font-size:13px!important;min-height:39px!important" in polish
+assert "height:47px!important;min-height:47px!important" in polish
+assert "gap:5px!important" in polish
+assert "display:contents!important" in css
+assert "grid-column:3!important;grid-row:1!important" in css
+assert "doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)" in app
+assert "class='queue-dismiss-form js-queue-dismiss'" in app
+assert "f\"<a class='hc-b-open' href='{href}'>{e(action_label)}</a>\"" in app
+assert css.count("{") == css.count("}")
+assert css.count("/*") == css.count("*/")
+print("HISTORIA_1454_WAITING_CARDS_FINAL_VISUAL_POLISH_OK")
+
 print("HISTORIA_GLOBAL_REMASTER_1449_VISUAL_CONTRACT_OK")
