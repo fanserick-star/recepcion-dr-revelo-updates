@@ -63,6 +63,7 @@ jobs:
           python tools/test_reception_sidebar_remaster_4898.py
           python tools/test_reception_patient_profile_remaster_4899.py
           python tools/test_reception_dossier_review_48100.py
+          python tools/test_reception_clinical_archive_nav_height_48101.py
           node --check recepcion/app/static/sidebar_status_hub_4897.js
           node --check recepcion/app/static/home_remaster_4886.js
           python tools/test_reception_patient_delivery_4885.py

@@ -9,11 +9,12 @@ css=(APP/"static/patient_dossier_review_48100.css").read_text(encoding="utf-8")
 history=(APP/"reception_history_identity_consolidated.py").read_text(encoding="utf-8")
 manifest=json.loads((APP/"update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((APP/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert version=="4.8.100"==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]
+assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]
+assert tuple(map(int,version.split("."))) >= (4,8,100)
 assert "static/patient_dossier_review_48100.css" in manifest["copy"]
 assert "static/patient_dossier_review_48100.css" in manifest["required_dependencies"]
-assert '/static/patient_dossier_review_48100.css?v=4.8.100' in html
-assert '/static/app.js?v=4.8.100' in html
+assert '/static/patient_dossier_review_48100.css?v=' + version in html
+assert '/static/app.js?v=' + version in html
 assert '#modal .v4100-dossier' in css
 assert 'grid-template-columns:218px minmax(0,1fr)' in css
 assert '.v4413-profile-tabs' in css and 'flex-direction:column!important' in css

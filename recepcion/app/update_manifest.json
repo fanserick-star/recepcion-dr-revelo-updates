@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.100",
-  "app_version": "4.8.100",
-  "runtime_version": "4.8.100",
+  "version": "4.8.101",
+  "app_version": "4.8.101",
+  "runtime_version": "4.8.101",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.100: ficha de pacientes ahora expediente administrativo con navegación vertical y contenido amplio, sin círculo de iniciales y sin fila de tarjetas redundantes. Mantiene las cinco pestañas, acciones, edición de observaciones, validación de datos, documentos y vínculo con Historia como tarjeta hija del motor original. Revisión de exámenes sin cobro utiliza confirmación interna accesible, cancela sin escribir, valida vínculo y fecha antes de emitir turno/ticket; avisos de revisión sin alert() navegador. Sin cambios de datos, Neon, WhatsApp, facturas o backend.",
-    "previous_version": "4.8.99",
+    "purpose": "Recepción 4.8.101: corrige el botón Archivo clínico de la ficha administrativa que se extendía verticalmente por una regla heredada del anterior diseño horizontal. La selección queda en una fila de 43px igual a las demás; no cambia la navegación, entrega de documentos, videocistoscopías, vinculación a Historia ni los datos de pacientes. Sin modificaciones a Neon, facturación, WhatsApp o TV.",
+    "previous_version": "4.8.100",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -688,7 +688,8 @@
     "previous_profile_behavior_preserved": true,
     "patient_dossier_side_navigation": true,
     "native_review_confirmation_replaced": true,
-    "review_transaction_safety_unchanged": true
+    "review_transaction_safety_unchanged": true,
+    "patient_dossier_clinical_tab_height_fixed": true
   },
   "channel": "launcher-v1-stable"
 }
