@@ -1963,24 +1963,53 @@ def home():
                 "<div class='hc-b-no-turn' aria-label='Procedimiento sin turno'>PROC.</div>"
                 if is_procedure else ""
             )
+            # Etiquetas claras y completas. Procedimientos/revisiones mantienen su tipo.
             attention_chip = (
                 "▤ Revisión de exámenes" if exam_review else (
                     f"Procedimiento · {procedure_name}" if is_procedure and procedure_name else (
-                        "N · Nueva" if is_new else attention_label
+                        "NUEVO" if is_new else (
+                            "SUBSECUENTE" if attention_label == "Subsecuente" else attention_label
+                        )
                     )
                 )
             )
+            last_date = str(r["last_encounter_date"] or "").strip()
+            last_visit = human_date(last_date) if last_date else (
+                "Primera consulta" if is_new else "Sin atención anterior registrada"
+            )
+            # Tiempo calculado en la PC clínica; nunca necesita consultar Neón.
+            raw_arrival = str(r["queued_at"] or "").strip()
+            try:
+                arrival_dt = datetime.fromisoformat(raw_arrival.replace("Z", "+00:00"))
+                current_dt = datetime.now(arrival_dt.tzinfo) if arrival_dt.tzinfo else datetime.now()
+                elapsed_minutes = max(0, int((current_dt - arrival_dt).total_seconds() // 60))
+                waiting_text = f"{elapsed_minutes} min" if elapsed_minutes < 60 else f"{elapsed_minutes // 60} h {elapsed_minutes % 60:02d} min"
+                since_label = "Desde " + arrival_dt.strftime("%H:%M")
+            except (ValueError, TypeError, OverflowError):
+                waiting_text = "Sin hora"
+                since_label = "Hora no disponible"
+            if not is_waiting:
+                waiting_text = "En consulta"
             parts.append(
                 f"<article class='queue-row hc-b-wait-card {'hc-b-review' if exam_review else ''} "
                 f"{queue_status_class} {queue_kind_class}'>"
                 f"<div class='hc-b-wait-content'>"
                 f"<div class='hc-b-wait-turn'>{turn_visual}</div>"
-                f"<div class='hc-b-wait-name'><strong>{e(r['display_name'])}</strong>"
+                f"<div class='hc-b-wait-name'>"
+                f"<div class='hc-b-identity'><strong>{e(r['display_name'])}</strong>"
                 f"<small>{e(patient_meta)}</small>"
                 f"<div class='hc-b-wait-tags'>"
                 f"<span class='hc-b-attention hc-b-kind-{e(attention_key)}'>{e(attention_chip)}</span>"
                 f"<span class='hc-b-wait-state'>{e(status_text)}</span>"
-                f"</div></div></div>"
+                f"</div></div>"
+                f"<div class='hc-b-metrics'>"
+                f"<div class='hc-b-metric hc-b-metric-wait'><div class='hc-b-metric-label'>◷ <span>{'Tiempo en espera' if is_waiting else 'Estado del turno'}</span></div>"
+                f"<strong class='hc-b-metric-value{' js-hc-wait-clock' if is_waiting else ''}' data-queued-at='{e(raw_arrival)}'>{e(waiting_text)}</strong>"
+                f"<small>{e(since_label)}</small></div>"
+                f"<div class='hc-b-metric hc-b-metric-last'><div class='hc-b-metric-label'>▦ <span>Última atención</span></div>"
+                f"<strong class='hc-b-metric-value'>{e(last_visit)}</strong>"
+                f"<small>{'Sin atenciones anteriores' if not last_date and is_new else 'Registro clínico' if last_date else 'No hay fecha disponible'}</small>"
+                f"</div></div></div></div>"
                 f"<div class='hc-b-wait-actions'>"
                 f"{doctor_turn_call.queue_button(r, real_turn, _queue_is_procedure)}"
                 f"{open_link}"
@@ -2170,6 +2199,21 @@ def home():
 <script>
 (()=>{
   let lastQueueKey='';
+  // El reloj es local; sólo actualiza etiquetas visibles, sin peticiones.
+  function refreshWaitingClocks(){
+    document.querySelectorAll('.js-hc-wait-clock').forEach(el=>{
+      const raw=String(el.dataset.queuedAt||'').trim();
+      if(!raw)return;
+      const normalized=raw.replace(' ','T');
+      const when=Date.parse(normalized);
+      if(!Number.isFinite(when))return;
+      const minutes=Math.max(0,Math.floor((Date.now()-when)/60000));
+      el.textContent=minutes<60 ? minutes+' min'
+        :Math.floor(minutes/60)+' h '+String(minutes%60).padStart(2,'0')+' min';
+    });
+  }
+  refreshWaitingClocks();
+  setInterval(refreshWaitingClocks,60000);
   const cloudCard=document.getElementById('cloud-status-card');
   const cloudMark=document.getElementById('cloud-status-mark');
   const cloudText=document.getElementById('cloud-status-text');
