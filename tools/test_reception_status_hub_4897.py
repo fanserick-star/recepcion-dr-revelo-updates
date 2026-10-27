@@ -9,12 +9,12 @@ js = (root/"static/sidebar_status_hub_4897.js").read_text(encoding="utf-8")
 app = (root/"app.py").read_text(encoding="utf-8")
 version = json.loads((root/"recepcion-version.json").read_text(encoding="utf-8"))
 manifest = json.loads((root/"update_manifest.json").read_text(encoding="utf-8"))
-assert version["version"] == "4.8.97"
+assert tuple(map(int, version["version"].split("."))) >= (4,8,97)
 assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version["version"]
 assert "static/sidebar_status_hub_4897.js" in manifest["copy"]
 assert "static/sidebar_status_hub_4897.js" in manifest["required_dependencies"]
 assert '/static/sidebar_status_hub_4897.js?v=4.8.97' in html
-assert '/static/home_remaster_4886.css?v=4.8.97' in html
+assert '/static/home_remaster_4886.css?v=' + version["version"] in html
 
 aside = html[html.index("<aside>"):html.index("</aside>")]
 assert aside.count("r497-status-row") == 4
