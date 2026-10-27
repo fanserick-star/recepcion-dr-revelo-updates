@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.100: expediente administrativo de pacientes de dos columnas, navegación lateral profesional, vínculo con Historia intacto, sin iniciales ni recuadros repetitivos. Confirmación de turno de revisión sin cobro con diálogo propio y controles seguros; sin cambios de facturación o datos."
+  "notes": "Recepción 4.8.101: corrección visual del botón Archivo clínico que ocupaba toda la barra lateral del expediente. Mantiene todas las secciones, Historia Clínica, documentos y videocistoscopías. No cambia datos ni flujos."
 }
