@@ -31,7 +31,7 @@ assert "sidebarRealVersion" in (APP / "reception_version_sidebar.py").read_text(
 assert "r495-sidebar-status #historiaDoctorBadge.lan" in css
 assert "r495-sidebar-status #sidebarRealVersion" in css
 assert "overflow-y:auto!important" in css and "aside .side-nav" in css
-assert '/static/home_remaster_4886.css?v=4.8.95' in html
+assert '/static/home_remaster_4886.css?v=' + version["version"] in html
 
 # No fiscal controls in everyday invoices; keep AZUR invoices area unchanged.
 billing = html[html.index('<section id="facturacion"'):html.index('<section id="reportes"')]

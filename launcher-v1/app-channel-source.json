@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.95: estados de conexión/Historia/versión regresan al pie lateral con mejor legibilidad. Cierre fiscal inteligente se administra solamente en Configuración → Facturación y cobros, sin ocupar pantalla de facturas. Sin cambios de emisión real, historia, WhatsApp ni datos."
+  "notes": "Recepción 4.8.96: Agenda de miércoles a sábado y panel privado de control TV con colores claros, manteniendo todas sus opciones, turnos, estado WhatsApp y controles de video. Sin cambios en la pantalla física de TV ni la lógica de pacientes."
 }
