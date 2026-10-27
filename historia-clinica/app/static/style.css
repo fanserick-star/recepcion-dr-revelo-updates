@@ -4601,7 +4601,7 @@ body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove{
     border:1px solid #ffc0c6!important;
   }
   body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove::before{
-    content:"♜";font-size:15px;margin-right:7px;color:#bd1d33;
+    content:"🗑";font-size:15px;margin-right:7px;color:#bd1d33;
   }
   body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove:hover{
     background:#ffe4e7!important;
