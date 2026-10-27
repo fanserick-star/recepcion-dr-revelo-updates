@@ -141,6 +141,8 @@ assert "Avisos sonoros" in docs and "Campanilla suave" in docs
 assert "Historia v1.4.59" in css
 assert "_play_native_diagnostic" in module and "winsound.SND_FILENAME" in module
 assert "monitor.preview_result()" in module
+assert not module.startswith("from __future__ import annotations"), "Aplazamiento convertía Request en query HTTP 422"
+assert "from fastapi import HTTPException, Request" in module
 assert "cfgChimeReadResponse" in docs
 assert "cfgChimeErrorText" in docs
 assert "Si no lo escucha" in docs
