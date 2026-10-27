@@ -4919,3 +4919,194 @@ body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-no-turn{
   max-height:var(--hc-turn-square)!important;
   aspect-ratio:1 / 1!important;
 }
+
+
+/* Historia v1.4.57 · indicadores útiles y botones de referencia.
+   Sólo afecta la tarjeta del Inicio. Sin nuevas llamadas a Neón ni cambios clínicos. */
+@media screen {
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    grid-template-rows:minmax(190px,auto)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    align-content:center!important;
+    gap:12px!important;
+    padding:6px 0!important;
+    width:100%!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-identity{
+    min-width:0!important;
+    display:flex!important;flex-direction:column!important;
+    align-items:flex-start!important;justify-content:center!important;
+    gap:0!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metrics{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:9px!important;
+    width:100%!important;
+    min-width:0!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric{
+    display:flex!important;flex-direction:column!important;
+    align-items:center!important;justify-content:center!important;
+    min-height:90px!important;
+    padding:10px 8px!important;
+    min-width:0!important;
+    text-align:center!important;
+    border:1px solid #d5e6f7!important;
+    border-radius:11px!important;
+    background:rgba(224,237,252,.65)!important;
+    box-shadow:0 1px 3px rgba(19,87,148,.045)!important;
+    gap:4px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label{
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    flex-wrap:wrap!important;gap:6px!important;
+    color:#1658a2!important;font-size:12.5px!important;
+    font-weight:750!important;line-height:1.2!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label span{
+    color:#28517e!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric .hc-b-metric-value{
+    display:block!important;
+    font:900 20px/1.15 "Segoe UI",Arial,sans-serif!important;
+    letter-spacing:-.015em!important;
+    color:#092e60!important;
+    margin:4px 0 0!important;
+    overflow-wrap:anywhere!important;
+    max-width:100%!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric small{
+    display:block!important;font-size:11px!important;
+    font-weight:650!important;line-height:1.2!important;
+    color:#597598!important;margin:0!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-attention{
+    font-size:14px!important;
+    border-radius:22px!important;
+    background:#dceaff!important;
+    border:1px solid #bed9fb!important;
+    color:#0b5ac0!important;
+    min-height:40px!important;
+    font-weight:900!important;
+    letter-spacing:.01em!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card:not(.hc-b-review) .hc-b-attention.hc-b-kind-subsecuente{
+    background:#dfedff!important;
+    color:#0757b5!important;
+    border-color:#c1ddfb!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions{
+    gap:7px!important;
+    justify-content:center!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .queue-dismiss-form{
+    flex:0 0 auto!important;
+    height:54px!important;
+    min-height:54px!important;
+    border-radius:10px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove{
+    font:850 15px/1.2 "Segoe UI",Arial,sans-serif!important;
+    padding:12px 9px!important;
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    gap:7px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call{
+    background:linear-gradient(180deg,#1179ef,#0665d5)!important;
+    border:1px solid #075dcc!important;
+    color:#fff!important;
+    box-shadow:0 2px 5px rgba(18,85,176,.14)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call.call-repeated{
+    background:#11719e!important;border-color:#11719e!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open{
+    background:linear-gradient(180deg,#edf5ff,#dfedff)!important;
+    color:#0b4b99!important;
+    border:1px solid #b7d4fa!important;
+    box-shadow:0 1px 2px rgba(18,85,176,.05)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions a.hc-b-open::before{
+    content:""!important;
+    display:inline-block!important;
+    width:18px!important;height:12px!important;
+    flex:0 0 18px!important;
+    box-sizing:border-box!important;
+    border:2px solid #095ab9!important;
+    border-radius:2px!important;
+    transform:skew(-8deg)!important;
+    margin:0 2px 0 0!important;
+    background:none!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove{
+    background:linear-gradient(180deg,#fff0f2,#ffe1e6)!important;
+    color:#ba182a!important;
+    border:1px solid #f8b9c4!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove::before{
+    color:#bf172c!important;font-size:17px!important;
+    margin-right:3px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-metric{
+    background:rgba(255,245,224,.76)!important;border-color:#eedab7!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-metric{
+    background:rgba(223,248,233,.74)!important;border-color:#b5e4c9!important;
+  }
+}
+/* Centro amplio: datos y métricas se distribuyen horizontalmente como referencia. */
+@media screen and (min-width:1800px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-name{
+    grid-template-columns:minmax(0,1.25fr) minmax(305px,1fr)!important;
+    align-items:center!important;
+  }
+}
+@media screen and (max-width:1450px) and (min-width:761px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card{
+    min-height:265px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric{
+    min-height:74px!important;padding:8px 5px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric .hc-b-metric-value{
+    font-size:16px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label{
+    font-size:11px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .queue-dismiss-form{
+    height:49px!important;min-height:49px!important;
+  }
+}
+@media screen and (max-width:760px){
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric{
+    min-height:76px!important;padding:8px 5px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric .hc-b-metric-value{
+    font-size:16px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric-label{
+    font-size:10.5px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-metric small{
+    font-size:10px!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .js-doctor-call,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-open,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .hc-b-remove,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card .hc-b-wait-actions .queue-dismiss-form{
+    height:46px!important;min-height:46px!important;
+  }
+}
