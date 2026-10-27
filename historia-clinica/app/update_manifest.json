@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.56",
-  "app_version": "1.4.56",
-  "runtime_version": "1.4.56",
+  "version": "1.4.57",
+  "app_version": "1.4.57",
+  "runtime_version": "1.4.57",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -87,8 +87,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección de proporción visual en Inicio: turnos azules cuadrados de mayor tamaño, sin volver a ser rectangulares, con la columna izquierda dimensionada de forma conjunta para no tapar nombre ni acciones. Tamaños 148x148 monitores amplios, 132x132 pantallas medianas (1101-1450px), 108x108 anchos reducidos y 82x82 móviles. Conserva colores según estado: azul esperando y verde En consulta al iniciar/registrar atención mediante Abrir siguiente. Solo presentación CSS, sin cambios en enlaces, firmas, cola, LAN, TV ni Neón.",
-    "previous_version": "1.4.55",
+    "purpose": "Remaster visual de pacientes en espera en Inicio: etiquetas completas NUEVO y SUBSECUENTE, tiempo de espera calculado con hora local de la cola y actualizado por reloj local sin consultas adicionales a Neon, última atención real desde encuentros firmados/legado y Primera consulta para nuevos sin historial, dos paneles informativos en espacio de tarjeta, y botones laterales más fieles a la referencia (Llamar azul, Abrir ficha azul claro con icono de carpeta y Quitar rojo suave). Mantiene turno azul cuadrado y adaptación según ancho. Las acciones de llamar, abrir ficha y quitar usan las mismas rutas y no modifican estado administrativo, sincronización o emisión a TV.",
+    "previous_version": "1.4.56",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -446,6 +446,14 @@
     "waiting_room_css_only": true,
     "waiting_room_turn_square_enlarged": true,
     "waiting_room_card_grid_col_matches_square": true,
-    "waiting_room_consultation_green_expected": true
+    "waiting_room_consultation_green_expected": true,
+    "queue_badges_new_subsequent_full_labels": true,
+    "queue_metrics_waiting_time_local_only": true,
+    "queue_metrics_last_visit_local": true,
+    "queue_metrics_no_extra_cloud_polling": true,
+    "queue_actions_reference_buttons": true,
+    "queue_tv_call_logic_changes": false,
+    "queue_status_logic_changes": false,
+    "queue_patient_identity_logic_changes": false
   }
 }
