@@ -33,7 +33,7 @@ assert "grid-template-columns:minmax(0,1fr)!important" in mobile
 # La corrección no puede cambiar el contrato administrativo ni médico.
 p=js[js.index("async function openPatient(id,source='general')"):js.index("async function editPatient(",js.index("async function openPatient(id,source='general')"))]
 for key in ('v4100-dossier','v4413-profile-head','v4413-profile-name','v4413-profile-actions',
-            'v4413ProfileTabs','v4413ProfilePanels','rpClinicalDocs','continueAttention',
+            'v4413ProfileTabs','v4413ProfilePanels','rpClinicalDocs','v4417-continue-attention','data-continue-attention',
             'openAgendaPatient(','attentionFor(','editPatient('):
     assert key in p, key
 for section in ('resumen','atenciones','agenda','facturacion','documentos'):
