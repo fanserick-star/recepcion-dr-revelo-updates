@@ -1,10 +1,10 @@
-/* Recepción — expediente administrativo en dos columnas.
+/* Recepción — expediente administrativo ampliado para leer y atender al paciente.
    Presentación únicamente: se preservan los cinco tabs, las acciones,
    el vínculo dinámico de Historia Clínica y los endpoints originales.
    2026-10-28: encabezado adaptable, sin separar nombres entre sílabas. */
 #modal .modalbox.v4413-profile-shell{
-  width:min(1370px,97.5vw)!important;
-  max-width:97.5vw!important;
+  width:min(1720px,96vw)!important;
+  max-width:96vw!important;
   max-height:95vh!important;
   padding:0!important;
   overflow-y:auto!important;
@@ -26,7 +26,7 @@
 }
 #modal .v4100-dossier{
   display:grid!important;
-  grid-template-columns:218px minmax(0,1fr)!important;
+  grid-template-columns:238px minmax(0,1fr)!important;
   grid-template-rows:auto auto auto auto auto minmax(0,1fr) auto!important;
   align-items:start!important;gap:0!important;
   min-width:0!important;margin:0!important;
@@ -45,7 +45,7 @@
   position:sticky!important;top:0!important;align-self:stretch!important;
   overflow:visible!important;min-width:0!important;
   width:100%!important;min-height:100%!important;
-  padding:17px 10px 20px!important;margin:0!important;
+  padding:20px 12px 22px!important;margin:0!important;
   background:linear-gradient(180deg,#edf4fc 0%,#e8f0f9 100%)!important;
   border-right:1px solid #d2e0ee!important;border-bottom:0!important;
   border-radius:0!important;box-sizing:border-box!important
@@ -59,12 +59,12 @@
 #modal .v4100-dossier>.v4413-profile-tabs>button{
   display:flex!important;align-items:center!important;
   justify-content:space-between!important;
-  width:100%!important;min-height:43px!important;flex:0 0 auto!important;
-  padding:10px 12px!important;margin:0!important;
+  width:100%!important;min-height:47px!important;flex:0 0 auto!important;
+  padding:12px 13px!important;margin:0!important;
   background:transparent!important;border:1px solid transparent!important;
   border-radius:9px!important;text-align:left!important;white-space:normal!important;
   color:#42607f!important;font-weight:810!important;
-  font-size:12px!important;line-height:1.25!important;
+  font-size:14px!important;line-height:1.3!important;
   box-shadow:none!important
 }
 #modal .v4100-dossier>.v4413-profile-tabs>button:hover{
@@ -88,11 +88,11 @@
   display:grid!important;grid-template-columns:minmax(0,1fr)!important;
   gap:11px!important;align-items:start!important;
   width:100%!important;min-width:0!important;margin:0!important;
-  padding:19px 22px 14px!important;
+  padding:23px 28px 19px!important;
   background:#fff!important;border-bottom:1px solid #e6edf5!important
 }
 #modal .v4100-dossier .v4413-profile-name>h2{
-  color:#112f55!important;font-size:clamp(21px,2.2vw,29px)!important;
+  color:#112f55!important;font-size:clamp(25px,2.15vw,34px)!important;
   font-weight:930!important;margin:0 0 11px!important;line-height:1.16!important;
   max-width:100%!important;white-space:normal!important;
   overflow-wrap:break-word!important;word-break:normal!important;
@@ -103,7 +103,7 @@
 }
 #modal .v4100-dossier .v4413-profile-identity>*{
   background:transparent!important;border:0!important;
-  padding:2px 9px 2px 0!important;font-size:11px!important;
+  padding:3px 10px 3px 0!important;font-size:13px!important;
   min-height:auto!important;color:#4b6783!important
 }
 #modal .v4100-dossier .v499-profile-flags{margin-top:9px!important}
@@ -119,8 +119,8 @@
 #modal .v4100-dossier .v4413-profile-actions>button{
   flex:0 1 auto!important;min-width:135px!important;
   width:auto!important;max-width:100%!important;
-  min-height:37px!important;padding:8px 13px!important;
-  border-radius:9px!important;font-size:11px!important;line-height:1.2!important
+  min-height:43px!important;padding:10px 17px!important;
+  border-radius:9px!important;font-size:13px!important;line-height:1.2!important
 }
 #modal .v4100-dossier>.v4413-profile-warning,
 #modal .v4100-dossier>.v4413-profile-complete{
@@ -132,7 +132,7 @@
 #modal .v4100-dossier>.v4413-profile-kpis{
   grid-column:2!important;grid-row:4!important;
   display:flex!important;flex-wrap:wrap!important;gap:0!important;
-  margin:12px 20px 4px!important;padding:8px 10px!important;
+  margin:15px 24px 6px!important;padding:10px 13px!important;
   background:#edf4fc!important;border:1px solid #dbe7f3!important;
   border-radius:10px!important;min-width:0!important
 }
@@ -146,11 +146,11 @@
 }
 #modal .v4100-dossier>.v4413-profile-kpis>div:before{display:none!important;content:none!important}
 #modal .v4100-dossier>.v4413-profile-kpis>div>span{
-  margin:0!important;font-size:10px!important;font-weight:670!important;
+  margin:0!important;font-size:12px!important;font-weight:670!important;
   text-transform:none!important;letter-spacing:0!important;color:#627e97!important
 }
 #modal .v4100-dossier>.v4413-profile-kpis>div>b{
-  margin:0!important;font-size:12px!important;font-weight:900!important;
+  margin:0!important;font-size:15px!important;font-weight:900!important;
   color:#234f79!important
 }
 /* Historia inserta una tarjeta como hija directa antes de tabs.
@@ -164,7 +164,7 @@
 #modal .v4100-dossier>.v4413-profile-panels{
   grid-column:2!important;grid-row:6!important;
   width:auto!important;min-width:0!important;min-height:0!important;
-  margin:3px 20px 20px!important;padding:0!important;
+  margin:8px 24px 24px!important;padding:0!important;
   background:transparent!important
 }
 #modal .v4100-dossier .v4413-profile-panels>section{
@@ -176,7 +176,7 @@
 }
 #modal .v4100-dossier .v499-personal-panel,
 #modal .v4100-dossier .v499-profile-note-panel{
-  padding:14px!important;border-radius:12px!important;background:#fff!important;
+  padding:19px!important;border-radius:12px!important;background:#fff!important;
   box-shadow:0 1px 6px rgba(23,55,85,.027)!important
 }
 #modal .v4100-dossier .v4413-data-grid{
@@ -190,10 +190,10 @@
   padding:8px 3px!important;gap:3px!important
 }
 #modal .v4100-dossier .v4413-data-grid>div>span{
-  font-size:9.5px!important;color:#71859b!important;font-weight:750!important
+  font-size:11px!important;color:#71859b!important;font-weight:750!important
 }
 #modal .v4100-dossier .v4413-data-grid>div>b{
-  font-size:12px!important;color:#1b3d60!important
+  font-size:14px!important;color:#1b3d60!important
 }
 #modal .v4100-dossier .v499-profile-note-panel .v499-note-text{
   min-height:85px!important;max-height:190px!important
@@ -236,7 +236,7 @@
 
 /* Una computadora antigua o monitor pequeño no debe perder acciones ni tabs. */
 @media(max-width:1060px){
-  #modal .v4100-dossier{grid-template-columns:185px minmax(0,1fr)!important}
+  #modal .v4100-dossier{grid-template-columns:210px minmax(0,1fr)!important}
   #modal .v4100-dossier>.v4413-profile-head{
     grid-template-columns:minmax(0,1fr)!important;
     padding:17px 15px 12px!important
