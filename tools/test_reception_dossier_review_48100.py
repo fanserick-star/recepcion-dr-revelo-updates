@@ -16,7 +16,7 @@ assert "static/patient_dossier_review_48100.css" in manifest["required_dependenc
 assert '/static/patient_dossier_review_48100.css?v=' + version in html
 assert '/static/app.js?v=' + version in html
 assert '#modal .v4100-dossier' in css
-assert 'grid-template-columns:218px minmax(0,1fr)' in css
+assert 'grid-template-columns:238px minmax(0,1fr)' in css
 assert '.v4413-profile-tabs' in css and 'flex-direction:column!important' in css
 assert '.v4413-profile-kpis>div:before{display:none!important' in css
 assert 'background:transparent!important;border:0!important' in css
@@ -82,5 +82,6 @@ assert manifest["notes"].get("database_schema_changes") is False
 # Esta prueba se ejecuta también desde el workflow principal de Recepción.
 import runpy
 runpy.run_path(str(Path(__file__).with_name("test_reception_dossier_long_name_layout.py")), run_name="__main__")
+runpy.run_path(str(Path(__file__).with_name("test_reception_profile_readability_email_48107.py")), run_name="__main__")
 
 print("RECEPTION_DOSSIER_REVIEW_DIALOG_48100_OK")
