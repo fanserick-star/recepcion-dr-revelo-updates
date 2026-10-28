@@ -40,4 +40,16 @@ for key in ('v4100-dossier','v4413-profile-head','v4413-profile-name','v4413-pro
 for section in ('resumen','atenciones','agenda','facturacion','documentos'):
     assert f'data-profile-panel="{section}"' in p
 assert '/static/patient_dossier_review_48100.css' in html
+# If a prior 'new patient' workflow left its class on the shared modal,
+# the narrow 730px rule must not override the wide patient dossier.
+protect=rule("#modal .modalbox.v4413-profile-shell.v481-patient-modal")
+assert "width:min(1720px,96vw)!important" in protect
+assert "max-width:96vw!important" in protect
+assert "padding:0!important" in protect
+assert "@media(max-width:1320px)" in css
+assert "grid-template-columns:minmax(0,1fr)!important" in css
+assert "overflow-wrap:break-word!important;word-break:normal!important" in css
+
+import subprocess
+subprocess.run(["node","tools/test_reception_modal_class_reset_48108.mjs"],check=True)
 print("RECEPTION_DOSSIER_LONG_NAME_LAYOUT_OK")

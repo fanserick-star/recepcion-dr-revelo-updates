@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.107",
-  "app_version": "4.8.107",
-  "runtime_version": "4.8.107",
+  "version": "4.8.108",
+  "app_version": "4.8.108",
+  "runtime_version": "4.8.108",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.107: amplía el expediente de recepción en monitores de escritorio y aumenta la legibilidad de nombre, pestañas, botones y datos. Además, el correo opcional solo muestra advertencia de formato al salir del campo, no mientras se escribe. Sin cambios en pacientes, Historia, Agenda, Neon, facturación, TV o WhatsApp.",
-    "previous_version": "4.8.106",
+    "purpose": "Recepción 4.8.108: repara el expediente de paciente que quedaba muy estrecho tras cambiar de formulario. Limpia clases antiguas v481/v477 y posición del scroll al abrir/cerrar ventanas; evita heredar el ancho reducido a 730px. En pantallas medianas presenta los datos y observaciones sin comprimir identificaciones, fechas y teléfonos. Conserva Agenda, Historia, cobros, WhatsApp, TV, Neon y datos existentes.",
+    "previous_version": "4.8.107",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
