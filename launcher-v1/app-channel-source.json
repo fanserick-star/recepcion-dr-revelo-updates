@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.108: expediente de pacientes ocupa todo el ancho disponible, sin heredar tamaño del formulario anterior; scroll vuelve al principio y datos mejor distribuidos."
+  "notes": "Recepción 4.8.109: reparación del botón Eliminar cita de la Agenda para citas externas sin vínculo (HTTP 405), con prueba de rutas DELETE y cancelación de recordatorios pendientes."
 }
