@@ -309,7 +309,11 @@ def resilient_delivery_loop() -> None:
         # Un nuevo paciente despierta el worker INMEDIATAMENTE.
         # La espera periódica rescata pendientes; los reintentos usan su fecha real.
         # Nunca sondeamos Neon en bucle para acelerar una entrega.
-        _lan._DELIVERY_WAKE.wait(timeout=_lan.next_retry_wait_seconds(max_wait=45))
+        # Desconectado: el monitor LAN nos despierta al recuperar conexión.
+        # No girar cada 100 ms si venció un reintento mientras estaba offline.
+        online = bool(_lan._snapshot().get("lan_online"))
+        timeout = _lan.next_retry_wait_seconds(max_wait=45) if online else 45
+        _lan._DELIVERY_WAKE.wait(timeout=timeout)
         _lan._DELIVERY_WAKE.clear()
         try:
             if _lan._snapshot().get("lan_online"):
