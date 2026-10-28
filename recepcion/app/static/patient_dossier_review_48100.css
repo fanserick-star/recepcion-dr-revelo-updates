@@ -14,6 +14,14 @@
   border-radius:19px!important;
   box-shadow:0 28px 75px rgba(14,38,65,.27)!important;
 }
+/* Protección adicional si una capa antigua volviera a dejar activa
+   la clase del formulario: el expediente siempre conserva su tamaño real. */
+#modal .modalbox.v4413-profile-shell.v481-patient-modal{
+  width:min(1720px,96vw)!important;
+  max-width:96vw!important;
+  max-height:95vh!important;
+  padding:0!important;
+}
 /* Evita que el contenedor interno conserve un ancho intrínseco reducido.
    Solo se aplica al modal del expediente, nunca al de atención o agenda. */
 #modal .modalbox.v4413-profile-shell>#modalBody{
@@ -193,7 +201,9 @@
   font-size:11px!important;color:#71859b!important;font-weight:750!important
 }
 #modal .v4100-dossier .v4413-data-grid>div>b{
-  font-size:14px!important;color:#1b3d60!important
+  font-size:14px!important;color:#1b3d60!important;
+  overflow-wrap:break-word!important;word-break:normal!important;
+  font-variant-numeric:tabular-nums!important
 }
 #modal .v4100-dossier .v499-profile-note-panel .v499-note-text{
   min-height:85px!important;max-height:190px!important
@@ -234,6 +244,13 @@
   }
 }
 
+/* Los datos y fechas tienen prioridad sobre el panel de observaciones:
+   con ancho de ventana intermedio se evita dividir cada dato en sílabas. */
+@media(max-width:1320px){
+  #modal .v4100-dossier .v499-profile-dashboard{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
 /* Una computadora antigua o monitor pequeño no debe perder acciones ni tabs. */
 @media(max-width:1060px){
   #modal .v4100-dossier{grid-template-columns:210px minmax(0,1fr)!important}
