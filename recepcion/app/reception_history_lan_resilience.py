@@ -307,8 +307,9 @@ def resilient_delivery_loop() -> None:
     """Único worker de entrega. Nunca interrumpe la comprobación LAN."""
     while True:
         # Un nuevo paciente despierta el worker INMEDIATAMENTE.
-        # La espera periódica también rescata pendientes tras reinicios/fallos.
-        _lan._DELIVERY_WAKE.wait(timeout=45)
+        # La espera periódica rescata pendientes; los reintentos usan su fecha real.
+        # Nunca sondeamos Neon en bucle para acelerar una entrega.
+        _lan._DELIVERY_WAKE.wait(timeout=_lan.next_retry_wait_seconds(max_wait=45))
         _lan._DELIVERY_WAKE.clear()
         try:
             if _lan._snapshot().get("lan_online"):
