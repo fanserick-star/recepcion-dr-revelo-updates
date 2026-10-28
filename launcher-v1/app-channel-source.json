@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.107: expediente del paciente más grande y legible, aviso de correo opcional después de terminar de escribir; conservadas todas las acciones y datos."
+  "notes": "Recepción 4.8.108: expediente de pacientes ocupa todo el ancho disponible, sin heredar tamaño del formulario anterior; scroll vuelve al principio y datos mejor distribuidos."
 }
