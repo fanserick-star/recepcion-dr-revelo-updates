@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.109",
-  "app_version": "4.8.109",
-  "runtime_version": "4.8.109",
+  "version": "4.8.110",
+  "app_version": "4.8.110",
+  "runtime_version": "4.8.110",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.109: corrige error HTTP 405 Method Not Allowed al eliminar citas importadas o sin paciente vinculado. El capturador de botones usa la ruta DELETE /api/agenda/unlinked/{id} en lugar del detalle GET /api/agenda/confirmafy-staged/{id}. Mantiene la ruta propia de citas vinculadas y cancela recordatorios pendientes de citas externas eliminadas. Se prueba la captura real de botones para ambos tipos de cita. Sin cambios de esquema, datos clínicos, pacientes ni Agenda principal.",
-    "previous_version": "4.8.108",
+    "purpose": "Recepción 4.8.110: reparación urgente de Nueva atención. El remaster de Crear/Editar paciente solo se ejecuta si existe el formulario real con fCedula y fNombre separados; antes confundía el buscador único que menciona cédula, nombres y correo, bloqueaba Crear paciente nuevo e introducía una advertencia de correo. Se conservan las validaciones dentro del formulario y la Agenda independiente; prueba funcional de ambos contextos. Sin cambios en Neon, Historia ni registros.",
+    "previous_version": "4.8.109",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
