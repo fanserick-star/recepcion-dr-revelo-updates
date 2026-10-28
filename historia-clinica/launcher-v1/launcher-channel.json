@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "historia-launcher-dr-revelo",
-  "latestVersion": "1.0.8",
+  "latestVersion": "1.0.9",
   "mandatory": true,
-  "notes": "Launcher Historia 1.0.8: impresión directa nativa de recetas y certificados con WebView2, sin vista previa del navegador; corrige el vínculo about:blank.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_8.exe",
-  "installerSha256": "7dad1d2429a50c781868f092fc7c3e873aec8d788e4e19e5b65a0a04c13a2cc6",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.8/HistoriaLauncherUpdater.exe",
-  "updaterSha256": "f288a8fb1c6388ee2ebf26e2581f4f3b9b855fae3066a6e2b5673ac90222e320"
+  "notes": "Launcher Historia 1.0.9: impresión directa nativa de recetas y certificados con WebView2, sin vista previa del navegador; corrige el vínculo about:blank.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.9/INSTALAR_LAUNCHER_HISTORIA_CLINICA_DR_REVELO_V1_0_9.exe",
+  "installerSha256": "393a8889a09120c40e7c36c212935d467b8de71b37eabdc1d997ddc209fcca5b",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/historia-launcher-v1.0.9/HistoriaLauncherUpdater.exe",
+  "updaterSha256": "1d606fd02dcd51466efd40a365f68cd4633378c6c3101de4c6eccd1164e297b5"
 }
