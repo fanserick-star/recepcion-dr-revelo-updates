@@ -27,7 +27,7 @@ const totalOverrides=[...core.matchAll(/window\.newAttention\s*=\s*(?:async\s+)?
 assert.equal(totalOverrides.length,1,'only V477 may wrap canonical newAttention');
 
 let rendered='',focusCount=0,modalStyled=false;
-const modal={classList:{add:name=>{if(name==='v477-attention-modalbox')modalStyled=true}}};
+const modal={classList:{add:name=>{if(name==='v477-attention-modalbox')modalStyled=true}},querySelector:selector=>selector==='.v477-attention-remaster'?{}:null};
 const document={
   querySelector:selector=>{
     if(selector==='#modal .modalbox')return modal;
