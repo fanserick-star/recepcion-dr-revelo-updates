@@ -13,7 +13,7 @@ assert tuple(map(int, version["version"].split("."))) >= (4,8,97)
 assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == version["version"]
 assert "static/sidebar_status_hub_4897.js" in manifest["copy"]
 assert "static/sidebar_status_hub_4897.js" in manifest["required_dependencies"]
-assert '/static/sidebar_status_hub_4897.js?v=4.8.97' in html
+assert '/static/sidebar_status_hub_4897.js?v=4.8.105' in html
 assert '/static/home_remaster_4886.css?v=' + version["version"] in html
 
 aside = html[html.index("<aside>"):html.index("</aside>")]
@@ -37,6 +37,13 @@ assert "'Conectada'+(count>0" in js
 assert "online?'Conectada':reachable?'Sin conexión':'Sin comprobar'" in js
 assert "'/api/reception/tv/status'" in js
 assert "data?.tv_online===true" in js and "data?.ok===true" in js
+assert "'/api/tv-turnos/health'" in js
+assert "event.source!==frame.contentWindow" in js
+assert "event.origin!==allowedOrigin" in js
+assert "data.type!=='reception-tv-heartbeat-v1'" in js
+assert "window.addEventListener('message',onTvMessage)" in js
+assert 'sendTvStatusToReception(s)' in (root/'tv_control.html').read_text(encoding='utf-8')
+assert "typeof data.tv_online!=='boolean'" in js
 assert "document.hidden||reading" in js
 assert "app.classList.contains('hidden')" in js
 assert "new MutationObserver(renderOriginals)" in js
@@ -54,4 +61,6 @@ assert 'timeout=1.3' not in app
 assert 'aside .r495-sidebar-status.r497-status-hub' in css
 assert "r497-status-row" in css and "r497-status-sources" in css
 assert "overflow:hidden!important" in css
+import subprocess
+subprocess.run(["node", "tools/test_reception_tv_sidebar_message_48105.mjs"], check=True)
 print("RECEPTION_STATUS_HUB_4897_OK")
