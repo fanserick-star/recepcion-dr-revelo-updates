@@ -333,17 +333,15 @@ def v466_health(user=core.Depends(core.current_user)):
     return {'ok': True, 'version': APP_VERSION, 'attention_write': 'sqlite-first-cloud-write-behind', 'cloud_sync_background': True, 'print_source': 'sqlite-local', 'procedure_auto_print': False, 'consultation_auto_print': True, 'procedure_printing_label_removed': True, 'database_schema_changes': False, 'billing_logic_changes': False, 'azur_logic_changes': False, 'whatsapp_logic_changes': False}
 
 
-# 4.8.86: solo lectura local del estado TV para el nuevo Inicio.
-# No altera History/TV ni sondea Neon; el frontend consulta al abrir Inicio.
+# 4.8.104: consultar directamente el mismo servicio TV de Recepción.
+# El proxy HTTP a 127.0.0.1:8899 producía falsos "Sin comprobar" por
+# timeout/proxy local aunque el televisor siguiera enviando su heartbeat.
+# Este endpoint es SOLO lectura; no toca turnos, Historia, Neon ni la TV.
 @app.get("/api/reception/tv/status", dependencies=[core.Depends(core.current_user)])
 def reception_tv_status_4886():
     try:
-        request = urllib.request.Request(
-            "http://127.0.0.1:8899/api/status",
-            headers={"Cache-Control": "no-cache", "User-Agent": f"ReceptionLocal/{APP_VERSION}"},
-        )
-        with urllib.request.urlopen(request, timeout=1.3) as response:
-            status = json.loads(response.read(32768).decode("utf-8"))
+        from reception_tv_turns import SERVICE
+        status = SERVICE.status()
         if not isinstance(status, dict):
             raise ValueError("Estado TV no válido")
         return {
