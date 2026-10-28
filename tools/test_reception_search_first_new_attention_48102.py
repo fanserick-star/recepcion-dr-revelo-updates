@@ -69,6 +69,9 @@ assert core.count('window.newAttention=async function(){') == 0
 # Functional regression: execute the actual source + ordered runtime overlays.
 import subprocess
 subprocess.run(['node','tools/test_reception_new_attention_runtime_48106.mjs'],check=True)
+# Guard against the V481/V482 form-detection regression: the single search
+# input mentions cedula/nombre/correo but is never a patient registration form.
+subprocess.run(['node','tools/test_reception_new_patient_remaster_scope_48110.mjs'],check=True)
 
 assert 'attention-search-only' in css
 assert 'attention-search-hint' in css
