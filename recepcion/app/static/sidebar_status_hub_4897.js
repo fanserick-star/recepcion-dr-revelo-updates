@@ -47,7 +47,41 @@
       if(row&&version.title&&row.title!==version.title)row.title=version.title;
     }
   }
-  let reading=false,lastReading=0;
+  let reading=false,lastReading=0,lastControlSignalAt=0;
+  function freshControlSignal(){
+    return lastControlSignalAt>0&&Date.now()-lastControlSignalAt<10000;
+  }
+  function paintTv(data,origin){
+    const reachable=data?.ok===true;
+    const online=reachable&&data?.tv_online===true;
+    const title=online?'Pantalla TV confirmada por '+origin:
+      reachable?'Servicio TV activo, pero el televisor no envía señal reciente':
+      'No se pudo comprobar el estado TV local';
+    paint('r497TvRow',online?'online':reachable?'offline':'unknown',
+      online?'Conectada':reachable?'Sin conexión':'Sin comprobar',title);
+  }
+  function onTvMessage(event){
+    const frame=get('r486TvFrame');
+    if(!frame||event.source!==frame.contentWindow)return;
+    const src=frame.getAttribute('src');
+    if(!src)return;
+    let allowedOrigin='';
+    try{allowedOrigin=new URL(src,document.baseURI).origin}catch(_e){return}
+    if(event.origin!==allowedOrigin)return;
+    const data=event.data;
+    if(!data||data.type!=='reception-tv-heartbeat-v1'
+      ||data.ok!==true||typeof data.tv_online!=='boolean')return;
+    lastControlSignalAt=Date.now();
+    paintTv({ok:true,tv_online:data.tv_online},'el panel TV');
+  }
+  async function getTvStatus(url){
+    const response=await fetch(url,{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)throw Error('HTTP '+response.status+' al consultar TV');
+    const data=await response.json();
+    if(!data||typeof data!=='object'||typeof data.tv_online!=='boolean')
+      throw Error('Estado TV inválido');
+    return data;
+  }
   async function refreshTv(force=false){
     const app=get('app');
     if(!app||app.classList.contains('hidden')||document.hidden||reading)return;
@@ -55,20 +89,27 @@
     if(!force&&now-lastReading<30000)return;
     lastReading=now;reading=true;
     try{
-      const response=await fetch('/api/reception/tv/status',{
-        cache:'no-store',credentials:'same-origin'
-      });
-      if(!response.ok)throw Error('El servicio de estado TV no respondió');
-      const data=await response.json();
-      const reachable=data?.ok===true;
-      const online=reachable&&data?.tv_online===true;
-      const title=online?'Pantalla TV accesible por la red local':
-        reachable?'Servicio local activo, pero la pantalla TV no responde':
-        'No se pudo comprobar el panel de TV local';
-      paint('r497TvRow',online?'online':reachable?'offline':'unknown',
-        online?'Conectada':reachable?'Sin conexión':'Sin comprobar',title);
-    }catch(_e){
-      paint('r497TvRow','unknown','Sin comprobar','No se pudo consultar el estado TV local');
+      let data;
+      try{
+        data=await getTvStatus('/api/reception/tv/status');
+        if(data.ok!==true)throw Error('Servicio TV sin respuesta');
+      }catch(firstError){
+        // Misma instancia TV, segunda ruta autenticada; nunca consulta Neon.
+        try{data=await getTvStatus('/api/tv-turnos/health')}
+        catch(secondError){
+          if(!freshControlSignal()){
+            paint('r497TvRow','unknown','Sin comprobar',
+              'Estado TV no disponible: '+String(secondError?.message||firstError?.message||'error'));
+          }
+          return;
+        }
+      }
+      if(data.ok!==true&&freshControlSignal())return;
+      paintTv(data,'el servicio local');
+    }catch(error){
+      if(!freshControlSignal())
+        paint('r497TvRow','unknown','Sin comprobar',
+          'Error al consultar TV: '+String(error?.message||'desconocido'));
     }finally{reading=false;}
   }
   function boot(){
@@ -77,6 +118,7 @@
     const observer=new MutationObserver(renderOriginals);
     observer.observe(sources,{subtree:true,attributes:true,childList:true,characterData:true});
     renderOriginals();
+    window.addEventListener('message',onTvMessage);
     refreshTv(true);
     const app=get('app');
     if(app){
