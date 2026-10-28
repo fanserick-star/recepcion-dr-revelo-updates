@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.105: corrige Pantalla TV «Sin comprobar» sincronizando su indicador con la señal real del panel de TV y una ruta alternativa local. Sin cambios en turnos, Historia ni datos de pacientes."
+  "notes": "Recepción 4.8.106: elimina definitivamente Agenda de hoy de Nueva atención y conserva búsqueda/creación del paciente. Protegido por pruebas de ejecución de las capas JavaScript; no altera Agenda principal ni datos clínicos."
 }

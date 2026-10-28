@@ -1,4 +1,4 @@
-"""Recepción 4.8.105 — iniciar atención buscando paciente, no desde Agenda.
+"""Recepción 4.8.106 — iniciar atención buscando paciente, no desde Agenda.
 No accede a pacientes ni realiza llamadas externas.
 """
 from pathlib import Path
@@ -10,9 +10,9 @@ html=(ROOT/"static/index.html").read_text(encoding="utf-8")
 css=(ROOT/"static/home_remaster_4886.css").read_text(encoding="utf-8")
 m=json.loads((ROOT/"update_manifest.json").read_text(encoding="utf-8"))
 v=json.loads((ROOT/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert v==m["version"]==m["runtime_version"]==m["app_version"]=="4.8.105"
-assert '/static/app.js?v=4.8.105' in html
-assert '/static/home_remaster_4886.css?v=4.8.105' in html
+assert v==m["version"]==m["runtime_version"]==m["app_version"]=="4.8.106"
+assert '/static/app.js?v=4.8.106' in html
+assert '/static/home_remaster_4886.css?v=4.8.106' in html
 start=app.index("function newAttention(){")
 stop=app.index("function procedureByName(",start)
 flow=app[start:stop]
@@ -54,6 +54,22 @@ assert 'v477-attention-modalbox' in injected
 for forbidden in ("window.newAttention=async function","id=\"attentionWeekBlock\"",
                   "loadAttentionWeek(false","Agenda de hoy","window.renderAttentionWeek=function"):
     assert forbidden not in injected,forbidden
+# The old v4.3.78 remix is still in the served overlay for Home.
+# It must NEVER replace the canonical newAttention entry point.
+remix_start=core.index('V478_REMIX_JS = r"""')
+remix_end=core.index('V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\\n" + V478_REMIX_CSS',remix_start)
+remix=core[remix_start:remix_end]
+assert 'window.newAttention=async function' not in remix
+assert 'id="attentionWeekBlock"' not in remix
+assert 'loadAttentionWeek(false,attentionWeekAnchor)' not in remix
+assert 'window.renderHomeDayPayload=function' in remix
+assert core.count('window.newAttention=function(){') == 1
+assert core.count('window.newAttention=async function(){') == 0
+
+# Functional regression: execute the actual source + ordered runtime overlays.
+import subprocess
+subprocess.run(['node','tools/test_reception_new_attention_runtime_48106.mjs'],check=True)
+
 assert 'attention-search-only' in css
 assert 'attention-search-hint' in css
 

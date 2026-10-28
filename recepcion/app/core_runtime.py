@@ -11424,12 +11424,9 @@ V478_REMIX_JS = r""";(()=>{
     box.innerHTML=`<div class="v478-agenda-shell"><div class="v478-agenda-brand"><div class="v478-agenda-title"><span>PACIENTES DE HOY</span><strong>AGENDA</strong></div><div class="v478-agenda-date"><b>${eh(day.label)} · ${fmtDate(day.date)}</b><span>${rows.length} ${rows.length===1?'cita':'citas'}</span>${conflicts?`<span class="v478-agenda-conflict">⚠ ${conflicts} duplicada${conflicts===1?'':'s'}</span>`:''}</div></div><div class="v478-shifts">${shiftBlock('MAÑANA',morning)}${shiftBlock('TARDE',afternoon)}</div></div>`;
   };
 
-  window.newAttention=async function(){
-    currentPatientSource='general';attentionSearchSeq++;attentionWeekAnchor=toISO(new Date());
-    openModal(`<div class="new-attention-start-modal v477-attention-remaster v478-attention"><div class="v477-attention-top"><div class="modal-form-heading"><h2>Nueva atención</h2><p>Selecciona un paciente de la agenda de hoy o búscalo por sus datos.</p></div><button class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Paciente nuevo</button></div><div class="attention-start-search"><label for="aSearch">Buscar paciente</label><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()"></div><div id="attentionWeekBlock" class="attention-week-block"><div id="attentionWeekCalendar" class="attention-week-calendar"><div class="attention-week-loading">Cargando agenda de hoy…</div></div></div><div id="aResults" class="results attention-results hidden"></div></div>`);
-    requestAnimationFrame(()=>document.querySelector('#modal .modalbox')?.classList.add('v477-attention-modalbox'));
-    loadAttentionWeek(false,attentionWeekAnchor);setTimeout(()=>$('#aSearch')?.focus(),0);
-  };
+  // Recepción 4.8.106: no redefinir newAttention aquí.
+  // static/app.js es la única fuente del flujo Buscar/Crear paciente.
+  // Se conserva el remaster de Inicio y la Agenda principal sin alteraciones.
 })();"""
 V460_OVERLAY_CSS = (V460_OVERLAY_CSS or "") + "\n" + V478_REMIX_CSS
 V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\n" + V478_REMIX_JS
