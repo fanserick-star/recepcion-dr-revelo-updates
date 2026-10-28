@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.102",
-  "app_version": "4.8.102",
-  "runtime_version": "4.8.102",
+  "version": "4.8.103",
+  "app_version": "4.8.103",
+  "runtime_version": "4.8.103",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.102: Nueva atención inicia por búsqueda de paciente con opción de crear paciente nuevo; elimina el calendario incrustado y la consulta /api/agenda/week al abrir. La agenda oficial continúa independiente con citas, WhatsApp y Confirmafy. Consolidación de dos definiciones del inicio: static/app.js es única fuente funcional, core_runtime.py solo añade estilo visual. Se preservan altas, validaciones, Historia LAN, consulta/procedimientos, revisión de exámenes, cobro e impresión. Se rechazan importes de procedimientos infinitos en el frontend. Sin cambios de esquema o datos.",
-    "previous_version": "4.8.101",
+    "purpose": "Recepción 4.8.103: corrige el expediente de recepción que comprimía y partía nombres largos en Nueva atención. Encabezado a ancho completo, botones debajo del nombre y Continuar atención visible junto a Editar datos. Se preservan las cinco secciones, vinculación Historia, Agenda, facturación, impresión y flujo de atención; sin cambios de esquema, datos ni APIs.",
+    "previous_version": "4.8.102",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
