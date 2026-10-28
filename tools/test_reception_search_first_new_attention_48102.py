@@ -1,4 +1,4 @@
-"""Recepción 4.8.103 — iniciar atención buscando paciente, no desde Agenda.
+"""Recepción 4.8.104 — iniciar atención buscando paciente, no desde Agenda.
 No accede a pacientes ni realiza llamadas externas.
 """
 from pathlib import Path
@@ -10,9 +10,9 @@ html=(ROOT/"static/index.html").read_text(encoding="utf-8")
 css=(ROOT/"static/home_remaster_4886.css").read_text(encoding="utf-8")
 m=json.loads((ROOT/"update_manifest.json").read_text(encoding="utf-8"))
 v=json.loads((ROOT/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert v==m["version"]==m["runtime_version"]==m["app_version"]=="4.8.103"
-assert '/static/app.js?v=4.8.103' in html
-assert '/static/home_remaster_4886.css?v=4.8.103' in html
+assert v==m["version"]==m["runtime_version"]==m["app_version"]=="4.8.104"
+assert '/static/app.js?v=4.8.104' in html
+assert '/static/home_remaster_4886.css?v=4.8.104' in html
 start=app.index("function newAttention(){")
 stop=app.index("function procedureByName(",start)
 flow=app[start:stop]

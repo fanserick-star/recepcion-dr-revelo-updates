@@ -45,9 +45,11 @@ assert "setInterval(()=>refreshTv(false),30000)" in js
 for denied in ("/api/protection","/api/historia-bridge","neon","CloudSession",
                "localStorage","sessionStorage","/api/v4501/system-status"):
     assert denied not in js, denied
-assert 'http://127.0.0.1:8899/api/status' in app
+assert 'from reception_tv_turns import SERVICE' in app
+assert 'status = SERVICE.status()' in app
+assert 'http://127.0.0.1:8899/api/status' not in app
 assert '"tv_online": bool(status.get("tv_online"))' in app
-assert 'timeout=1.3' in app
+assert 'timeout=1.3' not in app
 
 assert 'aside .r495-sidebar-status.r497-status-hub' in css
 assert "r497-status-row" in css and "r497-status-sources" in css

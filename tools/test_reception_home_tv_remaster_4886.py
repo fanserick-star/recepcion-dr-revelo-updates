@@ -23,7 +23,9 @@ assert 'id="r486TvFrame"' in html
 assert 'id="r486TvState"' not in html  # control duplicado de TV retirado del lateral
 assert 'id="r486Metrics"' in html
 assert "http://127.0.0.1:8899/control" in js
-assert "http://127.0.0.1:8899/api/status" in server
+assert 'from reception_tv_turns import SERVICE' in server
+assert 'status = SERVICE.status()' in server
+assert "http://127.0.0.1:8899/api/status" not in server
 assert '@app.get("/api/reception/tv/status", dependencies=[core.Depends(core.current_user)])' in server
 assert "status.get(\"tv_online\")" in server and "status.get(\"history_online\")" in server
 assert "tvState&&tvState.ok&&tvState.history_online" in js

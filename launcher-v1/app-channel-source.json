@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.103: corrige el expediente de pacientes con nombres largos, evita su división entre sílabas y muestra Continuar atención claramente en el encabezado. Conserva Historia Clínica, Agenda, facturación, impresiones y sincronización LAN."
+  "notes": "Recepción 4.8.104: corrige el indicador Pantalla TV del estado del sistema. Consulta directamente el servicio TV local y mantiene el heartbeat real sin fallos del proxy HTTP. Ningún cambio en Historia, turnos, agenda, facturas ni datos."
 }
