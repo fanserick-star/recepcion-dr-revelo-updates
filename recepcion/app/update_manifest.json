@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.104",
-  "app_version": "4.8.104",
-  "runtime_version": "4.8.104",
+  "version": "4.8.105",
+  "app_version": "4.8.105",
+  "runtime_version": "4.8.105",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.104: el indicador Pantalla TV consulta directamente el servicio TV local en vez de un proxy HTTP a 127.0.0.1:8899 que podía agotar tiempo o fallar y mostrar falsamente Sin comprobar. Respeta el heartbeat real de la TV, conserva Sistema/Historia LAN y no modifica turnos, atención, pagos, impresiones, WhatsApp, Neon ni datos de pacientes.",
-    "previous_version": "4.8.103",
+    "purpose": "Recepción 4.8.105: el indicador lateral Pantalla TV admite la señal directa verificada del panel de control existente y una segunda ruta local de estado autenticada. Corrige el falso Sin comprobar mientras el panel indica Conectada. Solo lectura de heartbeat; sin cambios en turnos, TV box, Historia, pagos, impresoras, agenda, Neon o datos de pacientes.",
+    "previous_version": "4.8.104",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
