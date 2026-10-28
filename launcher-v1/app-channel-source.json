@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.104: corrige el indicador Pantalla TV del estado del sistema. Consulta directamente el servicio TV local y mantiene el heartbeat real sin fallos del proxy HTTP. Ningún cambio en Historia, turnos, agenda, facturas ni datos."
+  "notes": "Recepción 4.8.105: corrige Pantalla TV «Sin comprobar» sincronizando su indicador con la señal real del panel de TV y una ruta alternativa local. Sin cambios en turnos, Historia ni datos de pacientes."
 }
