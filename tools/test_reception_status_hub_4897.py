@@ -61,4 +61,6 @@ assert 'timeout=1.3' not in app
 assert 'aside .r495-sidebar-status.r497-status-hub' in css
 assert "r497-status-row" in css and "r497-status-sources" in css
 assert "overflow:hidden!important" in css
+import subprocess
+subprocess.run(["node", "tools/test_reception_tv_sidebar_message_48105.mjs"], check=True)
 print("RECEPTION_STATUS_HUB_4897_OK")
