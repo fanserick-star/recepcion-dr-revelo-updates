@@ -6,6 +6,7 @@ import inspect
 import pathlib
 import sys
 import time
+import threading
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "recepcion/app"))
@@ -77,19 +78,25 @@ def check_delivery_worker_and_badge():
     original_handoff = lan._flush_lan_outbox
     original_control = lan._flush_control_outbox
     original_wake = lan._DELIVERY_WAKE
+    original_retry = lan.next_retry_wait_seconds
+    main_thread = threading.current_thread()
     calls = []
     class Stop(BaseException): pass
     class FakeWake:
         def wait(self, timeout):
             assert timeout == 45
+            if threading.current_thread() is not main_thread:
+                time.sleep(0.02)  # un worker real ya iniciado no debe competir con esta prueba
         def clear(self):
             pass
     try:
-        lan._snapshot = lambda: {"lan_online": True}
-        lan._flush_control_outbox = lambda: calls.append("control")
+        lan._snapshot = lambda: {"lan_online": threading.current_thread() is main_thread}
+        lan.next_retry_wait_seconds = lambda max_wait=45: 45
+        lan._flush_control_outbox = lambda: calls.append("control") if threading.current_thread() is main_thread else None
         def handoff():
-            calls.append("handoff")
-            raise Stop()
+            if threading.current_thread() is main_thread:
+                calls.append("handoff")
+                raise Stop()
         lan._flush_lan_outbox = handoff
         lan._DELIVERY_WAKE = FakeWake()
         try:
@@ -102,6 +109,7 @@ def check_delivery_worker_and_badge():
         lan._flush_control_outbox = original_control
         lan._flush_lan_outbox = original_handoff
         lan._DELIVERY_WAKE = original_wake
+        lan.next_retry_wait_seconds = original_retry
 
     source = (ROOT / "recepcion/app/reception_history_transport.py").read_text(encoding="utf-8")
     assert "setInterval(refresh,5000);" in source
