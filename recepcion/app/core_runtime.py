@@ -8443,6 +8443,11 @@ def agenda_delete_unlinked(item_id: int, db: Session = Depends(get_db), user: Us
     audit(db, user, "eliminar_cita_sin_vincular" + ("_offline" if is_offline_db(db) else ""), f"Cita {item_id}")
     db.commit()
     if not is_offline_db(db): mirror_delete_confirmafy_agenda_local(item_id)
+    # Igual que en la autoagenda móvil: una cita eliminada nunca debe
+    # conservar recordatorios pendientes ni alarmas del coordinador.
+    _whatsapp_cancel_pending("staged", item_id)
+    if not is_offline_db(db):
+        _whatsapp_alarm_notify_async()
     return {"ok": True}
 
 
@@ -11112,7 +11117,9 @@ V474_CAPTURE_FIX_JS = r""";(()=>{
     try{
       if(!(await ask('¿Eliminar esta cita y liberar el horario? La ficha del paciente no se borrará.','Eliminar cita')))return;
       if(btn)btn.disabled=true;
-      const url=kind==='staged'?`/api/agenda/confirmafy-staged/${id}`:`/api/agenda/appointments/${id}`;
+      // Las citas externas sin ficha solo se eliminan por la ruta DELETE /unlinked.
+      // /confirmafy-staged/{id} existe únicamente para GET (antes respondía HTTP 405).
+      const url=kind==='staged'?`/api/agenda/unlinked/${id}`:`/api/agenda/appointments/${id}`;
       await req(url,{method:'DELETE'});
       try{if(typeof window.closeModal==='function')window.closeModal()}catch(_e){}
       try{
