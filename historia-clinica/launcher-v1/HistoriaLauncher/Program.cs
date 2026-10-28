@@ -120,7 +120,7 @@ internal static class ShortcutRepair
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.8";
+    const string LauncherVersion = "1.0.9";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/historia-clinica/launcher-v1/launcher-channel.json";
     const int Port = 8787;
@@ -822,6 +822,9 @@ internal sealed class LauncherForm : Form
             "staging_" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
 
+        var downloadedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        int reused = 0;
+
         try
         {
             for (int i = 0; i < channel.Files.Count; i++)
@@ -834,7 +837,9 @@ internal sealed class LauncherForm : Form
 
                 int basePct = 24 + (int)(22.0 * i / channel.Files.Count);
                 int nextPct = 24 + (int)(22.0 * (i + 1) / channel.Files.Count);
-                await DownloadVerifiedAsync(f, dst, basePct, nextPct, i + 1, channel.Files.Count);
+                if (await StageOrDownloadVerifiedAsync(f, dst, basePct, nextPct, i + 1, channel.Files.Count))
+                    downloadedPaths.Add(f.Path);
+                else reused++;
             }
 
             SetProgress(48, "Verificando actualización", "Probando la nueva versión antes de tocar la instalada…");
@@ -845,12 +850,33 @@ internal sealed class LauncherForm : Form
             if (!await WaitForPortFreeAsync(TimeSpan.FromSeconds(10)))
                 throw new InvalidOperationException("El servidor anterior no liberó el puerto 8787. No se modificó la instalación.");
 
+            // Revalidamos los archivos reutilizados después de detener el
+            // servidor: si alguno cambió durante la preprueba, instalamos la
+            // copia de staging ya verificada en vez de dejar una mezcla.
+            foreach (var f in channel.Files)
+            {
+                if (downloadedPaths.Contains(f.Path)) continue;
+                var installedPath = Path.Combine(root, f.Path.Replace('/', Path.DirectorySeparatorChar));
+                bool stillMatches = false;
+                try
+                {
+                    stillMatches = File.Exists(installedPath) &&
+                        (await Sha256Async(installedPath)).Equals(f.Sha256, StringComparison.OrdinalIgnoreCase);
+                }
+                catch (IOException) { /* Archivo alterado o bloqueado: usar staging */ }
+                catch (UnauthorizedAccessException) { /* Usar copia verificada */ }
+                if (!stillMatches) downloadedPaths.Add(f.Path);
+            }
+            var filesToApply = channel.Files.Where(f => downloadedPaths.Contains(f.Path)).ToList();
+            SetProgress(55, "Actualización inteligente",
+                $"Descargados: {channel.Files.Count - reused} · Reutilizados: {reused} · Para instalar: {filesToApply.Count}");
+
             var backup = Path.Combine(root, "update_backups",
                 "launcher_v1_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(backup);
             var entries = new List<BackupEntry>();
 
-            foreach (var f in channel.Files)
+            foreach (var f in filesToApply)
             {
                 var rel = f.Path.Replace('/', Path.DirectorySeparatorChar);
                 var current = Path.Combine(root, rel);
@@ -870,7 +896,7 @@ internal sealed class LauncherForm : Form
             try
             {
                 int done = 0;
-                foreach (var f in channel.Files)
+                foreach (var f in filesToApply)
                 {
                     var rel = f.Path.Replace('/', Path.DirectorySeparatorChar);
                     var src = Path.Combine(staging, rel);
@@ -880,8 +906,8 @@ internal sealed class LauncherForm : Form
                     File.Copy(src, temp, true);
                     File.Move(temp, dest, true);
                     done++;
-                    SetProgress(58 + (int)(10.0 * done / channel.Files.Count),
-                        "Instalando actualización", $"Aplicando {done} de {channel.Files.Count} archivos…");
+                    SetProgress(58 + (int)(10.0 * done / Math.Max(1, filesToApply.Count)),
+                        "Instalando actualización", $"Aplicando {done} de {filesToApply.Count} archivos…");
                 }
             }
             catch
@@ -890,13 +916,42 @@ internal sealed class LauncherForm : Form
                 throw;
             }
 
-            SetProgress(69, "Actualización instalada", $"Historia Clínica {channel.AppVersion} quedó preparada.");
+            SetProgress(69, "Actualización instalada",
+                $"Historia Clínica {channel.AppVersion}: {downloadedPaths.Count} archivos aplicados; {channel.Files.Count - downloadedPaths.Count} conservados.");
             return backup;
         }
         finally
         {
             TryDeleteDirectory(staging);
         }
+    }
+
+    // true: falta o no coincide -> descargar y aplicar. false: la copia
+    // local coincide con el SHA-256 oficial -> reutilizarla sin red.
+    // Staging contiene SIEMPRE el paquete completo para la preprueba aislada.
+    async Task<bool> StageOrDownloadVerifiedAsync(
+        ChannelFile f, string dst, int startPct, int endPct, int index, int total)
+    {
+        var installed = Path.Combine(root, f.Path.Replace('/', Path.DirectorySeparatorChar));
+        try
+        {
+            if (File.Exists(installed) &&
+                (await Sha256Async(installed)).Equals(f.Sha256, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Copy(installed, dst, true);
+                // Una copia modificada simultáneamente no debe aceptarse.
+                if ((await Sha256Async(dst)).Equals(f.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    SetProgress(endPct, "Reutilizando archivo verificado",
+                        $"Archivo {index} de {total} · {Path.GetFileName(f.Path)}");
+                    return false;
+                }
+            }
+        }
+        catch (IOException) { /* Reparar con descarga oficial si no se puede copiar */ }
+        catch (UnauthorizedAccessException) { /* Nunca confiar en un archivo ilegible */ }
+        await DownloadVerifiedAsync(f, dst, startPct, endPct, index, total);
+        return true;
     }
 
     async Task DownloadVerifiedAsync(ChannelFile f, string dst, int startPct, int endPct, int index, int total)
