@@ -3,10 +3,17 @@ name: Build Historia Launcher v1 Package
 
 on:
   push:
+    branches: [main]
     paths:
       - "historia-clinica/launcher-v1/HistoriaLauncher/**"
       - "historia-clinica/launcher-v1/LauncherUpdater/**"
       - "historia-clinica/launcher-v1/Uninstaller/**"
+      - "historia-clinica/launcher-v1/installer/**"
+      - ".github/workflows/build-historia-launcher-v1.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "historia-clinica/launcher-v1/HistoriaLauncher/**"
       - "historia-clinica/launcher-v1/installer/**"
       - ".github/workflows/build-historia-launcher-v1.yml"
   workflow_dispatch:
@@ -15,7 +22,20 @@ permissions:
   contents: write
 
 jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Compile launcher on Windows before releasing
+        run: dotnet build "historia-clinica/launcher-v1/HistoriaLauncher/HistoriaLauncher.csproj" -c Release -p:EnableWindowsTargeting=true
+      - name: Verify SHA-256 delta and rollback contract
+        run: python tools/test_incremental_launcher_source.py
   build:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
