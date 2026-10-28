@@ -36,7 +36,10 @@ assert 'id="v4413ProfilePanels"' in patient
 assert 'id="rpClinicalDocs"' in patient
 assert 'window.loadClinicalDelivery' in patient
 assert 'fromAttentionSearch' in patient
-assert 'continueAttention' in patient
+assert 'class="primary v4417-continue-attention"' in patient
+assert 'data-continue-attention="1"' in patient
+assert 'onclick="attentionFor(${Number(id)})"' in patient
+assert 'const continueAttention=' not in patient
 assert "canDelete=source==='patients'" in patient
 assert 'openAgendaPatient(' in patient
 assert 'attentionFor(' in patient
