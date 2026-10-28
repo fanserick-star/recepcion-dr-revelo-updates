@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.106: elimina definitivamente Agenda de hoy de Nueva atención y conserva búsqueda/creación del paciente. Protegido por pruebas de ejecución de las capas JavaScript; no altera Agenda principal ni datos clínicos."
+  "notes": "Recepción 4.8.107: expediente del paciente más grande y legible, aviso de correo opcional después de terminar de escribir; conservadas todas las acciones y datos."
 }
