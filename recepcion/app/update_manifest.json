@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.108",
-  "app_version": "4.8.108",
-  "runtime_version": "4.8.108",
+  "version": "4.8.109",
+  "app_version": "4.8.109",
+  "runtime_version": "4.8.109",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.108: repara el expediente de paciente que quedaba muy estrecho tras cambiar de formulario. Limpia clases antiguas v481/v477 y posición del scroll al abrir/cerrar ventanas; evita heredar el ancho reducido a 730px. En pantallas medianas presenta los datos y observaciones sin comprimir identificaciones, fechas y teléfonos. Conserva Agenda, Historia, cobros, WhatsApp, TV, Neon y datos existentes.",
-    "previous_version": "4.8.107",
+    "purpose": "Recepción 4.8.109: corrige error HTTP 405 Method Not Allowed al eliminar citas importadas o sin paciente vinculado. El capturador de botones usa la ruta DELETE /api/agenda/unlinked/{id} en lugar del detalle GET /api/agenda/confirmafy-staged/{id}. Mantiene la ruta propia de citas vinculadas y cancela recordatorios pendientes de citas externas eliminadas. Se prueba la captura real de botones para ambos tipos de cita. Sin cambios de esquema, datos clínicos, pacientes ni Agenda principal.",
+    "previous_version": "4.8.108",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,

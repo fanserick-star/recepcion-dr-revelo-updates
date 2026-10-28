@@ -27,4 +27,8 @@ for date_,hour in [(date(2026,10,14),"10:00"),(date(2026,10,15),"08:00"),
 try: check({"fecha":date(2026,10,15),"hora":"12:20"})
 except HTTPException as e: assert e.status_code==400
 else: raise AssertionError("Lunch overlap accepted")
+# The actual legacy capture listener must delete linked and unlinked appointments
+# through their corresponding DELETE endpoints (not the GET-only staged detail).
+import subprocess
+subprocess.run(["node", "tools/test_reception_agenda_delete_method_48109.mjs"], check=True)
 print("AGENDA_4836_WEDNESDAY_SERVER_VALIDATION_NO_DB_NO_META_OK")
