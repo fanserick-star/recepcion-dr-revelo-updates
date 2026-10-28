@@ -1,6 +1,6 @@
-; stable-release-rebuild: preserve official Launcher 1.0.12 assets
+; stable-release-rebuild: preserve official Launcher 1.0.13 assets
 #define MyAppName "Launcher Recepción - Dr. Armando Revelo"
-#define MyAppVersion "1.0.12"
+#define MyAppVersion "1.0.13"
 #define MyAppPublisher "Consultorio Dr. Armando Revelo"
 
 [Setup]
@@ -14,7 +14,7 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_12
+OutputBaseFilename=INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13
 Compression=lzma2/max
 SolidCompression=yes
 SetupIconFile=build\doctor_icon.ico
