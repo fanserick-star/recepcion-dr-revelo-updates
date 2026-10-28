@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.110: corrige Nueva atención: Crear paciente nuevo nunca se bloquea por el buscador; remaster y validación de correo solo en el formulario real."
+  "notes": "Recepción 4.8.111: turnos a Historia con reintentos puntuales, estados de entrega y última confirmación; protege vínculos y ahorro Neon."
 }

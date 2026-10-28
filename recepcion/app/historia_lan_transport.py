@@ -44,6 +44,7 @@ _STATE = {
     "lan_last_error": "",
     "lan_last_handoff_at": "",
     "lan_latency_ms": None,
+    "lan_last_delivery_seconds": None,
     "token": "",
     "token_host": "",
 }
@@ -593,6 +594,59 @@ def _ready_lan_count() -> int:
         ).fetchone()[0] or 0)
 
 
+
+def next_retry_wait_seconds(max_wait: float = 45.0) -> float:
+    """Despertar justo cuando venza un reintento persistido, sin consultar Neon.
+
+    Los turnos nuevos despiertan por _DELIVERY_WAKE; si Neon falla, respetamos
+    su aplazamiento y no hacemos polling agresivo de la base clínica.
+    """
+    maximum = max(0.25, float(max_wait))
+    try:
+        _ensure_lan_outbox()
+        with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+            row = conn.execute(
+                "SELECT MIN(next_attempt_at) FROM events "
+                "WHERE sent_at IS NULL AND cancelled=0 AND next_attempt_at IS NOT NULL"
+            ).fetchone()
+        if not row or not row[0]:
+            return maximum
+        remaining = (datetime.fromisoformat(str(row[0])) - datetime.now()).total_seconds()
+        return min(maximum, max(0.10, remaining))
+    except (ValueError, TypeError, OSError, sqlite3.Error):
+        return maximum
+
+
+def pending_delivery_diagnostics() -> dict:
+    """Estado administrativo de la entrega LAN; no expone nombres ni fichas."""
+    try:
+        _ensure_lan_outbox()
+        with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
+            row = conn.execute(
+                "SELECT last_error,next_attempt_at FROM events "
+                "WHERE sent_at IS NULL AND cancelled=0 "
+                "ORDER BY CASE WHEN attempt_count=0 THEN 0 ELSE 1 END, created_at "
+                "LIMIT 1"
+            ).fetchone()
+        if not row:
+            return {"delivery_phase": "delivered", "delivery_retry_seconds": None}
+        error = str(row[0] or "")
+        if error.startswith("Ficha clínica pendiente"):
+            phase = "waiting_link"
+        elif error.startswith("Neon temporalmente no disponible"):
+            phase = "retrying_neon"
+        elif error:
+            phase = "retrying_lan"
+        else:
+            phase = "verifying_chart"
+        seconds = None
+        if row[1]:
+            seconds = max(0, int((datetime.fromisoformat(str(row[1])) - datetime.now()).total_seconds() + 0.999))
+        return {"delivery_phase": phase, "delivery_retry_seconds": seconds}
+    except (ValueError, TypeError, OSError, sqlite3.Error):
+        return {"delivery_phase": "unknown", "delivery_retry_seconds": None}
+
+
 def _flush_lan_outbox(max_items: int = 8) -> None:
     """Deliver a bounded fair batch; never send an unverified chart."""
     if not _HANDOFF_FLUSH_LOCK.acquire(blocking=False):
@@ -647,6 +701,11 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
                     _update_lan_outbox_payload(str(event_id), payload)
                 if send_lan(payload):
                     _lan_outbox_mark(str(event_id), sent=True)
+                    try:
+                        age = (datetime.now() - datetime.fromisoformat(str(payload.get("queued_at") or ""))).total_seconds()
+                        _set_state(lan_last_delivery_seconds=round(max(0.0, age), 1))
+                    except (ValueError, TypeError, OverflowError):
+                        pass
                     _PENDING_LINK_RETRY_AT.pop(str(event_id), None)
                 else:
                     error = _snapshot().get("lan_last_error") or "Historia no confirmó recepción LAN"
@@ -954,9 +1013,12 @@ def hybrid_bridge_status() -> dict:
         control_pending = _lan_control_pending_count()
     except Exception:
         handoff_pending, sent, control_pending = 0, 0, 0
+    diagnostics = pending_delivery_diagnostics()
     return {
         "configured": True,
         "pending": handoff_pending + control_pending,
+        **diagnostics,
+        "lan_last_delivery_seconds": lan.get("lan_last_delivery_seconds"),
         "handoff_pending": handoff_pending,
         "control_pending": control_pending,
         "sent": sent,
