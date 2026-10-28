@@ -11682,7 +11682,7 @@ V481_PATIENT_JS = r""";(()=>{
    const duplicate=document.createElement('div');duplicate.className='v481-duplicate-card';duplicate.innerHTML='<div class="copy"><b></b><span></span></div>';
    if(idSection){idSection.appendChild(idStatus);idSection.appendChild(duplicate)}
    let agePill=null;if(birth&&wBirth){agePill=document.createElement('span');agePill.className='v481-age-pill';agePill.textContent='Edad —';wBirth.appendChild(agePill)}
-   let emailError=null;if(email&&wEmail){emailError=document.createElement('small');emailError.className='v481-inline-error';emailError.textContent='Correo no válido';emailError.style.display='none';wEmail.appendChild(emailError)}
+   let emailError=null,emailTouched=false;if(email&&wEmail){emailError=document.createElement('small');emailError.className='v481-inline-error';emailError.textContent='Revisa el correo: ejemplo nombre@dominio.com';emailError.style.display='none';wEmail.appendChild(emailError)}
    const save=findActionButton(modal);const initialSaveLabel=norm(save?.textContent);const headingText=norm(modal.querySelector('.modal-form-heading h2,h1,h2,h3')?.textContent||'');const editMode=!!window.__v485EditingPatientId||/editar|completar/.test(headingText)||/guardar cambios|actualizar/.test(initialSaveLabel);if(save){save.classList.add('v481-create-btn');if(!editMode&&/guardar|registrar/.test(norm(save.textContent)))save.textContent='Crear paciente'}
    const state={duplicateCedula:false,phoneDuplicate:false,seqId:0,seqPhone:0};
    function showDup(kind,p){
@@ -11705,7 +11705,8 @@ V481_PATIENT_JS = r""";(()=>{
    function emailOk(){if(!email||!String(email.value||'').trim())return true;return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(email.value||'').trim())}
    function updateSave(){
      if(!save)return;const foreignOn=!!foreign?.checked,raw=String(cedula.value||'').trim(),idOk=foreignOn||!raw||validEcuadorCedula(raw),mailOk=emailOk(),required=[...modal.querySelectorAll('input[required],textarea[required],select[required]')].every(x=>String(x.value||'').trim());
-     wEmail?.classList.toggle('v481-field-invalid',!mailOk);if(emailError)emailError.style.display=mailOk?'none':'block';
+     const showMailError=emailTouched&&!mailOk;
+     wEmail?.classList.toggle('v481-field-invalid',showMailError);if(emailError)emailError.style.display=showMailError?'block':'none';
      save.disabled=!String(name.value||'').trim()||!idOk||!mailOk||!required||(!editMode&&state.duplicateCedula);
    }
    async function checkCedula(){
@@ -11724,7 +11725,10 @@ const q=ecuadorPhone(phone.value);state.phoneDuplicate=false;if(q.length<9){if(!
    foreign?.addEventListener('change',()=>{state.duplicateCedula=false;updateStatus();updateSave();checkCedula()});
    name.addEventListener('input',()=>{const s=name.selectionStart,e=name.selectionEnd;name.value=String(name.value||'').toUpperCase();try{name.setSelectionRange(s,e)}catch(_e){}updateSave()});
    birth?.addEventListener('change',updateAge);birth?.addEventListener('input',updateAge);
-   email?.addEventListener('input',updateSave);
+   // No marcar inválido el correo mientras aún se está escribiendo.
+   // Correo opcional: vacío siempre es válido.
+   email?.addEventListener('input',()=>{emailTouched=false;updateSave()});
+   email?.addEventListener('blur',()=>{emailTouched=true;updateSave()});
    phone?.addEventListener('input',()=>{clearTimeout(phoneTimer);phoneTimer=setTimeout(checkPhone,340)});phone?.addEventListener('blur',()=>{const d=digits(phone.value);if(d.startsWith('593')&&d.length===12)phone.value='0'+d.slice(3);checkPhone()});
    updateAge();updateStatus();updateSave();setTimeout(checkCedula,50);if(phone?.value)setTimeout(checkPhone,80);
  }
