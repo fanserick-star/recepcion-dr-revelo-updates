@@ -76,4 +76,8 @@ assert "value.textContent=patient" in js
 assert "overlay.addEventListener('click'" in js
 assert "z-index:2147483000!important" in css
 assert manifest["notes"].get("database_schema_changes") is False
+# Esta prueba se ejecuta también desde el workflow principal de Recepción.
+import runpy
+runpy.run_path(str(Path(__file__).with_name("test_reception_dossier_long_name_layout.py")), run_name="__main__")
+
 print("RECEPTION_DOSSIER_REVIEW_DIALOG_48100_OK")
