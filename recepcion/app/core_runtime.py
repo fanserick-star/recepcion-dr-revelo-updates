@@ -11657,10 +11657,14 @@ V481_PATIENT_JS = r""";(()=>{
  function findActionButton(root){return [...root.querySelectorAll('button')].reverse().find(b=>/guardar|crear paciente|registrar paciente/.test(norm(b.textContent)))||null}
 
  function remaster(fromAttention){
-   const modal=document.querySelector('#modal .modalbox');if(!modal||modal.dataset.v481Patient==='1')return;
-   const name=field(modal,['apellidos y nombres','nombre completo','nombre','paciente']);
-   const cedula=field(modal,['cedula','identificacion']);
-   if(!name||!cedula)return;
+   const modal=document.querySelector('#modal .modalbox');
+   // Solo formularios reales. El buscador de Nueva atención contiene
+   // "cédula, apellidos, nombres y correo" en el mismo placeholder.
+   // Ese único input NO es un formulario y jamás debe deshabilitar Crear paciente.
+   if(!modal||!modal.querySelector('.patient-form-modal')||modal.dataset.v481Patient==='1')return;
+   const name=modal.querySelector('#fNombre');
+   const cedula=modal.querySelector('#fCedula');
+   if(!name||!cedula||name===cedula)return;
    modal.dataset.v481Patient='1';modal.classList.add('v481-patient-modal');
    const root=name.closest('form')||cedula.closest('form')||name.parentElement?.parentElement||modal;
    root.classList.add('v481-remastered-form');
@@ -11778,11 +11782,12 @@ V482_HOTFIX_JS = r""";(()=>{
    btn.hidden=readPending()<2;
  }
  function patientFieldsPresent(modal){
-   if(!modal)return false;const t=norm(modal.textContent);
-   const inputs=[...modal.querySelectorAll('input,textarea')];
-   const id=inputs.some(x=>/cedula|identificacion/.test(norm([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' '))))||t.includes('cedula o identificacion');
-   const name=inputs.some(x=>/nombre/.test(norm([x.name,x.id,x.placeholder,x.getAttribute('aria-label')].join(' '))))||t.includes('apellidos y nombres');
-   return id&&name;
+   // Confirmar campos distintos en el formulario de creación/edición, no por
+   // palabras de la caja de búsqueda general de Nueva atención.
+   if(!modal||!modal.querySelector('.patient-form-modal'))return false;
+   const cedula=modal.querySelector('#fCedula');
+   const nombre=modal.querySelector('#fNombre');
+   return !!cedula&&!!nombre&&cedula!==nombre;
  }
  function ensurePatientRemaster(){
    if(guard)return;const modal=document.querySelector('#modal .modalbox');if(!patientFieldsPresent(modal))return;
