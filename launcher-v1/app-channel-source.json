@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.111: turnos a Historia con reintentos puntuales, estados de entrega y última confirmación; protege vínculos y ahorro Neon."
+  "notes": "Recepción 4.8.112: precio de procedimientos editable se refleja en cobro; Bendo conserva tarjeta al cambiar valores; remaster de servicios y revisión de exámenes arriba."
 }
