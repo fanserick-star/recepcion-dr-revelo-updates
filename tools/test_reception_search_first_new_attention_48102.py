@@ -54,6 +54,13 @@ assert 'v477-attention-modalbox' in injected
 for forbidden in ("window.newAttention=async function","id=\"attentionWeekBlock\"",
                   "loadAttentionWeek(false","Agenda de hoy","window.renderAttentionWeek=function"):
     assert forbidden not in injected,forbidden
+# The served /v460/overlay.js must not reintroduce the old agenda after app.js loads.
+remix_start=core.index('V478_REMIX_JS = r"""')
+remix_end=core.index('V460_OVERLAY_JS = (V460_OVERLAY_JS or "") + "\\n" + V478_REMIX_JS',remix_start)
+remix=core[remix_start:remix_end]
+assert 'window.newAttention=async function' not in remix
+assert 'loadAttentionWeek(false,attentionWeekAnchor)' not in remix
+assert 'window.renderAttentionWeek=function' in remix  # preserved for other legacy callers
 assert 'attention-search-only' in css
 assert 'attention-search-hint' in css
 
