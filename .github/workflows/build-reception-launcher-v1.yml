@@ -30,7 +30,7 @@ jobs:
         with:
           dotnet-version: "8.0.x"
       - name: Compile launcher on Windows before releasing
-        run: dotnet build "launcher-v1/RecepcionLauncher/RecepcionLauncher.csproj" -c Release -p:EnableWindowsTargeting=true
+        run: dotnet build "launcher-v1/RecepcionLauncher/RecepcionLauncher.csproj" -c Release -p:EnableWindowsTargeting=true -p:ApplicationIcon=
       - name: Verify SHA-256 delta and rollback contract
         run: python tools/test_incremental_launcher_source.py
   build:
