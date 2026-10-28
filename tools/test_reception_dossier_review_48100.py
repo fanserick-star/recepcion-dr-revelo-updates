@@ -36,7 +36,10 @@ assert 'id="v4413ProfilePanels"' in patient
 assert 'id="rpClinicalDocs"' in patient
 assert 'window.loadClinicalDelivery' in patient
 assert 'fromAttentionSearch' in patient
-assert 'continueAttention' in patient
+assert 'class="primary v4417-continue-attention"' in patient
+assert 'data-continue-attention="1"' in patient
+assert 'onclick="attentionFor(${Number(id)})"' in patient
+assert 'const continueAttention=' not in patient
 assert "canDelete=source==='patients'" in patient
 assert 'openAgendaPatient(' in patient
 assert 'attentionFor(' in patient
@@ -76,4 +79,8 @@ assert "value.textContent=patient" in js
 assert "overlay.addEventListener('click'" in js
 assert "z-index:2147483000!important" in css
 assert manifest["notes"].get("database_schema_changes") is False
+# Esta prueba se ejecuta también desde el workflow principal de Recepción.
+import runpy
+runpy.run_path(str(Path(__file__).with_name("test_reception_dossier_long_name_layout.py")), run_name="__main__")
+
 print("RECEPTION_DOSSIER_REVIEW_DIALOG_48100_OK")
