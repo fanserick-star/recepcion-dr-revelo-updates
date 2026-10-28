@@ -1241,8 +1241,31 @@ async function searchPatients(){
   },180);
 }
 
-function openModal(html){$('#modalBody').innerHTML=html;const box=$('#modal .modalbox');if(box){box.classList.toggle('modalbox-wide',String(html||'').includes('new-attention-start-modal'));box.classList.toggle('v4413-profile-shell',String(html||'').includes('v4413-patient-profile'))}$('#modal').classList.remove('hidden')}
-function closeModal(){$('#modal').classList.add('hidden');const box=$('#modal .modalbox');box?.classList.remove('modalbox-wide');box?.classList.remove('v4413-profile-shell');attentionContext=null}
+function openModal(html){
+  // Cada diálogo reutiliza el mismo contenedor; nunca debe heredar el ancho
+  // estrecho ni el desplazamiento del formulario de pacientes anterior.
+  const body=$('#modalBody'),box=$('#modal .modalbox');
+  body.innerHTML=html;
+  if(box){
+    box.classList.remove('v481-patient-modal','v477-attention-modalbox');
+    delete box.dataset.v481Patient;
+    box.classList.toggle('modalbox-wide',String(html||'').includes('new-attention-start-modal'));
+    box.classList.toggle('v4413-profile-shell',String(html||'').includes('v4413-patient-profile'));
+    box.scrollTop=0;
+  }
+  body.scrollTop=0;
+  $('#modal').classList.remove('hidden');
+}
+function closeModal(){
+  $('#modal').classList.add('hidden');
+  const box=$('#modal .modalbox');
+  if(box){
+    box.classList.remove('modalbox-wide','v4413-profile-shell','v481-patient-modal','v477-attention-modalbox');
+    delete box.dataset.v481Patient;
+    box.scrollTop=0;
+  }
+  attentionContext=null;
+}
 function patientNameWords(value=''){return String(value||'').trim().toUpperCase().replace(/[^A-ZÁÉÍÓÚÜÑ0-9 ]+/g,' ').split(/\s+/).filter(x=>x.length>=2)}
 function patientNameQuality(value=''){const n=patientNameWords(value).length;return n>=4?'completo':n===3?'aceptable':'incompleto'}
 let patientSimilarTimer=null;
