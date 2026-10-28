@@ -27,7 +27,8 @@ actions=rule("#modal .v4100-dossier .v4413-profile-actions")
 assert "display:flex!important" in actions and "flex-wrap:wrap!important" in actions
 buttons=rule("#modal .v4100-dossier .v4413-profile-actions>button")
 assert "width:auto!important" in buttons and "max-width:100%!important" in buttons
-mobile=css[css.index("@media(max-width:1060px)"):css.index("@media(max-width:770px)")]
+tablet_start=css.index("@media(max-width:1060px)")
+mobile=css[tablet_start:css.index("@media(max-width:770px)", tablet_start)]
 assert "grid-template-columns:minmax(0,1fr)!important" in mobile
 
 # La corrección no puede cambiar el contrato administrativo ni médico.
