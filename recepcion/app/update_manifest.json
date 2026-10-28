@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.106",
-  "app_version": "4.8.106",
-  "runtime_version": "4.8.106",
+  "version": "4.8.107",
+  "app_version": "4.8.107",
+  "runtime_version": "4.8.107",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.106: corrige Nueva atención eliminando la redefinición antigua del overlay V478 que volvía a insertar Agenda de hoy. El inicio de atención abre exclusivamente el buscador y Crear paciente nuevo. La Agenda principal, citas, Confirmafy, cobros, vinculación Historia, TV, impresión, WhatsApp y datos se conservan; incluye prueba de ejecución de ambas capas.",
-    "previous_version": "4.8.105",
+    "purpose": "Recepción 4.8.107: amplía el expediente de recepción en monitores de escritorio y aumenta la legibilidad de nombre, pestañas, botones y datos. Además, el correo opcional solo muestra advertencia de formato al salir del campo, no mientras se escribe. Sin cambios en pacientes, Historia, Agenda, Neon, facturación, TV o WhatsApp.",
+    "previous_version": "4.8.106",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
