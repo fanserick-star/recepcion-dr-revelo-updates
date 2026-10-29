@@ -324,7 +324,7 @@ def send_lan(payload: dict) -> bool:
         try:
             reply = json.loads(exc.read(4096).decode("utf-8", "replace"))
             if isinstance(reply, dict):
-                rejection_detail = _clean(reply.get("error"), 150).replace("\\r", " ").replace("\\n", " ")
+                rejection_detail = _clean(reply.get("error"), 150).replace(chr(13), " ").replace(chr(10), " ")
         except (ValueError, TypeError, OSError):
             pass
         # HTTP 400/409/500 means Historia answered: do not report a cable
