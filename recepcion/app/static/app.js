@@ -202,6 +202,8 @@ let idleListenersStarted=false;
 let lastLocalActivityNote=0;
 const BADGE_REFRESH_MS=120000;
 const IDLE_AFTER_MS=5*60*1000;
+// El reloj de inactividad sigue protegiendo la emisión nocturna; no suspende Neon.
+const NEON_ECO_MODE=false;
 const PASSIVE_CONNECTIVITY_MS=600000;
 function setConnectionBadge(kind,text,detail=''){
   const badge=$('#connectionBadge');if(!badge)return;
@@ -242,8 +244,10 @@ async function enterIdleMode(){
     return;
   }
   appIdleMode=true;
-  stopConnectivityMonitor();
-  setConnectionBadge('idle','En espera','Ahorro de nube activo · Neon no se consulta mientras no uses Recepción');
+  if(NEON_ECO_MODE){
+    stopConnectivityMonitor();
+    setConnectionBadge('idle','En espera','Ahorro de nube activo · Neon no se consulta mientras no uses Recepción');
+  }
   try{
     const r=await fetch('/api/power/idle',{method:'POST',headers:{'Content-Type':'application/json'}});
     if(r.ok){const d=await r.json();lastProtectionData=d;renderProtectionStatus(d)}
@@ -265,7 +269,7 @@ async function wakeFromIdle(){
   if(!appIdleMode){scheduleIdleCountdown();return null}
   appIdleMode=false;
   scheduleIdleCountdown();
-  setConnectionBadge('syncing','Reanudando','Abriendo la copia local · Neon solo se usará si realmente hace falta…');
+  if(NEON_ECO_MODE)setConnectionBadge('syncing','Reanudando','Abriendo la copia local · Neon solo se usará si realmente hace falta…');
   wakePromise=(async()=>{
     try{
       const r=await fetch('/api/power/wake',{method:'POST',headers:{'Content-Type':'application/json'}});
@@ -310,14 +314,14 @@ function startIdleMonitor(){
     if(!document.hidden){
       noteUserActivity();
       const d=lastProtectionData||{};
-      if(!appIdleMode && d.configured && !d.online && navigator.onLine!==false){
+      if((!NEON_ECO_MODE || !appIdleMode) && d.configured && !d.online && navigator.onLine!==false){
         setTimeout(()=>updateConnectivity(true),350);
       }
     }
   });
 }
 async function runPendingSync(){
-  if(appIdleMode)return null;
+  if(NEON_ECO_MODE && appIdleMode)return null;
   const modalOpen=!$('#modal')?.classList.contains('hidden');
   if(modalOpen)return null;
   try{
@@ -339,7 +343,7 @@ async function runPendingSync(){
   }
 }
 async function updateConnectivity(force=false){
-  if(appIdleMode && !force){
+  if(NEON_ECO_MODE && appIdleMode && !force){
     setConnectionBadge('idle','En espera','Ahorro de nube activo · Neon no se consulta mientras no uses Recepción');
     return;
   }
@@ -351,7 +355,7 @@ async function updateConnectivity(force=false){
     lastProtectionData={...(lastProtectionData||{}),...d};if(force||Object.prototype.hasOwnProperty.call(d,'last_sync'))renderProtectionStatus(lastProtectionData);
     if(!d.idle)appIdleMode=false;
     const state=`${d.configured}-${d.online}-${d.idle}-${d.pending}-${(d.errors||[]).length}`;
-    if(d.idle){
+    if(d.idle && NEON_ECO_MODE){
       appIdleMode=true;
       stopConnectivityMonitor();
       setConnectionBadge('idle','En espera','Ahorro de nube activo · Neon puede suspenderse mientras no trabajas');
@@ -418,15 +422,15 @@ async function autoRecoverConnectivityOnBoot(isRetry=false){
 
 function startConnectivityMonitor(refresh=true){
   stopConnectivityMonitor();
-  if(appIdleMode)return;
+  if(NEON_ECO_MODE && appIdleMode)return;
   if(refresh)updateConnectivity(false);
   // Este temporizador solo consulta el estado LOCAL del servidor. No ejecuta
   // SELECT 1 ni despierta Neon.
   connectivityTimer=setInterval(()=>updateConnectivity(false),PASSIVE_CONNECTIVITY_MS);
   if(!startConnectivityMonitor.bound){
     startConnectivityMonitor.bound=true;
-    window.addEventListener('online',()=>{if(!appIdleMode)updateConnectivity(true)});
-    window.addEventListener('offline',()=>{if(!appIdleMode)updateConnectivity(false)});
+    window.addEventListener('online',()=>{if(!NEON_ECO_MODE || !appIdleMode)updateConnectivity(true)});
+    window.addEventListener('offline',()=>{if(!NEON_ECO_MODE || !appIdleMode)updateConnectivity(false)});
   }
 }
 
@@ -536,7 +540,7 @@ async function init(){
   // Esta segunda lectura es únicamente SQLite y recoge esa copia si ya terminó.
   if(bootCacheStale){
     setTimeout(async()=>{
-      if(appIdleMode)return;
+      if(NEON_ECO_MODE && appIdleMode)return;
       try{
         const local=await api('/api/bootstrap?anchor='+encodeURIComponent(iso));
         procedures=local.procedures||procedures;
@@ -3600,7 +3604,7 @@ function renderAgendaWhatsappToolbar(week=agendaNativeWeek,data=null){
   panel.innerHTML=`<div class="agenda-wa-review-head"><div><b>Respuestas que necesitan intervención</b><small>Solo aparecen aquí los casos que la IA no decidió con seguridad.</small></div></div><div class="agenda-wa-review-list">${rows}</div>`;panel.classList.remove('hidden');
 }
 async function loadAgendaWhatsappOverlay(week=agendaNativeWeek,force=false){
-  if(!week||appIdleMode)return null;
+  if(!week||(NEON_ECO_MODE && appIdleMode))return null;
   // v4.8.87: no repetir sondeos pasivos que mantengan Neon despierto.
   // El botón «Actualizar WhatsApp» conserva force=true para revisión inmediata.
   const key=agendaWhatsappWeekKeyFor(week),fresh=agendaWhatsappLoadedAt&&Date.now()-agendaWhatsappLoadedAt<600000;
@@ -3696,7 +3700,7 @@ function setWhatsappReviewBadge(n){
   }
 }
 async function refreshWhatsappReviewBadge(force=false){
-  if(whatsappReviewBusy||appIdleMode)return null;
+  if(whatsappReviewBusy||(NEON_ECO_MODE && appIdleMode))return null;
   const now=Date.now();if(!force&&now-whatsappReviewLastCheck<WHATSAPP_REVIEW_REFRESH_MS)return null;
   whatsappReviewBusy=true;
   try{
@@ -3816,7 +3820,7 @@ async function resolveWhatsappResponse(id,action){
 // AFK sigue sin despertar Neon.
 const v4418OriginalLoadDashboard=loadDashboard;
 loadDashboard=function(){const result=v4418OriginalLoadDashboard.apply(this,arguments);refreshWhatsappReviewBadge(false);return result;};
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!appIdleMode)refreshWhatsappReviewBadge(false)});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&(!NEON_ECO_MODE||!appIdleMode))refreshWhatsappReviewBadge(false)});
 
 
 // Agenda canónica: flujo consolidado desde el antiguo overlay histórico.
