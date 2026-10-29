@@ -19,6 +19,9 @@ ROOT = Path(__file__).resolve().parent
 CACHE_PATH = ROOT / "data" / "historia_lan_cache.json"
 LAN_OUTBOX_DB = ROOT / "data" / "historia_lan_outbox.db"
 LAN_HTTP_PORT = 8765
+# El almacenamiento SQLite del doctor puede tardar más que el ping LAN.
+# Mantener un plazo acotado sin confundir latencia de /challenge con ACK de /handoff.
+LAN_HANDOFF_TIMEOUT_SECONDS = 4.0
 LAN_DISCOVERY_PORT = 8766
 DISCOVERY_MAGIC = b"HISTORIA_REVELO_DISCOVER_V1"
 PRODUCT = "historia-clinica-dr-revelo"
@@ -277,7 +280,7 @@ def send_lan(payload: dict) -> bool:
             method="POST",
             payload=payload,
             token=token,
-            timeout=1.25,
+            timeout=LAN_HANDOFF_TIMEOUT_SECONDS,
         )
         if not result.get("ok"):
             _set_state(lan_last_error=str(result.get("error") or "Historia rechazó el turno")[:160])
@@ -303,7 +306,7 @@ def send_lan(payload: dict) -> bool:
                         method="POST",
                         payload=payload,
                         token=token,
-                        timeout=1.25,
+                        timeout=LAN_HANDOFF_TIMEOUT_SECONDS,
                     )
                     if result.get("ok"):
                         _set_state(
@@ -315,10 +318,19 @@ def send_lan(payload: dict) -> bool:
                         return True
                 except Exception:
                     pass
+        # Recuperar el error de aplicación cuando Historia respondió HTTP 400.
+        # Solo el estado interno conserva el detalle; la interfaz usa un resumen seguro.
+        rejection_detail = ""
+        try:
+            reply = json.loads(exc.read(4096).decode("utf-8", "replace"))
+            if isinstance(reply, dict):
+                rejection_detail = _clean(reply.get("error"), 150).replace("\\r", " ").replace("\\n", " ")
+        except (ValueError, TypeError, OSError):
+            pass
         # HTTP 400/409/500 means Historia answered: do not report a cable
         # failure or trigger a needless 500-host subnet rediscovery.
         if exc.code != 403:
-            _set_state(lan_last_error=f"Historia rechazó turno (HTTP {exc.code})")
+            _set_state(lan_last_error=f"Historia rechazó turno (HTTP {exc.code})" + (f": {rejection_detail}" if rejection_detail else ""))
         else:
             _set_state(lan_online=False, lan_last_error="Historia rechazó token LAN (403)")
         return False
@@ -617,19 +629,52 @@ def next_retry_wait_seconds(max_wait: float = 45.0) -> float:
         return maximum
 
 
+def _public_delivery_issue(error: str) -> tuple[str, str]:
+    """Diagnóstico operativo sin mostrar datos de la ficha ni excepciones crudas."""
+    raw = str(error or "").lower()
+    if not raw:
+        return "", ""
+    if raw.startswith("ficha clínica pendiente"):
+        return "waiting_link", "Ficha clínica pendiente de vincular en Recepción"
+    if raw.startswith("neon temporalmente no disponible"):
+        return "neon_unavailable", "Neon no respondió a la verificación de la ficha"
+    if "identificación clínica en conflicto" in raw or "identificacion clinica en conflicto" in raw:
+        return "clinical_conflict", "Identificación clínica en conflicto; revisar en Recepción"
+    if "database is locked" in raw or "database locked" in raw:
+        return "history_busy", "Historia estaba ocupada guardando el turno"
+    if "http 400" in raw:
+        return "http_400", "Historia rechazó el turno (HTTP 400)"
+    if "http 409" in raw:
+        return "http_409", "Historia rechazó el turno (HTTP 409)"
+    if "http 500" in raw or "http 503" in raw:
+        return "http_server", "Historia respondió con un error del servidor"
+    if "token lan" in raw or "http 403" in raw:
+        return "lan_auth", "Falló la autorización LAN; se reintentará"
+    if "timed out" in raw or "timeouterror" in raw or "timeout" in raw:
+        return "ack_timeout", "Historia no confirmó la recepción a tiempo"
+    if "connectionrefused" in raw or "connection refused" in raw:
+        return "connection_refused", "El servicio de Historia rechazó la conexión"
+    if "connectionreset" in raw or "connection reset" in raw:
+        return "connection_reset", "La conexión LAN se interrumpió durante el envío"
+    return "lan_retry", "El turno sigue pendiente de confirmación por Historia"
+
+
 def pending_delivery_diagnostics() -> dict:
-    """Estado administrativo de la entrega LAN; no expone nombres ni fichas."""
+    """Estado de entrega sin identificadores ni nombres de pacientes."""
     try:
         _ensure_lan_outbox()
         with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
             row = conn.execute(
-                "SELECT last_error,next_attempt_at FROM events "
+                "SELECT last_error,next_attempt_at,attempt_count FROM events "
                 "WHERE sent_at IS NULL AND cancelled=0 "
                 "ORDER BY CASE WHEN attempt_count=0 THEN 0 ELSE 1 END, created_at "
                 "LIMIT 1"
             ).fetchone()
         if not row:
-            return {"delivery_phase": "delivered", "delivery_retry_seconds": None}
+            return {
+                "delivery_phase": "delivered", "delivery_retry_seconds": None,
+                "delivery_error_code": "", "delivery_error_hint": "", "delivery_attempts": 0,
+            }
         error = str(row[0] or "")
         if error.startswith("Ficha clínica pendiente"):
             phase = "waiting_link"
@@ -642,9 +687,19 @@ def pending_delivery_diagnostics() -> dict:
         seconds = None
         if row[1]:
             seconds = max(0, int((datetime.fromisoformat(str(row[1])) - datetime.now()).total_seconds() + 0.999))
-        return {"delivery_phase": phase, "delivery_retry_seconds": seconds}
+        code, hint = _public_delivery_issue(error)
+        return {
+            "delivery_phase": phase, "delivery_retry_seconds": seconds,
+            "delivery_error_code": code, "delivery_error_hint": hint,
+            "delivery_attempts": int(row[2] or 0),
+        }
     except (ValueError, TypeError, OSError, sqlite3.Error):
-        return {"delivery_phase": "unknown", "delivery_retry_seconds": None}
+        return {
+            "delivery_phase": "unknown", "delivery_retry_seconds": None,
+            "delivery_error_code": "diagnostics_unavailable",
+            "delivery_error_hint": "No se pudo consultar el diagnóstico local de entregas",
+            "delivery_attempts": 0,
+        }
 
 
 def _flush_lan_outbox(max_items: int = 8) -> None:
