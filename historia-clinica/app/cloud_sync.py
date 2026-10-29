@@ -290,6 +290,10 @@ def _normalize_remote_value(value):
     return value
 
 
+# 2026-10-29: se retira el ahorro por inactividad, sin cambiar la cola offline.
+HISTORIA_NEON_ECO_MODE = False
+
+
 class CloudSyncService:
     def __init__(self, root: Path, db_path: Path):
         self.root = Path(root)
@@ -683,7 +687,7 @@ class CloudSyncService:
         sconn.row_factory = sqlite3.Row
         try:
             pending = self._pending(sconn)
-            active = (time.monotonic() - self._last_activity) < 300
+            active = (not HISTORIA_NEON_ECO_MODE) or (time.monotonic() - self._last_activity) < 300
             bootstrap_done = (
                 self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
             )
