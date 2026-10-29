@@ -654,7 +654,9 @@ CACHE_REFRESH_SECONDS = 12 * 60 * 60
 AGENDA_CACHE_REFRESH_SECONDS = 30 * 60
 # Las lecturas de pantalla son locales; esta sonda solo hace falta antes de
 # operaciones reales. Alargamos el intervalo y aplicamos backoff cuando falla.
-CLOUD_CHECK_SECONDS = 600.0
+CLOUD_CHECK_SECONDS = 600.0  # intervalo de compatibilidad del antiguo modo ahorro
+CLOUD_CHECK_ACTIVE_SECONDS = 60.0  # modo normal: comprobar conexión ante operaciones reales
+NEON_ECO_MODE = False  # 2026-10-29: ahorro desactivado; conservar caché y cola offline
 CLOUD_RETRY_SECONDS = 20.0
 REMOTE_REFRESH_IDLE_SECONDS = 30 * 60
 IDLE_AFTER_SECONDS = 300
@@ -1774,7 +1776,7 @@ def check_cloud(force: bool = False) -> bool:
     # En modo AFK no hacemos sondas ni SELECT 1. Conservamos el último estado
     # conocido hasta que el usuario vuelva o fuerce una comprobación manual.
     with _state_lock:
-        if bool(_state.get("client_idle")) and not force:
+        if NEON_ECO_MODE and bool(_state.get("client_idle")) and not force:
             return bool(_state.get("online"))
 
     if not cloud_configured() or FORCE_OFFLINE:
@@ -1787,7 +1789,7 @@ def check_cloud(force: bool = False) -> bool:
     requested_at = time.time()
     now = requested_at
     with _state_lock:
-        interval = CLOUD_CHECK_SECONDS if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
+        interval = (CLOUD_CHECK_SECONDS if NEON_ECO_MODE else CLOUD_CHECK_ACTIVE_SECONDS) if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
         if not force and now - float(_state["last_checked"] or 0) < interval:
             return bool(_state["online"])
 
@@ -1797,7 +1799,7 @@ def check_cloud(force: bool = False) -> bool:
     with _cloud_check_lock:
         now = time.time()
         with _state_lock:
-            interval = CLOUD_CHECK_SECONDS if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
+            interval = (CLOUD_CHECK_SECONDS if NEON_ECO_MODE else CLOUD_CHECK_ACTIVE_SECONDS) if bool(_state["online"]) else min(180.0, CLOUD_RETRY_SECONDS * (2 ** min(int(_state.get("consecutive_failures") or 0), 3)))
             last_checked = float(_state["last_checked"] or 0)
             if not force and now - last_checked < interval:
                 return bool(_state["online"])
@@ -4629,11 +4631,12 @@ def enter_power_idle(user: User = Depends(current_user)):
         _state["client_idle"] = True
         _state["last_activity"] = now
         _state["idle_since"] = now
-    try:
-        if cloud_engine is not None:
-            cloud_engine.dispose()
-    except Exception:
-        pass
+    if NEON_ECO_MODE:
+        try:
+            if cloud_engine is not None:
+                cloud_engine.dispose()
+        except Exception:
+            pass
     payload = _connectivity_payload()
     payload["idle"] = True
     if sync_result:
