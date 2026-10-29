@@ -27,6 +27,7 @@ CONFIRMATION = "FACTURAR AUTOMATICAMENTE"
 # Historia Clínica, WebView2, Windows ni el servidor LAN. Solo reduce
 # consultas a Neon y (si está habilitado) procesa la cola fiscal aprobada.
 # Esta regla también forma parte del contrato de regresión en CI.
+# El modo ahorro de Neon está desactivado; el cierre fiscal sigue siendo opt-in.
 NIGHT_REST_AUTO_CLOSE_PROGRAMS = False
 
 
@@ -315,7 +316,7 @@ def _tick():
         # de lo contrario Neon permanecería despierto después del cierre.
         with core._state_lock:
             still_idle = bool(core._state.get("client_idle"))
-        if still_idle and core.cloud_engine is not None:
+        if still_idle and getattr(core, "NEON_ECO_MODE", True) and core.cloud_engine is not None:
             try:
                 core.cloud_engine.dispose()
             except Exception:
