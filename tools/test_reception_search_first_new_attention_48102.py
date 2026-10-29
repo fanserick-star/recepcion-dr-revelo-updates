@@ -10,9 +10,10 @@ html=(ROOT/"static/index.html").read_text(encoding="utf-8")
 css=(ROOT/"static/home_remaster_4886.css").read_text(encoding="utf-8")
 m=json.loads((ROOT/"update_manifest.json").read_text(encoding="utf-8"))
 v=json.loads((ROOT/"recepcion-version.json").read_text(encoding="utf-8"))["version"]
-assert v==m["version"]==m["runtime_version"]==m["app_version"]=="4.8.112"
-assert '/static/app.js?v=4.8.112' in html
-assert '/static/home_remaster_4886.css?v=4.8.112' in html
+assert v==m["version"]==m["runtime_version"]==m["app_version"]
+assert tuple(map(int,v.split("."))) >= (4,8,112)
+assert '/static/app.js?v='+v in html
+assert '/static/home_remaster_4886.css?v='+v in html
 start=app.index("function newAttention(){")
 stop=app.index("function procedureByName(",start)
 flow=app[start:stop]
