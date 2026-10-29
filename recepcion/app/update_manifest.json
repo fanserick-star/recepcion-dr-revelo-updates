@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.112",
-  "app_version": "4.8.112",
-  "runtime_version": "4.8.112",
+  "version": "4.8.113",
+  "app_version": "4.8.113",
+  "runtime_version": "4.8.113",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -709,7 +709,12 @@
     "new_attention_embedded_agenda_removed": true,
     "new_attention_legacy_override_consolidated": true,
     "new_attention_no_new_cloud_polling": true,
-    "agenda_main_untouched": true
+    "agenda_main_untouched": true,
+    "neon_eco_saving_enabled": false,
+    "neon_idle_does_not_dispose_pool": true,
+    "neon_normal_active_cloud_check_seconds": 60,
+    "neon_fiscal_night_idleness_safety_preserved": true,
+    "neon_offline_queue_and_local_cache_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
