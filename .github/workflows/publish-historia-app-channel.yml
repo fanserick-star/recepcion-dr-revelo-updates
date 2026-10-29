@@ -99,4 +99,14 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add historia-clinica/launcher-v1/app-channel.json
           git commit -m "Publish validated Historia app channel"
-          git push origin HEAD:main
+          # Other app channels can publish concurrently; rebase only the generated channel commit.
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then
+              exit 0
+            fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 2))
+          done
+          echo "Could not publish Historia channel after retries." >&2
+          exit 1
