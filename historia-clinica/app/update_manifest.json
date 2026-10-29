@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.63",
-  "app_version": "1.4.63",
-  "runtime_version": "1.4.63",
+  "version": "1.4.64",
+  "app_version": "1.4.64",
+  "runtime_version": "1.4.64",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,7 +89,7 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.63: desactiva ahorro de Neon por inactividad; mantiene sincronización automática mientras la aplicación permanece abierta, sin alterar el respaldo local ni la cola offline.",
+    "purpose": "Historia Clínica 1.4.64: ahorro de Neon desactivado; mantiene sincronización automática en inactividad, copia local y cola offline. Publicación reforzada ante actualizaciones simultáneas de Recepción.",
     "previous_version": "1.4.60",
     "functional_changes": true,
     "database_schema_changes": false,
