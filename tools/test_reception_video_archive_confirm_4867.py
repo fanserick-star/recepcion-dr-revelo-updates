@@ -1,7 +1,7 @@
 """Clinical videocystoscopy local archiving confirmation UX regression.
 
-Only the native confirmation of saving MP4 in Reception is replaced.
-The two required explicit WhatsApp delivery confirmations stay unchanged.
+The local MP4 archive and WhatsApp delivery now have branded native-app dialogs.
+The two mandatory identity and consent checks remain separate.
 """
 from pathlib import Path
 import re
@@ -37,9 +37,21 @@ assert "fetch(path" in js or "api(url,{method:'POST'" in js
 archive=js.split("async function saveVideo(file){",1)[1].split("async function sendVideo(file){",1)[0]
 assert "window.confirm(" not in archive
 assert "window.alert(" not in archive
-# Prior identity + consent confirmations remain for actual WhatsApp delivery.
+# WhatsApp delivery now requires two independent checked acknowledgments.
 wa=js.split("function confirmDelivery(label){",1)[1].split("async function sendDoc(",1)[0]
-assert wa.count("window.confirm(")==2
+assert "window.confirm(" not in wa
+assert "const [identity,identityCheck]=checkbox(" in wa
+assert "const [consent,consentCheck]=checkbox(" in wa
+assert "accept.disabled=!(identityCheck.checked&&consentCheck.checked)" in wa
+assert "approved&&identityCheck.checked&&consentCheck.checked" in wa
+assert "currentPatientId===state.pid&&currentPhone===state.phone" in wa
+assert "deliveryConfirmationOpen" in wa
+assert "confirmed_phone:phone,identity_confirmed:true,consent_confirmed:true" in wa
+assert "aria-modal" in wa and "onKey" in wa
+assert "await confirmDelivery(doc.label)" in js
+assert "await confirmDelivery('Videocistoscopia archivada" in js
+assert "await confirmDelivery('Videocistoscopía · '" in js
+assert ".rp-clinical-delivery-confirm-dialog" in css
 for cls in [".rp-video-confirm-shade", ".rp-video-confirm-dialog",
             ".rp-video-confirm-head",".rp-video-confirm-details",
             ".rp-video-confirm-checkbox",".rp-video-confirm-accept:disabled"]:
