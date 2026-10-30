@@ -96,6 +96,7 @@ for rule in (
     ".rx-paired-medications.rx-med-many .rx-med-pair{margin-bottom:5mm}",
     ".rx-med-pair .med-item{min-width:0;margin:0}",
     "position:absolute;top:82mm;bottom:32mm;left:12.5mm;right:10.5mm;",
+    "position:relative; /* ancla la cuadrícula compartida al A4",
 ):
     assert rule in preview, rule
 
