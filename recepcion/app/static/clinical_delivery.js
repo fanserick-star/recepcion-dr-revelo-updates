@@ -356,21 +356,91 @@
       draw({...status,ok:false,error:e.message||'Historia no está disponible'});
     }
   }
+  // Un solo diálogo profesional y dos autorizaciones independientes obligatorias.
+  let deliveryConfirmationOpen=false;
   function confirmDelivery(label){
     const raw=String(state.phone||'').replace(/\D/g,'');
     const phone=raw.startsWith('09')?'593'+raw.slice(1):raw;
-    if(!/^5939\d{8}$/.test(phone)){notice('Primero verifica el número del paciente en su ficha.','error');return null;}
-    // Deliberate two independent operator confirmations to prevent misdelivery.
-    if(!window.confirm('PACIENTE: '+state.name+'\nNÚMERO: +'+phone+'\nARCHIVO: '+label+'\n\n¿Verificaste personalmente que el número pertenece al paciente?'))return null;
-    if(!window.confirm('¿El paciente autorizó recibir este contenido médico confidencial mediante WhatsApp y conoce que el enlace vence en 7 días?'))return null;
-    return {confirmed_phone:phone,identity_confirmed:true,consent_confirmed:true};
+    if(!/^5939\d{8}$/.test(phone)){notice('Primero verifica el número del paciente en su ficha.','error');return Promise.resolve(null);}
+    if(deliveryConfirmationOpen)return Promise.resolve(null);
+    deliveryConfirmationOpen=true;
+    const currentPatientId=state.pid,currentPhone=state.phone,opener=document.activeElement;
+    return new Promise(resolve=>{
+      const shade=document.createElement('div');
+      shade.className='rp-video-confirm-shade rp-clinical-delivery-confirm-shade';
+      shade.setAttribute('role','presentation');
+      const dialog=document.createElement('section');
+      dialog.className='rp-video-confirm-dialog rp-clinical-delivery-confirm-dialog';
+      dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');
+      dialog.setAttribute('aria-labelledby','rpClinicalDeliveryConfirmTitle');
+      dialog.setAttribute('aria-describedby','rpClinicalDeliveryConfirmDesc');
+      const head=document.createElement('div');head.className='rp-video-confirm-head';
+      const mark=cell('div','✉','rp-video-confirm-icon rp-clinical-delivery-confirm-icon');
+      mark.setAttribute('aria-hidden','true');
+      const intro=document.createElement('div');
+      intro.append(cell('span','ENTREGA PRIVADA · WHATSAPP','rp-video-confirm-kicker'),
+        cell('h2','Confirmar envío al paciente','rp-video-confirm-title'));
+      intro.lastChild.id='rpClinicalDeliveryConfirmTitle';head.append(mark,intro);
+      const description=cell('p','Antes de enviar este documento médico, confirma la identidad, el número y el consentimiento del paciente.','rp-video-confirm-desc');
+      description.id='rpClinicalDeliveryConfirmDesc';
+      const details=document.createElement('div');details.className='rp-video-confirm-details';
+      const addDetail=(caption,value)=>{
+        const item=document.createElement('div');item.className='rp-video-confirm-detail';
+        item.append(cell('span',caption),cell('strong',value));details.append(item);
+      };
+      addDetail('PACIENTE',state.name||'Paciente sin nombre');
+      addDetail('WHATSAPP DESTINO','+'+phone);
+      addDetail('DOCUMENTO',String(label||'Documento médico'));
+      const caution=cell('p','Contenido médico confidencial. El enlace vence en 7 días y puede abrirlo quien lo reciba. Verifica el número antes de continuar.','rp-clinical-delivery-confirm-warning');
+      const checkbox=(description)=>{
+        const line=document.createElement('label');
+        line.className='rp-video-confirm-checkbox rp-clinical-delivery-confirm-check';
+        const input=document.createElement('input');input.type='checkbox';input.checked=false;
+        line.append(input,cell('span',description));return [line,input];
+      };
+      const [identity,identityCheck]=checkbox('Verifiqué personalmente que este número de WhatsApp pertenece al paciente indicado.');
+      const [consent,consentCheck]=checkbox('El paciente autorizó recibir este documento médico por WhatsApp y conoce que el enlace vence en 7 días.');
+      const actions=document.createElement('div');
+      actions.className='rp-video-confirm-actions rp-clinical-delivery-confirm-actions';
+      const cancel=cell('button','Cancelar','rp-video-confirm-cancel');cancel.type='button';
+      const accept=cell('button','Enviar por WhatsApp','rp-video-confirm-accept');
+      accept.type='button';accept.disabled=true;
+      const refresh=()=>{accept.disabled=!(identityCheck.checked&&consentCheck.checked);};
+      identityCheck.addEventListener('change',refresh);consentCheck.addEventListener('change',refresh);
+      actions.append(cancel,accept);
+      dialog.append(head,description,details,caution,identity,consent,actions);
+      shade.append(dialog);
+      let settled=false;
+      function finish(approved){
+        if(settled)return;settled=true;document.removeEventListener('keydown',onKey,true);
+        shade.remove();deliveryConfirmationOpen=false;
+        if(opener&&opener.isConnected&&typeof opener.focus==='function')opener.focus();
+        resolve(approved&&identityCheck.checked&&consentCheck.checked
+          &&currentPatientId===state.pid&&currentPhone===state.phone
+          ?{confirmed_phone:phone,identity_confirmed:true,consent_confirmed:true}:null);
+      }
+      function onKey(e){
+        if(e.key==='Escape'){e.preventDefault();finish(false);return;}
+        if(e.key!=='Tab')return;
+        const focusable=[identityCheck,consentCheck,cancel,accept].filter(x=>!x.disabled);
+        if(!focusable.length)return;
+        const first=focusable[0],last=focusable[focusable.length-1];
+        if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+        else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+      }
+      cancel.addEventListener('click',()=>finish(false));
+      accept.addEventListener('click',()=>finish(true));
+      shade.addEventListener('click',e=>{if(e.target===shade)finish(false);});
+      document.body.append(shade);document.addEventListener('keydown',onKey,true);identityCheck.focus();
+    });
   }
   async function sendDoc(doc){
     if(state.sending||!state.ready_document)return;
-    const approval=confirmDelivery(doc.label);if(!approval)return;
+    const pid=state.pid;
+    const approval=await confirmDelivery(doc.label);if(!approval||state.pid!==pid||state.sending)return;
     state.sending=true;
     try{
-      const r=await api('/api/clinical-delivery/patients/'+state.pid+'/send-document',{
+      const r=await api('/api/clinical-delivery/patients/'+pid+'/send-document',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({...approval,kind:doc.kind,document_id:doc.id})
       });
@@ -667,7 +737,7 @@
     if(state.sending||state.saving_video||state.benchmarking||!state.ready_video)return;
     const id=safeId(video&&video.id),pid=Number(state.pid);
     if(!/^[0-9a-f]{32}$/.test(id)){notice('Video no válido','error');return;}
-    const approval=confirmDelivery('Videocistoscopia archivada · '+state.name);
+    const approval=await confirmDelivery('Videocistoscopia archivada · '+state.name);
     if(!approval)return;
     const host=container();if(!host)return;
     state.sending=true;
@@ -873,7 +943,7 @@
     }
     if(!chosen){notice('Selecciona primero un archivo MP4.','error');return;}
     if(!/\.mp4$/i.test(chosen.name)||chosen.size>550*1024*1024){notice('Archivo no válido. Selecciona un MP4 de hasta 550 MB.','error');return;}
-    const approval=confirmDelivery('Videocistoscopía · '+chosen.name);
+    const approval=await confirmDelivery('Videocistoscopía · '+chosen.name);
     if(!approval)return;
     const qs=new URLSearchParams(approval);
     state.sending=true;
