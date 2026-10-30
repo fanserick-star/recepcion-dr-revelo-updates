@@ -1197,7 +1197,7 @@ def install(app, context: dict) -> None:
         )
         right_copy = (
             one.replace("__RX_MEDICATIONS_PLACEHOLDER_1432__", right_meds)
-               .replace("__RX_EXTRA_PLACEHOLDER_1432__", extra_html)
+               .replace("__RX_EXTRA_PLACEHOLDER_1432__", "" if split_prescription else extra_html)
         )
         if split_prescription:
             left_copy = left_copy.replace(
