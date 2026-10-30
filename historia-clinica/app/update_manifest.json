@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.64",
-  "app_version": "1.4.64",
-  "runtime_version": "1.4.64",
+  "version": "1.4.65",
+  "app_version": "1.4.65",
+  "runtime_version": "1.4.65",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.64: ahorro de Neon desactivado; mantiene sincronización automática en inactividad, copia local y cola offline. Publicación reforzada ante actualizaciones simultáneas de Recepción.",
-    "previous_version": "1.4.60",
+    "purpose": "Corrección del formato de impresión de recetas V2: los medicamentos y sus indicaciones se colocan como parejas en la MISMA FILA CSS Grid que abarca ambas mitades del A4, evitando que el medicamento 2 y posteriores queden desalineados cuando una indicación tiene más líneas. Mantiene 14 mm de separación habitual (10 mm con 6-7 medicamentos, 5 mm con 8+), presentación/cantidad en negrita a izquierda, indicaciones a derecha, cabecera, pie, marca de agua y espacio de firma PAdES. Recetas históricas con dos mitades iguales permanecen intactas. Sin cambio a datos médicos, Neón, cola, impresoras ni firmas existentes.",
+    "previous_version": "1.4.64",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -114,7 +114,7 @@
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
     "cloud_status_write_failure_nonfatal": true,
-    "printing_changes": false,
+    "printing_changes": true,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
     "consentimiento_encounter_autosave_before_open": true,
@@ -481,6 +481,11 @@
     "queue_chime_http_routes_tested_on_windows": true,
     "neon_eco_saving_enabled": false,
     "neon_sync_continues_while_idle": true,
-    "neon_offline_queue_and_backups_preserved": true
+    "neon_offline_queue_and_backups_preserved": true,
+    "prescription_paired_rows_aligned": true,
+    "prescription_a4_overlay_shared_grid": true,
+    "prescription_signed_pdf_space_preserved": true,
+    "prescription_historical_two_copy_untouched": true,
+    "prescription_extra_instructions_once": true
   }
 }
