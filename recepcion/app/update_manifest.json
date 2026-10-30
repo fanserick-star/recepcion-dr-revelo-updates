@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.115",
-  "app_version": "4.8.115",
-  "runtime_version": "4.8.115",
+  "version": "4.8.116",
+  "app_version": "4.8.116",
+  "runtime_version": "4.8.116",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,16 +210,16 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.115: modo ahorro de Neon desactivado; la inactividad no suspende conexiones, se mantienen cola offline, rendimiento local y seguridad de facturación nocturna.",
-    "previous_version": "4.8.111",
+    "purpose": "Recepción 4.8.116: reemplazo de dos confirmaciones nativas feas del envío de receta/documentos médicos por un solo diálogo profesional del sistema, con nombre, teléfono y tipo de archivo, y dos casillas independientes obligatorias: identidad/número confirmado y autorización explícita del paciente para envío confidencial por WhatsApp y enlace con caducidad 7 días. El botón Enviar se activa solo tras ambas casillas; Cancelar/Escape/cambio de ficha bloquean envío. La misma confirmación se aplica al envío individual de videos al paciente, sin modificar el guardado local. No cambia backend, plantillas Meta, R2, privacidad, datos clínicos, Neón ni lógica de facturación.",
+    "previous_version": "4.8.115",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
     "database_schema_changes": false,
     "patient_data_changes": false,
     "patient_data_destructive_changes": false,
-    "billing_logic_changes": true,
-    "azur_logic_changes": true,
+    "billing_logic_changes": false,
+    "azur_logic_changes": false,
     "whatsapp_logic_changes": false,
     "whatsapp_send_schedule_changes": false,
     "whatsapp_template_changes": false,
@@ -239,7 +239,7 @@
     "agenda_legacy_linked_treated_as_native": true,
     "agenda_unlinked_confirmation_visible": true,
     "agenda_unlinked_no_show_visible": true,
-    "printing_changes": true,
+    "printing_changes": false,
     "procedure_logic_changes": false,
     "procedure_turn_consumption": false,
     "waiting_queue_transport": "lan_only",
@@ -714,7 +714,15 @@
     "neon_idle_does_not_dispose_pool": true,
     "neon_normal_active_cloud_check_seconds": 60,
     "neon_fiscal_night_idleness_safety_preserved": true,
-    "neon_offline_queue_and_local_cache_preserved": true
+    "neon_offline_queue_and_local_cache_preserved": true,
+    "clinical_delivery_confirmation_modal_remaster": true,
+    "clinical_delivery_two_independent_explicit_checks": true,
+    "clinical_delivery_pre_send_phone_and_patient_display": true,
+    "clinical_delivery_seven_day_expiry_consent": true,
+    "clinical_delivery_nobody_can_send_unchecked": true,
+    "clinical_delivery_no_native_confirm_for_live_send": true,
+    "clinical_delivery_patient_change_cancels": true,
+    "clinical_delivery_backend_guard_unchanged": true
   },
   "channel": "launcher-v1-stable"
 }
