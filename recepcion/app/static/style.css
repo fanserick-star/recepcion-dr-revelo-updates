@@ -1466,3 +1466,74 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
 
 .rp-clinical-download-pdf{display:inline-flex;align-items:center;border:1px solid #bfdbcf;background:#e7f4eb;color:#215b42;font-size:12px;font-weight:800;border-radius:9px;padding:9px 13px;text-decoration:none}
 .rp-clinical-download-pdf:hover{background:#d4ecdc;color:#1a5339}
+
+
+/* v4.8.116: consentimiento clínico profesional WhatsApp */
+.rp-clinical-delivery-confirm-shade{
+  z-index:2147483400!important;
+}
+.rp-clinical-delivery-confirm-dialog{
+  width:min(590px,calc(100vw - 24px))!important;
+  padding:27px!important;
+  gap:16px!important;
+  background:#fff!important;
+}
+.rp-clinical-delivery-confirm-icon{
+  color:#1264b2!important;
+  font-size:28px!important;
+  background:#e5f1ff!important;
+  border-color:#cee4fa!important;
+}
+.rp-clinical-delivery-confirm-dialog .rp-video-confirm-details{
+  background:#f7faff!important;
+  border:1px solid #d5e6f6!important;
+}
+.rp-clinical-delivery-confirm-dialog .rp-video-confirm-detail{
+  padding:10px 14px!important;
+}
+.rp-clinical-delivery-confirm-dialog .rp-video-confirm-detail strong{
+  font-size:14px!important;
+  color:#143759!important;
+}
+.rp-clinical-delivery-confirm-warning{
+  margin:0!important;
+  padding:12px 14px!important;
+  border:1px solid #efd8a0!important;
+  border-radius:12px!important;
+  background:#fff8e8!important;
+  color:#76510e!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  line-height:1.52!important;
+}
+.rp-clinical-delivery-confirm-check{
+  background:#f8fbff!important;
+  border-color:#d7e7f8!important;
+  padding:13px 14px!important;
+  line-height:1.5!important;
+  color:#254463!important;
+  font-size:13.5px!important;
+  font-weight:700!important;
+}
+.rp-clinical-delivery-confirm-check:has(input:checked){
+  background:#ebf6ef!important;
+  border-color:#a9d6ba!important;
+}
+.rp-clinical-delivery-confirm-actions{
+  margin-top:2px!important;
+  border-top:1px solid #e7edf3!important;
+  padding-top:16px!important;
+}
+.rp-clinical-delivery-confirm-actions .rp-video-confirm-accept{
+  background:#075ec7!important;
+  border-color:#075ec7!important;
+  min-width:185px!important;
+}
+.rp-clinical-delivery-confirm-actions .rp-video-confirm-accept:hover:not(:disabled){
+  background:#064eaa!important;
+}
+@media(max-width:600px){
+  .rp-clinical-delivery-confirm-dialog{padding:18px!important;gap:13px!important}
+  .rp-clinical-delivery-confirm-actions{flex-wrap:wrap!important}
+  .rp-clinical-delivery-confirm-actions button{flex:1 1 135px!important}
+}
