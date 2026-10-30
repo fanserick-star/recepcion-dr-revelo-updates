@@ -19,23 +19,30 @@ assert not manifest["notes"]["patient_data_destructive_changes"]
 for source in (doc,sign,reports,app):
     ast.parse(source)
 
-# V2 recipes only: consistent space between separate medications on both halves.
-assert ".rx-copy-v2 .med-item{{margin-bottom:14mm}}" in doc
-assert ".rx-copy-v2.rx-med-medium .med-item{{margin-bottom:10mm}}" in doc
-assert ".rx-copy-v2.rx-med-many .med-item{{margin-bottom:5mm}}" in doc
+# V2 prescriptions: a single shared CSS grid spans the two half-page copies.
+# This prevents second and subsequent medicines from drifting vertically.
+assert ".rx-med-pair{{" in doc
+assert "grid-template-columns:88mm 90mm;column-gap:9mm" in doc
+assert ".rx-paired-medications.rx-med-medium .rx-med-pair{{margin-bottom:10mm}}" in doc
+assert ".rx-paired-medications.rx-med-many .rx-med-pair{{margin-bottom:5mm}}" in doc
+assert ".rx-med-pair .med-item{{min-width:0;margin:0}}" in doc
 assert ".med-line{{margin:.7mm 0 0 2mm;font-size:9.1pt}}" in doc
 assert ".med-presentation{{font-weight:900}}" in doc
-assert "new_medication_rows(\"left\")" in doc and "new_medication_rows(\"right\")" in doc
+assert "paired_meds = \"\".join(pair_rows)" in doc
+assert 'left_meds = ""' in doc and 'right_meds = ""' in doc
+assert "f\"<div class='med-item rx-med-left'>{left_content}</div>\"" in doc
+assert "f\"<div class='med-item rx-med-right'>{right_content}</div>\"" in doc
+assert "aligned_meds_html" in doc
 assert "if split_prescription:" in doc
 assert "left_copy = left_copy.replace(" in doc and "right_copy = right_copy.replace(" in doc
-# The previous two-identical-halves historical prescription remains supported.
+# The earlier two-identical-halves historical prescription still renders untouched.
 assert 'split_prescription = any(' in doc
 
 # The *signed* PDF gets its own empty QR/stamp area, ordinary print unchanged.
 assert "def prescription_preview(rx_id: str, print_now: int = 0, signature_space: int = 0):" in doc
 assert 'sheet_class = "sheet rx-signed-preview" if signature_space else "sheet"' in doc
 assert ".rx-signed-preview .rx-copy:first-child .rp{{bottom:59mm}}" in doc
-assert "<main class='{sheet_class}'>{left_copy}{right_copy}</main>" in doc
+assert "<main class='{sheet_class}'>{left_copy}{right_copy}{aligned_meds_html}</main>" in doc
 assert 'preview_path = f"/recetas/{quote(doc_id)}/vista?signature_space=1"' in sign
 
 node=next(n for n in ast.parse(sign).body if isinstance(n,ast.FunctionDef) and n.name=="_signature_stamp_box")
