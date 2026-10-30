@@ -1237,6 +1237,7 @@ body{{background:#dfe5ea;padding:14px}}
 .toolbar span{{font-size:12px;color:#475569}}
 .sheet{{
   width:210mm;height:297mm;margin:0 auto;background:white;display:grid;
+  position:relative; /* ancla la cuadrícula compartida al A4, no a la ventana */
   /* A4 real: conservar izquierda segura (8 mm) y aprovechar 2 mm más
      de la mitad derecha. Margen exterior derecho 6 mm + 3,5 mm internos. */
   padding:0 6mm 0 8mm;grid-template-columns:97mm 99mm;
