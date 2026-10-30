@@ -1069,48 +1069,50 @@ def install(app, context: dict) -> None:
         )
         left_meds = meds
         right_meds = meds
+        paired_meds = ""
+        medication_density = ""
         if split_prescription:
-            def new_medication_rows(side: str) -> str:
-                blocks = []
-                for i, item in enumerate(items):
-                    if not isinstance(item, dict):
-                        continue
-                    name = _e(str(item.get("medication") or "").strip().upper())
-                    if not name:
-                        continue
-                    value = (
-                        item.get("presentation_quantity")
-                        if side == "left"
-                        else item.get("indications")
-                    )
-                    detail = _e(str(value or "").strip().upper())
-                    if side == "left":
-                        # Nombre + presentación/cantidad, seguidos y EN NEGRITA.
-                        # El texto puede saltar de línea si es largo, sin cortarse.
-                        item_html = (
-                            "<div class='med-item'>"
-                            + f"<div class='med-name'>{i+1}. {name}"
-                            + (f" <span class='med-presentation'>{detail}</span>" if detail else "")
-                            + "</div></div>"
-                        )
-                    else:
-                        # Nombre en negrita; indicaciones debajo, en texto normal.
-                        item_html = (
-                            "<div class='med-item'>"
-                            + f"<div class='med-name'>{i+1}. {name}</div>"
-                            + (f"<div class='med-line'>{detail}</div>" if detail else "")
-                            + "</div>"
-                        )
-                    blocks.append(item_html)
-                return "".join(blocks) or "<div class='med-empty'>Sin medicamentos registrados.</div>"
-            left_meds = new_medication_rows("left")
-            right_meds = new_medication_rows("right")
-            # Dar 14 mm de separación entre medicinas para listas habituales;
-            # si hay muchas, reducir solo ese intervalo para proteger el A4.
-            medication_count = sum(
-                1 for item in items if isinstance(item, dict)
-                and str(item.get("medication") or "").strip()
+            # Una FILA por medicamento, con dos columnas que comparten altura.
+            # Los nombres de ambos lados arrancan a la misma cota incluso
+            # cuando la indicación o presentación ocupa varias líneas.
+            pair_rows = []
+            for i, item in enumerate(items):
+                if not isinstance(item, dict):
+                    continue
+                name = _e(str(item.get("medication") or "").strip().upper())
+                if not name:
+                    continue
+                presentation = _e(str(item.get("presentation_quantity") or "").strip().upper())
+                indications = _e(str(item.get("indications") or "").strip().upper())
+                left_content = (
+                    f"<div class='med-name'>{i+1}. {name}"
+                    + (f" <span class='med-presentation'>{presentation}</span>"
+                       if presentation else "")
+                    + "</div>"
+                )
+                right_content = (
+                    f"<div class='med-name'>{i+1}. {name}</div>"
+                    + (f"<div class='med-line'>{indications}</div>"
+                       if indications else "")
+                )
+                pair_rows.append(
+                    "<div class='rx-med-pair'>"
+                    f"<div class='med-item rx-med-left'>{left_content}</div>"
+                    f"<div class='med-item rx-med-right'>{right_content}</div>"
+                    "</div>"
+                )
+            paired_meds = "".join(pair_rows) or (
+                "<div class='rx-med-pair'>"
+                "<div class='med-empty'>Sin medicamentos registrados.</div>"
+                "<div class='med-empty'>Sin medicamentos registrados.</div>"
+                "</div>"
             )
+            # Las copias mantienen cabeceras, marca de agua y pies originales.
+            # Los medicamentos van en una única cuadrícula superpuesta al A4,
+            # no en listas independientes dentro de cada copia.
+            left_meds = ""
+            right_meds = ""
+            medication_count = len(pair_rows)
             medication_density = (
                 " rx-med-many" if medication_count >= 8 else
                 (" rx-med-medium" if medication_count >= 6 else "")
@@ -1206,6 +1208,15 @@ def install(app, context: dict) -> None:
                 "<section class='rx-copy'>",
                 f"<section class='rx-copy rx-copy-v2{medication_density}'>", 1,
             )
+        # Una capa común al ancho de ambas mitades garantiza una cuadrícula
+        # con filas de altura compartida. No se usa JavaScript para imprimir.
+        aligned_meds_html = (
+            f"<div class='rx-paired-medications{medication_density}'>"
+            + paired_meds
+            + (f"<div class='rx-paired-extra'>{extra_html}</div>" if extra_html else "")
+            + "</div>"
+            if split_prescription else ""
+        )
 
         # Sólo al generar el PDF para firma se reserva un espacio para QR y sello;
         # la vista e impresión ordinaria siguen exactamente como antes.
@@ -1269,15 +1280,26 @@ body{{background:#dfe5ea;padding:14px}}
 .rp-title{{position:absolute;top:73mm;left:3.5mm;font-family:Georgia,serif;font-size:14pt;font-weight:900;margin:0}}
 .rp{{position:absolute;top:75mm;left:3.5mm;right:3.5mm;bottom:27mm;padding:0 1mm;font-size:9.4pt;line-height:1.3;z-index:2}}
 .rx-copy-v2 .rp{{top:82mm}}
-/* Más aire ENTRE medicamentos en ambas copias. La indicación sigue junto
-   a su medicamento porque .med-line conserva su margen superior de .7 mm. */
-/* 14 mm entre medicamentos, sin separar las indicaciones del nombre.
-   Listas largas usan intervalos más cortos para proteger el área imprimible. */
-.rx-copy-v2 .med-item{{margin-bottom:14mm}}
-.rx-copy-v2.rx-med-medium .med-item{{margin-bottom:10mm}}
-.rx-copy-v2.rx-med-many .med-item{{margin-bottom:5mm}}
-/* El PDF PAdES reserva exclusivamente en la copia izquierda un área sin texto
-   de medicinas para la firma visible; no alterar la copia derecha ni la vista normal. */
+/* Lista V2: filas compartidas entre ambas mitades, medidas en A4 reales.
+   La copia izquierda comienza en 12.5mm y la derecha en 109.5mm; ambas
+   conservan el mismo ancho utilizable que los antiguos .rp (88/90mm). */
+.rx-paired-medications{{
+  position:absolute;top:82mm;bottom:32mm;left:12.5mm;right:10.5mm;
+  display:flex;flex-direction:column;overflow:hidden;z-index:3;
+  font-size:9.4pt;line-height:1.3;
+}}
+.rx-med-pair{{
+  display:grid;grid-template-columns:88mm 90mm;column-gap:9mm;
+  align-items:start;flex:none;margin-bottom:14mm;min-width:0;
+  break-inside:avoid;page-break-inside:avoid;
+}}
+.rx-med-pair .med-item{{min-width:0;margin:0}}
+/* Con 6+ medicamentos sólo se compacta el intervalo entre filas. */
+.rx-paired-medications.rx-med-medium .rx-med-pair{{margin-bottom:10mm}}
+.rx-paired-medications.rx-med-many .rx-med-pair{{margin-bottom:5mm}}
+.rx-paired-extra{{width:90mm;margin-left:97mm;min-width:0}}
+/* La firma PAdES protege el área inferior de la mitad izquierda. */
+.rx-signed-preview .rx-paired-medications{{bottom:64mm}}
 .rx-signed-preview .rx-copy:first-child .rp{{bottom:59mm}}
 .med-item{{margin:0 0 2.8mm}}
 .med-name{{font-weight:900;font-size:10.2pt;overflow-wrap:anywhere}}
@@ -1313,7 +1335,7 @@ footer{{
   <button onclick='window.print()'>Imprimir / Guardar PDF</button>
   <span>{"A4 vertical · Izquierda: nombre y presentación/cantidad · Derecha: nombre e indicaciones" if split_prescription else "A4 vertical · 2 recetas iguales"} · escala 100 % · márgenes ninguno · sin encabezados/pies</span>
 </div>
-<main class='{sheet_class}'>{left_copy}{right_copy}</main>
+<main class='{sheet_class}'>{left_copy}{right_copy}{aligned_meds_html}</main>
 {"<script>(()=>{let fired=false;const go=()=>{if(fired)return;fired=true;try{window.focus()}catch(_e){};setTimeout(()=>{try{window.print()}catch(_e){}},450)};if(document.readyState==='complete')go();else window.addEventListener('load',go,{once:true});window.addEventListener('pageshow',go,{once:true});})();</script>" if print_now else ""}
 </body>
 </html>"""
