@@ -97,20 +97,28 @@ def main():
         page = preview(saved["id"]).body.decode("utf-8")
         left, right = copies(page)
         assert "rx-copy-v2" in left and "rx-copy-v2" in right
-        assert "1. AUGMENTIN BID" in left and "1. AUGMENTIN BID" in right
-        assert "875/125 TABLETAS X 20" in left
-        # Izquierda: nombre y presentación juntos dentro de UN solo
-        # bloque en negrita; jamás bajo .med-line.
-        assert "1. AUGMENTIN BID <span class='med-presentation'>875/125 TABLETAS X 20</span></div>" in left
-        assert "<div class='med-line'>" not in left
-        assert "<div class='med-name'>1. AUGMENTIN BID</div>" in right
-        assert "<div class='med-line'>TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS</div>" in right
+        # Desde 1.4.65 ambos lados se renderizan en la MISMA fila de CSS Grid.
+        # Los encabezados de cada mitad permanecen en sus propias secciones.
+        assert "1. AUGMENTIN BID" not in left and "1. AUGMENTIN BID" not in right
+        assert page.count("<div class='rx-med-pair'>") == 1
+        shared = page.split("<div class='rx-paired-medications", 1)[1].split("</main>", 1)[0]
+        left_item = shared.split("<div class='med-item rx-med-left'>", 1)[1].split(
+            "<div class='med-item rx-med-right'>", 1)[0]
+        right_item = shared.split("<div class='med-item rx-med-right'>", 1)[1].split(
+            "<div class='rx-paired-extra'>", 1)[0]
+        assert "1. AUGMENTIN BID" in left_item and "1. AUGMENTIN BID" in right_item
+        assert "875/125 TABLETAS X 20" in left_item
+        assert "1. AUGMENTIN BID <span class='med-presentation'>875/125 TABLETAS X 20</span></div>" in left_item
+        assert "<div class='med-line'>" not in left_item
+        assert "<div class='med-name'>1. AUGMENTIN BID</div>" in right_item
+        assert "<div class='med-line'>TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS</div>" in right_item
         assert ".med-presentation{font-weight:900}" in page
-        assert "875/125 TABLETAS X 20" not in right
-        assert "TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS" in right
-        assert "TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS" not in left
-        assert "INDICACIONES ADICIONALES DE PRUEBA" in right
-        assert "INDICACIONES ADICIONALES DE PRUEBA" not in left
+        assert "875/125 TABLETAS X 20" not in right_item
+        assert "TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS" not in left_item
+        assert "INDICACIONES ADICIONALES DE PRUEBA" in shared
+        assert page.count("INDICACIONES ADICIONALES DE PRUEBA") == 1
+        assert "display:grid;grid-template-columns:88mm 90mm;column-gap:9mm;" in page
+        assert "position:absolute;top:82mm;bottom:32mm;left:12.5mm;right:10.5mm;" in page
         assert ".rx-copy-v2 .rp{top:82mm}" in page
         assert ".rp{position:absolute;top:75mm;" in page
         # Hoja 210x297 mm. La mitad izquierda conserva margen seguro de 8mm;
