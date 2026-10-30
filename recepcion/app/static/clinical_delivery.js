@@ -437,7 +437,7 @@
   async function sendDoc(doc){
     if(state.sending||!state.ready_document)return;
     const pid=state.pid;
-    const approval=await confirmDelivery(doc.label);if(!approval||state.pid!==pid||state.sending)return;
+    const approval=await confirmDelivery(doc.label);if(!approval||!approval.identity_confirmed||!approval.consent_confirmed||state.pid!==pid||state.sending)return;
     state.sending=true;
     try{
       const r=await api('/api/clinical-delivery/patients/'+pid+'/send-document',{
