@@ -40,7 +40,8 @@ assert "await response.blob()" in ui
 assert "response.json().catch" in ui
 assert "URL.revokeObjectURL(blobUrl)" in ui
 assert "window.open('/api/clinical-delivery/patients/'" not in ui
-assert "clinical_delivery.js?v=4.8.85" in html
+current_version=__import__("json").loads((root/"recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))["version"]
+assert "clinical_delivery.js?v="+current_version in html
 assert "CLINICAL_DELIVERY_LIVE_ENABLED" in source
 assert "WHATSAPP_CLINICAL_TEMPLATES_APPROVED" in source
 print("CLINICAL_PDF_PREVIEW_4863_FAIL_CLOSED_INLINE_NO_EDGE_OK")
