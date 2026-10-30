@@ -53,6 +53,7 @@ jobs:
           python tools/test_historia_video_cache_1437.py
           python tools/test_reception_video_archive_confirm_4867.py
           node tools/test_reception_video_multi_import_4868.mjs
+          node tools/test_reception_clinical_delivery_modal_48116.mjs
           node --check recepcion/app/static/clinical_delivery.js
           python tools/test_reception_clinical_config_4861.py
           python tools/test_reception_clinical_token_isolation_4872.py
