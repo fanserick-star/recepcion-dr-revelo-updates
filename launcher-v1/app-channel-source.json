@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.115: entrega LAN a Historia con ACK de 4 segundos, diagnóstico seguro de errores y reintentos; conserva cola local, verificación Neon y protección contra duplicados."
+  "notes": "Recepción 4.8.116: confirmación clínica privada de WhatsApp rediseñada con verificación explícita de número y consentimiento del paciente; conserva canal seguro de entrega, LAN, Neon, facturación e historial."
 }
