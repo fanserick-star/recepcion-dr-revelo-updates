@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.116: confirmación clínica privada de WhatsApp rediseñada con verificación explícita de número y consentimiento del paciente; conserva canal seguro de entrega, LAN, Neon, facturación e historial."
+  "notes": "Recepción 4.8.116: diálogo profesional de entrega clínica por WhatsApp, dos casillas de verificación independientes y obligatorias (número correcto, consentimiento y caducidad de 7 días), sin alterar LAN, Neón, datos clínicos ni facturación."
 }
