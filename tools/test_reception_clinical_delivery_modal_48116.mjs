@@ -15,7 +15,7 @@ const nodes=[];
 function create(tag){
   const node={tag,children:[],className:'',textContent:'',disabled:false,checked:false,
     isConnected:true,handlers:{},attrs:{},
-    append(...children){this.children.push(...children)},
+    append(...children){this.children.push(...children);this.lastChild=this.children.at(-1)},
     addEventListener(name,fn){(this.handlers[name]??=[]).push(fn)},
     setAttribute(name,value){this.attrs[name]=value},
     remove(){this.removed=true;this.isConnected=false},
