@@ -2324,7 +2324,31 @@ def home():
       const r=await fetch('/api/queue/status?t='+Date.now(),{cache:'no-store'}); if(!r.ok)return; const q=await r.json();
       const key=String(q.count||0)+'|'+String(q.latest||'')+'|'+String(q.updated_at||'');
       const el=document.getElementById('home-queue-count'); if(el)el.textContent=String(q.count||0);
-      if(lastQueueKey&&key!==lastQueueKey) location.reload();
+      if(lastQueueKey&&key!==lastQueueKey){
+        // Solo la lista de espera: no reiniciar el panel médico ni los avisos.
+        try{
+          const html=await fetch('/',{cache:'no-store'});
+          if(!html.ok)throw Error('Inicio no disponible');
+          const doc=new DOMParser().parseFromString(await html.text(),'text/html');
+          const fresh=doc.querySelector('.hc-b-queue-list');
+          const current=document.querySelector('.hc-b-queue-list');
+          if(!fresh||!current)throw Error('Lista no disponible');
+          current.innerHTML=fresh.innerHTML;
+          const freshNext=doc.querySelector('.hc-b-queue-next');
+          const currentNext=document.querySelector('.hc-b-queue-next');
+          if(freshNext&&currentNext)currentNext.innerHTML=freshNext.innerHTML;
+          else if(freshNext&&!currentNext)current.insertAdjacentElement('afterend',freshNext);
+          else if(!freshNext&&currentNext)currentNext.remove();
+          const titleCount=doc.querySelector('#pacientes-en-espera h1 span');
+          const currentTitleCount=document.querySelector('#pacientes-en-espera h1 span');
+          if(titleCount&&currentTitleCount)currentTitleCount.textContent=titleCount.textContent;
+          refreshWaitingClocks();
+        }catch(_e){
+          // En caso de diferencia estructural, conservar la recarga anterior.
+          location.reload();
+          return;
+        }
+      }
       lastQueueKey=key;
     }catch(_e){}
   }
@@ -2395,7 +2419,7 @@ def home():
   });
   picker?.addEventListener('close',()=>{clearTimeout(pickerTimer);pickerRequest?.abort()});
   refreshCloud(); refreshQueue(); refreshLan();
-  setInterval(refreshCloud,2000); setInterval(refreshQueue,4000); setInterval(refreshLan,3000);
+  setInterval(refreshCloud,2000); setInterval(refreshQueue,2000); setInterval(refreshLan,3000);
 })();
 </script>
 """

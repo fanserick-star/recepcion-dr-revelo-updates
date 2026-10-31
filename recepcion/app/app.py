@@ -9,6 +9,48 @@ from pathlib import Path
 import historia_bridge
 core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
+
+# v4.8.117 · consulta de entrega LOCAL por ID de visita. No despierta Neon.
+import json as _rp48117_json
+import sqlite3 as _rp48117_sqlite
+import historia_lan_transport as _rp48117_lan
+
+@app.get("/api/historia/visit-delivery-status")
+def rp48117_visit_delivery_status(visit_ids: str = "", user=core.Depends(core.current_user)):
+    try:
+        parts = [part.strip() for part in str(visit_ids).split(",") if part.strip()]
+        if not parts or len(parts) > 20 or any(not part.isdecimal() for part in parts):
+            return {"ok": False, "state": "invalid", "message": "Identificadores de atención inválidos"}
+        targets = set(parts)
+        _rp48117_lan._ensure_lan_outbox()
+        with _rp48117_sqlite.connect(_rp48117_lan.LAN_OUTBOX_DB, timeout=3) as conn:
+            rows = conn.execute(
+                "SELECT payload_json,sent_at,cancelled,last_error FROM events "
+                "ORDER BY rowid DESC LIMIT 400"
+            ).fetchall()
+        for payload_raw, sent_at, cancelled, last_error in rows:
+            try:
+                payload = _rp48117_json.loads(payload_raw)
+                visits = {str(v) for v in (payload.get("visit_ids") or [])}
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if not targets.intersection(visits):
+                continue
+            if cancelled:
+                return {"ok": True, "state": "cancelled"}
+            if sent_at:
+                return {"ok": True, "state": "delivered"}
+            code, hint = _rp48117_lan._public_delivery_issue(last_error or "")
+            return {
+                "ok": True,
+                "state": "retrying" if last_error else "queued",
+                "reason": code,
+                "message": hint,
+            }
+        return {"ok": True, "state": "unknown"}
+    except (_rp48117_sqlite.Error, OSError, ValueError):
+        return {"ok": False, "state": "unknown", "message": "No se pudo consultar la cola LAN local"}
+
 # Registra sólo endpoints de consulta AZUR v2, sin alterar el motor de emisión.
 import reception_azur_readonly as _azur_readonly
 import reception_azur_pos80 as _azur_pos80

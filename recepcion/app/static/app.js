@@ -1522,7 +1522,7 @@ function attentionSearch(immediate=false){
           return `<article class="v4413-attention-result historical-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openHistoricalPatientProfile(${Number(p.historical_id)})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openHistoricalPatientProfile(${Number(p.historical_id)})}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b><span class="historical-badge">HISTÓRICO ${esc(years)}</span>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last historical">${esc(lastText)}</strong></div><span class="v4413-result-chevron">›</span></article>`;
         }
         const lastText=p.ultima_atencion?`Última atención: ${fmtDate(p.ultima_atencion)}`:'Sin atención registrada desde 2026';
-        return `<article class="v4413-attention-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openPatient(${Number(p.id)},'attention-search')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPatient(${Number(p.id)},'attention-search')}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last ${p.ultima_atencion?'has-date':'empty'}">${esc(lastText)}</strong></div><span class="v4413-result-chevron">›</span></article>`;
+        return `<article class="v4413-attention-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openPatient(${Number(p.id)},'attention-search')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPatient(${Number(p.id)},'attention-search')}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last ${p.ultima_atencion?'has-date':'empty'}">${esc(lastText)}</strong></div>${!missing.length?`<button type="button" class="rp48117-quick-attend" onclick="event.stopPropagation();attentionFor(${Number(p.id)}).catch(e=>alert(e.message||'No se pudo abrir la atención'))">Atender ahora</button>`:''}<span class="v4413-result-chevron">›</span></article>`;
       }).join(''):'<div class="attention-search-hint">Sin coincidencias. Revisa nombres, identificación y celular antes de pulsar «Crear paciente nuevo».</div>';
     }catch(e){
       if(seq!==attentionSearchSeq)return;
@@ -2086,6 +2086,72 @@ async function saveExamReviewTurn(id){
   }
 }
 
+
+let rp48117DeliveryToken=0;
+function rp48117DeliveryBadge(){
+  const home=document.getElementById('inicio');
+  if(!home)return null;
+  let el=document.getElementById('rp48117DeliveryBadge');
+  if(!el){
+    el=document.createElement('div');
+    el.id='rp48117DeliveryBadge';
+    el.className='rp48117-delivery';
+    el.setAttribute('role','status');
+    el.setAttribute('aria-live','polite');
+    const heading=home.querySelector('.home-title-row');
+    if(heading)heading.insertAdjacentElement('afterend',el);
+    else home.prepend(el);
+  }
+  return el;
+}
+function rp48117TrackDelivery(saved){
+  const ids=(saved?.items||[]).map(row=>Number(row?.id)).filter(id=>Number.isInteger(id)&&id>0).slice(0,20);
+  if(!ids.length)return;
+  const token=++rp48117DeliveryToken;
+  const badge=rp48117DeliveryBadge();
+  if(!badge)return;
+  const showState=(state,message)=>{
+    if(token!==rp48117DeliveryToken)return;
+    badge.dataset.state=state;
+    badge.textContent=message;
+  };
+  showState('queued','✓ Atención guardada · comprobando entrega a Historia…');
+  const started=Date.now();
+  const check=async()=>{
+    if(token!==rp48117DeliveryToken)return;
+    try{
+      const status=await api('/api/historia/visit-delivery-status?visit_ids='+encodeURIComponent(ids.join(',')));
+      if(token!==rp48117DeliveryToken)return;
+      if(status?.state==='delivered'){
+        showState('delivered','✓ Historia confirmó la recepción de la atención.');
+        return;
+      }
+      if(status?.state==='cancelled'){
+        showState('warning','El envío a Historia fue cancelado. Revisa el turno.');
+        return;
+      }
+      if(status?.state==='retrying'){
+        showState('pending','Atención guardada · Historia pendiente: '+(status.message||'reintento automático.'));
+      }else if(status?.state==='queued'){
+        showState('pending','Atención guardada · esperando confirmación LAN de Historia.');
+      }else{
+        showState('pending','Atención guardada · todavía sin confirmación de entrega a Historia.');
+      }
+    }catch(_e){
+      showState('pending','Atención guardada · no se pudo comprobar la entrega LAN.');
+    }
+    if(Date.now()-started<60000 && token===rp48117DeliveryToken){
+      setTimeout(check,2000);
+    }else if(token===rp48117DeliveryToken){
+      const el=rp48117DeliveryBadge();
+      if(el?.dataset.state!=='delivered'){
+        showState('pending','Atención guardada · entrega aún sin confirmar. El sistema seguirá reintentando.');
+      }
+    }
+  };
+  setTimeout(check,300);
+}
+
 async function saveAttention(id){
   if(attentionSaveInFlight)return;
   const saveBtn=$('#saveAttentionBtn');
@@ -2140,6 +2206,7 @@ async function saveAttention(id){
     }
     const saved=await api('/api/visits/batch',{method:'POST',body:JSON.stringify({patient_id:id,fecha,tipo,services,observacion:$('#aObs').value||null})});
     completed=true;
+    rp48117TrackDelivery(saved);
     const stagedId=Number(attentionContext?.stagedId||0);
     if(stagedId){
       try{await api(`/api/agenda/confirmafy-staged/${stagedId}/attended`,{method:'POST',body:JSON.stringify({patient_id:id})});confirmafyStagedById.delete(stagedId);invalidateAttentionWeekCache()}catch(e){console.warn('No se pudo marcar la cita externa como atendida:',e)}
