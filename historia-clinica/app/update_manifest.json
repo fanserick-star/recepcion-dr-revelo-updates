@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.65",
-  "app_version": "1.4.65",
-  "runtime_version": "1.4.65",
+  "version": "1.4.66",
+  "app_version": "1.4.66",
+  "runtime_version": "1.4.66",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
