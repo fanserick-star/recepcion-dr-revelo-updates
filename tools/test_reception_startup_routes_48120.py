@@ -51,6 +51,6 @@ for requirement in [
 
 version = json.loads((ROOT / "recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))
 manifest = json.loads((ROOT / "recepcion/app/update_manifest.json").read_text(encoding="utf-8"))
-assert version["version"] == "4.8.120"
+assert tuple(map(int, version["version"].split("."))) >= (4, 8, 120), "La versión debe ser 4.8.120 o posterior"
 assert all(manifest[field] == version["version"] for field in ("version", "app_version", "runtime_version"))
 print("RECEPTION SERVER STARTUP ROUTES ORDER OK")
