@@ -1,0 +1,56 @@
+name: Correct TV Logo Transparency (one-time)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-tv-logo-transparency.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: tv-logo-transparency
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install image editor
+        run: python -m pip install --disable-pip-version-check pillow
+      - name: Apply exact-logo background removal and release metadata
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          python tools/fix_tv_logo_transparency.py
+          python -m py_compile tools/fix_tv_logo_transparency.py
+          python tools/validate_reception_runtime_layout.py recepcion/app
+          node tools/test_tv_display_javascript.mjs
+      - name: Commit converted PNG and version together
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add recepcion/app/static/doctor_isotype.png recepcion/app/tv_display.html recepcion/app/recepcion-version.json recepcion/app/update_manifest.json launcher-v1/app-channel-source.json
+          git diff --cached --exit-code && { echo "No changes produced"; exit 1; } || true
+          git commit -m "Reception: transparent original TV logo, cache-bust (4.8.121)"
+          git push origin HEAD:main
+      - name: Start validated automatic Reception publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          curl --fail --silent --show-error -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${REPO}/actions/workflows/publish-reception-app-channel.yml/dispatches" \
+            -d '{"ref":"main"}'
