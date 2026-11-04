@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.123: Forma de pago en tarjetas 2x2, sin textos recortados; ficha vinculada en indicador compacto, alertas por falta de vínculo visibles, fecha redundante oculta. Se mantiene la verificación de Historia antes de cada entrega LAN, cobros Bendo y reglas de guardado. Verificaciones de compatibilidad corregidas."
+  "notes": "Recepción 4.8.124: Guardar atención reutiliza ficha clínica ya verificada recientemente sin repetir el POST lento a Neon. Entregas LAN con reintentos limitados para nuevas fichas mientras sincronizan; siempre exige vínculo clínico verificado. Sin cambios de pacientes, cobros, facturas, TV, Historia ni esquema de bases."
 }
