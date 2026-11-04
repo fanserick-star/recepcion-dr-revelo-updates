@@ -3449,8 +3449,14 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
             # Recuperación silenciosa: una consulta no finalizada nunca se pierde,
             # pero no se presenta al doctor como un sistema de "borradores".
             working = conn.execute("SELECT * FROM encounters WHERE patient_id=? AND note_status='draft' ORDER BY updated_at DESC LIMIT 1", (patient_id,)).fetchone()
+        # La consulta necesita inmediatamente sólo los últimos antecedentes.
+        # El historial íntegro sigue disponible en la ficha del paciente.
+        previous_total = int(conn.execute(
+            "SELECT COUNT(*) FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') AND COALESCE(deleted_at,'')=''",
+            (patient_id,),
+        ).fetchone()[0])
         previous_rows = conn.execute(
-            "SELECT * FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') AND COALESCE(deleted_at,'')='' ORDER BY encounter_date DESC, encounter_time DESC, updated_at DESC",
+            "SELECT * FROM encounters WHERE patient_id=? AND note_status IN ('signed','legacy') AND COALESCE(deleted_at,'')='' ORDER BY encounter_date DESC, encounter_time DESC, updated_at DESC LIMIT 8",
             (patient_id,),
         ).fetchall()
         previous = previous_rows[0] if previous_rows else None
@@ -3503,13 +3509,17 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
     recovered = bool(working)
     if previous_rows:
         with db() as _prev_conn:
+            # Evitar procesar adendas de decenas de consultas que no están
+            # presentes en el panel de antecedentes recientes.
+            _recent_ids = [str(h["id"]) for h in previous_rows]
+            _marks = ",".join("?" for _ in _recent_ids)
             _previous_addenda_rows = _prev_conn.execute(
-                """SELECT a.*
-                   FROM encounter_addenda a
-                   JOIN encounters e ON e.id=a.encounter_id
-                   WHERE e.patient_id=?
-                   ORDER BY a.created_at""",
-                (patient_id,),
+                f"""SELECT a.*
+                    FROM encounter_addenda a
+                    JOIN encounters e ON e.id=a.encounter_id
+                    WHERE e.patient_id=? AND e.id IN ({_marks})
+                    ORDER BY a.created_at""",
+                (patient_id, *_recent_ids),
             ).fetchall()
         _previous_addenda_by = {}
         for _a in _previous_addenda_rows:
@@ -3561,7 +3571,7 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
         previous_panel = f"""
 <aside class='previous-panel'>
   <div class='previous-panel-head simple'>
-    <div><h2>Historial anterior</h2><span class='previous-count'>{len(previous_rows)} registro{"s" if len(previous_rows) != 1 else ""}</span></div>
+    <div><h2>Historial anterior</h2><span class='previous-count'>{"8 más recientes de " + str(previous_total) if previous_total > 8 else str(previous_total)} registro{"s" if previous_total != 1 else ""}</span></div>
     <a class='text-btn' href='/paciente/{e(patient_id)}'>Ver historia completa</a>
   </div>
   <div class='previous-scroll clean-reference previous-record-list'>
@@ -3601,6 +3611,7 @@ def new_consultation(patient_id: str, encounter_id: str = "", queue_id: str = ""
     script = r"""<script>
 const PATIENT_ID=__PATIENT_ID__, QUEUE_ID=__QUEUE_ID__, PREVIOUS=__PREVIOUS__, MACROS=__MACROS__;
 let encounterId=__WORKING_ID__ || null, timer=null, dirty=false, leavingAfterFinalize=false, documentActivity=__HAS_DOCUMENTS__;
+let saveInFlight=null, editRevision=0;
 const state=document.getElementById('save-state');
 const noteEl=document.getElementById('clinical-note');
 const finalizeModal=document.getElementById('finalize-modal');
@@ -3636,6 +3647,7 @@ noteEl.addEventListener('input',()=>{upperClinical(noteEl);changed()});
 ['enc-date','enc-time'].forEach(id=>document.getElementById(id).addEventListener('change',changed));
 
 function changed(){
+  editRevision+=1;
   dirty=true;
   state.textContent='Guardando cambios…';
   state.className='save-state saving';
@@ -3656,6 +3668,28 @@ function payload(manual=false){
 }
 
 async function save(manual=false){
+  // Nunca escribir la misma consulta simultáneamente. Si el médico
+  // continúa escribiendo durante el guardado, volveremos a guardar después.
+  if(saveInFlight){
+    await saveInFlight;
+    if(!dirty&&encounterId)return encounterId;
+  }
+  const revision=editRevision;
+  const operation=saveOnce(manual,revision);
+  saveInFlight=operation;
+  try{
+    const id=await operation;
+    if(dirty&&editRevision!==revision){
+      clearTimeout(timer);
+      timer=setTimeout(()=>save(false).catch(()=>{}),300);
+    }
+    return id;
+  }finally{
+    if(saveInFlight===operation)saveInFlight=null;
+  }
+}
+
+async function saveOnce(manual=false,revision=editRevision){
   if(documentActivity && encounterId && !String(noteEl.value||'').trim()){
     dirty=false;
     if(manual){state.textContent='Documento guardado · sin texto adicional';state.className='save-state saved'}
@@ -3693,15 +3727,15 @@ async function save(manual=false){
     const j=await r.json();
     if(j.empty){
       encounterId=null;
-      dirty=false;
-      state.textContent='Sin contenido clínico que guardar';
-      state.className='save-state saved';
+      dirty=editRevision!==revision;
+      state.textContent=dirty?'Hay cambios recientes por guardar':'Sin contenido clínico que guardar';
+      state.className=dirty?'save-state saving':'save-state saved';
       return null;
     }
     encounterId=j.encounter_id;
-    dirty=false;
-    state.textContent='Guardado '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-    state.className='save-state saved';
+    dirty=editRevision!==revision;
+    state.textContent=dirty?'Hay cambios recientes por guardar':'Guardado '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    state.className=dirty?'save-state saving':'save-state saved';
     return encounterId;
   }catch(_e){
     state.textContent='No se pudo guardar';

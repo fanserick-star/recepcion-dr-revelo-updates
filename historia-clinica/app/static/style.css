@@ -5298,3 +5298,14 @@ body.hc-b-app .hc-b-chime-toggle:disabled{opacity:.6!important;cursor:wait!impor
 @media(max-width:800px){
   .hc-chime-settings .hc-chime-grid{grid-template-columns:minmax(0,1fr)!important}
 }
+
+/* Historia 1.4.67 · navegación fluida en fichas con muchos antecedentes.
+   Sólo optimiza pintura fuera de pantalla, sin ocultar ni recortar registros. */
+@supports (content-visibility:auto){
+  @media screen{
+    .cp-flat-history-entry,.previous-record-flat{
+      content-visibility:auto;
+      contain-intrinsic-size:auto 180px;
+    }
+  }
+}

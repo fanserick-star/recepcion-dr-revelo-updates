@@ -248,11 +248,13 @@ function payload(){
   return {...state,issued_date:reportDate.value,fields:fields,report_id:state.id};
 }
 async function saveReport(){
+  const revision=window.historiaEditorRevision?.();
   const response=await fetch('/api/informes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())});
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.ok)throw Error(data.error||'No se pudo guardar el informe');
   state.id=data.id;state.encounter_id=data.encounter_id||state.encounter_id;
   marker.textContent='Guardado';
+  window.historiaEditorMarkSaved?.(revision);
   try{if(window.opener&&!window.opener.closed)window.opener.postMessage({type:'clinical-document-saved',encounter_id:state.encounter_id||''},location.origin)}catch(_e){}
   return data;
 }

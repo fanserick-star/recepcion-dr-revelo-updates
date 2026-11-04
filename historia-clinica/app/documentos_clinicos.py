@@ -550,7 +550,7 @@ body.clinical-document-editor > header.topbar,
 body.clinical-document-editor > footer{display:none!important}
 body.clinical-document-editor > main{width:100%;max-width:1690px;box-sizing:border-box;
   padding:16px clamp(12px,2vw,32px) 40px}
-body.clinical-document-editor .docs-wrap{max-width:1600px;padding:10px 0 26px}
+body.clinical-document-editor .docs-wrap{max-width:1760px;padding:10px 0 26px}
 body.clinical-document-editor .docs-head h1{font-size:clamp(24px,2.4vw,31px)}
 body.clinical-document-editor .docs-card{padding:clamp(15px,1.6vw,24px)}
 body.clinical-document-editor .docs-card label{font-size:14px}
@@ -559,6 +559,19 @@ body.clinical-document-editor .docs-card select,
 body.clinical-document-editor .docs-card textarea{font-size:16px;min-height:43px}
 body.clinical-document-editor .doc-actions button{min-height:48px;font-size:15px}
 body.clinical-document-editor .doc-actions button:disabled{opacity:.58;cursor:wait}
+body.clinical-document-editor .docs-grid{grid-template-columns:minmax(280px,.88fr) minmax(0,1.45fr);gap:20px}
+body.clinical-document-editor .docs-wrap>.doc-actions{
+  position:sticky;bottom:0;z-index:20;align-items:center;padding:14px;
+  background:rgba(246,250,253,.97);border:1px solid #d4e1ed;
+  border-radius:12px;box-shadow:0 -5px 22px rgba(21,57,96,.10)
+}
+body.clinical-document-editor .doc-dirty-warning{
+  margin:0 0 14px;padding:10px 14px;border:1px solid #eacb87;
+  border-radius:9px;background:#fff8e8;color:#754d12;
+  font-size:13px;font-weight:750
+}
+body.clinical-document-editor .doc-dirty-warning[hidden]{display:none!important}
+@media(max-width:1080px){body.clinical-document-editor .docs-grid{grid-template-columns:1fr}}
 body.clinical-document-editor .doc-progress{position:fixed;z-index:9990;bottom:18px;
   left:50%;transform:translateX(-50%);width:min(92vw,640px);box-sizing:border-box;
   padding:17px 22px;text-align:center;border-radius:12px;
@@ -582,6 +595,35 @@ window.historiaDocumentAction=(function(){
   let busy=false,lastPrintAt=0,releaseTimer=0;
   const REPEAT_WAIT_MS=20000;
   const banner=document.getElementById('clinical-document-progress');
+  let editorDirty=false, editorRevision=0;
+  const wrap=document.querySelector('.docs-wrap');
+  const warning=document.createElement('div');
+  warning.className='doc-dirty-warning';
+  warning.hidden=true;
+  warning.setAttribute('role','status');
+  warning.textContent='Hay cambios sin guardar en este documento. Guárdelos antes de cerrar la ventana.';
+  wrap?.querySelector('.docs-head')?.insertAdjacentElement('afterend',warning);
+  function trackEdit(event){
+    const field=event.target;
+    if(!wrap||!wrap.contains(field)||!field?.matches?.('input,textarea,select')
+       ||field.readOnly||field.disabled)return;
+    editorDirty=true;
+    editorRevision+=1;
+    warning.hidden=false;
+  }
+  document.addEventListener('input',trackEdit,true);
+  document.addEventListener('change',trackEdit,true);
+  window.historiaEditorRevision=()=>editorRevision;
+  window.historiaEditorMarkSaved=(revision)=>{
+    if(typeof revision==='number'&&revision!==editorRevision)return;
+    editorDirty=false;
+    warning.hidden=true;
+  };
+  window.addEventListener('beforeunload',event=>{
+    if(!editorDirty)return;
+    event.preventDefault();
+    event.returnValue='';
+  });
   function announce(message,level){
     banner.textContent=message;
     banner.dataset.state=level||'working';
@@ -618,6 +660,7 @@ window.historiaDocumentAction=(function(){
       announce(mode==='save'?'Guardando documento…':mode==='sign'?'Preparando firma…':'Preparando vista previa…','working');
     }
     let sent=false;
+    const actionRevision=window.historiaEditorRevision?.();
     try{
       const result=await work();
       if(printing){
@@ -626,10 +669,12 @@ window.historiaDocumentAction=(function(){
           lastPrintAt=Date.now();
           if(state)state.textContent='Solicitud de impresión enviada';
           announce('Solicitud enviada a Windows. Espere antes de solicitar otra copia.','done');
+          window.historiaEditorMarkSaved?.(actionRevision);
         }else{
           announce('No se confirmó el envío de impresión. Revise el aviso y la impresora.','error');
         }
       }else if(result!==false){
+        if(mode==='save'||mode==='preview')window.historiaEditorMarkSaved?.(actionRevision);
         banner.hidden=true;
       }else{
         banner.hidden=true;
@@ -911,6 +956,7 @@ def install(app, context: dict) -> None:
           try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}
         }}
         async function saveRx(showNotice=false){{
+          const revision=window.historiaEditorRevision?.();
           const payload={{
             prescription_id:prescriptionId,patient_id:patientId,encounter_id:encounterId,
             queue_id:queueId,encounter_date:encounterDate,encounter_time:encounterTime,from_consultation:fromConsultation,
@@ -926,6 +972,7 @@ def install(app, context: dict) -> None:
           prescriptionId=j.id||prescriptionId;
           if(j.encounter_id)encounterId=j.encounter_id;
           notifyParent(encounterId);
+          window.historiaEditorMarkSaved?.(revision);
           const state=document.getElementById('rx-state');
           if(state)state.textContent='Guardada';
           if(showNotice&&window.showAppToast)showAppToast('Receta guardada correctamente.','success');
@@ -1624,11 +1671,13 @@ footer{{
 
         function notifyCertParent(encId){{try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
         async function saveCert(showNotice=false){{
+          const revision=window.historiaEditorRevision?.();
           const payload=certPayload();payload.body_text=certBody.value;
           const r=await fetch('/api/certificados',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(payload)}});
           const j=await r.json().catch(()=>({{}}));
           if(!r.ok||!j.ok)throw new Error(j.error||'No se pudo guardar el certificado');
           certificateId=j.id||certificateId;if(j.encounter_id)encounterId=j.encounter_id;notifyCertParent(encounterId);
+          window.historiaEditorMarkSaved?.(revision);
           const s=document.getElementById('cert-state');if(s)s.textContent='Guardado';
           if(showNotice&&window.showAppToast)showAppToast('Certificado guardado correctamente.','success');
           return j;
@@ -2071,10 +2120,12 @@ footer{{
         }}
         function notifyRestParent(encId){{try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
         async function saveRest(showNotice=false){{
+          const revision=window.historiaEditorRevision?.();
           const data=payload();if(!data.contingency)throw new Error('Seleccione si existe contingencia.');if(!data.symptoms)throw new Error('Seleccione si el paciente presenta síntomas.');
           const r=await fetch('/api/certificados/reposo',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify(data)}});
           const j=await r.json().catch(()=>({{}}));if(!r.ok||!j.ok)throw new Error(j.error||'No se pudo guardar el certificado');
           certificateId=j.id||certificateId;if(j.encounter_id)encounterId=j.encounter_id;notifyRestParent(encounterId);
+          window.historiaEditorMarkSaved?.(revision);
           const s=document.getElementById('rest-state');if(s)s.textContent='Guardado';
           if(showNotice&&window.showAppToast)showAppToast('Certificado guardado correctamente.','success');return j;
         }}
