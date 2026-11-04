@@ -1255,6 +1255,7 @@ function openModal(html){
     delete box.dataset.v481Patient;
     box.classList.toggle('modalbox-wide',String(html||'').includes('new-attention-start-modal'));
     box.classList.toggle('v4413-profile-shell',String(html||'').includes('v4413-patient-profile'));
+    box.classList.toggle('v4122-attention-compact',String(html||'').includes('attention-form-modal'));
     box.scrollTop=0;
   }
   body.scrollTop=0;
@@ -1264,7 +1265,7 @@ function closeModal(){
   $('#modal').classList.add('hidden');
   const box=$('#modal .modalbox');
   if(box){
-    box.classList.remove('modalbox-wide','v4413-profile-shell','v481-patient-modal','v477-attention-modalbox');
+    box.classList.remove('modalbox-wide','v4413-profile-shell','v481-patient-modal','v477-attention-modalbox','v4122-attention-compact');
     delete box.dataset.v481Patient;
     box.scrollTop=0;
   }
