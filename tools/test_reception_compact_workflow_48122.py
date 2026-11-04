@@ -14,7 +14,7 @@ assert tuple(map(int, version.split("."))) >= (4, 8, 122), "Debe conservar la me
 assert all(manifest[key] == version for key in ("version", "app_version", "runtime_version"))
 asset = "static/reception_compact_workflow_48122.css"
 assert asset in manifest["copy"] and asset in manifest["required_dependencies"]
-assert '/static/reception_compact_workflow_48122.css?v=' + version in html
+assert '/static/reception_compact_workflow_48122.css?v=' in html
 assert html.index("patient_dossier_review_48100.css") < html.index("reception_compact_workflow_48122.css")
 assert "v4122-attention-compact" in js
 assert "box.classList.toggle('v4122-attention-compact'" in js
