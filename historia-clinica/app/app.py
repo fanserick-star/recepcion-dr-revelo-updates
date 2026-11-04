@@ -3670,7 +3670,7 @@ function payload(manual=false){
 async function save(manual=false){
   // Nunca escribir la misma consulta simultáneamente. Si el médico
   // continúa escribiendo durante el guardado, volveremos a guardar después.
-  if(saveInFlight){
+  while(saveInFlight){
     await saveInFlight;
     if(!dirty&&encounterId)return encounterId;
   }

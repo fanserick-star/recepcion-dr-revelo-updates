@@ -68,7 +68,9 @@ def main():
             assert '<body class="cp-remaster-app clinical-document-editor">' in page, key
             assert 'body.clinical-document-editor > header.topbar' in page, key
             assert 'body.clinical-document-editor > footer' in page, key
-            assert 'max-width:1600px' in page, key
+            assert 'max-width:1760px' in page, key
+            assert "window.historiaEditorMarkSaved" in page, key
+            assert "beforeunload" in page, key
             assert 'id="clinical-document-progress"' in page, key
             assert 'role="status" aria-live="polite"' in page, key
             assert 'REPEAT_WAIT_MS=20000' in page, key

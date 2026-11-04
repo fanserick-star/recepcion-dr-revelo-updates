@@ -596,13 +596,16 @@ window.historiaDocumentAction=(function(){
   const REPEAT_WAIT_MS=20000;
   const banner=document.getElementById('clinical-document-progress');
   let editorDirty=false, editorRevision=0;
-  const wrap=document.querySelector('.docs-wrap');
-  const warning=document.createElement('div');
-  warning.className='doc-dirty-warning';
-  warning.hidden=true;
-  warning.setAttribute('role','status');
-  warning.textContent='Hay cambios sin guardar en este documento. Guárdelos antes de cerrar la ventana.';
-  wrap?.querySelector('.docs-head')?.insertAdjacentElement('afterend',warning);
+  // El protector también funciona en WebView2 y en pruebas sin DOM completo.
+  const wrap=typeof document.querySelector==='function'?document.querySelector('.docs-wrap'):null;
+  const warning=wrap?document.createElement('div'):{hidden:true};
+  if(wrap){
+    warning.className='doc-dirty-warning';
+    warning.hidden=true;
+    warning.setAttribute('role','status');
+    warning.textContent='Hay cambios sin guardar en este documento. Guárdelos antes de cerrar la ventana.';
+    wrap.querySelector('.docs-head')?.insertAdjacentElement('afterend',warning);
+  }
   function trackEdit(event){
     const field=event.target;
     if(!wrap||!wrap.contains(field)||!field?.matches?.('input,textarea,select')
@@ -611,19 +614,23 @@ window.historiaDocumentAction=(function(){
     editorRevision+=1;
     warning.hidden=false;
   }
-  document.addEventListener('input',trackEdit,true);
-  document.addEventListener('change',trackEdit,true);
+  if(typeof document.addEventListener==='function'){
+    document.addEventListener('input',trackEdit,true);
+    document.addEventListener('change',trackEdit,true);
+  }
   window.historiaEditorRevision=()=>editorRevision;
   window.historiaEditorMarkSaved=(revision)=>{
     if(typeof revision==='number'&&revision!==editorRevision)return;
     editorDirty=false;
     warning.hidden=true;
   };
-  window.addEventListener('beforeunload',event=>{
-    if(!editorDirty)return;
-    event.preventDefault();
-    event.returnValue='';
-  });
+  if(typeof window.addEventListener==='function'){
+    window.addEventListener('beforeunload',event=>{
+      if(!editorDirty)return;
+      event.preventDefault();
+      event.returnValue='';
+    });
+  }
   function announce(message,level){
     banner.textContent=message;
     banner.dataset.state=level||'working';
