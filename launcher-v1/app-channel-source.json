@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes" : "Recepción 4.8.121: logo del doctor con fondo transparente en la TV; conserva el isotipo original, sin cambios funcionales ni de bases de datos."
+  "notes": "Recepción 4.8.121: logo del doctor con fondo transparente en la TV; conserva el isotipo original, sin cambios funcionales ni de bases de datos."
 }
