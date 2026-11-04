@@ -10,7 +10,7 @@ css = (app / "static" / "reception_compact_workflow_48122.css").read_text(encodi
 manifest = json.loads((app / "update_manifest.json").read_text(encoding="utf-8"))
 version = json.loads((app / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
 
-assert version == "4.8.122"
+assert tuple(map(int, version.split("."))) >= (4, 8, 122), "Debe conservar la mejora 4.8.122 o posterior"
 assert all(manifest[key] == version for key in ("version", "app_version", "runtime_version"))
 asset = "static/reception_compact_workflow_48122.css"
 assert asset in manifest["copy"] and asset in manifest["required_dependencies"]
