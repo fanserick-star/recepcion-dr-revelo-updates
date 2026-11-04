@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.68",
-  "app_version": "1.4.68",
-  "runtime_version": "1.4.68",
+  "version": "1.4.69",
+  "app_version": "1.4.69",
+  "runtime_version": "1.4.69",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,9 +89,9 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Corrección del formato de impresión de recetas V2: los medicamentos y sus indicaciones se colocan como parejas en la MISMA FILA CSS Grid que abarca ambas mitades del A4, evitando que el medicamento 2 y posteriores queden desalineados cuando una indicación tiene más líneas. Mantiene 14 mm de separación habitual (10 mm con 6-7 medicamentos, 5 mm con 8+), presentación/cantidad en negrita a izquierda, indicaciones a derecha, cabecera, pie, marca de agua y espacio de firma PAdES. Recetas históricas con dos mitades iguales permanecen intactas. Sin cambio a datos médicos, Neón, cola, impresoras ni firmas existentes.",
-    "previous_version": "1.4.64",
-    "functional_changes": true,
+    "purpose": "Historia 1.4.69: turno legible en revisión de exámenes y en consulta. El recuadro del número conserva azul intenso con texto blanco aun cuando la tarjeta use verde o ámbar. Corrección visual únicamente; sin cambios en cola, turnos, TV, datos, Neon, impresión, documentos ni firma.",
+    "previous_version": "1.4.68",
+    "functional_changes": false,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -114,7 +114,7 @@
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
     "cloud_status_write_failure_nonfatal": true,
-    "printing_changes": true,
+    "printing_changes": false,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
     "consentimiento_encounter_autosave_before_open": true,
@@ -486,6 +486,10 @@
     "prescription_a4_overlay_shared_grid": true,
     "prescription_signed_pdf_space_preserved": true,
     "prescription_historical_two_copy_untouched": true,
-    "prescription_extra_instructions_once": true
+    "prescription_extra_instructions_once": true,
+    "waiting_room_special_turn_badge_contrast": true,
+    "waiting_room_review_turn_badge_blue": true,
+    "waiting_room_attending_turn_badge_blue": true,
+    "waiting_room_turn_number_logic_unchanged": true
   }
 }
