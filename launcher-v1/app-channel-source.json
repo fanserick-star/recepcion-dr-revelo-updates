@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.122: fichas de pacientes más compactas y Nueva atención reorganizada en columnas. Conserva búsqueda, revisión de exámenes, procedimientos, precios, cobros, vínculos clínicos y bases de datos."
+  "notes": "Recepción 4.8.123: Forma de pago en tarjetas 2x2, sin textos recortados; ficha vinculada en indicador compacto, alertas por falta de vínculo visibles, fecha redundante oculta. Se mantiene la verificación de Historia antes de cada entrega LAN, cobros Bendo y reglas de guardado."
 }
