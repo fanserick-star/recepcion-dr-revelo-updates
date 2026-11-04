@@ -1273,14 +1273,30 @@ V4613_JS = r"""
         if(isSubsequent(body)){
           const pid=Number(body?.patient_id||pidFrom(modalRoots()[0])||0);
           if(pid){
-            let pre=null;
-            try{pre=await prepare(pid,true)}catch(_e){pre={ok:false,reachable:false}}
-            if(pre?.ok!==false&&pre?.reachable!==false&&!pre?.linked){
-              await searchDialog(pid,text(pre?.reception_name||''));
-              const err=new Error('__HISTORIA_LINK_REQUIRED__');err.__historiaLinkRequired=true;throw err;
+            // v4.8.124: al abrir Nueva atención ya se consultó el vínculo.
+            // No volver a preparar/sincronizar Historia en cada Guardar:
+            // ese POST podía despertar Neon y bloquear el botón varios segundos.
+            // Reutilizar SOLO una confirmación reciente y verificada para el
+            // mismo paciente. El worker LAN comprueba Neon otra vez ANTES
+            // de cualquier entrega, incluso si el navegador conserva caché.
+            const cached=statusCache.get(pid);
+            const checked=cached?.data;
+            const recentlyVerified=!!(
+              cached && Date.now()-cached.at<300000 &&
+              checked?.ok!==false && checked?.reachable!==false &&
+              checked?.linked===true &&
+              ['true','1'].includes(String(checked?.clinical_patient?.verified??'').toLowerCase())
+            );
+            if(!recentlyVerified){
+              let pre=null;
+              try{pre=await prepare(pid,true)}catch(_e){pre={ok:false,reachable:false}}
+              if(pre?.ok!==false&&pre?.reachable!==false&&!pre?.linked){
+                await searchDialog(pid,text(pre?.reception_name||''));
+                const err=new Error('__HISTORIA_LINK_REQUIRED__');err.__historiaLinkRequired=true;throw err;
+              }
             }
-            // Si Historia está realmente fuera de línea no se bloquea Recepción:
-            // el outbox/LAN seguirá protegiendo el turno y el doctor conserva el fallback.
+            // Si Historia está fuera de línea, el outbox espera un vínculo
+            // confirmado. Ningún turno se entrega sin validación LAN/Neon.
           }
         }
       }
