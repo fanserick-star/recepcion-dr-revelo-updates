@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.116: diálogo profesional de entrega clínica por WhatsApp, dos casillas de verificación independientes y obligatorias (número correcto, consentimiento y caducidad de 7 días), sin alterar LAN, Neón, datos clínicos ni facturación."
+  "notes": "Mejoras internas de Recepción 4.8.118: sincronización posterior a la atención mediante un único trabajador, diagnóstico local de rendimiento y estado LAN en Mantenimiento. Conserva el guardado local, los datos clínicos, Neon y el sistema de actualización segura."
 }
