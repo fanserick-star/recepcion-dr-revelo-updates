@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.124: Guardar atención reutiliza ficha clínica ya verificada recientemente sin repetir el POST lento a Neon. Entregas LAN con reintentos limitados para nuevas fichas mientras sincronizan; siempre exige vínculo clínico verificado. Sin cambios de pacientes, cobros, facturas, TV, Historia ni esquema de bases."
+  "notes": "Recepción 4.8.124: Guardar atención reutiliza ficha clínica ya verificada recientemente sin repetir el POST lento a Neon. Entregas LAN con reintentos limitados para nuevas fichas mientras sincronizan; siempre exige vínculo clínico verificado. Sin cambios de pacientes, cobros, facturas, TV, Historia ni esquema de bases. Pruebas canónicas completas y verificadas."
 }
