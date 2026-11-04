@@ -5309,3 +5309,32 @@ body.hc-b-app .hc-b-chime-toggle:disabled{opacity:.6!important;cursor:wait!impor
     }
   }
 }
+
+/* Historia v1.4.69 · número de turno legible en revisión y en consulta.
+   El verde de la atención y el ámbar de revisión permanecen en la TARJETA.
+   El CUADRO de turno mantiene el azul de alto contraste en todos los estados.
+   No modifica números, estados, atención, TV, LAN ni datos clínicos. */
+@media screen {
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-wait-turn .queue-turn-number,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review:first-child .hc-b-wait-turn .queue-turn-number,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-turn .queue-turn-number,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending:first-child .hc-b-wait-turn .queue-turn-number {
+    background:linear-gradient(180deg,#0969d3 0%,#06428e 100%)!important;
+    border:2px solid #063b7e!important;
+    color:#ffffff!important;
+    opacity:1!important;
+    box-shadow:0 2px 7px rgba(6,53,118,.20)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-wait-turn .queue-turn-number span,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-wait-turn .queue-turn-number b,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-turn .queue-turn-number span,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-turn .queue-turn-number b {
+    color:#ffffff!important;
+    opacity:1!important;
+    text-shadow:0 1px 2px rgba(0,31,80,.15)!important;
+  }
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.hc-b-review .hc-b-wait-turn .queue-turn-number b,
+  body.hc-b-app .hc-b-queue-list .hc-b-wait-card.queue-row-attending .hc-b-wait-turn .queue-turn-number b {
+    font-weight:950!important;
+  }
+}
