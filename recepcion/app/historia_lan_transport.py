@@ -596,6 +596,22 @@ def _defer_lan_event(event_id: str, seconds: int, error: str) -> None:
         conn.commit()
 
 
+def _recent_unlinked_retry_seconds(queued_at: object, previous_attempts: object) -> int:
+    """Reintentos breves y acotados mientras una ficha nueva se sincroniza.
+
+    Nunca entrega sin vínculo. Tras dos fallos, vuelve al intervalo de 5 min
+    para no consultar Neon continuamente si realmente no existe vinculación.
+    """
+    try:
+        attempts = max(0, int(previous_attempts or 0))
+        age = (datetime.now() - datetime.fromisoformat(str(queued_at or ""))).total_seconds()
+    except (TypeError, ValueError, OverflowError):
+        return 300
+    if 0 <= age <= 120 and attempts < 2:
+        return (15, 30)[attempts]
+    return 300
+
+
 def _ready_lan_count() -> int:
     _ensure_lan_outbox()
     with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
@@ -714,7 +730,7 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
         with sqlite3.connect(LAN_OUTBOX_DB, timeout=5) as conn:
             rows = conn.execute(
                 """
-                SELECT event_id,payload_json
+                SELECT event_id,payload_json,attempt_count
                 FROM events
                 WHERE sent_at IS NULL AND cancelled=0
                   AND (next_attempt_at IS NULL OR next_attempt_at<=?)
@@ -724,7 +740,7 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
                 (_now(), batch_size),
             ).fetchall()
         verified_by_patient: dict[str, str] = {}
-        for event_id, payload_json in rows:
+        for event_id, payload_json, attempt_count in rows:
             try:
                 payload = json.loads(payload_json)
                 patient_id = str(payload.get("reception_patient_id") or "").strip()
@@ -740,7 +756,10 @@ def _flush_lan_outbox(max_items: int = 8) -> None:
                     if not verified_id:
                         transient = bool(getattr(_LINK_LOOKUP_STATE, "error", ""))
                         _defer_lan_event(
-                            str(event_id), 30 if transient else 300,
+                            str(event_id),
+                            30 if transient else _recent_unlinked_retry_seconds(
+                                payload.get("queued_at"), attempt_count
+                            ),
                             ("Neon temporalmente no disponible: " + _LINK_LOOKUP_STATE.error)
                             if transient else "Ficha clínica pendiente de verificar o vincular",
                         )
