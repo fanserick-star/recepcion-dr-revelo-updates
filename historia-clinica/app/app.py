@@ -10,6 +10,9 @@ import re
 import sqlite3
 import unicodedata
 import uuid
+import time
+import threading
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -610,10 +613,13 @@ clinical_video_library.install(app, ROOT, DB_PATH, LAN_SERVICE)
 
 @app.on_event("startup")
 def _startup_cloud_sync():
+    global _HC1468_STARTUP_MS
+    started = time.perf_counter()
     SYNC_SERVICE.start()
     SYNC_SERVICE.mark_activity()
     _v1373_reconcile_signed_queue_items()
     cleanup_stale_waiting_queue()
+    _HC1468_STARTUP_MS = round((time.perf_counter()-started)*1000, 1)
 
 
 @app.on_event("shutdown")
@@ -5447,4 +5453,136 @@ _DOCTOR_CALL_ORIGINAL_BASE = base
 
 def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
     html = _DOCTOR_CALL_ORIGINAL_BASE(title, body, active, extra_head, extra_script)
+    if active == "configuracion":
+        html = html.replace("</main>",
+            "<div class='panel' style='padding:14px;margin:15px 0'>"
+            "<b>Rendimiento y sincronización</b><p>Mediciones locales sin datos de pacientes.</p>"
+            "<a class='secondary btn-link' href='/api/ops/performance/view'>"
+            "Ver diagnóstico de rendimiento</a></div></main>", 1)
     return html.replace("</body>", doctor_turn_call.CALL_SCRIPT + "</body>", 1)
+
+
+# Historia v1.4.68: medidor LOCAL, sin notas ni identificadores en memoria.
+_HC1468_STARTED = time.monotonic()
+_HC1468_METRICS_LOCK = threading.Lock()
+_HC1468_METRICS = {}
+_HC1468_STARTUP_MS = None
+
+def _hc1468_metric_key(method, path):
+    if method == "GET":
+        if path == "/": return "abrir_inicio"
+        if path == "/pacientes": return "buscar_pacientes"
+        if path == "/api/pacientes/buscar": return "busqueda_instantanea"
+        if path == "/api/sync/status": return "estado_sincronizacion"
+        if path.startswith("/paciente/") and path.endswith("/nueva"): return "abrir_consulta"
+        if path.startswith("/paciente/") and path.count("/") == 2: return "abrir_ficha"
+        if path in {"/recetas/nueva", "/certificados/nuevo", "/certificados/reposo/nuevo", "/informes/nuevo"}:
+            return "abrir_documentos"
+    if method == "POST" and path == "/api/encounters/save":
+        return "guardar_consulta"
+    return None
+
+@app.middleware("http")
+async def _hc1468_measure_request(request: Request, call_next):
+    key = _hc1468_metric_key(request.method.upper(), request.url.path)
+    if key is None:
+        return await call_next(request)
+    start = time.perf_counter()
+    failed = False
+    try:
+        response = await call_next(request)
+        failed = response.status_code >= 500
+        return response
+    except Exception:
+        failed = True
+        raise
+    finally:
+        ms = round((time.perf_counter() - start) * 1000, 1)
+        with _HC1468_METRICS_LOCK:
+            item = _HC1468_METRICS.setdefault(
+                key, {"times": deque(maxlen=64), "failures": 0}
+            )
+            item["times"].append(ms)
+            if failed: item["failures"] += 1
+
+def _hc1468_perf_snapshot():
+    with _HC1468_METRICS_LOCK:
+        items = {k:(list(v["times"]),v["failures"]) for k,v in _HC1468_METRICS.items()}
+    out = {}
+    for name, (samples, failures) in items.items():
+        sorted_times = sorted(samples)
+        out[name] = {
+            "samples": len(samples),
+            "average_ms": round(sum(samples) / len(samples), 1),
+            "p95_ms": sorted_times[int((len(sorted_times)-1) * .95)],
+            "last_ms": samples[-1], "failures": failures,
+        }
+    return out
+
+def _hc1468_local_status():
+    status = get_sync_status(ROOT / "data")
+    return {
+        "cloud": {
+            "state": str(status.get("state") or "unknown")[:28],
+            "online": bool(status.get("online")),
+            "pending": max(0, int(status.get("pending") or 0)),
+        },
+        "lan": {
+            "active": bool(getattr(LAN_SERVICE, "_httpd", None)),
+            "reception_seen": bool(getattr(LAN_SERVICE, "_last_reception_seen", None)),
+        }
+    }
+
+@app.get("/api/ops/performance")
+def hc1468_performance(request: Request):
+    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Solo disponible en esta PC")
+    return {
+        "ok": True, "version": APP_VERSION, "source": "local_memory",
+        "uptime_seconds": int(time.monotonic() - _HC1468_STARTED),
+        "startup_ms": _HC1468_STARTUP_MS,
+        "no_patient_data": True, "no_cloud_queries": True,
+        "operations": _hc1468_perf_snapshot(), **_hc1468_local_status(),
+    }
+
+@app.get("/api/ops/performance/view", response_class=HTMLResponse)
+def hc1468_diagnostics_page(request: Request):
+    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Solo disponible en esta PC")
+    snapshot = _hc1468_perf_snapshot()
+    local = _hc1468_local_status()
+    labels = {
+        "abrir_inicio": "Abrir Inicio", "abrir_ficha": "Abrir ficha",
+        "abrir_consulta": "Abrir consulta", "buscar_pacientes": "Buscar pacientes",
+        "busqueda_instantanea": "Búsqueda instantánea",
+        "estado_sincronizacion": "Ver sincronización",
+        "guardar_consulta": "Guardar consulta", "abrir_documentos": "Abrir documentos",
+    }
+    rows = "".join(
+        "<tr><td>" + e(labels.get(key,key)) + "</td><td>" +
+        str(value["samples"]) + "</td><td>" + str(value["average_ms"]) +
+        " ms</td><td>" + str(value["p95_ms"]) + " ms</td><td>" +
+        str(value["failures"]) + "</td></tr>"
+        for key,value in snapshot.items()
+    ) or "<tr><td colspan='5'>Todavía no hay suficientes operaciones registradas.</td></tr>"
+    body = (
+        "<section class='page-head'><span class='eyebrow'>DIAGNÓSTICO LOCAL</span>"
+        "<h1>Rendimiento del consultorio</h1><p>Últimas 64 mediciones por acción. "
+        "No se guardan nombres de pacientes, textos clínicos ni direcciones.</p></section>"
+        "<div class='panel' style='padding:18px'><p><b>Neon Historia:</b> " +
+        e(local["cloud"]["state"]) + " · " +
+        ("En línea" if local["cloud"]["online"] else "Sin conexión o en reposo") +
+        " · pendientes " + str(local["cloud"]["pending"]) +
+        "</p><p><b>LAN clínica:</b> " +
+        ("Activa" if local["lan"]["active"] else "Sin comprobar") +
+        " · <b>Recepción detectada:</b> " +
+        ("Sí" if local["lan"]["reception_seen"] else "Todavía no") +
+        "</p><table class='list-table'><thead><tr><th>Acción</th><th>Muestras</th>"
+        "<th>Promedio</th><th>P95</th><th>Errores</th></tr></thead><tbody>" +
+        rows + "</tbody></table><p style='margin-top:14px'><a class='secondary btn-link' "
+        "href='/api/ops/performance/view'>Actualizar mediciones</a> "
+        "<a class='secondary btn-link' href='/configuracion'>Volver a Configuración</a></p>"
+        "</div>"
+    )
+    return base("Rendimiento", body, "configuracion")
+

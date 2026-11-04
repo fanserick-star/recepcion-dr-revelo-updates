@@ -320,21 +320,45 @@ def _v466_local_attention_db():
     finally:
         db.close()
 
-def _v466_sync_attention_queue_later():
 
+# v4.8.118: una sola tarea en espera en lugar de crear un hilo por paciente.
+_V48118_SYNC_WAKE = core.threading.Event()
+_V48118_SYNC_THREAD_LOCK = core.threading.Lock()
+_V48118_SYNC_THREAD = None
+_V48118_SYNC_DIAGNOSTICS = {"runs": 0, "last_duration_ms": None, "last_result": "idle"}
+
+def _v466_sync_attention_queue_later():
+    global _V48118_SYNC_THREAD
     def _worker():
-        try:
+        while True:
+            _V48118_SYNC_WAKE.wait()
+            _V48118_SYNC_WAKE.clear()
             time.sleep(1.0)
-            core.process_offline_queue()
-        except Exception as exc:
+            started = time.perf_counter()
             try:
-                core.logging.getLogger(__name__).warning('v4.6.6: sync posterior a atención pendiente: %s', exc)
-            except Exception:
-                pass
-    try:
-        core.threading.Thread(target=_worker, name='rp-attention-cloud-sync', daemon=True).start()
-    except Exception:
-        pass
+                core.process_offline_queue()
+                _V48118_SYNC_DIAGNOSTICS["last_result"] = "completed"
+            except Exception as exc:
+                _V48118_SYNC_DIAGNOSTICS["last_result"] = "error_" + type(exc).__name__
+                try:
+                    core.logging.getLogger(__name__).warning(
+                        'v4.8.118: sincronización local pendiente: %s', type(exc).__name__
+                    )
+                except Exception:
+                    pass
+            finally:
+                _V48118_SYNC_DIAGNOSTICS["runs"] += 1
+                _V48118_SYNC_DIAGNOSTICS["last_duration_ms"] = round(
+                    (time.perf_counter() - started) * 1000, 1
+                )
+    with _V48118_SYNC_THREAD_LOCK:
+        if _V48118_SYNC_THREAD is None or not _V48118_SYNC_THREAD.is_alive():
+            _V48118_SYNC_THREAD = core.threading.Thread(
+                target=_worker, name='rp-attention-cloud-sync', daemon=True
+            )
+            _V48118_SYNC_THREAD.start()
+    # Si llega otra atención durante un envío, queda una nueva pasada pendiente.
+    _V48118_SYNC_WAKE.set()
 
 @app.post('/api/visits/batch-payment')
 def v466_fast_local_attention_save(data: _dep_history_bridge.payment_core.V4504VisitBatchPaymentIn, db=core.Depends(_v466_local_attention_db), user=core.Depends(core.current_user)):
@@ -395,3 +419,87 @@ def reception_tv_status_4886():
         }
     except Exception:
         return {"ok": False, "tv_online": False, "history_online": False, "waiting_count": None}
+
+
+# v4.8.118: estadísticas agrupadas, en memoria, sin URL variable ni PII.
+from collections import deque as _rp48118_deque
+import threading as _rp48118_threading
+
+_RP48118_PERF_LOCK = _rp48118_threading.Lock()
+_RP48118_PERF = {}
+_RP48118_ROUTES = {
+    ("GET", "/api/patients"): "buscar_pacientes",
+    ("POST", "/api/visits/batch-payment"): "guardar_atencion",
+    ("GET", "/api/dashboard"): "abrir_inicio",
+    ("GET", "/api/historia/visit-delivery-status"): "confirmar_lan",
+    ("GET", "/api/ops/today"): "resumen_local",
+}
+
+@app.middleware("http")
+async def _rp48118_measure_request(request: core.Request, call_next):
+    key = _RP48118_ROUTES.get((request.method.upper(), request.url.path))
+    if key is None:
+        return await call_next(request)
+    started = time.perf_counter()
+    failed = False
+    try:
+        response = await call_next(request)
+        failed = response.status_code >= 500
+        return response
+    except Exception:
+        failed = True
+        raise
+    finally:
+        elapsed = round((time.perf_counter() - started) * 1000, 1)
+        with _RP48118_PERF_LOCK:
+            series = _RP48118_PERF.setdefault(
+                key, {"samples": _rp48118_deque(maxlen=64), "failures": 0}
+            )
+            series["samples"].append(elapsed)
+            if failed:
+                series["failures"] += 1
+
+def _rp48118_perf_snapshot():
+    with _RP48118_PERF_LOCK:
+        copied = {
+            name: (list(item["samples"]), item["failures"])
+            for name, item in _RP48118_PERF.items()
+        }
+    out = {}
+    for name, (samples, errors) in copied.items():
+        values = sorted(samples)
+        out[name] = {
+            "samples": len(samples),
+            "average_ms": round(sum(samples) / len(samples), 1),
+            "p95_ms": values[max(0, int((len(values) - 1) * .95))],
+            "last_ms": samples[-1],
+            "failures": errors,
+        }
+    return out
+
+# Proveedores de solo lectura para Mantenimiento; evita importar app.py dos veces.
+core._rp48118_perf_snapshot = _rp48118_perf_snapshot
+core._rp48118_sync_diagnostics = _V48118_SYNC_DIAGNOSTICS
+
+@app.get("/api/ops/performance", dependencies=[core.Depends(core.current_user)])
+def _rp48118_performance(request: core.Request):
+    if hasattr(core, "_is_loopback_client") and not core._is_loopback_client(request):
+        raise core.HTTPException(403, "Diagnóstico disponible únicamente en Recepción")
+    import historia_lan_transport as transport
+    try:
+        lan = transport.hybrid_bridge_status()
+    except Exception:
+        lan = {}
+    return {
+        "ok": True, "version": core.APP_VERSION,
+        "source": "local_memory", "no_patient_data": True,
+        "no_cloud_queries": True, "operations": _rp48118_perf_snapshot(),
+        "sync_worker": dict(_V48118_SYNC_DIAGNOSTICS),
+        "history_lan": {
+            "online": bool(lan.get("lan_online")),
+            "pending": int(lan.get("pending") or 0),
+            "phase": str(lan.get("delivery_phase") or "unknown")[:30],
+            "last_delivery_seconds": lan.get("lan_last_delivery_seconds"),
+        },
+    }
+
