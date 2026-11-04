@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.120: corrige el orden de arranque para registrar todos los endpoints antes de iniciar Uvicorn. Repara el error Not Found del diagnóstico de rendimiento en Configuración → Sistema sin modificar bases de datos, Neon, pagos ni fichas clínicas."
+  "notes": "Recepción 4.8.121: logo del doctor con fondo transparente en la TV; conserva el isotipo original, sin cambios funcionales ni de bases de datos."
 }

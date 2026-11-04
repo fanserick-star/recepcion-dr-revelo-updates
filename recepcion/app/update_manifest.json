@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.120",
-  "app_version": "4.8.120",
-  "runtime_version": "4.8.120",
+  "version": "4.8.121",
+  "app_version": "4.8.121",
+  "runtime_version": "4.8.121",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -210,8 +210,8 @@
     "static/patient_dossier_review_48100.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.116: reemplazo de dos confirmaciones nativas feas del envío de receta/documentos médicos por un solo diálogo profesional del sistema, con nombre, teléfono y tipo de archivo, y dos casillas independientes obligatorias: identidad/número confirmado y autorización explícita del paciente para envío confidencial por WhatsApp y enlace con caducidad 7 días. El botón Enviar se activa solo tras ambas casillas; Cancelar/Escape/cambio de ficha bloquean envío. La misma confirmación se aplica al envío individual de videos al paciente, sin modificar el guardado local. No cambia backend, plantillas Meta, R2, privacidad, datos clínicos, Neón ni lógica de facturación.",
-    "previous_version": "4.8.115",
+    "purpose": "Recepción 4.8.121: elimina el fondo blanco del isotipo en la TV mediante PNG con transparencia real, conservando la forma original. Cambia únicamente la imagen y la caché del logo. Sin cambios de pacientes, pagos, Neon, mensajería ni Historia Clínica.",
+    "previous_version": "4.8.120",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
