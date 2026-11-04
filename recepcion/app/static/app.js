@@ -3185,12 +3185,54 @@ async function loadReceptionConfig(){
   await loadPreferences(true);
   try{const d=await api('/api/printing/status');populatePrinterSelect(d||{},appPreferences)}catch{}
 }
+
+const RP48119_PERF_LABELS={
+  buscar_pacientes:'Buscar paciente',
+  guardar_atencion:'Guardar atención',
+  abrir_inicio:'Cargar inicio',
+  confirmar_lan:'Comprobar entrega LAN',
+  resumen_local:'Resumen de hoy'
+};
+let rp48119PerfInFlight=false;
+async function refreshReceptionPerformance(button=null){
+  const host=$('#receptionPerformanceSummary'),body=$('#receptionPerformanceRows');
+  if(!host||!body||rp48119PerfInFlight)return;
+  rp48119PerfInFlight=true;
+  const old=button?.textContent||'↻ Revisar rendimiento';
+  if(button){button.disabled=true;button.textContent='Consultando…'}
+  try{
+    const result=await api('/api/ops/performance');
+    if(result?.ok!==true)throw Error('Sin datos de diagnóstico');
+    const lan=result.history_lan||{}, worker=result.sync_worker||{};
+    const badge=(label,value,good)=>'<span data-level="'+(good?'good':'warn')+'">'+esc(label+': '+value)+'</span>';
+    host.innerHTML=
+      badge('Historia LAN',lan.online?'En línea':'Sin confirmar',!!lan.online)+
+      badge('Envíos pendientes',Number(lan.pending||0),Number(lan.pending||0)===0)+
+      badge('Última entrega',lan.last_delivery_seconds==null?'Sin medir':Number(lan.last_delivery_seconds).toFixed(1)+' s',lan.last_delivery_seconds!=null)+
+      badge('Sincronizador',worker.last_result==='completed'?'Correcto':worker.last_result==='idle'?'En espera':String(worker.last_result||'Sin datos'),worker.last_result==='completed'||worker.last_result==='idle');
+    const metrics=result.operations||{};
+    const rows=Object.entries(metrics).filter(([,m])=>Number(m?.samples||0)>0);
+    rows.sort((a,b)=>Number(b[1].p95_ms||0)-Number(a[1].p95_ms||0));
+    body.innerHTML=rows.length?rows.map(([key,m])=>
+      '<tr><td>'+esc(RP48119_PERF_LABELS[key]||key)+'</td><td>'+Number(m.samples||0)+'</td>'+
+      '<td>'+Number(m.average_ms||0).toFixed(1)+' ms</td><td>'+Number(m.p95_ms||0).toFixed(1)+' ms</td>'+
+      '<td>'+Number(m.failures||0)+'</td></tr>').join(''):
+      '<tr><td colspan="5">Todavía no hay operaciones registradas. Usa Recepción normalmente y vuelve a revisar.</td></tr>';
+  }catch(error){
+    host.innerHTML='<span data-level="warn">No fue posible leer el diagnóstico local: '+esc(error.message||'Error')+'</span>';
+    body.innerHTML='<tr><td colspan="5">Prueba de nuevo desde esta computadora.</td></tr>';
+  }finally{
+    rp48119PerfInFlight=false;
+    if(button){button.disabled=false;button.textContent=old}
+  }
+}
+
 async function loadConfigTabData(tab){
   if(tab==='general')return loadReceptionConfig();
   if(tab==='agenda')return Promise.all([loadMobileConfigLinks(),loadWhatsappStatus(),loadWhatsappCloudStatus(false)]);
   if(tab==='procedimientos')return loadProcedures();
   if(tab==='facturacion')return loadAzurStatus();
-  if(tab==='sistema')return refreshProtectionStatus(false);
+  if(tab==='sistema')return Promise.all([refreshProtectionStatus(false),refreshReceptionPerformance()]);
   if(tab==='actualizaciones')return Promise.all([loadUpdateInfo(),loadWindowModeInfo()]);
 }
 function showConfigTab(tab='general',button=null){

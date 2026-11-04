@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Mejoras internas de Recepción 4.8.118: sincronización posterior a la atención mediante un único trabajador, diagnóstico local de rendimiento y estado LAN en Mantenimiento. Conserva el guardado local, los datos clínicos, Neon y el sistema de actualización segura."
+  "notes": "Recepción 4.8.119: panel de rendimiento local integrado dentro de Configuración → Sistema, con latencia de operaciones, confirmación LAN, cola pendiente y estado de sincronización. Sin duplicar pestañas, sin consultas adicionales a Neon y sin modificar fichas, cobros ni documentos."
 }
