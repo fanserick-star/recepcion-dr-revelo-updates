@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.119",
-  "app_version": "4.8.119",
-  "runtime_version": "4.8.119",
+  "version": "4.8.120",
+  "app_version": "4.8.120",
+  "runtime_version": "4.8.120",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,

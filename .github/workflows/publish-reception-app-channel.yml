@@ -29,6 +29,7 @@ jobs:
       - name: Enforce canonical Reception source
         run: |
           python tools/test_reception_canonical_source.py
+          python tools/test_reception_startup_routes_48120.py
           python tools/test_reception_home_tv_remaster_4886.py
           python tools/test_reception_home_cleanup_4894.py
           python tools/test_reception_sidebar_fiscal_settings_4895.py

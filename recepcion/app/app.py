@@ -291,9 +291,6 @@ _V463_PERF_PRELUDE = '\n;window.__v4517HistoriaLink=true;\nwindow.__v4518RealVer
 core.V460_OVERLAY_JS = _V463_PERF_PRELUDE + '\n' + (getattr(core, 'V460_OVERLAY_JS', '') or '')
 core.V460_OVERLAY_JS = core.V460_OVERLAY_JS.replace('setInterval(()=>fetchReal(true),30000);', '/* v4.6.3: versión en boot/focus/cambio de UI; sin polling periódico */')
 core.V460_OVERLAY_JS = core.V460_OVERLAY_JS.replace('setInterval(refresh,7000);', 'setInterval(refresh,30000);')
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=core.LOCAL_HTTP_PORT, reload=False, access_log=False, log_level='warning', workers=1)
 RUNTIME_CONSOLIDATED = True
 RUNTIME_CONSOLIDATED_EXTERNAL_PATCH_FILES_REQUIRED = False
 RUNTIME_CONSOLIDATED_EMBEDDED_MODULE_COUNT = 0
@@ -503,3 +500,11 @@ def _rp48118_performance(request: core.Request):
         },
     }
 
+# Arrancar únicamente después de registrar TODAS las rutas, interceptores y
+# reemplazos de atención. El launcher ejecuta app.py como __main__ y Uvicorn
+# bloquea el hilo principal: si este bloque está más arriba, las rutas que
+# vienen después nunca se instalan y responden 404.
+if __name__ == '__main__':
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=core.LOCAL_HTTP_PORT,
+                reload=False, access_log=False, log_level='warning', workers=1)
