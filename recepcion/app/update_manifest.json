@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.123",
-  "app_version": "4.8.123",
-  "runtime_version": "4.8.123",
+  "version": "4.8.124",
+  "app_version": "4.8.124",
+  "runtime_version": "4.8.124",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -214,8 +214,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.123: forma de pago en 2x2 sin recortes, fecha visual redundante oculta e indicador discreto de vínculo clínico confirmado; alertas por falta de vínculo siempre visibles. Conserva cobros, reglas del día, revisión gratuita y bloqueo de envío LAN sin ficha verificada.",
-    "previous_version": "4.8.122",
+    "purpose": "Recepción 4.8.124: evita repetir la consulta Neon de vínculo al guardar cuando ya hay verificación reciente; mejora reintentos cortos y limitados de entregas LAN para fichas nuevas en sincronización. La entrega siempre requiere vínculo verificado en Neon. Conserva pacientes, facturación, cobros, TV, Historia, modo offline y ahorro de Neon.",
+    "previous_version": "4.8.123",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -659,6 +659,9 @@
     "handoff_verified_before_lan": true,
     "handoff_cloud_read_on_http_request": false,
     "attention_identity_preflight_reuse_seconds": 300,
+    "attention_identity_preflight_reuses_verified_cache_48124": true,
+    "handoff_fresh_unlinked_bounded_retry_48124": [15, 30],
+    "handoff_never_sends_unverified_48124": true,
     "handoff_missing_link_retry_seconds": 300,
     "lan_status_refresh_seconds": 5,
     "lan_fast_known_ip_probe": true,
