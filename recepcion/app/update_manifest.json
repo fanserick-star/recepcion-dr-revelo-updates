@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.121",
-  "app_version": "4.8.121",
-  "runtime_version": "4.8.121",
+  "version": "4.8.122",
+  "app_version": "4.8.122",
+  "runtime_version": "4.8.122",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -103,7 +103,8 @@
     "static/night_closing_4888.js",
     "static/sidebar_status_hub_4897.js",
     "static/patient_profile_remaster_4899.css",
-    "static/patient_dossier_review_48100.css"
+    "static/patient_dossier_review_48100.css",
+    "static/reception_compact_workflow_48122.css"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -207,11 +208,12 @@
     "static/night_closing_4888.js",
     "static/sidebar_status_hub_4897.js",
     "static/patient_profile_remaster_4899.css",
-    "static/patient_dossier_review_48100.css"
+    "static/patient_dossier_review_48100.css",
+    "static/reception_compact_workflow_48122.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.121: elimina el fondo blanco del isotipo en la TV mediante PNG con transparencia real, conservando la forma original. Cambia únicamente la imagen y la caché del logo. Sin cambios de pacientes, pagos, Neon, mensajería ni Historia Clínica.",
-    "previous_version": "4.8.120",
+    "purpose": "Recepción 4.8.122: expediente del paciente compacto y Nueva atención organizada en dos columnas para reducir desplazamiento. Solo cambios visuales; sin modificar datos, guardado, vinculación, cobros, Neon, mensajería ni Historia Clínica.",
+    "previous_version": "4.8.121",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -705,6 +707,8 @@
     "native_review_confirmation_replaced": true,
     "review_transaction_safety_unchanged": true,
     "patient_dossier_clinical_tab_height_fixed": true,
+    "patient_dossier_compact_48122": true,
+    "new_attention_compact_48122": true,
     "new_attention_search_first": true,
     "new_attention_embedded_agenda_removed": true,
     "new_attention_legacy_override_consolidated": true,
