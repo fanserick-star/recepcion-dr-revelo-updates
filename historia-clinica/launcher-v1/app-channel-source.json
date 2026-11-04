@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.40: corregido botón Informes médicos de ficha para abrir ventana independiente sin perder historial; conserva 1.4.39 Videocistoscopías por LAN Ethernet, editor clínico, firma, impresión, caja y Neón intactos."
+  "notes": "Historia 1.4.69: números de turno siempre legibles con cuadro azul intenso y número blanco, incluso en revisión de exámenes y tarjetas verdes en consulta. Sin cambios en datos clínicos, Historia, cola, TV, LAN ni Neon."
 }
