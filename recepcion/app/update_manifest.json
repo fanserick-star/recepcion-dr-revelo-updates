@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.122",
-  "app_version": "4.8.122",
-  "runtime_version": "4.8.122",
+  "version": "4.8.123",
+  "app_version": "4.8.123",
+  "runtime_version": "4.8.123",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -104,7 +104,8 @@
     "static/sidebar_status_hub_4897.js",
     "static/patient_profile_remaster_4899.css",
     "static/patient_dossier_review_48100.css",
-    "static/reception_compact_workflow_48122.css"
+    "static/reception_compact_workflow_48122.css",
+    "static/reception_attention_cleanup_48123.css"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -209,11 +210,12 @@
     "static/sidebar_status_hub_4897.js",
     "static/patient_profile_remaster_4899.css",
     "static/patient_dossier_review_48100.css",
-    "static/reception_compact_workflow_48122.css"
+    "static/reception_compact_workflow_48122.css",
+    "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.122: expediente del paciente compacto y Nueva atención organizada en dos columnas para reducir desplazamiento. Solo cambios visuales; sin modificar datos, guardado, vinculación, cobros, Neon, mensajería ni Historia Clínica.",
-    "previous_version": "4.8.121",
+    "purpose": "Recepción 4.8.123: forma de pago en 2x2 sin recortes, fecha visual redundante oculta e indicador discreto de vínculo clínico confirmado; alertas por falta de vínculo siempre visibles. Conserva cobros, reglas del día, revisión gratuita y bloqueo de envío LAN sin ficha verificada.",
+    "previous_version": "4.8.122",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -709,6 +711,9 @@
     "patient_dossier_clinical_tab_height_fixed": true,
     "patient_dossier_compact_48122": true,
     "new_attention_compact_48122": true,
+    "new_attention_payments_2x2_48123": true,
+    "clinical_verified_lan_gate_preserved_48123": true,
+    "new_attention_date_source_preserved_48123": true,
     "new_attention_search_first": true,
     "new_attention_embedded_agenda_removed": true,
     "new_attention_legacy_override_consolidated": true,
