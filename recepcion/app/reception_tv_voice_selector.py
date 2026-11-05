@@ -27,7 +27,7 @@ DISPLAY_VOICE_SCRIPT = r"""
     return {voiceURI:String(v.voiceURI||v.name||'').slice(0,240),name:String(v.name||'').slice(0,180),lang:String(v.lang||'').slice(0,40),default:!!v.default,localService:!!v.localService};
   }
   function reportVoices(){
-    const list=voices().slice(0,64).map(cleanVoice),payload={supported:('speechSynthesis' in window),voices:list};
+    const list=voices().slice(0,64).map(cleanVoice),payload={supported:('speechSynthesis' in window)&&list.length>0,voices:list};
     const signature=JSON.stringify(payload);
     if(signature===lastReport)return;
     lastReport=signature;
@@ -46,19 +46,39 @@ DISPLAY_VOICE_SCRIPT = r"""
     }
     return fallbackVoice(list);
   }
+  function showAudioUnlock(){
+    try{const button=document.getElementById('audioEnable');if(button)button.style.display='block'}catch(_){ }
+  }
+  function playReceptionVoice(turn,review){
+    try{
+      const audio=document.getElementById('voiceAudio');
+      if(!audio)return;
+      audio.onerror=showAudioUnlock;
+      audio.src='/api/turn-voice.wav?turn='+encodeURIComponent(turn)+'&review='+(review?'1':'0')+'&t='+Date.now();
+      const result=audio.play();
+      if(result&&typeof result.catch==='function')result.catch(showAudioUnlock);
+    }catch(_){showAudioUnlock()}
+  }
   function speak(turn,cfg,delay){
-    const n=parseInt(turn||0,10);if(!n||!('speechSynthesis' in window)||typeof window.SpeechSynthesisUtterance!=='function')return;
+    const n=parseInt(turn||0,10);if(!n)return;
     clearTimeout(voiceTimer);
     voiceTimer=setTimeout(()=>{
+      const isExamReview=!!(state&&state.exam_review&&state.display_mode!=='test');
+      const nativeVoices=voices();
+      // Chromium WebView 52 in Fully can have no speech engine at all.
+      // A self-contained WAV generated on Reception then works in every browser.
+      if(!('speechSynthesis' in window)||typeof window.SpeechSynthesisUtterance!=='function'||!nativeVoices.length){
+        playReceptionVoice(n,isExamReview);return;
+      }
       try{
         const synth=window.speechSynthesis;synth.cancel();
-        const isExamReview=!!(state&&state.exam_review&&state.display_mode!=='test');
         const u=new SpeechSynthesisUtterance('Turno número '+n+(isExamReview?', revisión de exámenes. Por favor pasar al consultorio.':', por favor pasar a consulta.'));
         const v=configuredVoice(cfg);if(v){u.voice=v;u.lang=v.lang||'es-EC'}else u.lang='es-EC';
         const rate=Number(cfg&&cfg.rate);u.rate=Number.isFinite(rate)?Math.max(.6,Math.min(1.3,rate)):.9;
         const pitch=Number(cfg&&cfg.pitch);u.pitch=Number.isFinite(pitch)?Math.max(.7,Math.min(1.3,pitch)):1;
-        u.volume=1;synth.speak(u);
-      }catch(_){ }
+        u.volume=1;u.onerror=()=>playReceptionVoice(n,isExamReview);
+        synth.speak(u);
+      }catch(_){playReceptionVoice(n,isExamReview)}
     },Math.max(0,Number(delay||0)));
   }
 
@@ -117,7 +137,7 @@ CONTROL_VOICE_UI = r"""
    el('voiceRate').value=Math.round(Number((d.config||{}).rate||.9)*100);el('voiceRateLabel').textContent=el('voiceRate').value+'%';
    el('voicePitch').value=Math.round(Number((d.config||{}).pitch||1)*100);el('voicePitchLabel').textContent=el('voicePitch').value+'%';
    const st=el('voiceStatus');
-   if(!d.tv_voice_supported){st.className='voicestatus';st.textContent=d.tv_voice_reported?'El televisor reporta que no dispone de síntesis de voz.':'La TV todavía no ha reportado sus voces. Recarga una vez su página y pulsa “Actualizar voces”.'}
+   if(!d.tv_voice_supported){st.className='voicestatus';st.textContent=d.tv_voice_reported?'El navegador del televisor no ofrece voces propias. Se intentará el audio generado por Windows en Recepción; compruébalo con la prueba de voz.':'La TV todavía no ha reportado sus voces. Recarga una vez su página y pulsa “Actualizar voces”.'}
    else{st.className='voicestatus ok';st.textContent='TV detectada · '+all.length+' voz(es), '+spanish.length+' en español.'}
  }
  function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
