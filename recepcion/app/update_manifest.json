@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.126",
-  "app_version": "4.8.126",
-  "runtime_version": "4.8.126",
+  "version": "4.8.127",
+  "app_version": "4.8.127",
+  "runtime_version": "4.8.127",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.126: voz de llamados en Fully Kiosk con WebView 52 sin voces del navegador mediante WAV generado localmente en Windows; desbloqueo visual de audio si Android impide la reproducción. Mantiene numeración, eventos, campanilla, voz de Chrome, Historia, facturación, pacientes y bases Neon.",
-    "previous_version": "4.8.125",
+    "purpose": "Recepción 4.8.127: controla la voz de Windows para Fully Kiosk desde TV, incluyendo voz, velocidad y tono. Los llamados de revisión anuncian únicamente el turno igual que las consultas sin revelar tipo en pantalla o voz. Publicidad local intenta reproducir audio; si WebView lo bloquea solicita activación en TV. Mantiene datos y órdenes de llamado.",
+    "previous_version": "4.8.126",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -361,7 +361,7 @@
     "tv_header_background_rectangle_removed": true,
     "tv_turn_logic_changes": false,
     "tv_voice_logic_changes": true,
-    "tv_video_logic_changes": false,
+    "tv_video_logic_changes": true,
     "historia_lan_previous_day_pending_expires": true,
     "historia_lan_stale_events_deleted": false,
     "waiting_queue_daily_scope": true,
@@ -742,7 +742,11 @@
     "tv_voice_server_wav_local": true,
     "tv_voice_external_network_required": false,
     "tv_voice_no_browser_voice_fallback": true,
-    "tv_voice_no_turn_event_changes": true
+    "tv_voice_no_turn_event_changes": true,
+    "tv_voice_windows_selectable": true,
+    "tv_public_exam_review_wording_hidden": true,
+    "tv_advertising_audio_unmuted_attempt": true,
+    "tv_media_audio_activation_fallback": true
   },
   "channel": "launcher-v1-stable"
 }
