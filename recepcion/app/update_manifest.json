@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.127",
-  "app_version": "4.8.127",
-  "runtime_version": "4.8.127",
+  "version": "4.8.128",
+  "app_version": "4.8.128",
+  "runtime_version": "4.8.128",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.127: controla la voz de Windows para Fully Kiosk desde TV, incluyendo voz, velocidad y tono. Los llamados de revisión anuncian únicamente el turno igual que las consultas sin revelar tipo en pantalla o voz. Publicidad local intenta reproducir audio; si WebView lo bloquea solicita activación en TV. Mantiene datos y órdenes de llamado.",
-    "previous_version": "4.8.126",
+    "purpose": "Recepción 4.8.128: anuncio opcional solo por voz de las primeras dos palabras de «Apellidos y nombres» al llamar un turno real en TV. No se muestran apellidos ni nombres en pantalla ni JSON; Recepción identifica paciente por UUIDv5 exacto de cola Historia y outbox LAN local. Si no hay coincidencia segura, voz anuncia solo número. Activación manual explícita desde TV, apagada por defecto para privacidad. Mantiene campanita, videos, voz y turnos.",
+    "previous_version": "4.8.127",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -746,7 +746,13 @@
     "tv_voice_windows_selectable": true,
     "tv_public_exam_review_wording_hidden": true,
     "tv_advertising_audio_unmuted_attempt": true,
-    "tv_media_audio_activation_fallback": true
+    "tv_media_audio_activation_fallback": true,
+    "tv_voice_optional_surnames_audio_only": true,
+    "tv_voice_private_identity_source": "reception_local_lan_outbox_verified_queue_uuid",
+    "tv_voice_surnames_default_enabled": false,
+    "tv_voice_no_patient_name_in_tv_html_or_json": true,
+    "tv_voice_test_no_real_names": true,
+    "tv_voice_no_patient_database_changes": true
   },
   "channel": "launcher-v1-stable"
 }
