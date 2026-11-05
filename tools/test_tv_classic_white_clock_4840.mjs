@@ -45,7 +45,7 @@ ctx.idle(false);
 assert.equal(markup,dialFirst,"Do not rebuild SVG for 900ms polling");
 ctx.state={next_waiting_turn:9,next_waiting_exam_review:true};
 ctx.idle(false);
-assert.match(markup,/PRÓXIMO TURNO/);assert.match(markup,/Revisión de exámenes/);
+assert.match(markup,/PRÓXIMO TURNO/);assert.match(markup,/Espere el llamado/);assert.doesNotMatch(markup,/Revisión de exámenes/);
 assert.doesNotMatch(markup,/idleClockFace/);
 ctx.state={next_waiting_turn:null,waiting_count:0};ctx.idle(false);
 assert.match(markup,/idleClockFace/);
