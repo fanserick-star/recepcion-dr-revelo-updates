@@ -34,4 +34,19 @@ for (const marker of [
 
 if (!display.includes('s.exam_review')) throw Error('La TV no muestra revisión de exámenes');
 if (!match[1].includes('state.exam_review')) throw Error('La voz no contempla revisión de exámenes');
+const httpFile = 'recepcion/app/reception_tv_http.py';
+const audioFile = 'recepcion/app/reception_tv_speech.py';
+const http = fs.readFileSync(httpFile, 'utf8');
+const audio = fs.readFileSync(audioFile, 'utf8');
+if (!http.includes('if path == "/api/turn-voice.wav":') || !http.includes('turn_voice_wav(turn, review)'))
+  throw Error('La API de WAV para TV sin voces no está conectada');
+if (!audio.includes('System.Speech.Synthesis.SpeechSynthesizer') || !audio.includes('getattr(subprocess, "CREATE_NO_WINDOW"'))
+  throw Error('La voz local de Windows para Fully no está configurada');
+if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview)'))
+  throw Error('El TV Box antiguo debe usar voz de Recepción cuando no tiene voces');
+if (!display.includes('id="audioEnable"') || !display.includes('function enableAudio()'))
+  throw Error('El TV no ofrece activación de audio cuando WebView lo bloquea');
+if (!display.includes("if(s.event_id&&s.event_id!==lastEvent)"))
+  throw Error('La TV no protege los llamados contra duplicados');
+
 console.log('TV_DISPLAY_AND_VOICE_JAVASCRIPT_OK');
