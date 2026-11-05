@@ -63,7 +63,7 @@ DISPLAY_VOICE_SCRIPT = r"""
     const n=parseInt(turn||0,10);if(!n)return;
     clearTimeout(voiceTimer);
     voiceTimer=setTimeout(()=>{
-      const isExamReview=!!(state&&state.exam_review&&state.display_mode!=='test');
+      const isExamReview=false; // The public TV only announces the turn number.
       const nativeVoices=voices();
       // Chromium WebView 52 in Fully can have no speech engine at all.
       // A self-contained WAV generated on Reception then works in every browser.
@@ -72,7 +72,7 @@ DISPLAY_VOICE_SCRIPT = r"""
       }
       try{
         const synth=window.speechSynthesis;synth.cancel();
-        const u=new SpeechSynthesisUtterance('Turno número '+n+(isExamReview?', revisión de exámenes. Por favor pasar al consultorio.':', por favor pasar a consulta.'));
+        const u=new SpeechSynthesisUtterance('Turno número '+n+', por favor pasar a consulta.');
         const v=configuredVoice(cfg);if(v){u.voice=v;u.lang=v.lang||'es-EC'}else u.lang='es-EC';
         const rate=Number(cfg&&cfg.rate);u.rate=Number.isFinite(rate)?Math.max(.6,Math.min(1.3,rate)):.9;
         const pitch=Number(cfg&&cfg.pitch);u.pitch=Number.isFinite(pitch)?Math.max(.7,Math.min(1.3,pitch)):1;
@@ -121,8 +121,12 @@ CONTROL_VOICE_UI = r"""
  function card(){
    const host=document.querySelector('.wrap')||document.body;if(el('voiceCard'))return;
    const c=document.createElement('div');c.className='card';c.id='voiceCard';
-   c.innerHTML='<h2 style="margin-top:0">🗣️ Voz de llamado en el televisor</h2><p class="muted">Estas son las voces que realmente ofrece el navegador del televisor. La selección se guarda en Recepción y no modifica pacientes ni turnos.</p><div class="voicegrid"><label>Voz del televisor<select id="voiceSelect"><option value="">Automática · mejor voz en español disponible</option></select></label><label>Velocidad <span id="voiceRateLabel">90%</span><input id="voiceRate" type="range" min="60" max="130" step="5" value="90"></label><label>Tono <span id="voicePitchLabel">100%</span><input id="voicePitch" type="range" min="70" max="130" step="5" value="100"></label></div><div class="buttons"><button class="primary" id="voiceSave">💾 Guardar voz</button><button class="green" id="voiceTest">🔊 Probar voz en TV</button><button id="voiceRefresh">↻ Actualizar voces</button></div><div class="voicestatus" id="voiceStatus">Esperando información del televisor…</div><div class="help">La prueba usa el turno ficticio 6 y es independiente de EN VIVO / PRUEBAS. Si acabas de actualizar el programa, recarga una vez la página del televisor para que reporte sus voces.</div>';
+   c.innerHTML='<h2 style="margin-top:0">🗣️ Voz de llamado en el televisor</h2><p class="muted">Para Fully Kiosk se utiliza una voz instalada en Windows (Recepción); Chrome puede usar voces del navegador. Los cambios se guardan sin alterar los pacientes ni los turnos.</p><div class="voicegrid"><label>Voz del navegador (Chrome)<select id="voiceSelect"><option value="">Automática · mejor voz en español disponible</option></select></label><label>Velocidad <span id="voiceRateLabel">90%</span><input id="voiceRate" type="range" min="60" max="130" step="5" value="90"></label><label>Tono <span id="voicePitchLabel">100%</span><input id="voicePitch" type="range" min="70" max="130" step="5" value="100"></label></div><div class="buttons"><button class="primary" id="voiceSave">💾 Guardar voz</button><button class="green" id="voiceTest">🔊 Probar voz en TV</button><button id="voiceRefresh">↻ Actualizar voces</button></div><div class="voicestatus" id="voiceStatus">Esperando información del televisor…</div><div class="help">La prueba usa el turno ficticio 6 y es independiente de EN VIVO / PRUEBAS. Si acabas de actualizar el programa, recarga una vez la página del televisor para que reporte sus voces.</div>';
    host.appendChild(c);
+   const fallbackLabel=document.createElement('label');
+   fallbackLabel.innerHTML='<b>Voz de Windows (Fully Kiosk)</b><select id="windowsVoiceSelect"><option value="">Automática · voz disponible en Recepción</option></select>';
+   const grid=c.querySelector('.voicegrid');
+   if(grid)grid.insertBefore(fallbackLabel,grid.firstChild);
    el('voiceRate').oninput=()=>el('voiceRateLabel').textContent=el('voiceRate').value+'%';
    el('voicePitch').oninput=()=>el('voicePitchLabel').textContent=el('voicePitch').value+'%';
    el('voiceRefresh').onclick=load;
@@ -134,16 +138,19 @@ CONTROL_VOICE_UI = r"""
    const all=Array.isArray(d.voices)?d.voices:[],spanish=all.filter(v=>String(v.lang||'').toLowerCase().startsWith('es')),list=spanish.length?spanish:all;
    sel.innerHTML='<option value="">Automática · mejor voz en español disponible</option>'+list.map(v=>'<option value="'+esc(v.voiceURI||v.name||'')+'">'+esc((v.name||'Voz')+' · '+(v.lang||'sin idioma')+(v.default?' · predeterminada':'')+(v.localService?' · local':''))+'</option>').join('');
    if(current&&Array.from(sel.options).some(o=>o.value===current))sel.value=current;else sel.value='';
+   const windowsSelect=el('windowsVoiceSelect'),windowsItems=Array.isArray(d.windows_voices)?d.windows_voices:[],selected=String((d.config||{}).windows_voice_name||'');
+   windowsSelect.innerHTML='<option value="">Automática · voz disponible en Recepción</option>'+windowsItems.map(v=>'<option value="'+esc(v.name||'')+'">'+esc((v.name||'Voz de Windows')+' · '+(v.lang||'sin idioma'))+'</option>').join('');
+   if(selected&&Array.from(windowsSelect.options).some(o=>o.value===selected))windowsSelect.value=selected;else windowsSelect.value='';
    el('voiceRate').value=Math.round(Number((d.config||{}).rate||.9)*100);el('voiceRateLabel').textContent=el('voiceRate').value+'%';
    el('voicePitch').value=Math.round(Number((d.config||{}).pitch||1)*100);el('voicePitchLabel').textContent=el('voicePitch').value+'%';
    const st=el('voiceStatus');
-   if(!d.tv_voice_supported){st.className='voicestatus';st.textContent=d.tv_voice_reported?'El navegador del televisor no ofrece voces propias. Se intentará el audio generado por Windows en Recepción; compruébalo con la prueba de voz.':'La TV todavía no ha reportado sus voces. Recarga una vez su página y pulsa “Actualizar voces”.'}
+   if(!d.tv_voice_supported){st.className='voicestatus'+(windowsItems.length?' ok':'');st.textContent=windowsItems.length?'Fully Kiosk usa una voz de Windows en Recepción · '+windowsItems.length+' voz(es) detectada(s). Velocidad y tono ajustables.':'No se enumeraron voces de Windows. El sonido actual conserva la voz automática; si instalas otras voces en Windows, reinicia Recepción.'}
    else{st.className='voicestatus ok';st.textContent='TV detectada · '+all.length+' voz(es), '+spanish.length+' en español.'}
  }
  function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
  function load(){request('/api/voice-settings?t='+Date.now()).then(render).catch(()=>{card();el('voiceStatus').textContent='No se pudo leer la configuración de voz.'})}
  function save(test){
-   const payload={voice_uri:el('voiceSelect').value,rate:Number(el('voiceRate').value)/100,pitch:Number(el('voicePitch').value)/100};
+   const payload={voice_uri:el('voiceSelect').value,windows_voice_name:el('windowsVoiceSelect').value,rate:Number(el('voiceRate').value)/100,pitch:Number(el('voicePitch').value)/100};
    request('/api/voice/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(d=>{render(d);if(test)return request('/api/voice/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({turn:6})})}).then(x=>{if(test&&x){el('voiceStatus').className='voicestatus ok';el('voiceStatus').textContent='Prueba enviada a la TV: “Turno número seis, por favor pasar a consulta.”'}}).catch(e=>alert(String(e)));
  }
  card();load();
