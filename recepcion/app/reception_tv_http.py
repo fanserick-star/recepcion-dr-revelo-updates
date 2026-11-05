@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
@@ -17,7 +18,7 @@ from reception_tv_common import (
     _is_video_name,
 )
 from reception_tv_voice_selector import inject_control, inject_display
-from reception_tv_speech import turn_voice_wav
+from reception_tv_speech import turn_voice_wav, surnames_for_queue
 
 
 def build_handler(service):
@@ -109,13 +110,41 @@ def build_handler(service):
                 if not 1 <= turn <= 999:
                     return self._send_text(400, "Número de turno fuera de rango")
                 review = (query.get("review") or ["0"])[0] == "1"
+                requested_event = (query.get("event") or [""])[0]
+                # The public TV receives only turn numbers and event counters, never
+                # patient names. Resolve surnames exclusively inside Reception,
+                # for the exact live calling event and original Historia queue ID.
                 with service.lock:
                     voice = service._voice_config()
+                    live = service.live
+                    may_announce = (
+                        voice.get("announce_surnames") is True
+                        and service._display_mode() == "live"
+                        and live.get("mode") == "calling"
+                        and not live.get("sound_test")
+                        and str(requested_event).isdigit()
+                        and int(requested_event) > 0
+                        and int(requested_event) == int(live.get("event_id") or 0)
+                        and int(live.get("turn") or 0) == turn
+                    )
+                    queue_id = ""
+                    if may_announce:
+                        held_id = str(getattr(service, "_doctor_held_queue_id", "") or "")
+                        held_until = float(getattr(service, "_doctor_hold_until", 0) or 0)
+                        held_turn = getattr(service, "_doctor_held_turn", None)
+                        if held_id and held_until > time.time() and held_turn == turn:
+                            queue_id = held_id
+                        else:
+                            queue_id = str(
+                                live.get("called_queue_id") or live.get("current_queue_id") or ""
+                            )
+                surnames = surnames_for_queue(queue_id) if queue_id else ""
                 audio = turn_voice_wav(
                     turn, review,
                     voice_name=voice["windows_voice_name"],
                     rate=voice["rate"],
                     pitch=voice["pitch"],
+                    surnames=surnames,
                 )
                 if audio is None:
                     return self._send_text(503, "La voz del equipo de Recepción no está disponible")
