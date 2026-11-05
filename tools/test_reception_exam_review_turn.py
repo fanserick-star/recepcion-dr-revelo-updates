@@ -202,9 +202,11 @@ def test_cross_system_and_fiscal_safety() -> None:
     assert 'self.live["exam_review"]' in tv
     assert '"next_waiting_exam_review"' in tv
     tv_html = text("recepcion/app/tv_display.html")
-    assert "REVISIÓN DE EXÁMENES" in tv_html
+    assert "REVISIÓN DE EXÁMENES" not in tv_html
+    assert "Puede ingresar al consultorio" in tv_html
     tv_voice = text("recepcion/app/reception_tv_voice_selector.py")
-    assert "state.exam_review" in tv_voice
+    assert "revisión de exámenes" not in tv_voice.lower()
+    assert "por favor pasar a consulta." in tv_voice
 
 
 
