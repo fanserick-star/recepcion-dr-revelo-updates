@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.126: corrige el silencio del llamado en Fully Kiosk/Android 7/WebView 52 sin voces del navegador. Si no hay voz en la TV, Recepción genera el anuncio WAV sin internet mediante la voz instalada en Windows; Chrome mantiene su voz del navegador. Reproduce campanita y permite activar audio desde la TV si WebView lo bloquea. No cambia números, eventos, Historia, pacientes, facturas, cobros ni Neon; incluye pruebas automáticas de regresión."
+  "notes": "Recepción 4.8.127: edición de voz de Windows para Fully Kiosk desde panel TV, selección de voces instaladas en Recepción, velocidad y tono; anuncios de revisiones solo indican el turno como consultas. Publicidad intenta audio con el volumen configurado y ofrece activar sonido si WebView lo bloquea. Se conservan turnos, pacientes, Historia, cobros, facturación y Neon; pruebas automáticas de compatibilidad."
 }
