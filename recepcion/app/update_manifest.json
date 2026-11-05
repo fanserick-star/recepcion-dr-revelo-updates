@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.124",
-  "app_version": "4.8.124",
-  "runtime_version": "4.8.124",
+  "version": "4.8.125",
+  "app_version": "4.8.125",
+  "runtime_version": "4.8.125",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -660,7 +660,10 @@
     "handoff_cloud_read_on_http_request": false,
     "attention_identity_preflight_reuse_seconds": 300,
     "attention_identity_preflight_reuses_verified_cache_48124": true,
-    "handoff_fresh_unlinked_bounded_retry_48124": [15, 30],
+    "handoff_fresh_unlinked_bounded_retry_48124": [
+      15,
+      30
+    ],
     "handoff_never_sends_unverified_48124": true,
     "handoff_missing_link_retry_seconds": 300,
     "lan_status_refresh_seconds": 5,
