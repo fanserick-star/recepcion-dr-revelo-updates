@@ -49,7 +49,7 @@ if (!audio.includes('System.Speech.Synthesis.SpeechSynthesizer') || !audio.inclu
   throw Error('La voz local de Windows para Fully no está configurada');
 if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview,fromCall)'))
   throw Error('El TV Box antiguo debe usar voz de Recepción cuando no tiene voces');
-if (!match[1].includes('voiceAnnounceSurnames') || !match[1].includes('announce_surnames'))
+if (!source.includes('voiceAnnounceSurnames') || !match[1].includes('announce_surnames'))
   throw Error('El anuncio opcional de dos apellidos debe tener control explícito desde Recepción');
 if (!http.includes('surnames_for_queue(queue_id)') || !http.includes('int(requested_event) == int(live.get("event_id") or 0)'))
   throw Error('No se debe anunciar apellidos fuera del evento de llamado activo y verificado');
