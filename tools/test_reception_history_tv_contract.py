@@ -349,7 +349,54 @@ def test_exam_review_linked_chart_and_tv_label() -> None:
         assert tv.live["exam_review"] is True
         assert tv.live["turn"] == 5
 
+def test_optional_surname_audio_uses_exact_historia_queue_id() -> None:
+    """Only exact today's delivered queue may speak surnames; never infer by turn."""
+    import uuid
+    from datetime import datetime, timedelta
+    from reception_tv_speech import surnames_for_queue, _first_two_surnames
+    old_path = lan.LAN_OUTBOX_DB
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            lan.LAN_OUTBOX_DB = Path(td) / "outbox.db"
+            with sqlite3.connect(lan.LAN_OUTBOX_DB) as conn:
+                conn.execute(
+                    "CREATE TABLE events(event_id TEXT PRIMARY KEY, payload_json TEXT, "
+                    "created_at TEXT, sent_at TEXT, cancelled INTEGER DEFAULT 0)"
+                )
+                now = datetime.now().isoformat(timespec="seconds")
+                yesterday = (datetime.now()-timedelta(days=1)).isoformat(timespec="seconds")
+                samples = [
+                    ("event-valid", "PÉREZ GARCÍA JUAN CARLOS", now, "sent", 0),
+                    ("event-cancelled", "GÓMEZ VEGA ALBERTO", now, "sent", 1),
+                    ("event-old", "OTRO APELLIDO MARIA", yesterday, "sent", 0),
+                    ("event-unsent", "LÓPEZ SUÁREZ MIGUEL", now, None, 0),
+                    ("event-placeholder", "PACIENTE DE PRUEBA", now, "sent", 0),
+                ]
+                for event_id, name, created, sent, cancelled in samples:
+                    payload = json.dumps({"event_id":event_id,"display_name":name})
+                    conn.execute(
+                        "INSERT INTO events(event_id,payload_json,created_at,sent_at,cancelled) "
+                        "VALUES(?,?,?,?,?)",
+                        (event_id, payload, created, sent, cancelled),
+                    )
+                conn.commit()
+            def queue(event_id: str) -> str:
+                return str(uuid.uuid5(uuid.NAMESPACE_URL, "historia-queue:"+event_id))
+            assert surnames_for_queue(queue("event-valid")) == "PÉREZ GARCÍA"
+            assert surnames_for_queue(queue("event-cancelled")) == ""
+            assert surnames_for_queue(queue("event-old")) == ""
+            assert surnames_for_queue(queue("event-unsent")) == ""
+            assert surnames_for_queue(queue("event-placeholder")) == ""
+            assert surnames_for_queue(queue("event-unknown")) == ""
+            assert surnames_for_queue("invalid-queue") == ""
+            assert _first_two_surnames("GARCÍA PÉREZ MARÍA") == "GARCÍA PÉREZ"
+            assert _first_two_surnames("PACIENTE") == ""
+    finally:
+        lan.LAN_OUTBOX_DB = old_path
+
+
 if __name__ == "__main__":
+    test_optional_surname_audio_uses_exact_historia_queue_id()
     test_source_contracts()
     test_cancelled_handoff_cannot_revive()
     test_control_retry_is_persistent()
