@@ -47,8 +47,17 @@ if (!http.includes('if path == "/api/turn-voice.wav":') || !http.includes('audio
   throw Error('La API de WAV para TV sin voces no está conectada');
 if (!audio.includes('System.Speech.Synthesis.SpeechSynthesizer') || !audio.includes('getattr(subprocess, "CREATE_NO_WINDOW"'))
   throw Error('La voz local de Windows para Fully no está configurada');
-if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview)'))
+if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview,fromCall)'))
   throw Error('El TV Box antiguo debe usar voz de Recepción cuando no tiene voces');
+if (!match[1].includes('voiceAnnounceSurnames') || !match[1].includes('announce_surnames'))
+  throw Error('El anuncio opcional de dos apellidos debe tener control explícito desde Recepción');
+if (!http.includes('surnames_for_queue(queue_id)') || !http.includes('int(requested_event) == int(live.get("event_id") or 0)'))
+  throw Error('No se debe anunciar apellidos fuera del evento de llamado activo y verificado');
+if (!audio.includes('uuid.uuid5(uuid.NAMESPACE_URL, "historia-queue:" + str(event_id))') ||
+    !audio.includes('_first_two_surnames(payload.get("display_name"))'))
+  throw Error('Los apellidos deben resolverse sólo mediante correspondencia exacta en la cola LAN local');
+if (display.includes('display_name') || display.includes('surnames') || match[1].includes('display_name'))
+  throw Error('La pantalla TV jamás debe recibir nombres de pacientes en texto');
 if (!display.includes('id="audioEnable"') || !display.includes('function enableAudio()'))
   throw Error('El TV no ofrece activación de audio cuando WebView lo bloquea');
 if (!display.includes("if(s.event_id&&s.event_id!==lastEvent)"))
