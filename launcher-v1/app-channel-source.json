@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.127: edición de voz de Windows para Fully Kiosk desde panel TV, selección de voces instaladas en Recepción, velocidad y tono; anuncios de revisiones solo indican el turno como consultas. Publicidad intenta audio con el volumen configurado y ofrece activar sonido si WebView lo bloquea. Se conservan turnos, pacientes, Historia, cobros, facturación y Neon; pruebas automáticas de compatibilidad. Regresión de reloj y pantalla pública de revisiones actualizada."
+  "notes": "Recepción 4.8.127: edición de voz de Windows para Fully Kiosk desde panel TV, selección de voces instaladas en Recepción, velocidad y tono; anuncios de revisiones solo indican el turno como consultas. Publicidad intenta audio con el volumen configurado y ofrece activar sonido si WebView lo bloquea. Se conservan turnos, pacientes, Historia, cobros, facturación y Neon; pruebas automáticas de compatibilidad. Pruebas completas de reloj analógico, avisos de revisión sin categoría y audio publicitario actualizadas."
 }
