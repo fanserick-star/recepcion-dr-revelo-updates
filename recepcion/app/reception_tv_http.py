@@ -109,7 +109,14 @@ def build_handler(service):
                 if not 1 <= turn <= 999:
                     return self._send_text(400, "Número de turno fuera de rango")
                 review = (query.get("review") or ["0"])[0] == "1"
-                audio = turn_voice_wav(turn, review)
+                with service.lock:
+                    voice = service._voice_config()
+                audio = turn_voice_wav(
+                    turn, review,
+                    voice_name=voice["windows_voice_name"],
+                    rate=voice["rate"],
+                    pitch=voice["pitch"],
+                )
                 if audio is None:
                     return self._send_text(503, "La voz del equipo de Recepción no está disponible")
                 return self._send(200, audio, "audio/wav", "no-store")
