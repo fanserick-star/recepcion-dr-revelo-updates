@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.125: compatibilidad de la pantalla TV con el antiguo Android WebView 52 de Fully Kiosk (reloj, posicionamiento y visualización). No cambia turnos, Historia, pacientes, cobros, facturación ni Neon. Chrome conserva el diseño actual."
+  "notes": "Recepción 4.8.125: Pantalla TV compatible con Fully Kiosk en Android 7 / WebView 52. Se conservan los eventos de llamados, campanita, voz cuando el navegador dispone de síntesis y pausa de publicidad; reloj con funciones CSS y JavaScript compatibles. Pruebas de regresión del código incluidas. Sin cambios en pacientes, Historia, cobros, facturas o Neon."
 }
