@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.125: Pantalla TV compatible con Fully Kiosk en Android 7 / WebView 52. Se conservan los eventos de llamados, campanita, voz cuando el navegador dispone de síntesis y pausa de publicidad; reloj con funciones CSS y JavaScript compatibles. Pruebas de regresión del código incluidas. Sin cambios en pacientes, Historia, cobros, facturas o Neon."
+  "notes": "Recepción 4.8.126: corrige el silencio del llamado en Fully Kiosk/Android 7/WebView 52 sin voces del navegador. Si no hay voz en la TV, Recepción genera el anuncio WAV sin internet mediante la voz instalada en Windows; Chrome mantiene su voz del navegador. Reproduce campanita y permite activar audio desde la TV si WebView lo bloquea. No cambia números, eventos, Historia, pacientes, facturas, cobros ni Neon; incluye pruebas automáticas de regresión."
 }
