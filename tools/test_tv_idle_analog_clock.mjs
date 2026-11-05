@@ -22,7 +22,7 @@ assert.doesNotMatch(source,/class="idle-clock-time"|class="idle-clock-date"/);
 assert.match(els.idleMinuteHand.transform,/rotate\(184.5 200 200\)/);
 ctx.idle(false);assert.equal(rendered,first,"Clock should not recreate DOM every poll");
 ctx.state={mode:"idle",next_waiting_turn:8,next_waiting_exam_review:true};ctx.idle(false);
-assert.match(rendered,/PRÓXIMO TURNO/);assert.match(rendered,/Revisión de exámenes/);assert.doesNotMatch(rendered,/idleClockFace/);
+assert.match(rendered,/PRÓXIMO TURNO/);assert.match(rendered,/Espere el llamado/);assert.doesNotMatch(rendered,/Revisión de exámenes/);assert.doesNotMatch(rendered,/idleClockFace/);
 ctx.state={mode:"idle",next_waiting_turn:null,waiting_count:0};ctx.idle(false);assert.match(rendered,/idleClockFace/);
 assert.match(script,/if\(s.mode==='calling'&&s.turn\)/);
 assert.match(script,/else if\(s.mode==='attending'&&s.turn\)/);
