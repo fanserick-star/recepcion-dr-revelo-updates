@@ -32,13 +32,18 @@ for (const marker of [
   'id="ding"', 'id="voiceAudio"'
 ]) if (!display.includes(marker)) throw Error('TV: missing call/audio contract: ' + marker);
 
-if (!display.includes('s.exam_review')) throw Error('La TV no muestra revisión de exámenes');
-if (!match[1].includes('state.exam_review')) throw Error('La voz no contempla revisión de exámenes');
+// Public TV and voice must NOT reveal the attention type for exam-review turns.
+if (/REVISI[ÓO]N DE EX[ÁA]MENES/i.test(display) || /revisión de exámenes/i.test(match[1]))
+  throw Error('La TV no debe decir revisión de exámenes en anuncios de turnos');
+if (!display.includes("function syncYoutubeAudio()") || !display.includes("v.muted=videoAudioBlocked&&!audioUnlocked"))
+  throw Error('La publicidad debe intentar sonido y ofrecer desbloqueo manual');
+if (!source.includes("windowsVoiceSelect") || !source.includes("windows_voice_name"))
+  throw Error('El panel debe permitir seleccionar una voz Windows para Fully');
 const httpFile = 'recepcion/app/reception_tv_http.py';
 const audioFile = 'recepcion/app/reception_tv_speech.py';
 const http = fs.readFileSync(httpFile, 'utf8');
 const audio = fs.readFileSync(audioFile, 'utf8');
-if (!http.includes('if path == "/api/turn-voice.wav":') || !http.includes('turn_voice_wav(turn, review)'))
+if (!http.includes('if path == "/api/turn-voice.wav":') || !http.includes('audio = turn_voice_wav('))
   throw Error('La API de WAV para TV sin voces no está conectada');
 if (!audio.includes('System.Speech.Synthesis.SpeechSynthesizer') || !audio.includes('getattr(subprocess, "CREATE_NO_WINDOW"'))
   throw Error('La voz local de Windows para Fully no está configurada');
