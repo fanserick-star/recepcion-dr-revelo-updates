@@ -17,6 +17,7 @@ from reception_tv_common import (
     _is_video_name,
 )
 from reception_tv_voice_selector import inject_control, inject_display
+from reception_tv_speech import turn_voice_wav
 
 
 def build_handler(service):
@@ -100,6 +101,18 @@ def build_handler(service):
                 return self._send_json(200, service.status())
             if path == "/ding.wav":
                 return self._send(200, _DING, "audio/wav", "public, max-age=3600")
+            if path == "/api/turn-voice.wav":
+                try:
+                    turn = int((query.get("turn") or ["0"])[0])
+                except (ValueError, TypeError):
+                    return self._send_text(400, "Número de turno inválido")
+                if not 1 <= turn <= 999:
+                    return self._send_text(400, "Número de turno fuera de rango")
+                review = (query.get("review") or ["0"])[0] == "1"
+                audio = turn_voice_wav(turn, review)
+                if audio is None:
+                    return self._send_text(503, "La voz del equipo de Recepción no está disponible")
+                return self._send(200, audio, "audio/wav", "no-store")
             if path == "/assets/logo-full.png":
                 if LOGO_FULL.is_file():
                     return self._send(200, LOGO_FULL.read_bytes(), "image/png", "public, max-age=3600")
