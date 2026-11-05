@@ -231,6 +231,7 @@ class ClinicTVTurnService(TVTurnService):
             "voice_name": str(self.config.get("voice_name") or ""),
             "voice_lang": str(self.config.get("voice_lang") or ""),
             "windows_voice_name": str(self.config.get("windows_voice_name") or ""),
+            "announce_surnames": bool(self.config.get("voice_announce_surnames", False)),
             "rate": float(self.config.get("voice_rate", 0.90)),
             "pitch": float(self.config.get("voice_pitch", 1.00)),
         }
@@ -298,6 +299,8 @@ class ClinicTVTurnService(TVTurnService):
             self.config["voice_name"] = str((chosen or {}).get("name") or "")
             self.config["voice_lang"] = str((chosen or {}).get("lang") or "")
             self.config["windows_voice_name"] = windows_name
+            if "announce_surnames" in payload:
+                self.config["voice_announce_surnames"] = payload.get("announce_surnames") is True
             self.config["voice_rate"] = rate
             self.config["voice_pitch"] = pitch
             self._save_config()
