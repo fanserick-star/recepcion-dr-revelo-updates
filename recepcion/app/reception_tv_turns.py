@@ -3,6 +3,7 @@ from __future__ import annotations
 import core_runtime
 from reception_tv_common import _epoch, _now_iso
 from reception_tv_service import APP_VERSION, TVTurnService
+from reception_tv_speech import windows_voices
 
 
 class ClinicTVTurnService(TVTurnService):
@@ -229,6 +230,7 @@ class ClinicTVTurnService(TVTurnService):
             "voice_uri": str(self.config.get("voice_uri") or ""),
             "voice_name": str(self.config.get("voice_name") or ""),
             "voice_lang": str(self.config.get("voice_lang") or ""),
+            "windows_voice_name": str(self.config.get("windows_voice_name") or ""),
             "rate": float(self.config.get("voice_rate", 0.90)),
             "pitch": float(self.config.get("voice_pitch", 1.00)),
         }
@@ -263,11 +265,14 @@ class ClinicTVTurnService(TVTurnService):
         return {"ok": True, "count": len(voices)}
 
     def voice_settings(self) -> dict:
+        # Enumerate Windows voices outside the TV state lock to avoid blocking calls.
+        installed = windows_voices()
         with self.lock:
             return {
                 "ok": True,
                 "config": self._voice_config(),
                 "voices": list(self.tv_voice_capabilities),
+                "windows_voices": installed,
                 "tv_voice_supported": bool(self.tv_voice_supported),
                 "tv_voice_reported": bool(self.tv_voice_reported_epoch),
                 "tv_voice_age_seconds": max(0.0, _epoch() - self.tv_voice_reported_epoch) if self.tv_voice_reported_epoch else None,
@@ -275,8 +280,11 @@ class ClinicTVTurnService(TVTurnService):
 
     def set_voice_settings(self, payload: dict) -> dict:
         uri = str(payload.get("voice_uri") or "")[:240]
+        windows_name = str(payload.get("windows_voice_name") or "")[:180]
         rate = max(0.60, min(1.30, float(payload.get("rate", self.config.get("voice_rate", 0.90)))))
         pitch = max(0.70, min(1.30, float(payload.get("pitch", self.config.get("voice_pitch", 1.00)))))
+        if windows_name and windows_name not in {v["name"] for v in windows_voices()}:
+            raise ValueError("La voz de Windows escogida no está instalada en Recepción")
         chosen = None
         with self.lock:
             if uri:
@@ -289,6 +297,7 @@ class ClinicTVTurnService(TVTurnService):
             self.config["voice_uri"] = uri if chosen or not uri else ""
             self.config["voice_name"] = str((chosen or {}).get("name") or "")
             self.config["voice_lang"] = str((chosen or {}).get("lang") or "")
+            self.config["windows_voice_name"] = windows_name
             self.config["voice_rate"] = rate
             self.config["voice_pitch"] = pitch
             self._save_config()
