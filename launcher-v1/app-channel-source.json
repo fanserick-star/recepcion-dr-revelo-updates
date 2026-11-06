@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.131: eliminado botón redundante PANTALLA COMPLETA de la TV porque Fully Kiosk lo gestiona automáticamente. Se conserva ACTIVAR SONIDO, las voces, apellidos opcionales, campanita, publicidad, reloj y protección ante llamados antiguos. Sin cambios en pacientes, Historia, cobros, facturación o Neon."
+  "notes": "Recepción 4.8.132: agrega pruebas de voz con cuatro pares de apellidos ficticios desde TV > Voz de llamado, sin crear pacientes ni alterar turnos. Reproduce por la voz Windows en Fully Kiosk «Turno número seis, Pérez García, por favor pasar a consulta», u otro ejemplo seleccionado. Los apellidos solo se oyen y nunca aparecen escritos en la TV; los ejemplos no se envían como texto a su pantalla. Permite probar aun si los apellidos reales están desactivados. Conserva llamadas manuales, campanita, publicidad, reloj, Neon, Historias y facturación."
 }
