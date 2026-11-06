@@ -21,6 +21,9 @@ class TVMediaMixin:
             "voice_uri": "",
             "voice_name": "",
             "voice_lang": "",
+            # Deliberate opt-in: never disclose surnames by default.
+            "voice_announce_surnames": False,
+            "windows_voice_name": "",
             "voice_rate": 0.90,
             "voice_pitch": 1.00,
         }
@@ -43,6 +46,10 @@ class TVMediaMixin:
             voice_uri = str(data.get("voice_uri") or "")[:240]
             voice_name = str(data.get("voice_name") or "")[:180]
             voice_lang = str(data.get("voice_lang") or "")[:40]
+            # Recover the same keys written by set_voice_settings; otherwise the
+            # checkbox and selected Windows voice reset after every app restart.
+            announce_surnames = data.get("voice_announce_surnames") is True
+            windows_voice_name = str(data.get("windows_voice_name") or "")[:180]
             voice_rate = max(0.60, min(1.30, float(data.get("voice_rate", 0.90))))
             voice_pitch = max(0.70, min(1.30, float(data.get("voice_pitch", 1.00))))
             return {
@@ -55,6 +62,8 @@ class TVMediaMixin:
                 "voice_uri": voice_uri,
                 "voice_name": voice_name,
                 "voice_lang": voice_lang,
+                "voice_announce_surnames": announce_surnames,
+                "windows_voice_name": windows_voice_name,
                 "voice_rate": voice_rate,
                 "voice_pitch": voice_pitch,
             }
