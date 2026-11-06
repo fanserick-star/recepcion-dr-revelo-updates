@@ -209,32 +209,70 @@ CALL_SCRIPT = r"""<style>
 (function(){
  if(window.__doctorTurnCallInstalled)return;
  window.__doctorTurnCallInstalled=true;
+ // A fast double click, two buttons for the same patient, and a rerender all share
+ // one cooldown. The backend enforces it too, including after a page reload.
+ const lockUntil=Object.create(null);
+ const sending=Object.create(null);
+ const alreadyCalled=Object.create(null);
+ const COOLDOWN_MS=12000;
+ function paint(q){
+  const remaining=Math.max(0,Math.ceil((Number(lockUntil[q]||0)-Date.now())/1000));
+  document.querySelectorAll('.js-doctor-call').forEach(b=>{
+   if(String(b.dataset.queueId||'')!==q)return;
+   if(sending[q]){
+    b.disabled=true;
+    b.textContent='Enviando llamado…';
+   }else if(remaining>0){
+    b.disabled=true;
+    b.classList.add('call-repeated');
+    b.textContent='✓ Enviado · espera '+remaining+' s';
+    b.title='El turno ya fue anunciado. Podrá repetirlo cuando termine el contador.';
+   }else{
+    b.disabled=false;
+    if(alreadyCalled[q]){
+     b.classList.add('call-repeated');
+     b.textContent='🔁 Repetir llamado';
+     b.title='Repetir voluntariamente el llamado del turno';
+    }
+   }
+  });
+ }
+ setInterval(()=>{
+  Object.keys(lockUntil).forEach(q=>{
+   paint(q);
+   if(Number(lockUntil[q]||0)<=Date.now())delete lockUntil[q];
+  });
+ },1000);
  document.addEventListener('click',async ev=>{
   const btn=ev.target.closest?.('.js-doctor-call');
   if(!btn)return;
   ev.preventDefault();ev.stopPropagation();
-  if(btn.disabled)return;
   const q=String(btn.dataset.queueId||'');
-  if(!q)return;
-  btn.disabled=true;
-  const original=btn.textContent;
-  btn.textContent='Enviando llamado…';
+  if(!q||sending[q]||Date.now()<Number(lockUntil[q]||0)||btn.disabled)return;
+  sending[q]=true;
+  paint(q);
   try{
    const r=await fetch('/api/doctor-turn-call/'+encodeURIComponent(q),{
      method:'POST',headers:{'X-Historia-Doctor-Call':'1','Content-Type':'application/json'},cache:'no-store',
      body:'{}'
    });
    const d=await r.json().catch(()=>({}));
+   if(r.status===429&&d.already_sent){
+    alreadyCalled[q]=true;
+    lockUntil[q]=Date.now()+Math.max(1,Number(d.retry_after_seconds||12))*1000;
+    return; // Not a second call and not an error popup.
+   }
    if(!r.ok||!d.ok)throw new Error(d.error||'No se pudo enviar el llamado.');
-   btn.textContent='🔁 Repetir llamado';
-   btn.classList.add('call-repeated');
-   btn.title='Repetir llamado del turno '+d.turn;
+   alreadyCalled[q]=true;
+   lockUntil[q]=Date.now()+Math.max(1,Number(d.retry_after_seconds||12))*1000;
    if(window.showAppToast)window.showAppToast('Turno #'+d.turn+' enviado a Recepción · TV (audio sujeto a conexión).','success');
   }catch(err){
-   btn.textContent=original;
    if(window.showAppToast)window.showAppToast(err.message||'Error al llamar.','error');
    else alert(err.message||'Error al llamar.');
-  }finally{btn.disabled=false;}
+  }finally{
+   delete sending[q];
+   paint(q);
+  }
  });
 })();
 </script>"""
