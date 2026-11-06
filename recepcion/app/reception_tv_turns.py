@@ -3,7 +3,7 @@ from __future__ import annotations
 import core_runtime
 from reception_tv_common import _epoch, _now_iso
 from reception_tv_service import APP_VERSION, TVTurnService
-from reception_tv_speech import windows_voices
+from reception_tv_speech import windows_voices, VOICE_TEST_SAMPLES
 
 
 class ClinicTVTurnService(TVTurnService):
@@ -24,6 +24,8 @@ class ClinicTVTurnService(TVTurnService):
         self.tv_voice_reported_epoch = 0.0
         self.voice_test_id = 0
         self.voice_test_turn = 6
+        self.voice_test_sample_key = ""
+        self.voice_test_started_epoch = 0.0
         self.live["exam_review"] = False
         self.live["next_waiting_exam_review"] = False
 
@@ -287,10 +289,16 @@ class ClinicTVTurnService(TVTurnService):
         except (TypeError, ValueError):
             turn = 6
         turn = max(1, min(999, turn))
+        sample_key = str(payload.get("sample") or "").strip()
+        if sample_key and sample_key not in VOICE_TEST_SAMPLES:
+            raise ValueError("El ejemplo de apellidos no es válido")
         with self.lock:
             self.voice_test_id += 1
             self.voice_test_turn = turn
-            return {"ok": True, "voice_test_id": self.voice_test_id, "turn": turn}
+            self.voice_test_sample_key = sample_key
+            self.voice_test_started_epoch = _epoch()
+            return {"ok": True, "voice_test_id": self.voice_test_id, "turn": turn,
+                    "has_sample": bool(sample_key)}
 
     def display_snapshot(self, *, touch_tv: bool = False) -> dict:
         out = super().display_snapshot(touch_tv=touch_tv)
@@ -298,6 +306,9 @@ class ClinicTVTurnService(TVTurnService):
             out["voice"] = self._voice_config()
             out["voice_test_id"] = int(self.voice_test_id)
             out["voice_test_turn"] = int(self.voice_test_turn)
+            # Public display receives only a boolean, never the test surnames or
+            # the sample key. Only the control PC knows the fictitious examples.
+            out["voice_test_has_surnames"] = bool(self.voice_test_sample_key)
         return out
 
 
