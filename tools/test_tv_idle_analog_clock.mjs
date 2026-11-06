@@ -28,7 +28,7 @@ assert.match(script,/if\(s.mode==='calling'&&s.turn\)/);
 assert.match(script,/else if\(s.mode==='attending'&&s.turn\)/);
 assert.match(script,/if\(source==='live'&&!s.history_online/);
 assert.match(script,/function announceTurn\(turn\)/);
-assert.match(script,/if\(s.event_id&&s.event_id!==lastEvent\)/);
+assert.match(script,/function shouldRingForSnapshot\(s\)/);
 assert.match(source,/\.center\.idle-clock-active/);
 assert.doesNotMatch(script,/const idleScreens=/);
 console.log("TV_IDLE_ANALOG_CLOCK_WAITING_PRIORITY_CALLS_VOICE_VIDEO_PRESERVED_OK");
