@@ -107,6 +107,7 @@ class ClinicTVTurnService(TVTurnService):
                     # Opening, finishing or changing charts never creates this token.
                     self.live["doctor_call_event_id"] = event_id
                     self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
+                    self.live["doctor_call_event_seq"] = int(self.live["event_id"])
                     self.live["sound"] = True
                     self.live["sound_test"] = False
             if now < self._doctor_hold_until and self._doctor_held_turn is not None:
