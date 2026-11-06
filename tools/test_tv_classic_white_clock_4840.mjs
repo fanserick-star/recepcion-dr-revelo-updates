@@ -55,6 +55,6 @@ assert.match(js,/if\(s.mode==='calling'&&s.turn\)/);
 assert.match(js,/else if\(s.mode==='attending'&&s.turn\)/);
 assert.match(js,/function announceTurn\(turn\)/);
 assert.match(js,/function startVideo\(turn\)/);
-assert.match(js,/if\(source==='live'&&!s.history_online/);
+assert.match(js,/if\(s.display_mode==='live'&&!s.history_online/);
 assert.match(js,/function shouldRingForSnapshot\(s\)/);
 console.log("TV_CLASSIC_WHITE_LARGE_CLOCK_12_NUMERALS_IDLE_WAITING_VOICE_VIDEO_SAFE_OK");
