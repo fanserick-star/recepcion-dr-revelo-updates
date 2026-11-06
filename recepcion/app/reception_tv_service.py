@@ -27,6 +27,9 @@ class TVTurnService(TVMediaMixin):
         # New random identity on each Reception TV server launch. The physical TV
         # uses this to reset its counters silently after a restart or reload.
         self.tv_boot_id = uuid.uuid4().hex
+        self.bell_seen = {}  # (mode, event, remote IP): first authorized delivery
+        self.bell_audit = []  # last 100 bell requests, no patient names or identifiers
+        self.test_bell_until = 0.0
         self.config = self._load_config()
         self.live = {
             "mode": "idle",
@@ -58,6 +61,71 @@ class TVTurnService(TVMediaMixin):
             "attention_started_epoch": 0.0,
             "last_change": _now_iso(),
         }
+
+    def authorize_bell(self, *, mode: str, event: int, doctor_token: str,
+                       boot: str, remote_ip: str) -> bool:
+        """A real bell is served at most once per event to each TV IP.
+
+        Prevents stale-page autoplay, media restore, delayed requests, cached
+        URLs and duplicate WebViews from producing unsolicited public chimes.
+        Voice synthesis and real doctor calls remain independent of the bell.
+        """
+        now = _epoch()
+        reason = "permitido"
+        with self.lock:
+            state = self.live if mode == "live" else self.test
+            if boot != self.tv_boot_id or not boot:
+                reason = "sesion_antigua"
+            elif mode not in ("live", "test") or self._display_mode() != mode:
+                reason = "modo_incorrecto"
+            elif event < 1 or event != int(state.get("event_id") or 0):
+                reason = "evento_antiguo"
+            elif state.get("sound") is not True:
+                reason = "sonido_desactivado"
+            elif mode == "live":
+                expected = str(state.get("doctor_call_event_id") or "")
+                if not expected or doctor_token != expected:
+                    reason = "llamado_no_verificado"
+                elif not state.get("history_online") or state.get("mode") != "calling":
+                    reason = "sin_llamado_en_vivo"
+                elif now >= float(getattr(self, "_doctor_hold_until", 0.0) or 0.0):
+                    reason = "llamado_caducado"
+            elif now >= self.test_bell_until or not (
+                state.get("mode") == "calling" and state.get("turn")
+            ) and not state.get("sound_test"):
+                reason = "prueba_caducada"
+            key = (mode, int(event), str(remote_ip))
+            if reason == "permitido" and key in self.bell_seen:
+                reason = "duplicado_bloqueado"
+            if reason == "permitido":
+                self.bell_seen[key] = now
+            self.bell_audit.append({
+                "at": _now_iso(), "event": int(event), "mode": mode,
+                "status": "autorizado" if reason == "permitido" else "silenciado",
+                "reason": reason,
+            })
+            if len(self.bell_audit) > 100:
+                self.bell_audit = self.bell_audit[-100:]
+            if len(self.bell_seen) > 500:
+                self.bell_seen = {k: t for k, t in self.bell_seen.items() if now - t < 120}
+            return reason == "permitido"
+
+    def record_old_bell_request(self) -> None:
+        """Old cached TV pages must receive silence, not the patient-call sound."""
+        with self.lock:
+            self.bell_audit.append({
+                "at": _now_iso(), "event": 0, "mode": "legacy",
+                "status": "silenciado", "reason": "pagina_antigua",
+            })
+            self.bell_audit = self.bell_audit[-100:]
+
+    def bell_diagnostics(self) -> dict:
+        with self.lock:
+            return {
+                "version": APP_VERSION, "boot": self.tv_boot_id[:8],
+                "events": list(reversed(self.bell_audit[-25:])),
+                "legacy_sound_disabled": True,
+            }
 
     def _tv_online(self) -> bool:
         return bool(self.last_tv_seen_epoch and _epoch() - self.last_tv_seen_epoch < 8)
@@ -262,6 +330,7 @@ class TVTurnService(TVMediaMixin):
             if changed or mode == "calling" or self.test["sound_test"]:
                 self.test["event_id"] = int(self.test.get("event_id") or 0) + 1
                 self.test["last_change"] = _now_iso()
+                self.test_bell_until = _epoch() + 15
             if mode == "attending" and (changed or not self.test.get("attention_started_epoch")):
                 self.test["attention_started_epoch"] = _epoch()
             elif mode != "attending":
