@@ -18,7 +18,7 @@ from reception_tv_common import (
     _is_video_name,
 )
 from reception_tv_voice_selector import inject_control, inject_display
-from reception_tv_speech import turn_voice_wav, surnames_for_queue
+from reception_tv_speech import turn_voice_wav, surnames_for_queue, VOICE_TEST_SAMPLES
 
 
 def build_handler(service):
@@ -111,6 +111,23 @@ def build_handler(service):
                     return self._send_text(400, "Número de turno fuera de rango")
                 review = (query.get("review") or ["0"])[0] == "1"
                 requested_event = (query.get("event") or [""])[0]
+                sample_test = (query.get("sample_test") or ["0"])[0]
+                sample_surnames = ""
+                if sample_test != "0":
+                    # Sample IDs and text never enter the public TV snapshot or
+                    # URL. The server resolves an active, recent, exact test.
+                    if not sample_test.isdigit() or int(sample_test) < 1:
+                        return self._send_text(400, "Identificador de prueba inválido")
+                    with service.lock:
+                        valid = (
+                            int(sample_test) == int(service.voice_test_id)
+                            and int(service.voice_test_turn) == turn
+                            and 0 <= time.time() - service.voice_test_started_epoch <= 25
+                        )
+                        if valid:
+                            sample_surnames = VOICE_TEST_SAMPLES.get(service.voice_test_sample_key, "")
+                    if not sample_surnames:
+                        return self._send_text(409, "La prueba de apellidos ya expiró")
                 # The public TV receives only turn numbers and event counters, never
                 # patient names. Resolve surnames exclusively inside Reception,
                 # for the exact live calling event and original Historia queue ID.
@@ -138,7 +155,7 @@ def build_handler(service):
                             queue_id = str(
                                 live.get("called_queue_id") or live.get("current_queue_id") or ""
                             )
-                surnames = surnames_for_queue(queue_id) if queue_id else ""
+                surnames = sample_surnames or (surnames_for_queue(queue_id) if queue_id else "")
                 audio = turn_voice_wav(
                     turn, review,
                     voice_name=voice["windows_voice_name"],
