@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.134",
-  "app_version": "4.8.134",
-  "runtime_version": "4.8.134",
+  "version": "4.8.135",
+  "app_version": "4.8.135",
+  "runtime_version": "4.8.135",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.134: corrección reforzada contra campanitas fantasma en Fully Kiosk. Ya no se precarga ninguna campana; /ding.wav antiguo retorna silencio con no-store. Cada campanita audible solicita /api/verified-ding.wav al servidor, que valida sesión de TV, modo, último evento exacto del doctor, vigencia y deduplicación por TV/IP; sin coincidencia entrega audio silencioso. Diagnóstico de campanita desde TV > EN VIVO para rastrear solicitudes autorizadas, duplicadas o páginas antiguas, sin nombres. Conserva voz, apellidos, pruebas de sonido, publicidad, reloj y todas las funciones clínicas.",
-    "previous_version": "4.8.133",
+    "purpose": "Recepción 4.8.135: recupera correctamente después de reiniciar los ajustes de voz del TV, en particular la opción opcional «Anunciar únicamente dos apellidos por voz» y la voz instalada en Windows. Antes se guardaban pero la lectura de config.json los omitía y los apellidos quedaban desactivados tras reiniciar. Sigue desactivada por defecto para preservar la privacidad, y ahora respeta explícitamente la elección guardada de Recepción. Sin cambios a bell verified delivery, publicidad, filas, app clínica, facturas ni Neon.",
+    "previous_version": "4.8.134",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -360,7 +360,7 @@
     "tv_header_duplicate_text_removed": true,
     "tv_header_background_rectangle_removed": true,
     "tv_turn_logic_changes": false,
-    "tv_voice_logic_changes": false,
+    "tv_voice_logic_changes": true,
     "tv_video_logic_changes": false,
     "historia_lan_previous_day_pending_expires": true,
     "historia_lan_stale_events_deleted": false,
@@ -606,7 +606,7 @@
     "tv_idle_analog_clock": true,
     "tv_idle_clock_only_when_no_waiting": true,
     "tv_idle_clock_external_dependencies": false,
-    "tv_call_and_voice_logic_changes": true,
+    "tv_call_and_voice_logic_changes": false,
     "tv_clock_local_time_source": "TV_browser",
     "tv_idle_clock_theme": "classic_white_wall_clock",
     "tv_idle_clock_layout_safe_for_short_screens": true,
@@ -786,7 +786,11 @@
     "tv_bell_duplicate_requests_server_blocked": true,
     "tv_bell_old_webview_cache_identifiable": true,
     "tv_bell_local_diagnostics_panel": true,
-    "tv_bell_audit_patient_data": false
+    "tv_bell_audit_patient_data": false,
+    "tv_surname_voice_opt_in_persists_restart": true,
+    "tv_windows_selected_voice_persists_restart": true,
+    "tv_voice_privacy_default_off": true,
+    "tv_verified_bell_v48134_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
