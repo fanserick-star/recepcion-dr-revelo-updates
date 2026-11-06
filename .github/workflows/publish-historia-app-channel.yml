@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "historia-clinica/app/historia-version.json"
+      - ".github/workflows/publish-historia-app-channel.yml"
   workflow_dispatch:
 
 permissions:
@@ -56,7 +57,7 @@ jobs:
       - name: Test explicit doctor calling and accidental double-click guard
         run: |
           python -m pip install --disable-pip-version-check "fastapi>=0.110,<1"
-          python tools/test_doctor_turn_call.py
+          PYTHONPATH=historia-clinica/app python tools/test_doctor_turn_call.py
 
       - name: Generate channel from exact canonical Git blobs
         env:
