@@ -545,7 +545,7 @@ def test_verified_tv_bell_never_replays_or_autostarts() -> None:
     service = TVTurnService()
     service.live.update({
         "event_id": 11, "doctor_call_event_id": "doctor-explicit-11",
-        "history_online": True, "mode": "calling", "turn": 6, "sound": True,
+        "doctor_call_event_seq": 11, "history_online": True, "mode": "calling", "turn": 6, "sound": True,
     })
     service._doctor_hold_until = _epoch() + 7
     boot = service.tv_boot_id
@@ -562,10 +562,13 @@ def test_verified_tv_bell_never_replays_or_autostarts() -> None:
     service.live["event_id"] = 12
     assert not service.authorize_bell(**{**kw, "event": 12})  # old doctor token
     service.live["doctor_call_event_id"] = "doctor-explicit-12"
+    assert not service.authorize_bell(**{**kw, "event": 12, "doctor_token": "doctor-explicit-12"})
+    service.live["doctor_call_event_seq"] = 12
     assert service.authorize_bell(**{**kw, "event": 12, "doctor_token": "doctor-explicit-12"})
     service._doctor_hold_until = _epoch() - 1
     service.live["event_id"] = 13
     service.live["doctor_call_event_id"] = "doctor-explicit-13"
+    service.live["doctor_call_event_seq"] = 13
     assert not service.authorize_bell(**{**kw, "event": 13, "doctor_token": "doctor-explicit-13"})
     service.record_old_bell_request()
     assert service.bell_diagnostics()["events"][0]["reason"] == "pagina_antigua"
