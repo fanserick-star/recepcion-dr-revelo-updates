@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.129",
-  "app_version": "4.8.129",
-  "runtime_version": "4.8.129",
+  "version": "4.8.130",
+  "app_version": "4.8.130",
+  "runtime_version": "4.8.130",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.129: llamados reales exclusivamente manuales desde el botón Llamar de Historia Clínica. Guardar, finalizar, abrir o cambiar una ficha y cancelar nunca crean un evento de voz o campanita, aun con pacientes esperando. Se elimina Volver a llamar/Probar sonido del panel EN VIVO de Recepción; las pruebas aisladas siguen disponibles. No cambia la cola, los turnos, datos clínicos, apellidos opcionales, facturas ni Neon.",
-    "previous_version": "4.8.128",
+    "purpose": "Recepción 4.8.130: evita campanitas espontáneas en Fully Kiosk. Al abrir/recargar la TV, cambiar EN VIVO/PRUEBAS o reiniciar Recepción toma el contador como referencia silenciosa; descarta eventos antiguos y respuestas desordenadas y evita solicitudes de sondeo simultáneas. Los llamados reales solo suenan con token de evento válido emitido por botón Llamar de Historia. Conserva campanita, voz, apellidos opcionales, publicidad, reloj, cola y pruebas independientes.",
+    "previous_version": "4.8.129",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -359,7 +359,7 @@
     "tv_header_full_logo_removed": true,
     "tv_header_duplicate_text_removed": true,
     "tv_header_background_rectangle_removed": true,
-    "tv_turn_logic_changes": true,
+    "tv_turn_logic_changes": false,
     "tv_voice_logic_changes": true,
     "tv_video_logic_changes": true,
     "historia_lan_previous_day_pending_expires": true,
@@ -756,7 +756,16 @@
     "tv_reception_live_recall_enabled": false,
     "tv_reception_live_sound_test_enabled": false,
     "tv_doctor_manual_call_only": true,
-    "tv_test_finish_auto_call": false
+    "tv_test_finish_auto_call": false,
+    "tv_bell_stale_call_replay_blocked": true,
+    "tv_reload_silent_baseline": true,
+    "tv_source_change_silent_baseline": true,
+    "tv_reception_restart_session_id": true,
+    "tv_only_verified_doctor_event_can_ring": true,
+    "tv_async_poll_overlap_blocked": true,
+    "tv_stale_response_replay_blocked": true,
+    "tv_sound_and_voice_preserved": true,
+    "neon_changes": false
   },
   "channel": "launcher-v1-stable"
 }
