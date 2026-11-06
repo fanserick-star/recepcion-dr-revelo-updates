@@ -12,6 +12,7 @@ from reception_tv_common import (
     LOGO_ICON,
     VIDEOS_DIR,
     _DING,
+    _SILENCE,
     _allowed_lan,
     _clean_name,
     _is_loopback,
@@ -102,6 +103,9 @@ def build_handler(service):
                 return self._send_json(200, service.status())
             if path == "/ding.wav":
                 return self._send(200, _DING, "audio/wav", "public, max-age=3600")
+            if path == "/audio-unlock.wav":
+                # Zero-volume priming is strictly separate from the patient bell.
+                return self._send(200, _SILENCE, "audio/wav", "no-store")
             if path == "/api/turn-voice.wav":
                 try:
                     turn = int((query.get("turn") or ["0"])[0])
