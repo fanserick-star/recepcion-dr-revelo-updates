@@ -20,7 +20,9 @@ from fastapi.responses import JSONResponse
 
 _LOCK = threading.RLock()
 MAX_EVENT_AGE_SECONDS = 25
-MIN_RECALL_SECONDS = 2.5
+MIN_RECALL_SECONDS = 12.0  # Evita doble clic mientras se reproduce el anuncio.
+# Historial local por turno: evita repetir q1 si entre ambos clics se llamó q2.
+_RECENT_CALLS: dict[tuple[str, str], float] = {}
 
 
 def _event_path(root: Path) -> Path:
@@ -104,8 +106,18 @@ def install(app, db_factory, root: Path, queue_turn_number, is_procedure):
         with _LOCK:
             prev = _read_event(root)
             now = time.time()
-            if prev and prev["queue_id"] == queue_id and now - prev["at_epoch"] < MIN_RECALL_SECONDS:
-                return JSONResponse({"ok": False, "error": "El llamado acaba de enviarse. Evite pulsar varias veces."}, status_code=429)
+            # Includes calls to this turn when another turn was called in between.
+            key = (str(_event_path(root).resolve()), queue_id)
+            last = float(_RECENT_CALLS.get(key) or 0)
+            if prev and prev["queue_id"] == queue_id:
+                last = max(last, float(prev["at_epoch"]))
+            elapsed = now - last if last else MIN_RECALL_SECONDS
+            if elapsed < MIN_RECALL_SECONDS:
+                remaining = max(1, int(MIN_RECALL_SECONDS - elapsed + 0.999))
+                return JSONResponse({
+                    "ok": False, "already_sent": True, "retry_after_seconds": remaining,
+                    "error": f"Turno ya anunciado. Podrá repetirlo en {remaining} segundos.",
+                }, status_code=429, headers={"Retry-After": str(remaining)})
             event = {
                 "event_id": str(uuid.uuid4()),
                 "queue_id": queue_id,
@@ -122,10 +134,18 @@ def install(app, db_factory, root: Path, queue_turn_number, is_procedure):
                     fd.flush()
                     os.fsync(fd.fileno())
                 os.replace(temp, target)
+                # Only commit dedup state after the event is safely on disk.
+                _RECENT_CALLS[key] = now
+                if len(_RECENT_CALLS) > 256:
+                    stale = now - MAX_EVENT_AGE_SECONDS
+                    for old_key, stamp in list(_RECENT_CALLS.items()):
+                        if stamp < stale:
+                            del _RECENT_CALLS[old_key]
             finally:
                 temp.unlink(missing_ok=True)
         return JSONResponse({
             "ok": True, "turn": int(n),
+            "retry_after_seconds": int(MIN_RECALL_SECONDS),
             "exam_review": review,
             "delivery": "pending_lan",  # sin prometer que TV reprodujo el sonido
             "message": f"Llamado del turno {int(n)} enviado por LAN; la reproducción en la TV depende de su conexión.",
