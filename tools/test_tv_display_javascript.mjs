@@ -77,6 +77,15 @@ if (source.includes('localStorage') || match[1].includes('localStorage'))
   throw Error('No guardar apellidos de prueba en almacenamiento del navegador');
 if (!display.includes('id="audioEnable"') || !display.includes('function enableAudio()'))
   throw Error('El TV no ofrece activación de audio cuando WebView lo bloquea');
+if (!display.includes('id="audioUnlock"') ||
+    !display.includes('src="/audio-unlock.wav"') ||
+    !display.includes("a=e('audioUnlock')") ||
+    display.includes("function enableAudio(){unlockAudio();const b=e('audioEnable');try{const a=e('ding')"))
+  throw Error('Desbloquear audio en Fully debe ser silencioso; nunca reproducir /ding.wav');
+const commonSource = fs.readFileSync('recepcion/app/reception_tv_common.py','utf8');
+if (!commonSource.includes('def _silent_wav()') || !commonSource.includes('_SILENCE = _silent_wav()') ||
+    !http.includes('if path == "/audio-unlock.wav":') || !http.includes('_SILENCE'))
+  throw Error('Desbloqueo de audio silencioso debe responder un WAV válido desde Recepción');
 if (display.includes('id="fullbtn"') || display.includes('goFullscreen()') ||
     display.includes('fullscreenchange'))
   throw Error('Fully Kiosk controla pantalla completa; el botón web duplicado debe desaparecer');
@@ -92,7 +101,7 @@ const start = script.indexOf('function shouldRingForSnapshot(s)');
 const stop = script.indexOf('function poll(){', start);
 if (start < 0 || stop <= start) throw Error('Missing isolated call gate');
 const context = {
-  lastSource:'', lastBootId:'', seenEvents:{live:null,test:null},
+  lastSource:'', lastBootId:'', lastDoctorToken:'', seenEvents:{live:null,test:null},
   Number, String, isFinite
 };
 vm.runInNewContext(script.slice(start,stop), context);
@@ -111,14 +120,15 @@ assertGate({event_id:10}, false, 'Repeated polling must not ding');
 assertGate({event_id:11,doctor_call_event_id:'manual-event-11'}, true, 'New explicit doctor call must ring');
 assertGate({event_id:10}, false, 'Stale response must not replay bell');
 assertGate({event_id:11}, false, 'Same explicit event never rings twice');
-assertGate({event_id:12,doctor_call_event_id:''}, false, 'No verified doctor token means no live chime');
-assertGate({event_id:13,history_online:false}, false, 'Disconnected Historia does not ring');
-assertGate({event_id:14,mode:'attending'}, false, 'Opening a chart is silent');
-assertGate({event_id:15,doctor_call_event_id:'manual-event-15'}, true, 'Next explicit call still rings');
+assertGate({event_id:12,doctor_call_event_id:'manual-event-11'}, false, 'Counter increment with old doctor token must not ring');
+assertGate({event_id:13,doctor_call_event_id:''}, false, 'No verified doctor token means no live chime');
+assertGate({event_id:14,doctor_call_event_id:'manual-event-14',history_online:false}, false, 'Disconnected Historia does not ring');
+assertGate({event_id:15,doctor_call_event_id:'manual-event-15',mode:'attending'}, false, 'Opening a chart is silent');
+assertGate({event_id:16,doctor_call_event_id:'manual-event-16'}, true, 'Next explicit call still rings');
 assertGate({display_mode:'test',event_id:3,doctor_call_event_id:''}, false, 'Switching to test must be silent');
 assertGate({display_mode:'test',event_id:4,doctor_call_event_id:''}, true, 'New simulated call must ring in test mode');
-assertGate({display_mode:'live',event_id:15}, false, 'Returning to live must never replay old bell');
-assertGate({display_mode:'live',event_id:16,doctor_call_event_id:'manual-event-16'}, true, 'New live call after mode change must ring');
+assertGate({display_mode:'live',event_id:16,doctor_call_event_id:'manual-event-16'}, false, 'Returning to live must never replay old bell');
+assertGate({display_mode:'live',event_id:17,doctor_call_event_id:'manual-event-17'}, true, 'New live call after mode change must ring');
 assertGate({tv_boot_id:'server-B',event_id:1}, false, 'Reception restart must reset counter silently');
 assertGate({tv_boot_id:'server-B',event_id:2,doctor_call_event_id:'manual-event-B2'}, true, 'New call after Reception restart must ring');
 assertGate({tv_boot_id:'server-B',event_id:2}, false, 'Repeated call after restart must remain silent');
@@ -133,5 +143,8 @@ if (!serviceSource.includes('"doctor_call_event_id": ""') ||
   throw Error('Doctor-only event token missing');
 if (!display.includes("let settled=false") || !display.includes("pollPending=false"))
   throw Error('Async old WebView polling must be serialized and settled once');
+if (!display.includes('token===lastDoctorToken') ||
+    !display.includes("lastDoctorToken=String(s.doctor_call_event_id||'')"))
+  throw Error('El contador por sí solo no debe llamar cuando se conserva token viejo');
 
 console.log('TV_DISPLAY_AND_VOICE_JAVASCRIPT_OK');
