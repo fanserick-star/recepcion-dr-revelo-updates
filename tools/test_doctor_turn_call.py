@@ -55,6 +55,11 @@ def test_local_event():
         call.install(app,connection,root,turn,procedure)
         endpoint=next(r.endpoint for r in app.routes if getattr(r,"path","")=="/api/doctor-turn-call/{queue_id}")
         assert 'href="/"' in (Path(__file__).resolve().parents[1]/"historia-clinica/app/app.py").read_text(encoding="utf-8"), "El Inicio no puede desaparecer"
+        assert call.MIN_RECALL_SECONDS >= 10
+        assert "const lockUntil=Object.create(null)" in call.CALL_SCRIPT
+        assert "const sending=Object.create(null)" in call.CALL_SCRIPT
+        assert "b.disabled=true" in call.CALL_SCRIPT
+        assert "Repetir llamado" in call.CALL_SCRIPT
         ok=response(endpoint("q1",FakeRequest()))
         assert ok["ok"] and ok["turn"]==8
         event=call.latest(root)
@@ -62,7 +67,13 @@ def test_local_event():
         assert set(event)=={"event_id","queue_id","turn","exam_review","at_epoch"}
         raw=call._event_path(root).read_text(encoding="utf-8")
         assert "patient-" not in raw and "nombre" not in raw
-        assert endpoint("q1",FakeRequest()).status_code==429
+        # The accidental second click is blocked and the event is unchanged.
+        duplicated=endpoint("q1",FakeRequest())
+        assert duplicated.status_code==429
+        dup_body=response(duplicated)
+        assert dup_body["already_sent"] is True
+        assert 1 <= dup_body["retry_after_seconds"] <= int(call.MIN_RECALL_SECONDS)
+        assert call.latest(root)["event_id"] == event["event_id"]
         assert endpoint("q3",FakeRequest()).status_code==409
         assert endpoint("q4",FakeRequest()).status_code==409
         assert endpoint("q5",FakeRequest()).status_code==409
@@ -72,6 +83,9 @@ def test_local_event():
         review=response(endpoint("q2",FakeRequest()))
         assert review["turn"]==9 and review["exam_review"]
         assert call.latest(root)["exam_review"]
+        # A different patient being called in between must not reset q1's lock.
+        assert endpoint("q1",FakeRequest()).status_code==429
+        assert call.latest(root)["queue_id"]=="q2"
         try:
             endpoint("q2",FakeRequest(host="192.168.1.9"))
             raise AssertionError("Remote request should be rejected")
@@ -82,6 +96,12 @@ def test_local_event():
             raise AssertionError("Foreign origin should be rejected")
         except HTTPException as e:
             assert e.status_code==403
+        # A deliberate repeat is possible when the actual cooldown has expired.
+        key=(str(call._event_path(root).resolve()),"q1")
+        call._RECENT_CALLS[key]=time.time()-call.MIN_RECALL_SECONDS-1
+        deliberate=response(endpoint("q1",FakeRequest()))
+        assert deliberate["ok"] and deliberate["turn"]==8
+        assert call.latest(root)["event_id"] != event["event_id"]
         stale=call.latest(root)
         stale["at_epoch"]-=call.MAX_EVENT_AGE_SECONDS+1
         call._event_path(root).write_text(json.dumps(stale),encoding="utf-8")
