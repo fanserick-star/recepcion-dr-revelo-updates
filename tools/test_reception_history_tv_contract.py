@@ -537,7 +537,66 @@ def test_fictitious_surnames_preview_is_safe() -> None:
     assert svc.display_snapshot()["event_id"] == 7
 
 
+def test_verified_tv_bell_never_replays_or_autostarts() -> None:
+    """Server-side bell is silent for old pages, reloads and stale events."""
+    from reception_tv_common import _epoch
+    import reception_tv_http
+
+    service = TVTurnService()
+    service.live.update({
+        "event_id": 11, "doctor_call_event_id": "doctor-explicit-11",
+        "history_online": True, "mode": "calling", "turn": 6, "sound": True,
+    })
+    service._doctor_hold_until = _epoch() + 7
+    boot = service.tv_boot_id
+    kw = {"mode": "live", "event": 11, "doctor_token": "doctor-explicit-11",
+          "boot": boot, "remote_ip": "192.168.1.15"}
+
+    assert not service.authorize_bell(**{**kw, "boot": "old-fully-page"})
+    assert not service.authorize_bell(**{**kw, "doctor_token": "older-doctor-token"})
+    assert not service.authorize_bell(**{**kw, "event": 10})
+    assert service.authorize_bell(**kw)  # first real manual event is audible
+    assert not service.authorize_bell(**kw)  # reload: never audible again
+    assert service.bell_diagnostics()["events"][0]["reason"] == "duplicado_bloqueado"
+
+    service.live["event_id"] = 12
+    assert not service.authorize_bell(**{**kw, "event": 12})  # old doctor token
+    service.live["doctor_call_event_id"] = "doctor-explicit-12"
+    assert service.authorize_bell(**{**kw, "event": 12, "doctor_token": "doctor-explicit-12"})
+    service._doctor_hold_until = _epoch() - 1
+    service.live["event_id"] = 13
+    service.live["doctor_call_event_id"] = "doctor-explicit-13"
+    assert not service.authorize_bell(**{**kw, "event": 13, "doctor_token": "doctor-explicit-13"})
+    service.record_old_bell_request()
+    assert service.bell_diagnostics()["events"][0]["reason"] == "pagina_antigua"
+
+    # Simulated test mode retains manual chime capability, but not forever.
+    service.config["display_mode"] = "test"
+    service.set_test({"mode": "calling", "turn": 7, "sound": True})
+    test_id = int(service.test["event_id"])
+    test_kw = {"mode": "test", "event": test_id, "doctor_token": "",
+               "boot": boot, "remote_ip": "192.168.1.15"}
+    assert service.authorize_bell(**test_kw)
+    assert not service.authorize_bell(**test_kw)
+    service.test_bell_until = _epoch() - 1
+    service.set_test({"mode": "calling", "turn": 7, "sound": True})
+    assert not service.authorize_bell(**{**test_kw, "event": service.test["event_id"]})
+
+    source = read(APP / "reception_tv_http.py")
+    display = read(APP / "tv_display.html")
+    assert 'service.record_old_bell_request()' in source
+    assert 'return self._send(200, _SILENCE, "audio/wav", "no-store")' in source
+    assert 'service.authorize_bell(' in source
+    assert 'if path == "/api/bell-diagnostics":' in source
+    assert 'self._require_control()' in source
+    assert 'id="ding" preload="none"' in display
+    assert 'src="/ding.wav"' not in display
+    assert "/api/verified-ding.wav?" in display
+    assert "a.onended=function()" in display
+
+
 if __name__ == "__main__":
+    test_verified_tv_bell_never_replays_or_autostarts()
     test_fictitious_surnames_preview_is_safe()
     test_optional_surname_audio_uses_exact_historia_queue_id()
     test_source_contracts()
