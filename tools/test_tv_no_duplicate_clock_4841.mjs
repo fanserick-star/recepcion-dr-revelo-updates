@@ -56,5 +56,5 @@ assert.match(js,/if\(s.mode==='calling'&&s.turn\)/);
 assert.match(js,/else if\(s.mode==='attending'&&s.turn\)/);
 assert.match(js,/function announceTurn\(turn\)/);
 assert.match(js,/function startVideo\(turn\)/);
-assert.match(js,/if\(source==='live'&&!s.history_online/);
+assert.match(js,/if\(s.display_mode==='live'&&!s.history_online/);
 console.log("TV_4841_LARGER_WHITE_CLOCK_NO_DUPLICATE_DATE_TIME_WAITING_CALLS_PRESERVED_OK");
