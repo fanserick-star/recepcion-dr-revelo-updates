@@ -61,7 +61,8 @@ if (display.includes('display_name') || display.includes('surnames') || match[1]
 const turns = fs.readFileSync('recepcion/app/reception_tv_turns.py', 'utf8');
 if (!source.includes('id="voiceSampleSelect"') ||
     !source.includes('id="voiceSampleTest"') ||
-    !source.includes('sample:test===') ||
+    !source.includes("test==='sample'?el('voiceSampleSelect').value") ||
+    !source.includes('body:JSON.stringify({turn:6,sample:sample})') ||
     !match[1].includes('s.voice_test_has_surnames?id:0'))
   throw Error('Prueba de apellidos ficticios debe ser independiente de pacientes reales');
 if (!match[1].includes('&sample_test=') || !http.includes('sample_surnames = VOICE_TEST_SAMPLES.get(') ||
