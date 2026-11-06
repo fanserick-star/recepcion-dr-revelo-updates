@@ -107,3 +107,20 @@ def _ding_wav() -> bytes:
 
 
 _DING = _ding_wav()
+
+
+def _silent_wav() -> bytes:
+    """Short genuine silent WAV for Android's user-gesture audio unlock.
+
+    Unlocking audio must never trigger the audible patient-call bell.
+    """
+    output = io.BytesIO()
+    with wave.open(output, "wb") as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(22050)
+        audio.writeframes(b"\x00\x00" * 3307)  # 150 ms of digital silence
+    return output.getvalue()
+
+
+_SILENCE = _silent_wav()
