@@ -581,8 +581,8 @@ def test_verified_tv_bell_never_replays_or_autostarts() -> None:
                "boot": boot, "remote_ip": "192.168.1.15"}
     assert service.authorize_bell(**test_kw)
     assert not service.authorize_bell(**test_kw)
-    service.test_bell_until = _epoch() - 1
     service.set_test({"mode": "calling", "turn": 7, "sound": True})
+    service.test_bell_until = _epoch() - 1
     assert not service.authorize_bell(**{**test_kw, "event": service.test["event_id"]})
 
     source = read(APP / "reception_tv_http.py")
