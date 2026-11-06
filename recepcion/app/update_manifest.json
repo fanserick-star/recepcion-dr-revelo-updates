@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.130",
-  "app_version": "4.8.130",
-  "runtime_version": "4.8.130",
+  "version": "4.8.131",
+  "app_version": "4.8.131",
+  "runtime_version": "4.8.131",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.130: evita campanitas espontáneas en Fully Kiosk. Al abrir/recargar la TV, cambiar EN VIVO/PRUEBAS o reiniciar Recepción toma el contador como referencia silenciosa; descarta eventos antiguos y respuestas desordenadas y evita solicitudes de sondeo simultáneas. Los llamados reales solo suenan con token de evento válido emitido por botón Llamar de Historia. Conserva campanita, voz, apellidos opcionales, publicidad, reloj, cola y pruebas independientes.",
-    "previous_version": "4.8.129",
+    "purpose": "Recepción 4.8.131: elimina el botón PANTALLA COMPLETA de la TV porque Fully Kiosk ya controla fullscreen. Conserva ACTIVAR SONIDO para WebView antiguo, las voces, campanita, videos, reloj y reconexión. Sin modificaciones en Historia, turnos, pacientes, Neon ni facturación.",
+    "previous_version": "4.8.130",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -361,7 +361,7 @@
     "tv_header_background_rectangle_removed": true,
     "tv_turn_logic_changes": false,
     "tv_voice_logic_changes": true,
-    "tv_video_logic_changes": true,
+    "tv_video_logic_changes": false,
     "historia_lan_previous_day_pending_expires": true,
     "historia_lan_stale_events_deleted": false,
     "waiting_queue_daily_scope": true,
@@ -606,7 +606,7 @@
     "tv_idle_analog_clock": true,
     "tv_idle_clock_only_when_no_waiting": true,
     "tv_idle_clock_external_dependencies": false,
-    "tv_call_and_voice_logic_changes": true,
+    "tv_call_and_voice_logic_changes": false,
     "tv_clock_local_time_source": "TV_browser",
     "tv_idle_clock_theme": "classic_white_wall_clock",
     "tv_idle_clock_layout_safe_for_short_screens": true,
@@ -765,7 +765,10 @@
     "tv_async_poll_overlap_blocked": true,
     "tv_stale_response_replay_blocked": true,
     "tv_sound_and_voice_preserved": true,
-    "neon_changes": false
+    "neon_changes": false,
+    "tv_fullscreen_button_removed": true,
+    "tv_fullscreen_delegated_to_fully_kiosk": true,
+    "tv_audio_activation_button_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
