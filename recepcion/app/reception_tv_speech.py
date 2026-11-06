@@ -22,6 +22,15 @@ from pathlib import Path
 
 _speech_lock = threading.Lock()
 
+# Fictitious examples for private Reception TV voice tests.
+# Identifiers may cross the LAN but these strings never enter TV HTML or JSON.
+VOICE_TEST_SAMPLES = {
+    "perez_garcia": "Pérez García",
+    "zambrano_velez": "Zambrano Vélez",
+    "lopez_mendoza": "López Mendoza",
+    "rodriguez_andrade": "Rodríguez Andrade",
+}
+
 
 def _ps_escape(value: str) -> str:
     return str(value).replace("'", "''")
