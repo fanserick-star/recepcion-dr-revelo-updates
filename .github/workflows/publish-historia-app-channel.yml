@@ -53,6 +53,11 @@ jobs:
           python tools/test_historia_link_name_search.py
           python tools/test_reception_only_link_authority.py
 
+      - name: Test explicit doctor calling and accidental double-click guard
+        run: |
+          python -m pip install --disable-pip-version-check "fastapi>=0.110,<1"
+          python tools/test_doctor_turn_call.py
+
       - name: Generate channel from exact canonical Git blobs
         env:
           RELEASE_SHA: ${{ github.sha }}
