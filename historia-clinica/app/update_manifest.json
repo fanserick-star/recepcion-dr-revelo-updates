@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.69",
-  "app_version": "1.4.69",
-  "runtime_version": "1.4.69",
+  "version": "1.4.70",
+  "app_version": "1.4.70",
+  "runtime_version": "1.4.70",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,9 +89,9 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.69: turno legible en revisión de exámenes y en consulta. El recuadro del número conserva azul intenso con texto blanco aun cuando la tarjeta use verde o ámbar. Corrección visual únicamente; sin cambios en cola, turnos, TV, datos, Neon, impresión, documentos ni firma.",
-    "previous_version": "1.4.68",
-    "functional_changes": false,
+    "purpose": "Historia Clínica 1.4.70: evita llamados repetidos a la TV por doble clic involuntario. El botón Llamar queda bloqueado 12 segundos, muestra cuenta regresiva y después permite Repetir llamado. El servidor aplica la misma protección por identificador exacto de turno, incluso si se llama otro turno entretanto. No altera la cola, pacientes, documentos ni Neon.",
+    "previous_version": "1.4.69",
+    "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
     "signed_history_protected": true,
@@ -381,7 +381,7 @@
     "home_remaster_design": "option_b_right_panel",
     "home_patient_queue_preserved": true,
     "home_doctor_call_separate_from_open": true,
-    "home_doctor_call_protocol_unchanged": true,
+    "home_doctor_call_protocol_unchanged": false,
     "home_queue_dismiss_confirmation_preserved": true,
     "home_documents_picker_requires_existing_patient": true,
     "home_patient_search_local_only": true,
@@ -435,7 +435,7 @@
     "waiting_room_chips_larger": true,
     "waiting_room_buttons_taller": true,
     "waiting_room_vertical_actions_preserved": true,
-    "waiting_room_queue_calls_unchanged": true,
+    "waiting_room_queue_calls_unchanged": false,
     "waiting_room_turn_square_fixed": true,
     "waiting_room_turn_square_ratio": "1:1",
     "waiting_room_square_sizes_px": [
@@ -454,7 +454,7 @@
     "queue_metrics_last_visit_local": true,
     "queue_metrics_no_extra_cloud_polling": true,
     "queue_actions_reference_buttons": true,
-    "queue_tv_call_logic_changes": false,
+    "queue_tv_call_logic_changes": true,
     "queue_status_logic_changes": false,
     "queue_patient_identity_logic_changes": false,
     "queue_wait_30_min_visual_alert": true,
@@ -490,6 +490,11 @@
     "waiting_room_special_turn_badge_contrast": true,
     "waiting_room_review_turn_badge_blue": true,
     "waiting_room_attending_turn_badge_blue": true,
-    "waiting_room_turn_number_logic_unchanged": true
+    "waiting_room_turn_number_logic_unchanged": true,
+    "doctor_turn_call_double_click_cooldown_seconds": 12,
+    "doctor_turn_call_per_queue_dedup": true,
+    "doctor_turn_call_button_cooldown": true,
+    "doctor_turn_call_manual_repeat_after_cooldown": true,
+    "doctor_turn_call_no_duplicate_event_during_cooldown": true
   }
 }
