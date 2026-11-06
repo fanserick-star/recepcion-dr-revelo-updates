@@ -234,32 +234,36 @@ jobs:
           assert snap['mode'] == 'idle'
           assert snap['waiting_count'] == 1
           assert snap['next_waiting_turn'] == 6
+          initial_event = snap['event_id']
 
+          # Opening or saving a record must NOT announce a patient.
           current6 = {'queue_id': 'q6', 'turn': 6, 'status': 'in_consultation'}
           service.apply_history(payload(current=current6))
           snap = service.live_snapshot()
-          assert snap['mode'] == 'calling', snap
+          assert snap['mode'] == 'attending', snap
           assert snap['turn'] == 6
-
-          service.live['calling_started_epoch'] -= 6
+          assert snap['event_id'] == initial_event
           service.apply_history(payload(current=current6))
           snap = service.live_snapshot()
           assert snap['mode'] == 'attending', snap
+          assert snap['event_id'] == initial_event
 
+          # Finishing a consultation may show the next waiting turn, but never call it.
           q7 = {'queue_id': 'q7', 'turn': 7, 'status': 'waiting'}
           service.apply_history(payload(
               waiting=[q7],
               recent=[{'queue_id': 'q6', 'status': 'completed'}],
           ))
           snap = service.live_snapshot()
-          assert snap['mode'] == 'calling', snap
-          assert snap['turn'] == 7
+          assert snap['mode'] == 'idle', snap
+          assert snap['turn'] is None
+          assert snap['next_waiting_turn'] == 7
+          assert snap['event_id'] == initial_event
 
           cancelled = TVTurnService()
           cancelled.apply_history(payload(waiting=[q6]))
           cancelled.apply_history(payload(current=current6))
-          cancelled.live['calling_started_epoch'] -= 6
-          cancelled.apply_history(payload(current=current6))
+          event_before_cancel = cancelled.live_snapshot()['event_id']
           cancelled.apply_history(payload(
               waiting=[q7],
               recent=[{'queue_id': 'q6', 'status': 'cancelled'}],
@@ -268,6 +272,7 @@ jobs:
           assert snap['mode'] == 'idle', snap
           assert snap['turn'] is None
           assert snap['next_waiting_turn'] == 7
+          assert snap['event_id'] == event_before_cancel
 
           service.config['display_mode'] = 'test'
           assert service.display_snapshot()['display_mode'] == 'test'
