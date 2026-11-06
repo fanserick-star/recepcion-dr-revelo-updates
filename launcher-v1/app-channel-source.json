@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.133: corrige campanitas inesperadas en la TV Fully Kiosk. ACTIVAR SONIDO ahora utiliza audio verdaderamente silencioso, sin reproducir la campanita de pacientes. En EN VIVO se verifica que el identificador del llamado manual sea nuevo: ni un cambio de contador ni la recarga/reconexión repiten llamadas anteriores. Se conservan llamadas manuales, anuncio por voz con apellidos, pruebas ficticias, publicidad, reloj y turnos. Sin cambios en Historia, pacientes, facturación, DNS ni Neon."
+  "notes": "Recepción 4.8.134: evita sonidos espontáneos en Fully Kiosk. La campanita ya no se carga ni se reproduce desde un archivo estático; Recepción entrega audio audible únicamente tras verificar un llamado nuevo del doctor, su sesión, su vigencia y que esa TV no lo haya reproducido ya. URLs y páginas antiguas reproducen silencio. Nuevo diagnóstico de campanitas desde TV > EN VIVO sin nombres de pacientes. Conserva voz y pruebas de apellidos, campanita real, publicidad, reloj, turnos y privacidad. No modifica Historia, Neon, facturas ni configuración de Netlife."
 }
