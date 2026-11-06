@@ -102,7 +102,31 @@ def build_handler(service):
             if path == "/api/status":
                 return self._send_json(200, service.status())
             if path == "/ding.wav":
-                return self._send(200, _DING, "audio/wav", "public, max-age=3600")
+                # Deliberately silent: older Cached Fully WebViews may autoplay
+                # this legacy audio when a page restarts. Only /api/verified-ding.wav
+                # can now produce a patient-call bell.
+                service.record_old_bell_request()
+                return self._send(200, _SILENCE, "audio/wav", "no-store")
+            if path == "/api/verified-ding.wav":
+                try:
+                    event = int((query.get("event") or ["0"])[0])
+                except (ValueError, TypeError):
+                    event = 0
+                mode = str((query.get("mode") or [""])[0])[:10]
+                boot = str((query.get("boot") or [""])[0])[:64]
+                call_token = str((query.get("call") or [""])[0])[:180]
+                allowed = service.authorize_bell(
+                    mode=mode, event=event, doctor_token=call_token,
+                    boot=boot, remote_ip=self._remote_ip(),
+                )
+                return self._send(
+                    200, _DING if allowed else _SILENCE,
+                    "audio/wav", "no-store",
+                )
+            if path == "/api/bell-diagnostics":
+                if not self._require_control():
+                    return
+                return self._send_json(200, service.bell_diagnostics())
             if path == "/audio-unlock.wav":
                 # Zero-volume priming is strictly separate from the patient bell.
                 return self._send(200, _SILENCE, "audio/wav", "no-store")
