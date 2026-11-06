@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+import uuid
 from http.server import ThreadingHTTPServer
 
 import historia_lan_transport
@@ -23,6 +24,9 @@ class TVTurnService(TVMediaMixin):
         self.last_history_seen_epoch = 0.0
         self.last_tv_seen_epoch = 0.0
         self.history_initialized = False
+        # New random identity on each Reception TV server launch. The physical TV
+        # uses this to reset its counters silently after a restart or reload.
+        self.tv_boot_id = uuid.uuid4().hex
         self.config = self._load_config()
         self.live = {
             "mode": "idle",
@@ -31,6 +35,7 @@ class TVTurnService(TVMediaMixin):
             "next_waiting_turn": None,
             "next_waiting_queue_id": "",
             "event_id": 0,
+            "doctor_call_event_id": "",
             "sound": True,
             "sound_test": False,
             "current_queue_id": "",
@@ -81,6 +86,7 @@ class TVTurnService(TVMediaMixin):
             out["tv_url"] = f"http://{_lan_ip()}:{PORT}/TV"
             out["control_url"] = f"http://127.0.0.1:{PORT}/control"
             out["version"] = APP_VERSION
+            out["tv_boot_id"] = self.tv_boot_id
             out["procedures_excluded"] = True
             out["display_mode"] = self._display_mode()
             return out
@@ -96,6 +102,7 @@ class TVTurnService(TVMediaMixin):
             out["server_port"] = PORT
             out["tv_url"] = f"http://{_lan_ip()}:{PORT}/TV"
             out["version"] = APP_VERSION
+            out["tv_boot_id"] = self.tv_boot_id
             out["display_mode"] = self._display_mode()
             out["next_waiting_turn"] = (
                 int(out.get("turn") or 1)
