@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.128",
-  "app_version": "4.8.128",
-  "runtime_version": "4.8.128",
+  "version": "4.8.129",
+  "app_version": "4.8.129",
+  "runtime_version": "4.8.129",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.128: anuncio opcional solo por voz de las primeras dos palabras de «Apellidos y nombres» al llamar un turno real en TV. No se muestran apellidos ni nombres en pantalla ni JSON; Recepción identifica paciente por UUIDv5 exacto de cola Historia y outbox LAN local. Si no hay coincidencia segura, voz anuncia solo número. Activación manual explícita desde TV, apagada por defecto para privacidad. Mantiene campanita, videos, voz y turnos.",
-    "previous_version": "4.8.127",
+    "purpose": "Recepción 4.8.129: llamados reales exclusivamente manuales desde el botón Llamar de Historia Clínica. Guardar, finalizar, abrir o cambiar una ficha y cancelar nunca crean un evento de voz o campanita, aun con pacientes esperando. Se elimina Volver a llamar/Probar sonido del panel EN VIVO de Recepción; las pruebas aisladas siguen disponibles. No cambia la cola, los turnos, datos clínicos, apellidos opcionales, facturas ni Neon.",
+    "previous_version": "4.8.128",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -302,8 +302,8 @@
     "tv_open_waiting_card_generates_call": false,
     "tv_open_waiting_card_event_id_unchanged": true,
     "tv_cancel_never_calls_next": true,
-    "tv_complete_calls_next_when_waiting": true,
-    "tv_finish_call_sound_reliable": true,
+    "tv_complete_calls_next_when_waiting": false,
+    "tv_finish_call_sound_reliable": false,
     "tv_finish_transition_grace_seconds": 2.8,
     "tv_finish_does_not_double_ring_on_open": true,
     "tv_explicit_call_preserved": true,
@@ -359,7 +359,7 @@
     "tv_header_full_logo_removed": true,
     "tv_header_duplicate_text_removed": true,
     "tv_header_background_rectangle_removed": true,
-    "tv_turn_logic_changes": false,
+    "tv_turn_logic_changes": true,
     "tv_voice_logic_changes": true,
     "tv_video_logic_changes": true,
     "historia_lan_previous_day_pending_expires": true,
@@ -752,7 +752,11 @@
     "tv_voice_surnames_default_enabled": false,
     "tv_voice_no_patient_name_in_tv_html_or_json": true,
     "tv_voice_test_no_real_names": true,
-    "tv_voice_no_patient_database_changes": true
+    "tv_voice_no_patient_database_changes": true,
+    "tv_reception_live_recall_enabled": false,
+    "tv_reception_live_sound_test_enabled": false,
+    "tv_doctor_manual_call_only": true,
+    "tv_test_finish_auto_call": false
   },
   "channel": "launcher-v1-stable"
 }
