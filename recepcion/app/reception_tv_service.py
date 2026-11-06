@@ -156,121 +156,63 @@ class TVTurnService(TVMediaMixin):
         return ""
 
     def apply_history(self, payload: dict) -> None:
+        """Mirror clinical queue status without ever requesting a public call.
+
+        Only ClinicTVTurnService._consume_doctor_call (the explicit doctor button)
+        may increment the live call event. Opening/saving/completing/cancelling a
+        consultation never creates a bell, voice announcement, or automatic next call.
+        """
         now = _epoch()
         current = payload.get("current") if isinstance(payload.get("current"), dict) else None
         waiting = [x for x in (payload.get("waiting") or []) if isinstance(x, dict)]
         waiting = [x for x in waiting if x.get("turn") not in (None, "")]
-        waiting_count = len(waiting)
         with self.lock:
-            first_sync = not self.history_initialized
             prev_current_id = str(self.live.get("current_queue_id") or "")
-            called_id = str(self.live.get("called_queue_id") or "")
             self.live["history_online"] = True
             self.live["history_host"] = str(payload.get("host") or "")
             self.live["history_last_seen"] = _now_iso()
-            self.live["waiting_count"] = waiting_count
+            self.live["waiting_count"] = len(waiting)
             self.live["next_waiting_turn"] = int(waiting[0]["turn"]) if waiting else None
             self.live["next_waiting_queue_id"] = str(waiting[0].get("queue_id") or "") if waiting else ""
             self.last_history_seen_epoch = now
             self.history_error = ""
+            self.history_initialized = True
 
             if current and current.get("turn") not in (None, ""):
                 current_id = str(current.get("queue_id") or "")
-                turn = int(current.get("turn"))
                 newly_opened = prev_current_id != current_id
-                was_already_called = bool(called_id and called_id == current_id)
-                pre_call_id = str(self.live.get("call_before_attending_id") or "")
-
-                self.live["turn"] = turn
+                self.live["turn"] = int(current["turn"])
                 self.live["current_queue_id"] = current_id
                 self.live["called_queue_id"] = ""
-
-                if first_sync:
-                    # Si Recepción se reinicia con una consulta ya abierta, no vuelve a sonar.
-                    self.live["mode"] = "attending"
-                    self.live["call_before_attending_id"] = ""
-                    self.live["calling_started_epoch"] = 0.0
-                    self.live["attention_started_epoch"] = now
-                    self.live["last_change"] = _now_iso()
-                    self.history_initialized = True
-                    return
-
-                if newly_opened and not was_already_called:
-                    # Primer paciente (o apertura directa): Atender en Historia hace el llamado
-                    # durante unos segundos antes de pasar a EN ATENCIÓN.
-                    self.live["mode"] = "calling"
-                    self.live["call_before_attending_id"] = current_id
-                    self.live["calling_started_epoch"] = now
-                    self.live["attention_started_epoch"] = now
-                    self.live["sound_test"] = False
-                    self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
-                    self.live["last_change"] = _now_iso()
-                    self.history_initialized = True
-                    return
-
-                if pre_call_id == current_id and self.live.get("mode") == "calling":
-                    if now - float(self.live.get("calling_started_epoch") or 0.0) < 5.0:
-                        self.history_initialized = True
-                        return
-                    self.live["call_before_attending_id"] = ""
-
+                self.live["call_before_attending_id"] = ""
                 changed = self.live.get("mode") != "attending" or newly_opened
                 self.live["mode"] = "attending"
                 self.live["calling_started_epoch"] = 0.0
+                self.live["sound_test"] = False
                 if changed:
-                    self.live["sound_test"] = False
                     self.live["attention_started_epoch"] = now
                     self.live["last_change"] = _now_iso()
                 elif not self.live.get("attention_started_epoch"):
                     self.live["attention_started_epoch"] = now
-                self.history_initialized = True
                 return
 
-            self.history_initialized = True
-
-            if prev_current_id:
-                finished_status = self._recent_status(payload, prev_current_id)
-                self.live["current_queue_id"] = ""
-                self.live["call_before_attending_id"] = ""
-                self.live["attention_started_epoch"] = 0.0
-                if finished_status == "completed" and waiting:
-                    nxt = waiting[0]
-                    self.live["mode"] = "calling"
-                    self.live["turn"] = int(nxt["turn"])
-                    self.live["called_queue_id"] = str(nxt.get("queue_id") or "")
-                    self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
-                    self.live["calling_started_epoch"] = now
-                    self.live["sound_test"] = False
-                    self.live["last_change"] = _now_iso()
-                else:
-                    # Cancelar/eliminar nunca equivale a llamar al siguiente.
-                    self.live["mode"] = "idle"
-                    self.live["turn"] = None
-                    self.live["called_queue_id"] = ""
-                    self.live["calling_started_epoch"] = 0.0
-                    self.live["sound_test"] = False
-                    self.live["last_change"] = _now_iso()
-                return
-
-            if called_id:
-                still_waiting = next(
-                    (x for x in waiting if str(x.get("queue_id") or "") == called_id),
-                    None,
-                )
-                if still_waiting:
-                    self.live["mode"] = "calling"
-                    self.live["turn"] = int(still_waiting["turn"])
-                    return
-                self.live["called_queue_id"] = ""
-                self.live["mode"] = "idle"
-                self.live["turn"] = None
-                self.live["calling_started_epoch"] = 0.0
-                self.live["last_change"] = _now_iso()
-                return
-
+            # No consultation currently open: waiting turns remain visible as
+            # "PRÓXIMO TURNO", but none is called until the doctor explicitly asks.
+            changed = (
+                self.live.get("mode") != "idle"
+                or self.live.get("current_queue_id")
+                or self.live.get("turn") is not None
+            )
             self.live["mode"] = "idle"
             self.live["turn"] = None
+            self.live["current_queue_id"] = ""
+            self.live["called_queue_id"] = ""
+            self.live["call_before_attending_id"] = ""
             self.live["calling_started_epoch"] = 0.0
+            self.live["attention_started_epoch"] = 0.0
+            self.live["sound_test"] = False
+            if changed:
+                self.live["last_change"] = _now_iso()
 
     def mark_history_offline(self, exc: Exception) -> None:
         with self.lock:
@@ -324,30 +266,17 @@ class TVTurnService(TVMediaMixin):
             turn = int(self.test.get("turn") or 1)
             waiting = int(self.test.get("waiting_count") or 0)
         if waiting > 0:
+            # Simulated completion must match production: show next turn, do not call.
             return self.set_test(
-                {"mode": "calling", "turn": turn + 1, "waiting_count": waiting - 1, "sound": True}
+                {"mode": "idle", "turn": turn + 1, "waiting_count": waiting - 1, "sound": True}
             )
         return self.set_test({"mode": "idle", "turn": turn, "waiting_count": 0, "sound": True})
 
     def recall_live(self) -> dict:
-        with self.lock:
-            turn = self.live.get("turn")
-            if turn in (None, ""):
-                raise ValueError("No hay un turno actual para volver a llamar")
-            self.live["mode"] = "calling"
-            self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
-            self.live["sound_test"] = False
-            self.live["calling_started_epoch"] = _epoch()
-            self.live["last_change"] = _now_iso()
-            return self.live_snapshot()
+        raise ValueError("Para llamar o repetir un turno, use Llamar desde Historia Clínica")
 
     def test_sound_live(self) -> dict:
-        with self.lock:
-            self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
-            self.live["sound_test"] = True
-            self.live["sound"] = True
-            self.live["last_change"] = _now_iso()
-            return self.live_snapshot()
+        raise ValueError("La prueba de voz está en TV > Voz de llamado; no genera llamados reales")
 
     def start(self) -> None:
         with self.lock:
