@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia 1.4.69: números de turno siempre legibles con cuadro azul intenso y número blanco, incluso en revisión de exámenes y tarjetas verdes en consulta. Sin cambios en datos clínicos, Historia, cola, TV, LAN ni Neon."
+  "notes": "Historia Clínica 1.4.70: evita anuncios dobles por pulsaciones accidentales del botón Llamar. Bloqueo de 12 segundos con cuenta regresiva y protección adicional del servidor por turno. Permite Repetir llamado voluntariamente cuando termina el bloqueo. Sin cambios en pacientes, documentos, facturas, cola de espera ni Neon."
 }
