@@ -39,6 +39,7 @@ class TVTurnService(TVMediaMixin):
             "next_waiting_queue_id": "",
             "event_id": 0,
             "doctor_call_event_id": "",
+            "doctor_call_event_seq": 0,
             "sound": True,
             "sound_test": False,
             "current_queue_id": "",
@@ -86,6 +87,8 @@ class TVTurnService(TVMediaMixin):
                 expected = str(state.get("doctor_call_event_id") or "")
                 if not expected or doctor_token != expected:
                     reason = "llamado_no_verificado"
+                elif event != int(state.get("doctor_call_event_seq") or 0):
+                    reason = "contador_sin_llamado_nuevo"
                 elif not state.get("history_online") or state.get("mode") != "calling":
                     reason = "sin_llamado_en_vivo"
                 elif now >= float(getattr(self, "_doctor_hold_until", 0.0) or 0.0):
