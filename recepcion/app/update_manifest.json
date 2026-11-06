@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.132",
-  "app_version": "4.8.132",
-  "runtime_version": "4.8.132",
+  "version": "4.8.133",
+  "app_version": "4.8.133",
+  "runtime_version": "4.8.133",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.132: pruebas de voz con apellidos ficticios desde panel TV, sin crear paciente, consulta o turno. Ejemplos Pérez García, Zambrano Vélez, López Mendoza y Rodríguez Andrade; se escucha «Turno número seis, [apellidos], por favor pasar a consulta». Solo los apellidos se pronuncian por audio generado en Windows; en Fully se mantiene la pantalla con número, sin nombres escritos. Las pruebas funcionan incluso con anuncios de apellidos reales desactivados, con token temporal de 25 s y sin guardar datos. Conserva sonidos y lógica de llamados reales, Fully, publicidad y configuración de privacidad.",
-    "previous_version": "4.8.131",
+    "purpose": "Recepción 4.8.133: corrige campanita inesperada en Fully Kiosk. El botón ACTIVAR SONIDO ya no reproduce la campana: activa audio con WAV digitalmente silencioso. En EN VIVO solo suena si existe un NUEVO identificador de llamado manual de Historia; un aumento de contador con el mismo token no reproduce sonido. Reingreso, reinicio de página y cambios de modo toman como referencia silenciosa el llamado previo. Conserva llamados de pacientes, voz con apellidos, pruebas ficticias, reloj, videos, cola y ajustes de privacidad.",
+    "previous_version": "4.8.132",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -775,7 +775,11 @@
     "tv_voice_preview_samples_not_in_tv_json": true,
     "tv_voice_preview_samples_not_in_url": true,
     "tv_voice_preview_temporary_seconds": 25,
-    "tv_voice_preview_does_not_change_real_surname_setting": true
+    "tv_voice_preview_does_not_change_real_surname_setting": true,
+    "tv_audio_unlock_uses_silence_instead_of_ding": true,
+    "tv_live_bell_requires_new_doctor_call_token": true,
+    "tv_old_token_never_replays_on_counter_change": true,
+    "tv_audio_test_still_supported": true
   },
   "channel": "launcher-v1-stable"
 }
