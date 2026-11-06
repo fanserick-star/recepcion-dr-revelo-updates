@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.128: opción de anuncio por voz desde el panel TV, desactivada por defecto. La pantalla mantiene solo el número de turno. Sin cambios en las atenciones, facturas o bases de datos."
+  "notes": "Recepción 4.8.129: solo el botón Llamar de Historia Clínica genera llamados reales en la TV. Finalizar, guardar, cancelar o cambiar de ficha no anuncia el siguiente turno. Se conservan la cola, los turnos, la campanita, la voz, los apellidos opcionales y la publicidad. Pruebas ficticias independientes; sin cambios en datos clínicos ni facturación."
 }
