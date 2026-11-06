@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.131",
-  "app_version": "4.8.131",
-  "runtime_version": "4.8.131",
+  "version": "4.8.132",
+  "app_version": "4.8.132",
+  "runtime_version": "4.8.132",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.131: elimina el botón PANTALLA COMPLETA de la TV porque Fully Kiosk ya controla fullscreen. Conserva ACTIVAR SONIDO para WebView antiguo, las voces, campanita, videos, reloj y reconexión. Sin modificaciones en Historia, turnos, pacientes, Neon ni facturación.",
-    "previous_version": "4.8.130",
+    "purpose": "Recepción 4.8.132: pruebas de voz con apellidos ficticios desde panel TV, sin crear paciente, consulta o turno. Ejemplos Pérez García, Zambrano Vélez, López Mendoza y Rodríguez Andrade; se escucha «Turno número seis, [apellidos], por favor pasar a consulta». Solo los apellidos se pronuncian por audio generado en Windows; en Fully se mantiene la pantalla con número, sin nombres escritos. Las pruebas funcionan incluso con anuncios de apellidos reales desactivados, con token temporal de 25 s y sin guardar datos. Conserva sonidos y lógica de llamados reales, Fully, publicidad y configuración de privacidad.",
+    "previous_version": "4.8.131",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -606,7 +606,7 @@
     "tv_idle_analog_clock": true,
     "tv_idle_clock_only_when_no_waiting": true,
     "tv_idle_clock_external_dependencies": false,
-    "tv_call_and_voice_logic_changes": false,
+    "tv_call_and_voice_logic_changes": true,
     "tv_clock_local_time_source": "TV_browser",
     "tv_idle_clock_theme": "classic_white_wall_clock",
     "tv_idle_clock_layout_safe_for_short_screens": true,
@@ -768,7 +768,14 @@
     "neon_changes": false,
     "tv_fullscreen_button_removed": true,
     "tv_fullscreen_delegated_to_fully_kiosk": true,
-    "tv_audio_activation_button_preserved": true
+    "tv_audio_activation_button_preserved": true,
+    "tv_voice_fictitious_surname_preview_enabled": true,
+    "tv_voice_preview_without_patient": true,
+    "tv_voice_preview_uses_windows_audio": true,
+    "tv_voice_preview_samples_not_in_tv_json": true,
+    "tv_voice_preview_samples_not_in_url": true,
+    "tv_voice_preview_temporary_seconds": 25,
+    "tv_voice_preview_does_not_change_real_surname_setting": true
   },
   "channel": "launcher-v1-stable"
 }
