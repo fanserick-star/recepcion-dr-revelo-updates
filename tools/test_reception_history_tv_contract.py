@@ -98,7 +98,18 @@ def test_control_retry_is_persistent() -> None:
 def test_tv_completed_vs_cancelled() -> None:
     """No event on open/finish/cancel; only explicit call from doctor produces audio."""
     import time
-    from reception_tv_turns import ClinicTVTurnService
+    import ast
+    from reception_tv_common import _epoch, _now_iso
+
+    # CI verifies the actual clinic TV subclass without importing full Reception
+    # runtime (SQLAlchemy/Neon are not dependencies of this isolated LAN test).
+    cls_tree = ast.parse(read(APP / "reception_tv_turns.py"))
+    cls = next(n for n in cls_tree.body if isinstance(n, ast.ClassDef)
+               and n.name == "ClinicTVTurnService")
+    ns = {"TVTurnService": TVTurnService, "_epoch": _epoch, "_now_iso": _now_iso}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[])),
+                 "<clinic-tv-state>", "exec"), ns)
+    ClinicTVTurnService = ns["ClinicTVTurnService"]
 
     def state(current=None, waiting=None, recent=None, doctor_call=None):
         return {
