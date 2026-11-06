@@ -26,7 +26,7 @@ assert.match(rendered,/PRÓXIMO TURNO/);assert.match(rendered,/Espere el llamado
 ctx.state={mode:"idle",next_waiting_turn:null,waiting_count:0};ctx.idle(false);assert.match(rendered,/idleClockFace/);
 assert.match(script,/if\(s.mode==='calling'&&s.turn\)/);
 assert.match(script,/else if\(s.mode==='attending'&&s.turn\)/);
-assert.match(script,/if\(source==='live'&&!s.history_online/);
+assert.match(script,/if\(s.display_mode==='live'&&!s.history_online/);
 assert.match(script,/function announceTurn\(turn\)/);
 assert.match(script,/function shouldRingForSnapshot\(s\)/);
 assert.match(source,/\.center\.idle-clock-active/);
