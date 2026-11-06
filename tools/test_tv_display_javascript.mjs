@@ -60,6 +60,11 @@ if (display.includes('display_name') || display.includes('surnames') || match[1]
   throw Error('La pantalla TV jamás debe recibir nombres de pacientes en texto');
 if (!display.includes('id="audioEnable"') || !display.includes('function enableAudio()'))
   throw Error('El TV no ofrece activación de audio cuando WebView lo bloquea');
+if (display.includes('id="fullbtn"') || display.includes('goFullscreen()') ||
+    display.includes('fullscreenchange'))
+  throw Error('Fully Kiosk controla pantalla completa; el botón web duplicado debe desaparecer');
+if (!display.includes('document.body.addEventListener(\'click\',unlockAudio,{once:true})'))
+  throw Error('El desbloqueo del audio al tocar la TV debe conservarse');
 if (!display.includes("if(pollPending)return") || !display.includes("function shouldRingForSnapshot(s)"))
   throw Error('La TV no debe permitir consultas de estado superpuestas ni llamados repetidos');
 
