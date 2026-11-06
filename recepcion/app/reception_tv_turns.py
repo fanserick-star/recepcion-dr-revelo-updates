@@ -101,6 +101,9 @@ class ClinicTVTurnService(TVTurnService):
                     self._doctor_held_queue_id = queue_id
                     self._doctor_held_turn = turn
                     self._doctor_held_review = call.get("exam_review") is True
+                    # Only validated explicit doctor calls receive a public call token.
+                    # Opening, finishing or changing charts never creates this token.
+                    self.live["doctor_call_event_id"] = event_id
                     self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
                     self.live["sound"] = True
                     self.live["sound_test"] = False
