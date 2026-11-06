@@ -47,7 +47,7 @@ if (!http.includes('if path == "/api/turn-voice.wav":') || !http.includes('audio
   throw Error('La API de WAV para TV sin voces no está conectada');
 if (!audio.includes('System.Speech.Synthesis.SpeechSynthesizer') || !audio.includes('getattr(subprocess, "CREATE_NO_WINDOW"'))
   throw Error('La voz local de Windows para Fully no está configurada');
-if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview,fromCall)'))
+if (!match[1].includes('!nativeVoices.length') || !match[1].includes('playReceptionVoice(n,isExamReview,fromCall,sampleEvent)'))
   throw Error('El TV Box antiguo debe usar voz de Recepción cuando no tiene voces');
 if (!source.includes('voiceAnnounceSurnames') || !match[1].includes('announce_surnames'))
   throw Error('El anuncio opcional de dos apellidos debe tener control explícito desde Recepción');
@@ -58,6 +58,22 @@ if (!audio.includes('uuid.uuid5(uuid.NAMESPACE_URL, "historia-queue:" + str(even
   throw Error('Los apellidos deben resolverse sólo mediante correspondencia exacta en la cola LAN local');
 if (display.includes('display_name') || display.includes('surnames') || match[1].includes('display_name'))
   throw Error('La pantalla TV jamás debe recibir nombres de pacientes en texto');
+const turns = fs.readFileSync('recepcion/app/reception_tv_turns.py', 'utf8');
+if (!source.includes('id="voiceSampleSelect"') ||
+    !source.includes('id="voiceSampleTest"') ||
+    !source.includes('sample:test===') ||
+    !match[1].includes('s.voice_test_has_surnames?id:0'))
+  throw Error('Prueba de apellidos ficticios debe ser independiente de pacientes reales');
+if (!match[1].includes('&sample_test=') || !http.includes('sample_surnames = VOICE_TEST_SAMPLES.get(') ||
+    !http.includes('0 <= time.time() - service.voice_test_started_epoch <= 25'))
+  throw Error('Un ejemplo de apellidos solo debe sonar con prueba temporal exacta');
+if (!turns.includes('VOICE_TEST_SAMPLES') || !turns.includes('raise ValueError("El ejemplo de apellidos no es válido")') ||
+    !turns.includes('out["voice_test_has_surnames"] = bool(self.voice_test_sample_key)'))
+  throw Error('Ejemplos ficticios deben validarse en servidor y no salir como texto a la TV');
+if (match[1].includes('Pérez García') || match[1].includes('Zambrano Vélez'))
+  throw Error('Los ejemplos de apellidos no se envían como texto a Fully Kiosk');
+if (source.includes('localStorage') || match[1].includes('localStorage'))
+  throw Error('No guardar apellidos de prueba en almacenamiento del navegador');
 if (!display.includes('id="audioEnable"') || !display.includes('function enableAudio()'))
   throw Error('El TV no ofrece activación de audio cuando WebView lo bloquea');
 if (display.includes('id="fullbtn"') || display.includes('goFullscreen()') ||
