@@ -598,7 +598,42 @@ def test_verified_tv_bell_never_replays_or_autostarts() -> None:
     assert "a.onended=function()" in display
 
 
+def test_tv_surname_opt_in_survives_app_restart() -> None:
+    """Opt-in and chosen Windows SAPI voice must survive reading config.json."""
+    import reception_tv_media as media
+
+    saved_path, saved_dir = media.CONFIG_PATH, media.DATA_DIR
+    try:
+        with tempfile.TemporaryDirectory() as td:
+            media.DATA_DIR = Path(td)
+            media.CONFIG_PATH = Path(td) / "config.json"
+            obj = media.TVMediaMixin()
+            obj.config = obj._load_config()
+            assert obj.config["voice_announce_surnames"] is False
+            assert obj.config["windows_voice_name"] == ""
+            # User explicitly turns this on in TV > Voz de llamado.
+            obj.config["voice_announce_surnames"] = True
+            obj.config["windows_voice_name"] = "Voz de Windows de prueba"
+            obj._save_config()
+            restored = media.TVMediaMixin()._load_config()
+            assert restored["voice_announce_surnames"] is True
+            assert restored["windows_voice_name"] == "Voz de Windows de prueba"
+            assert restored["voice_rate"] == obj.config["voice_rate"]
+
+            restored["voice_announce_surnames"] = False
+            obj.config = restored
+            obj._save_config()
+            assert media.TVMediaMixin()._load_config()["voice_announce_surnames"] is False
+
+            # Backward-compatible older config must default to OFF.
+            media.CONFIG_PATH.write_text(json.dumps({"videos_enabled": True}), encoding="utf-8")
+            assert media.TVMediaMixin()._load_config()["voice_announce_surnames"] is False
+    finally:
+        media.CONFIG_PATH, media.DATA_DIR = saved_path, saved_dir
+
+
 if __name__ == "__main__":
+    test_tv_surname_opt_in_survives_app_restart()
     test_verified_tv_bell_never_replays_or_autostarts()
     test_fictitious_surnames_preview_is_safe()
     test_optional_surname_audio_uses_exact_historia_queue_id()
