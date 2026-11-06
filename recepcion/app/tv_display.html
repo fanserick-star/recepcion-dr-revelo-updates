@@ -39,8 +39,8 @@
 <div class="center" id="center"><div class="watermark"><img src="/assets/logo-icon.png?v=4.8.121" alt=""></div><div class="stage" id="stage"></div><div class="video-stage" id="videoStage"><video id="infoVideo" playsinline preload="metadata"></video><iframe id="youtubeFrame" title="YouTube" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="current-badge"><span>TURNO<br>ACTUAL</span><b id="videoTurn">--</b></div></div></div><div class="foot"><div class="privacy">Pantalla de turnos · Sin datos personales</div></div></div>
 <button class="fullbtn" id="fullbtn" onclick="goFullscreen()">⛶ PANTALLA COMPLETA</button><button class="fullbtn" id="audioEnable" style="display:none;right:1.7vw;bottom:7vh;background:#fff1c7;color:#48380a" onclick="enableAudio()">🔊 ACTIVAR SONIDO</button><div class="reconnect" id="reconnect"><div class="box"><div class="spinner"></div><h2 id="reconnectTitle">Reconectando…</h2><p id="reconnectText">La pantalla volverá automáticamente cuando se recupere la conexión.</p></div></div><audio id="ding" preload="auto" src="/ding.wav"></audio><audio id="voiceAudio" preload="none"></audio>
 <script>
-const ENDPOINT='/api/display-state';let lastEvent=0,lastSource='',lastSuccess=Date.now(),state=null,videoCfg={enabled:false,volume:.2,source:'local',items:[],youtube:null},videoIndex=0,audioUnlocked=false,videoAudioBlocked=false,voiceTimer=0;
-function e(i){return document.getElementById(i)}function xhr(url,cb,fail){const x=new XMLHttpRequest();x.open('GET',url,true);x.timeout=4200;x.onreadystatechange=()=>{if(x.readyState===4){if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText))}catch(_){fail&&fail()}}else fail&&fail()}};x.onerror=x.ontimeout=()=>fail&&fail();x.send()}
+const ENDPOINT='/api/display-state';let lastSource='',lastBootId='',lastSuccess=Date.now(),state=null,videoCfg={enabled:false,volume:.2,source:'local',items:[],youtube:null},videoIndex=0,audioUnlocked=false,videoAudioBlocked=false,voiceTimer=0,pollPending=false,seenEvents={live:null,test:null};
+function e(i){return document.getElementById(i)}function xhr(url,cb,fail){const x=new XMLHttpRequest();let settled=false;x.open('GET',url,true);x.timeout=4200;function failed(){if(settled)return;settled=true;if(fail)fail()}x.onreadystatechange=()=>{if(x.readyState!==4||settled)return;settled=true;if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText))}catch(_){if(fail)fail()}}else if(fail)fail()};x.onerror=x.ontimeout=failed;x.send()}
 function pad2(v){var s=String(v);return s.length<2?'0'+s:s}
 function tick(){const n=new Date(),ds=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],ms=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];e('time').textContent=pad2(n.getHours())+':'+pad2(n.getMinutes());e('date').textContent=ds[n.getDay()]+', '+pad2(n.getDate())+' de '+ms[n.getMonth()]+' de '+n.getFullYear();updateIdleClock(n)}
 
@@ -107,6 +107,63 @@ function ding(s){if(!s.sound)return;const a=e('ding');try{a.pause();a.currentTim
 function spanishVoice(){if(!('speechSynthesis' in window))return null;const voices=window.speechSynthesis.getVoices()||[];return voices.find(v=>String(v.lang||'').toLowerCase()==='es-ec')||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('es-'))||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('es'))||null}
 function browserVoice(n){if(!('speechSynthesis' in window)||typeof window.SpeechSynthesisUtterance!=='function')return;try{const synth=window.speechSynthesis;synth.cancel();const u=new SpeechSynthesisUtterance('Turno número '+n+', por favor pasar a consulta.');u.lang='es-EC';const v=spanishVoice();if(v)u.voice=v;u.rate=.9;u.pitch=1;u.volume=1;synth.speak(u)}catch(_){}}
 function announceTurn(turn){const n=parseInt(turn||0,10);if(!n)return;clearTimeout(voiceTimer);voiceTimer=setTimeout(()=>{let fallbackUsed=false;const fallback=()=>{if(fallbackUsed)return;fallbackUsed=true;browserVoice(n)};try{const a=e('voiceAudio');a.onerror=fallback;a.onplaying=()=>{a.onerror=null};a.src='/api/turn-voice.wav?turn='+encodeURIComponent(n)+'&t='+Date.now();a.currentTime=0;const p=a.play();if(p&&p.catch)p.catch(fallback)}catch(_){fallback()}},650)}
-function poll(){xhr(ENDPOINT+'?tv=1&t='+Date.now(),s=>{lastSuccess=Date.now();e('reconnect').style.display='none';const source=s.display_mode||'live';if(source!==lastSource){lastSource=source;lastEvent=0}render(s);if(s.event_id&&s.event_id!==lastEvent){if((s.mode==='calling'||s.sound_test)&&s.sound){ding(s);if(s.mode==='calling'&&s.turn)announceTurn(s.turn)}lastEvent=s.event_id}if(source==='live'&&!s.history_online&&Number(s.history_age_seconds||999)>15){e('reconnectTitle').textContent='Reconectando con Historia Clínica…';e('reconnectText').textContent='No se mostrará un turno antiguo mientras la PC del doctor esté desconectada.';stopVideo();e('reconnect').style.display='block'}},()=>{if(Date.now()-lastSuccess>15000){stopVideo();e('reconnectTitle').textContent='Reconectando con Recepción…';e('reconnectText').textContent='La pantalla volverá automáticamente cuando se recupere la conexión.';e('reconnect').style.display='block'}})}function loadVideos(){xhr('/api/videos?t='+Date.now(),v=>{videoCfg=v||videoCfg;if(state)render(state)})}
+// Only a new, verified doctor event may ring on EN VIVO. The first snapshot
+// after opening Fully, switching modes, or restarting Reception is a silent
+// baseline. Older/out-of-order event counters are never interpreted as calls.
+function shouldRingForSnapshot(s){
+  const source=s.display_mode==='test'?'test':'live';
+  const boot=String(s.tv_boot_id||'legacy');
+  const seq=Number(s.event_id||0);
+  if(!isFinite(seq)||seq<0)return false;
+  if(boot!==lastBootId){
+    lastBootId=boot;
+    seenEvents={live:null,test:null};
+    lastSource='';
+  }
+  if(source!==lastSource||seenEvents[source]===null){
+    lastSource=source;
+    seenEvents[source]=seq;
+    return false;
+  }
+  const previous=Number(seenEvents[source]||0);
+  if(seq<=previous)return false;
+  seenEvents[source]=seq;
+  if(!s.sound)return false;
+  if(source==='live'){
+    return s.history_online===true&&s.mode==='calling'&&!!s.turn&&
+      !s.sound_test&&!!s.doctor_call_event_id;
+  }
+  return (s.mode==='calling'&&!!s.turn)||!!s.sound_test;
+}
+function poll(){
+  if(pollPending)return;
+  pollPending=true;
+  xhr(ENDPOINT+'?tv=1&t='+Date.now(),s=>{
+    pollPending=false;
+    lastSuccess=Date.now();
+    e('reconnect').style.display='none';
+    const ring=shouldRingForSnapshot(s);
+    render(s);
+    if(ring){
+      ding(s);
+      if(s.mode==='calling'&&s.turn)announceTurn(s.turn);
+    }
+    if(s.display_mode==='live'&&!s.history_online&&Number(s.history_age_seconds||999)>15){
+      e('reconnectTitle').textContent='Reconectando con Historia Clínica…';
+      e('reconnectText').textContent='No se mostrará un turno antiguo mientras la PC del doctor esté desconectada.';
+      stopVideo();
+      e('reconnect').style.display='block';
+    }
+  },()=>{
+    pollPending=false;
+    if(Date.now()-lastSuccess>15000){
+      stopVideo();
+      e('reconnectTitle').textContent='Reconectando con Recepción…';
+      e('reconnectText').textContent='La pantalla volverá automáticamente cuando se recupere la conexión.';
+      e('reconnect').style.display='block';
+    }
+  });
+}
+function loadVideos(){xhr('/api/videos?t='+Date.now(),v=>{videoCfg=v||videoCfg;if(state)render(state)})}
 function unlockAudio(){audioUnlocked=true;videoAudioBlocked=false;try{if('speechSynthesis' in window)window.speechSynthesis.getVoices()}catch(_){}try{e('infoVideo').muted=false}catch(_){}syncYoutubeAudio()}function goFullscreen(){const d=document.documentElement,fn=d.requestFullscreen||d.webkitRequestFullscreen||d.mozRequestFullScreen||d.msRequestFullscreen;if(fn)try{fn.call(d)}catch(_){}unlockAudio();const v=e('infoVideo');v.muted=false}function isFull(){return !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement)}function fbtn(){e('fullbtn').className=isFull()?'fullbtn hide':'fullbtn'}document.addEventListener('fullscreenchange',fbtn);document.addEventListener('webkitfullscreenchange',fbtn);document.body.addEventListener('click',unlockAudio,{once:true});tick();idle(true);loadVideos();poll();setInterval(tick,1000);setInterval(poll,900);setInterval(loadVideos,7000);
 </script></body></html>
