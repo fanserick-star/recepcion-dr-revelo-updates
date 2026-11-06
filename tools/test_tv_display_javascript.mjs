@@ -93,6 +93,17 @@ if (!display.includes('document.body.addEventListener(\'click\',unlockAudio,{onc
   throw Error('El desbloqueo del audio al tocar la TV debe conservarse');
 if (!display.includes("if(pollPending)return") || !display.includes("function shouldRingForSnapshot(s)"))
   throw Error('La TV no debe permitir consultas de estado superpuestas ni llamados repetidos');
+if (!display.includes('id="ding" preload="none"') ||
+    display.includes('src="/ding.wav"') ||
+    !display.includes('/api/verified-ding.wav?mode=') ||
+    !display.includes("encodeURIComponent(s.tv_boot_id||'')") ||
+    !display.includes('a.onended=function()') ||
+    !http.includes('service.authorize_bell(') ||
+    !http.includes('service.record_old_bell_request()'))
+  throw Error('El sonido de llamada nunca debe precargarse ni reproducirse sin autorización del servidor');
+const panel = fs.readFileSync('recepcion/app/tv_control.html','utf8');
+if (!panel.includes('Diagnóstico de campanita') || !panel.includes('/api/bell-diagnostics'))
+  throw Error('Recepción debe permitir auditar los intentos de campanita sin datos de pacientes');
 
 // Run the actual client-side call gate against synthetic TV events.
 const script = display.match(/<script>([\s\S]*?)<\/script>/)?.[1];
