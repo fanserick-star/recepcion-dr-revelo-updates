@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.134: evita sonidos espontáneos en Fully Kiosk. La campanita ya no se carga ni se reproduce desde un archivo estático; Recepción entrega audio audible únicamente tras verificar un llamado nuevo del doctor, su sesión, su vigencia y que esa TV no lo haya reproducido ya. URLs y páginas antiguas reproducen silencio. Nuevo diagnóstico de campanitas desde TV > EN VIVO sin nombres de pacientes. Conserva voz y pruebas de apellidos, campanita real, publicidad, reloj, turnos y privacidad. No modifica Historia, Neon, facturas ni configuración de Netlife."
+  "notes": "Recepción 4.8.135: corrige el guardado de los ajustes de la voz en TV. Cuando actives explícitamente «Anunciar únicamente dos apellidos por voz» y guardes, esa opción y la voz de Windows elegida ya no se perderán al cerrar o reiniciar Recepción. Permanece desactivada por defecto por privacidad. Conserva protección de campanita fantasma 4.8.134, publicidad, turnos, voz de prueba y todas las demás funciones. No modifica Historia, Neon, facturación, Fully ni el router."
 }
