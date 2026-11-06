@@ -460,7 +460,85 @@ def test_optional_surname_audio_uses_exact_historia_queue_id() -> None:
         lan.LAN_OUTBOX_DB = old_path
 
 
+def test_fictitious_surnames_preview_is_safe() -> None:
+    """Fictitious tests work without patients and never expose surname text on TV."""
+    import ast
+    import threading
+    import time
+    import reception_tv_speech as speech
+
+    assert set(speech.VOICE_TEST_SAMPLES) == {
+        "perez_garcia", "zambrano_velez", "lopez_mendoza", "rodriguez_andrade"
+    }
+    assert all(len(value.split()) == 2 for value in speech.VOICE_TEST_SAMPLES.values())
+
+    # Isolate the REAL two TV methods without importing Reception's full ORM.
+    tree = ast.parse(read(APP / "reception_tv_turns.py"))
+    original = next(node for node in tree.body if isinstance(node, ast.ClassDef)
+                    and node.name == "ClinicTVTurnService")
+    methods = [node for node in original.body
+               if isinstance(node, ast.FunctionDef) and
+               node.name in {"trigger_voice_test", "display_snapshot"}]
+    assert len(methods) == 2
+
+    class Base:
+        def display_snapshot(self, *, touch_tv=False):
+            return {"event_id": 7, "mode": "idle", "display_mode": "live"}
+        def _voice_config(self):
+            return {"announce_surnames": False}
+
+    fake = ast.ClassDef(
+        name="TestTV", bases=[ast.Name(id="Base", ctx=ast.Load())],
+        keywords=[], body=methods, decorator_list=[]
+    )
+    ns = {"Base": Base, "_epoch": time.time,
+          "VOICE_TEST_SAMPLES": speech.VOICE_TEST_SAMPLES}
+    exec(compile(ast.fix_missing_locations(ast.Module(body=[fake], type_ignores=[])),
+                 "<tv-fictitious-preview>", "exec"), ns)
+    svc = ns["TestTV"]()
+    svc.lock = threading.RLock()
+    svc.voice_test_id = 0
+    svc.voice_test_turn = 6
+    svc.voice_test_sample_key = ""
+    svc.voice_test_started_epoch = 0.0
+    before = svc.display_snapshot()
+    assert not before["voice_test_has_surnames"]
+
+    # Preview works even when real-patient surname announcements are disabled.
+    result = svc.trigger_voice_test({"turn": 6, "sample": "perez_garcia"})
+    assert result["has_sample"] is True and result["turn"] == 6
+    snapshot = svc.display_snapshot()
+    assert snapshot["voice_test_has_surnames"] is True
+    assert snapshot["mode"] == "idle" and snapshot["event_id"] == 7
+    assert "Pérez" not in json.dumps(snapshot, ensure_ascii=False)
+    assert "perez_garcia" not in json.dumps(snapshot)
+    try:
+        svc.trigger_voice_test({"turn": 6, "sample": "nombre-de-paciente-real"})
+        raise AssertionError("Unknown or real surnames must never be accepted")
+    except ValueError:
+        pass
+    assert svc.voice_test_id == result["voice_test_id"]
+
+    # The exact SAME WAV synthesis path receives two synthetic surnames.
+    original_synthesize = speech._synthesize
+    try:
+        speech._synthesize = lambda turn, voice, rate, pitch, surname="": (
+            (str(turn) + ":" + surname).encode("utf-8")
+        )
+        generated = speech.turn_voice_wav(6, surnames=speech.VOICE_TEST_SAMPLES["perez_garcia"])
+        assert generated == "6:Pérez García".encode("utf-8")
+    finally:
+        speech._synthesize = original_synthesize
+
+    # Number-only tests clear any previous sample without touching the queue.
+    result = svc.trigger_voice_test({"turn": 6})
+    assert result["has_sample"] is False
+    assert svc.display_snapshot()["voice_test_has_surnames"] is False
+    assert svc.display_snapshot()["event_id"] == 7
+
+
 if __name__ == "__main__":
+    test_fictitious_surnames_preview_is_safe()
     test_optional_surname_audio_uses_exact_historia_queue_id()
     test_source_contracts()
     test_cancelled_handoff_cannot_revive()
