@@ -96,32 +96,86 @@ def test_control_retry_is_persistent() -> None:
 
 
 def test_tv_completed_vs_cancelled() -> None:
-    def state(current=None, waiting=None, recent=None):
-        return {"host":"127.0.0.1","current":current,"waiting":waiting or [],"recent":recent or []}
-    q1={"queue_id":"q1","turn":1,"status":"waiting"}
-    q2={"queue_id":"q2","turn":2,"status":"waiting"}
+    """No event on open/finish/cancel; only explicit call from doctor produces audio."""
+    import time
+    from reception_tv_turns import ClinicTVTurnService
 
-    service=TVTurnService()
-    service.apply_history(state(waiting=[q1,q2]))
-    service.apply_history(state(current={"queue_id":"q1","turn":1,"status":"in_consultation"},waiting=[q2]))
-    service.live["calling_started_epoch"]-=6
-    service.apply_history(state(current={"queue_id":"q1","turn":1,"status":"in_consultation"},waiting=[q2]))
-    before=int(service.live["event_id"])
-    service.apply_history(state(waiting=[q2],recent=[{"queue_id":"q1","status":"completed"}]))
-    assert service.live["mode"]=="calling" and service.live["turn"]==2
-    assert int(service.live["event_id"])==before+1
+    def state(current=None, waiting=None, recent=None, doctor_call=None):
+        return {
+            "host": "127.0.0.1", "current": current, "waiting": waiting or [],
+            "recent": recent or [], "doctor_call": doctor_call,
+        }
 
-    cancelled=TVTurnService()
-    cancelled.apply_history(state(waiting=[q1,q2]))
-    cancelled.apply_history(state(current={"queue_id":"q1","turn":1,"status":"in_consultation"},waiting=[q2]))
-    cancelled.live["calling_started_epoch"]-=6
-    cancelled.apply_history(state(current={"queue_id":"q1","turn":1,"status":"in_consultation"},waiting=[q2]))
-    before_cancel=int(cancelled.live["event_id"])
-    cancelled.apply_history(state(waiting=[q2],recent=[{"queue_id":"q1","status":"cancelled"}]))
-    assert cancelled.live["mode"]=="idle" and cancelled.live["turn"] is None
-    assert int(cancelled.live["event_id"])==before_cancel
+    q1 = {"queue_id": "q1", "turn": 1, "status": "waiting"}
+    q2 = {"queue_id": "q2", "turn": 2, "status": "waiting"}
+    current1 = {"queue_id": "q1", "turn": 1, "status": "in_consultation"}
+    current2 = {"queue_id": "q2", "turn": 2, "status": "in_consultation"}
 
+    for service in (TVTurnService(), ClinicTVTurnService()):
+        service.apply_history(state(waiting=[q1, q2]))
+        event_before = int(service.live["event_id"])
+        assert service.live["next_waiting_turn"] == 1
 
+        # Opening a chart without calling must remain silent.
+        service.apply_history(state(current=current1, waiting=[q2]))
+        assert service.live["mode"] == "attending" and service.live["turn"] == 1
+        assert int(service.live["event_id"]) == event_before
+
+        # Saving the chart and polling it again must be silent.
+        service.apply_history(state(current=current1, waiting=[q2]))
+        assert int(service.live["event_id"]) == event_before
+
+        # Completing the consultation leaves q2 waiting without calling it.
+        service.apply_history(state(waiting=[q2], recent=[{"queue_id": "q1", "status": "completed"}]))
+        assert service.live["mode"] == "idle" and service.live["turn"] is None
+        assert service.live["next_waiting_turn"] == 2
+        assert int(service.live["event_id"]) == event_before
+        service.apply_history(state(waiting=[q2], recent=[{"queue_id": "q1", "status": "completed"}]))
+        assert int(service.live["event_id"]) == event_before
+
+        # Switching/opening a different patient record does not call anyone.
+        service.apply_history(state(current=current2))
+        assert service.live["mode"] == "attending" and service.live["turn"] == 2
+        assert int(service.live["event_id"]) == event_before
+
+    cancelled = ClinicTVTurnService()
+    cancelled.apply_history(state(waiting=[q1, q2]))
+    cancelled.apply_history(state(current=current1, waiting=[q2]))
+    before_cancel = int(cancelled.live["event_id"])
+    cancelled.apply_history(state(waiting=[q2], recent=[{"queue_id": "q1", "status": "cancelled"}]))
+    assert cancelled.live["mode"] == "idle"
+    assert int(cancelled.live["event_id"]) == before_cancel
+
+    # A separate deliberate doctor call is still allowed and deduplicated.
+    manual = ClinicTVTurnService()
+    manual.apply_history(state(waiting=[q2]))
+    before = int(manual.live["event_id"])
+    event = {"event_id": "manual-call-2", "queue_id": "q2", "turn": 2,
+             "at_epoch": time.time(), "exam_review": False}
+    manual.apply_history(state(waiting=[q2], doctor_call=event))
+    assert manual.live["mode"] == "calling" and manual.live["turn"] == 2
+    assert int(manual.live["event_id"]) == before + 1
+    manual.apply_history(state(waiting=[q2], doctor_call=event))
+    assert int(manual.live["event_id"]) == before + 1
+    # A second deliberate click is a new manual call event, not a poll duplicate.
+    event2 = dict(event, event_id="manual-call-3", at_epoch=time.time())
+    manual.apply_history(state(waiting=[q2], doctor_call=event2))
+    assert int(manual.live["event_id"]) == before + 2
+
+    # Old Reception's live controls are disabled so doctor is sole caller.
+    for action in (manual.recall_live, manual.test_sound_live):
+        try:
+            action()
+            raise AssertionError("Reception cannot create a real calling event")
+        except ValueError:
+            pass
+    assert int(manual.live["event_id"]) == before + 2
+
+    # Simulated completion does not announce the next turn either.
+    test = TVTurnService()
+    test.set_test({"mode": "attending", "turn": 6, "waiting_count": 2})
+    test.finish_test()
+    assert test.test["mode"] == "idle" and test.test["turn"] == 7
 
 def test_connected_historia_cancel_removes_waiting_and_tv_without_clinical_loss() -> None:
     """Real doctor-side handlers with simulated online LAN, isolated in temp SQLite."""
