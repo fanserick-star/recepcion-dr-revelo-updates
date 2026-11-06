@@ -37,9 +37,9 @@
 </style></head><body>
 <div class="testmark" id="testMark" style="display:none">MODO PRUEBAS · NO AFECTA PACIENTES</div><div class="screen"><div class="head"><div class="brand"><img class="brandimg" src="/assets/logo-icon.png?v=4.8.121" alt="Logo Dr. Armando Revelo"><div class="brandtext"><div class="name">DR. ARMANDO REVELO</div><div class="role">CIRUJANO URÓLOGO</div></div></div><div class="clock"><div class="time" id="time">--:--</div><div class="date" id="date">--</div></div></div>
 <div class="center" id="center"><div class="watermark"><img src="/assets/logo-icon.png?v=4.8.121" alt=""></div><div class="stage" id="stage"></div><div class="video-stage" id="videoStage"><video id="infoVideo" playsinline preload="metadata"></video><iframe id="youtubeFrame" title="YouTube" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe><div class="current-badge"><span>TURNO<br>ACTUAL</span><b id="videoTurn">--</b></div></div></div><div class="foot"><div class="privacy">Pantalla de turnos · Sin datos personales</div></div></div>
-<button class="fullbtn" id="audioEnable" style="display:none;right:1.7vw;bottom:7vh;background:#fff1c7;color:#48380a" onclick="enableAudio()">🔊 ACTIVAR SONIDO</button><div class="reconnect" id="reconnect"><div class="box"><div class="spinner"></div><h2 id="reconnectTitle">Reconectando…</h2><p id="reconnectText">La pantalla volverá automáticamente cuando se recupere la conexión.</p></div></div><audio id="ding" preload="auto" src="/ding.wav"></audio><audio id="voiceAudio" preload="none"></audio>
+<button class="fullbtn" id="audioEnable" style="display:none;right:1.7vw;bottom:7vh;background:#fff1c7;color:#48380a" onclick="enableAudio()">🔊 ACTIVAR SONIDO</button><div class="reconnect" id="reconnect"><div class="box"><div class="spinner"></div><h2 id="reconnectTitle">Reconectando…</h2><p id="reconnectText">La pantalla volverá automáticamente cuando se recupere la conexión.</p></div></div><audio id="ding" preload="auto" src="/ding.wav"></audio><audio id="audioUnlock" preload="none" src="/audio-unlock.wav"></audio><audio id="voiceAudio" preload="none"></audio>
 <script>
-const ENDPOINT='/api/display-state';let lastSource='',lastBootId='',lastSuccess=Date.now(),state=null,videoCfg={enabled:false,volume:.2,source:'local',items:[],youtube:null},videoIndex=0,audioUnlocked=false,videoAudioBlocked=false,voiceTimer=0,pollPending=false,seenEvents={live:null,test:null};
+const ENDPOINT='/api/display-state';let lastSource='',lastBootId='',lastSuccess=Date.now(),state=null,videoCfg={enabled:false,volume:.2,source:'local',items:[],youtube:null},videoIndex=0,audioUnlocked=false,videoAudioBlocked=false,voiceTimer=0,pollPending=false,seenEvents={live:null,test:null},lastDoctorToken='';
 function e(i){return document.getElementById(i)}function xhr(url,cb,fail){const x=new XMLHttpRequest();let settled=false;x.open('GET',url,true);x.timeout=4200;function failed(){if(settled)return;settled=true;if(fail)fail()}x.onreadystatechange=()=>{if(x.readyState!==4||settled)return;settled=true;if(x.status>=200&&x.status<300){try{cb(JSON.parse(x.responseText))}catch(_){if(fail)fail()}}else if(fail)fail()};x.onerror=x.ontimeout=failed;x.send()}
 function pad2(v){var s=String(v);return s.length<2?'0'+s:s}
 function tick(){const n=new Date(),ds=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],ms=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];e('time').textContent=pad2(n.getHours())+':'+pad2(n.getMinutes());e('date').textContent=ds[n.getDay()]+', '+pad2(n.getDate())+' de '+ms[n.getMonth()]+' de '+n.getFullYear();updateIdleClock(n)}
@@ -102,7 +102,19 @@ function idle(force){
 }
 function render(s){state=s;e('testMark').style.display=s.display_mode==='test'?'block':'none';const d=displayTurn(s.turn),center=e('center');center.className='center';if(s.mode==='calling'&&s.turn){stopVideo();e('stage').innerHTML='<div class="eyebrow">LLAMANDO TURNO</div><div class="turn">'+d+'</div><div class="msg" >'+('Puede ingresar al consultorio')+'</div><div class="hint">Por favor, acérquese cuando vea su turno.</div>';center.className='center callflash'}else if(s.mode==='attending'&&s.turn){const elapsed=(Date.now()/1000)-Number(s.attention_started_epoch||0);if(elapsed<5){stopVideo();e('stage').innerHTML='<div class="eyebrow" style="color:#2d9b68">EN ATENCIÓN</div><div class="turn">'+d+'</div><div class="msg" >'+('Consulta en curso')+'</div><div class="hint">La pantalla informativa continuará cuando haya otro paciente esperando.</div>'}else if(s.advertising&&startVideo(s.turn)){}else{stopVideo();e('stage').innerHTML='<div class="eyebrow" style="color:#2d9b68" >'+('CONSULTA EN CURSO')+'</div><div class="current-clean">TURNO ACTUAL</div><div class="current-clean-num">'+d+'</div><div class="hint">No hay publicidad porque no existe otro turno esperando.</div>'}}else idle(false)}
 function showAudioEnable(){const b=e('audioEnable');if(b)b.style.display='block'}
-function enableAudio(){unlockAudio();const b=e('audioEnable');try{const a=e('ding');a.pause();a.currentTime=0;const p=a.play();if(p&&p.then)p.then(()=>{if(b)b.style.display='none'}).catch(showAudioEnable);else if(b)b.style.display='none'}catch(_){showAudioEnable()}}
+function enableAudio(){
+  // An audio-unlock gesture must NEVER play the patient-call bell.
+  // Play a tiny, genuinely silent WAV instead of /ding.wav.
+  unlockAudio();
+  const b=e('audioEnable'),a=e('audioUnlock');
+  if(!a){showAudioEnable();return}
+  try{
+    a.pause();a.currentTime=0;
+    const p=a.play();
+    if(p&&p.then)p.then(()=>{if(b)b.style.display='none'}).catch(showAudioEnable);
+    else if(b)b.style.display='none';
+  }catch(_){showAudioEnable()}
+}
 function ding(s){if(!s.sound)return;const a=e('ding');try{a.pause();a.currentTime=0;const p=a.play();if(p&&p.then)p.then(()=>{unlockAudio()}).catch(showAudioEnable)}catch(_){showAudioEnable()}}
 function spanishVoice(){if(!('speechSynthesis' in window))return null;const voices=window.speechSynthesis.getVoices()||[];return voices.find(v=>String(v.lang||'').toLowerCase()==='es-ec')||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('es-'))||voices.find(v=>String(v.lang||'').toLowerCase().startsWith('es'))||null}
 function browserVoice(n){if(!('speechSynthesis' in window)||typeof window.SpeechSynthesisUtterance!=='function')return;try{const synth=window.speechSynthesis;synth.cancel();const u=new SpeechSynthesisUtterance('Turno número '+n+', por favor pasar a consulta.');u.lang='es-EC';const v=spanishVoice();if(v)u.voice=v;u.rate=.9;u.pitch=1;u.volume=1;synth.speak(u)}catch(_){}}
@@ -119,21 +131,28 @@ function shouldRingForSnapshot(s){
     lastBootId=boot;
     seenEvents={live:null,test:null};
     lastSource='';
+    lastDoctorToken='';
   }
   if(source!==lastSource||seenEvents[source]===null){
     lastSource=source;
     seenEvents[source]=seq;
+    // A reload or return from PRUEBAS treats the last doctor call as old.
+    if(source==='live')lastDoctorToken=String(s.doctor_call_event_id||'');
     return false;
   }
   const previous=Number(seenEvents[source]||0);
   if(seq<=previous)return false;
   seenEvents[source]=seq;
-  if(!s.sound)return false;
   if(source==='live'){
-    return s.history_online===true&&s.mode==='calling'&&!!s.turn&&
-      !s.sound_test&&!!s.doctor_call_event_id;
+    const token=String(s.doctor_call_event_id||'');
+    // Counter changes alone can never generate a bell. This immutable call
+    // token must also be different from the previous explicit doctor event.
+    if(!token||token===lastDoctorToken)return false;
+    lastDoctorToken=token;
+    return s.sound===true&&s.history_online===true&&s.mode==='calling'&&
+      !!s.turn&&!s.sound_test;
   }
-  return (s.mode==='calling'&&!!s.turn)||!!s.sound_test;
+  return s.sound===true&&((s.mode==='calling'&&!!s.turn)||!!s.sound_test);
 }
 function poll(){
   if(pollPending)return;
