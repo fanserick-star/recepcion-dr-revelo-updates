@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.129: solo el botón Llamar de Historia Clínica genera llamados reales en la TV. Finalizar, guardar, cancelar o cambiar de ficha no anuncia el siguiente turno. Se conservan la cola, los turnos, la campanita, la voz, los apellidos opcionales y la publicidad. Pruebas ficticias independientes; sin cambios en datos clínicos ni facturación."
+  "notes": "Recepción 4.8.130: evita campanitas espontáneas en TV Fully Kiosk Android 7. La página toma línea base silenciosa al recargar, reconectar o cambiar modo; solo anuncia eventos nuevos y verificados del botón Llamar del doctor. Evita respuestas de sondeo superpuestas, llamadas antiguas y repetición por reinicio de Recepción. Conserva campanita y voz del doctor, apellidos opcionales, publicidad, reloj, cola e Historia intactos. No modifica pacientes ni Neon."
 }
