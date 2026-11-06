@@ -7,20 +7,12 @@ from reception_tv_speech import windows_voices
 
 
 class ClinicTVTurnService(TVTurnService):
-    """Blindaje del cambio de turno cuando Historia finaliza una consulta.
+    """Only the doctor's explicit Llamar button may announce a real turn.
 
-    Historia actualiza la cola y Recepción la consulta por LAN cada ~0.9 s. En Windows
-    puede existir una lectura intermedia donde el turno actual ya desapareció pero el
-    registro reciente todavía no muestra su estado terminal. El runtime anterior tomaba
-    ese instante como si fuera una cancelación, pasaba a PRÓXIMO TURNO sin crear evento
-    de llamado y por eso no sonaba. Conservamos brevemente el turno actual hasta poder
-    distinguir completed de cancelled y, si fue completed, aseguramos un único llamado
-    del siguiente turno. Cancelar/eliminar continúa sin llamar a nadie.
-
-    Abrir una ficha desde Pacientes en espera sólo inicia la atención clínica. No es una
-    orden de llamado: nunca debe crear un evento de TV, ding ni anuncio de voz. Los únicos
-    llamados son los eventos explícitos ya existentes (llamar, volver a llamar y el llamado
-    automático del siguiente turno después de Finalizar).
+    Historia is polled via LAN. Saving, completing, cancelling, switching or opening
+    a patient record only refreshes the queue. A brief grace period avoids flickering
+    during the end-of-consultation transition, without creating an audio event.
+    Duplicate doctor call events are consumed once and do not alter clinical records.
     """
 
     FINALIZE_GRACE_SECONDS = 2.8
@@ -68,27 +60,6 @@ class ClinicTVTurnService(TVTurnService):
     def _clear_finish_pending(self) -> None:
         self._finish_pending_id = ""
         self._finish_pending_since = 0.0
-
-    def _ensure_next_called(self, waiting: list[dict]) -> None:
-        if not waiting:
-            return
-        nxt = waiting[0]
-        next_id = str(nxt.get("queue_id") or "")
-        next_turn = int(nxt["turn"])
-        with self.lock:
-            if self.live.get("mode") == "calling" and str(self.live.get("called_queue_id") or "") == next_id:
-                return
-            self.live["mode"] = "calling"
-            self.live["turn"] = next_turn
-            self.live["exam_review"] = bool(nxt.get("exam_review"))
-            self.live["current_queue_id"] = ""
-            self.live["called_queue_id"] = next_id
-            self.live["call_before_attending_id"] = ""
-            self.live["attention_started_epoch"] = 0.0
-            self.live["calling_started_epoch"] = _epoch()
-            self.live["sound_test"] = False
-            self.live["event_id"] = int(self.live.get("event_id") or 0) + 1
-            self.live["last_change"] = _now_iso()
 
     def apply_history(self, payload: dict) -> None:
         # Mantiene TODAS las reglas anteriores para abrir/finalizar/eliminar.
@@ -204,7 +175,8 @@ class ClinicTVTurnService(TVTurnService):
 
         if prev_current_id and not has_current and waiting:
             if terminal == "completed":
-                self._ensure_next_called(waiting)
+                # Finalizar leaves the next patient waiting; ONLY Historia's
+                # explicit doctor_call event can trigger the bell and voice.
                 self._clear_finish_pending()
                 return
             if terminal == "cancelled":
@@ -345,7 +317,8 @@ def _start_official_tv_turn_service():
 @app.get("/api/tv-turnos/health")
 def tv_turnos_health(user=core_runtime.Depends(core_runtime.current_user)):
     out = SERVICE.status()
-    out["finish_calls_next_with_sound"] = True
+    out["finish_calls_next_with_sound"] = False
+    out["doctor_explicit_call_only"] = True
     out["finish_transition_grace_seconds"] = ClinicTVTurnService.FINALIZE_GRACE_SECONDS
     out["cancel_never_calls_next"] = True
     out["opening_waiting_card_never_calls"] = True
