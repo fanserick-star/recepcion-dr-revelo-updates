@@ -20,7 +20,9 @@ import sync_status_resilience
 import tv_turn_bridge
 
 AFK_SECONDS = 300
-HEARTBEAT_SECONDS = 240
+# La sincronizacion normal ya registra al dispositivo con actividad real.
+# No abrir una conexion extra cada 4 min que impida la suspension de Neon.
+HEARTBEAT_SECONDS = 1800
 
 
 def _canonical_app_version() -> str:
