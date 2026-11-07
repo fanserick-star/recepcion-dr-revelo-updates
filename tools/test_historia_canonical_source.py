@@ -29,6 +29,11 @@ def main() -> None:
 
     version = validate_runtime(APP)
 
+    # Verifica con SQLite temporal que la ficha verificada llega ANTES del
+    # turno LAN incluso si un esquema anterior exige integridad referencial.
+    import runpy
+    runpy.run_path(str(ROOT / "tools/test_historia_lan_new_patient_handoff_1472.py"), run_name="__main__")
+
     # No regresion: el monitor LAN/TV no puede mantener Neon despierto.
     cloud = (APP / "cloud_sync.py").read_text(encoding="utf-8")
     presence = (APP / "cloud_presence_patch.py").read_text(encoding="utf-8")
