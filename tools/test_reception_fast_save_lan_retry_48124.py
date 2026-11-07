@@ -44,8 +44,8 @@ assert "_recent_unlinked_retry_seconds(" in flush
 assert "30 if transient else _recent_unlinked_retry_seconds(" in flush
 assert "else \"Ficha clínica pendiente de verificar o vincular\"" in flush
 
-# Evaluación real del helper aislado: solo 2 reintentos cortos para una ficha
-# reciente; las no vinculadas antiguas no generan polling agresivo.
+# Evaluación real del helper: cinco reintentos cortos y limitados a los
+# primeros tres minutos; los turnos antiguos vuelven a cinco minutos.
 tree = ast.parse(transport)
 fn = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
           and node.name == "_recent_unlinked_retry_seconds")
@@ -54,9 +54,8 @@ exec(compile(ast.Module(body=[fn], type_ignores=[]), "<retry-helper>", "exec"), 
 delay = env["_recent_unlinked_retry_seconds"]
 fresh = datetime.now().isoformat(timespec="seconds")
 old = (datetime.now() - timedelta(minutes=5)).isoformat(timespec="seconds")
-assert delay(fresh, 0) == 15
-assert delay(fresh, 1) == 30
-assert delay(fresh, 2) == 300
+assert [delay(fresh, i) for i in range(5)] == [8, 15, 25, 40, 60]
+assert delay(fresh, 5) == 300
 assert delay(old, 0) == 300
 assert delay("broken-date", 0) == 300
 print("RECEPTION_FAST_SAVE_SAFE_LAN_RETRY_48124_OK")
