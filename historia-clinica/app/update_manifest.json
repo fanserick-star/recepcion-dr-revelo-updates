@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.70",
-  "app_version": "1.4.70",
-  "runtime_version": "1.4.70",
+  "version": "1.4.71",
+  "app_version": "1.4.71",
+  "runtime_version": "1.4.71",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.70: evita llamados repetidos a la TV por doble clic involuntario. El botón Llamar queda bloqueado 12 segundos, muestra cuenta regresiva y después permite Repetir llamado. El servidor aplica la misma protección por identificador exacto de turno, incluso si se llama otro turno entretanto. No altera la cola, pacientes, documentos ni Neon.",
-    "previous_version": "1.4.69",
+    "purpose": "Historia Clínica 1.4.71: reactivado reposo inteligente de Neon. El sincronizador solo consulta la nube con actividad real, datos locales pendientes o inicialización; recuperación auxiliar solo durante actividad. El heartbeat se espacia para permitir el scale-to-zero. TV y llamados continúan por LAN, sin cambios en pacientes, firmas, documentos ni esquema.",
+    "previous_version": "1.4.70",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -108,7 +108,7 @@
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
     "clinical_data_changes": false,
-    "cloud_logic_changes": false,
+    "cloud_logic_changes": true,
     "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
     "cloud_status_unique_temp_files": true,
@@ -495,6 +495,12 @@
     "doctor_turn_call_per_queue_dedup": true,
     "doctor_turn_call_button_cooldown": true,
     "doctor_turn_call_manual_repeat_after_cooldown": true,
-    "doctor_turn_call_no_duplicate_event_during_cooldown": true
+    "doctor_turn_call_no_duplicate_event_during_cooldown": true,
+    "cloud_idle_sync_when_active": true,
+    "cloud_pending_changes_push_immediate": true,
+    "cloud_auxiliary_recovery_only_when_active": true,
+    "cloud_presence_heartbeat_seconds": 1800,
+    "neon_auto_suspend_allowed": true,
+    "neon_server_configuration_changes": false
   }
 }
