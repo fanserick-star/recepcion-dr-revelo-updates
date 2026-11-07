@@ -202,8 +202,8 @@ let idleListenersStarted=false;
 let lastLocalActivityNote=0;
 const BADGE_REFRESH_MS=120000;
 const IDLE_AFTER_MS=5*60*1000;
-// El reloj de inactividad sigue protegiendo la emisión nocturna; no suspende Neon.
-const NEON_ECO_MODE=false;
+// 2026-11-07: modo AFK del servidor y la interfaz coordinados; TV sigue por LAN.
+const NEON_ECO_MODE=true;
 const PASSIVE_CONNECTIVITY_MS=600000;
 function setConnectionBadge(kind,text,detail=''){
   const badge=$('#connectionBadge');if(!badge)return;
