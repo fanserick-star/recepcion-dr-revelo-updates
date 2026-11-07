@@ -597,18 +597,20 @@ def _defer_lan_event(event_id: str, seconds: int, error: str) -> None:
 
 
 def _recent_unlinked_retry_seconds(queued_at: object, previous_attempts: object) -> int:
-    """Reintentos breves y acotados mientras una ficha nueva se sincroniza.
+    """Fast but bounded recovery for a newly created clinical link.
 
-    Nunca entrega sin vínculo. Tras dos fallos, vuelve al intervalo de 5 min
-    para no consultar Neon continuamente si realmente no existe vinculación.
+    A new consultation must not wait five minutes after only two misses.
+    The first five retries (8/15/25/40/60 s) run ONLY for a recent event;
+    old or genuinely unlinked cases keep the conservative 5-minute backoff.
+    Every attempt still verifies the canonical Historia Neon link before LAN.
     """
     try:
         attempts = max(0, int(previous_attempts or 0))
         age = (datetime.now() - datetime.fromisoformat(str(queued_at or ""))).total_seconds()
     except (TypeError, ValueError, OverflowError):
         return 300
-    if 0 <= age <= 120 and attempts < 2:
-        return (15, 30)[attempts]
+    if 0 <= age <= 180 and attempts < 5:
+        return (8, 15, 25, 40, 60)[attempts]
     return 300
 
 
