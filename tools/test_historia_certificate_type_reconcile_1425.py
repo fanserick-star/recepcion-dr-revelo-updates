@@ -106,7 +106,7 @@ with tempfile.TemporaryDirectory(prefix="clinical_reconcile_safe_") as directory
     with sqlite3.connect(empty) as con:
         assert con.execute("SELECT COUNT(*) FROM sync_state").fetchone()[0]==0
 
-assert "type_recovery_due = not type_recovery_done and now_mono - last_try >= 1800" in source
+assert "type_recovery_due = active and not type_recovery_done and now_mono - last_try >= 1800" in source
 assert "restored_types = self._restore_document_types_from_local_once(pg)" in source
 assert "or restored_types > 0" in source
 assert "BIDIRECTIONAL_TABLES" in source
