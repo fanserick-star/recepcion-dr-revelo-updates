@@ -290,8 +290,9 @@ def _normalize_remote_value(value):
     return value
 
 
-# 2026-10-29: se retira el ahorro por inactividad, sin cambiar la cola offline.
-HISTORIA_NEON_ECO_MODE = False
+# 2026-11-07: la sincronizacion conserva el envio inmediato de cambios,
+# pero deja de sondear Neon cuando no hay actividad ni filas pendientes.
+HISTORIA_NEON_ECO_MODE = True
 
 
 class CloudSyncService:
@@ -703,7 +704,7 @@ class CloudSyncService:
             )
             now_mono = time.monotonic()
             last_try = getattr(self, "_last_document_type_recovery_attempt", 0.0)
-            type_recovery_due = not type_recovery_done and now_mono - last_try >= 1800
+            type_recovery_due = active and not type_recovery_done and now_mono - last_try >= 1800
             if pending == 0 and not pull_due and not type_recovery_due:
                 _write_status(self.data_dir, pending=0)
                 return
