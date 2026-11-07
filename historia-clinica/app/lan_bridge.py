@@ -1001,15 +1001,16 @@ def _v132_enrich_new_patient(self, payload: dict) -> str:
 
 
 def _v132_accept_handoff(self, payload: dict, remote_ip: str) -> dict:
+    # v1.4.72: a patient created by Reception may be verified in Historia Neon
+    # but absent from the doctor's local SQLite while cloud sync is sleeping.
+    # Prepare ONLY the reception-verified clinical ID before writing the queue.
+    # This is idempotent and NEVER creates/updates a patient_links record.
+    # Identity conflicts must be returned to Reception, not silently ignored.
+    patient_id = _v132_enrich_new_patient(self, payload)
     result = _v132_accept_handoff_original(self, payload, remote_ip)
-    try:
-        patient_id = _v132_enrich_new_patient(self, payload)
-        if patient_id:
-            result["clinical_patient_id"] = patient_id
-            result["demographics_received"] = True
-    except Exception as exc:
-        result["demographics_received"] = False
-        result["demographics_error"] = f"{type(exc).__name__}: {str(exc)[:120]}"
+    if patient_id:
+        result["clinical_patient_id"] = patient_id
+        result["demographics_received"] = True
     return result
 
 LanService.accept_handoff = _v132_accept_handoff
