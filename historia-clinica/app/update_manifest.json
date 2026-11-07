@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.71",
-  "app_version": "1.4.71",
-  "runtime_version": "1.4.71",
+  "version": "1.4.72",
+  "app_version": "1.4.72",
+  "runtime_version": "1.4.72",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.71: reactivado reposo inteligente de Neon. El sincronizador solo consulta la nube con actividad real, datos locales pendientes o inicialización; recuperación auxiliar solo durante actividad. El heartbeat se espacia para permitir el scale-to-zero. TV y llamados continúan por LAN, sin cambios en pacientes, firmas, documentos ni esquema.",
-    "previous_version": "1.4.70",
+    "purpose": "Historia Clínica 1.4.72: corrección urgente del ingreso a espera por LAN de pacientes NUEVOS. Preparar primero la ficha local exclusivamente con el ID clínico verificado por Recepción, luego registrar el mismo turno sin duplicados. Mantiene el ahorro de Neon 1.4.71, los llamados/TV LAN y los datos, firmas y vínculos existentes.",
+    "previous_version": "1.4.71",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -108,7 +108,7 @@
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
     "clinical_data_changes": false,
-    "cloud_logic_changes": true,
+    "cloud_logic_changes": false,
     "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
     "cloud_status_unique_temp_files": true,
@@ -501,6 +501,10 @@
     "cloud_auxiliary_recovery_only_when_active": true,
     "cloud_presence_heartbeat_seconds": 1800,
     "neon_auto_suspend_allowed": true,
-    "neon_server_configuration_changes": false
+    "neon_server_configuration_changes": false,
+    "lan_verified_new_patient_prepared_before_waiting_queue": true,
+    "lan_patient_link_creation_in_historia": false,
+    "lan_same_event_duplicate_safe": true,
+    "lan_new_patient_foreign_key_regression_test": true
   }
 }
