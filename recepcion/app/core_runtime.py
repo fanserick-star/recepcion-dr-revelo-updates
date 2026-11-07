@@ -656,7 +656,7 @@ AGENDA_CACHE_REFRESH_SECONDS = 30 * 60
 # operaciones reales. Alargamos el intervalo y aplicamos backoff cuando falla.
 CLOUD_CHECK_SECONDS = 600.0  # intervalo de compatibilidad del antiguo modo ahorro
 CLOUD_CHECK_ACTIVE_SECONDS = 60.0  # modo normal: comprobar conexión ante operaciones reales
-NEON_ECO_MODE = False  # 2026-10-29: ahorro desactivado; conservar caché y cola offline
+NEON_ECO_MODE = True  # 2026-11-07: reposo automatico; mantener cola local y sincronizacion al reanudar
 CLOUD_RETRY_SECONDS = 20.0
 REMOTE_REFRESH_IDLE_SECONDS = 30 * 60
 IDLE_AFTER_SECONDS = 300
@@ -3200,11 +3200,17 @@ def get_db(request: Request):
     # escrituras siguen yendo a Neon cuando está disponible y se reflejan
     # inmediatamente al cache local. Así la PC vieja responde rápido y Neon
     # recibe muchas menos lecturas innecesarias.
-    _mark_client_active()
+    method = request.method.upper()
+    # Los GET pasivos (incluida TV/estado) no equivalen a actividad humana.
+    # La interfaz llama a /api/power/wake cuando el usuario vuelve.
+    if method not in {"GET", "HEAD", "OPTIONS"}:
+        _mark_client_active()
+    with _state_lock:
+        idle_read = bool(_state.get("client_idle")) and method in {"GET", "HEAD"}
     pending = queue_count()
     local_write = _prefer_local_write(request)
     local_read = _prefer_local_read(request)
-    if pending > 0 or local_read or local_write:
+    if pending > 0 or local_read or local_write or idle_read:
         use_cloud = False
     else:
         online = check_cloud()
