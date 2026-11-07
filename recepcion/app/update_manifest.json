@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.136",
-  "app_version": "4.8.136",
-  "runtime_version": "4.8.136",
+  "version": "4.8.137",
+  "app_version": "4.8.137",
+  "runtime_version": "4.8.137",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.136: reactivado modo AFK de ahorro Neon en servidor e interfaz; las lecturas pasivas no reactivan el estado de uso y mientras AFK se resuelven desde SQLite. Los cambios pendientes se sincronizan al reanudar. TV, llamado, voz, cobros, WhatsApp y transporte de turnos siguen intactos por LAN.",
-    "previous_version": "4.8.135",
+    "purpose": "Recepción 4.8.137: entrega LAN más ágil de fichas recién creadas. Antes de esperar cinco minutos, reintenta vínculos clínicos nuevos en 8, 15, 25, 40 y 60 segundos; luego conserva el intervalo conservador. La entrega sigue requiriendo identidad clínica verificada por Neon y conserva la cola SQLite sin duplicar turnos. Mantiene el modo ahorro 4.8.136 y la TV por LAN.",
+    "previous_version": "4.8.136",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -794,7 +794,18 @@
     "neon_afk_mode_restored": true,
     "neon_passive_get_does_not_wake": true,
     "neon_idle_get_uses_local_sqlite": true,
-    "neon_pending_writes_synced_on_wake": true
+    "neon_pending_writes_synced_on_wake": true,
+    "lan_recent_unlinked_fast_retry_seconds": [
+      8,
+      15,
+      25,
+      40,
+      60
+    ],
+    "lan_recent_unlinked_retry_age_limit_seconds": 180,
+    "lan_retry_preserves_verified_link_requirement": true,
+    "lan_backoff_older_events_seconds": 300,
+    "lan_delivery_direct_network_only": true
   },
   "channel": "launcher-v1-stable"
 }
