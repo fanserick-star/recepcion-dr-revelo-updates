@@ -29,6 +29,16 @@ def main() -> None:
 
     version = validate_runtime(APP)
 
+    # No regresion: el monitor LAN/TV no puede mantener Neon despierto.
+    cloud = (APP / "cloud_sync.py").read_text(encoding="utf-8")
+    presence = (APP / "cloud_presence_patch.py").read_text(encoding="utf-8")
+    tv = (APP / "tv_turn_bridge.py").read_text(encoding="utf-8")
+    assert "HISTORIA_NEON_ECO_MODE = True" in cloud
+    assert "type_recovery_due = active and not type_recovery_done" in cloud
+    assert "HEARTBEAT_SECONDS = 1800" in presence
+    assert 'path != "/tv-state"' in tv
+    assert "sync_service.mark_activity()" not in tv
+
     updates_tree = git_tree("historia-clinica/updates")
     assert updates_tree == FROZEN_UPDATES_TREE, (
         "historia-clinica/updates dejó de estar congelado",
