@@ -50,6 +50,18 @@ assert "core.mirror_appointment_to_local(appointment)" in agenda
 assert "core.mirror_patient_to_local(patient)" in agenda
 assert "_kick_agenda_status_sync(dates)" in source  # don't lose confirmation state
 
+# Passive reception reads and the TV must never wake clinical Neon.
+assert "NEON_ECO_MODE = True" in source
+assert "const NEON_ECO_MODE=true;" in front
+assert 'if method not in {"GET", "HEAD", "OPTIONS"}:' in source
+assert 'idle_read = bool(_state.get("client_idle"))' in source
+assert "if pending > 0 or local_read or local_write or idle_read:" in source
+tv_service = (ROOT / "recepcion/app/reception_tv_service.py").read_text(encoding="utf-8")
+tv_bridge = (ROOT / "historia-clinica/app/tv_turn_bridge.py").read_text(encoding="utf-8")
+assert '"/tv-state"' in tv_service and "historia_lan_transport._http_json(" in tv_service
+assert "CloudSessionLocal" not in tv_service
+assert "sync_service.mark_activity()" not in tv_bridge
+
 # Never trade durability or LAN queue for cost optimization.
 assert "CACHE_REFRESH_SECONDS = 12 * 60 * 60" in source
 assert "CLOUD_CHECK_SECONDS = 600.0" in source
