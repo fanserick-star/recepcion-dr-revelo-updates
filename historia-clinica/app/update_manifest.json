@@ -525,6 +525,7 @@
     "neon_local_emergency_upload": true,
     "neon_emergency_archive_and_clinical_tables": true,
     "neon_official_unchanged": true,
-    "neon_backup_must_be_verified_before_switch": true
+    "neon_backup_must_be_verified_before_switch": true,
+    "neon_emergency_ci_pure_data_test_fixed": true
   }
 }
