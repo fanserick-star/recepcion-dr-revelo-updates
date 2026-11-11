@@ -29,6 +29,7 @@ def main() -> None:
     assert "def hc1475_neon_sources(request: Request):" in active_app
     assert "request.client.host not in" in active_app
     assert "winter-smoke-49748362" in active_app
+    assert "official_endpoint = _v139_cloud_sync.HISTORIA_NEON_ENDPOINT_ID" in active_app
     assert "name='neon-target' disabled" in active_app
     assert 'name=\'neon-target\' checked disabled' in active_app
     assert "Solo disponible en la PC del doctor" in active_app

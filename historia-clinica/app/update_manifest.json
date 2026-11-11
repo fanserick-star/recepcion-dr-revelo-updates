@@ -514,6 +514,7 @@
     "neon_backup_empty_unsafe_to_select": true,
     "neon_active_target": "official",
     "neon_backup_readonly_status_panel": true,
-    "neon_backup_requires_verified_copy": true
+    "neon_backup_requires_verified_copy": true,
+    "neon_settings_import_alias_fix": true
   }
 }
