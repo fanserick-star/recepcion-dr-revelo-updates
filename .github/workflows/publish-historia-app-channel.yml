@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "historia-clinica/app/historia-version.json"
+      - "historia-clinica/app/update_manifest.json"
       - ".github/workflows/publish-historia-app-channel.yml"
   workflow_dispatch:
 
