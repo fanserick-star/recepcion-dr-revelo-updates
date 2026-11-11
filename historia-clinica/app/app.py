@@ -5670,6 +5670,8 @@ def hc1475_neon_sources(request: Request):
         "<p>Estos números describen la PC, no prueban que la nube tenga una copia idéntica."
         " Los PDF firmados originales también se conservan en archivos locales separados."
         " No se muestran nombres ni datos médicos en esta página.</p>"
+        "<p><a class='secondary btn-link' href='/configuracion/neon/activar'>"
+        "Activar Neon de emergencia verificado</a></p>"
         "<p><a class='secondary btn-link' href='/configuracion'>Volver a configuración</a></p>"
         "</div>"
     )
@@ -5683,3 +5685,7 @@ def hc1475_neon_sources(request: Request):
 # Historia 1.4.77: explicit, local-only upload of a SQLite/PDF emergency copy.
 import neon_emergency_copy
 neon_emergency_copy.install(app, ROOT, DB_PATH, base)
+
+# Historia 1.4.78: user-confirmed cutover only after remote manifest verification.
+import neon_emergency_cutover
+neon_emergency_cutover.install(app, ROOT, DB_PATH, base)

@@ -12,11 +12,10 @@ active_app = (APP / "app.py").read_text(encoding="utf-8-sig")
 
 
 def main() -> None:
-    # Exact source hash of the previously validated 1.4.73 cloud synchronizer.
-    actual_hash = subprocess.check_output(
-        ["git", "hash-object", str(cloud_path)], cwd=ROOT, text=True
-    ).strip()
-    assert actual_hash == "9be18d5deb3c77e9f920a58e0f83fb0c32ec0079", actual_hash
+    # 1.4.78 preserves the original official endpoint but adds an explicit
+    # verified emergency target; the previous exact cloud file is no longer pinned.
+    assert cloud_path.is_file()
+    assert "HISTORIA_NEON_EMERGENCY_ENDPOINT_ID" in cloud_path.read_text(encoding="utf-8")
 
     cloud = cloud_path.read_text(encoding="utf-8-sig")
     assert "HISTORIA_NEON_ECO_MODE = True" in cloud
@@ -42,8 +41,8 @@ def main() -> None:
     assert manifest["app_version"] == manifest["runtime_version"] == version
     # Older safety checks also apply to all later patched Historia versions.
     assert tuple(map(int, version.split("."))) >= (1, 4, 75), version
-    assert manifest["notes"]["neon_active_target"] == "official"
-    assert manifest["notes"]["neon_backup_empty_unsafe_to_select"] is True
+    assert manifest["notes"]["neon_active_target"] == "official_until_user_confirmed_cutover"
+    assert manifest["notes"]["neon_backup_empty_unsafe_to_select"] is False
     print("HISTORIA_NEON_SOURCES_1475_OK")
 
 

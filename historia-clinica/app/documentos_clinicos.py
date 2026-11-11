@@ -2448,6 +2448,10 @@ body{{background:#e8edf1;padding:14px}}
               <b>Copiar todos los datos desde esta PC</b>
               <small>Respaldo SQLite y PDF firmados hacia Neon de emergencia. El Oficial sigue activo.</small>
             </a>
+            <a class='config-tool-btn' href='/configuracion/neon/activar' style='display:inline-block;text-decoration:none;margin-right:10px'>
+              <b>Activar Neon de emergencia verificado</b>
+              <small>Comprobar el respaldo y preparar el cambio de nube. Necesita reiniciar Historia al finalizar.</small>
+            </a>
             <a class='config-tool-btn' href='/configuracion/neon' style='display:inline-block;text-decoration:none'>
               <b>Ver estado de Oficial y Respaldo</b>
               <small>Comprobar pacientes, consultas, recetas y cambios pendientes de esta PC.</small>

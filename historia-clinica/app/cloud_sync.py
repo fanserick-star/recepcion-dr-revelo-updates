@@ -32,6 +32,7 @@ ALL_SYNC_TABLES = {**BIDIRECTIONAL_TABLES, **PUSH_ONLY_TABLES}
 CLOUD_SCHEMA = "public"
 HISTORIA_CLOUD_IDENTITY = "historia-clinica-dr-revelo"
 HISTORIA_NEON_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"
+HISTORIA_NEON_EMERGENCY_ENDPOINT_ID = "ep-noisy-paper-arf28291"
 
 _STATUS_LOCK = threading.Lock()
 _SERVICE = None
@@ -301,10 +302,16 @@ class CloudSyncService:
         self.db_path = Path(db_path)
         self.data_dir = self.root / "data"
         self.env = _load_env(self.root)
+        self.target_endpoint = (
+            HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+            if str(self.env.get("HISTORIA_NEON_TARGET") or "").lower() == "emergency"
+            else HISTORIA_NEON_ENDPOINT_ID
+        )
         self.url_candidates = _database_url_candidates(self.root, self.env)
         self.url, self.url_source = self.url_candidates[0] if self.url_candidates else ("", "")
         self.enabled = str(self.env.get("HISTORIA_SYNC_ENABLED", "1")).strip().lower() not in {"0","false","no","off"}
         self.device_id = _device_id(self.data_dir)
+        self._seed_emergency_cutover()
         self._stop = threading.Event()
         self._wake = threading.Event()
         self._thread = None
@@ -330,6 +337,47 @@ class CloudSyncService:
             pending=_initial_pending, initial_total=_initial_total, device_id=self.device_id,
             connection_candidate_count=len(self.url_candidates),
         )
+
+    def _seed_emergency_cutover(self):
+        """On approved cutover, queue every locally authoritative record once.
+
+        The old Neon may have cleared sync_dirty AFTER the emergency ZIP was
+        created. Re-queueing prevents silent loss of later consultations/edits.
+        Reception remains authoritative for patient_links; audit/revisions were
+        already included in the verified emergency import.
+        """
+        if self.target_endpoint != HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
+            return
+        if not any(_endpoint_id_from_url(url) == self.target_endpoint
+                   for url, _ in self.url_candidates):
+            return
+        conn = sqlite3.connect(self.db_path, timeout=30)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            marker = conn.execute(
+                "SELECT value FROM sync_state WHERE key='emergency_cutover_seeded_1478'"
+            ).fetchone()
+            if marker:
+                conn.rollback()
+                return
+            for table, pk in BIDIRECTIONAL_TABLES.items():
+                if table == "patient_links":
+                    continue
+                conn.execute(
+                    f"INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at) "
+                    f"SELECT ?,CAST({pk} AS TEXT),datetime('now') FROM {table}",
+                    (table,),
+                )
+            conn.execute(
+                "INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)",
+                ("emergency_cutover_seeded_1478", _now_iso()),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -469,7 +517,7 @@ class CloudSyncService:
 
         for url, source in self.url_candidates:
             endpoint_id = _endpoint_id_from_url(url)
-            if endpoint_id != HISTORIA_NEON_ENDPOINT_ID:
+            if endpoint_id != self.target_endpoint:
                 errors.append(f"{source}: proyecto Neon incorrecto")
                 continue
 
@@ -725,10 +773,21 @@ class CloudSyncService:
                 )
                 endpoint_changed = previous_endpoint != endpoint_id
                 if endpoint_changed:
-                    self._set_state(
-                        sconn, "last_pull", "1970-01-01T00:00:00+00:00"
-                    )
-                    self._set_state(sconn, "cloud_bootstrap_complete", "0")
+                    if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
+                        # The emergency Neon was populated from THIS SQLite and
+                        # verified. Do not re-pull its old snapshot over newer local
+                        # clinical notes. The full local re-push was seeded above.
+                        cursor = pg.cursor()
+                        cursor.execute("SELECT now()::text")
+                        clean_remote_cursor = str(cursor.fetchone()[0])
+                        pg.commit()
+                        self._set_state(sconn, "last_pull", clean_remote_cursor)
+                        self._set_state(sconn, "cloud_bootstrap_complete", "1")
+                    else:
+                        self._set_state(
+                            sconn, "last_pull", "1970-01-01T00:00:00+00:00"
+                        )
+                        self._set_state(sconn, "cloud_bootstrap_complete", "0")
                     self._set_state(sconn, "cloud_endpoint_id", endpoint_id)
                     self._set_state(
                         sconn, "cloud_identity", HISTORIA_CLOUD_IDENTITY
@@ -768,7 +827,7 @@ class CloudSyncService:
                 missing_queued = self._queue_missing_local_rows(pg)
 
             bootstrap_recovery = (
-                endpoint_changed
+                (endpoint_changed and self.target_endpoint != HISTORIA_NEON_EMERGENCY_ENDPOINT_ID)
                 or (local_patients == 0 and remote_patients > 0)
             )
             if bootstrap_recovery:

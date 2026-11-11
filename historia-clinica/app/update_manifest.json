@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.77",
-  "app_version": "1.4.77",
-  "runtime_version": "1.4.77",
+  "version": "1.4.78",
+  "app_version": "1.4.78",
+  "runtime_version": "1.4.78",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -88,11 +88,12 @@
     "clinical_video_library.py",
     "static/clinical_video_library.js",
     "clinical_video_cache.py",
-    "neon_emergency_copy.py"
+    "neon_emergency_copy.py",
+    "neon_emergency_cutover.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.77: habilita copia segura y explícita desde SQLite/PDF locales al proyecto Neon de emergencia, con verificación por tabla y archivo íntegro; sin modificar o desconectar Neon Oficial. El cambio de destino sigue bloqueado hasta comprobación de la migración. Conserva LAN, cola offline y firmas.",
-    "previous_version": "1.4.76",
+    "purpose": "Historia Clínica 1.4.78: activación guiada y protegida de Neon Emergencia tras verificar localmente la copia y los PDF; conserva credenciales oficiales privadas, resincroniza historial local al reiniciar y permite mantener consulta activa hasta el cierre seguro.",
+    "previous_version": "1.4.77",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -513,8 +514,8 @@
     "neon_duplicate_remote_profile_probe_removed": true,
     "neon_restore_1473_cloud_sync_exact": true,
     "neon_backup_project_id": "winter-smoke-49748362",
-    "neon_backup_empty_unsafe_to_select": true,
-    "neon_active_target": "official",
+    "neon_backup_empty_unsafe_to_select": false,
+    "neon_active_target": "official_until_user_confirmed_cutover",
     "neon_backup_readonly_status_panel": true,
     "neon_backup_requires_verified_copy": true,
     "neon_settings_import_alias_fix": true,
@@ -527,6 +528,10 @@
     "neon_official_unchanged": true,
     "neon_backup_must_be_verified_before_switch": true,
     "neon_emergency_ci_pure_data_test_fixed": true,
-    "neon_revisions_cloud_source_key_pk": true
+    "neon_revisions_cloud_source_key_pk": true,
+    "neon_emergency_verified_cutover": true,
+    "neon_emergency_cutover_requires_reopen": true,
+    "neon_emergency_full_local_reseed_on_first_launch": true,
+    "neon_cloud_sync_data_logic_changes": true
   }
 }

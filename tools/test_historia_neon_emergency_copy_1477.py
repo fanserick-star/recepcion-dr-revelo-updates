@@ -71,7 +71,7 @@ def main() -> None:
     assert "href='/configuracion/neon/copiar'" in config_src
     assert "Copiar todos los datos desde esta PC" in config_src
     manifest=json.loads((APP/"update_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == "1.4.77"
+    assert tuple(map(int, manifest["version"].split("."))) >= (1, 4, 77)
     assert "neon_emergency_copy.py" in manifest["copy"]
     print("HISTORIA_NEON_EMERGENCY_LOCAL_COPY_1477_OK")
 

@@ -35,7 +35,7 @@ def main() -> None:
     assert manifest["app_version"] == manifest["runtime_version"] == version
     assert tuple(map(int, version.split("."))) >= (1, 4, 76)
     assert manifest["notes"]["neon_settings_visible_in_actual_configuration"]
-    assert manifest["notes"]["neon_backup_empty_unsafe_to_select"]
+    assert manifest["notes"]["neon_emergency_verified_cutover"]
     print("HISTORIA_NEON_SETTINGS_ACTUAL_1476_OK")
 
 
