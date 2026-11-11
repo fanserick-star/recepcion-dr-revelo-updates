@@ -295,6 +295,20 @@ def _normalize_remote_value(value):
 HISTORIA_NEON_ECO_MODE = True
 
 
+def _should_pull_cloud(bootstrap_done: bool, active: bool, pending: int, elapsed_since_pull: float) -> bool:
+    """Reduce background pulls while preserving immediate dirty-row pushes.
+
+    The caller still connects whenever there are pending local changes.
+    An idle service without pending work never starts an ordinary pull;
+    bootstrap recovery remains unconditional.
+    """
+    if not bootstrap_done:
+        return True
+    if not active:
+        return False
+    return elapsed_since_pull >= (90 if pending > 0 else 300)
+
+
 class CloudSyncService:
     def __init__(self, root: Path, db_path: Path):
         self.root = Path(root)
@@ -688,13 +702,13 @@ class CloudSyncService:
         sconn.row_factory = sqlite3.Row
         try:
             pending = self._pending(sconn)
-            active = (not HISTORIA_NEON_ECO_MODE) or (time.monotonic() - self._last_activity) < 300
+            now_mono = time.monotonic()
+            active = (not HISTORIA_NEON_ECO_MODE) or (now_mono - self._last_activity) < 300
             bootstrap_done = (
                 self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
             )
-            pull_due = (
-                not bootstrap_done
-                or (active and (time.monotonic() - self._last_pull_monotonic >= (300 if pending == 0 and time.monotonic() - self._last_activity >= 300 else 90)))
+            pull_due = _should_pull_cloud(
+                bootstrap_done, active, pending, now_mono - self._last_pull_monotonic
             )
             # One-time safe restoration may be due even with no dirty rows.
             # If this PC has no original report/repose metadata, retry only
@@ -743,7 +757,9 @@ class CloudSyncService:
 
             # Recover the original public.* cloud dataset into historia.*.
             migration = self._migrate_legacy_public_to_historia(pg)
-            profile = self._probe_historia_data(pg)
+            # Reuse the endpoint-verified profile read by _connect_cloud()
+            # on this same connection; a second read here is redundant.
+            profile = self.remote_profile
             remote_patients = int(profile["historia_patients"] or 0)
             remote_encounters = int(profile["historia_encounters"] or 0)
 

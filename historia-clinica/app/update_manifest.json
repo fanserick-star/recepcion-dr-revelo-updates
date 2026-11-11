@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.73",
-  "app_version": "1.4.73",
-  "runtime_version": "1.4.73",
+  "version": "1.4.74",
+  "app_version": "1.4.74",
+  "runtime_version": "1.4.74",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.73: mitigación de consultas inactivas a Neon mediante ajuste del sondeo de sincronización; conserva los cambios pendientes, la cola offline, la entrega LAN, las historias, documentos, firmas y el rollback clínico.",
-    "previous_version": "1.4.72",
+    "purpose": "Historia Clínica 1.4.74: reduce el sondeo de Neon durante la actividad sin cambios pendientes a una comprobación cada 5 minutos; los cambios locales y la recuperación clínica mantienen prioridad y se elimina una lectura duplicada del perfil remoto por ciclo. Preserva datos, cola offline, entrega LAN, firmas y rollback.",
+    "previous_version": "1.4.73",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -505,6 +505,9 @@
     "lan_verified_new_patient_prepared_before_waiting_queue": true,
     "lan_patient_link_creation_in_historia": false,
     "lan_same_event_duplicate_safe": true,
-    "lan_new_patient_foreign_key_regression_test": true
+    "lan_new_patient_foreign_key_regression_test": true,
+    "neon_idle_no_pending_pull_seconds": 300,
+    "neon_pending_changes_no_extra_delay": true,
+    "neon_duplicate_remote_profile_probe_removed": true
   }
 }
