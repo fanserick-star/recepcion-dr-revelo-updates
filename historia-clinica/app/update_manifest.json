@@ -545,6 +545,7 @@
     "rx_legacy_divided_recipe_regression_updated_1480": true,
     "neon_emergency_cutover_checkpoint_batch_rows": 25,
     "neon_emergency_cutover_remote_schema_cache_per_batch": true,
-    "neon_emergency_short_transactions": true
+    "neon_emergency_short_transactions": true,
+    "neon_emergency_small_batches_validated": true
   }
 }
