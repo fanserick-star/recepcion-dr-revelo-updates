@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.76",
-  "app_version": "1.4.76",
-  "runtime_version": "1.4.76",
+  "version": "1.4.77",
+  "app_version": "1.4.77",
+  "runtime_version": "1.4.77",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -31,7 +31,8 @@
     "static/doctor_icon.b64",
     "queue_arrival_chime.py",
     "doctor_turn_call.py",
-    "patient_document_panel.py"
+    "patient_document_panel.py",
+    "neon_emergency_copy.py"
   ],
   "required_python_packages": [
     {
@@ -86,11 +87,12 @@
     "patient_document_panel.py",
     "clinical_video_library.py",
     "static/clinical_video_library.js",
-    "clinical_video_cache.py"
+    "clinical_video_cache.py",
+    "neon_emergency_copy.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.76: corrige la ausencia visible de Neon Oficial y Respaldo en la pantalla real de Configuración (documentos_clinicos.py). Restaura y mantiene sincronización de la 1.4.73, sin conmutación al proyecto de emergencia vacío, conservando SQLite, cola offline, LAN, firmas y rollback.",
-    "previous_version": "1.4.75",
+    "purpose": "Historia 1.4.77: habilita copia segura y explícita desde SQLite/PDF locales al proyecto Neon de emergencia, con verificación por tabla y archivo íntegro; sin modificar o desconectar Neon Oficial. El cambio de destino sigue bloqueado hasta comprobación de la migración. Conserva LAN, cola offline y firmas.",
+    "previous_version": "1.4.76",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -519,6 +521,10 @@
     "neon_settings_visible_in_actual_configuration": true,
     "neon_actual_settings_route": "/configuracion",
     "neon_details_route": "/configuracion/neon",
-    "neon_1475_regression_test_forward_compatible": true
+    "neon_1475_regression_test_forward_compatible": true,
+    "neon_local_emergency_upload": true,
+    "neon_emergency_archive_and_clinical_tables": true,
+    "neon_official_unchanged": true,
+    "neon_backup_must_be_verified_before_switch": true
   }
 }

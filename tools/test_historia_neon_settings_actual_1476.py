@@ -31,7 +31,9 @@ def main() -> None:
     assert "winter-smoke-49748362" in app
 
     manifest = json.loads((APP / "update_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == "1.4.76"
+    version = manifest["version"]
+    assert manifest["app_version"] == manifest["runtime_version"] == version
+    assert tuple(map(int, version.split("."))) >= (1, 4, 76)
     assert manifest["notes"]["neon_settings_visible_in_actual_configuration"]
     assert manifest["notes"]["neon_backup_empty_unsafe_to_select"]
     print("HISTORIA_NEON_SETTINGS_ACTUAL_1476_OK")

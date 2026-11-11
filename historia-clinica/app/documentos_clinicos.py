@@ -2444,6 +2444,10 @@ body{{background:#e8edf1;padding:14px}}
             </div>
           </div>
           <div class='doc-actions'>
+            <a class='config-tool-btn' href='/configuracion/neon/copiar' style='display:inline-block;text-decoration:none;margin-right:10px'>
+              <b>Copiar todos los datos desde esta PC</b>
+              <small>Respaldo SQLite y PDF firmados hacia Neon de emergencia. El Oficial sigue activo.</small>
+            </a>
             <a class='config-tool-btn' href='/configuracion/neon' style='display:inline-block;text-decoration:none'>
               <b>Ver estado de Oficial y Respaldo</b>
               <small>Comprobar pacientes, consultas, recetas y cambios pendientes de esta PC.</small>
