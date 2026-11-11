@@ -518,6 +518,7 @@
     "neon_settings_import_alias_fix": true,
     "neon_settings_visible_in_actual_configuration": true,
     "neon_actual_settings_route": "/configuracion",
-    "neon_details_route": "/configuracion/neon"
+    "neon_details_route": "/configuracion/neon",
+    "neon_1475_regression_test_forward_compatible": true
   }
 }

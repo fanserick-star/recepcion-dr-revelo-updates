@@ -38,7 +38,10 @@ def main() -> None:
     assert "No se muestran nombres ni datos médicos" in active_app
 
     manifest = json.loads((APP/"update_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"] == manifest["app_version"] == manifest["runtime_version"] == "1.4.75"
+    version = manifest["version"]
+    assert manifest["app_version"] == manifest["runtime_version"] == version
+    # Older safety checks also apply to all later patched Historia versions.
+    assert tuple(map(int, version.split("."))) >= (1, 4, 75), version
     assert manifest["notes"]["neon_active_target"] == "official"
     assert manifest["notes"]["neon_backup_empty_unsafe_to_select"] is True
     print("HISTORIA_NEON_SOURCES_1475_OK")
