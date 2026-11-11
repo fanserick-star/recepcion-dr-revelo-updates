@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.79",
-  "app_version": "1.4.79",
-  "runtime_version": "1.4.79",
+  "version": "1.4.80",
+  "app_version": "1.4.80",
+  "runtime_version": "1.4.80",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -92,8 +92,8 @@
     "neon_emergency_cutover.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.79: activa Neon de emergencia verificado por el usuario conservando el Oficial como reversión, reenvía también auditoría y revisiones clínicas posteriores al respaldo sin duplicarlas y refleja correctamente la nube activa en Configuración. Sin borrar historias ni interrumpir citas.",
-    "previous_version": "1.4.78",
+    "purpose": "Historia Clínica 1.4.80: elimina la numeración automática 1., 2., 3. de los medicamentos impresos en las columnas izquierda y derecha de las recetas nuevas y en las reimpresiones del formato anterior. Conserva nombre, presentación/cantidad, indicaciones, alineación A4, número de serie, PDF PAdES ya firmado, datos clínicos y sincronización Neon.",
+    "previous_version": "1.4.79",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -117,7 +117,7 @@
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
     "cloud_status_write_failure_nonfatal": true,
-    "printing_changes": false,
+    "printing_changes": true,
     "consentimiento_fixed_text_preserved": true,
     "consentimiento_patient_prefill_local_only": true,
     "consentimiento_encounter_autosave_before_open": true,
@@ -341,7 +341,7 @@
     "rx_a4_copy_height_mm": 292,
     "rx_a4_stripe_bottom_clearance_mm": 8,
     "rx_a4_both_print_paths_css": true,
-    "rx_preserve_legacy_print_content": true,
+    "rx_preserve_legacy_print_content": false,
     "document_editor_independent_shell": true,
     "document_editor_navigation_duplicate_removed": true,
     "document_editor_max_width_px": 1600,
@@ -536,6 +536,11 @@
     "neon_emergency_local_audit_revision_reseed": true,
     "neon_emergency_audit_idempotent": true,
     "neon_configuration_active_status_dynamic": true,
-    "neon_1478_tests_forward_compatible": true
+    "neon_1478_tests_forward_compatible": true,
+    "prescription_item_ordinals_visible": false,
+    "prescription_item_ordinals_removed_both_columns": true,
+    "prescription_legacy_reprint_without_ordinals": true,
+    "prescription_series_number_preserved": true,
+    "prescription_layout_and_alignment_unchanged": true
   }
 }

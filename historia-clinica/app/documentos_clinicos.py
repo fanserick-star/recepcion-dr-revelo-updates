@@ -1093,10 +1093,11 @@ def install(app, context: dict) -> None:
         except Exception:
             items = []
 
+        # Los nombres de medicamentos se imprimen sin ordinales (ambas copias).
         meds = "".join(
             (
                 "<div class='med-item'>"
-                f"<div class='med-name'>{i+1}. {_e(str(x.get('medication') or '').upper())}</div>"
+                f"<div class='med-name'>{_e(str(x.get('medication') or '').upper())}</div>"
                 "<div class='med-line'>"
                 + " ".join(
                     part for part in (
@@ -1107,7 +1108,7 @@ def install(app, context: dict) -> None:
                 )
                 + "</div></div>"
             )
-            for i, x in enumerate(items)
+            for x in items
         )
         if not meds:
             meds = "<div class='med-empty'>Sin medicamentos registrados.</div>"
@@ -1126,11 +1127,12 @@ def install(app, context: dict) -> None:
         paired_meds = ""
         medication_density = ""
         if split_prescription:
+            # Sin numeración en ninguna mitad; se mantiene la cuadrícula alineada.
             # Una FILA por medicamento, con dos columnas que comparten altura.
             # Los nombres de ambos lados arrancan a la misma cota incluso
             # cuando la indicación o presentación ocupa varias líneas.
             pair_rows = []
-            for i, item in enumerate(items):
+            for item in items:
                 if not isinstance(item, dict):
                     continue
                 name = _e(str(item.get("medication") or "").strip().upper())
@@ -1139,13 +1141,13 @@ def install(app, context: dict) -> None:
                 presentation = _e(str(item.get("presentation_quantity") or "").strip().upper())
                 indications = _e(str(item.get("indications") or "").strip().upper())
                 left_content = (
-                    f"<div class='med-name'>{i+1}. {name}"
+                    f"<div class='med-name'>{name}"
                     + (f" <span class='med-presentation'>{presentation}</span>"
                        if presentation else "")
                     + "</div>"
                 )
                 right_content = (
-                    f"<div class='med-name'>{i+1}. {name}</div>"
+                    f"<div class='med-name'>{name}</div>"
                     + (f"<div class='med-line'>{indications}</div>"
                        if indications else "")
                 )

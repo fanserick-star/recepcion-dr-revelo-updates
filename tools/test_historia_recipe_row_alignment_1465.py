@@ -78,7 +78,8 @@ for content, number, medicine in [
     (first, "1.", "PRIMER MEDICAMENTO"),
     (second, "2.", "SEGUNDO MEDICAMENTO"),
 ]:
-    assert content.count(f"{number} {medicine}") == 2, content
+    assert content.count(f"<div class='med-name'>{medicine}") == 2, content
+    assert f"<div class='med-name'>{number} {medicine}" not in content, content
     assert content.index("rx-med-left") < content.index("rx-med-right")
     assert "class='med-name'" in content
 assert "CÁPSULAS #60" in first
@@ -105,12 +106,14 @@ assert "<main class='sheet rx-signed-preview'>" in signed
 assert ".rx-signed-preview .rx-paired-medications{bottom:64mm}" in signed
 assert signed.count("<div class='rx-med-pair'>") == 2
 
-# Historical recipes do not use paired overlays: both A4 copies unchanged.
+# Historical recipes retain their A4 layout but omit generated medication ordinals.
 old_items = [{"medication":"ANTIGUO","dose":"1 TABLETA", "frequency":"CADA 12H"}]
 old = render(old_items)
 assert "<div class='rx-paired-medications" not in old
-assert old.count("1. ANTIGUO") == 2
+assert old.count("<div class='med-name'>ANTIGUO</div>") == 2
+assert "<div class='med-name'>1. ANTIGUO" not in old
 assert "1 TABLETA CADA 12H" in old
+assert old.count("Serie No: 00262") == 2, "La numeración de la serie se conserva"
 assert "Sin medicamentos registrados." not in old
 
-print("HISTORIA_1465_RECIPE_ROW_ALIGNMENT_SHARED_GRID_OK")
+print("HISTORIA_1480_RECIPE_WITHOUT_MEDICATION_ORDINALS_LEFT_RIGHT_AND_LEGACY_OK")
