@@ -694,7 +694,7 @@ class CloudSyncService:
             )
             pull_due = (
                 not bootstrap_done
-                or (active and (time.monotonic() - self._last_pull_monotonic >= 90))
+                or (active and (time.monotonic() - self._last_pull_monotonic >= (300 if pending == 0 and time.monotonic() - self._last_activity >= 300 else 90)))
             )
             # One-time safe restoration may be due even with no dirty rows.
             # If this PC has no original report/repose metadata, retry only
