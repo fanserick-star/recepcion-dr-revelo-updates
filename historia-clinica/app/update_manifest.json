@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.80",
-  "app_version": "1.4.80",
-  "runtime_version": "1.4.80",
+  "version": "1.4.81",
+  "app_version": "1.4.81",
+  "runtime_version": "1.4.81",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -92,8 +92,8 @@
     "neon_emergency_cutover.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.80: elimina la numeración automática 1., 2., 3. de los medicamentos impresos en las columnas izquierda y derecha de las recetas nuevas y en las reimpresiones del formato anterior. Conserva nombre, presentación/cantidad, indicaciones, alineación A4, número de serie, PDF PAdES ya firmado, datos clínicos y sincronización Neon.",
-    "previous_version": "1.4.79",
+    "purpose": "Historia Clínica 1.4.81: sincronización al Neon de emergencia en lotes pequeños de 25 registros con confirmaciones frecuentes; elimina consultas repetitivas al esquema remoto durante cada lote, preserva cola local, historial clínico, documentos firmados y entrega LAN de turnos de Recepción. No borra ni altera el Neon antiguo.",
+    "previous_version": "1.4.80",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -112,7 +112,7 @@
     "tv_procedures_excluded": true,
     "clinical_data_changes": false,
     "cloud_logic_changes": true,
-    "cloud_sync_data_logic_changes": false,
+    "cloud_sync_data_logic_changes": true,
     "cloud_status_write_resilience": true,
     "cloud_status_unique_temp_files": true,
     "cloud_status_atomic_replace_retry": true,
@@ -542,6 +542,9 @@
     "prescription_legacy_reprint_without_ordinals": true,
     "prescription_series_number_preserved": true,
     "prescription_layout_and_alignment_unchanged": true,
-    "rx_legacy_divided_recipe_regression_updated_1480": true
+    "rx_legacy_divided_recipe_regression_updated_1480": true,
+    "neon_emergency_cutover_checkpoint_batch_rows": 25,
+    "neon_emergency_cutover_remote_schema_cache_per_batch": true,
+    "neon_emergency_short_transactions": true
   }
 }

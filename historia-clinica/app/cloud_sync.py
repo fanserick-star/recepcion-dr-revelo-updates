@@ -1046,7 +1046,14 @@ class CloudSyncService:
         pushed = 0
         completed = []
         try:
-            items = sconn.execute("""
+            # Emergency cutover may queue 25k existing local rows. Keep each remote
+        # transaction small so a slow doctor PC can checkpoint successfully
+        # without holding hundreds of writes open for many minutes.
+        push_limit = 25 if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID else 750
+        remote_columns_cache: dict[str, set[str]] = {}
+        bootstrap_complete = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
+        last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
+        items = sconn.execute("""
                 SELECT table_name,row_key FROM sync_dirty
                 ORDER BY CASE table_name
                   WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
@@ -1054,8 +1061,8 @@ class CloudSyncService:
                   WHEN 'prescriptions' THEN 7 WHEN 'certificates' THEN 8 WHEN 'clinic_settings' THEN 9
                   WHEN 'audit_log' THEN 10 WHEN 'encounter_revisions' THEN 11 ELSE 99 END,
                   changed_at, row_key
-                LIMIT 750
-            """).fetchall()
+                LIMIT ?
+            """, (push_limit,)).fetchall()
             for item in items:
                 table, key = item["table_name"], item["row_key"]
                 if table == "patient_links":
@@ -1082,9 +1089,8 @@ class CloudSyncService:
                 if (
                     row is not None
                     and table in BIDIRECTIONAL_TABLES
-                    and self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
+                    and bootstrap_complete
                 ):
-                    last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
                     check = pg.cursor()
                     check.execute(
                         f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=%s "
@@ -1134,7 +1140,9 @@ class CloudSyncService:
                     # v1.3.43: the dedicated clinical Neon is an older schema.
                     # Only send columns that actually exist remotely. Newer local
                     # fields remain preserved in SQLite and do not break sync.
-                    remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, table)
+                    if table not in remote_columns_cache:
+                        remote_columns_cache[table] = self._remote_columns(pg, CLOUD_SCHEMA, table)
+                    remote_cols = remote_columns_cache[table]
                     columns = [
                         c for c in data.keys()
                         if c in remote_cols

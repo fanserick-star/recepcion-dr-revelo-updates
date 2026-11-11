@@ -51,6 +51,11 @@ def main():
     assert "data[\"id\"] = (str(row[\"id\"]) if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID" in src
     assert "if table == \"patient_links\":" in src
     assert "clean_remote_cursor" in src
+    assert "push_limit = 25 if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID else 750" in src
+    assert 'LIMIT ?' in src
+    assert "remote_columns_cache" in src
+    assert "pg.commit()" in src
+    assert "DELETE FROM sync_dirty WHERE table_name=? AND row_key=?" in src
     assert "if endpoint_id != self.target_endpoint" in src
     active=(APP/"app.py").read_text(encoding="utf-8")
     assert "neon_emergency_cutover.install(app, ROOT, DB_PATH, base)" in active

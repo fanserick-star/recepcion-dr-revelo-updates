@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.70: evita anuncios dobles por pulsaciones accidentales del botón Llamar. Bloqueo de 12 segundos con cuenta regresiva y protección adicional del servidor por turno. Permite Repetir llamado voluntariamente cuando termina el bloqueo. Sin cambios en pacientes, documentos, facturas, cola de espera ni Neon."
+  "notes": "Historia Clínica 1.4.81: sincronización al Neon de emergencia en lotes pequeños de 25 registros con confirmaciones frecuentes; elimina consultas repetitivas al esquema remoto durante cada lote, preserva cola local, historial clínico, documentos firmados y entrega LAN de turnos de Recepción. No borra ni altera el Neon antiguo."
 }
