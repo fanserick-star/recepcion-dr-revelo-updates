@@ -18,10 +18,10 @@ def main() -> None:
     assert "id='neon'" in config
     assert config.index("id='estado'") < config.index("id='neon'") < config.index("id='herramientas'")
     assert "href='#neon'>Neon: Oficial y Respaldo" in config
-    assert "Neon Oficial · Seleccionado" in config
-    assert "Neon Respaldo · No disponible" in config
+    assert "Neon Oficial · {'Anterior' if emergency_now_active else 'Seleccionado'}" in config
+    assert "Neon Respaldo · {'Activo' if emergency_now_active else 'Disponible tras verificar'}" in config
     assert "href='/configuracion/neon'" in config
-    assert "datos clínicos aún sin copiar" in config
+    assert "Proyecto de emergencia verificado desde la copia local" in config
     assert "return HTMLResponse(base(\"Configuración\", body, \"configuracion\"))" in config
 
     app = (APP / "app.py").read_text(encoding="utf-8-sig")

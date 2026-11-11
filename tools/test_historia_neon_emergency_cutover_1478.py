@@ -47,6 +47,8 @@ def main():
     src=(APP/"cloud_sync.py").read_text(encoding="utf-8")
     assert "self.target_endpoint" in src
     assert "emergency_cutover_seeded_1478" in src
+    assert "for table, pk in ALL_SYNC_TABLES.items():" in src
+    assert "data[\"id\"] = (str(row[\"id\"]) if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID" in src
     assert "if table == \"patient_links\":" in src
     assert "clean_remote_cursor" in src
     assert "if endpoint_id != self.target_endpoint" in src

@@ -360,7 +360,7 @@ class CloudSyncService:
             if marker:
                 conn.rollback()
                 return
-            for table, pk in BIDIRECTIONAL_TABLES.items():
+            for table, pk in ALL_SYNC_TABLES.items():
                 if table == "patient_links":
                     continue
                 conn.execute(
@@ -1104,7 +1104,11 @@ class CloudSyncService:
                     continue
                 data = dict(row)
                 if table == "audit_log":
-                    data["id"] = f"{self.device_id}:{row['id']}"
+                    # The emergency import stored the original local audit IDs.
+                    # Match those keys to avoid doubling the audit trail while
+                    # reseeding every row on emergency cutover.
+                    data["id"] = (str(row["id"]) if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+                                  else f"{self.device_id}:{row['id']}")
                     data["device_id"] = self.device_id
                     columns = ["id","occurred_at","actor","action","entity_type","entity_id","details_json","device_id"]
                     vals = [data.get(c) for c in columns]

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.78",
-  "app_version": "1.4.78",
-  "runtime_version": "1.4.78",
+  "version": "1.4.79",
+  "app_version": "1.4.79",
+  "runtime_version": "1.4.79",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -92,8 +92,8 @@
     "neon_emergency_cutover.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.78: activación guiada y protegida de Neon Emergencia tras verificar localmente la copia y los PDF; conserva credenciales oficiales privadas, resincroniza historial local al reiniciar y permite mantener consulta activa hasta el cierre seguro.",
-    "previous_version": "1.4.77",
+    "purpose": "Historia Clínica 1.4.79: activa Neon de emergencia verificado por el usuario conservando el Oficial como reversión, reenvía también auditoría y revisiones clínicas posteriores al respaldo sin duplicarlas y refleja correctamente la nube activa en Configuración. Sin borrar historias ni interrumpir citas.",
+    "previous_version": "1.4.78",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -532,6 +532,9 @@
     "neon_emergency_verified_cutover": true,
     "neon_emergency_cutover_requires_reopen": true,
     "neon_emergency_full_local_reseed_on_first_launch": true,
-    "neon_cloud_sync_data_logic_changes": true
+    "neon_cloud_sync_data_logic_changes": true,
+    "neon_emergency_local_audit_revision_reseed": true,
+    "neon_emergency_audit_idempotent": true,
+    "neon_configuration_active_status_dynamic": true
   }
 }

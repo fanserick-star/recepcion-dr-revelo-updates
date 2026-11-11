@@ -2374,6 +2374,7 @@ body{{background:#e8edf1;padding:14px}}
             shared = _settings(conn)
             local = _local_settings(conn)
         sync = get_sync_status(data_dir) if get_sync_status else {}
+        emergency_now_active = str(sync.get("cloud_endpoint_id") or "") == "ep-noisy-paper-arf28291"
         fields = [
             ("doctor_name","Nombre del médico"),("specialty","Especialidad"),
             ("msp_registration","Registro M.S.P."),("senescyt_registration","Registro Senescyt"),
@@ -2436,11 +2437,11 @@ body{{background:#e8edf1;padding:14px}}
           <div class='config-status-grid'>
             <div class='config-status-item' id='cfg-neon-official'>
               <span class='mark'>✓</span>
-              <span><b>Neon Oficial · Seleccionado</b><small>Historia Clínica principal · sincronización habitual</small></span>
+              <span><b>Neon Oficial · {'Anterior' if emergency_now_active else 'Seleccionado'}</b><small>Historia Clínica principal · sincronización habitual</small></span>
             </div>
             <div class='config-status-item pending' id='cfg-neon-backup'>
               <span class='mark'>•</span>
-              <span><b>Neon Respaldo · No disponible</b><small>Proyecto de emergencia creado; datos clínicos aún sin copiar</small></span>
+              <span><b>Neon Respaldo · {'Activo' if emergency_now_active else 'Disponible tras verificar'}</b><small>Proyecto de emergencia verificado desde la copia local de la PC</small></span>
             </div>
           </div>
           <div class='doc-actions'>
@@ -2457,7 +2458,7 @@ body{{background:#e8edf1;padding:14px}}
               <small>Comprobar pacientes, consultas, recetas y cambios pendientes de esta PC.</small>
             </a>
           </div>
-          <p><small>La opción Respaldo no cambia la conexión automáticamente y no se activa mientras esté vacía.</small></p>
+          <p><small>El respaldo se activa únicamente tras verificar la copia y reiniciar Historia. Los cambios recientes se reenvían desde SQLite local.</small></p>
         </section>
 
         <section class='docs-card' id='herramientas'>
