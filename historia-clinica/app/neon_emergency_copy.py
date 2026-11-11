@@ -143,12 +143,12 @@ def _create_tables(source: sqlite3.Connection, pg) -> None:
             if name == "cloud_updated_at":
                 continue
             typ = "TEXT" if name == key else _type_for(col)
-            definitions.append(_quoted(name) + " " + typ + (" PRIMARY KEY" if name == key else ""))
+            definitions.append(_quoted(name) + " " + typ + (" PRIMARY KEY" if name == key and table != "encounter_revisions" else ""))
         if "deleted_at" not in names:
             definitions.append("deleted_at TEXT")
         definitions.append("cloud_updated_at TIMESTAMPTZ NOT NULL DEFAULT now()")
         if table == "encounter_revisions" and "source_key" not in names:
-            definitions.append("source_key TEXT")
+            definitions.append("source_key TEXT PRIMARY KEY")
         if table == "audit_log" and "device_id" not in names:
             definitions.append("device_id TEXT")
         cursor.execute("CREATE TABLE IF NOT EXISTS public." + _quoted(table) +
@@ -160,6 +160,8 @@ def _create_tables(source: sqlite3.Connection, pg) -> None:
         found = {str(r[0]) for r in cursor.fetchall()}
         required = set(names) - {"cloud_updated_at"}
         required |= {key, "deleted_at", "cloud_updated_at"}
+        if table == "encounter_revisions":
+            required.add("source_key")
         if not required.issubset(found):
             raise RuntimeError("Esquema parcial o incompatible en el respaldo: " + table)
     cursor.execute("""CREATE TABLE IF NOT EXISTS public.devices(
@@ -248,11 +250,14 @@ def _copy_rows(snapshot: sqlite3.Connection, pg, root: Path) -> dict:
                 " FROM " + _quoted(table) + " ORDER BY CAST(" + _quoted(pk) + " AS TEXT)"
         cur = snapshot.execute(query)
         remote = pg.cursor()
-        names_str = ",".join(_quoted(c) for c in names)
+        revisions_need_source_key = table == "encounter_revisions" and "source_key" not in names
+        remote_key = "source_key" if revisions_need_source_key else pk
+        outbound_names = names + (["source_key"] if revisions_need_source_key else [])
+        names_str = ",".join(_quoted(c) for c in outbound_names)
         columns_sql = names_str + ",cloud_updated_at"
-        placeholders = "(" + ",".join(["%s"] * len(names)) + ",now())"
+        placeholders = "(" + ",".join(["%s"] * len(outbound_names)) + ",now())"
         updates = ",".join(_quoted(c) + "=EXCLUDED." + _quoted(c)
-                           for c in names if c != pk)
+                           for c in outbound_names if c != remote_key)
         update_clause = "DO UPDATE SET " + updates + ",cloud_updated_at=now()" \
                         if updates else "DO NOTHING"
         rows_done = 0
@@ -261,14 +266,15 @@ def _copy_rows(snapshot: sqlite3.Connection, pg, root: Path) -> dict:
             if not batch:
                 break
             rows = [tuple(row) for row in batch]
-            if table == "audit_log":
-                # Preserve original audit records and leave device-prefixed new writes separate.
-                pass
-            if table == "encounter_revisions":
-                pass
+            if revisions_need_source_key:
+                device_file = root / "data" / "device_id.txt"
+                device_id = (device_file.read_text(encoding="utf-8").strip()
+                             if device_file.is_file() else "historia-local")
+                key_index = names.index(pk)
+                rows = [r + (device_id + ":" + str(r[key_index]),) for r in rows]
             sql = "INSERT INTO public." + _quoted(table) + "(" + columns_sql + ") VALUES " + \
                   ",".join([placeholders] * len(rows)) + \
-                  " ON CONFLICT (" + _quoted(pk) + ") " + update_clause
+                  " ON CONFLICT (" + _quoted(remote_key) + ") " + update_clause
             params = [cell for row in rows for cell in row]
             remote.execute(sql, tuple(params))
             rows_done += len(rows)

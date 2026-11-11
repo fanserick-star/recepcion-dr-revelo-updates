@@ -64,6 +64,9 @@ def main() -> None:
         assert m._table_digest_local(sqlite3.connect(db),"patients","id")[0]==1
     app_src=(APP/"app.py").read_text(encoding="utf-8")
     config_src=(APP/"documentos_clinicos.py").read_text(encoding="utf-8")
+    migration_source=(APP/"neon_emergency_copy.py").read_text(encoding="utf-8")
+    assert 'definitions.append("source_key TEXT PRIMARY KEY")' in migration_source
+    assert 'remote_key = "source_key" if revisions_need_source_key else pk' in migration_source
     assert "neon_emergency_copy.install(app, ROOT, DB_PATH, base)" in app_src
     assert "href='/configuracion/neon/copiar'" in config_src
     assert "Copiar todos los datos desde esta PC" in config_src
