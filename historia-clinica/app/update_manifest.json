@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.74",
-  "app_version": "1.4.74",
-  "runtime_version": "1.4.74",
+  "version": "1.4.75",
+  "app_version": "1.4.75",
+  "runtime_version": "1.4.75",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.74: reduce el sondeo de Neon durante la actividad sin cambios pendientes a una comprobación cada 5 minutos; los cambios locales y la recuperación clínica mantienen prioridad y se elimina una lectura duplicada del perfil remoto por ciclo. Preserva datos, cola offline, entrega LAN, firmas y rollback.",
-    "previous_version": "1.4.73",
+    "purpose": "Historia Clínica 1.4.75: restaurar el comportamiento de sincronización de 1.4.73 y agregar en Configuración Neon Oficial y Respaldo con bloqueo de conmutación hasta verificar la copia clínica. Conserva SQLite, cola offline, LAN, documentos firmados, seguridad y rollback.",
+    "previous_version": "1.4.74",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -508,6 +508,12 @@
     "lan_new_patient_foreign_key_regression_test": true,
     "neon_idle_no_pending_pull_seconds": 300,
     "neon_pending_changes_no_extra_delay": true,
-    "neon_duplicate_remote_profile_probe_removed": true
+    "neon_duplicate_remote_profile_probe_removed": true,
+    "neon_restore_1473_cloud_sync_exact": true,
+    "neon_backup_project_id": "winter-smoke-49748362",
+    "neon_backup_empty_unsafe_to_select": true,
+    "neon_active_target": "official",
+    "neon_backup_readonly_status_panel": true,
+    "neon_backup_requires_verified_copy": true
   }
 }

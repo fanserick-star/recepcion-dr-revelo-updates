@@ -27,7 +27,7 @@ jobs:
       - name: Enforce canonical Historia source
         run: |
           python tools/test_historia_canonical_source.py
-          python tools/test_historia_neon_pull_schedule_1474.py
+          python tools/test_historia_neon_sources_1475.py
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_queue_arrival_chime_1459.py
           python tools/test_historia_queue_expiry_sqlite_1446.py

@@ -5455,6 +5455,14 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
     html = _DOCTOR_CALL_ORIGINAL_BASE(title, body, active, extra_head, extra_script)
     if active == "configuracion":
         html = html.replace("</main>",
+            "<div class='panel' style='padding:16px;margin:15px 0'>"
+            "<b>Neon · Oficial y Respaldo</b>"
+            "<p>Revisa la conexión principal y el proyecto de emergencia. "
+            "El respaldo no puede activarse hasta tener la copia clínica verificada.</p>"
+            "<a class='secondary btn-link' href='/configuracion/neon'>"
+            "Ver conexiones Neon</a></div></main>", 1)
+    if active == "configuracion":
+        html = html.replace("</main>",
             "<div class='panel' style='padding:14px;margin:15px 0'>"
             "<b>Rendimiento y sincronización</b><p>Mediciones locales sin datos de pacientes.</p>"
             "<a class='secondary btn-link' href='/api/ops/performance/view'>"
@@ -5586,3 +5594,87 @@ def hc1468_diagnostics_page(request: Request):
     )
     return base("Rendimiento", body, "configuracion")
 
+
+
+# Historia 1.4.75 — inspección LOCAL de las fuentes Neon.
+# Este panel no cambia el destino, no abre PostgreSQL y no transmite datos.
+@app.get("/configuracion/neon", response_class=HTMLResponse)
+def hc1475_neon_sources(request: Request):
+    if not request.client or request.client.host not in {"127.0.0.1", "::1"}:
+        raise HTTPException(status_code=403, detail="Solo disponible en la PC del doctor")
+
+    sync = get_sync_status(ROOT / "data")
+    current_endpoint = str(sync.get("cloud_endpoint_id") or "")
+    official_endpoint = cloud_sync.HISTORIA_NEON_ENDPOINT_ID
+    # Este proyecto existe, pero su Neon todavía no tiene tablas clínicas.
+    # NUNCA se selecciona automáticamente ni se escribe aquí.
+    backup_project = "winter-smoke-49748362"
+    backup_endpoint = "ep-noisy-paper-arf28291"
+    official_matches = current_endpoint == official_endpoint
+    is_online = bool(sync.get("online")) and official_matches
+    status_label = "Conectado" if is_online else "Local / sin sincronizar ahora"
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True, timeout=5)
+        try:
+            counts = {}
+            for table_name in ("patients", "encounters", "prescriptions", "certificates"):
+                counts[table_name] = int(conn.execute(
+                    f"SELECT COUNT(*) FROM {table_name}"
+                ).fetchone()[0])
+            pending = int(conn.execute("SELECT COUNT(*) FROM sync_dirty").fetchone()[0])
+        finally:
+            conn.close()
+    except Exception:
+        counts = {}
+        pending = -1
+
+    def count_display(key: str) -> str:
+        return str(counts.get(key, "Sin verificar"))
+
+    body = (
+        "<section class='page-head'><span class='eyebrow'>RESPALDO DE EMERGENCIA</span>"
+        "<h1>Neon: Oficial y Respaldo</h1>"
+        "<p>Elige la fuente solo después de verificar la migración de todos los datos. "
+        "La aplicación sigue trabajando con SQLite local.</p></section>"
+        "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px'>"
+        "<section class='panel' style='padding:20px;border:2px solid #278b78'>"
+        "<p style='font-weight:700;color:#278b78'>● OFICIAL · ACTIVO</p>"
+        "<h2>Historia Clínica principal</h2>"
+        "<p><b>Proyecto:</b> still-water-00343912</p>"
+        "<p><b>Estado:</b> " + e(status_label) + "</p>"
+        "<p>Este es el único destino permitido para sincronizar los datos clínicos.</p>"
+        "<label style='display:flex;gap:10px;align-items:center'>"
+        "<input type='radio' name='neon-target' checked disabled> Seleccionado</label>"
+        "</section>"
+        "<section class='panel' style='padding:20px;opacity:.8'>"
+        "<p style='font-weight:700;color:#a36b22'>● RESPALDO · PENDIENTE</p>"
+        "<h2>Historia Clínica Emergencia</h2>"
+        "<p><b>Proyecto:</b> " + e(backup_project) + "</p>"
+        "<p><b>Endpoint verificado:</b> " + e(backup_endpoint) + "</p>"
+        "<p>La base de emergencia todavía está vacía. Por seguridad no puede "
+        "activarse ni recibir escrituras desde esta aplicación.</p>"
+        "<label style='display:flex;gap:10px;align-items:center'>"
+        "<input type='radio' name='neon-target' disabled> Activar solo al verificar copia completa</label>"
+        "<p><a class='secondary btn-link' href='https://console.neon.tech/app/projects/"
+        + e(backup_project) + "' target='_blank' rel='noopener noreferrer'>"
+        "Abrir respaldo en Neon</a></p>"
+        "</section></div>"
+        "<div class='panel' style='padding:20px;margin-top:16px'>"
+        "<h2>Datos guardados en esta PC (SQLite)</h2>"
+        "<p><b>Pacientes:</b> " + count_display("patients")
+        + " · <b>Consultas:</b> " + count_display("encounters")
+        + " · <b>Recetas:</b> " + count_display("prescriptions")
+        + " · <b>Certificados/informes:</b> " + count_display("certificates") + "</p>"
+        "<p><b>Cambios por sincronizar:</b> " +
+        (str(pending) if pending >= 0 else "Sin verificar") + "</p>"
+        "<p>Estos números describen la PC, no prueban que la nube tenga una copia idéntica."
+        " Los PDF firmados originales también se conservan en archivos locales separados."
+        " No se muestran nombres ni datos médicos en esta página.</p>"
+        "<p><a class='secondary btn-link' href='/configuracion'>Volver a configuración</a></p>"
+        "</div>"
+    )
+    return base("Neon Oficial y Respaldo", body, "neon")
+
+
+# El estado de la nube se mantiene sin cambios hasta que exista una migración
+# comprobada. Este panel NO implementa conmutación a un proyecto vacío.
