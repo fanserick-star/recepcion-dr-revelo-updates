@@ -10,6 +10,20 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 APP=ROOT/"historia-clinica"/"app"
 sys.path.insert(0,str(APP))
+# CI runs these pure migration checks before its FastAPI dependency install.
+# Only HTTP routing needs FastAPI; use lightweight module stubs here.
+import types
+try:
+    import fastapi  # noqa: F401
+except ModuleNotFoundError:
+    fastapi = types.ModuleType("fastapi")
+    fastapi.HTTPException = type("HTTPException", (Exception,), {})
+    fastapi.Request = type("Request", (), {})
+    responses = types.ModuleType("fastapi.responses")
+    responses.HTMLResponse = type("HTMLResponse", (), {})
+    responses.JSONResponse = type("JSONResponse", (), {})
+    sys.modules["fastapi"] = fastapi
+    sys.modules["fastapi.responses"] = responses
 import neon_emergency_copy as m
 
 
