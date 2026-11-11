@@ -535,6 +535,7 @@
     "neon_cloud_sync_data_logic_changes": true,
     "neon_emergency_local_audit_revision_reseed": true,
     "neon_emergency_audit_idempotent": true,
-    "neon_configuration_active_status_dynamic": true
+    "neon_configuration_active_status_dynamic": true,
+    "neon_1478_tests_forward_compatible": true
   }
 }
