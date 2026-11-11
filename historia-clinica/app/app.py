@@ -5605,7 +5605,7 @@ def hc1475_neon_sources(request: Request):
 
     sync = get_sync_status(ROOT / "data")
     current_endpoint = str(sync.get("cloud_endpoint_id") or "")
-    official_endpoint = cloud_sync.HISTORIA_NEON_ENDPOINT_ID
+    official_endpoint = _v139_cloud_sync.HISTORIA_NEON_ENDPOINT_ID
     # Este proyecto existe, pero su Neon todavía no tiene tablas clínicas.
     # NUNCA se selecciona automáticamente ni se escribe aquí.
     backup_project = "winter-smoke-49748362"
