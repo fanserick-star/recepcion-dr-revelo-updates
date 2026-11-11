@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.75",
-  "app_version": "1.4.75",
-  "runtime_version": "1.4.75",
+  "version": "1.4.76",
+  "app_version": "1.4.76",
+  "runtime_version": "1.4.76",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -89,8 +89,8 @@
     "clinical_video_cache.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.75: restaurar el comportamiento de sincronización de 1.4.73 y agregar en Configuración Neon Oficial y Respaldo con bloqueo de conmutación hasta verificar la copia clínica. Conserva SQLite, cola offline, LAN, documentos firmados, seguridad y rollback.",
-    "previous_version": "1.4.74",
+    "purpose": "Historia Clínica 1.4.76: corrige la ausencia visible de Neon Oficial y Respaldo en la pantalla real de Configuración (documentos_clinicos.py). Restaura y mantiene sincronización de la 1.4.73, sin conmutación al proyecto de emergencia vacío, conservando SQLite, cola offline, LAN, firmas y rollback.",
+    "previous_version": "1.4.75",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -515,6 +515,9 @@
     "neon_active_target": "official",
     "neon_backup_readonly_status_panel": true,
     "neon_backup_requires_verified_copy": true,
-    "neon_settings_import_alias_fix": true
+    "neon_settings_import_alias_fix": true,
+    "neon_settings_visible_in_actual_configuration": true,
+    "neon_actual_settings_route": "/configuracion",
+    "neon_details_route": "/configuracion/neon"
   }
 }

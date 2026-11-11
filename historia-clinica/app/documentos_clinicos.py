@@ -2388,7 +2388,7 @@ body{{background:#e8edf1;padding:14px}}
             for k,label in fields
         )
         body = f"""{_styles()}<section class='docs-wrap'><div class='docs-head'><div><span class='eyebrow'>CONFIGURACIÓN</span><h1>Historia Clínica</h1><p>Los datos y plantillas compartidos viajan por Neon. Las impresoras son locales de cada PC.</p></div></div>
-        <div class='config-nav'><a href='#consultorio'>Datos del consultorio</a><a href='#usuarios'>Usuarios</a><a href='#impresoras'>Impresoras</a><a href='#avisos'>Avisos sonoros</a><a href='#estado'>Estado y conexión</a><a href='#herramientas'>Herramientas técnicas</a><a href='#otros'>Otros ajustes</a></div>
+        <div class='config-nav'><a href='#consultorio'>Datos del consultorio</a><a href='#usuarios'>Usuarios</a><a href='#impresoras'>Impresoras</a><a href='#avisos'>Avisos sonoros</a><a href='#estado'>Estado y conexión</a><a href='#neon'>Neon: Oficial y Respaldo</a><a href='#herramientas'>Herramientas técnicas</a><a href='#otros'>Otros ajustes</a></div>
         <form id='shared-form' class='docs-card'><h2 id='consultorio'>Datos del consultorio / plantillas</h2><div class='docs-fields'>{shared_html}</div><div class='doc-actions'><button class='doc-primary'>Guardar configuración compartida</button></div></form>
         <section class='docs-card'><h2 id='usuarios'>Usuarios</h2><p><b>Dr. Armando Revelo</b> · Usuario clínico principal. Esta actualización no agrega pantalla de login.</p></section>
         <form id='local-form' class='docs-card'><h2 id='impresoras'>Impresoras de esta PC</h2><div class='docs-fields'><label>Recetas<input name='prescription_printer' value='{_e(local.get('prescription_printer'))}'></label><label>Certificados<input name='certificate_printer' value='{_e(local.get('certificate_printer'))}'></label></div><div class='doc-actions'><button class='doc-primary'>Guardar en esta PC</button></div></form>
@@ -2428,6 +2428,28 @@ body{{background:#e8edf1;padding:14px}}
             <div class='config-status-item'><span class='mark'>✓</span><span><b>Sincronización</b><small id='cfg-sync-meta'>Pendientes: {_e(sync.get('pending',0))} · Última: {_e(sync.get('last_sync','') or 'Sin registro')}</small></span></div>
           </div>
           <div class='doc-actions'><button type='button' class='doc-primary' id='cfg-sync-now'>Sincronizar ahora</button></div>
+        </section>
+
+        <section class='docs-card' id='neon'>
+          <h2>Neon · Oficial y Respaldo</h2>
+          <p>Conexiones de Historia Clínica. El respaldo se mantiene bloqueado hasta copiar y verificar todas las historias.</p>
+          <div class='config-status-grid'>
+            <div class='config-status-item' id='cfg-neon-official'>
+              <span class='mark'>✓</span>
+              <span><b>Neon Oficial · Seleccionado</b><small>Historia Clínica principal · sincronización habitual</small></span>
+            </div>
+            <div class='config-status-item pending' id='cfg-neon-backup'>
+              <span class='mark'>•</span>
+              <span><b>Neon Respaldo · No disponible</b><small>Proyecto de emergencia creado; datos clínicos aún sin copiar</small></span>
+            </div>
+          </div>
+          <div class='doc-actions'>
+            <a class='config-tool-btn' href='/configuracion/neon' style='display:inline-block;text-decoration:none'>
+              <b>Ver estado de Oficial y Respaldo</b>
+              <small>Comprobar pacientes, consultas, recetas y cambios pendientes de esta PC.</small>
+            </a>
+          </div>
+          <p><small>La opción Respaldo no cambia la conexión automáticamente y no se activa mientras esté vacía.</small></p>
         </section>
 
         <section class='docs-card' id='herramientas'>
