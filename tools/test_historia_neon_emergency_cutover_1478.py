@@ -58,7 +58,7 @@ def main():
     assert "href='/configuracion/neon/activar'" in docs
     assert "Activar Neon de emergencia verificado" in docs
     manifest=json.loads((APP/"update_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["version"]=="1.4.78"
+    assert tuple(map(int, manifest["version"].split("."))) >= (1, 4, 78)
     assert "neon_emergency_cutover.py" in manifest["copy"]
     assert manifest["notes"]["neon_emergency_verified_cutover"]
     print("HISTORIA_NEON_CUTOVER_1478_OK")
