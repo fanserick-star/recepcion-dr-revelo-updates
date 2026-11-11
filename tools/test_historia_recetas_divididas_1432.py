@@ -106,11 +106,13 @@ def main():
             "<div class='med-item rx-med-right'>", 1)[0]
         right_item = shared.split("<div class='med-item rx-med-right'>", 1)[1].split(
             "<div class='rx-paired-extra'>", 1)[0]
-        assert "1. AUGMENTIN BID" in left_item and "1. AUGMENTIN BID" in right_item
+        assert "<div class='med-name'>AUGMENTIN BID" in left_item
+        assert "<div class='med-name'>AUGMENTIN BID</div>" in right_item
+        assert "1. AUGMENTIN BID" not in left_item and "1. AUGMENTIN BID" not in right_item
         assert "875/125 TABLETAS X 20" in left_item
-        assert "1. AUGMENTIN BID <span class='med-presentation'>875/125 TABLETAS X 20</span></div>" in left_item
+        assert "AUGMENTIN BID <span class='med-presentation'>875/125 TABLETAS X 20</span></div>" in left_item
         assert "<div class='med-line'>" not in left_item
-        assert "<div class='med-name'>1. AUGMENTIN BID</div>" in right_item
+        assert "<div class='med-name'>AUGMENTIN BID</div>" in right_item
         assert "<div class='med-line'>TOMAR 1 TABLETA CADA 12 HORAS X 10 DIAS</div>" in right_item
         assert ".med-presentation{font-weight:900}" in page
         assert "875/125 TABLETAS X 20" not in right_item
@@ -159,6 +161,8 @@ def main():
         assert old_left == old_right
         assert "rx-copy-v2" not in old_left and "rx-copy-v2" not in old_right
         assert "AUGMENTIN BID 875/125 TABLETAS X 20" in old_left
+        assert "<div class='med-name'>1. AUGMENTIN BID" not in old_left
+        assert "<div class='med-name'>1. AUGMENTIN BID" not in old_right
         assert "TOMAR 1 TABLETA CADA 12HS X 10 DIAS" in old_left
         assert "INSTRUCCIONES LEGADAS" in old_left
         assert ".rp{position:absolute;top:75mm;" in old

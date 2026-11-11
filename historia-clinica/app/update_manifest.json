@@ -541,6 +541,7 @@
     "prescription_item_ordinals_removed_both_columns": true,
     "prescription_legacy_reprint_without_ordinals": true,
     "prescription_series_number_preserved": true,
-    "prescription_layout_and_alignment_unchanged": true
+    "prescription_layout_and_alignment_unchanged": true,
+    "rx_legacy_divided_recipe_regression_updated_1480": true
   }
 }
