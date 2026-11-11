@@ -1047,13 +1047,13 @@ class CloudSyncService:
         completed = []
         try:
             # Emergency cutover may queue 25k existing local rows. Keep each remote
-        # transaction small so a slow doctor PC can checkpoint successfully
-        # without holding hundreds of writes open for many minutes.
-        push_limit = 25 if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID else 750
-        remote_columns_cache: dict[str, set[str]] = {}
-        bootstrap_complete = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
-        last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
-        items = sconn.execute("""
+            # transaction small so a slow doctor PC can checkpoint successfully
+            # without holding hundreds of writes open for many minutes.
+            push_limit = 25 if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID else 750
+            remote_columns_cache: dict[str, set[str]] = {}
+            bootstrap_complete = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
+            last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
+            items = sconn.execute("""
                 SELECT table_name,row_key FROM sync_dirty
                 ORDER BY CASE table_name
                   WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
