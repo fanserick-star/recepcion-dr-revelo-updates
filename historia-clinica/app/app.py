@@ -5600,6 +5600,7 @@ def hc1468_diagnostics_page(request: Request):
 
 
 
+# Historia 1.4.92: reduce lecturas vacías a Neon Respaldo sin retrasar nuevos cambios.
 # Historia 1.4.91: cambio bidireccional diferencial protegido entre ambos Neon.
 # La activación diferida nunca escribe datos clínicos y se verifica fuera
 # de la sesión de atención antes de iniciar el sincronizador.
