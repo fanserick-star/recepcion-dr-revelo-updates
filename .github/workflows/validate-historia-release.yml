@@ -51,6 +51,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test compact emergency pull without live Neon
+        run: python tools/test_historia_neon_poll_1492.py
+
       - name: Enforce canonical source and frozen history
         run: |
           python tools/test_historia_canonical_source.py
@@ -67,7 +70,6 @@ jobs:
           python tools/test_historia_neon_settings_1489.py
           python tools/test_historia_neon_oneclick_1490.py
           python tools/test_historia_neon_bidirectional_1491.py
-          python tools/test_historia_neon_poll_1492.py
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_recetas_firma_informes_1443.py
           python tools/test_historia_recipe_row_alignment_1465.py
