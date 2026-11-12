@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.84: herramienta controlada para preparar el regreso al Neon original mediante diferencias verificadas, con copia reanudable y aprobación separada. Sin traslado automático ni reinicialización de historias; mantiene protección de eliminaciones y demás funciones."
+  "notes": "Historia Clínica 1.4.85: corrige error 42701 de columna deleted_at duplicada en subida a Neon, respetando marcas de eliminación y la cola de pacientes pendiente. No reinicia ni borra respaldo."
 }

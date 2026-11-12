@@ -296,6 +296,34 @@ def _normalize_remote_value(value):
 HISTORIA_NEON_ECO_MODE = True
 
 
+
+def _make_sync_upsert_sql(table: str, pk: str, columns: list[str], remote_cols: set[str]) -> str:
+    """Construct one valid UPSERT and preserve clinical soft-deletion markers.
+
+    Regression guard: deleted_at must never be specified twice in INSERT.
+    """
+    if (not columns or len(columns) != len(set(columns))
+            or pk not in columns or "cloud_updated_at" in columns):
+        raise ValueError("Columnas de sincronizacion repetidas o incompletas")
+    if ("deleted_at" in remote_cols) != ("deleted_at" in columns):
+        raise ValueError("Columna de eliminacion clinica no coincide con esquema")
+    updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
+    if updates:
+        conflict_sql = "DO UPDATE SET " + ",".join(updates) + ",cloud_updated_at=now()"
+        if "deleted_at" in remote_cols:
+            conflict_sql += (
+                f" WHERE NULLIF({table}.deleted_at::text, '') IS NULL "
+                "OR EXCLUDED.deleted_at IS NOT NULL"
+            )
+    else:
+        conflict_sql = "DO NOTHING"
+    # deleted_at is ALREADY in columns, if present. Append only cloud_updated_at.
+    return (
+        f"INSERT INTO {table}({','.join(columns)},cloud_updated_at) "
+        f"VALUES({','.join(['%s']*len(columns))},now()) "
+        f"ON CONFLICT({pk}) {conflict_sql}"
+    )
+
 class CloudSyncService:
     def __init__(self, root: Path, db_path: Path):
         self.root = Path(root)
@@ -1174,27 +1202,7 @@ class CloudSyncService:
                         # legacy schema. Keep its dirty row locally.
                         continue
                     vals = [data.get(c) for c in columns]
-                    updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
-                    if updates:
-                        conflict_sql = (
-                            "DO UPDATE SET "
-                            + ",".join(updates)
-                            + ",cloud_updated_at=now()"
-                        )
-                        # Never silently reactivate a row already soft-deleted
-                        # in Neon just because this PC has an older active copy.
-                        if "deleted_at" in remote_cols:
-                            conflict_sql += (
-                                f" WHERE NULLIF({table}.deleted_at::text, '') IS NULL "
-                                "OR EXCLUDED.deleted_at IS NOT NULL"
-                            )
-                    else:
-                        conflict_sql = "DO NOTHING"
-                    sql = (
-                        f"INSERT INTO {table}({','.join(columns)},cloud_updated_at,deleted_at) "
-                        f"VALUES({','.join(['%s']*len(columns))},now(),NULL) "
-                        f"ON CONFLICT({pk}) {conflict_sql}"
-                    )
+                    sql = _make_sync_upsert_sql(table, pk, columns, remote_cols)
                     cur.execute(sql, vals)
                     if (
                         cur.rowcount == 0

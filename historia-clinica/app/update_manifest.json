@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.84",
-  "app_version": "1.4.84",
-  "runtime_version": "1.4.84",
+  "version": "1.4.85",
+  "app_version": "1.4.85",
+  "runtime_version": "1.4.85",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -94,8 +94,8 @@
     "neon_official_return.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.84: incorpora herramienta local de regreso diferencial a Neon Oficial (plan/copia selectiva/verificar/cambio con autorización separada), evita volver a subir o descargar toda la historia y bloquea reseteos inseguros del cursor tras un retorno verificado. No realiza cambios de servidor ni migraciones automáticamente. Conserva LAN, documentos firmados, SQLite y ambos Neon.",
-    "previous_version": "1.4.83",
+    "purpose": "Historia Clínica 1.4.85: corrige ERROR PostgreSQL 42701, deleted_at duplicado al sincronizar; una sola columna deleted_at en el UPSERT, preserva marcas de eliminación y sus conflictos. No modifica SQLite ni Neon antiguo, no reinicia el respaldo, conserva pendientes, LAN y documentos firmados.",
+    "previous_version": "1.4.84",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -560,6 +560,8 @@
     "neon_official_return_no_auto_activation": true,
     "neon_official_return_guard_clinical_tombstones": true,
     "neon_official_return_local_approval_required": true,
-    "neon_official_return_checkpoint_preserves_cursor": true
+    "neon_official_return_checkpoint_preserves_cursor": true,
+    "neon_deleted_at_duplicate_upsert_42701_fixed": true,
+    "neon_deleted_at_sql_regression_test": true
   }
 }
