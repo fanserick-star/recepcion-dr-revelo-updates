@@ -5600,7 +5600,7 @@ def hc1468_diagnostics_page(request: Request):
 
 
 
-# Historia 1.4.89: pantalla real de servidores Neon, sin pegar enlaces.
+# Historia 1.4.90: botón único para regreso diferencial seguro a Neon Oficial.
 # La activación diferida nunca escribe datos clínicos y se verifica fuera
 # de la sesión de atención antes de iniciar el sincronizador.
 neon_return_settings.install(app, ROOT, DB_PATH, base)
