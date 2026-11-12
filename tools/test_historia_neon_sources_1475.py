@@ -32,14 +32,14 @@ def main():
     assert "def neon_page(request: Request):" in panel
     assert 'request.client.host not in {"127.0.0.1", "::1"}' in panel
     assert 'HISTORIA_NEON_TARGET' in panel or 'HISTORIA_NEON_TARGET' in return_engine
-    assert "Sincronizar y cambiar al Neon Oficial" in panel
+    assert "Sincronizar y cambiar a {destination_label}" in panel
     assert '@app.post("/api/neon/return/prepare")' in panel
     assert "def _local_health(db_path):" in panel
     assert "mode=ro" in panel
     assert "SET TRANSACTION READ ONLY" in panel
     assert "_verify_complete(report)" in panel
     assert "Neon Oficial" in panel and "Neon de emergencia" in panel
-    assert "Neon Respaldo sigue activo" in panel
+    assert "El servidor actual sigue activo." in panel
     assert "No se pudo completar la comparación" in panel
     assert "input type='password'" not in panel
     ast.parse(panel)
