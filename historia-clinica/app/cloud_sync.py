@@ -1146,8 +1146,12 @@ class CloudSyncService:
                     columns = [
                         c for c in data.keys()
                         if c in remote_cols
-                        and c not in {"cloud_updated_at", "deleted_at"}
+                        and c != "cloud_updated_at"
                     ]
+                    # A clinical tombstone is part of the record. Excluding this
+                    # column made every re-upload resurrect an earlier deletion.
+                    if "deleted_at" in remote_cols and "deleted_at" not in columns:
+                        columns.append("deleted_at")
                     if pk not in columns:
                         # This table cannot be safely synchronized with this
                         # legacy schema. Keep its dirty row locally.
@@ -1158,8 +1162,15 @@ class CloudSyncService:
                         conflict_sql = (
                             "DO UPDATE SET "
                             + ",".join(updates)
-                            + ",cloud_updated_at=now(),deleted_at=NULL"
+                            + ",cloud_updated_at=now()"
                         )
+                        # Never silently reactivate a row already soft-deleted
+                        # in Neon just because this PC has an older active copy.
+                        if "deleted_at" in remote_cols:
+                            conflict_sql += (
+                                f" WHERE {table}.deleted_at IS NULL "
+                                "OR EXCLUDED.deleted_at IS NOT NULL"
+                            )
                     else:
                         conflict_sql = "DO NOTHING"
                     sql = (
@@ -1168,6 +1179,25 @@ class CloudSyncService:
                         f"ON CONFLICT({pk}) {conflict_sql}"
                     )
                     cur.execute(sql, vals)
+                    if (
+                        cur.rowcount == 0
+                        and table in BIDIRECTIONAL_TABLES
+                        and "deleted_at" in remote_cols
+                        and not data.get("deleted_at")
+                    ):
+                        # Existing Neon tombstone won the conflict guard. Keep
+                        # both versions for explicit review, never resurrect it.
+                        check = pg.cursor()
+                        check.execute(
+                            f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=%s "
+                            "AND deleted_at IS NOT NULL LIMIT 1", (str(key),)
+                        )
+                        previous = _dict_rows(check)
+                        if previous:
+                            self._record_conflict(
+                                sconn, table, str(key), row, previous[0],
+                                "remote_tombstone_preserved",
+                            )
                 completed.append((table,key)); pushed += 1
             pg.commit()
             if completed:

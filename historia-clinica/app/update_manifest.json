@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.81",
-  "app_version": "1.4.81",
-  "runtime_version": "1.4.81",
+  "version": "1.4.82",
+  "app_version": "1.4.82",
+  "runtime_version": "1.4.82",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -92,8 +92,8 @@
     "neon_emergency_cutover.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.81: sincronización al Neon de emergencia en lotes pequeños de 25 registros con confirmaciones frecuentes; elimina consultas repetitivas al esquema remoto durante cada lote, preserva cola local, historial clínico, documentos firmados y entrega LAN de turnos de Recepción. No borra ni altera el Neon antiguo.",
-    "previous_version": "1.4.80",
+    "purpose": "Historia Clínica 1.4.82: protege eliminaciones clínicas durante la sincronización, conserva deleted_at y evita reactivar filas eliminadas por upsert; registra conflictos de tumbas remotas para revisión. Respeta cola local, Neon original, documentos firmados, TV y LAN de Recepción. No borra registros ni restablece sincronización.",
+    "previous_version": "1.4.81",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -546,6 +546,10 @@
     "neon_emergency_cutover_checkpoint_batch_rows": 25,
     "neon_emergency_cutover_remote_schema_cache_per_batch": true,
     "neon_emergency_short_transactions": true,
-    "neon_emergency_small_batches_validated": true
+    "neon_emergency_small_batches_validated": true,
+    "neon_tombstone_preserved_on_push": true,
+    "neon_prevent_cloud_deleted_resurrection": true,
+    "neon_remote_tombstone_conflict_recorded": true,
+    "neon_emergency_legacy_deletions_require_reconciliation": true
   }
 }
