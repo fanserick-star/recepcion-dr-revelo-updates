@@ -253,6 +253,11 @@ def complete_scheduled_return(root, db_path):
                 cutover = str(
                     _read_json(root, "neon_cutover_status.json").get("updated_at") or ""
                 )
+            if not cutover and target == "emergency":
+                # Version 1.4.90 did not record neon_last_switch_at.
+                # Its successful Official return did record an authenticated
+                # local status timestamp BEFORE the operator's next click.
+                cutover = str(request.get("legacy_verified_switch_at") or "")
             transferred = transfer(
                 source, official, report, private, report["plan_sha256"],
                 allow_updates=True, cutover_at=cutover,
@@ -406,10 +411,19 @@ if(button)button.addEventListener('click',async()=>{{
             backup = _make_backup(root, db_path)
             if not backup["verified"]:
                 raise RuntimeError("No se verifico el respaldo SQLite.")
+            previous_result = status["last_result"]
+            legacy_verified_switch = (
+                str(previous_result.get("at") or "")
+                if (current_target == "official"
+                    and previous_result.get("state") == "official"
+                    and not _read_json(root, REQUEST_NAME))
+                else ""
+            )
             _save_json(root, REQUEST_NAME, {
                 "target": target,
                 "source_target": current_target,
                 "mode": "auto_sync",
+                "legacy_verified_switch_at": legacy_verified_switch,
                 "plan_sha256": report["plan_sha256"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
