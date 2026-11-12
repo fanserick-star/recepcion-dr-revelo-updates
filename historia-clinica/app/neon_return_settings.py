@@ -233,7 +233,8 @@ def complete_scheduled_return(root, db_path):
         transferred = {}
         if auto_sync:
             check_automatic_return(report, private)
-            cutover = _read_json(root, "neon_cutover_status.json").get("updated_at")
+            # Empty cutover checkpoint fails closed on any existing-row update.
+            cutover = str(_read_json(root, "neon_cutover_status.json").get("updated_at") or "")
             transferred = transfer(
                 source, official, report, private, report["plan_sha256"],
                 allow_updates=True, cutover_at=cutover,
