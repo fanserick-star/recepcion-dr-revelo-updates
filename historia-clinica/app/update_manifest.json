@@ -590,6 +590,7 @@
     "neon_official_return_no_auto_copy_on_conflict": true,
     "neon_official_return_config_displays_active_target": true,
     "neon_settings_legacy_source_regression_updated": true,
-    "neon_settings_actual_legacy_regression_updated": true
+    "neon_settings_actual_legacy_regression_updated": true,
+    "neon_settings_ci_runs_before_fastapi_install_fixed": true
   }
 }
