@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.87",
-  "app_version": "1.4.87",
-  "runtime_version": "1.4.87",
+  "version": "1.4.88",
+  "app_version": "1.4.88",
+  "runtime_version": "1.4.88",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -94,8 +94,8 @@
     "neon_official_return.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.87: resuelve SQLSTATE 23502 por id nulo en encounter_revisions del Neon de emergencia. Conserva id de SQLite en el nuevo Neon y secuencia propia en Neon oficial; ON CONFLICT evita duplicados. Incluye las optimizaciones de tráfico 1.4.86. No reinicia respaldo, no borra datos, mantiene cola clínica, LAN y documentos.",
-    "previous_version": "1.4.86",
+    "purpose": "Historia Clínica 1.4.88: compara registros del respaldo antiguo directamente en Neon devolviendo solo coincidencia; evita descargar filas clínicas completas y reescribir datos idénticos. Agrupa registros inmutables de auditoría/revisiones en lotes idempotentes, mantiene conflictos, documentos firmados, eliminaciones y protección de cola para cambios del doctor. No reinicia respaldo ni modifica Neon original.",
+    "previous_version": "1.4.87",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -575,6 +575,11 @@
     "neon_emergency_revision_id_not_null_23502_fixed": true,
     "neon_emergency_revision_preserve_sqlite_primary_key": true,
     "neon_official_revision_sequence_unchanged": true,
-    "neon_emergency_revision_23502_regression_test": true
+    "neon_emergency_revision_23502_regression_test": true,
+    "neon_emergency_remote_equality_probe_without_full_row": true,
+    "neon_emergency_immutable_bulk_insert": true,
+    "neon_emergency_noop_skip_preserves_cloud_cursor": true,
+    "neon_emergency_backlog_only_equal_probe": true,
+    "neon_emergency_safeguard_dirty_change_at": true
   }
 }

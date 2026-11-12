@@ -332,6 +332,64 @@ def _make_sync_upsert_sql(table: str, pk: str, columns: list[str], remote_cols: 
         f"ON CONFLICT({pk}) {conflict_sql}"
     )
 
+def _make_remote_equal_probe(
+    table: str, pk: str, data: dict, remote_cols: set[str]
+) -> tuple[str, list] | None:
+    """Read only one existence bit if ALL synchronizable columns match Neon.
+
+    Never download notes or personal details just to confirm an already
+    imported record. Compare via typed-to-text SQL expressions, which keeps
+    local SQLite strings and Neon bigint fields comparable without fetching.
+    Missing cloud columns are still retained in SQLite as before.
+    """
+    if pk not in remote_cols or pk not in data:
+        return None
+    columns = [
+        c for c in data
+        if c in remote_cols and c not in (pk, "cloud_updated_at")
+    ]
+    if not columns:
+        return None
+    parts = []
+    values = [str(data[pk])]
+    for col in columns:
+        if col == "deleted_at":
+            parts.append(
+                "NULLIF(t.deleted_at::text, '') IS NOT DISTINCT FROM "
+                "NULLIF(%s::text, '')"
+            )
+        else:
+            parts.append(f"t.{col}::text IS NOT DISTINCT FROM %s::text")
+        value = data[col]
+        values.append(None if value is None else str(value))
+    sql = (
+        f"SELECT 1 FROM {table} t WHERE CAST(t.{pk} AS TEXT)=%s "
+        "AND " + " AND ".join(parts) + " LIMIT 1"
+    )
+    return sql, values
+
+
+def _batch_immutable_insert(sql: str, rows: list[list]) -> tuple[str, list]:
+    """Combine up to 25 idempotent push-only INSERTs into one statement."""
+    if not rows or len(rows) > 25:
+        raise ValueError("Lote de auditoria invalido")
+    pivot = " VALUES("
+    offset = sql.find(pivot)
+    finish = sql.find(") ON CONFLICT DO NOTHING", offset)
+    if offset < 0 or finish < 0:
+        raise ValueError("El INSERT inmutable no admite lote")
+    placeholders = sql[offset + len(pivot):finish]
+    width = placeholders.count("%s")
+    if width < 1 or any(len(row) != width for row in rows):
+        raise ValueError("Cantidad incorrecta de columnas de auditoria")
+    new_sql = (
+        sql[:offset] + " VALUES" +
+        ",".join("(" + placeholders + ")" for _ in rows) +
+        " ON CONFLICT DO NOTHING"
+    )
+    return new_sql, [v for row in rows for v in row]
+
+
 def _revision_insert_statement(data: dict, device_id: str, endpoint_id: str) -> tuple[str, list]:
     """Construct revision INSERT for both actual Neon schemas.
 
@@ -1142,6 +1200,7 @@ class CloudSyncService:
         sconn.row_factory = sqlite3.Row
         pushed = 0
         completed = []
+        immutable_batches: dict[str, tuple[str, list[list]]] = {}
         try:
             # Emergency cutover may queue 25k existing local rows. Keep each remote
             # transaction small so a slow doctor PC can checkpoint successfully
@@ -1150,6 +1209,10 @@ class CloudSyncService:
             remote_columns_cache: dict[str, set[str]] = {}
             bootstrap_complete = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
             last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
+            pending_backlog = (
+                self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+                and self._pending(sconn) > 100
+            )
             items = sconn.execute("""
                 SELECT table_name,row_key,changed_at FROM sync_dirty
                 ORDER BY CASE WHEN ?=1 THEN changed_at END DESC,
@@ -1177,8 +1240,32 @@ class CloudSyncService:
                     # table later, it can still be uploaded safely.
                     continue
                 pk = ALL_SYNC_TABLES[table]
-                row = sconn.execute(f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=?", (key,)).fetchone()
+                # A direct PK comparison keeps the SQLite primary-key index
+                # available, unlike CAST(pk AS TEXT) on a large local table.
+                row = sconn.execute(
+                    f"SELECT * FROM {table} WHERE {pk}=?", (key,)
+                ).fetchone()
                 cur = pg.cursor()
+                data = dict(row) if row is not None else None
+                if data is not None and "deleted_at" in data and not str(data["deleted_at"] or "").strip():
+                    data["deleted_at"] = None
+                if (
+                    data is not None
+                    and table in BIDIRECTIONAL_TABLES
+                    and self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+                    and pending_backlog
+                ):
+                    remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, table)
+                    probe = _make_remote_equal_probe(table, pk, data, remote_cols)
+                    if probe is not None:
+                        same = pg.cursor()
+                        same.execute(probe[0], probe[1])
+                        if same.fetchone() is not None:
+                            # Remote content is already identical: no full-row
+                            # conflict query, no UPSERT, no new cloud timestamp.
+                            completed.append((table, key, changed_at))
+                            pushed += 1
+                            continue
 
                 # Si otra PC cambió la misma fila después de nuestro último pull,
                 # guardamos la versión remota antes de aplicar el cambio local.
@@ -1206,12 +1293,8 @@ class CloudSyncService:
                         cur.execute(f"UPDATE {table} SET deleted_at=%s,cloud_updated_at=now() WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
                     completed.append((table,key,changed_at)); pushed += 1
                     continue
-                data = dict(row)
-                # SQLite may represent an active row with an empty deletion
-                # string. Normalize it before writing to Postgres (which may
-                # store tombstones as text or timestamptz).
-                if "deleted_at" in data and not str(data["deleted_at"] or "").strip():
-                    data["deleted_at"] = None
+                # The source row and its normalized tombstone were loaded
+                # before the no-transfer comparison above.
                 if table == "audit_log":
                     # The emergency import stored the original local audit IDs.
                     # Match those keys to avoid doubling the audit trail while
@@ -1221,10 +1304,15 @@ class CloudSyncService:
                     data["device_id"] = self.device_id
                     columns = ["id","occurred_at","actor","action","entity_type","entity_id","details_json","device_id"]
                     vals = [data.get(c) for c in columns]
-                    cur.execute(
-                        "INSERT INTO audit_log("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT(id) DO NOTHING",
-                        vals,
+                    template = (
+                        "INSERT INTO audit_log(" + ",".join(columns) + ") VALUES("
+                        + ",".join(["%s"] * len(columns))
+                        + ") ON CONFLICT DO NOTHING"
                     )
+                    batch = immutable_batches.setdefault(table, (template, []))
+                    if batch[0] != template:
+                        raise RuntimeError("Esquema de auditoria inconsistente")
+                    batch[1].append(vals)
                 elif table == "encounter_revisions":
                     # The emergency Neon has no server default for id. Older
                     # versions omitted it and failed the entire batch with
@@ -1233,7 +1321,10 @@ class CloudSyncService:
                     sql, vals = _revision_insert_statement(
                         data, self.device_id, self.target_endpoint
                     )
-                    cur.execute(sql, vals)
+                    batch = immutable_batches.setdefault(table, (sql, []))
+                    if batch[0] != sql:
+                        raise RuntimeError("Esquema de revisiones inconsistente")
+                    batch[1].append(vals)
                 else:
                     # v1.3.43: the dedicated clinical Neon is an older schema.
                     # Only send columns that actually exist remotely. Newer local
@@ -1277,6 +1368,12 @@ class CloudSyncService:
                                 "remote_tombstone_preserved",
                             )
                 completed.append((table,key,changed_at)); pushed += 1
+            # Audit and revision logs are append-only. Batch their existing
+            # ON CONFLICT DO NOTHING statements, preserving a single atomic
+            # cloud commit and avoiding thousands of network round trips.
+            for template, rows in immutable_batches.values():
+                batch_sql, batch_vals = _batch_immutable_insert(template, rows)
+                pg.cursor().execute(batch_sql, batch_vals)
             pg.commit()
             if completed:
                 sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=? AND changed_at=?", completed)
