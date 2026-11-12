@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.82: evita la reactivación de consultas y documentos eliminados al sincronizar con Neon, respeta deleted_at y conserva los conflictos para revisión. Sin cambios destructivos, conserva LAN, documentos firmados y respaldo antiguo."
+  "notes": "Historia Clínica 1.4.83: blindaje de eliminaciones clínicas en Neon (deleted_at), normalización de valores vacíos y registro de conflictos; no borra datos, respeta la cola local, firma electrónica y LAN de Recepción."
 }

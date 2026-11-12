@@ -1109,6 +1109,11 @@ class CloudSyncService:
                     completed.append((table,key)); pushed += 1
                     continue
                 data = dict(row)
+                # SQLite may represent an active row with an empty deletion
+                # string. Normalize it before writing to Postgres (which may
+                # store tombstones as text or timestamptz).
+                if "deleted_at" in data and not str(data["deleted_at"] or "").strip():
+                    data["deleted_at"] = None
                 if table == "audit_log":
                     # The emergency import stored the original local audit IDs.
                     # Match those keys to avoid doubling the audit trail while
@@ -1168,7 +1173,7 @@ class CloudSyncService:
                         # in Neon just because this PC has an older active copy.
                         if "deleted_at" in remote_cols:
                             conflict_sql += (
-                                f" WHERE {table}.deleted_at IS NULL "
+                                f" WHERE NULLIF({table}.deleted_at::text, '') IS NULL "
                                 "OR EXCLUDED.deleted_at IS NOT NULL"
                             )
                     else:
@@ -1190,7 +1195,7 @@ class CloudSyncService:
                         check = pg.cursor()
                         check.execute(
                             f"SELECT * FROM {table} WHERE CAST({pk} AS TEXT)=%s "
-                            "AND deleted_at IS NOT NULL LIMIT 1", (str(key),)
+                            "AND NULLIF(deleted_at::text, '') IS NOT NULL LIMIT 1", (str(key),)
                         )
                         previous = _dict_rows(check)
                         if previous:
