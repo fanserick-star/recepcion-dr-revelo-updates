@@ -1097,6 +1097,8 @@ class CloudSyncService:
                 pending=pending_after,
                 last_pushed=pushed,
                 last_pulled=pulled,
+                cloud_poll_compact=bool(getattr(self, "_last_poll_compact", False)),
+                cloud_poll_changed_tables=int(getattr(self, "_last_poll_changed_tables", -1)),
                 local_patients_after_pull=local_patients_after,
                 local_encounters_after_pull=local_encounters_after,
                 bootstrap_recovery_incomplete=recovery_incomplete,
@@ -1390,6 +1392,41 @@ class CloudSyncService:
         # Cloud schema mirrors the local columns plus cloud_updated_at/deleted_at.
         return list(data.keys())
 
+    def _changed_cloud_tables(self, pg, last_pull: str, remote_now: str) -> set[str] | None:
+        """Compact emergency poll: one response for all clinical tables.
+
+        A missing/failed probe falls back to the original full incremental
+        scan. This only skips empty reads, NEVER the pending local push, nor
+        the per-table pull that actually imports changed rows.
+        """
+        if self.target_endpoint != HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
+            return None
+        available = set(getattr(self, "_remote_available_tables", set()) or set())
+        tables = [name for name in BIDIRECTIONAL_TABLES if name in available]
+        if not tables:
+            return set()
+        clauses = [
+            f'EXISTS(SELECT 1 FROM "{CLOUD_SCHEMA}"."{name}" '
+            'WHERE cloud_updated_at>%s::timestamptz '
+            'AND cloud_updated_at<=%s::timestamptz)'
+            for name in tables
+        ]
+        params = [value for _ in tables for value in (last_pull, remote_now)]
+        try:
+            cursor = pg.cursor()
+            cursor.execute("SELECT " + ", ".join(clauses), params)
+            flags = cursor.fetchone()
+            if flags is None or len(flags) != len(tables):
+                return None
+            return {name for name, present in zip(tables, flags) if present}
+        except Exception:
+            # A probe must never prevent an existing synchronization path.
+            try:
+                pg.rollback()
+            except Exception:
+                pass
+            return None
+
     def _pull(self, pg, remote_now: str) -> int:
         sconn = sqlite3.connect(self.db_path, timeout=20)
         sconn.row_factory = sqlite3.Row
@@ -1403,7 +1440,12 @@ class CloudSyncService:
             )
             sconn.commit()
 
+            changed_tables = self._changed_cloud_tables(pg, last_pull, remote_now)
+            self._last_poll_compact = changed_tables is not None
+            self._last_poll_changed_tables = len(changed_tables) if changed_tables is not None else -1
             for table, pk in BIDIRECTIONAL_TABLES.items():
+                if changed_tables is not None and table not in changed_tables:
+                    continue
                 if table not in set(
                     getattr(self, "_remote_available_tables", set()) or set()
                 ):
