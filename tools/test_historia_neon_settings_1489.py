@@ -22,8 +22,12 @@ assert "neon_return_settings.install(app, ROOT, DB_PATH, base)" in SOURCE
 
 for endpoint in ("/configuracion/neon","/api/neon/return/check","/api/neon/return/authorize"):
     assert endpoint in PANEL
-assert "Comprobar diferencias" in PANEL
-assert "Confirmar regreso al Oficial" in PANEL
+assert "Sincronizar y cambiar al Neon Oficial" in PANEL
+assert "neon-return-oneclick" in PANEL
+assert "/api/neon/return/prepare" in PANEL
+assert "check_automatic_return(report, private)" in PANEL
+assert "transfer(" in PANEL
+assert "neon_return_before_copy.sqlite" in PANEL
 assert "SET TRANSACTION READ ONLY" in PANEL
 assert "neon_return_before_switch.sqlite" in PANEL
 assert "plan_sha256" in PANEL
@@ -43,5 +47,5 @@ assert {"_summary","_compare","_local","_current","_local_health",
 assert "return {\"state\": \"not_scheduled\"}" in PANEL
 assert 'if report["plan_sha256"] != request["plan_sha256"]:' in PANEL
 assert 'if health["pending"] != 0 or health["conflicts"] != 0:' in PANEL
-assert "No se realizó el cambio." in PANEL
+assert "Neon Respaldo sigue activo." in PANEL
 print("HISTORIA_NEON_SETTINGS_1489_OK")
