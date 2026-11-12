@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.89",
-  "app_version": "1.4.89",
-  "runtime_version": "1.4.89",
+  "version": "1.4.90",
+  "app_version": "1.4.90",
+  "runtime_version": "1.4.90",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -96,8 +96,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.89: panel Neon Oficial/Respaldo fiel al estado real en Configuración sin URLs ni claves. Comprobación diferencial de solo lectura, bloqueos por pendientes/conflictos y autorización explícita de regreso al oficial que se completa fuera de la atención, al reabrir, solamente si todas las tablas coinciden y se verificó respaldo local. Conserva el Neon de emergencia y no altera datos clínicos ni LAN/TV.",
-    "previous_version": "1.4.88",
+    "purpose": "Historia Clínica 1.4.90: un botón para sincronizar diferencias clínicas seguras y regresar a Neon Oficial después de terminar la atención y reiniciar. Copia diferencial por lotes, copia SQLite final verificada, comprobación de paridad y bloqueo si hay pendientes, vínculos de Recepción, modificaciones del Oficial posteriores al corte, eliminaciones o firmas en conflicto. Conserva Neon Respaldo; no cambia de nube automáticamente sin confirmación del usuario.",
+    "previous_version": "1.4.89",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -559,7 +559,7 @@
     "neon_remote_tombstone_empty_string_handling": true,
     "neon_official_return_offline_tool": true,
     "neon_official_return_diff_only": true,
-    "neon_official_return_no_auto_activation": true,
+    "neon_official_return_no_auto_activation": false,
     "neon_official_return_guard_clinical_tombstones": true,
     "neon_official_return_local_approval_required": true,
     "neon_official_return_checkpoint_preserves_cursor": true,
@@ -584,13 +584,20 @@
     "neon_emergency_backlog_only_equal_probe": true,
     "neon_emergency_safeguard_dirty_change_at": true,
     "neon_configuration_switcher_without_urls": true,
-    "neon_official_return_ui_readonly_diff": true,
+    "neon_official_return_ui_readonly_diff": false,
     "neon_official_return_deferred_reverified_switch": true,
     "neon_official_return_sqlite_backup_verified": true,
     "neon_official_return_no_auto_copy_on_conflict": true,
     "neon_official_return_config_displays_active_target": true,
     "neon_settings_legacy_source_regression_updated": true,
     "neon_settings_actual_legacy_regression_updated": true,
-    "neon_settings_ci_runs_before_fastapi_install_fixed": true
+    "neon_settings_ci_runs_before_fastapi_install_fixed": true,
+    "neon_one_click_return": true,
+    "neon_official_return_only_explicit_authorization": true,
+    "neon_official_return_scheduled_diff_transfer": true,
+    "neon_official_return_never_while_attending": true,
+    "neon_official_return_reception_links_write_disabled": true,
+    "neon_official_return_signed_updates_blocked": true,
+    "neon_official_return_official_concurrent_edits_blocked": true
   }
 }

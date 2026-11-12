@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.89: Configuración de Neon Oficial y Emergencia sin pegar enlaces; compara solo diferencias y prepara regreso protegido para el siguiente inicio cuando ambas nubes coincidan. No mueve ni elimina datos automáticamente."
+  "notes": "Historia Clínica 1.4.90: botón único de sincronizar y cambiar al Neon Oficial desde Configuración. El proceso se ejecuta al reabrir, tras una copia local y verificaciones clínicas; solo mueve diferencias seguras, protege vínculos de Recepción, firmas, eliminaciones y ambos proyectos."
 }

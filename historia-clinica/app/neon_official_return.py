@@ -246,6 +246,39 @@ def _check_plan(plan, private, approved, *, allow_updates=False):
             raise RuntimeError("Existing changed records require explicit review in " + table)
 
 
+
+def check_automatic_return(plan, private):
+    """Fail closed before any writes for unsupported or competing differences."""
+    _check_plan(plan, private, plan["plan_sha256"], allow_updates=True)
+    for table, item in private.items():
+        differences = item["delta"]
+        if differences["destination_only"]:
+            raise RuntimeError("Existen registros exclusivos del Oficial en " + table)
+        if table in MANUAL and any(differences[key] for key in (
+            "missing", "changed", "tombstone_mismatch",
+            "resurrection_conflict", "destination_only"
+        )):
+            # Reception owns patient links. Turn and server settings require
+            # separate review; never clone or overwrite them from Historia.
+            raise RuntimeError("Diferencias administrativas requieren revision: " + table)
+
+
+def _official_unchanged_since_cutover(pg, table, pk, key, cutover_at):
+    """Do not overwrite an Official row touched after emergency was activated."""
+    if not cutover_at:
+        raise RuntimeError("No hay fecha verificada de activacion del respaldo")
+    cur = pg.cursor()
+    cur.execute(
+        "SELECT cloud_updated_at::timestamptz <= %s::timestamptz "
+        "FROM public." + _ident(table) + " WHERE " + _ident(pk) +
+        "::text=%s AND cloud_updated_at IS NOT NULL",
+        (cutover_at, key),
+    )
+    row = cur.fetchone()
+    if row is None or row[0] is not True:
+        raise RuntimeError("El Oficial tuvo cambios posteriores al respaldo en " + table)
+
+
 def _row(pg, table, pk, key, columns):
     cur = pg.cursor()
     names = sorted(columns)
@@ -265,7 +298,7 @@ def _fingerprint(pg, table, pk, key, fp, deleted):
     return (str(got[0]), bool(got[1])) if got else None
 
 
-def _apply_one(src, dst, table, item, key, action):
+def _apply_one(src, dst, table, item, key, action, *, cutover_at=None):
     pk = item["pk"]
     expected_src = item["source"][key]
     current = _fingerprint(src, table, pk, key,
@@ -298,12 +331,21 @@ def _apply_one(src, dst, table, item, key, action):
             raise RuntimeError("Immutable records cannot be updated automatically")
         if expected_src[1] or expected_dest[1]:
             raise RuntimeError("Tombstone changes cannot be updated automatically")
-        if table == "encounters":
-            old = _row(dst, table, pk, key,
-                       {"id", "signed_at", "note_status"})
-            if (str(data.get("signed_at") or "") != str(old.get("signed_at") or "")
-                    or data.get("note_status") != old.get("note_status")):
-                raise RuntimeError("Signed consultation mismatch; manual review")
+        if cutover_at is not None:
+            _official_unchanged_since_cutover(dst, table, pk, key, cutover_at)
+        if table in SIGNED:
+            old = _row(dst, table, pk, key, set(names))
+            signature_fields = [
+                column for column in names
+                if column in {"signed_at", "signature_id", "signature_hash",
+                              "signed_pdf_path", "signed_pdf_sha256"}
+                or column.startswith(("firma_", "signed_", "signature_"))
+            ]
+            if any(data.get(column) or old.get(column)
+                   for column in signature_fields):
+                raise RuntimeError("Documento firmado: requiere revision en " + table)
+            if table == "encounters" and data.get("note_status") != old.get("note_status"):
+                raise RuntimeError("Estado de consulta distinto: requiere revision")
         assignments = [(_ident(c) + "=%s") for c in names if c != pk]
         assignments.append("cloud_updated_at=now()")
         # Optimistic guard against an intervening clinical write. All
@@ -325,7 +367,7 @@ def _apply_one(src, dst, table, item, key, action):
         raise RuntimeError("Written row content was not verified")
 
 
-def transfer(src, dst, plan, private, approved, *, allow_updates=False):
+def transfer(src, dst, plan, private, approved, *, allow_updates=False, cutover_at=None):
     _check_plan(plan, private, approved, allow_updates=allow_updates)
     result = {}
     for table in PRIMARY:
@@ -338,7 +380,7 @@ def transfer(src, dst, plan, private, approved, *, allow_updates=False):
         try:
             for i in range(0, len(operations), BATCH):
                 for key, action in operations[i:i+BATCH]:
-                    _apply_one(src, dst, table, item, key, action)
+                    _apply_one(src, dst, table, item, key, action, cutover_at=cutover_at)
                     inserted += int(action == "insert")
                     updated += int(action == "update")
                 dst.commit()
