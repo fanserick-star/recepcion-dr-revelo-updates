@@ -1,4 +1,4 @@
-"""One-action, locally authorized differential return to the Official Neon.
+"""One-action, locally authorized two-way differential Neon switching.
 
 Clinical transfers run OFFLINE at the next restart, never during an appointment.
 No credentials, patient records, or names appear in the UI or its status logs.
@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from cloud_sync import _endpoint_id_from_url
 from neon_official_return import (
-    SOURCE, DESTINATION, _load_credentials, _stop_if_unsafe,
+    SOURCE, DESTINATION, _load_credentials, _load_direction_credentials, _stop_if_unsafe,
     _verify_complete, _pg_connect, build_plan, switch, _atomic_save,
     check_automatic_return, transfer
 )
@@ -96,6 +96,8 @@ def _current(root, db_path):
         target = "unknown"
     official_url = config.get("HISTORIA_OFFICIAL_DATABASE_URL", "")
     official_saved = _endpoint_id_from_url(official_url) == DESTINATION
+    emergency_url = config.get("HISTORIA_EMERGENCY_DATABASE_URL", "")
+    emergency_saved = _endpoint_id_from_url(emergency_url) == SOURCE
     try:
         health = _local_health(db_path)
     except Exception:
@@ -103,6 +105,7 @@ def _current(root, db_path):
     return {
         "target": target,
         "official_saved": official_saved,
+        "emergency_saved": emergency_saved,
         "pending": health["pending"],
         "conflicts": health["conflicts"],
         "queued_return": bool(_read_json(root, REQUEST_NAME)),
@@ -110,9 +113,9 @@ def _current(root, db_path):
     }
 
 
-def _compare(root, *, include_private=False):
+def _compare(root, *, include_private=False, target="official"):
     """Read-only comparison, including the guarded one-action eligibility check."""
-    source_url, dest_url, _ = _load_credentials(Path(root))
+    source_url, dest_url, _ = _load_direction_credentials(Path(root), target)
     src = dst = None
     try:
         src = _pg_connect(source_url)
@@ -192,9 +195,12 @@ def complete_scheduled_return(root, db_path):
     request = _read_json(root, REQUEST_NAME)
     if not request:
         return {"state": "not_scheduled"}
-    if request.get("target") != "official" or not request.get("plan_sha256"):
+    target = request.get("target")
+    if target not in ("official", "emergency") or not request.get("plan_sha256"):
         return {"state": "invalid_request"}
     auto_sync = request.get("mode") == "auto_sync"
+    if target == "emergency" and not auto_sync:
+        return {"state": "invalid_request"}
 
     # Never run automatically in isolated launcher trial copies.
     if (root / "data" / "neon_return_before_switch.sqlite").is_file() is False:
@@ -207,12 +213,15 @@ def complete_scheduled_return(root, db_path):
     )}
     try:
         config = _current(root, db_path)
-        if config["target"] == "official":
+        if config["target"] == target:
             _file(root, REQUEST_NAME).unlink(missing_ok=True)
-            _save_json(root, STATUS_NAME, {"state": "official", "message": "Neon Oficial ya está activo."})
-            return {"state": "official"}
-        if config["target"] != "emergency":
+            _save_json(root, STATUS_NAME, {"state": target, "message": "El servidor solicitado ya está activo."})
+            return {"state": target}
+        expected_source = "emergency" if target == "official" else "official"
+        if config["target"] != expected_source:
             raise RuntimeError("La configuración de nube cambió.")
+        if request.get("source_target") not in (None, expected_source):
+            raise RuntimeError("El origen autorizado no coincide.")
         # Re-snapshot after the final appointment, including edits made after
         # the button click. Never use the earlier snapshot as the only backup.
         if auto_sync:
@@ -222,7 +231,7 @@ def complete_scheduled_return(root, db_path):
         os.environ["HISTORIA_RETURN_MAINTENANCE_CONFIRMED"] = "1"
         os.environ["HISTORIA_RETURN_BACKUPS_VERIFIED"] = "1"
         lock = _stop_if_unsafe(root, require_backups=True)
-        source_url, dest_url, _ = _load_credentials(root)
+        source_url, dest_url, _ = _load_direction_credentials(root, target)
         source = _pg_connect(source_url)
         official = _pg_connect(dest_url)
         # Source stays read-only. Official must remain writable for the
@@ -233,8 +242,22 @@ def complete_scheduled_return(root, db_path):
         transferred = {}
         if auto_sync:
             check_automatic_return(report, private)
-            # Empty cutover checkpoint fails closed on any existing-row update.
-            cutover = str(_read_json(root, "neon_cutover_status.json").get("updated_at") or "")
+            # A verified last switch proves when the destination became standby.
+            # An older emergency cutover checkpoint is accepted only for the
+            # initial return to Official. Missing provenance blocks updates.
+            last_switch = lock.execute(
+                "SELECT value FROM sync_state WHERE key='neon_last_switch_at'"
+            ).fetchone()
+            cutover = str(last_switch[0]) if last_switch else ""
+            if not cutover and target == "official":
+                cutover = str(
+                    _read_json(root, "neon_cutover_status.json").get("updated_at") or ""
+                )
+            if not cutover and target == "emergency":
+                # Version 1.4.90 did not record neon_last_switch_at.
+                # Its successful Official return did record an authenticated
+                # local status timestamp BEFORE the operator's next click.
+                cutover = str(request.get("legacy_verified_switch_at") or "")
             transferred = transfer(
                 source, official, report, private, report["plan_sha256"],
                 allow_updates=True, cutover_at=cutover,
@@ -246,12 +269,14 @@ def complete_scheduled_return(root, db_path):
             if report["plan_sha256"] != request["plan_sha256"]:
                 raise RuntimeError("Los datos cambiaron: se requiere nueva comparación.")
             _verify_complete(report)
-        result = switch(root, lock, source_url, dest_url, report["plan_sha256"], official)
+        result = switch(root, lock, source_url, dest_url,
+                        report["plan_sha256"], official, target=target)
         lock.close(); lock = None
         _file(root, REQUEST_NAME).unlink(missing_ok=True)
         _save_json(root, STATUS_NAME, {
-            "state": "official",
-            "message": "Neon Oficial activado tras sincronizar y verificar las diferencias.",
+            "state": target,
+            "message": ("Neon Oficial" if target == "official" else "Neon Respaldo")
+                       + " activado tras sincronizar y verificar las diferencias.",
             "inserted": sum(item["inserted"] for item in transferred.values()),
             "updated": sum(item["updated"] for item in transferred.values()),
             "at": datetime.now(timezone.utc).isoformat(),
@@ -262,7 +287,7 @@ def complete_scheduled_return(root, db_path):
         # remains intact and the next plan skips rows already synchronized.
         _save_json(root, STATUS_NAME, {
             "state": "blocked",
-            "message": "No se realizó el cambio. Neon Respaldo sigue activo. Hay diferencias que requieren revisión antes de regresar al Oficial.",
+            "message": "No se realizó el cambio. El servidor anterior sigue activo. Hay diferencias que requieren revisión.",
         })
         _file(root, REQUEST_NAME).unlink(missing_ok=True)
         return {"state": "blocked"}
@@ -295,6 +320,13 @@ def install(app, root, db_path, base):
         pending_label = (str(current["pending"]) if current["pending"] >= 0 else "Por verificar")
         conflict_label = (str(current["conflicts"]) if current["conflicts"] >= 0 else "Por verificar")
         last_message = str(current["last_result"].get("message") or "")
+        requested_target = "official" if emergency_active else "emergency"
+        destination_label = "Neon Oficial" if emergency_active else "Neon Respaldo"
+        available = (
+            (emergency_active and current["official_saved"])
+            or (official_active and current["emergency_saved"])
+        )
+        button_disabled = not available or current["queued_return"]
         # All strings are HTML escaped. Never send credentials or patient data.
         from html import escape as esc
         content = f"""
@@ -314,15 +346,15 @@ def install(app, root, db_path, base):
 </section>
 </div>
 <section class="panel" style="padding:22px;margin-top:16px">
-<h2>Regreso seguro al Neon Oficial</h2>
+<h2>Cambio seguro entre servidores Neon</h2>
 <p>En esta PC: <b>{esc(pending_label)} pendientes</b> · <b>{esc(conflict_label)} conflictos por revisar</b>.</p>
-<p>Un solo paso: el programa compara ahora y, al reiniciarse después de la atención, copia únicamente los cambios seguros, los verifica y activa el Oficial.</p>
+<p>Sin enlaces ni contraseñas: el programa compara ambos servidores y, al reiniciarse después de atender, sincroniza solo los cambios seguros y activa {destination_label}.</p>
 <div style="display:flex;gap:10px;flex-wrap:wrap;margin:15px 0">
-<button class="doc-primary" type="button" id="neon-return-oneclick" {'disabled' if not emergency_active else ''}>Sincronizar y cambiar al Neon Oficial</button>
+<button class="doc-primary" type="button" id="neon-return-oneclick" {'disabled' if button_disabled else ''}>Sincronizar y cambiar a {destination_label}</button>
 </div>
 <p id="neon-return-state" role="status" aria-live="polite">{esc(last_message) if last_message else ('Ya está usando Neon Oficial.' if official_active else 'Sin comprobación reciente.')}</p>
 <div id="neon-return-results" style="display:none;margin-top:12px;padding:14px;border-radius:10px;background:var(--surface, #f5f7f9)"></div>
-<p style="font-size:13px;color:var(--muted, #667085)">No interrumpe consultas. Termina las atenciones y reinicia Historia desde el launcher. Si hay datos sin subir, vínculos de Recepción distintos, eliminaciones o conflictos con documentos firmados, seguirá activo el Respaldo.</p>
+<p style="font-size:13px;color:var(--muted, #667085)">No interrumpe consultas. Cierra y reinicia Historia después de atender. Si hay datos pendientes, vínculos de Recepción distintos, eliminaciones o conflictos con firmas, permanecerá activo el servidor anterior. Si falta una conexión privada guardada, se desactiva el botón.</p>
 </section>
 <script>
 (function(){{
@@ -331,19 +363,19 @@ const msg=document.getElementById('neon-return-state');
 const summary=document.getElementById('neon-return-results');
 function show(s){{msg.textContent=s;}}
 if(button)button.addEventListener('click',async()=>{{
-  if(!confirm('¿Preparar la sincronización de cambios y el regreso al Neon Oficial? El traslado se ejecutará cuando termines de atender, cierres Historia y la vuelvas a abrir. Si detecta conflictos no cambiará de servidor.'))return;
+  if(!confirm('¿Preparar la sincronización diferencial y el cambio a {destination_label}? Se ejecutará al cerrar y reabrir Historia después de atender. Si detecta conflictos, el servidor anterior permanecerá activo.'))return;
   button.disabled=true;
   show('Comparando servidores y verificando pendientes locales…');
   try{{
     const response=await fetch('/api/neon/return/prepare',{{method:'POST',
       headers:{{'Content-Type':'application/json','X-Historia-Neon-Control':'1'}},
-      body:JSON.stringify({{confirm:'SINCRONIZAR_Y_CAMBIAR'}}),cache:'no-store'}});
+      body:JSON.stringify({{confirm:'SINCRONIZAR_Y_CAMBIAR',target:'{requested_target}'}}),cache:'no-store'}});
     const d=await response.json();
     if(!response.ok||!d.ok)throw new Error(d.message||'No se pudo preparar el cambio');
     const x=d.summary;
     summary.style.display='block';
     summary.textContent='Se revisarán '+x.missing+' registros nuevos y '+x.changed+
-      ' modificados. Datos exclusivos del Oficial: '+x.official_only+
+      ' modificados. Registros exclusivos del destino: '+x.official_only+
       '. Conflictos por eliminación: '+x.deletion_conflicts+'.';
     show(d.message);
   }}catch(e){{show(e.message||'El Neon Respaldo continúa activo.');button.disabled=false;}}
@@ -360,31 +392,50 @@ if(button)button.addEventListener('click',async()=>{{
             if not isinstance(body, dict) or body.get("confirm") != "SINCRONIZAR_Y_CAMBIAR":
                 raise RuntimeError("Confirmacion explicita requerida.")
             status = _current(root, db_path)
-            if status["target"] != "emergency" or not status["official_saved"]:
-                raise RuntimeError("Las dos conexiones privadas de Neon no estan listas.")
+            current_target = status["target"]
+            if current_target not in ("official", "emergency"):
+                raise RuntimeError("El servidor actual no esta reconocido.")
+            target = "official" if current_target == "emergency" else "emergency"
+            if body.get("target") != target:
+                raise RuntimeError("La direccion seleccionada cambio.")
+            if (target == "official" and not status["official_saved"]
+                    or target == "emergency" and not status["emergency_saved"]):
+                raise RuntimeError("La conexion privada del destino no esta guardada.")
+            if status["queued_return"]:
+                raise RuntimeError("Ya existe un cambio pendiente.")
             health = _local_health(db_path)
             if health["pending"] != 0 or health["conflicts"] != 0:
                 raise RuntimeError("Termina la sincronizacion local y resuelve sus conflictos primero.")
-            report, _, private = _compare(root, include_private=True)
+            report, _, private = _compare(root, include_private=True, target=target)
             check_automatic_return(report, private)
             backup = _make_backup(root, db_path)
             if not backup["verified"]:
                 raise RuntimeError("No se verifico el respaldo SQLite.")
+            previous_result = status["last_result"]
+            legacy_verified_switch = (
+                str(previous_result.get("at") or "")
+                if (current_target == "official"
+                    and previous_result.get("state") == "official"
+                    and not _read_json(root, REQUEST_NAME))
+                else ""
+            )
             _save_json(root, REQUEST_NAME, {
-                "target": "official",
+                "target": target,
+                "source_target": current_target,
                 "mode": "auto_sync",
+                "legacy_verified_switch_at": legacy_verified_switch,
                 "plan_sha256": report["plan_sha256"],
                 "created_at": datetime.now(timezone.utc).isoformat(),
             })
             _save_json(root, STATUS_NAME, {
                 "state": "scheduled",
-                "message": "Regreso preparado. Termina de atender, cierra Historia y abre de nuevo desde el launcher. Solo se cambiara tras sincronizar y verificar.",
+                "message": "Cambio preparado. Cierra Historia al terminar de atender y abre de nuevo desde el launcher. Solo cambiara tras sincronizar y verificar.",
             })
             return {"ok": True, "summary": _summary(report),
-                    "message": "Preparado. Al reiniciar, Historia sincronizara las diferencias seguras y activara Neon Oficial. Si encuentra un conflicto, conservara Neon Respaldo."}
+                    "message": "Preparado. Al reiniciar, Historia sincronizara las diferencias seguras y cambiara de servidor. Si hay conflictos, permanecera el servidor actual."}
         except Exception:
             return JSONResponse({"ok": False,
-                "message": "No se preparo el regreso: hay datos pendientes, vinculos de Recepcion distintos o conflictos que requieren revision. Neon Respaldo sigue activo."}, status_code=409)
+                "message": "No se preparo el cambio: hay conexiones ausentes, datos pendientes o diferencias que requieren revision. El servidor actual sigue activo."}, status_code=409)
 
     @app.post("/api/neon/return/check")
     def neon_check(request: Request):

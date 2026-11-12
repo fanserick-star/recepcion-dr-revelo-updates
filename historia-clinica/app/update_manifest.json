@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.90",
-  "app_version": "1.4.90",
-  "runtime_version": "1.4.90",
+  "version": "1.4.91",
+  "app_version": "1.4.91",
+  "runtime_version": "1.4.91",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -96,8 +96,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.90: un botón para sincronizar diferencias clínicas seguras y regresar a Neon Oficial después de terminar la atención y reiniciar. Copia diferencial por lotes, copia SQLite final verificada, comprobación de paridad y bloqueo si hay pendientes, vínculos de Recepción, modificaciones del Oficial posteriores al corte, eliminaciones o firmas en conflicto. Conserva Neon Respaldo; no cambia de nube automáticamente sin confirmación del usuario.",
-    "previous_version": "1.4.89",
+    "purpose": "Historia Clínica 1.4.91: selector bidireccional con un botón para sincronizar cambios diferenciales y cambiar entre Neon Oficial y Neon Respaldo al reiniciar después de atender. Reutiliza conexiones privadas guardadas, verifica ambas nubes y respaldos SQLite, evita una resubida histórica al volver al Respaldo, protege firmas, vínculos de Recepción y ediciones simultáneas. No cambia la nube al instalar y conserva la activa si existe un conflicto.",
+    "previous_version": "1.4.90",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -598,6 +598,13 @@
     "neon_official_return_never_while_attending": true,
     "neon_official_return_reception_links_write_disabled": true,
     "neon_official_return_signed_updates_blocked": true,
-    "neon_official_return_official_concurrent_edits_blocked": true
+    "neon_official_return_official_concurrent_edits_blocked": true,
+    "neon_bidirectional_one_click": true,
+    "neon_bidirectional_only_after_explicit_approval": true,
+    "neon_bidirectional_no_urls_in_ui": true,
+    "neon_bidirectional_prevents_emergency_reseed": true,
+    "neon_bidirectional_preserves_reception_links": true,
+    "neon_bidirectional_verified_local_backup": true,
+    "neon_bidirectional_no_clinical_migration_on_update": true
   }
 }

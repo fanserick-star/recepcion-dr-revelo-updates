@@ -39,6 +39,7 @@ jobs:
           python tools/test_historia_neon_bandwidth_1488.py
           python tools/test_historia_neon_settings_1489.py
           python tools/test_historia_neon_oneclick_1490.py
+          python tools/test_historia_neon_bidirectional_1491.py
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_queue_arrival_chime_1459.py
           python tools/test_historia_queue_expiry_sqlite_1446.py

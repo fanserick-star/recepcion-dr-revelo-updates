@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.90: botón único de sincronizar y cambiar al Neon Oficial desde Configuración. El proceso se ejecuta al reabrir, tras una copia local y verificaciones clínicas; solo mueve diferencias seguras, protege vínculos de Recepción, firmas, eliminaciones y ambos proyectos."
+  "notes": "Historia Clínica 1.4.91: cambiar entre Neon Oficial y Neon Respaldo desde Configuraciones con un solo botón, sin contraseñas ni enlaces. Al reiniciar, solo copia cambios clínicos seguros, comprueba integridad y activa el destino; si hay conflicto, conserva el servidor anterior."
 }

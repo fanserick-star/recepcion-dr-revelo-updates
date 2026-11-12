@@ -98,6 +98,35 @@ def _load_credentials(root):
     return src, dst, values
 
 
+def _load_direction_credentials(root, target):
+    """Read only private, pre-approved Historia URLs; no UI secrets or fallbacks."""
+    if target == "official":
+        return _load_credentials(root)
+    if target != "emergency":
+        raise RuntimeError("Neon destination not recognized")
+    path = Path(root) / ".env"
+    if not path.is_file():
+        raise RuntimeError("Private Historia configuration missing")
+    values = {}
+    for raw in path.read_text(encoding="utf-8-sig").splitlines():
+        line = raw.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip().strip('"').strip("'")
+    if values.get("HISTORIA_NEON_TARGET") != "official":
+        raise RuntimeError("Historia must be on the Official Neon to select emergency")
+    src = values.get("HISTORIA_DATABASE_URL", "")
+    dst = values.get("HISTORIA_EMERGENCY_DATABASE_URL", "")
+    for url, expected in ((src, DESTINATION), (dst, SOURCE)):
+        parts = urllib.parse.urlsplit(url)
+        if (parts.scheme not in ("postgres", "postgresql")
+                or _endpoint_id_from_url(url) != expected
+                or (parts.path or "").lstrip("/") != "neondb"
+                or not parts.username or not parts.password):
+            raise RuntimeError("Dedicated emergency Neon connection is not saved/valid")
+    return src, dst, values
+
+
 def _columns(pg, table):
     cur = pg.cursor()
     cur.execute("SELECT column_name FROM information_schema.columns "
@@ -419,65 +448,99 @@ def _atomic_save(path, value):
             os.unlink(temp_name)
 
 
-def switch(root, local_db, source_url, official_url, plan_sha, official_pg):
-    # This is deliberately separate from copy and requires another approval.
+def switch(root, local_db, source_url, official_url, plan_sha, official_pg, *,
+           target="official"):
+    """Atomic local endpoint switch, after independently verified cloud parity.
+
+    A successful switch stamps the checkpoint before the new cloud synchronizer
+    is created. Neither database is deleted or overwritten by the switch itself.
+    """
+    if target not in ("official", "emergency"):
+        raise RuntimeError("Unexpected clinical target")
+    expected_source, expected_dest, _ = _load_direction_credentials(root, target)
+    if (expected_source, expected_dest) != (source_url, official_url):
+        raise RuntimeError("Clinical connection changed during verification")
+    target_endpoint = DESTINATION if target == "official" else SOURCE
     path = root / ".env"
     previous = path.read_text(encoding="utf-8-sig")
-    if _load_credentials(root)[0] != source_url:
-        raise RuntimeError("Current emergency configuration changed")
     remote = official_pg.cursor()
     remote.execute("SELECT now()::text")
-    official_now = str(remote.fetchone()[0])
+    destination_now = str(remote.fetchone()[0])
     official_pg.commit()
+    updated_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+    replacements = {
+        "HISTORIA_DATABASE_URL": official_url,
+        "HISTORIA_NEON_TARGET": target,
+        "HISTORIA_OFFICIAL_DATABASE_URL": (
+            official_url if target == "official" else source_url
+        ),
+        "HISTORIA_EMERGENCY_DATABASE_URL": (
+            source_url if target == "official" else official_url
+        ),
+    }
     lines = []
     found = set()
     for line in previous.splitlines():
-        if line.startswith("HISTORIA_DATABASE_URL="):
-            lines.append("HISTORIA_DATABASE_URL=" + official_url); found.add("url")
-        elif line.startswith("HISTORIA_NEON_TARGET="):
-            lines.append("HISTORIA_NEON_TARGET=official"); found.add("target")
-        elif line.startswith("HISTORIA_EMERGENCY_DATABASE_URL="):
-            lines.append("HISTORIA_EMERGENCY_DATABASE_URL=" + source_url)
-            found.add("emergency")
+        key = line.split("=", 1)[0].strip() if "=" in line else ""
+        if key in replacements:
+            lines.append(key + "=" + replacements[key])
+            found.add(key)
         else:
             lines.append(line)
-    if "url" not in found or "target" not in found:
-        raise RuntimeError("Missing private connection keys; switch refused")
-    if "emergency" not in found:
-        lines.append("HISTORIA_EMERGENCY_DATABASE_URL=" + source_url)
-    backup = root / "data" / "neon_before_return_private.env"
+    if "HISTORIA_DATABASE_URL" not in found or "HISTORIA_NEON_TARGET" not in found:
+        raise RuntimeError("Missing protected local connection settings")
+    for key, value in replacements.items():
+        if key not in found:
+            lines.append(key + "=" + value)
+    backup = root / "data" / (
+        "neon_before_return_private.env" if target == "official"
+        else "neon_before_emergency_private.env"
+    )
     if not backup.exists():
         _atomic_save(backup, previous)
-    # The SQLite marker is written before the .env switch; if an error occurs,
-    # restore the previous local state so restarting Historia remains safe.
     keys = ["cloud_endpoint_id", "last_pull", "cloud_bootstrap_complete",
-            "official_return_verified_sha"]
+            "official_return_verified_sha", "emergency_return_verified_sha",
+            "emergency_cutover_seeded_1478", "neon_last_switch_at"]
     old = {k: local_db.execute(
         "SELECT value FROM sync_state WHERE key=?", (k,)
     ).fetchone() for k in keys}
+    replacements_state = [
+        ("cloud_endpoint_id", target_endpoint),
+        ("last_pull", destination_now),
+        ("cloud_bootstrap_complete", "1"),
+        ("neon_last_switch_at", updated_at),
+        (("official_return_verified_sha" if target == "official"
+          else "emergency_return_verified_sha"), plan_sha),
+    ]
+    if target == "emergency":
+        # This is a VERIFIED differential return, not the original empty
+        # emergency ZIP cutover. Never seed and re-upload the entire SQLite.
+        replacements_state.append(("emergency_cutover_seeded_1478", updated_at))
     try:
-        for k,v in (("cloud_endpoint_id", DESTINATION),
-                    ("last_pull", official_now),
-                    ("cloud_bootstrap_complete", "1"),
-                    ("official_return_verified_sha", plan_sha)):
-            local_db.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)", (k,v))
+        for key, value in replacements_state:
+            local_db.execute(
+                "INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)",
+                (key, value),
+            )
         local_db.commit()
         local_db.execute("BEGIN IMMEDIATE")
         _atomic_save(path, "\n".join(lines).rstrip("\n") + "\n")
     except Exception:
         local_db.execute("BEGIN IMMEDIATE")
-        for k, row in old.items():
+        for key, row in old.items():
             if row:
-                local_db.execute("INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)",
-                                 (k,row[0]))
+                local_db.execute(
+                    "INSERT OR REPLACE INTO sync_state(key,value) VALUES(?,?)",
+                    (key, row[0]),
+                )
             else:
-                local_db.execute("DELETE FROM sync_state WHERE key=?", (k,))
+                local_db.execute("DELETE FROM sync_state WHERE key=?", (key,))
         local_db.commit()
         with contextlib.suppress(Exception):
             _atomic_save(path, previous)
         raise
     local_db.commit()
-    return {"connection": "official", "rollback_file_preserved": True,
+    return {"connection": target, "rollback_file_preserved": True,
             "verification_sha": plan_sha, "restart_required": True}
 
 

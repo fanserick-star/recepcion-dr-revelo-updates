@@ -13,7 +13,7 @@ panel = (APP / "neon_return_settings.py").read_text(encoding="utf-8")
 engine = (APP / "neon_official_return.py").read_text(encoding="utf-8")
 ast.parse(panel)
 ast.parse(engine)
-assert "Sincronizar y cambiar al Neon Oficial" in panel
+assert "Sincronizar y cambiar a {destination_label}" in panel
 assert '@app.post("/api/neon/return/prepare")' in panel
 assert "neon_return_before_copy.sqlite" in panel
 assert "check_automatic_return(report, private)" in panel
@@ -24,7 +24,7 @@ assert panel.index("transferred = transfer(") < panel.index(
 assert "source.cursor().execute(\"SET TRANSACTION READ ONLY\")" in panel
 assert 'if health["pending"] != 0 or health["conflicts"] != 0:' in panel
 assert "if auto_sync:" in panel
-assert "No se realizo" not in panel  # The reason must be visible through a safe status.
+assert "No se preparo el cambio:" in panel
 
 safe = {
     "missing": [], "changed": [], "tombstone_mismatch": [],
