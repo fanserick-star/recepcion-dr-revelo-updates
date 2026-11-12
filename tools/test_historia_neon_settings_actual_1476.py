@@ -37,8 +37,8 @@ def main() -> None:
     assert "Neon de emergencia" in panel and "Neon Oficial" in panel
     assert "'● ACTIVO' if emergency_active" in panel
     assert "'● ACTIVO' if official_active" in panel
-    assert "Comprobar diferencias" in panel
-    assert "Confirmar regreso al Oficial" in panel
+    assert "Sincronizar y cambiar al Neon Oficial" in panel
+    assert '@app.post("/api/neon/return/prepare")' in panel
     assert "SET TRANSACTION READ ONLY" in panel
     assert "mode=ro" in panel
     assert "input type='password'" not in panel
