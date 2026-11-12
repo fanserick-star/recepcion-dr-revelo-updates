@@ -30,7 +30,7 @@ class FakeCursor:
             return
         if "SELECT * FROM" in sql:
             self.kind = "rows"
-            self.table = sql.split("SELECT * FROM ", 1)[1].split(" ", 1)[0]
+            self.table = sql.split("SELECT * FROM ", 1)[1].split()[0]
             self.description = [(field,) for field in ("id", "name", "deleted_at", "cloud_updated_at")]
             return
         raise AssertionError(sql)
