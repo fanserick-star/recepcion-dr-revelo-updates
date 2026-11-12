@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.85",
-  "app_version": "1.4.85",
-  "runtime_version": "1.4.85",
+  "version": "1.4.86",
+  "app_version": "1.4.86",
+  "runtime_version": "1.4.86",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -94,8 +94,8 @@
     "neon_official_return.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.85: corrige ERROR PostgreSQL 42701, deleted_at duplicado al sincronizar; una sola columna deleted_at en el UPSERT, preserva marcas de eliminación y sus conflictos. No modifica SQLite ni Neon antiguo, no reinicia el respaldo, conserva pendientes, LAN y documentos firmados.",
-    "previous_version": "1.4.84",
+    "purpose": "Historia Clínica 1.4.86: optimización de sincronización del Neon de emergencia. Evita descargar las mismas escrituras después de cada lote, no sobrescribe registros idénticos, cachea esquema y conteos, prioriza datos recientes y protege cambios concurrentes de la cola. Sin reset de respaldo ni modificaciones de datos clínicos o del Neon antiguo.",
+    "previous_version": "1.4.85",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -562,6 +562,14 @@
     "neon_official_return_local_approval_required": true,
     "neon_official_return_checkpoint_preserves_cursor": true,
     "neon_deleted_at_duplicate_upsert_42701_fixed": true,
-    "neon_deleted_at_sql_regression_test": true
+    "neon_deleted_at_sql_regression_test": true,
+    "neon_emergency_no_pull_after_every_batch": true,
+    "neon_emergency_periodic_pull_minutes": 5,
+    "neon_emergency_sql_upsert_noop_guard": true,
+    "neon_emergency_schema_cached_in_process": true,
+    "neon_emergency_recent_dirty_rows_first": true,
+    "neon_sync_dirty_timestamp_milliseconds": true,
+    "neon_sync_dirty_conditional_delete": true,
+    "neon_emergency_skip_full_id_backfill_during_backlog": true
   }
 }

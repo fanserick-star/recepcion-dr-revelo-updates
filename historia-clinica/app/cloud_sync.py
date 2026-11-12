@@ -209,7 +209,7 @@ def ensure_local_sync_schema(db_path: Path) -> None:
                     WHEN COALESCE((SELECT value FROM meta WHERE key='sync_applying_remote'),'0')!='1'
                     BEGIN
                       INSERT INTO sync_dirty(table_name,row_key,changed_at)
-                      VALUES('{qtable}',CAST({ref}.{qkey} AS TEXT),datetime('now'))
+                      VALUES('{qtable}',CAST({ref}.{qkey} AS TEXT),strftime('%Y-%m-%dT%H:%M:%fZ','now'))
                       ON CONFLICT(table_name,row_key) DO UPDATE SET changed_at=excluded.changed_at;
                     END
                 """)
@@ -310,11 +310,19 @@ def _make_sync_upsert_sql(table: str, pk: str, columns: list[str], remote_cols: 
     updates = [f"{c}=EXCLUDED.{c}" for c in columns if c != pk]
     if updates:
         conflict_sql = "DO UPDATE SET " + ",".join(updates) + ",cloud_updated_at=now()"
+        guards = []
         if "deleted_at" in remote_cols:
-            conflict_sql += (
-                f" WHERE NULLIF({table}.deleted_at::text, '') IS NULL "
-                "OR EXCLUDED.deleted_at IS NOT NULL"
+            guards.append(
+                f"(NULLIF({table}.deleted_at::text, '') IS NULL "
+                "OR EXCLUDED.deleted_at IS NOT NULL)"
             )
+        # Do not rewrite identical imported records or move their cloud cursor.
+        # PostgreSQL compares typed values, including NULLs, without a download.
+        guards.append("(" + " OR ".join(
+            f"{table}.{col} IS DISTINCT FROM EXCLUDED.{col}"
+            for col in columns if col != pk
+        ) + ")")
+        conflict_sql += " WHERE " + " AND ".join(guards)
     else:
         conflict_sql = "DO NOTHING"
     # deleted_at is ALREADY in columns, if present. Append only cloud_updated_at.
@@ -344,7 +352,8 @@ class CloudSyncService:
         self._wake = threading.Event()
         self._thread = None
         self._last_activity = time.monotonic()
-        self._last_pull_monotonic = 0.0
+        self._last_pull_monotonic = time.monotonic() if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID else 0.0
+        self._remote_columns_cache = {}
         try:
             _c = sqlite3.connect(self.db_path, timeout=10)
             try:
@@ -493,6 +502,9 @@ class CloudSyncService:
             self._wake.clear()
 
     def _remote_columns(self, pg, schema: str, table: str) -> set[str]:
+        key = (schema, table)
+        if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID and key in self._remote_columns_cache:
+            return self._remote_columns_cache[key]
         cur = pg.cursor()
         cur.execute(
             """SELECT column_name
@@ -500,7 +512,10 @@ class CloudSyncService:
                WHERE table_schema=%s AND table_name=%s""",
             (schema, table),
         )
-        return {str(row[0]) for row in (cur.fetchall() or [])}
+        columns = {str(row[0]) for row in (cur.fetchall() or [])}
+        if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
+            self._remote_columns_cache[key] = columns
+        return columns
 
     def _remote_count(self, pg, schema: str, table: str) -> int:
         cols = self._remote_columns(pg, schema, table)
@@ -560,7 +575,14 @@ class CloudSyncService:
                 except Exception:
                     pass
 
-                profile = self._probe_historia_data(pg)
+                cached_profile = getattr(self, "remote_profile", None)
+                profile_age = time.monotonic() - getattr(self, "_remote_profile_checked", 0.0)
+                if (self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+                        and cached_profile and profile_age < 300):
+                    profile = cached_profile
+                else:
+                    profile = self._probe_historia_data(pg)
+                    self._remote_profile_checked = time.monotonic()
                 self.url = url
                 self.url_source = source
                 self.remote_profile = profile
@@ -768,10 +790,12 @@ class CloudSyncService:
             bootstrap_done = (
                 self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
             )
-            pull_due = (
-                not bootstrap_done
-                or (active and (time.monotonic() - self._last_pull_monotonic >= (300 if pending == 0 and time.monotonic() - self._last_activity >= 300 else 90)))
-            )
+            # During emergency backlog a pull every 25 pushes re-downloaded
+            # the same clinical records and saturated the Free transfer quota.
+            pull_interval = (300 if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID and pending > 0
+                             else (300 if pending == 0 and time.monotonic() - self._last_activity >= 300 else 90))
+            pull_due = (not bootstrap_done or
+                        (active and time.monotonic() - self._last_pull_monotonic >= pull_interval))
             # One-time safe restoration may be due even with no dirty rows.
             # If this PC has no original report/repose metadata, retry only
             # every 30 minutes to avoid constant Neon connections.
@@ -842,7 +866,7 @@ class CloudSyncService:
 
             # Recover the original public.* cloud dataset into historia.*.
             migration = self._migrate_legacy_public_to_historia(pg)
-            profile = self._probe_historia_data(pg)
+            profile = self.remote_profile
             remote_patients = int(profile["historia_patients"] or 0)
             remote_encounters = int(profile["historia_encounters"] or 0)
 
@@ -863,7 +887,7 @@ class CloudSyncService:
             if (
                 local_patients > remote_patients
                 or local_encounters > remote_encounters
-            ):
+            ) and not (self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID and pending > 0):
                 missing_queued = self._queue_missing_local_rows(pg)
 
             bootstrap_recovery = (
@@ -927,7 +951,9 @@ class CloudSyncService:
             cur = pg.cursor()
             remote_now = _remote_now(cur)
             pg.commit()
-            effective_pull_due = pull_due or pushed > 0 or restored_types > 0
+            # Push is already committed: do not immediately download our own
+            # writes on EVERY batch. Periodic pull still retrieves outside edits.
+            effective_pull_due = pull_due or restored_types > 0
             pulled = self._pull(pg, remote_now) if effective_pull_due else 0
             self._register_device(pg)
             pg.commit()
@@ -1094,24 +1120,25 @@ class CloudSyncService:
             bootstrap_complete = self._get_state(sconn, "cloud_bootstrap_complete", "0") == "1"
             last_pull = self._get_state(sconn, "last_pull", "1970-01-01T00:00:00+00:00")
             items = sconn.execute("""
-                SELECT table_name,row_key FROM sync_dirty
-                ORDER BY CASE table_name
+                SELECT table_name,row_key,changed_at FROM sync_dirty
+                ORDER BY CASE WHEN ?=1 THEN changed_at END DESC,
+                  CASE table_name
                   WHEN 'patients' THEN 1 WHEN 'encounters' THEN 2 WHEN 'patient_links' THEN 3
                   WHEN 'waiting_queue' THEN 4 WHEN 'encounter_addenda' THEN 5 WHEN 'macros' THEN 6
                   WHEN 'prescriptions' THEN 7 WHEN 'certificates' THEN 8 WHEN 'clinic_settings' THEN 9
                   WHEN 'audit_log' THEN 10 WHEN 'encounter_revisions' THEN 11 ELSE 99 END,
                   changed_at, row_key
                 LIMIT ?
-            """, (push_limit,)).fetchall()
+            """, (int(self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID), push_limit)).fetchall()
             for item in items:
-                table, key = item["table_name"], item["row_key"]
+                table, key, changed_at = item["table_name"], item["row_key"], item["changed_at"]
                 if table == "patient_links":
                     # Reception is the ONLY authority for link writes in Neon.
                     # Existing doctor-side dirty rows must never be uploaded.
-                    completed.append((table, key))
+                    completed.append((table, key, changed_at))
                     continue
                 if table not in ALL_SYNC_TABLES:
-                    completed.append((table,key)); continue
+                    completed.append((table,key,changed_at)); continue
                 if table not in set(
                     getattr(self, "_remote_available_tables", set()) or set()
                 ):
@@ -1146,7 +1173,7 @@ class CloudSyncService:
                 if row is None:
                     if table in BIDIRECTIONAL_TABLES:
                         cur.execute(f"UPDATE {table} SET deleted_at=%s,cloud_updated_at=now() WHERE CAST({pk} AS TEXT)=%s", (_now_iso(), key))
-                    completed.append((table,key)); pushed += 1
+                    completed.append((table,key,changed_at)); pushed += 1
                     continue
                 data = dict(row)
                 # SQLite may represent an active row with an empty deletion
@@ -1223,10 +1250,10 @@ class CloudSyncService:
                                 sconn, table, str(key), row, previous[0],
                                 "remote_tombstone_preserved",
                             )
-                completed.append((table,key)); pushed += 1
+                completed.append((table,key,changed_at)); pushed += 1
             pg.commit()
             if completed:
-                sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=?", completed)
+                sconn.executemany("DELETE FROM sync_dirty WHERE table_name=? AND row_key=? AND changed_at=?", completed)
                 sconn.commit()
             return pushed
         except Exception:
