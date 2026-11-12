@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.91: cambiar entre Neon Oficial y Neon Respaldo desde Configuraciones con un solo botón, sin contraseñas ni enlaces. Al reiniciar, solo copia cambios clínicos seguros, comprueba integridad y activa el destino; si hay conflicto, conserva el servidor anterior."
+  "notes": "Historia Clínica 1.4.92: sincronización incremental compacta en Neon Respaldo; comprueba en una sola consulta qué tablas cambiaron y evita descargar respuestas vacías. Conserva la frecuencia de detección, las colas locales y el método anterior si hay errores; no toca datos clínicos ni cambia de servidor."
 }
