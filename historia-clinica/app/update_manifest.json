@@ -570,6 +570,7 @@
     "neon_emergency_recent_dirty_rows_first": true,
     "neon_sync_dirty_timestamp_milliseconds": true,
     "neon_sync_dirty_conditional_delete": true,
-    "neon_emergency_skip_full_id_backfill_during_backlog": true
+    "neon_emergency_skip_full_id_backfill_during_backlog": true,
+    "neon_emergency_smart_sync_regression_fixed": true
   }
 }
