@@ -332,6 +332,37 @@ def _make_sync_upsert_sql(table: str, pk: str, columns: list[str], remote_cols: 
         f"ON CONFLICT({pk}) {conflict_sql}"
     )
 
+def _revision_insert_statement(data: dict, device_id: str, endpoint_id: str) -> tuple[str, list]:
+    """Construct revision INSERT for both actual Neon schemas.
+
+    Emergency archive has id TEXT PRIMARY KEY WITHOUT DEFAULT, and existing
+    imported rows retain their SQLite ids. The original Neon has a bigint
+    sequence default for id and should continue generating that id itself.
+    """
+    local_id = data.get("id")
+    if local_id is None or str(local_id).strip() == "":
+        raise ValueError("Revisión clínica sin identificador local")
+    source_key = f"{device_id}:{local_id}"
+    columns = [
+        "source_key", "encounter_id", "revision_no", "saved_at",
+        "actor", "clinical_note", "diagnosis", "treatment", "reason"
+    ]
+    values = [source_key] + [data.get(c) for c in columns[1:]]
+    if endpoint_id == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
+        # Reuse the exact primary key from the verified emergency SQLite copy.
+        # Never allocate a new revision id for an already imported row.
+        columns.insert(0, "id")
+        values.insert(0, str(local_id))
+    elif endpoint_id != HISTORIA_NEON_ENDPOINT_ID:
+        raise ValueError("Proyecto Neon de historia no autorizado")
+    sql = (
+        "INSERT INTO encounter_revisions(" + ",".join(columns) + ") "
+        "VALUES(" + ",".join(["%s"] * len(columns)) + ") "
+        "ON CONFLICT DO NOTHING"
+    )
+    return sql, values
+
+
 class CloudSyncService:
     def __init__(self, root: Path, db_path: Path):
         self.root = Path(root)
@@ -1195,19 +1226,14 @@ class CloudSyncService:
                         vals,
                     )
                 elif table == "encounter_revisions":
-                    source_key = f"{self.device_id}:{row['id']}"
-                    columns = ["source_key","encounter_id","revision_no","saved_at","actor","clinical_note","diagnosis","treatment","reason"]
-                    vals = [source_key] + [data.get(c) for c in columns[1:]]
-                    # v1.3.65: las revisiones son inmutables y el Neon clínico
-                    # también puede tener UNIQUE(encounter_id, revision_no). Si una
-                    # revisión ya llegó desde otra instalación/dispositivo, no debe
-                    # tumbar toda la sincronización ni repetirse para siempre.
-                    # ON CONFLICT sin target protege tanto source_key como cualquier
-                    # restricción única equivalente de la revisión.
-                    cur.execute(
-                        "INSERT INTO encounter_revisions("+",".join(columns)+") VALUES("+",".join(["%s"]*len(columns))+") ON CONFLICT DO NOTHING",
-                        vals,
+                    # The emergency Neon has no server default for id. Older
+                    # versions omitted it and failed the entire batch with
+                    # SQLSTATE 23502. Explicitly preserve the local key there.
+                    # Keep the original Neon sequence-generated id unchanged.
+                    sql, vals = _revision_insert_statement(
+                        data, self.device_id, self.target_endpoint
                     )
+                    cur.execute(sql, vals)
                 else:
                     # v1.3.43: the dedicated clinical Neon is an older schema.
                     # Only send columns that actually exist remotely. Newer local

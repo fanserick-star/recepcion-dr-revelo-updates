@@ -62,6 +62,7 @@ jobs:
           python tools/test_historia_neon_official_return_1484.py
           python tools/test_historia_neon_deleted_at_1485.py
           python tools/test_historia_neon_smart_sync_1486.py
+          python tools/test_historia_revision_id_1487.py
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_recetas_firma_informes_1443.py
           python tools/test_historia_recipe_row_alignment_1465.py

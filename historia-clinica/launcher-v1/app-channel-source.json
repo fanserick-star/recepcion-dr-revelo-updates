@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.86: reduce consumo excesivo de Neon evitando transferencias redundantes y escrituras de filas iguales; prioriza atenciones nuevas, respeta borrados y sincroniza por lotes seguros sin reiniciar respaldo."
+  "notes": "Historia Clínica 1.4.87: corrige error de revisiones clínicas id nulo (23502), mantiene identificadores y evita duplicados. Integra reducción de tráfico 1.4.86 y conserva cola y respaldo sin reiniciarlos."
 }

@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.86",
-  "app_version": "1.4.86",
-  "runtime_version": "1.4.86",
+  "version": "1.4.87",
+  "app_version": "1.4.87",
+  "runtime_version": "1.4.87",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -94,8 +94,8 @@
     "neon_official_return.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.86: optimización de sincronización del Neon de emergencia. Evita descargar las mismas escrituras después de cada lote, no sobrescribe registros idénticos, cachea esquema y conteos, prioriza datos recientes y protege cambios concurrentes de la cola. Sin reset de respaldo ni modificaciones de datos clínicos o del Neon antiguo.",
-    "previous_version": "1.4.85",
+    "purpose": "Historia Clínica 1.4.87: resuelve SQLSTATE 23502 por id nulo en encounter_revisions del Neon de emergencia. Conserva id de SQLite en el nuevo Neon y secuencia propia en Neon oficial; ON CONFLICT evita duplicados. Incluye las optimizaciones de tráfico 1.4.86. No reinicia respaldo, no borra datos, mantiene cola clínica, LAN y documentos.",
+    "previous_version": "1.4.86",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -571,6 +571,10 @@
     "neon_sync_dirty_timestamp_milliseconds": true,
     "neon_sync_dirty_conditional_delete": true,
     "neon_emergency_skip_full_id_backfill_during_backlog": true,
-    "neon_emergency_smart_sync_regression_fixed": true
+    "neon_emergency_smart_sync_regression_fixed": true,
+    "neon_emergency_revision_id_not_null_23502_fixed": true,
+    "neon_emergency_revision_preserve_sqlite_primary_key": true,
+    "neon_official_revision_sequence_unchanged": true,
+    "neon_emergency_revision_23502_regression_test": true
   }
 }
