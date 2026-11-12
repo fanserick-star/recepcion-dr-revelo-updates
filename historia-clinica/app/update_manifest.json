@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.83",
-  "app_version": "1.4.83",
-  "runtime_version": "1.4.83",
+  "version": "1.4.84",
+  "app_version": "1.4.84",
+  "runtime_version": "1.4.84",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -32,7 +32,8 @@
     "queue_arrival_chime.py",
     "doctor_turn_call.py",
     "patient_document_panel.py",
-    "neon_emergency_copy.py"
+    "neon_emergency_copy.py",
+    "neon_official_return.py"
   ],
   "required_python_packages": [
     {
@@ -89,11 +90,12 @@
     "static/clinical_video_library.js",
     "clinical_video_cache.py",
     "neon_emergency_copy.py",
-    "neon_emergency_cutover.py"
+    "neon_emergency_cutover.py",
+    "neon_official_return.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.83: preserva marcas de eliminación durante Neon Sync y normaliza valores vacíos SQLite/timestamptz para impedir reactivaciones de registros eliminados; conserva conflictos para revisión, cola local, historia firmada y LAN. No altera Neon original ni elimina datos.",
-    "previous_version": "1.4.82",
+    "purpose": "Historia Clínica 1.4.84: incorpora herramienta local de regreso diferencial a Neon Oficial (plan/copia selectiva/verificar/cambio con autorización separada), evita volver a subir o descargar toda la historia y bloquea reseteos inseguros del cursor tras un retorno verificado. No realiza cambios de servidor ni migraciones automáticamente. Conserva LAN, documentos firmados, SQLite y ambos Neon.",
+    "previous_version": "1.4.83",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -552,6 +554,12 @@
     "neon_remote_tombstone_conflict_recorded": true,
     "neon_emergency_legacy_deletions_require_reconciliation": true,
     "neon_soft_delete_empty_string_normalized": true,
-    "neon_remote_tombstone_empty_string_handling": true
+    "neon_remote_tombstone_empty_string_handling": true,
+    "neon_official_return_offline_tool": true,
+    "neon_official_return_diff_only": true,
+    "neon_official_return_no_auto_activation": true,
+    "neon_official_return_guard_clinical_tombstones": true,
+    "neon_official_return_local_approval_required": true,
+    "neon_official_return_checkpoint_preserves_cursor": true
   }
 }

@@ -772,6 +772,18 @@ class CloudSyncService:
                     sconn, "cloud_endpoint_id", ""
                 )
                 endpoint_changed = previous_endpoint != endpoint_id
+                # A verified differential return must NEVER fall back to the
+                # legacy full-bootstrap route if its checkpoint is displaced.
+                if (
+                    endpoint_changed
+                    and self.target_endpoint == HISTORIA_NEON_ENDPOINT_ID
+                    and self._get_state(sconn, "official_return_verified_sha", "")
+                ):
+                    raise RuntimeError(
+                        "Retorno al Neon Oficial bloqueado: el marcador local "
+                        "no coincide con el servidor verificado. Revisar antes "
+                        "de recuperar o transferir historias."
+                    )
                 if endpoint_changed:
                     if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID:
                         # The emergency Neon was populated from THIS SQLite and

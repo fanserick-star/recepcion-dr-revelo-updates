@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.83: blindaje de eliminaciones clínicas en Neon (deleted_at), normalización de valores vacíos y registro de conflictos; no borra datos, respeta la cola local, firma electrónica y LAN de Recepción."
+  "notes": "Historia Clínica 1.4.84: herramienta controlada para preparar el regreso al Neon original mediante diferencias verificadas, con copia reanudable y aprobación separada. Sin traslado automático ni reinicialización de historias; mantiene protección de eliminaciones y demás funciones."
 }

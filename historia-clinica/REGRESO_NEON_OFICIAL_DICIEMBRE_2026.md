@@ -1,53 +1,34 @@
-# Regreso inteligente de Historia Clínica al Neon Oficial (diciembre de 2026)
+# Regreso inteligente de Historia Clínica al Neon Oficial — diciembre 2026
 
-**Estado:** procedimiento PREPARADO; retorno NO activado. El Neon de emergencia continúa activo.
-Nunca desactivar ni eliminar un proyecto antes de completar la validación final.
+**Estado:** motor de regreso **implementado y preparado** en `neon_official_return.py` de Historia 1.4.84.
+**No activado:** Historia continúa trabajando con Neon de emergencia. Ningún cambio de servidor se ejecuta automáticamente.
 
-## Por qué no repetir la migración de noviembre
-El cambio de noviembre volvió a poner ~25.000 filas del SQLite en la cola `sync_dirty`.
-Eso causó escrituras redundantes, excesiva transferencia y riesgo de reactivar filas eliminadas.
-**No ejecutar** `_seed_emergency_cutover` ni copiar la tabla completa para volver al Neon original.
+## Ahorro de datos
+- El motor calcula huellas dentro de cada base (256 grupos por clave) y solo trae al proceso local **identificadores y huellas de los grupos distintos**.
+- Copia solamente filas ausentes y, tras autorización adicional, filas modificadas con verificación optimista. Tamaño de transacción: 25. Reanuda ejecutando un plan nuevo: lo ya copiado no se repite.
+- Excluye `cloud_updated_at` de las diferencias de contenido y respeta `deleted_at`. Nunca reactiva automáticamente un registro eliminado.
+- Imprime totales por tabla, nunca nombres de pacientes, notas clínicas, recetas, cadenas de conexión ni archivos firmados.
+- `audit_log` y `encounter_revisions` son de solo inserción (sin modificar entradas originales).
+- `patient_links` (autoridad de Recepción), `waiting_queue` (turnos activos) y `clinic_settings` (preferencias del servidor) no se sobreescriben. Cualquier diferencia requiere revisión humana antes del cambio.
 
-## Preflight ahora preparado
-Archivo `tools/historia_neon_return_preflight.py`: herramienta de **solo lectura**.
-Obtiene un resumen por bloques (256 buckets MD5 por PK), compara huellas calculadas
-en cada Neon y descarga solo los identificadores y fingerprints de los bloques
-diferentes. No transfiere notas clínicas, nombres, recetas ni secretos a la salida.
-Reconoce inserciones, actualizaciones, borrados, posibles resurrecciones y cambios
-de esquema. `cloud_updated_at` se excluye como metadato; el estado de `deleted_at`
-se compara explícitamente. Esta es una evaluación, **no** la migración.
+## Uso futuro exclusivamente con mantenimiento clínico
+1. Actualizar Historia a 1.4.84 (esto **solo instala la herramienta**), corregir los registros ya afectados por el error antiguo de eliminación, y mantener Neon de emergencia como activo hasta diciembre.
+2. Terminar las consultas, cerrar Historia en la PC del doctor; comprobar que `sync_dirty` no tenga pendientes ni conflictos abiertos. Conservar copias verificadas **de ambos Neon**, SQLite y documentos firmados.
+3. El operador autorizado, **en esa misma PC, fuera del programa**, ejecuta el proceso:
+   - `python neon_official_return.py --phase plan` con la variable de entorno temporal `HISTORIA_RETURN_MAINTENANCE_CONFIRMED=1`.
+   - Revisar los conteos de inserciones, diferencias, marcas de eliminación y tablas manuales. La herramienta imprime `plan_sha256`.
+   - `python neon_official_return.py --phase copy --approved-plan HASH --confirm COPIAR_DIFERENCIAS` con las variables `HISTORIA_RETURN_MAINTENANCE_CONFIRMED=1` y `HISTORIA_RETURN_BACKUPS_VERIFIED=1` después de verificar las copias. Solo copiará diferencias aprobadas; no restaurará eliminados. Si existen actualizaciones de filas existentes, requiere revisión adicional y la opción `--allow-reviewed-updates`.
+   - Repetir un plan nuevo si hubo cambios desde la copia (la operación es idempotente por clave, sin resetear todo).
+   - `python neon_official_return.py --phase verify`. La verificación bloqueará el regreso si hay diferencias clínicas, eliminaciones contradictorias o tablas manuales pendientes.
+   - Solo si la verificación es satisfactoria y tras autorización explícita del usuario: `python neon_official_return.py --phase switch --approved-plan HASH_VERIFICADO --confirm ACTIVAR_NEON_OFICIAL` con ambos indicadores de mantenimiento y copias. Esta fase cambia el `.env` local de manera atómica, conserva la conexión anterior en un archivo privado y escribe el punto de sincronización comprobado para impedir la descarga íntegra en el primer arranque.
+4. Abrir Historia desde el launcher, comprobar pacientes, consultas, firmas, recetas, TV/LAN y consumo de transferencia. Si algo no cuadra, interrumpir, **no eliminar** el Neon de emergencia. Regreso/rollback siempre con intervención autorizada.
 
-Para ejecutarlo **únicamente en diciembre, con Historia cerrada tras terminar la consulta**, 
-definir localmente, de forma privada, las variables `HISTORIA_RETURN_EMERGENCY_URL` y
-`HISTORIA_RETURN_OFFICIAL_URL` (cadenas directas, base `neondb`), y ejecutar
-`python tools/historia_neon_return_preflight.py`. Nunca introducir claves en GitHub
-ni en el chat. El programa impone `SET TRANSACTION READ ONLY` en ambas conexiones.
+## Protecciones
+- El programa no inicia este mecanismo por sí solo, ni en noviembre ni en diciembre.
+- Si el puerto de Historia sigue abierto, si hay sincronización local pendiente, conflictos abiertos o no se verificaron respaldos, bloquea la transferencia.
+- Si el plan cambia, su huella anterior deja de servir y la copia se rehúsa.
+- Las modificaciones existentes requieren verificación de huellas inmediatamente antes de escribir y protección de `signed_at` para consultas firmadas.
+- No hay escrituras automáticas de tablas propias de Recepción, ni transferencia de ZIP/PDF grandes por Neon.
+- El plan y los ensayos con datos ficticios están integrados en las pruebas CI. **No se ha probado todavía un traslado real de producción.**
 
-## Reglas del regreso (NO implementado aún)
-1. Fuente autoritativa: Neon de emergencia y SQLite local, **después** de reconciliar
-   consultas eliminadas por error (tombstones) y vaciar/explicar la cola pendiente.
-2. Congelar cambios clínicos un instante al finalizar las atenciones; mantener
-   respaldos verificables de SQLite, PDFs firmados y ambos Neon.
-3. Comparar 11 conjuntos (incluyendo auditorías), sus IDs y contenido lógico:
-   no confiar solo en el número de filas. Revisar cambios exclusivos del Neon
-   antiguo. `patient_links` se mantiene bajo autoridad de Recepción, `waiting_queue`
-   requiere reconciliación de turnos activos, y auditorías/revisiones deben
-   deduplicarse por sus claves únicas reales.
-4. Transferir **solo** filas nuevas/modificadas, en lotes pequeños y reanudables,
-   preferentemente con inserciones condicionales/guardas de versión. Nunca usar
-   `deleted_at=NULL` indiscriminadamente ni sobreescribir un registro firmado
-   más reciente. Conflictos -> detener y revisar, no aplicar «local wins» a ciegas.
-5. Verificar datos, firmas, PDFs, enlaces de pacientes, eliminaciones y colas
-   antes y después de la copia. Comparar fingerprints finales y casos críticos.
-6. Cambiar la conexión del doctor al Neon original **solo tras autorización
-   explícita del usuario** y con rollback ensayado. No encender las dos
-   sincronizaciones activas en paralelo. Registrar la transición sin credenciales.
-7. Observar transferencia/latencia durante la primera jornada y conservar
-   Neon de emergencia como respaldo hasta validar estabilidad.
-
-## Pendiente de implementación antes de diciembre
-- Motor de transferencia diferencial **en modo simulación primero** y después
-  transacciones con checkpoints; **no existe todavía y no debe improvisarse**.
-- Reparación y validación de tombstones históricos afectados por Historia 1.4.81.
-- Pruebas end-to-end de consultas, recetas, certificados, revisiones y firmas.
-- Confirmar cuotas, transferencia disponible y conectividad del Neon original.
+**Para diciembre:** no ejecutar nada de esto hasta que la sincronización de emergencia termine, el caso de las consultas antiguas incorrectamente reactivadas esté corregido y el usuario apruebe el traslado.
