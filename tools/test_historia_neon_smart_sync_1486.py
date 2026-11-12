@@ -25,7 +25,8 @@ for table,pk,columns in [
     assert "IS DISTINCT FROM" in sql
     assert ("WHERE (NULLIF("+table+".deleted_at::text, '') IS NULL") in sql
     assert "AND (" in sql
-    assert sql.count("deleted_at,cloud_updated_at")==1
+    insert_head=sql.split("VALUES(",1)[0]
+    assert insert_head.count("deleted_at")==1,insert_head
     assert "deleted_at=NULL" not in sql
 with tempfile.TemporaryDirectory() as d:
     db=sqlite3.connect(str(Path(d)/"test.sqlite"))
