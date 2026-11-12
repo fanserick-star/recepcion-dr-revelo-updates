@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.91",
-  "app_version": "1.4.91",
-  "runtime_version": "1.4.91",
+  "version": "1.4.92",
+  "app_version": "1.4.92",
+  "runtime_version": "1.4.92",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -605,6 +605,9 @@
     "neon_bidirectional_prevents_emergency_reseed": true,
     "neon_bidirectional_preserves_reception_links": true,
     "neon_bidirectional_verified_local_backup": true,
-    "neon_bidirectional_no_clinical_migration_on_update": true
+    "neon_bidirectional_no_clinical_migration_on_update": true,
+    "neon_emergency_compact_poll": true,
+    "neon_emergency_poll_fallback": true,
+    "neon_emergency_keeps_poll_frequency": true
   }
 }
