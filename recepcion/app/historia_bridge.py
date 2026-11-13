@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import urllib.parse
 import uuid
 from datetime import datetime
@@ -55,23 +56,45 @@ HISTORIA_OFFICIAL_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"
 HISTORIA_EMERGENCY_ENDPOINT_ID = "ep-noisy-paper-arf28291"
 
 
-def _history_target() -> str:
-    """Reception owns the switch; a missing or invalid selection blocks safely."""
-    env = _read_env_file()
-    target = _clean(env.get("HISTORIA_NEON_TARGET") or
-                    os.getenv("HISTORIA_NEON_TARGET") or "official", 30).lower()
+ACTIVE_NEON_SELECTION = ROOT / "data" / "historia_neon_selection.json"
+
+
+def _validated_target(value: str) -> str:
+    target = _clean(value, 30).lower()
     if target not in {"official", "emergency"}:
-        raise RuntimeError("Destino de Historia no reconocido: conexión bloqueada")
+        raise RuntimeError("Destino clínico desconocido: conexión bloqueada")
     return target
 
 
-def _database_url() -> str:
-    """Return only the explicitly selected Historia project, never Reception's DB."""
+def _startup_history_target() -> str:
+    """Freeze once at Reception startup: a pending switch never splits requests."""
+    if ACTIVE_NEON_SELECTION.exists():
+        try:
+            settings = json.loads(ACTIVE_NEON_SELECTION.read_text(encoding="utf-8"))
+            if settings.get("schema") != 1:
+                raise ValueError("Esquema de selección inválido")
+            return _validated_target(str(settings.get("target") or ""))
+        except (OSError, ValueError, TypeError) as exc:
+            # Do not silently fall back to the old Neon after a corrupt choice.
+            raise RuntimeError("Selección de Neon de Historia dañada; acceso clínico bloqueado") from exc
     env = _read_env_file()
-    target = _history_target()
-    key = ("HISTORIA_EMERGENCY_DATABASE_URL" if target == "emergency"
-           else ENV_KEY)
-    # A local, protected setting is authoritative over stale Windows variables.
+    return _validated_target(env.get("HISTORIA_NEON_TARGET")
+                             or os.getenv("HISTORIA_NEON_TARGET") or "official")
+
+
+_PROCESS_HISTORY_TARGET = _startup_history_target()
+
+
+def _history_target() -> str:
+    """Immutable for this running process; changed by a deliberate restart only."""
+    return _PROCESS_HISTORY_TARGET
+
+
+def _database_url_for_target(target: str) -> str:
+    """Resolve a privately saved credential; never use Reception's own Neon."""
+    target = _validated_target(target)
+    env = _read_env_file()
+    key = "HISTORIA_EMERGENCY_DATABASE_URL" if target == "emergency" else ENV_KEY
     historia_url = _clean(env.get(key) or os.getenv(key), 4000)
     if not historia_url:
         if target == "emergency":
@@ -96,6 +119,11 @@ def _database_url() -> str:
             "Configuración bloqueada: Historia Clínica y Recepción apuntan a la misma base de datos"
         )
     return historia_url
+
+
+def _database_url() -> str:
+    """Single clinical Neon route for identity, search, queue, and documents."""
+    return _database_url_for_target(_history_target())
 
 
 def _parse_pg_url(url: str) -> dict:

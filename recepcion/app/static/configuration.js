@@ -122,13 +122,74 @@ window.configOpenAgenda=async function(){
   if(btn)btn.click();
 };
 
+let historiaNeonChecked=null;
+const historiaNeonChoice=()=>q('input[name="historiaNeonTarget"]:checked')?.value||'official';
+function historiaNeonText(message){const el=q('#historiaNeonSelectorStatus');if(el)el.textContent=message}
+function historiaNeonReset(){historiaNeonChecked=null;const b=q('#historiaNeonApplyBtn');if(b)b.disabled=true}
+window.loadHistoriaNeonSelector=async function(){
+  historiaNeonReset();
+  historiaNeonText('Consultando la selección de Historia Clínica…');
+  try{
+    const state=await call('/api/config/historia-neon');
+    if(!state.ok)throw Error(state.message||'No disponible');
+    const target=state.pending_restart||state.active;
+    const radio=q('input[name="historiaNeonTarget"][value="'+target+'"]');if(radio)radio.checked=true;
+    const label=t=>t==='emergency'?'Neon Emergencia':'Neon Original';
+    const ready=state.credential_ready||{};
+    historiaNeonText('En uso: '+label(state.active)+
+      (state.pending_restart?' · Pendiente de reiniciar hacia '+label(state.pending_restart):'')+
+      ' · Conexión Original: '+(ready.official?'guardada':'pendiente')+
+      ' · Conexión Emergencia: '+(ready.emergency?'guardada':'pendiente'));
+  }catch(e){historiaNeonText('No se pudo consultar la selección: '+String(e.message||e))}
+};
+window.checkHistoriaNeonSelector=async function(){
+  historiaNeonReset();
+  const target=historiaNeonChoice(),b=q('#historiaNeonCheckBtn');
+  if(b)b.disabled=true;
+  historiaNeonText('Comparando los vínculos de ambos Neon y las colas pendientes…');
+  try{
+    const d=await call('/api/config/historia-neon/check',{
+      method:'POST',headers:{'X-Reception-Neon-Control':'1','Content-Type':'application/json'},
+      body:JSON.stringify({target})
+    });
+    if(d.same_target){historiaNeonText('Ese servidor ya está activo. No hace falta cambiar.');return}
+    const detail='Faltan en el destino: '+Number(d.missing||0)+
+      ' · Solo en destino: '+Number(d.destination_only||0)+
+      ' · Contradictorios: '+Number(d.different||0)+
+      ' · Pendientes de Recepción: '+Number(d.pending||0)+
+      ' · Pendientes LAN: '+Number(d.pending_lan||0)+'. ';
+    historiaNeonText(detail+String(d.message||''));
+    if(d.ok){historiaNeonChecked=target;const b=q('#historiaNeonApplyBtn');if(b)b.disabled=false}
+  }catch(e){historiaNeonText('No se pudo autorizar: '+String(e.message||e))}
+  finally{if(b)b.disabled=false}
+};
+window.applyHistoriaNeonSelector=async function(){
+  const target=historiaNeonChoice();
+  if(!historiaNeonChecked||historiaNeonChecked!==target)return;
+  const label=target==='emergency'?'Neon Emergencia':'Neon Original';
+  if(!confirm('¿Preparar el cambio de TODAS las funciones clínicas de Recepción a '+label+
+    '? Solo se activará después de cerrar Recepción, cuando ya no estés atendiendo. El Neon de facturación y agenda no cambia.'))return;
+  const b=q('#historiaNeonApplyBtn');if(b)b.disabled=true;
+  try{
+    const d=await call('/api/config/historia-neon/select',{
+      method:'POST',headers:{'X-Reception-Neon-Control':'1','Content-Type':'application/json'},
+      body:JSON.stringify({target,confirm:'CAMBIAR_HISTORIA_AL_REINICIAR'})
+    });
+    historiaNeonChecked=null;historiaNeonText(d.message||'Cambio preparado. Reinicia Recepción.');
+  }catch(e){historiaNeonText('No se programó el cambio: '+String(e.message||e));historiaNeonReset()}
+};
+qa('input[name="historiaNeonTarget"]').forEach(r=>r.addEventListener('change',()=>{
+  historiaNeonReset();
+  historiaNeonText('Pulsa «Verificar cambio seguro» para revisar el servidor elegido.');
+}));
+
 const originalShow=window.showConfigTab;
 window.showConfigTab=function(tab='general',button=null){
   const out=typeof originalShow==='function'?originalShow(tab,button):undefined;
   cleanLegacyConfigArtifacts();
   if(tab==='agenda')loadWhatsappConsolidated();
   if(tab==='facturacion'){window.loadConsolidatedDataphone();if(typeof window.loadAzurStatus==='function')window.loadAzurStatus()}
-  if(tab==='sistema'){window.loadConsolidatedSystem(false);if(typeof window.loadWindowModeInfo==='function')window.loadWindowModeInfo();if(typeof window.loadUpdateInfo==='function')window.loadUpdateInfo()}
+  if(tab==='sistema'){window.loadHistoriaNeonSelector();window.loadConsolidatedSystem(false);if(typeof window.loadWindowModeInfo==='function')window.loadWindowModeInfo();if(typeof window.loadUpdateInfo==='function')window.loadUpdateInfo()}
   return out;
 };
 
