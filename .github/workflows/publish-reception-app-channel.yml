@@ -51,6 +51,7 @@ jobs:
           python tools/test_reception_clinical_preview_4863.py
           python tools/test_reception_clinical_identity_proof_4864.py
           python tools/test_reception_history_target_48139.py
+          python tools/test_reception_clinical_neon_selector_48140.py
           python tools/test_reception_latest_clinical_documents_48138.py
           python tools/test_clinical_unsigned_preview_1426_4865.py
           python tools/test_reception_unsigned_preview_4865.py
