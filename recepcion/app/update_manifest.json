@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.137",
-  "app_version": "4.8.137",
-  "runtime_version": "4.8.137",
+  "version": "4.8.138",
+  "app_version": "4.8.138",
+  "runtime_version": "4.8.138",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.137: entrega LAN más ágil de fichas recién creadas. Antes de esperar cinco minutos, reintenta vínculos clínicos nuevos en 8, 15, 25, 40 y 60 segundos; luego conserva el intervalo conservador. La entrega sigue requiriendo identidad clínica verificada por Neon y conserva la cola SQLite sin duplicar turnos. Mantiene el modo ahorro 4.8.136 y la TV por LAN.",
-    "previous_version": "4.8.136",
+    "purpose": "Recepción 4.8.138: corrige recetas recientes invisibles al consultar el Neon Oficial mientras Historia utiliza Neon Emergencia. Lista los documentos por LAN autenticada desde SQLite de Historia 1.4.95, con identidad clínica previamente verificada en Recepción, sin mezclar historiales ni enviar documentos automáticamente. Mantiene facturación, TV, agenda, colas y Neon de Recepción sin cambios.",
+    "previous_version": "4.8.137",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -805,7 +805,8 @@
     "lan_recent_unlinked_retry_age_limit_seconds": 180,
     "lan_retry_preserves_verified_link_requirement": true,
     "lan_backoff_older_events_seconds": 300,
-    "lan_delivery_direct_network_only": true
+    "lan_delivery_direct_network_only": true,
+    "clinical_document_inventory_lan": true
   },
   "channel": "launcher-v1-stable"
 }

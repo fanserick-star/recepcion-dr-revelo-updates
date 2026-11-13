@@ -538,6 +538,58 @@ class LanService:
         expected = hmac.new(secret.encode("utf-8"), material, hashlib.sha256).hexdigest()
         return hmac.compare_digest(str(digest or ""), expected)
 
+    def documents_for_reception(self, reception_id: str, verified_clinical_id: str) -> list[dict]:
+        """List existing documents from the current doctor's LOCAL clinical SQLite.
+
+        Reception authorizes the patient identity through an independent
+        HMAC-bound request, after checking its verified identity mapping.
+        Never write links, copy documents, use Neon, or return clinical content.
+        """
+        reception_id = _clean(reception_id, 100)
+        clinical_id = _clean(verified_clinical_id, 100)
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", reception_id) or not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,100}", clinical_id
+        ):
+            raise ValueError("Identidad clínica inválida")
+        with sqlite3.connect(self.db_path, timeout=8) as conn:
+            # Inconsistent local mapping is a hard security stop. A missing
+            # local mapping is acceptable: Reception is the verified authority.
+            links = conn.execute(
+                "SELECT clinical_patient_id FROM patient_links WHERE reception_patient_id=? LIMIT 2",
+                (reception_id,),
+            ).fetchall()
+            linked_ids = {str(row[0]) for row in links if row[0]}
+            if len(linked_ids) > 1 or (linked_ids and linked_ids != {clinical_id}):
+                raise PermissionError("Vinculación local contradictoria")
+            patient = conn.execute(
+                "SELECT id FROM patients WHERE id=? AND COALESCE(deleted_at,'')=''"
+                " LIMIT 1",
+                (clinical_id,),
+            ).fetchone()
+            if not patient:
+                raise FileNotFoundError("Ficha clínica local no disponible")
+            rows = conn.execute(
+                """SELECT CAST(id AS TEXT),CAST(issued_at AS TEXT),'receta'
+                   FROM prescriptions
+                   WHERE patient_id=? AND COALESCE(deleted_at,'')=''
+                   UNION ALL
+                   SELECT CAST(id AS TEXT),CAST(issued_at AS TEXT),
+                          CASE WHEN certificate_type='rest_isolation' THEN 'reposo'
+                               WHEN certificate_type IN ('report_cystoscopy','report_ultrasound') THEN 'informe'
+                               ELSE 'certificado' END
+                   FROM certificates
+                   WHERE patient_id=? AND COALESCE(deleted_at,'')=''
+                   ORDER BY 2 DESC LIMIT 100""",
+                (clinical_id, clinical_id),
+            ).fetchall()
+        allowed = {"receta", "reposo", "informe", "certificado"}
+        return [
+            {"id": str(doc_id), "date": str(issued_at or "")[:16],
+             "kind": str(kind)}
+            for doc_id, issued_at, kind in rows
+            if str(kind) in allowed and re.fullmatch(r"[A-Za-z0-9_-]{1,100}", str(doc_id))
+        ]
+
     def signed_document_for_reception(self, reception_id: str, kind: str, doc_id: str,
                                       verified_clinical_id: str = "") -> bytes:
         """Read-only, verified signed original; never signs or edits a document."""
@@ -723,6 +775,31 @@ class LanService:
                         "token": service._token(self.remote_ip),
                         "port": LAN_HTTP_PORT,
                     })
+                    return
+                if path == "/delivery/list-documents":
+                    token = self.headers.get("X-Historia-LAN-Token", "")
+                    if not service._valid_token(self.remote_ip, token):
+                        self._send(403, {"ok": False, "error": "No autorizado"})
+                        return
+                    args = parse_qs(urlsplit(self.path).query, keep_blank_values=False)
+                    val = lambda key: str((args.get(key) or [""])[0])
+                    if not service._valid_delivery_proof(
+                        val("reception_id"), "lista", "documentos",
+                        self.headers.get("X-Revelo-Delivery-Time", ""),
+                        self.headers.get("X-Revelo-Delivery-Proof", ""),
+                        val("clinical_patient_id")):
+                        self._send(403, {"ok": False, "error": "Autorización clínica inválida"})
+                        return
+                    try:
+                        docs = service.documents_for_reception(
+                            val("reception_id"), val("clinical_patient_id"))
+                    except (PermissionError, FileNotFoundError, ValueError) as exc:
+                        self._send(409, {"ok": False, "error": str(exc)[:140]})
+                        return
+                    except Exception:
+                        self._send(503, {"ok": False, "error": "No se pudo consultar el archivo clínico local"})
+                        return
+                    self._send(200, {"ok": True, "documents": docs, "source": "historia_local"})
                     return
                 if path in ("/delivery/signed-pdf", "/delivery/unsigned-preview"):
                     token = self.headers.get("X-Historia-LAN-Token", "")

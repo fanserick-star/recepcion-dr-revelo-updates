@@ -88,8 +88,11 @@ with patch.dict(os.environ, {
     assert status["ready_test"] is True
     assert dict(os.environ) == original_env
 
-assert 'certificate_type=\'rest_isolation\'' in source
-assert 'WHEN certificate_type IN (\'report_cystoscopy\',\'report_ultrasound\')' in source
+# The active document catalog is now hosted by Historia's authenticated LAN
+# service instead of querying the stale Official Neon from Reception.
+lan_catalog = (root / "historia-clinica/app/lan_bridge.py").read_text(encoding="utf-8")
+assert 'certificate_type=\'rest_isolation\'' in lan_catalog
+assert 'WHEN certificate_type IN (\'report_cystoscopy\',\'report_ultrasound\')' in lan_catalog
 assert "def _linked_patient(pid):" in source
 assert "l.verified=1" in source
 print("CLINICAL_CONFIG_4861_LOCAL_VALUES_FAIL_CLOSED_NO_GLOBAL_MUTATION_OK")

@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.135: corrige el guardado de los ajustes de la voz en TV. Cuando actives explícitamente «Anunciar únicamente dos apellidos por voz» y guardes, esa opción y la voz de Windows elegida ya no se perderán al cerrar o reiniciar Recepción. Permanece desactivada por defecto por privacidad. Conserva protección de campanita fantasma 4.8.134, publicidad, turnos, voz de prueba y todas las demás funciones. No modifica Historia, Neon, facturación, Fully ni el router."
+  "notes": "Recepción 4.8.138: muestra las recetas y documentos nuevos desde la PC de Historia actual por LAN autenticada, sin consultar la lista antigua del Neon Oficial. Conserva la vinculación clínica verificada por Recepción; si falta la clave LAN o la vinculación, muestra el error y nunca mezcla pacientes. Requiere Historia 1.4.95 para la nueva ruta; no cambia cobros, agenda, TV ni datos."
 }
