@@ -303,6 +303,28 @@
       </div>
 
       <div class="config-section hidden" data-config-section="sistema">
+        <section class="panel compact-config-panel" id="historiaNeonSelectorPanel">
+          <div class="config-panel-head"><div>
+            <h3>Servidor de Historia Clínica</h3>
+            <p class="muted">Elige el Neon que usará Recepción para fichas, vínculos, búsquedas, revisiones y autorizaciones de documentos. No cambia el Neon propio de Recepción ni la comunicación LAN con la TV.</p>
+          </div></div>
+          <div class="config-integration-grid" role="group" aria-label="Seleccionar Neon clínico" style="gap:10px">
+            <label class="panel compact-config-panel" style="cursor:pointer;padding:12px">
+              <input type="radio" name="historiaNeonTarget" value="official" checked>
+              <strong>Neon Original</strong><small class="muted">Servidor clínico principal anterior</small>
+            </label>
+            <label class="panel compact-config-panel" style="cursor:pointer;padding:12px">
+              <input type="radio" name="historiaNeonTarget" value="emergency">
+              <strong>Neon Emergencia</strong><small class="muted">Servidor clínico utilizado actualmente por el doctor</small>
+            </label>
+          </div>
+          <div id="historiaNeonSelectorStatus" class="desktop-runtime-status" role="status" aria-live="polite">Comprobando selección actual…</div>
+          <div class="actions">
+            <button type="button" class="primary-soft" id="historiaNeonCheckBtn" onclick="checkHistoriaNeonSelector()">Verificar cambio seguro</button>
+            <button type="button" class="primary" id="historiaNeonApplyBtn" onclick="applyHistoriaNeonSelector()" disabled>Preparar cambio al reiniciar</button>
+          </div>
+          <small class="muted">Sin enlaces ni contraseñas en pantalla. Si faltan vínculos, hay pacientes pendientes o no existe una conexión privada guardada, no se realizará el cambio. El servidor actual seguirá funcionando hasta reiniciar Recepción fuera del horario de atención.</small>
+        </section>
         <div class="config-two-col config-system-top">
           <div id="protectionPanel" class="panel protection-panel compact-config-panel">
             <div class="config-panel-head"><div><h3>Neon y copia local</h3><p class="muted">Puedes seguir trabajando sin Internet; los cambios pendientes se sincronizan al volver la conexión.</p></div><button onclick="refreshProtectionStatus(true)">Actualizar</button></div>
