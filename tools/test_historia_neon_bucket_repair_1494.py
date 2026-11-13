@@ -105,7 +105,7 @@ def test_emergency(path):
     assert svc._missing_repair_confirmed_missing == 1
     assert svc._missing_repair_bucket_mismatches >= 1
     assert svc._missing_repair_candidate_keys < 100, svc._missing_repair_candidate_keys
-    assert len([q for q,_ in pg.queries if "GROUP BY bucket" in q]) == len(TABLES)
+    assert len([q for q,_ in pg.queries if "GROUP BY bucket" in q]) == 4  # only populated tables
     assert all("SELECT CAST" not in q for q,_ in pg.queries)
     with sqlite3.connect(path) as db:
         assert db.execute("SELECT table_name,row_key FROM sync_dirty").fetchall() == [("patients", "p-0730")]
