@@ -91,8 +91,11 @@ def _connect_public():
     if not url:
         raise RuntimeError("Historia Clínica no está configurada en esta PC")
     cfg = historia_bridge._parse_pg_url(url)
-    if _endpoint_id(cfg.get("host")) != HISTORIA_ENDPOINT_ID:
-        raise RuntimeError("Se bloqueó una conexión que no corresponde al Neon de Historia Clínica")
+    selected = historia_bridge._history_target()
+    expected = (historia_bridge.HISTORIA_EMERGENCY_ENDPOINT_ID
+                if selected == "emergency" else HISTORIA_ENDPOINT_ID)
+    if _endpoint_id(cfg.get("host")) != expected:
+        raise RuntimeError("Se bloqueó una conexión al Neon de Historia incorrecto")
     from pg8000 import dbapi
     conn = dbapi.connect(
         user=cfg["user"], password=cfg["password"], host=cfg["host"],
