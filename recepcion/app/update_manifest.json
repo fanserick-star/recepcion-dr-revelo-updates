@@ -105,7 +105,8 @@
     "static/patient_profile_remaster_4899.css",
     "static/patient_dossier_review_48100.css",
     "static/reception_compact_workflow_48122.css",
-    "static/reception_attention_cleanup_48123.css"
+    "static/reception_attention_cleanup_48123.css",
+    "reception_history_neon_selector.py"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -212,7 +213,8 @@
     "static/patient_profile_remaster_4899.css",
     "static/patient_dossier_review_48100.css",
     "static/reception_compact_workflow_48122.css",
-    "static/reception_attention_cleanup_48123.css"
+    "static/reception_attention_cleanup_48123.css",
+    "reception_history_neon_selector.py"
   ],
   "notes": {
     "purpose": "Recepción 4.8.140: selector sencillo de Neon de Historia Clínica Original/Emergencia en Configuraciones > Sistema. La selección controla todas las conexiones clínicas de Recepción (vínculos, búsquedas, verificaciones de turnos y autorización de recetas), nunca el Neon propio de Recepción. Requiere conexiones privadas guardadas, comparación íntegra de vínculos sin contradicciones y colas vacías. Solo se activa al cerrar y reiniciar Recepción; si algo falla, conserva el servidor actual sin fallback escondido. No cambia pacientes ni recetas.",
