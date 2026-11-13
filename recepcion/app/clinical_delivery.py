@@ -118,26 +118,104 @@ def _linked_patient(pid):
         raise
 
 
+def _lan_documents(rid: str, clinical_id: str) -> list[dict]:
+    """Read the CURRENT Historia local documents, not the stale Official Neon.
+
+    Requires both an independently verified Reception->clinical identity and
+    the existing shared HMAC secret. No clinical payloads or automatic send.
+    """
+    secret = _clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
+    if len(secret) < 32:
+        raise core.HTTPException(
+            503, "Configura la clave privada LAN de entrega clínica en ambas PC "
+                 "para consultar los documentos actuales de Historia."
+        )
+    stamp = str(int(time.time()))
+    proof = hmac.new(
+        secret.encode("utf-8"),
+        f"{rid}|{clinical_id}|lista|documentos|{stamp}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    query = urllib.parse.urlencode({
+        "reception_id": rid, "clinical_patient_id": clinical_id,
+    })
+    hosts = lan._candidate_hosts()
+    for host in hosts:
+        challenge = lan._challenge(host, timeout=0.7)
+        if not challenge:
+            continue
+        url = f"http://{host}:{lan.LAN_HTTP_PORT}/delivery/list-documents?{query}"
+        req = urllib.request.Request(url, headers={
+            "X-Historia-LAN-Token": str(challenge["token"]),
+            "X-Revelo-Delivery-Time": stamp,
+            "X-Revelo-Delivery-Proof": proof,
+            "Cache-Control": "no-store",
+            "Accept": "application/json",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=7) as result:
+                if result.headers.get("Content-Type", "").split(";")[0] != "application/json":
+                    raise ValueError("Respuesta clínica no válida")
+                raw = result.read(65537)
+                if len(raw) > 65536:
+                    raise ValueError("Lista de documentos demasiado grande")
+            payload = json.loads(raw)
+            if payload.get("ok") is not True or payload.get("source") != "historia_local":
+                raise ValueError("Historia no confirmó su lista local")
+            items = payload.get("documents")
+            if not isinstance(items, list) or len(items) > 100:
+                raise ValueError("Respuesta clínica inesperada")
+            docs = []
+            for item in items:
+                if not isinstance(item, dict):
+                    raise ValueError("Documento inválido")
+                kind = str(item.get("kind") or "")
+                doc_id = str(item.get("id") or "")
+                date = str(item.get("date") or "")
+                if kind not in {"receta", "certificado", "reposo", "informe"} or not re.fullmatch(
+                    r"[A-Za-z0-9_-]{1,100}", doc_id
+                ):
+                    raise ValueError("Identificador clínico inválido")
+                docs.append({
+                    "id": doc_id, "date": date[:16], "kind": kind,
+                    "label": LABELS[kind],
+                })
+            return docs
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise core.HTTPException(
+                    503, "La PC del doctor todavía no tiene el enlace seguro de documentos. "
+                         "Actualiza Historia Clínica."
+                ) from exc
+            if exc.code == 403:
+                raise core.HTTPException(
+                    503, "Historia rechazó la autorización LAN de documentos. "
+                         "Comprueba la clave privada compartida."
+                ) from exc
+            if exc.code == 409:
+                raise core.HTTPException(
+                    409, "La vinculación local de Historia no coincide con la ficha "
+                         "verificada en Recepción. No se mostrarán documentos incorrectos."
+                ) from exc
+            continue
+        except (urllib.error.URLError, TimeoutError, OSError):
+            continue
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise core.HTTPException(502, "Historia devolvió una lista de documentos inválida") from exc
+    raise core.HTTPException(
+        503, "No se pudo consultar la lista actual en la PC de Historia. "
+             "Comprueba la conexión LAN y que Historia esté abierto."
+    )
+
+
 def _documents(pid):
     clinical_id, rid, conn = _linked_patient(pid)
     try:
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT id::text,issued_at::text,'receta' AS kind
-            FROM public.prescriptions
-            WHERE patient_id=%s AND (deleted_at IS NULL OR deleted_at::text='')
-            UNION ALL
-            SELECT id::text,issued_at::text,
-                   CASE WHEN certificate_type='rest_isolation' THEN 'reposo'
-                        WHEN certificate_type IN ('report_cystoscopy','report_ultrasound') THEN 'informe'
-                        ELSE 'certificado' END AS kind
-            FROM public.certificates
-            WHERE patient_id=%s AND (deleted_at IS NULL OR deleted_at::text='')
-            ORDER BY issued_at DESC LIMIT 100
-        """, (clinical_id, clinical_id))
-        rows = cur.fetchall() or []
-        return [{"id":str(a),"date":str(b)[:16],"kind":str(c),
-                 "label": LABELS.get(str(c),"Documento clínico")} for a,b,c in rows],rid,clinical_id
+        # The Official clinical Neon remains the source for verified mappings.
+        # The actual document inventory MUST come from the CURRENT doctor PC:
+        # its local SQLite persists and syncs to the active Emergency Neon.
+        docs = _lan_documents(rid, clinical_id)
+        return docs, rid, clinical_id
     finally:
         conn.close()
 
