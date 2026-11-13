@@ -26,7 +26,7 @@ assert "document.addEventListener('change',event=>" in js
 assert "no-store, no-cache, must-revalidate, max-age=0" in f
 assert 'X-Reception-UI-Version' in f
 assert 'core_runtime.HTMLResponse(' in f
-assert "'/static/configuration.js" in f
+assert '/static/configuration.js?v=' in f
 assert 'reception_history_neon_selector.py' in manifest
 assert "_history_neon_selector.apply_pending_at_startup()" in app
 print("RECEPTION_48141_CLINICAL_NEON_SELECTOR_VISIBLE_AND_FRESH_OK")
