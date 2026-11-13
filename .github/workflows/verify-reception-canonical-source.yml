@@ -82,6 +82,7 @@ jobs:
           python tools/test_reception_clinical_setup_4860.py
           python tools/test_reception_clinical_preview_4863.py
           python tools/test_reception_clinical_identity_proof_4864.py
+          python tools/test_reception_latest_clinical_documents_48138.py
           python tools/test_clinical_unsigned_preview_1426_4865.py
           python tools/test_reception_unsigned_preview_4865.py
           python tools/test_clinical_videocystoscopy_library_20261023.py
