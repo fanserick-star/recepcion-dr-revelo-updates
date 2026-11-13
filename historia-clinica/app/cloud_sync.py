@@ -720,6 +720,55 @@ class CloudSyncService:
         """
         return {"copied": 0, "tables": 0, "mode": "public_canonical"}
 
+    def _maybe_queue_missing_local_rows(
+        self, pg, *, local_patients: int, remote_patients: int,
+        local_encounters: int, remote_encounters: int,
+        bootstrap_done: bool,
+    ) -> tuple[int, str]:
+        """Keep emergency repair available without redownloading every UUID.
+
+        The normal sync_dirty trigger sends newly changed records immediately.
+        The expensive fallback full-key comparison is only necessary when local
+        record counts exceed the cloud. Recheck promptly when ANY count or target
+        changes; otherwise back off identical scans, never deleting dirty rows.
+        Bootstrap and the Official server preserve their existing behavior.
+        """
+        if local_patients <= remote_patients and local_encounters <= remote_encounters:
+            return 0, "counts_match"
+
+        key = (
+            str(self.target_endpoint), int(local_patients), int(remote_patients),
+            int(local_encounters), int(remote_encounters),
+        )
+        now = time.monotonic()
+        emergency_idle_repair = (
+            self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+            and bootstrap_done
+        )
+        if emergency_idle_repair:
+            previous_key = getattr(self, "_missing_scan_signature", None)
+            previous_at = getattr(self, "_missing_scan_monotonic", None)
+            previous_queued = int(getattr(self, "_missing_scan_queued", 0))
+            # Incomplete repair gets another check after 5 minutes; an
+            # unchanged mismatch with no missing IDs gets checked every 30.
+            interval = 300 if previous_queued > 0 else 1800
+            if (previous_key == key and previous_at is not None
+                    and 0 <= now - previous_at < interval):
+                self._missing_scan_skipped_cycles = (
+                    int(getattr(self, "_missing_scan_skipped_cycles", 0)) + 1
+                )
+                return 0, "unchanged_counts_cooldown"
+
+        queued = self._queue_missing_local_rows(pg)
+        if emergency_idle_repair:
+            # Only a COMPLETED scan can set the guard. An exception must retry.
+            self._missing_scan_signature = key
+            self._missing_scan_monotonic = now
+            self._missing_scan_queued = int(queued)
+        self._missing_scan_last_at = _now_iso()
+        self._missing_scan_last_queued = int(queued)
+        return queued, "full_repair_scan"
+
     def _queue_missing_local_rows(self, pg) -> int:
         """Queue only local rows whose primary key is truly absent from Neon.
 
@@ -973,11 +1022,18 @@ class CloudSyncService:
             # On the doctor's full PC, repair an upload that stopped part-way.
             # Only truly absent keys are queued; existing cloud rows are untouched.
             missing_queued = 0
+            missing_scan_state = "not_needed"
             if (
                 local_patients > remote_patients
                 or local_encounters > remote_encounters
             ) and not (self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID and pending > 0):
-                missing_queued = self._queue_missing_local_rows(pg)
+                missing_queued, missing_scan_state = self._maybe_queue_missing_local_rows(
+                    pg, local_patients=local_patients,
+                    remote_patients=remote_patients,
+                    local_encounters=local_encounters,
+                    remote_encounters=remote_encounters,
+                    bootstrap_done=bootstrap_done,
+                )
 
             bootstrap_recovery = (
                 (endpoint_changed and self.target_endpoint != HISTORIA_NEON_EMERGENCY_ENDPOINT_ID)
@@ -1010,6 +1066,10 @@ class CloudSyncService:
                 legacy_public_encounters_seen=profile["public_encounters"],
                 legacy_rows_copied=int(migration.get("copied") or 0),
                 missing_local_rows_queued=missing_queued,
+                missing_local_scan_state=missing_scan_state,
+                missing_local_scan_last_at=getattr(self, "_missing_scan_last_at", ""),
+                missing_local_scan_last_queued=int(getattr(self, "_missing_scan_last_queued", 0)),
+                missing_local_scan_skipped_cycles=int(getattr(self, "_missing_scan_skipped_cycles", 0)),
                 optional_cloud_backfill_queued=optional_backfill_queued,
                 remote_missing_optional_tables=sorted(
                     getattr(self, "_remote_missing_tables", set()) or set()
