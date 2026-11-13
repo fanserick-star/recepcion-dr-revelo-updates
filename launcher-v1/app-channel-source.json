@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.139: protección para utilizar Neon Emergencia como destino clínico explícito, sin fallback oculto al Original. No activa el cambio por sí sola: requiere conexión privada guardada y revisión de diferencias en dos fichas. Mantiene las recetas por LAN de 4.8.138 y no altera pacientes, cobros, TV ni agenda."
+  "notes": "Recepción 4.8.140: nuevo selector de Neon de Historia Clínica (Original o Emergencia) en Configuraciones → Sistema, sin escribir enlaces ni contraseñas. Todo el sistema clínico de Recepción utiliza el seleccionado tras reiniciar; las conexiones privadas y los vínculos deben estar previamente verificados. Bloqueo ante pacientes o LAN pendientes. Conserva el Neon administrativo, facturación, agenda, WhatsApp y TV."
 }
