@@ -54,6 +54,9 @@ jobs:
       - name: Test compact emergency pull without live Neon
         run: python tools/test_historia_neon_poll_1492.py
 
+      - name: Test no-repeat historical ID recovery
+        run: python tools/test_historia_neon_missing_scan_1493.py
+
       - name: Enforce canonical source and frozen history
         run: |
           python tools/test_historia_canonical_source.py
