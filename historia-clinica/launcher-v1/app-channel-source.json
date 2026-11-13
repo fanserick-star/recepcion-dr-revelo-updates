@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.93: evita descargas completas repetidas de identificadores históricos de pacientes y consultas mientras los conteos no cambien. La recuperación inicial, los nuevos pacientes, la cola inmediata y el Neon Oficial conservan su funcionamiento."
+  "notes": "Historia Clínica 1.4.94: Neon Respaldo sincroniza cambios mediante cola local y cursor de nube; cuando debe revisar registros históricos faltantes, usa huellas compactas por grupos y consulta solo claves de grupos distintos, sin descargar todos los pacientes y consultas. No cambia LAN/TV, documentos, firmas ni Neon Oficial."
 }

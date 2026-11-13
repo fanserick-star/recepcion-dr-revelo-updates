@@ -770,21 +770,23 @@ class CloudSyncService:
         return queued, "full_repair_scan"
 
     def _queue_missing_local_rows(self, pg) -> int:
-        """Queue only local rows whose primary key is truly absent from Neon.
+        """Repair rare local-only keys without downloading the remote history.
 
-        This repairs an interrupted initial upload without overwriting rows that
-        already exist in the cloud.
+        Regular changes use SQLite sync_dirty and remote cloud_updated_at.
+        This fallback runs only on the existing count-mismatch recovery path.
+        Emergency uses compact 256-bucket MD5 fingerprints; only a bucket
+        whose contents actually differ triggers a bounded key-existence probe.
+        Never modify clinical rows; queue only confirmed missing local keys.
         """
         tables = (
-            "patients",
-            "encounters",
-            "encounter_addenda",
-            "macros",
-            "prescriptions",
-            "certificates",
-            "clinic_settings",
+            "patients", "encounters", "encounter_addenda", "macros",
+            "prescriptions", "certificates", "clinic_settings",
         )
+        emergency = self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
         queued = 0
+        checked_buckets = 0
+        different_buckets = 0
+        checked_keys = 0
         sconn = sqlite3.connect(self.db_path, timeout=20)
         try:
             for table in tables:
@@ -803,19 +805,77 @@ class CloudSyncService:
                 remote_cols = self._remote_columns(pg, CLOUD_SCHEMA, table)
                 if pk not in remote_cols:
                     continue
-                cur = pg.cursor()
-                cur.execute(
-                    f'SELECT CAST("{pk}" AS TEXT) '
-                    f'FROM "{CLOUD_SCHEMA}"."{table}"'
-                )
-                remote_ids = {str(row[0]) for row in (cur.fetchall() or [])}
-                missing = [
-                    str(row[0]) for row in local_rows
-                    if str(row[0]) not in remote_ids
-                ]
+                if not emergency:
+                    # Preserve Official server repair semantics until an
+                    # independent return-to-Official validation is completed.
+                    cur = pg.cursor()
+                    cur.execute(
+                        f'SELECT CAST("{pk}" AS TEXT) '
+                        f'FROM "{CLOUD_SCHEMA}"."{table}"'
+                    )
+                    remote_ids = {str(row[0]) for row in (cur.fetchall() or [])}
+                    missing = [
+                        str(row[0]) for row in local_rows
+                        if str(row[0]) not in remote_ids
+                    ]
+                else:
+                    # Fingerprints run inside PostgreSQL. Network receives at
+                    # most 256 small (bucket,count,digest) tuples per table,
+                    # NOT thousands of patient/encounter identifiers.
+                    local_buckets: dict[str, list[str]] = {}
+                    for row in local_rows:
+                        if row[0] is None:
+                            continue
+                        key = str(row[0])
+                        bucket = hashlib.md5(key.encode("utf-8")).hexdigest()[:2]
+                        local_buckets.setdefault(bucket, []).append(key)
+
+                    cur = pg.cursor()
+                    cur.execute(
+                        f'SELECT LEFT(MD5(CAST("{pk}" AS TEXT)),2) AS bucket, '
+                        f'COUNT(*) AS quantity, '
+                        f'MD5(STRING_AGG(MD5(CAST("{pk}" AS TEXT)), '
+                        f"'' ORDER BY CAST(\"{pk}\" AS TEXT))) AS digest "
+                        f'FROM "{CLOUD_SCHEMA}"."{table}" '
+                        f'GROUP BY bucket'
+                    )
+                    remote_buckets = {
+                        str(bucket): (int(quantity), str(digest))
+                        for bucket, quantity, digest in (cur.fetchall() or [])
+                    }
+                    missing = []
+                    for bucket, keys in local_buckets.items():
+                        checked_buckets += 1
+                        keys.sort()
+                        local_digest = hashlib.md5(
+                            "".join(
+                                hashlib.md5(key.encode("utf-8")).hexdigest()
+                                for key in keys
+                            ).encode("ascii")
+                        ).hexdigest()
+                        if remote_buckets.get(bucket) == (len(keys), local_digest):
+                            continue
+                        different_buckets += 1
+                        # A disagreement on a bucket is not itself a missing
+                        # record. Confirm each candidate against the indexed
+                        # remote primary key before adding it to sync_dirty.
+                        for i in range(0, len(keys), 128):
+                            batch = keys[i:i + 128]
+                            checked_keys += len(batch)
+                            cur = pg.cursor()
+                            cur.execute(
+                                f'WITH requested(key) AS '
+                                f'(SELECT jsonb_array_elements_text(%s::jsonb)) '
+                                f'SELECT requested.key FROM requested '
+                                f'WHERE NOT EXISTS '
+                                f'(SELECT 1 FROM "{CLOUD_SCHEMA}"."{table}" AS remote '
+                                f'WHERE remote."{pk}"=requested.key)',
+                                (json.dumps(batch, ensure_ascii=False),),
+                            )
+                            missing.extend(str(r[0]) for r in (cur.fetchall() or []))
+
                 if not missing:
                     continue
-
                 stamp = _now_iso()
                 sconn.executemany(
                     """INSERT OR IGNORE INTO sync_dirty(table_name,row_key,changed_at)
@@ -824,6 +884,11 @@ class CloudSyncService:
                 )
                 queued += len(missing)
             sconn.commit()
+            if emergency:
+                self._missing_repair_bucket_checks = checked_buckets
+                self._missing_repair_bucket_mismatches = different_buckets
+                self._missing_repair_candidate_keys = checked_keys
+                self._missing_repair_confirmed_missing = queued
         finally:
             sconn.close()
         return queued
@@ -1070,6 +1135,15 @@ class CloudSyncService:
                 missing_local_scan_last_at=getattr(self, "_missing_scan_last_at", ""),
                 missing_local_scan_last_queued=int(getattr(self, "_missing_scan_last_queued", 0)),
                 missing_local_scan_skipped_cycles=int(getattr(self, "_missing_scan_skipped_cycles", 0)),
+                missing_repair_method=(
+                    "fingerprint_buckets_v1"
+                    if self.target_endpoint == HISTORIA_NEON_EMERGENCY_ENDPOINT_ID
+                    else "legacy_full_key_compare"
+                ),
+                missing_repair_buckets_compared=int(getattr(self, "_missing_repair_bucket_checks", 0)),
+                missing_repair_buckets_different=int(getattr(self, "_missing_repair_bucket_mismatches", 0)),
+                missing_repair_candidate_keys=int(getattr(self, "_missing_repair_candidate_keys", 0)),
+                missing_repair_confirmed_missing=int(getattr(self, "_missing_repair_confirmed_missing", 0)),
                 optional_cloud_backfill_queued=optional_backfill_queued,
                 remote_missing_optional_tables=sorted(
                     getattr(self, "_remote_missing_tables", set()) or set()

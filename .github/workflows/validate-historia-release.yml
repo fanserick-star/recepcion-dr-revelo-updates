@@ -57,6 +57,9 @@ jobs:
       - name: Test no-repeat historical ID recovery
         run: python tools/test_historia_neon_missing_scan_1493.py
 
+      - name: Test compact bucket reconciliation without downloading remote IDs
+        run: python tools/test_historia_neon_bucket_repair_1494.py
+
       - name: Enforce canonical source and frozen history
         run: |
           python tools/test_historia_canonical_source.py
