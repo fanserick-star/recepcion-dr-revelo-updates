@@ -42,6 +42,7 @@ jobs:
           python tools/test_historia_neon_bidirectional_1491.py
           python tools/test_historia_neon_poll_1492.py
           python tools/test_historia_neon_missing_scan_1493.py
+          python tools/test_historia_neon_bucket_repair_1494.py
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_queue_arrival_chime_1459.py
           python tools/test_historia_queue_expiry_sqlite_1446.py
