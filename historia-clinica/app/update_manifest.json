@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.94",
-  "app_version": "1.4.94",
-  "runtime_version": "1.4.94",
+  "version": "1.4.95",
+  "app_version": "1.4.95",
+  "runtime_version": "1.4.95",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -96,8 +96,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.91: selector bidireccional con un botón para sincronizar cambios diferenciales y cambiar entre Neon Oficial y Neon Respaldo al reiniciar después de atender. Reutiliza conexiones privadas guardadas, verifica ambas nubes y respaldos SQLite, evita una resubida histórica al volver al Respaldo, protege firmas, vínculos de Recepción y ediciones simultáneas. No cambia la nube al instalar y conserva la activa si existe un conflicto.",
-    "previous_version": "1.4.90",
+    "purpose": "Historia 1.4.95: lista autenticada de recetas, certificados e informes exclusivamente por LAN desde SQLite clínica actual, sin Neon Oficial; confirma identidad recibida de Recepción, no entrega contenido de otros pacientes y no escribe historias ni cambia sincronización de Neon.",
+    "previous_version": "1.4.94",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -612,6 +612,7 @@
     "neon_emergency_missing_rows_scan_backoff": true,
     "neon_emergency_missing_rows_scan_diagnostics": true,
     "neon_emergency_bounded_bucket_reconciliation": true,
-    "neon_emergency_bucket_compare_safety": true
+    "neon_emergency_bucket_compare_safety": true,
+    "lan_documents_readonly": true
   }
 }
