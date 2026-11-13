@@ -90,7 +90,7 @@ with patch.dict(os.environ, {
 
 # The active document catalog is now hosted by Historia's authenticated LAN
 # service instead of querying the stale Official Neon from Reception.
-lan_catalog = (ROOT / "historia-clinica/app/lan_bridge.py").read_text(encoding="utf-8")
+lan_catalog = (root / "historia-clinica/app/lan_bridge.py").read_text(encoding="utf-8")
 assert 'certificate_type=\'rest_isolation\'' in lan_catalog
 assert 'WHEN certificate_type IN (\'report_cystoscopy\',\'report_ultrasound\')' in lan_catalog
 assert "def _linked_patient(pid):" in source
