@@ -276,10 +276,23 @@ def _install_versioned_overlay_home() -> None:
             f'<script defer src="/v460/overlay.js?v={version}"></script>'
             f'<script defer src="/static/configuration.js?v={version}"></script>'
         )
-        return (
+        page = (
             html.replace("</head>", addon + "</head>", 1)
             if "</head>" in html
             else html + addon
+        )
+        # The core home route already enforced no-store. The versioned
+        # replacement accidentally dropped that header, allowing WebView
+        # to reuse pre-update Configuration HTML after the launcher installed
+        # a new canonical runtime. Keep it consistent and uncacheable.
+        return core_runtime.HTMLResponse(
+            content=page,
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+                "X-Reception-UI-Version": version,
+            },
         )
 
     try:
