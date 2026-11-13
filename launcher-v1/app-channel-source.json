@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.138: muestra las recetas y documentos nuevos desde la PC de Historia actual por LAN autenticada, sin consultar la lista antigua del Neon Oficial. Conserva la vinculación clínica verificada por Recepción; si falta la clave LAN o la vinculación, muestra el error y nunca mezcla pacientes. Requiere Historia 1.4.95 para la nueva ruta; no cambia cobros, agenda, TV ni datos."
+  "notes": "Recepción 4.8.139: protección para utilizar Neon Emergencia como destino clínico explícito, sin fallback oculto al Original. No activa el cambio por sí sola: requiere conexión privada guardada y revisión de diferencias en dos fichas. Mantiene las recetas por LAN de 4.8.138 y no altera pacientes, cobros, TV ni agenda."
 }
