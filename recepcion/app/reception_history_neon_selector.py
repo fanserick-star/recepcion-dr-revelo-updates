@@ -65,27 +65,31 @@ def _write_pending(target: str) -> None:
 
 
 def apply_pending_at_startup():
-    """Before HTTP starts: promote the approved target to the next process."""
+    """Revalidate at restart; never break Reception if pending switch is unsafe."""
     if not PENDING_PATH.exists():
-        return
-    req = _json_read(PENDING_PATH)
-    target = bridge._validated_target(req.get("target") or "")
-    if target != bridge._history_target():
-        # The connection must still be privately installed and endpoint-locked.
-        url = bridge._database_url_for_target(target)
-        if not url:
-            raise RuntimeError("La conexión privada del destino no está disponible")
-        # An atomic replace is safe; the currently running process has already
-        # frozen its target at module import and will never read a changed file.
+        return {"state": "not_scheduled"}
+    try:
+        req = _json_read(PENDING_PATH)
+        target = bridge._validated_target(req.get("target") or "")
+        if target == bridge._history_target():
+            PENDING_PATH.unlink(missing_ok=True)
+            return {"state": "already_active"}
+        # Data and queue may have changed since the operator clicked.
+        # Refuse switching if any safety condition is no longer true.
+        report = _preflight(target)
+        if not report["ok"]:
+            return {"state": "blocked", "reason": "Vinculaciones o envíos pendientes"}
         active = bridge.ACTIVE_NEON_SELECTION
         active.parent.mkdir(parents=True, exist_ok=True)
-        # Do not use os.replace on an untrusted path: both paths are fixed.
         os.replace(PENDING_PATH, active)
-        # Because bridge was imported earlier, its frozen selection must be
-        # updated BEFORE any Reception request, route, or worker is started.
+        # The process is not serving HTTP or workers yet. All future calls,
+        # including LAN handoff and document verification, use this one target.
         bridge._PROCESS_HISTORY_TARGET = target
-    else:
-        PENDING_PATH.unlink(missing_ok=True)
+        return {"state": "activated", "target": target}
+    except Exception:
+        # No fallback hidden switch, no risk of taking the admin app offline.
+        # Keep the pending request to show the operator a blocked state.
+        return {"state": "blocked", "reason": "Revisión o conexión privada pendiente"}
 
 
 def _connected(target: str):
