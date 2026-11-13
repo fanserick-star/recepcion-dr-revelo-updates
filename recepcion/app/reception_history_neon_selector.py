@@ -127,7 +127,7 @@ def _link_snapshot(conn) -> dict:
 
 def _pending_work() -> tuple[int, int]:
     try:
-        reception_pending = int(core.queue_count())
+        reception_pending = int(core.queue_count(force=True))
     except Exception as exc:
         raise RuntimeError("No se pudo verificar la cola offline de Recepción") from exc
     lan_path = bridge.ROOT / "data" / "historia_lan_outbox.db"
