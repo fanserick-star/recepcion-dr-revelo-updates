@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.140",
-  "app_version": "4.8.140",
-  "runtime_version": "4.8.140",
+  "version": "4.8.141",
+  "app_version": "4.8.141",
+  "runtime_version": "4.8.141",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,8 +217,8 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.140: selector sencillo de Neon de Historia Clínica Original/Emergencia en Configuraciones > Sistema. La selección controla todas las conexiones clínicas de Recepción (vínculos, búsquedas, verificaciones de turnos y autorización de recetas), nunca el Neon propio de Recepción. Requiere conexiones privadas guardadas, comparación íntegra de vínculos sin contradicciones y colas vacías. Solo se activa al cerrar y reiniciar Recepción; si algo falla, conserva el servidor actual sin fallback escondido. No cambia pacientes ni recetas.",
-    "previous_version": "4.8.139",
+    "purpose": "Recepción 4.8.141: corrige el selector de Neon de Historia que no aparecía en Configuración > Sistema aunque el launcher mostrase 4.8.140. Restaura Cache-Control no-store en la ruta principal y repara la sección del selector desde configuration.js si un WebView mantiene un HTML antiguo. No altera vínculos, bases Neon, agenda, facturación ni TV. La selección Original/Emergencia sigue protegida por sus verificaciones previas, claves privadas y reinicio.",
+    "previous_version": "4.8.140",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -816,7 +816,8 @@
     "historia_neon_ui_selector": true,
     "historia_target_restart_only": true,
     "historia_selector_link_parity_required": true,
-    "historia_selector_private_urls_only": true
+    "historia_selector_private_urls_only": true,
+    "historia_neon_selector_visibility_fix": true
   },
   "channel": "launcher-v1-stable"
 }
