@@ -7,6 +7,8 @@ import time
 import urllib.request
 from pathlib import Path
 import historia_bridge
+import reception_history_neon_selector as _history_neon_selector
+_HISTORY_NEON_SELECTION_STARTUP = _history_neon_selector.apply_pending_at_startup()
 core = _dep_payment_terminal_panel.core
 app = _dep_payment_terminal_panel.app
 
