@@ -60,6 +60,9 @@ jobs:
       - name: Test compact bucket reconciliation without downloading remote IDs
         run: python tools/test_historia_neon_bucket_repair_1494.py
 
+      - name: Test authenticated clinical document inventory across PCs
+        run: python tools/test_reception_latest_clinical_documents_48138.py
+
       - name: Enforce canonical source and frozen history
         run: |
           python tools/test_historia_canonical_source.py
