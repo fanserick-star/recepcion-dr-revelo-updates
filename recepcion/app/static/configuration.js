@@ -122,11 +122,37 @@ window.configOpenAgenda=async function(){
   if(btn)btn.click();
 };
 
+function ensureHistoriaNeonSelectorPanel(){
+  // Supports installations where the executable and configuration.js already
+  // updated but the WebView retained an earlier index.html in cache.
+  const tab=q('#config [data-config-section="sistema"]');
+  if(!tab||q('#historiaNeonSelectorPanel'))return;
+  const panel=document.createElement('section');
+  panel.id='historiaNeonSelectorPanel';
+  panel.className='panel compact-config-panel';
+  panel.innerHTML=`
+    <div class="config-panel-head"><div><h3>Servidor de Historia Clínica</h3>
+    <p class="muted">Este servidor se usa para vinculación, búsquedas, turnos y autorización de documentos. No cambia el Neon administrativo de Recepción.</p></div></div>
+    <div class="config-integration-grid" role="group" aria-label="Servidor de Historia Clínica" style="gap:10px">
+      <label class="panel compact-config-panel" style="padding:12px;cursor:pointer"><input type="radio" name="historiaNeonTarget" value="official" checked> <strong>Neon Original</strong></label>
+      <label class="panel compact-config-panel" style="padding:12px;cursor:pointer"><input type="radio" name="historiaNeonTarget" value="emergency"> <strong>Neon Emergencia</strong></label>
+    </div>
+    <div id="historiaNeonSelectorStatus" class="desktop-runtime-status" role="status" aria-live="polite">Comprobando el servidor activo…</div>
+    <div class="actions">
+      <button type="button" id="historiaNeonCheckBtn" class="primary-soft" onclick="checkHistoriaNeonSelector()">Verificar cambio seguro</button>
+      <button type="button" id="historiaNeonApplyBtn" class="primary" onclick="applyHistoriaNeonSelector()" disabled>Preparar cambio al reiniciar</button>
+    </div>
+    <small class="muted">No se mostrarán enlaces ni claves. Si hay diferencias de pacientes o envíos pendientes, no se activará el cambio.</small>
+  `;
+  tab.insertBefore(panel,tab.firstChild);
+}
+
 let historiaNeonChecked=null;
 const historiaNeonChoice=()=>q('input[name="historiaNeonTarget"]:checked')?.value||'official';
 function historiaNeonText(message){const el=q('#historiaNeonSelectorStatus');if(el)el.textContent=message}
 function historiaNeonReset(){historiaNeonChecked=null;const b=q('#historiaNeonApplyBtn');if(b)b.disabled=true}
 window.loadHistoriaNeonSelector=async function(){
+  ensureHistoriaNeonSelectorPanel();
   historiaNeonReset();
   historiaNeonText('Consultando la selección de Historia Clínica…');
   try{
@@ -178,10 +204,11 @@ window.applyHistoriaNeonSelector=async function(){
     historiaNeonChecked=null;historiaNeonText(d.message||'Cambio preparado. Reinicia Recepción.');
   }catch(e){historiaNeonText('No se programó el cambio: '+String(e.message||e));historiaNeonReset()}
 };
-qa('input[name="historiaNeonTarget"]').forEach(r=>r.addEventListener('change',()=>{
+document.addEventListener('change',event=>{
+  if(!event.target?.matches?.('input[name="historiaNeonTarget"]'))return;
   historiaNeonReset();
   historiaNeonText('Pulsa «Verificar cambio seguro» para revisar el servidor elegido.');
-}));
+});
 
 const originalShow=window.showConfigTab;
 window.showConfigTab=function(tab='general',button=null){

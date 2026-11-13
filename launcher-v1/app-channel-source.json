@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.140: nuevo selector de Neon de Historia Clínica (Original o Emergencia) en Configuraciones → Sistema, sin escribir enlaces ni contraseñas. Todo el sistema clínico de Recepción utiliza el seleccionado tras reiniciar; las conexiones privadas y los vínculos deben estar previamente verificados. Bloqueo ante pacientes o LAN pendientes. Conserva el Neon administrativo, facturación, agenda, WhatsApp y TV."
+  "notes": "Recepción 4.8.141: corrige que el selector Neon Original/Emergencia no aparezca en Configuración → Sistema aunque la actualización 4.8.140 estuviese instalada. Evita caché antigua del navegador integrado y recupera automáticamente el panel sin cambiar bases ni vinculaciones. Sin cambiar el servidor hasta verificar y reiniciar."
 }
