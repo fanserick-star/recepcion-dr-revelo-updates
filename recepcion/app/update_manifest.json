@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.139",
-  "app_version": "4.8.139",
-  "runtime_version": "4.8.139",
+  "version": "4.8.140",
+  "app_version": "4.8.140",
+  "runtime_version": "4.8.140",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -215,8 +215,8 @@
     "static/reception_attention_cleanup_48123.css"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.139: prepara la conexión seleccionable al Neon Emergencia de Historia, sin usar credenciales de Recepción ni volver silenciosamente al Neon Original. Mantiene el Original como autoridad de vínculos hasta que el destino Emergencia esté configurado y las identidades incongruentes sean verificadas. No realiza cambios automáticos de servidor, no cambia facturación, agenda, TV o WhatsApp.",
-    "previous_version": "4.8.138",
+    "purpose": "Recepción 4.8.140: selector sencillo de Neon de Historia Clínica Original/Emergencia en Configuraciones > Sistema. La selección controla todas las conexiones clínicas de Recepción (vínculos, búsquedas, verificaciones de turnos y autorización de recetas), nunca el Neon propio de Recepción. Requiere conexiones privadas guardadas, comparación íntegra de vínculos sin contradicciones y colas vacías. Solo se activa al cerrar y reiniciar Recepción; si algo falla, conserva el servidor actual sin fallback escondido. No cambia pacientes ni recetas.",
+    "previous_version": "4.8.139",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -810,7 +810,11 @@
     "historia_emergency_target_supported": true,
     "historia_target_switch_auto_enabled": false,
     "historia_target_needs_local_private_credential": true,
-    "clinical_data_changes": false
+    "clinical_data_changes": false,
+    "historia_neon_ui_selector": true,
+    "historia_target_restart_only": true,
+    "historia_selector_link_parity_required": true,
+    "historia_selector_private_urls_only": true
   },
   "channel": "launcher-v1-stable"
 }
