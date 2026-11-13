@@ -51,13 +51,44 @@ def _connection_identity(value: str) -> tuple[str, int, str, str] | None:
         return None
 
 
-def _database_url() -> str:
-    """Return only Historia Neon; never fall back to Reception DATABASE_URL."""
+HISTORIA_OFFICIAL_ENDPOINT_ID = "ep-sweet-mud-arlsk7qa"
+HISTORIA_EMERGENCY_ENDPOINT_ID = "ep-noisy-paper-arf28291"
+
+
+def _history_target() -> str:
+    """Reception owns the switch; a missing or invalid selection blocks safely."""
     env = _read_env_file()
-    historia_url = _clean(os.getenv(ENV_KEY) or env.get(ENV_KEY), 4000)
+    target = _clean(env.get("HISTORIA_NEON_TARGET") or
+                    os.getenv("HISTORIA_NEON_TARGET") or "official", 30).lower()
+    if target not in {"official", "emergency"}:
+        raise RuntimeError("Destino de Historia no reconocido: conexión bloqueada")
+    return target
+
+
+def _database_url() -> str:
+    """Return only the explicitly selected Historia project, never Reception's DB."""
+    env = _read_env_file()
+    target = _history_target()
+    key = ("HISTORIA_EMERGENCY_DATABASE_URL" if target == "emergency"
+           else ENV_KEY)
+    # A local, protected setting is authoritative over stale Windows variables.
+    historia_url = _clean(env.get(key) or os.getenv(key), 4000)
     if not historia_url:
+        if target == "emergency":
+            raise RuntimeError(
+                "Neon Emergencia de Historia no configurado en Recepción. "
+                "No se usará el Neon Original como reemplazo silencioso."
+            )
         return ""
-    reception_url = _clean(os.getenv("DATABASE_URL") or env.get("DATABASE_URL"), 4000)
+    expected = (HISTORIA_EMERGENCY_ENDPOINT_ID if target == "emergency"
+                else HISTORIA_OFFICIAL_ENDPOINT_ID)
+    cfg = _parse_pg_url(historia_url)
+    host = str(cfg["host"]).lower().split(".", 1)[0].removesuffix("-pooler")
+    if host != expected:
+        raise RuntimeError(
+            "Se bloqueó una conexión a un proyecto distinto del Neon de Historia seleccionado"
+        )
+    reception_url = _clean(env.get("DATABASE_URL") or os.getenv("DATABASE_URL"), 4000)
     historia_id = _connection_identity(historia_url)
     reception_id = _connection_identity(reception_url)
     if historia_id and reception_id and historia_id == reception_id:
