@@ -14,10 +14,10 @@ root=Path(__file__).resolve().parents[1]
 bridge=(root/"recepcion/app/historia_bridge.py").read_text(encoding="utf-8")
 identity=(root/"recepcion/app/reception_history_identity_consolidated.py").read_text(encoding="utf-8")
 tree=ast.parse(bridge)
-named={"_clean","_connection_identity","_parse_pg_url","_history_target","_database_url"}
+named={"_clean","_connection_identity","_parse_pg_url","_validated_target","_database_url_for_target","_history_target","_database_url"}
 selected=[n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name in named]
 constants=[n for n in tree.body if isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id in {"ENV_KEY","HISTORIA_OFFICIAL_ENDPOINT_ID","HISTORIA_EMERGENCY_ENDPOINT_ID"} for t in n.targets)]
-ns={"os":os,"urllib":urllib,"ROOT":root,"_read_env_file":lambda:{}}
+ns={"os":os,"urllib":urllib,"ROOT":root,"_read_env_file":lambda:{}, "_PROCESS_HISTORY_TARGET":"official"}
 exec(compile(ast.fix_missing_locations(ast.Module(body=constants+selected,type_ignores=[])),"bridge_offline","exec"),ns)
 
 def url(endpoint):
@@ -31,6 +31,9 @@ with patch.dict(os.environ,{},clear=True):
     assert ns["_history_target"]()=="official"
     assert ns["_database_url"]()==official
     env["HISTORIA_NEON_TARGET"]="emergency"
+    # The selected connection is immutable until the whole process restarts.
+    assert ns["_history_target"]()=="official"
+    ns["_PROCESS_HISTORY_TARGET"]="emergency"  # simulated next startup
     assert ns["_history_target"]()=="emergency"
     assert ns["_database_url"]()==emergency
     # If emergency access fails, NEVER silently query Original.
@@ -51,8 +54,7 @@ with patch.dict(os.environ,{},clear=True):
     except RuntimeError: pass
     else: raise AssertionError("Reception project must never pass as Historia")
     env["HISTORIA_EMERGENCY_DATABASE_URL"]=emergency
-    env["HISTORIA_NEON_TARGET"]="unknown"
-    try: ns["_database_url"]()
+    try: ns["_validated_target"]("unknown")
     except RuntimeError:pass
     else:raise AssertionError("Invalid target must block")
 
