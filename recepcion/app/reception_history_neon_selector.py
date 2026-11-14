@@ -213,6 +213,33 @@ def _status():
             "switch_changes_only_after_restart": True}
 
 
+def _safe_check_error(exc: Exception) -> dict:
+    """Only return local-safe categories; never URLs, SQL or patient IDs."""
+    detail = str(exc).lower()
+    if ("no configurado en recepción" in detail
+            or "falta la conexión privada" in detail):
+        return {"code": "private_connection_missing",
+                "message": "Falta la conexión privada de Neon Historia en esta PC de Recepción. No se efectuó ningún cambio."}
+    if ("proyecto distinto" in detail or "misma base de datos" in detail
+            or "configuración bloqueada" in detail):
+        return {"code": "private_connection_mismatch",
+                "message": "La conexión privada guardada no corresponde al servidor clínico esperado. Cambio bloqueado."}
+    if ("vinculaciones duplicadas" in detail or "vinculaciones incompletas" in detail):
+        return {"code": "links_need_review",
+                "message": "Se encontraron vinculaciones duplicadas o incompletas. Deben revisarse antes de cambiar."}
+    if "cola offline" in detail or "cola lan" in detail:
+        return {"code": "pending_queue_unavailable",
+                "message": "No se pudo comprobar la cola de sincronización o de entrega LAN. El cambio permanece bloqueado."}
+    if "comparación vencida" in detail:
+        return {"code": "check_expired",
+                "message": "La comprobación de seguridad venció. Pulsa «Verificar cambio seguro» nuevamente."}
+    if "diferencias pendientes" in detail:
+        return {"code": "links_or_queue_pending",
+                "message": "Persisten diferencias de vinculación o envíos pendientes. Vuelve a verificar antes de preparar el cambio."}
+    return {"code": "private_check_unavailable",
+            "message": "No se pudo terminar la comprobación privada de ambos Neon. Revisa sus conexiones; el servidor actual sigue activo."}
+
+
 def _request_ok(request: Request):
     _local(request)
     if request.headers.get("x-reception-neon-control") != "1":
@@ -240,11 +267,9 @@ async def historia_neon_check(request: Request):
         else:
             _LAST_SCAN.clear()
         return report
-    except Exception:
+    except Exception as exc:
         _LAST_SCAN.clear()
-        return JSONResponse({"ok": False,
-            "message": "No se pudo comparar ambos servidores de forma segura. "
-                       "Revisa su conexión privada y las vinculaciones."}, status_code=409)
+        return JSONResponse({"ok": False, **_safe_check_error(exc)}, status_code=409)
 
 
 @app.post("/api/config/historia-neon/select", dependencies=[core.Depends(core.current_user)])
@@ -267,9 +292,6 @@ async def historia_neon_select(request: Request):
                 "message": "Cambio preparado. Cierra Recepción después de atender "
                            "y ábrela desde el launcher. Si no se reinicia, "
                            "todas las consultas siguen usando el Neon anterior."}
-    except Exception:
+    except Exception as exc:
         _LAST_SCAN.clear()
-        return JSONResponse({"ok": False,
-            "message": "No se activó el cambio. Hay diferencias, trabajo pendiente "
-                       "o la conexión privada no está lista. El Neon actual continúa activo."},
-            status_code=409)
+        return JSONResponse({"ok": False, **_safe_check_error(exc)}, status_code=409)

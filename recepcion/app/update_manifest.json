@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.142",
-  "app_version": "4.8.142",
-  "runtime_version": "4.8.142",
+  "version": "4.8.143",
+  "app_version": "4.8.143",
+  "runtime_version": "4.8.143",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,8 +217,8 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.142: corrige la causa raíz del selector invisible. La navegación ocultaba todas las etiquetas <section> dentro de <main>, incluido el selector clínico. Ahora solo oculta pantallas principales (main > section), mientras el panel clínico usa <div> en HTML y recuperación dinámica. Se conserva la validación de vínculos, credenciales privadas, colas pendientes y cambio solo al reiniciar; no cambia Neon, pacientes, recetas, agenda ni facturación.",
-    "previous_version": "4.8.141",
+    "purpose": "Recepción 4.8.143: muestra el motivo seguro de un HTTP 409 al verificar o preparar el cambio de Neon clínico, en vez de esconder la respuesta del servidor. Distingue falta de conexión privada local, destino incorrecto, vinculación incompleta, colas pendientes y comprobación vencida sin divulgar URLs, claves o IDs. Conserva la prohibición de cambiar de servidor ante diferencias o conexión no verificada; no modifica datos clínicos ni finanzas.",
+    "previous_version": "4.8.142",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -818,7 +818,8 @@
     "historia_selector_link_parity_required": true,
     "historia_selector_private_urls_only": true,
     "historia_neon_selector_visibility_fix": true,
-    "historia_neon_selector_navigation_visibility_fix": true
+    "historia_neon_selector_navigation_visibility_fix": true,
+    "historia_neon_selector_409_safe_diagnostics": true
   },
   "channel": "launcher-v1-stable"
 }
