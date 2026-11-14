@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.99: videocistoscopías de la cronología con clic en toda la tarjeta y reproducción en visor LAN. Lista izquierda reducida al 28 % y reproductor a cerca del 72 %; botón redundante eliminado. Sin cambios de base de datos, sincronización Neon, documentos clínicos ni TV."
+  "notes": "Historia Clínica 1.4.100: editores de receta, certificado y reposo sin campos superpuestos en ventanas secundarias. Informes desde ficha o consulta se muestra sin barra lateral duplicada; Informes principal permanece sin cambios. Sin migraciones ni cambios de datos, impresiones o sincronización."
 }
