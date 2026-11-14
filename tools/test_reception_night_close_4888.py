@@ -30,7 +30,7 @@ assert "static/night_closing_4888.js" in manifest["copy"]
 assert "static/night_closing_4888.js" in manifest["required_dependencies"]
 assert 'import reception_night_close as _night_close' in app
 assert '_night_close.install()' in app
-assert 'night_closing_4888.js?v=4.8.95' in html
+assert 'night_closing_4888.js?v=4.8.147' in html
 assert 'app.js?v=' + version['version'] in html
 
 # 4.8.89: ninguna ruta nocturna puede cerrar Recepción ni Historia.
@@ -116,7 +116,7 @@ def execute(today):
     assert state.get("last_date") == today.isoformat()  # write-ahead marker
     return {"date": today.isoformat(), "status": "complete", "sent": 0}
 
-scope = {"LOCK": threading.Lock(), "_load": load, "_save": save, "_now": lambda: simulated_now,
+scope = {"LOCK": threading.Lock(), "WORKING_WEEKDAYS": frozenset((2,3,4,5)), "_load": load, "_save": save, "_now": lambda: simulated_now,
          "_execute": execute, "core": fake_core, "time": time}
 exec(compile(ast.Module(body=[node], type_ignores=[]), "<night-test>", "exec"), scope)
 tick = scope["_tick"]

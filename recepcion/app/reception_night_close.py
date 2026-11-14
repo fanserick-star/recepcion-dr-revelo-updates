@@ -22,6 +22,9 @@ SETTINGS_PATH = Path(core.DATA_DIR) / "night_closing_4888.json"
 LOCK = threading.Lock()
 _STARTED = False
 MAX_GROUPS = 25
+# El cierre del consultorio se permite únicamente de miércoles a sábado.
+# Python: lunes=0, miércoles=2, sábado=5.
+WORKING_WEEKDAYS = frozenset((2, 3, 4, 5))
 CONFIRMATION = "FACTURAR AUTOMATICAMENTE"
 # Política del consultorio: el descanso nocturno NUNCA cierra Recepción,
 # Historia Clínica, WebView2, Windows ni el servidor LAN. Solo reduce
@@ -92,6 +95,7 @@ def night_close_status(user=core.Depends(core.current_user)):
         "last_result": cfg.get("last_result") or {},
         "requires_pc_on": True,
         "emits_only_current_day": True,
+        "working_days": ["miércoles", "jueves", "viernes", "sábado"],
         "auto_close_programs": NIGHT_REST_AUTO_CLOSE_PROGRAMS,
         "programs_remain_open": True,
     }
@@ -244,6 +248,8 @@ def _run_one(db, pid, fecha):
 def _execute(today):
     summary = {"date": today.isoformat(), "sent": 0, "skipped": 0,
                "uncertain": 0, "details": [], "status": "complete"}
+    if today.weekday() not in WORKING_WEEKDAYS:
+        return {**summary, "status": "closed", "reason": "Fuera de los días laborables (miércoles a sábado)"}
     if core.queue_count() > 0:
         return {**summary, "status": "deferred", "reason": "Hay cambios pendientes de sincronizar"}
     if _local_summary() == 0:
@@ -287,8 +293,176 @@ def _execute(today):
     return summary
 
 
+def _financial_summary(records, automatic_keys, known_visits):
+    """Aggregate a single Ecuador issuance day; never disclose patient identities.
+
+    Only records with SRI authorization enter authorized_value. Monetary values
+    originate from the immutable-by-reference invoice visit IDs, not unmatched
+    same-day encounters. An incomplete association is reported, never guessed.
+    """
+    from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+    def bucket():
+        return {"count": 0, "authorized": 0, "in_process": 0,
+                "needs_review": 0, "authorized_value_cents": 0,
+                "in_process_value_cents": 0, "unknown_amount": 0}
+    result = {"manual": bucket(), "automatic": bucket()}
+    used_keys, used_visit_ids = set(), set()
+    for record in records:
+        key = str(record.get("group_key") or "")
+        if not key or key in used_keys:
+            raise ValueError("Registros fiscales duplicados o sin identificación")
+        used_keys.add(key)
+        dest = result["automatic" if key in automatic_keys else "manual"]
+        dest["count"] += 1
+        state = str(record.get("estado") or "").upper()
+        if state == "AUTORIZADA" and bool(record.get("clave_acceso")):
+            category = "authorized"
+        elif state in {"EN_PROCESO", "CONSULTADA", "AUTO_RESERVADA"}:
+            category = "in_process"
+        else:
+            category = "needs_review"
+        dest[category] += 1
+        raw_ids = record.get("visit_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            dest["unknown_amount"] += 1
+            continue
+        try:
+            ids = [int(i) for i in raw_ids if str(i).isdigit()]
+            if len(ids) != len(raw_ids) or len(ids) != len(set(ids)):
+                raise ValueError("Identificadores de atenciones ambiguos")
+            if any(i in used_visit_ids for i in ids):
+                raise ValueError("Una atención figura en más de una factura")
+            cents = 0
+            for visit_id in ids:
+                visit = known_visits.get(visit_id)
+                if not visit or int(visit[0]) != int(record["patient_id"]) or str(visit[1]) != str(record["fecha"]):
+                    raise ValueError("La atención no corresponde a la factura")
+                price = Decimal(str(visit[2]))
+                if not price.is_finite() or price < 0:
+                    raise ValueError("Importe no verificable")
+                cents += int((price * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        except (ValueError, TypeError, InvalidOperation, KeyError):
+            dest["unknown_amount"] += 1
+            continue
+        used_visit_ids.update(ids)
+        if category == "authorized":
+            dest["authorized_value_cents"] += cents
+        elif category == "in_process":
+            dest["in_process_value_cents"] += cents
+    return {
+        "manual": result["manual"],
+        "automatic": result["automatic"],
+        "total": {field: result["manual"][field] + result["automatic"][field]
+                  for field in result["manual"]},
+        "amount_currency": "USD",
+        "amount_basis": "Valores de atenciones vinculadas, no XML tributario",
+    }
+
+
+@app.get("/api/night-close/financial-report")
+def night_close_financial_report(user=core.Depends(core.current_user)):
+    """Private, on-demand SRI status snapshot for the last completed nightly run.
+
+    It never issues, retries, checks AZUR externally, or changes fiscal records.
+    The most recent 19:00 report stays available the following day until
+    the next completed run replaces last_date.
+    """
+    cfg = _load()
+    closing_date = str(cfg.get("last_date") or "")
+    if not closing_date or (cfg.get("last_result") or {}).get("status") == "started":
+        return {"ok": True, "available": False}
+    try:
+        local_day = datetime.strptime(closing_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise core.HTTPException(409, "La fecha del cierre nocturno no es válida")
+    # Disponible el día del cierre y el siguiente; nunca mostrar un informe obsoleto.
+    today = _now().date()
+    if local_day > today or (today - local_day).days > 1:
+        return {"ok": True, "available": False}
+    local_start = datetime.combine(local_day, datetime.min.time(), tzinfo=ECUADOR)
+    utc_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
+    utc_end = (local_start + timedelta(days=1)).astimezone(timezone.utc).replace(tzinfo=None)
+    if not core.cloud_configured() or core.CloudSessionLocal is None:
+        raise core.HTTPException(503, "Sin conexión configurada a Neon Recepción; no se pueden validar las cifras fiscales")
+    try:
+        from sqlalchemy import text as sql_text
+        with core.CloudSessionLocal() as db:
+            db.execute(sql_text("SET TRANSACTION READ ONLY"))
+            rows = db.scalars(
+                core.select(core.AzurEmission)
+                .where(core.AzurEmission.created_at >= utc_start,
+                       core.AzurEmission.created_at < utc_end)
+                .order_by(core.AzurEmission.id.asc()).limit(301)
+            ).all()
+            if len(rows) > 300:
+                raise RuntimeError("Volumen fiscal inusual; informe requiere revisión")
+            audits = db.scalars(
+                core.select(core.Audit).where(
+                    core.Audit.ts >= utc_start,
+                    core.Audit.ts < utc_end,
+                    core.Audit.username == "robot_cierre_nocturno",
+                    core.Audit.action.in_(["factura_auto_reservada", "factura_auto_enviada"]),
+                )
+            ).all()
+            import re
+            automatic_keys = set()
+            for audit in audits:
+                match = re.search(r"Grupo (\d+:\d{4}-\d{2}-\d{2}:\d+);", str(audit.detail or ""))
+                if match:
+                    automatic_keys.add(match.group(1))
+            records, all_ids = [], set()
+            for row in rows:
+                try:
+                    payload = json.loads(row.response_json or "{}")
+                    ids = payload.get("_billing_visit_ids") if isinstance(payload, dict) else None
+                except (ValueError, TypeError):
+                    ids = None
+                if isinstance(ids, list):
+                    all_ids.update(int(v) for v in ids if str(v).isdigit())
+                records.append({
+                    "group_key": row.group_key, "patient_id": row.patient_id,
+                    "fecha": str(row.fecha), "estado": row.estado,
+                    "clave_acceso": bool(row.clave_acceso), "visit_ids": ids,
+                })
+            known_visits = {}
+            if all_ids:
+                visits = db.execute(
+                    core.select(core.Visit.id, core.Visit.patient_id,
+                                core.Visit.fecha, core.Visit.valor)
+                    .where(core.Visit.id.in_(all_ids))
+                ).all()
+                known_visits = {int(vid): (pid, str(fecha), value)
+                                for vid, pid, fecha, value in visits}
+            summary = _financial_summary(records, automatic_keys, known_visits)
+            # The night robot counted real sends; an incomplete audit cannot
+            # silently mislabel its invoices as manual.
+            reported_sent = int((cfg.get("last_result") or {}).get("sent") or 0)
+            if reported_sent and summary["automatic"]["count"] < reported_sent:
+                raise RuntimeError("No se pudo identificar la procedencia de todas las facturas automáticas")
+            db.rollback()
+        return {
+            "ok": True, "available": True, "date": closing_date,
+            "local_cutoff": "19:00", "time_zone": "America/Guayaquil",
+            "generated_at": _now().isoformat(timespec="minutes"),
+            "run_status": str((cfg.get("last_result") or {}).get("status") or ""),
+            "run_sent": reported_sent, "financial": summary,
+            "next_day_visible": True,
+            "scope": "Comprobantes emitidos desde Recepción en AZUR, por hora local de creación. No incluye facturas creadas externamente.",
+        }
+    except core.HTTPException:
+        raise
+    except Exception as exc:
+        raise core.HTTPException(
+            503, "No se pudo verificar el informe contra Neon Recepción. "
+                 "No se mostrarán importes sin conciliar; reintenta."
+        ) from exc
+
+
 def _tick():
     today_local = _now()
+    if today_local.weekday() not in WORKING_WEEKDAYS:
+        return
     if today_local.hour < 19 or today_local.hour > 23:
         return
     with LOCK:
