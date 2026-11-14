@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.144",
-  "app_version": "4.8.144",
-  "runtime_version": "4.8.144",
+  "version": "4.8.145",
+  "app_version": "4.8.145",
+  "runtime_version": "4.8.145",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,8 +217,8 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.144: repara consulta LAN de documentos cuando cambia la dirección del doctor mediante host activo/descubrimiento UDP de una sola vez; diferencia Historia desconectada de fallo de archivo local HTTP 503; nunca interpreta una consulta fallida como cero documentos y añade Reintentar. No cambia Neon, vínculos, historiales, recetas, R2, WhatsApp o TV.",
-    "previous_version": "4.8.143",
+    "purpose": "Recepción 4.8.145: explica por qué el cambio clínico a Neon Emergencia queda pendiente después de cerrar la ventana. Detecta si el servidor Python nunca se reinició o si su revalidación de vínculos y colas bloqueó el nuevo arranque. Reporta solo categorías seguras y contadores, sin divulgar datos privados, y mantiene las barreras de seguridad. No cambia Neon, pacientes, facturas ni archivos.",
+    "previous_version": "4.8.144",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -820,7 +820,8 @@
     "historia_neon_selector_visibility_fix": true,
     "historia_neon_selector_navigation_visibility_fix": true,
     "historia_neon_selector_409_safe_diagnostics": true,
-    "clinical_document_lan_host_fallback_and_503_diagnostics": true
+    "clinical_document_lan_host_fallback_and_503_diagnostics": true,
+    "historia_neon_pending_startup_diagnostic": true
   },
   "channel": "launcher-v1-stable"
 }
