@@ -1,4 +1,4 @@
-/* Historia Clínica 1.4.98: gallery and chronological patient-history videocystoscopy entries.
+/* Historia Clínica 1.4.99: larger LAN player and single-click chronological entries.
    Only the verified patient's localhost catalogue and existing LAN video stream.
    No image scraping or download of other MP4s just to render gallery cards. */
 (()=>{
@@ -16,7 +16,7 @@
   if(timeline&&!document.querySelector('link[data-clinical-video-timeline]')){
     const stylesheet=document.createElement('link');
     stylesheet.rel='stylesheet';
-    stylesheet.href='/static/clinical_video_timeline.css?v=1.4.98';
+    stylesheet.href='/static/clinical_video_timeline.css?v=1.4.99';
     stylesheet.dataset.clinicalVideoTimeline='1';
     document.head.append(stylesheet);
   }
@@ -311,21 +311,29 @@
     const mb=(Math.max(0,Number(item.size_bytes)||0)/1048576).toFixed(1);
     meta.textContent=mb+' MB · Video original disponible en Recepción (LAN)';
     info.append(title,meta);
-    const action=document.createElement('button');
-    action.type='button';
-    action.className='cp-video-timeline-open';
-    action.textContent='▶ Ver grabación';
-    action.setAttribute('aria-label','Abrir grabación de cistoscopía del '+videoDate(item));
-    action.addEventListener('click',()=>{
+    // Toda la tarjeta se comporta como botón accesible, sin controles
+    // anidados ni llamadas adicionales al catálogo de Recepción.
+    row.setAttribute('role','button');
+    row.tabIndex=0;
+    row.setAttribute('aria-label','Reproducir videocistoscopía del '+videoDate(item));
+    const openRecording=()=>{
       pendingId=item.id;
-      // Preserve existing dialog focus/close/streaming safeguards.
+      // El botón del encabezado abre el modal nativo y preserva el foco.
+      // Si el catálogo ya se consultó, seleccionar inicia la reproducción
+      // inmediatamente; si todavía se consulta, load() procesa pendingId.
       open.click();
-      if(loaded){
+      if(loaded&&dialog.open){
         const card=Array.from(list.children).find(x=>x.dataset.videoId===item.id);
         if(card){pendingId=null;selectVideo(item,card);}
       }
+    };
+    row.addEventListener('click',openRecording);
+    row.addEventListener('keydown',event=>{
+      if(event.key!=='Enter'&&event.key!==' ')return;
+      event.preventDefault();
+      openRecording();
     });
-    body.append(thumb,info,action);
+    body.append(thumb,info);
     row.append(heading,origin,body);
     return row;
   }
