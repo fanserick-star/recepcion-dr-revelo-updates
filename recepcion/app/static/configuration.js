@@ -127,7 +127,7 @@ function ensureHistoriaNeonSelectorPanel(){
   // updated but the WebView retained an earlier index.html in cache.
   const tab=q('#config [data-config-section="sistema"]');
   if(!tab||q('#historiaNeonSelectorPanel'))return;
-  const panel=document.createElement('section');
+  const panel=document.createElement('div');
   panel.id='historiaNeonSelectorPanel';
   panel.className='panel compact-config-panel';
   panel.innerHTML=`
