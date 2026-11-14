@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.144: recupera el servicio de documentos clínicos cuando cambió la IP LAN del doctor, diferencia PC desconectada de error del archivo local, y permite reintentar sin marcar los documentos como inexistentes. Consulta en solo lectura; sin cambios de pacientes, Neon o envío de archivos."
+  "notes": "Recepción 4.8.145: diagnóstico visible de un cambio Neon Original → Emergencia que queda pendiente. Diferencia servidor sin reiniciar de revalidación de seguridad fallida, sin exponer credenciales ni desactivar protecciones. No modifica datos clínicos ni la LAN."
 }
