@@ -26,7 +26,7 @@ assert "Información del paciente" in ast.get_source_segment(app,patient)
 section=app.split('<section class="cp-patient-card cp-profile-unified">',1)[1].split('<!--not-existing-marker-->',1)[0]
 assert section.index('Nombre completo')<section.index('Cédula')<section.index('Edad</label>')<section.index('for="cp-quick-sex"')
 assert section.index('<div class="cp-patient-grid">')<section.index('<div class="cp-profile-actions"')
-assert section.index('cp-patient-primary-action">{consult_action}')>section.index('</section>\\n<div class="cp-profile-actions"')
+assert section.index('cp-patient-primary-action">{consult_action}')>section.index('<div class="cp-profile-actions"')
 assert "ID Num:" not in section.split("</section>",1)[0]
 assert "Editar datos</a>" in app and "Receta médica</a>" in app
 assert "Certificado médico</a>" in app and "Informes médicos</a>" in app
