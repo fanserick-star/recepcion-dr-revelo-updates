@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.97: botones de atención con los seis íconos azules del diseño aprobado (Frases rápidas, Receta, Certificado, Consentimiento, Material e Informes), en una barra clara y adaptable. Actualización exclusivamente CSS, sin cambios en escritura, documentos, turnos, TV ni Neon."
+  "notes": "Historia Clínica 1.4.98: cada videocistoscopía aparece por fecha dentro del historial del paciente, junto con las consultas. Abrir grabación utiliza la galería LAN de Recepción existente; no copia videos, no reescribe historiales ni consulta Neon por la cronología."
 }
