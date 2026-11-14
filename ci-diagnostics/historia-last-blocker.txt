@@ -1,4 +1,4 @@
-source_sha=462ae0bdf590fbc2680a881eacd5ce4bf925e271
+source_sha=0a15ddb324b7dde038f7150c132a1b6fc751b18a
 workflow=historia
-failed_command=python tools/test_historia_global_remaster_1449.py
+failed_command=python tools/test_historia_canonical_source.py
 
