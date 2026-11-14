@@ -67,5 +67,7 @@ assert 'return HTMLResponse(_document_editor_shell(base, "Informe médico firmad
 assert 'body.clinical-document-editor > header.topbar,' in doc
 assert 'body.clinical-document-editor > footer{display:none!important}' in doc
 assert 'body.clinical-document-editor > main{width:100%' in doc
-assert "window.open(route+'?'+qs.toString(),'_blank')" in app
+# Editor en modal del mismo programa, conservando fallback del launcher.
+assert "window.historiaOpenClinicalOverlay?.(documentUrl)" in app
+assert "window.open(documentUrl,'_blank')" in app
 print("HISTORIA_1443_RECETAS_AMBAS_COLUMNAS_FIRMA_QR_INFORMES_VENTANA_OK")
