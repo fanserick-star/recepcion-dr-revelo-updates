@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.146: vuelve a listar recetas, certificados e informes del Neon Historia actualmente seleccionado, con vínculo seguro, consulta bajo demanda y caché 8 s (Reintentar omite la caché). Documentos originales, videos, TV y envío de pacientes mantienen sus rutas protegidas. Solo lectura clínica."
+  "notes": "Recepción 4.8.147: informe financiero nocturno de las 19:00 visible en Facturación el día del cierre y el siguiente; manual/automática, autorizado/en proceso y valor de atenciones. Consulta solo lectura a Neon Recepción, sin nuevas facturas, sin cambios de WhatsApp/Historia/LAN/PDF ni cierre de programas."
 }
