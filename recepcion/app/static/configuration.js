@@ -165,7 +165,16 @@ window.loadHistoriaNeonSelector=async function(){
     historiaNeonText('En uso: '+label(state.active)+
       (state.pending_restart?' · Pendiente de reiniciar hacia '+label(state.pending_restart):'')+
       ' · Conexión Original: '+(ready.official?'guardada':'pendiente')+
-      ' · Conexión Emergencia: '+(ready.emergency?'guardada':'pendiente'));
+      ' · Conexión Emergencia: '+(ready.emergency?'guardada':'pendiente')+
+      (state.pending_restart && state.startup_diagnostic?.message?
+        ' · DIAGNÓSTICO: '+state.startup_diagnostic.message+
+          (state.startup_diagnostic.reason==='parity_or_pending'?
+            ' Faltan: '+Number(state.startup_diagnostic.missing||0)+
+            ', solo destino: '+Number(state.startup_diagnostic.destination_only||0)+
+            ', contradictorios: '+Number(state.startup_diagnostic.different||0)+
+            ', pendientes Recepción: '+Number(state.startup_diagnostic.pending||0)+
+            ', pendientes LAN: '+Number(state.startup_diagnostic.pending_lan||0):'')
+        :''));
   }catch(e){historiaNeonText('No se pudo consultar la selección: '+String(e.message||e))}
 };
 window.checkHistoriaNeonSelector=async function(){
