@@ -1262,7 +1262,7 @@ APP_DIALOG_HTML = r"""
 .hc-clinical-document-eyebrow{font-size:10px;font-weight:800;letter-spacing:.1em;color:#67819a}
 .hc-clinical-document-titlebar strong{font-size:17px;font-weight:850;color:#153c62}
 .hc-clinical-document-close{border:1px solid #c4d7e8;border-radius:8px;
-  background:white;color:#14466d;font:700 13px inherit;min-height:37px;
+  background:white;color:#14466d;font-family:inherit;font-size:13px;font-weight:700;min-height:37px;
   padding:8px 14px;cursor:pointer}
 .hc-clinical-document-close:hover{background:#e7f1fa}
 .hc-clinical-document-close:focus-visible{outline:3px solid #2d8cc5}
@@ -1346,7 +1346,7 @@ APP_DIALOG_HTML = r"""
     if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||
        event.altKey||event.shiftKey)return;
     const link=event.target?.closest?.('a[href]');
-    if(!link||link.target!=='_blank')return;
+    if(!link)return;
     if(window.historiaOpenClinicalOverlay(link.href))event.preventDefault();
   },true);
   // El iframe no tiene window.opener. La notificación de guardado vuelve
@@ -2560,7 +2560,12 @@ def home():
           const b=document.createElement('strong');b.textContent=String(p.name||'Paciente');
           const sm=document.createElement('small');sm.textContent=String(p.detail||'');
           a.append(b,sm);
-          a.addEventListener('click',()=>{if(p.id)window.location.assign(pickerPaths[pickerKind]+encodeURIComponent(String(p.id)))});
+          a.addEventListener('click',()=>{
+          if(!p.id)return;
+          const url=pickerPaths[pickerKind]+encodeURIComponent(String(p.id));
+          if(window.historiaOpenClinicalOverlay?.(url)){picker.close();return;}
+          window.location.assign(url);
+        });
           pickerResults.append(a);
         });
       }catch(err){if(err?.name!=='AbortError')pickerResults.textContent='No se pudo buscar. Intente nuevamente.'}
