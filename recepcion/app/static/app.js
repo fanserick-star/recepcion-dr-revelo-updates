@@ -71,7 +71,7 @@ async function api(url,opt={}){
     const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});
     if(r.status===401){showLogin();throw Error('No autenticado')}
     let data; try{data=await r.json()}catch{data={}}
-    if(!r.ok)throw Error(data.detail||`Error del servidor (${r.status}). Intenta nuevamente.`);
+    if(!r.ok)throw Error(data.detail||data.message||`Error del servidor (${r.status}). Intenta nuevamente.`);
     // Toda edición de ficha actualiza también las vistas ya cargadas. Inicio no
     // puede conservar un nombre anterior después de guardar el paciente.
     if(method==='PUT' && /^\/api\/patients\/\d+(?:[/?#]|$)/.test(url)){
