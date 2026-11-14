@@ -31,7 +31,7 @@ assert "identity._connect_public()" in (root/"recepcion/app/clinical_delivery.py
 assert "identity._connect_public()" in (root/"recepcion/app/historia_lan_transport.py").read_text(encoding="utf-8")
 
 tree=ast.parse(source)
-names={"_preflight","_json_read","_write_pending","apply_pending_at_startup","_status"}
+names={"_preflight","_json_read","_write_pending","apply_pending_at_startup","_status","_record_startup"}
 isolated=ast.fix_missing_locations(ast.Module(body=[
     node for node in tree.body
     if isinstance(node,ast.FunctionDef) and node.name in names
@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory() as td:
     bridge=TestBridge(loc)
     ns={"bridge":bridge, "os":os, "json":json, "time":time,
         "tempfile":tempfile, "PENDING_PATH":loc/"data"/"historia_neon_pending.json",
-        "_VALID_FOR_SECONDS":180}
+        "_VALID_FOR_SECONDS":180, "_STARTUP_RESULT":{"state":"not_scheduled"}}
     exec(compile(isolated,"test_selector_isolated","exec"),ns)
     pairs=[("r1","c1",True),("r2","c2",True)]
     remote={"official":dict((r,(c,v)) for r,c,v in pairs),
@@ -83,6 +83,7 @@ with tempfile.TemporaryDirectory() as td:
     # Current process remains on Original until app import / restart.
     assert bridge._history_target()=="official"
     assert ns["_status"]()["pending_restart"]=="emergency"
+    assert ns["_status"]()["startup_diagnostic"]["state"]=="server_still_running"
     activated=ns["apply_pending_at_startup"]()
     assert activated["state"]=="activated"
     assert bridge._history_target()=="emergency"
@@ -96,6 +97,8 @@ with tempfile.TemporaryDirectory() as td:
     ns["_write_pending"]("official")
     blocked=ns["apply_pending_at_startup"]()
     assert blocked["state"]=="blocked"
+    assert blocked["reason"]=="parity_or_pending"
+    assert ns["_status"]()["startup_diagnostic"]["missing"]==1
     assert bridge._history_target()=="emergency"
     assert ns["PENDING_PATH"].exists()
     # Production process never obtains password or patient ID via the HTML.
