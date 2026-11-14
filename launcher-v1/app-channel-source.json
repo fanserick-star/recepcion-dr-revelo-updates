@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.144: recupera el servicio de documentos clínicos cuando cambió la IP LAN del doctor, diferencia PC desconectada de error del archivo local, y permite reintentar sin marcar los documentos como inexistentes. Consulta en solo lectura; sin cambios de pacientes, Neon o envío de archivos."
+  "notes": "Recepción 4.8.146: vuelve a listar recetas, certificados e informes del Neon Historia actualmente seleccionado, con vínculo seguro, consulta bajo demanda y caché 8 s (Reintentar omite la caché). Documentos originales, videos, TV y envío de pacientes mantienen sus rutas protegidas. Solo lectura clínica."
 }
