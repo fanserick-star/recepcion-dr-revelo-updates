@@ -30,5 +30,5 @@ display=js.split("function setAgendaTimeRange(",1)[1].split("function agendaStat
 for forbidden in ("api(", "fetch(", "localStorage", "singleFlightMutation", "postMessage", "refreshWhatsappAlarm"):
     assert forbidden not in display
 assert "function agendaTime12(value)" in js
-assert "title=\\"Agendar cita ${esc(agendaTime12(time))}" in js or "agendaTime12(time)" in js
+assert "agendaTime12(time)" in js
 print("RECEPTION_AGENDA_GRAPHITE_FULL_DAY_12_HOURS_OK")
