@@ -251,7 +251,7 @@
       host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));
       host.append(cell('p','El listado no se cargó; esto no significa que los documentos o videos se hayan borrado.','rp-clinical-help'));
       const controls=cell('div','','rp-clinical-actions');
-      addButton(controls,'Reintentar consulta',()=>load(state.pid,state.phone,state.name));
+      addButton(controls,'Reintentar consulta',()=>load(state.pid,state.phone,state.name,true));
       host.append(controls);
       return;
     }
@@ -346,14 +346,14 @@
     if(warning.length)tools.append(cell('p','Pendiente para activación: '+warning.join('; ')+'.','rp-clinical-warning'));
     maintenance.append(tools);host.append(maintenance);
   }
-  async function load(pid,phone,name){
+  async function load(pid,phone,name,refresh=false){
     const root=container();if(!root)return;
     state.pid=Number(pid);state.phone=String(phone||'');state.name=String(name||'');
     root.replaceChildren(cell('p','Consultando documentos de Historia Clínica...','rp-clinical-help'));
     let status={ready_test:false,test_missing:[]};
     try{status=await api('/api/clinical-delivery/status');}catch(_ignored){}
     try{
-      const data=await api('/api/clinical-delivery/patients/'+state.pid+'/documents');
+      const data=await api('/api/clinical-delivery/patients/'+state.pid+'/documents'+(refresh?'?refresh=true':''));
       if(!container()||state.pid!==Number(pid))return;
       Object.assign(state,{documents:data.documents||[],videos:data.videos||[],ready_document:!!data.ready_document,ready_video:!!data.ready_video,ready_r2:!!data.ready_r2,ready_test:!!status.ready_test,test_missing:status.test_missing||[]});
       draw({...status,...data});
