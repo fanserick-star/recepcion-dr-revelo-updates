@@ -4523,45 +4523,60 @@ def _desktop_runtime_info() -> dict:
     }
 
 
-# Fallback de presentación 4.8.150: inline en HTML sin caché, para que
+# Fallback de presentación 4.8.151: inline en HTML sin caché, para que
 # incluso una copia antigua de app.js muestre horas AM/PM en la Agenda.
 # No modifica citas, eventos, atributos onclick ni datos del paciente.
 RP_AGENDA_12H_INLINE = r"""(function(){
   'use strict';
-  if(window.__rp48150Agenda12hGuard)return;
-  window.__rp48150Agenda12hGuard=true;
-  function convertClock(raw){
-    const m=/^(\s*[+＋]?\s*)(\d{1,2}):([0-5]\d)([ \t]*)(Disponible)?([ \t]*)$/i.exec(String(raw||''));
-    if(!m)return null;
-    const hour=Number(m[2]);
-    if(hour>23)return null;
-    const tail=m[5]?(m[4]||' ')+m[5]+m[6]:m[4]+m[6];
-    return m[1]+(hour%12||12)+':'+m[3]+' '+(hour<12?'a. m.':'p. m.')+tail;
+  if(window.__rp48151Agenda12hGuard)return;
+  window.__rp48151Agenda12hGuard=true;
+
+  // Cambia SOLO texto visible de la cuadrícula, nunca hora interna ni onclick.
+  function convertClock(value){
+    return String(value==null?'':value).replace(
+      /(^|[^\d])(\d{1,2}):([0-5]\d)(?!\d)(?!\s*[ap]\.?\s*m\.?)/gi,
+      function(whole, prefix, digits, minute, offset, source){
+        const hour=Number(digits);
+        if(hour>23)return whole;
+        const next=source.charAt(offset+whole.length);
+        const separator=/^[A-Za-zÀ-ÿ]/.test(next)?' ':'';
+        return prefix+(hour%12||12)+':'+minute+' '+(hour<12?'a. m.':'p. m.')+separator;
+      }
+    );
   }
+
   function patchAgenda(){
     const grid=document.getElementById('agendaNativeGrid');
     if(!grid)return;
-    const targets=grid.querySelectorAll('.native-time, .native-slot.free, .native-cell .free');
-    for(const el of targets){
+    // Seleccionar la CELDA completa, no depender de clase .free del botón:
+    // existen renders antiguos que separan "14:00" y "Disponible".
+    for(const el of grid.querySelectorAll('.native-time, .native-cell')){
+      const isCell=el.classList.contains('native-cell');
+      if(isCell && el.querySelector('.native-slot.occupied, .occupied, .native-slot.closed, .closed'))continue;
       const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
       let node;
       while((node=walker.nextNode())){
-        const value=convertClock(node.nodeValue);
-        if(value!==null && value!==node.nodeValue)node.nodeValue=value;
+        const oldValue=node.nodeValue;
+        const changed=convertClock(oldValue);
+        if(changed!==oldValue)node.nodeValue=changed;
       }
     }
   }
+
   function boot(){
     const grid=document.getElementById('agendaNativeGrid');
     if(!grid)return;
-    document.documentElement.dataset.rpAgenda12h='4.8.150';
+    document.documentElement.dataset.rpAgenda12h='4.8.151';
+    const parent=document.getElementById('agenda')||grid;
     let queued=false;
-    const schedule=()=>{
+    const refresh=()=>{
       if(queued)return;
       queued=true;
       queueMicrotask(()=>{queued=false;patchAgenda()});
     };
-    new MutationObserver(schedule).observe(grid,{childList:true,characterData:true,subtree:true});
+    // Observa el contenedor para cubrir renderizados posteriores y cambios
+    // de la cuadrícula. El algoritmo es idempotente y no crea intervalos.
+    new MutationObserver(refresh).observe(parent,{childList:true,characterData:true,subtree:true});
     patchAgenda();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
