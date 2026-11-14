@@ -9,7 +9,7 @@ const css=readFileSync(new URL('../recepcion/app/static/style.css',import.meta.u
 const appPy=readFileSync(new URL('../recepcion/app/app.py',import.meta.url),'utf8');
 const manifest=JSON.parse(readFileSync(new URL('../recepcion/app/update_manifest.json',import.meta.url),'utf8'));
 const version=JSON.parse(readFileSync(new URL('../recepcion/app/recepcion-version.json',import.meta.url),'utf8')).version;
-assert.equal(version,'4.8.151');
+assert.equal(version,'4.8.152');
 assert.equal(manifest.version,version);
 assert.equal(manifest.app_version,version);
 assert.equal(manifest.runtime_version,version);

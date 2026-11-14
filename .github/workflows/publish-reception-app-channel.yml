@@ -140,6 +140,7 @@ jobs:
           node tools/test_reception_agenda_single_renderer_4837.mjs
           node tools/test_reception_agenda_full_day_48148.mjs
           node tools/test_reception_agenda_guard_48150.mjs
+          node tools/test_reception_agenda_inline_48152.mjs
           python tools/test_reception_agenda_wednesday_server_4836.py
           node tools/test_tv_display_javascript.mjs
           node tools/test_tv_idle_analog_clock.mjs

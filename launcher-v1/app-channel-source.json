@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.151: corregir todos los horarios visuales de Agenda, incluidas las celdas libres que usan HTML heredado y contienen nodos separados de hora y Disponible. El guardia del HTML observa la sección de Agenda, no altera botones, onclick, datos de pacientes, horas persistidas, Neon ni WhatsApp. Test específico de regresión con caso idéntico a la captura."
+  "notes": "Recepción 4.8.152: corregir botones antiguos de Agenda que siguen mostrando 14:00 Disponible tras actualizar. Script independiente embebido en el index.html instalado, probado sobre DOM sintético con b.native-free-time y span Disponible separados, y sobre redibujado posterior. No altera los argumentos de cita, llamadas, datos ni bases. No depende del app.js anterior ni del inyector core_runtime."
 }
