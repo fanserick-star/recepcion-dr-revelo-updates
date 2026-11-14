@@ -65,7 +65,8 @@
     new MutationObserver(()=>{
       if(!section.classList.contains('hidden'))refreshFinancial(false);
     }).observe(section,{attributes:true,attributeFilter:['class']});
-    refreshFinancial(false);
+    // Abrir Inicio no debe despertar Neon solo por tener un reporte pendiente.
+    if(!section.classList.contains('hidden'))refreshFinancial(false);
   }
   async function refreshFinancial(force){
     if(financeBusy||!financePanel)return;
