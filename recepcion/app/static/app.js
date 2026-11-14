@@ -496,7 +496,7 @@ function setAgendaPendingBadge(n){
 async function refreshAgendaPendingBadge(){return refreshPendingBadges()}
 function show(id,configTab=null){
   if(id==='whatsappRespuestas')id='agenda';
-  document.querySelectorAll('main section').forEach(x=>x.classList.add('hidden'));
+  document.querySelectorAll('main > section').forEach(x=>x.classList.add('hidden'));
   $('#'+id).classList.remove('hidden');
   document.querySelectorAll('.nav-btn[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===id));
   const gs=$('#globalSearch');if(gs)gs.placeholder='Buscar paciente por nombre, cédula, celular o correo…';
