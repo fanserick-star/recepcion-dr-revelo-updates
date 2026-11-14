@@ -52,6 +52,7 @@ jobs:
           python tools/test_reception_clinical_identity_proof_4864.py
           python tools/test_reception_history_target_48139.py
           python tools/test_reception_clinical_neon_selector_48140.py
+          python tools/test_reception_neon_pending_boot_48145.py
           python tools/test_reception_config_selector_visibility_48141.py
           python tools/test_reception_selector_navigation_48142.py
           python tools/test_reception_selector_error_feedback_48143.py
