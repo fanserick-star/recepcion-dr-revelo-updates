@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.150",
-  "app_version": "4.8.150",
-  "runtime_version": "4.8.150",
+  "version": "4.8.151",
+  "app_version": "4.8.151",
+  "runtime_version": "4.8.151",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,7 +217,7 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.150: la Agenda muestra siempre la jornada completa, sin pestañas ni filtros separados de Mañana/Tarde. Conserva todos los horarios desde las 8:00 a. m. hasta las 5:00 p. m., miércoles desde las 10:00 a. m., indicando la pausa de 12:30 a 2:00 p. m. Horas, detalles, selector de espacios y citas visibles en formato de 12 horas (a. m./p. m.). Mantiene los valores internos de horarios HH:mm (24 h) para ordenamiento, escritura en Neon/SQLite, validación de espacios, Confirmafy y WhatsApp; solo se modifican presentación y caché de recursos; regresiones visuales de 4.8.34–4.8.37 actualizadas y prueba sintética 4.8.150 incluida. Sin cambios clínicos, fiscales, TV o en la sincronización.",
+    "purpose": "Recepción 4.8.151: la Agenda muestra siempre la jornada completa, sin pestañas ni filtros separados de Mañana/Tarde. Conserva todos los horarios desde las 8:00 a. m. hasta las 5:00 p. m., miércoles desde las 10:00 a. m., indicando la pausa de 12:30 a 2:00 p. m. Horas, detalles, selector de espacios y citas visibles en formato de 12 horas (a. m./p. m.). Mantiene los valores internos de horarios HH:mm (24 h) para ordenamiento, escritura en Neon/SQLite, validación de espacios, Confirmafy y WhatsApp; solo se modifican presentación y caché de recursos; regresiones visuales de 4.8.34–4.8.37 actualizadas y prueba sintética 4.8.151 incluida. Sin cambios clínicos, fiscales, TV o en la sincronización.",
     "previous_version": "4.8.147",
     "production_status": "stable",
     "consolidated_runtime": true,
