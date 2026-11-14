@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.98",
-  "app_version": "1.4.98",
-  "runtime_version": "1.4.98",
+  "version": "1.4.99",
+  "app_version": "1.4.99",
+  "runtime_version": "1.4.99",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.98: las videocistoscopías del archivo LAN de Recepción se intercalan en la cronología de la ficha según la fecha y hora del catálogo; cada registro abre el visor ya existente y muestra previsualización solo después de reproducir. Conserva el botón de archivo y los registros clínicos, mantiene la búsqueda, no descarga MP4 al listar, no escribe Neon/SQLite, no cambia vínculos, TV, firmas ni base de datos. Incluye pruebas sintéticas de fecha, búsqueda y compatibilidad con la galería previa. Pruebas de regresión del video 1.4.30–1.4.42 compatibles con la ruta de caché 1.4.98.",
-    "previous_version": "1.4.97",
+    "purpose": "Historia 1.4.99: amplía el reproductor de videocistoscopías LAN aproximadamente al 72 % del diálogo y compacta las miniaturas de la lista. En la cronología, toda la tarjeta de la videocistoscopía se puede activar con clic, Enter o Espacio; abre el visor del mismo paciente e inicia la reproducción mediante el mecanismo existente. Elimina el botón redundante Ver grabación. Se preservan la historia cronológica, acceso HMAC LAN, carga del video solo al seleccionarlo, datos y firmas, SQLite/Neon, TV y actualizaciones con rollback. Pruebas sintéticas 1.4.99 incluidas.",
+    "previous_version": "1.4.98",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
