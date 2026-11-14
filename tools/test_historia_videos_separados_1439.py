@@ -33,7 +33,7 @@ assert "cp-clinical-videos" not in documents
 assert "clinical_video_library.js" not in documents
 assert "cp-clinical-videos" in videos
 assert "data-clinical-video-patient='patient-synthetic'" in videos
-assert "clinical_video_library.js?v=1.4.98" in videos
+assert "clinical_video_library.js?v=1.4.99" in videos
 assert "<script defer" in videos
 assert "patient-videos-open" in app_source and "patient-docs-open" in app_source
 assert "patient-videos-dialog" in app_source and "patient-docs-dialog" in app_source
