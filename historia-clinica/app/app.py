@@ -1396,6 +1396,11 @@ def base(title: str, body: str, active: str = "inicio", extra_head: str = "", ex
   document.addEventListener('visibilitychange',()=>{{if(!document.hidden)pingActivity(true)}});
   window.showAppToast=(message,type='info')=>{{if(!toast)return;clearTimeout(toastTimer);toast.textContent=String(message||'');toast.className='app-toast '+type;toast.hidden=false;toastTimer=setTimeout(()=>{{toast.hidden=true}},3600)}};
   window.historiaNativePrint=async(url,kind='certificate')=>{{
+    // En el modal 1.4.101 el puente nativo pertenece al WebView padre.
+    // Enviar allí la orden evita mensajes perdidos desde iframes WebView2.
+    if(window.parent!==window && typeof window.parent.historiaNativePrint==='function'){{
+      return window.parent.historiaNativePrint(url,kind);
+    }}
     try{{
       let printer='';
       try{{
