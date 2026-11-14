@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.148: Agenda semanal de jornada completa sin pestañas Mañana/Tarde; horas en formato de 12 horas (a. m./p. m.) con pausa de almuerzo visible. No cambia horas guardadas, agenda Cloud, Neon, Confirmafy, WhatsApp ni reglas de disponibilidad."
+  "notes": "Recepción 4.8.148: Agenda semanal de jornada completa sin pestañas Mañana/Tarde; horas en formato de 12 horas (a. m./p. m.) con pausa de almuerzo visible. No cambia horas guardadas, agenda Cloud, Neon, Confirmafy, WhatsApp ni reglas de disponibilidad. Validación de regresiones 4.8.148 corregidas y SHA-256 obligatoria."
 }
