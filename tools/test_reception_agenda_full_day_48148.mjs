@@ -6,6 +6,18 @@ const file=new URL('../recepcion/app/static/app.js',import.meta.url);
 const js=readFileSync(file,'utf8');
 const html=readFileSync(new URL('../recepcion/app/static/index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../recepcion/app/static/style.css',import.meta.url),'utf8');
+const appPy=readFileSync(new URL('../recepcion/app/app.py',import.meta.url),'utf8');
+const manifest=JSON.parse(readFileSync(new URL('../recepcion/app/update_manifest.json',import.meta.url),'utf8'));
+const version=JSON.parse(readFileSync(new URL('../recepcion/app/recepcion-version.json',import.meta.url),'utf8')).version;
+assert.equal(version,'4.8.149');
+assert.equal(manifest.version,version);
+assert.equal(manifest.app_version,version);
+assert.equal(manifest.runtime_version,version);
+assert.ok(html.includes('/static/app.js?v='+version));
+assert.ok(html.includes('/static/style.css?v='+version));
+assert.ok(appPy.includes("async def _rp48149_no_stale_assets"));
+assert.ok(appPy.includes("path.startswith('/static/')"));
+assert.ok(appPy.includes("response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'"));
 function cut(a,b){
  const i=js.indexOf(a),j=js.indexOf(b,i);
  assert.ok(i>=0&&j>i,'missing '+a);
