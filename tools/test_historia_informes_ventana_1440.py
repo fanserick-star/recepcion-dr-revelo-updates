@@ -24,7 +24,8 @@ assert '+"&tipo=cistoscopia"+context' in reports
 assert '+"&tipo=ecografia"+context' in reports
 assert '@app.get("/informes/nuevo"' in reports
 # Nunca alteramos la ventana clínica ni los atajos dentro de la consulta.
-assert "window.open(route+'?'+qs.toString(),'_blank')" in app
+assert "window.historiaOpenClinicalOverlay?.(documentUrl)" in app
+assert "window.open(documentUrl,'_blank')" in app
 assert "kind==='cert'?'/certificados/nuevo':'/informes'" in app
 # No cambiamos protección del video ni el panel de documentos.
 assert "patient-videos-open" in app
