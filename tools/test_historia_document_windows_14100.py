@@ -42,7 +42,7 @@ class DocumentWindows14100(unittest.TestCase):
         html = editor(fake_base, "Receta médica", "<section class='docs-wrap'></section>", "recetas")
         self.assertIn('cp-remaster-app clinical-document-editor', html)
         self.assertIn("grid-template-columns:minmax(0,1fr);gap:14px", html)
-        self.assertIn("max-width:1260px", html)
+        self.assertIn("max-width:970px", html)
         self.assertIn(".docs-card .med-table input", html)
         self.assertIn("width:100%;min-width:0;max-width:100%;box-sizing:border-box", html)
         self.assertIn("body.clinical-document-editor .docs-fields", html)
