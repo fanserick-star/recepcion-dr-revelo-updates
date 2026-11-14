@@ -55,7 +55,7 @@
     financePanel=document.createElement('section');
     financePanel.id='rpNightFinancialReport';financePanel.className='rp-night-finance';
     financePanel.hidden=true;
-    financePanel.innerHTML='<div class="rp-night-finance-head"><div><small>CIERRE FISCAL · 19:00 ECUADOR</small><h3>Informe financiero diario</h3></div><button type="button" id="rpFinanceRefresh">↻ Actualizar cifras</button></div>'+
+    financePanel.innerHTML='<div class="rp-night-finance-head"><div><small>CIERRE FISCAL · MIÉRCOLES A SÁBADO · 19:00 ECUADOR</small><h3>Informe financiero diario</h3></div><button type="button" id="rpFinanceRefresh">↻ Actualizar cifras</button></div>'+
       '<p id="rpFinancePeriod"></p><div id="rpFinanceRows" class="rp-night-finance-grid"></div>'+
       '<p id="rpFinanceSummary" class="rp-night-finance-total"></p>'+
       '<small id="rpFinanceFoot"></small>';
@@ -82,7 +82,7 @@
       if(!r.available){financePanel.hidden=true;financeDate='';return;}
       financeDate=r.date;
       financePanel.querySelector('#rpFinancePeriod').textContent=
-        'Facturas registradas el '+r.date+' (hora de Ecuador). Disponible durante el cierre y el día siguiente.';
+        'Facturas registradas el '+r.date+' (hora de Ecuador). Disponible durante el cierre y el día siguiente, aunque sea domingo.';
       const container=financePanel.querySelector('#rpFinanceRows');
       container.replaceChildren(financialRow('Emitidas manualmente',r.financial.manual),
                                 financialRow('Cierre automático de las 19:00',r.financial.automatic));
@@ -114,7 +114,7 @@
     panel=document.createElement('div');
     panel.className='rp-night-close';
     panel.innerHTML='<div class="rp-night-close-head"><h3>🌙 Cierre fiscal inteligente · 19:00</h3><small>Ecuador · uso opcional</small></div>' +
-      '<p>Al activarlo, Recepción intentará emitir <strong>solo las facturas elegibles de hoy</strong> cuando esté inactiva. No reenvía intentos con resultado incierto. Debes dejar la PC y Recepción encendidas.</p>' +
+      '<p>Al activarlo, Recepción intentará emitir <strong>solo las facturas elegibles del día, de miércoles a sábado</strong>, desde las 19:00 cuando esté inactiva. No reenvía intentos con resultado incierto. Debes dejar la PC y Recepción encendidas.</p>' +
       '<div class="rp-night-close-status" id="rpNightState">Consultando configuración…</div>' +
       '<small id="rpNightPending"></small><small id="rpNightLast"></small>' +
       '<small id="rpNightOpenPolicy">Recepción e Historia Clínica permanecerán abiertas toda la noche.</small>' +
@@ -137,7 +137,7 @@
         ? '✓ Recepción e Historia Clínica permanecen abiertas. El descanso no apaga ni cierra programas.'
         : '⚠ No se pudo comprobar la política de no cerrar programas; revisa la actualización.');
       panel.querySelector('#rpNightState')?.classList.toggle('active',!!d.enabled);
-      setText('rpNightState',d.enabled?'ACTIVADO · emisión fiscal automática desde las 19:00':'DESACTIVADO · ninguna emisión automática');
+      setText('rpNightState',d.enabled?'ACTIVADO · miércoles a sábado, desde las 19:00':'DESACTIVADO · ninguna emisión automática');
       setText('rpNightPending','Hoy: '+(d.local_groups_to_review||0)+' grupo(s) por revisar · '+(d.pending_local_sync||0)+' cambio(s) pendientes de sincronización');
       const run=d.last_result||{};
       setText('rpNightLast',run.date?'Último cierre '+run.date+': '+(run.sent||0)+' enviados a AZUR, '+(run.skipped||0)+' omitidos, '+(run.uncertain||0)+' para revisión ('+(run.status||'—')+').':'No se ha ejecutado ningún cierre automático.');
