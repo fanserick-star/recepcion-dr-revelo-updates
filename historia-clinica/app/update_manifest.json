@@ -99,7 +99,7 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.98: las videocistoscopías del archivo LAN de Recepción se intercalan en la cronología de la ficha según la fecha y hora del catálogo; cada registro abre el visor ya existente y muestra previsualización solo después de reproducir. Conserva el botón de archivo y los registros clínicos, mantiene la búsqueda, no descarga MP4 al listar, no escribe Neon/SQLite, no cambia vínculos, TV, firmas ni base de datos.",
+    "purpose": "Historia 1.4.98: las videocistoscopías del archivo LAN de Recepción se intercalan en la cronología de la ficha según la fecha y hora del catálogo; cada registro abre el visor ya existente y muestra previsualización solo después de reproducir. Conserva el botón de archivo y los registros clínicos, mantiene la búsqueda, no descarga MP4 al listar, no escribe Neon/SQLite, no cambia vínculos, TV, firmas ni base de datos. Incluye pruebas sintéticas de fecha, búsqueda y compatibilidad con la galería previa.",
     "previous_version": "1.4.97",
     "functional_changes": true,
     "database_schema_changes": false,
