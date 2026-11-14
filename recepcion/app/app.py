@@ -72,6 +72,19 @@ if not APP_VERSION:
 core.APP_VERSION = APP_VERSION
 V4533_VERSION_CSS = f'\n.v460-version::after,#currentVersionBadge::after{{\n  content:"v{APP_VERSION}"!important;\n}}\n'
 core.V460_OVERLAY_CSS = (getattr(core, 'V460_OVERLAY_CSS', '') or '') + '\n' + V4533_VERSION_CSS
+
+# v4.8.149 · no guardar recursos JS/CSS antiguos en WebView2.
+# Exclusivamente respuestas estáticas locales; sin lecturas de pacientes ni Neon.
+@app.middleware('http')
+async def _rp48149_no_stale_assets(request: core.Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith('/static/') and path.endswith(('.js', '.css', '.html')):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 _LAUNCHER_APP_CHANNEL = 'https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json'
 
 def _canonical_update_channel_status():
