@@ -119,5 +119,5 @@ assert "url+'/play/'" in front
 assert "Medir velocidad LAN" not in front
 assert "Preparar video para reproducir sin cortes" not in front
 assert "video_cache_local" in path.read_text(encoding="utf-8")
-assert "clinical_video_library.js?v=1.4.42" in (root/"patient_document_panel.py").read_text(encoding="utf-8")
+assert "clinical_video_library.js?v=1.4.98" in (root/"patient_document_panel.py").read_text(encoding="utf-8")
 print("HISTORIA_VIDEO_1437_VERIFIED_TEMP_CACHE_NO_CLOUD_SPEED_8MB_PATIENT_ISOLATION_OK")
