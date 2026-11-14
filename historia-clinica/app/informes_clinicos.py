@@ -408,6 +408,48 @@ body{{margin:0;background:#e8edf2;color:#17253b;font-family:Arial,Helvetica,sans
 </main>{js}</body></html>"""
 
 
+def _report_patient_popup_shell(base, body: str) -> str:
+    """Listado de informes de una ficha en ventana propia, sin clonar Historia.
+
+    La navegación global de /informes sin patient_id continúa intacta.
+    No altera la lista ni acciones de informes existentes.
+    """
+    page = base("Informes médicos", body, "informes")
+    current = '<body class="cp-remaster-app">'
+    if current not in page:
+        return page  # Compatibilidad con renderizadores de pruebas.
+    page = page.replace(
+        current,
+        '<body class="cp-remaster-app clinical-document-editor clinical-report-list-popup">',
+        1,
+    )
+    page = page.replace("</head>", """
+<style>
+/* Historia 1.4.100: no duplicar la Historia Clínica dentro de una ventana.
+   Se mantiene la página completa del menú cuando no hay paciente seleccionado. */
+body.clinical-report-list-popup > header.topbar,
+body.clinical-report-list-popup > footer,
+body.clinical-report-list-popup > .hc-g-sidebar{display:none!important}
+body.clinical-report-list-popup > main{
+    display:block!important;width:100%!important;max-width:none!important;
+    margin:0!important;box-sizing:border-box!important;
+    padding:22px clamp(14px,3vw,36px) 42px!important;
+    min-height:100vh!important;height:auto!important;
+}
+body.clinical-report-list-popup .docs-wrap{
+    width:100%;max-width:1500px;margin:0 auto;padding:8px 0 24px;
+}
+body.clinical-report-list-popup .report-list-card{min-width:0}
+body.clinical-report-list-popup .report-list-table{width:100%;min-width:0}
+body.clinical-report-list-popup .docs-head{flex-wrap:wrap}
+@media(max-width:800px){
+    body.clinical-report-list-popup > main{padding:12px!important}
+}
+</style>
+</head>""", 1)
+    return page
+
+
 def install(app, context: dict) -> None:
     db_path = context["DB_PATH"]
     root = Path(context["ROOT"])
@@ -499,9 +541,11 @@ def install(app, context: dict) -> None:
  });
 })();
 </script>"""
-        # El listado forma parte de la navegación principal (menú lateral).
-        # Únicamente los editores se abren en ventana independiente para que
-        # el doctor conserve el espacio de trabajo y la protección de impresión.
+        # Desde la consulta o ficha, /informes?patient_id=... abre un
+        # documento contextual sin duplicar barra lateral ni navegación.
+        # Desde el menú principal, /informes conserva la pantalla habitual.
+        if patient_id:
+            return HTMLResponse(_report_patient_popup_shell(base, body))
         return HTMLResponse(base("Informes médicos", body, "informes"))
 
     @app.post("/api/informes/{report_id}/eliminar")
