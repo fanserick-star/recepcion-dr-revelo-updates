@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.97",
-  "app_version": "1.4.97",
-  "runtime_version": "1.4.97",
+  "version": "1.4.98",
+  "app_version": "1.4.98",
+  "runtime_version": "1.4.98",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -34,7 +34,9 @@
     "patient_document_panel.py",
     "neon_emergency_copy.py",
     "neon_official_return.py",
-    "neon_return_settings.py"
+    "neon_return_settings.py",
+    "static/clinical_video_library.js",
+    "static/clinical_video_timeline.css"
   ],
   "required_python_packages": [
     {
@@ -89,6 +91,7 @@
     "patient_document_panel.py",
     "clinical_video_library.py",
     "static/clinical_video_library.js",
+    "static/clinical_video_timeline.css",
     "clinical_video_cache.py",
     "neon_emergency_copy.py",
     "neon_emergency_cutover.py",
@@ -96,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.97: las seis acciones de la consulta (Frases rápidas, Receta médica, Certificado médico, Consentimiento informado, Material e Informes médicos) comparten iconos SVG azules, bordes redondeados y disposición uniforme como en la ficha 1.4.96. Solo CSS; conservan sus ids, rutas, scripts, guardar antes de abrir documentos, firma y consulta. Sin migraciones, sin cambios clínicos, TV ni Neon.",
-    "previous_version": "1.4.96",
+    "purpose": "Historia 1.4.98: las videocistoscopías del archivo LAN de Recepción se intercalan en la cronología de la ficha según la fecha y hora del catálogo; cada registro abre el visor ya existente y muestra previsualización solo después de reproducir. Conserva el botón de archivo y los registros clínicos, mantiene la búsqueda, no descarga MP4 al listar, no escribe Neon/SQLite, no cambia vínculos, TV, firmas ni base de datos.",
+    "previous_version": "1.4.97",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
