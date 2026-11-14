@@ -16,7 +16,8 @@ style=(root/"historia-clinica/app/static/style.css").read_text(encoding="utf-8")
 consent=(root/"historia-clinica/app/consentimiento_informado.py").read_text(encoding="utf-8")
 manifest=json.loads((root/"historia-clinica/app/update_manifest.json").read_text(encoding="utf-8"))
 version=json.loads((root/"historia-clinica/app/historia-version.json").read_text(encoding="utf-8"))
-assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version["version"]=="1.4.96"
+assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version["version"]
+assert tuple(map(int, version["version"].split("."))) >= (1, 4, 96)
 tree=ast.parse(app)
 route=next(n for n in tree.body if isinstance(n,ast.AsyncFunctionDef) and n.name=="patient_quick_sex")
 patient=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=="patient")

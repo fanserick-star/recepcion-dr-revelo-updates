@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.96",
-  "app_version": "1.4.96",
-  "runtime_version": "1.4.96",
+  "version": "1.4.97",
+  "app_version": "1.4.97",
+  "runtime_version": "1.4.97",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -96,8 +96,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.96: ficha del paciente organizada según diseño aprobado. Unifica identidad y datos personales; mueve Cédula a la segunda posición, coloca Sexo como selector rápido al final de la primera fila y agrupa abajo los botones originales con íconos SVG. Guarda exclusivamente el sexo en SQLite, audita y despierta la sincronización incremental existente. Conserva consentimiento informado, edición, recetas, certificados, informes, llamados, TV, Neon seleccionado y demás flujos.",
-    "previous_version": "1.4.95",
+    "purpose": "Historia 1.4.97: las seis acciones de la consulta (Frases rápidas, Receta médica, Certificado médico, Consentimiento informado, Material e Informes médicos) comparten iconos SVG azules, bordes redondeados y disposición uniforme como en la ficha 1.4.96. Solo CSS; conservan sus ids, rutas, scripts, guardar antes de abrir documentos, firma y consulta. Sin migraciones, sin cambios clínicos, TV ni Neon.",
+    "previous_version": "1.4.96",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -114,7 +114,7 @@
     "tv_turn_state_lan_authenticated": true,
     "tv_turn_state_patient_data_exposed": false,
     "tv_procedures_excluded": true,
-    "clinical_data_changes": true,
+    "clinical_data_changes": false,
     "cloud_logic_changes": true,
     "cloud_sync_data_logic_changes": false,
     "cloud_status_write_resilience": true,
@@ -619,6 +619,9 @@
     "patient_profile_actions_below_with_svg_icons": true,
     "patient_profile_quick_sex_local_audited_sync": true,
     "doctor_turn_call_preserved": true,
-    "consentimiento_patient_button_preserved": true
+    "consentimiento_patient_button_preserved": true,
+    "consultation_toolbar_icons_svg": true,
+    "consultation_toolbar_approved_profile_style": true,
+    "consultation_toolbar_six_actions_preserved": true
   }
 }

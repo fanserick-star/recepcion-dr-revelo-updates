@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.96: ficha de paciente con datos unificados y mejor organizados; Cédula en segundo lugar, Sexo editable en la propia ficha; accesos clínicos al pie con íconos. Actualiza únicamente el campo de sexo con auditoría y sincronización incremental ya existente. Conserva recetas, consentimiento, certificados, informes, llamados, LAN y configuración Neon."
+  "notes": "Historia Clínica 1.4.97: botones de atención con los seis íconos azules del diseño aprobado (Frases rápidas, Receta, Certificado, Consentimiento, Material e Informes), en una barra clara y adaptable. Actualización exclusivamente CSS, sin cambios en escritura, documentos, turnos, TV ni Neon."
 }
