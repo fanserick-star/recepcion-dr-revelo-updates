@@ -588,10 +588,9 @@ body.clinical-document-editor .docs-card .med-table td{
 body.clinical-document-editor .docs-card .med-table input{
   width:100%;min-width:0;max-width:100%;box-sizing:border-box
 }
-/* La ventana secundaria del launcher mide aprox. 1220 px: damos
-   todo el ancho a cada panel para que recetas, certificados y reposos
-   no recorten nombres, fechas ni medicamentos. */
-@media(max-width:1260px){
+/* Historia 1.4.101: los formularios recuperan dos columnas en la
+   ventana modal amplia. Sólo apilan paneles si el área útil es menor a 970px. */
+@media(max-width:970px){
   body.clinical-document-editor .docs-grid{grid-template-columns:minmax(0,1fr);gap:14px}
 }
 @media(max-width:560px){
@@ -610,7 +609,7 @@ body.clinical-document-editor .doc-dirty-warning{
   font-size:13px;font-weight:750
 }
 body.clinical-document-editor .doc-dirty-warning[hidden]{display:none!important}
-@media(max-width:1080px){body.clinical-document-editor .docs-grid{grid-template-columns:1fr}}
+@media(max-width:970px){body.clinical-document-editor .docs-grid{grid-template-columns:1fr}}
 body.clinical-document-editor .doc-progress{position:fixed;z-index:9990;bottom:18px;
   left:50%;transform:translateX(-50%);width:min(92vw,640px);box-sizing:border-box;
   padding:17px 22px;text-align:center;border-radius:12px;
@@ -635,6 +634,13 @@ window.historiaDocumentAction=(function(){
   const REPEAT_WAIT_MS=20000;
   const banner=document.getElementById('clinical-document-progress');
   let editorDirty=false, editorRevision=0;
+  window.historiaEditorHasUnsaved=()=>editorDirty;
+  window.historiaEditorConfirmDiscard=()=>{editorDirty=false;return true;};
+  window.historiaDocumentClose=()=>{
+    if(window.parent!==window && typeof window.parent.historiaCloseClinicalOverlay==='function')
+      return window.parent.historiaCloseClinicalOverlay();
+    window.close();return true;
+  };
   // El protector también funciona en WebView2 y en pruebas sin DOM completo.
   const wrap=typeof document.querySelector==='function'?document.querySelector('.docs-wrap'):null;
   const warning=wrap?document.createElement('div'):{hidden:true};
@@ -979,7 +985,7 @@ def install(app, context: dict) -> None:
             <button class='doc-primary' id='rx-print'>Imprimir</button>
             <button class='doc-light' id='rx-pdf'>PDF firmado</button>
             <span class='doc-save-state' id='rx-state'>Sin guardar</span>
-            <button class='doc-muted' onclick='window.close()'>Cancelar</button>
+            <button class='doc-muted' onclick='window.historiaDocumentClose?window.historiaDocumentClose():window.close()'>Cancelar</button>
           </div>
         </section>
         <script>
@@ -999,7 +1005,7 @@ def install(app, context: dict) -> None:
           }})).filter(x=>x.medication);
         }}
         function notifyParent(encId){{
-          try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}
+          try{{(window.opener&&!window.opener.closed?window.opener:(window.parent!==window?window.parent:null))?.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}
         }}
         async function saveRx(showNotice=false){{
           const revision=window.historiaEditorRevision?.();
@@ -1610,7 +1616,7 @@ footer{{
         <label>Desde<input id='cert-from' type='date' value='{today}'></label><label>Hasta<input id='cert-to' type='date' value='{today}'></label>
         </div></div></div>
         <div class='docs-card'><label>Texto del certificado (se puede editar)<textarea id='cert-body' rows='12'>{_e(text)}</textarea></label></div>
-        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Guardar e imprimir</button><button class='doc-light' id='cert-pdf'>PDF firmado</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.close()'>Cancelar</button></div>
+        <div class='doc-actions'><button class='doc-primary' id='cert-save'>Guardar</button><button class='doc-light' id='cert-preview'>Vista previa</button><button class='doc-primary' id='cert-print'>Guardar e imprimir</button><button class='doc-light' id='cert-pdf'>PDF firmado</button><span class='doc-save-state' id='cert-state'>Sin guardar</span><button class='doc-muted' onclick='window.historiaDocumentClose?window.historiaDocumentClose():window.close()'>Cancelar</button></div>
         </section>
         {_inline_signature_activation_dialog()}
         <script>
@@ -1717,7 +1723,7 @@ footer{{
         document.getElementById('cert-from')?.addEventListener('change',()=>scheduleRegen(true));
         document.getElementById('cert-to')?.addEventListener('change',()=>scheduleRegen(false));
 
-        function notifyCertParent(encId){{try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
+        function notifyCertParent(encId){{try{{(window.opener&&!window.opener.closed?window.opener:(window.parent!==window?window.parent:null))?.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
         async function saveCert(showNotice=false){{
           const revision=window.historiaEditorRevision?.();
           const payload=certPayload();payload.body_text=certBody.value;
@@ -2092,7 +2098,7 @@ footer{{
             <button class='doc-primary' id='rest-print'>Guardar e imprimir</button>
             <button class='doc-light' id='rest-pdf'>PDF firmado</button>
             <span class='doc-save-state' id='rest-state'>Sin guardar</span>
-            <button class='doc-muted' type='button' onclick='window.close()'>Cancelar</button>
+            <button class='doc-muted' type='button' onclick='window.historiaDocumentClose?window.historiaDocumentClose():window.close()'>Cancelar</button>
           </div>
         </section>
         {_inline_signature_activation_dialog()}
@@ -2166,7 +2172,7 @@ footer{{
             rest_to:document.getElementById('rest-to').value
           }};
         }}
-        function notifyRestParent(encId){{try{{if(window.opener&&!window.opener.closed)window.opener.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
+        function notifyRestParent(encId){{try{{(window.opener&&!window.opener.closed?window.opener:(window.parent!==window?window.parent:null))?.postMessage({{type:'clinical-document-saved',encounter_id:encId||''}},location.origin)}}catch(_e){{}}}}
         async function saveRest(showNotice=false){{
           const revision=window.historiaEditorRevision?.();
           const data=payload();if(!data.contingency)throw new Error('Seleccione si existe contingencia.');if(!data.symptoms)throw new Error('Seleccione si el paciente presenta síntomas.');
