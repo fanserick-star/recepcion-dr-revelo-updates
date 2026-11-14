@@ -17,7 +17,7 @@ assert manifest["mandatory"] is True
 assert manifest["notes"]["database_schema_changes"] is False
 assert manifest["notes"]["patient_data_destructive_changes"] is False
 assert "static/clinical_video_library.js" in manifest["copy"]
-assert "clinical_video_library.js?v=1.4.98" in panel
+assert "clinical_video_library.js?v=1.4.99" in panel
 ast.parse((root/"app.py").read_text(encoding="utf-8"))
 ast.parse(backend)
 
