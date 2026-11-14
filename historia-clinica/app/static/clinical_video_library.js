@@ -1,4 +1,4 @@
-/* Historia Clínica 1.4.42: safe, on-demand videocystoscopy gallery.
+/* Historia Clínica 1.4.98: gallery and chronological patient-history videocystoscopy entries.
    Only the verified patient's localhost catalogue and existing LAN video stream.
    No image scraping or download of other MP4s just to render gallery cards. */
 (()=>{
@@ -11,6 +11,15 @@
   window.__reveloVideoLibraryInstalled=true;
 
   const id=host.getAttribute('data-clinical-video-patient');
+  const timeline=document.querySelector('.cp-history-window .cp-timeline');
+  // Style only; the video metadata comes from the existing patient-scoped LAN endpoint.
+  if(timeline&&!document.querySelector('link[data-clinical-video-timeline]')){
+    const stylesheet=document.createElement('link');
+    stylesheet.rel='stylesheet';
+    stylesheet.href='/static/clinical_video_timeline.css?v=1.4.98';
+    stylesheet.dataset.clinicalVideoTimeline='1';
+    document.head.append(stylesheet);
+  }
   const status=host.querySelector('.cp-video-status');
   const list=host.querySelector('.cp-video-list');
   const refresh=host.querySelector('.cp-video-refresh');
@@ -18,7 +27,7 @@
   const url='/api/clinical-videos/patient/'+encodeURIComponent(id);
   const previewById=new Map(); // Session-only screenshots of a video *after* the doctor plays it.
   const durationById=new Map();
-  let busy=false,loaded=false,activeVideo=null,activeId=null,activeCard=null;
+  let busy=false,loaded=false,activeVideo=null,activeId=null,activeCard=null,pendingId=null;
   let activeCanvasCapture=false;
 
   const counter=document.createElement('strong');
@@ -110,8 +119,10 @@
       ctx.drawImage(video,(320-w)/2,(180-h)/2,w,h);
       const image=canvas.toDataURL('image/jpeg',0.68);
       previewById.set(videoId,image);
-      const thumb=list.querySelector('[data-video-thumb="'+videoId+'"]');
-      if(thumb){thumb.style.backgroundImage='url('+JSON.stringify(image)+')';thumb.classList.add('has-preview');}
+      document.querySelectorAll('[data-video-thumb="'+videoId+'"]').forEach(thumb=>{
+        thumb.style.backgroundImage='url('+JSON.stringify(image)+')';
+        thumb.classList.add('has-preview');
+      });
     }catch(_ignored){
       // Canvas snapshot unsupported: leave the lightweight visual placeholder.
     }finally{activeCanvasCapture=false;}
@@ -192,6 +203,7 @@
     const button=document.createElement('button');
     button.type='button';
     button.className='cp-video-gallery-card';
+    button.dataset.videoId=item.id;
     button.setAttribute('aria-pressed','false');
     button.setAttribute('aria-label','Abrir videocistoscopía '+(when||'#'+(index+1)));
     const thumbnail=document.createElement('span');
@@ -216,6 +228,138 @@
     button.append(thumbnail,info);
     button.addEventListener('click',()=>selectVideo(item,button));
     return button;
+  }
+
+
+  // Merge only presentation: the original consultation cards keep their content
+  // and order. Videos stay in Reception and are never copied to clinical SQLite.
+  function stampKey(rawValue, separateTime=''){
+    const raw=String(rawValue||'').trim();
+    const iso=/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2}))?/.exec(raw);
+    const dmy=/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/.exec(raw);
+    const match=iso||dmy;
+    if(!match)return '';
+    const year=Number(iso?iso[1]:dmy[3]);
+    const month=Number(iso?iso[2]:dmy[2]);
+    const day=Number(iso?iso[3]:dmy[1]);
+    const extraTime=/^(\d{1,2}):(\d{2})/.exec(String(separateTime||'').trim());
+    const hour=Number((extraTime&&extraTime[1])||match[4]||0);
+    const minute=Number((extraTime&&extraTime[2])||match[5]||0);
+    const check=new Date(Date.UTC(year,month-1,day));
+    if(check.getUTCFullYear()!==year||check.getUTCMonth()+1!==month||
+       check.getUTCDate()!==day||hour>23||minute>59)return '';
+    return String(year).padStart(4,'0')+
+      String(month).padStart(2,'0')+String(day).padStart(2,'0')+
+      String(hour).padStart(2,'0')+String(minute).padStart(2,'0');
+  }
+
+  function videoDate(item){
+    const key=stampKey(item.recorded_at);
+    if(!key)return 'Sin fecha registrada';
+    return key.slice(6,8)+'/'+key.slice(4,6)+'/'+key.slice(0,4);
+  }
+
+  function visibleInSearch(item){
+    const term=(new URLSearchParams(window.location.search).get('histq')||'')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+    if(!term)return true;
+    const raw=String(item.recorded_at||'');
+    const searchable=('videocistoscopia video grabacion '+raw+' '+videoDate(item))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return searchable.includes(term);
+  }
+
+  function entryKey(entry){
+    if(entry.classList.contains('cp-video-timeline-entry'))
+      return entry.dataset.videoTimestamp||'';
+    const date=entry.querySelector('.legacy-segment-date > strong');
+    const time=entry.querySelector('.legacy-segment-date > time');
+    return stampKey(date?.textContent,time?.textContent);
+  }
+
+  function makeTimelineEntry(item){
+    const row=document.createElement('section');
+    row.className='legacy-segment compact cp-flat-history-entry cp-video-timeline-entry';
+    row.dataset.videoTimestamp=stampKey(item.recorded_at);
+    const heading=document.createElement('div');
+    heading.className='legacy-segment-date';
+    const date=document.createElement('strong');
+    date.textContent=videoDate(item);
+    const clock=document.createElement('time');
+    const found=/[T ](\d{2}:\d{2})/.exec(String(item.recorded_at||''));
+    if(found)clock.textContent=found[1];
+    heading.append(date,clock);
+    const origin=document.createElement('small');
+    origin.textContent='Videocistoscopía · Archivo de Recepción';
+    const body=document.createElement('div');
+    body.className='cp-video-timeline-body';
+    const thumb=document.createElement('div');
+    thumb.className='cp-video-timeline-thumb';
+    thumb.dataset.videoThumb=item.id;
+    const playIcon=document.createElement('span');
+    playIcon.textContent='▶';
+    thumb.append(playIcon);
+    if(previewById.has(item.id)){
+      thumb.style.backgroundImage='url('+JSON.stringify(previewById.get(item.id))+')';
+      thumb.classList.add('has-preview');
+    }
+    const info=document.createElement('div');
+    info.className='cp-video-timeline-info';
+    const title=document.createElement('strong');
+    title.textContent='Grabación de cistoscopía';
+    const meta=document.createElement('small');
+    const mb=(Math.max(0,Number(item.size_bytes)||0)/1048576).toFixed(1);
+    meta.textContent=mb+' MB · Video original disponible en Recepción (LAN)';
+    info.append(title,meta);
+    const action=document.createElement('button');
+    action.type='button';
+    action.className='cp-video-timeline-open';
+    action.textContent='▶ Ver grabación';
+    action.setAttribute('aria-label','Abrir grabación de cistoscopía del '+videoDate(item));
+    action.addEventListener('click',()=>{
+      pendingId=item.id;
+      // Preserve existing dialog focus/close/streaming safeguards.
+      open.click();
+      if(loaded){
+        const card=Array.from(list.children).find(x=>x.dataset.videoId===item.id);
+        if(card){pendingId=null;selectVideo(item,card);}
+      }
+    });
+    body.append(thumb,info,action);
+    row.append(heading,origin,body);
+    return row;
+  }
+
+  function renderTimeline(videos){
+    if(!timeline)return;
+    const shown=videos.filter(visibleInSearch);
+    let wrapper=timeline.querySelector('.cp-flat-history');
+    let root=wrapper?.querySelector('.cp-history-content');
+    const empty=timeline.querySelector(':scope > .empty');
+    if(!root&&shown.length){
+      wrapper=document.createElement('article');
+      wrapper.className='history-card cp-history-card open cp-flat-history cp-video-only-history';
+      root=document.createElement('div');
+      root.className='history-content cp-history-content';
+      root.style.display='block';
+      wrapper.append(root);
+      if(empty)empty.hidden=true;
+      timeline.append(wrapper);
+    }
+    if(!root)return;
+    const consultationEntries=Array.from(root.children).filter(
+      node=>node.classList.contains('cp-flat-history-entry')&&
+        !node.classList.contains('cp-video-timeline-entry')
+    );
+    const videoEntries=shown.map(makeTimelineEntry);
+    // Stable chronological merge. Equal dates preserve the clinical order.
+    const merged=consultationEntries.concat(videoEntries);
+    merged.sort((a,b)=>entryKey(b).localeCompare(entryKey(a)));
+    root.replaceChildren(...merged);
+    if(!merged.length&&wrapper.classList.contains('cp-video-only-history')){
+      wrapper.remove();
+      if(empty)empty.hidden=false;
+    }
   }
 
   async function load(force=false){
@@ -244,6 +388,13 @@
       // Reception returns latest-first, but sort to keep visual order stable.
       videos.sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
       videos.forEach((item,index)=>list.append(makeCard(item,index)));
+      renderTimeline(videos);
+      if(pendingId){
+        const selected=videos.find(item=>item.id===pendingId);
+        const card=Array.from(list.children).find(item=>item.dataset.videoId===pendingId);
+        pendingId=null;
+        if(selected&&card&&dialog.open)selectVideo(selected,card);
+      }
       status.textContent=videos.length?
         videos.length+' video'+(videos.length===1?'':'s')+' · Selecciona un cuadro para reproducir':
         'Este paciente aún no tiene videocistoscopías guardadas en Recepción.';
@@ -252,11 +403,13 @@
       status.textContent=(error&&error.message)||'No se pudo conectar con Recepción. Pulsa Actualizar para reintentar.';
       if(activeVideo)stopPlayer();
       list.replaceChildren();
+      renderTimeline([]);
+      pendingId=null;
       loaded=false;
       setCount(null,true);
     }finally{busy=false;}
   }
-  open.addEventListener('click',()=>load(true));
+  open.addEventListener('click',()=>load(false));
   refresh?.addEventListener('click',()=>load(true));
   // Count read on entering a patient chart; no periodic catalogue or video polling.
   load();
