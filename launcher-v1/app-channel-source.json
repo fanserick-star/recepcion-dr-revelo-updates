@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.147: informe financiero nocturno de las 19:00 visible en Facturación el día del cierre y el siguiente; manual/automática, autorizado/en proceso y valor de atenciones. Consulta solo lectura a Neon Recepción, sin nuevas facturas, sin cambios de WhatsApp/Historia/LAN/PDF ni cierre de programas."
+  "notes": "Recepción 4.8.148: Agenda semanal de jornada completa sin pestañas Mañana/Tarde; horas en formato de 12 horas (a. m./p. m.) con pausa de almuerzo visible. No cambia horas guardadas, agenda Cloud, Neon, Confirmafy, WhatsApp ni reglas de disponibilidad."
 }
