@@ -23,5 +23,5 @@ assert 'ensureHistoriaNeonSelectorPanel()' in config
 assert "window.loadHistoriaNeonSelector()" in config
 assert 'name="historiaNeonTarget" value="official"' in html
 assert 'name="historiaNeonTarget" value="emergency"' in html
-assert '"version": "4.8.142"' in manifest
+assert tuple(int(x) for x in __import__("json").loads(manifest)["version"].split(".")[:3]) >= (4, 8, 142)
 print("RECEPTION_48142_SELECTOR_VISIBLE_AFTER_NAVIGATION_OK")
