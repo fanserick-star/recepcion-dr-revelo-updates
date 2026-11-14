@@ -25,6 +25,14 @@ app = core.app
 PENDING_PATH = bridge.ROOT / "data" / "historia_neon_pending.json"
 _LAST_SCAN = {}
 _VALID_FOR_SECONDS = 180
+_STARTUP_RESULT = {"state": "not_checked"}
+
+
+def _record_startup(result: dict) -> dict:
+    """Keep a non-sensitive diagnostic in this process; no secrets or patient IDs."""
+    global _STARTUP_RESULT
+    _STARTUP_RESULT = dict(result)
+    return result
 
 
 def _local(request: Request):
@@ -67,29 +75,44 @@ def _write_pending(target: str) -> None:
 def apply_pending_at_startup():
     """Revalidate at restart; never break Reception if pending switch is unsafe."""
     if not PENDING_PATH.exists():
-        return {"state": "not_scheduled"}
+        return _record_startup({"state": "not_scheduled"})
     try:
         req = _json_read(PENDING_PATH)
         target = bridge._validated_target(req.get("target") or "")
         if target == bridge._history_target():
             PENDING_PATH.unlink(missing_ok=True)
-            return {"state": "already_active"}
+            return _record_startup({"state": "already_active"})
         # Data and queue may have changed since the operator clicked.
         # Refuse switching if any safety condition is no longer true.
         report = _preflight(target)
         if not report["ok"]:
-            return {"state": "blocked", "reason": "Vinculaciones o envíos pendientes"}
+            return _record_startup({
+                "state": "blocked",
+                "reason": "parity_or_pending",
+                "message": "El reinicio fue bloqueado porque aparecieron diferencias "
+                           "de vinculación o envíos pendientes.",
+                "missing": int(report.get("missing") or 0),
+                "different": int(report.get("different") or 0),
+                "destination_only": int(report.get("destination_only") or 0),
+                "invalid": int(report.get("invalid") or 0),
+                "pending": int(report.get("pending") or 0),
+                "pending_lan": int(report.get("pending_lan") or 0),
+            })
         active = bridge.ACTIVE_NEON_SELECTION
         active.parent.mkdir(parents=True, exist_ok=True)
         os.replace(PENDING_PATH, active)
         # The process is not serving HTTP or workers yet. All future calls,
         # including LAN handoff and document verification, use this one target.
         bridge._PROCESS_HISTORY_TARGET = target
-        return {"state": "activated", "target": target}
-    except Exception:
-        # No fallback hidden switch, no risk of taking the admin app offline.
-        # Keep the pending request to show the operator a blocked state.
-        return {"state": "blocked", "reason": "Revisión o conexión privada pendiente"}
+        return _record_startup({"state": "activated", "target": target})
+    except Exception as exc:
+        # The switch remains pending, without silently redirecting any clinical
+        # request. Store only a fixed safe error category, never raw exceptions
+        # which can contain private URIs or clinical identifiers.
+        safe = _safe_check_error(exc)
+        return _record_startup({"state": "blocked",
+                                "reason": safe["code"],
+                                "message": safe["message"]})
 
 
 def _connected(target: str):
@@ -207,8 +230,25 @@ def _status():
             available[target] = bool(bridge._database_url_for_target(target))
         except Exception:
             available[target] = False
+    startup = dict(_STARTUP_RESULT)
+    if pending and startup.get("state") == "not_scheduled":
+        startup = {
+            "state": "server_still_running",
+            "reason": "no_process_restart",
+            "message": "El servidor de Recepción continúa en el proceso anterior: "
+                       "el cambio se preparó después de su arranque. Cierra "
+                       "completamente Recepción y ábrela desde el launcher.",
+        }
+    elif pending and startup.get("state") == "not_checked":
+        startup = {
+            "state": "not_checked",
+            "reason": "startup_not_checked",
+            "message": "No se pudo confirmar que el cambio haya pasado por un "
+                       "nuevo arranque del servidor de Recepción.",
+        }
     return {"ok": True, "active": active, "pending_restart": pending,
             "credential_ready": available,
+            "startup_diagnostic": startup if pending else {"state": "ready"},
             "clinical_only": True, "reception_finances_unchanged": True,
             "switch_changes_only_after_restart": True}
 
