@@ -4523,6 +4523,51 @@ def _desktop_runtime_info() -> dict:
     }
 
 
+# Fallback de presentación 4.8.150: inline en HTML sin caché, para que
+# incluso una copia antigua de app.js muestre horas AM/PM en la Agenda.
+# No modifica citas, eventos, atributos onclick ni datos del paciente.
+RP_AGENDA_12H_INLINE = r"""(function(){
+  'use strict';
+  if(window.__rp48150Agenda12hGuard)return;
+  window.__rp48150Agenda12hGuard=true;
+  function convertClock(raw){
+    const m=/^(\s*[+＋]?\s*)(\d{1,2}):([0-5]\d)([ \t]*)(Disponible)?([ \t]*)$/i.exec(String(raw||''));
+    if(!m)return null;
+    const hour=Number(m[2]);
+    if(hour>23)return null;
+    const tail=m[5]?(m[4]||' ')+m[5]+m[6]:m[4]+m[6];
+    return m[1]+(hour%12||12)+':'+m[3]+' '+(hour<12?'a. m.':'p. m.')+tail;
+  }
+  function patchAgenda(){
+    const grid=document.getElementById('agendaNativeGrid');
+    if(!grid)return;
+    const targets=grid.querySelectorAll('.native-time, .native-slot.free, .native-cell .free');
+    for(const el of targets){
+      const walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+      let node;
+      while((node=walker.nextNode())){
+        const value=convertClock(node.nodeValue);
+        if(value!==null && value!==node.nodeValue)node.nodeValue=value;
+      }
+    }
+  }
+  function boot(){
+    const grid=document.getElementById('agendaNativeGrid');
+    if(!grid)return;
+    document.documentElement.dataset.rpAgenda12h='4.8.150';
+    let queued=false;
+    const schedule=()=>{
+      if(queued)return;
+      queued=true;
+      queueMicrotask(()=>{queued=false;patchAgenda()});
+    };
+    new MutationObserver(schedule).observe(grid,{childList:true,characterData:true,subtree:true});
+    patchAgenda();
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();"""
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     with open(os.path.join(BASE_DIR, "static", "index.html"), encoding="utf-8") as f:
@@ -4544,6 +4589,7 @@ def home():
         f'<script defer src="/v460/overlay.js?v={APP_VERSION}"></script>'
     )
     result = html.replace("</head>", addon + "</head>", 1) if "</head>" in html else html + addon
+    result = result.replace("</body>", "<script>" + RP_AGENDA_12H_INLINE + "</script></body>", 1)
     return HTMLResponse(
         content=result,
         headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0",
