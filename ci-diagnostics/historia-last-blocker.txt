@@ -1,4 +1,4 @@
-source_sha=e9279992c20aae2e6027d50e2b33d2384a9a8d61
+source_sha=d231512d606c566a729ec3e99ef6161e950d7ffb
 workflow=historia
-failed_command=python tools/test_historia_global_remaster_1449.py
+failed_command=python tools/test_historia_recetas_firma_informes_1443.py
 
