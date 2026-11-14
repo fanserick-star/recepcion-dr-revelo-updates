@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.142: arregla el selector de Neon Original/Emergencia que no se mostraba aunque el código HTML estuviera instalado. La navegación ya no oculta paneles internos, y el selector se dibuja como contenedor no navegable. Mantiene las protecciones del cambio seguro, sin tocar datos clínicos ni el Neon administrativo."
+  "notes": "Recepción 4.8.143: la verificación y preparación del selector Neon Original/Emergencia muestran la causa del bloqueo 409, en vez de un error genérico. Las vinculaciones, envíos, credenciales privadas y reinicio siguen protegidos. No modifica bases ni historiales."
 }
