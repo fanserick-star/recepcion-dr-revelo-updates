@@ -1537,3 +1537,40 @@ button{border:1px solid transparent}.primary{background:linear-gradient(135deg,#
   .rp-clinical-delivery-confirm-actions{flex-wrap:wrap!important}
   .rp-clinical-delivery-confirm-actions button{flex:1 1 135px!important}
 }
+
+/* Recepción 4.8.148 · una sola agenda continua, horas 12 h.
+   La columna de hora admite a. m./p. m. sin perder legibilidad. */
+#agenda .agenda-focus-toolbar{
+  justify-content:flex-start!important;
+  margin-bottom:10px!important;
+}
+#agenda .agenda-focus-heading{width:100%!important}
+#agenda .agenda-native-grid .native-schedule{
+  grid-template-columns:98px repeat(4,minmax(205px,1fr))!important;
+  min-width:980px!important;
+}
+#agenda .agenda-native-grid .native-time,
+#agenda .agenda-native-grid .native-time.lunch{
+  font-size:11px!important;
+  font-weight:850!important;
+  letter-spacing:-.02em;
+  white-space:nowrap!important;
+  padding:5px 3px!important;
+  font-variant-numeric:tabular-nums;
+}
+#agenda .agenda-native-grid .native-corner{white-space:nowrap!important}
+#agenda .agenda-native-grid .native-lunch{
+  font-weight:850!important;
+}
+@media(min-width:1500px){
+  #agenda .agenda-native-grid .native-schedule{
+    min-width:0!important;
+    grid-template-columns:98px repeat(4,minmax(0,1fr))!important;
+  }
+}
+@media(max-width:1000px){
+  #agenda .agenda-native-grid .native-schedule{
+    min-width:930px!important;
+    grid-template-columns:94px repeat(4,minmax(205px,1fr))!important;
+  }
+}
