@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.149: reparación de archivos de pantalla antiguos aunque ya apareciera 4.8.148. Agenda semanal de jornada completa sin pestañas Mañana/Tarde; horas en formato de 12 horas (a. m./p. m.) con pausa de almuerzo visible. No cambia horas guardadas, agenda Cloud, Neon, Confirmafy, WhatsApp ni reglas de disponibilidad. JS/CSS sin caché y validación de regresiones 4.8.148 corregidas (fila 2:00 p. m. sin coincidencias parciales) y SHA-256 obligatoria."
+  "notes": "Recepción 4.8.150: solución visual en el HTML que sirve el backend para mostrar a. m./p. m. aun si WebView2 conserva el renderizador antiguo. MutationObserver limitado a celdas de horario sin alterar horas persistidas, disponibilidad, clics, pacientes, Neon, Cloudflare ni WhatsApp. Incluye prueba sintética de interfaz heredada y de interfaz nueva."
 }
