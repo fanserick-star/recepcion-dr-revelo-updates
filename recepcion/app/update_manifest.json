@@ -217,7 +217,7 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.147: informe financiero del cierre fiscal nocturno visible en Facturación desde las 19:00 hasta el día siguiente; separa manuales y automáticas, cantidades, importes de atenciones vinculadas y estados SRI. Consulta bajo demanda a Neon Recepción con lectura SQL de solo lectura, sin emitir facturas, reintentos ni modificar la automatización existente.",
+    "purpose": "Recepción 4.8.147: cierre fiscal automático solamente miércoles a sábado desde las 19:00 de Ecuador; informe financiero al finalizar el cierre, disponible en Facturación hasta el día siguiente. Separa facturas manuales y automáticas, importe verificable de atenciones, autorizadas SRI y en proceso. Informe de solo lectura bajo demanda; no genera facturas ni modifica relaciones, configuración de Neon clínico, WhatsApp o LAN.",
     "previous_version": "4.8.146",
     "production_status": "stable",
     "consolidated_runtime": true,
@@ -825,7 +825,10 @@
     "night_close_fiscal_report_19h_next_day": true,
     "night_close_financial_manual_vs_auto": true,
     "night_close_report_sri_authorized_only": true,
-    "night_close_report_readonly_no_issuance": true
+    "night_close_report_readonly_no_issuance": true,
+    "night_close_workdays_ecuador": "miércoles, jueves, viernes, sábado",
+    "night_close_no_issuance_sunday_monday_tuesday": true,
+    "night_close_report_visible_following_day": true
   },
   "channel": "launcher-v1-stable"
 }
