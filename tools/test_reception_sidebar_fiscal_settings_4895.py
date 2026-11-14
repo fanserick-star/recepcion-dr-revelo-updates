@@ -52,13 +52,16 @@ assert "document.getElementById('nightFiscalSettings')" in fiscal
 assert "slot.appendChild(panel)" in fiscal
 assert "disclosure.addEventListener('toggle'" in fiscal
 assert "!document.getElementById('config')?.classList.contains('hidden')" in fiscal
-assert "document.getElementById('facturacion')" not in fiscal
+# The read-only daily financial REPORT belongs in Facturación, not the fiscal toggle.
+assert "document.getElementById('facturacion')" in fiscal
+assert "rpNightFinancialReport" in fiscal
+assert "document.getElementById('nightFiscalConfigSlot')" in fiscal
 assert "section.insertBefore(panel" not in fiscal
 assert "'/api/night-close/status'" in fiscal
 assert "'/api/night-close/config'" in fiscal
 assert "FACTURAR AUTOMATICAMENTE" in fiscal
 assert "if(!window.confirm(" in fiscal
-assert '/static/night_closing_4888.js?v=4.8.95' in html
+assert '/static/night_closing_4888.js?v=4.8.147' in html
 
 # Core clinical/business routines remain present.
 assert 'id="todayTable"' in html
