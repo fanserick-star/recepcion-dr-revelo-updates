@@ -1221,6 +1221,145 @@ APP_DIALOG_HTML = r"""
   });
 })();
 </script>
+
+<!-- Historia 1.4.101 · formularios clínicos dentro de la aplicación.
+     No se transfieren datos de paciente al padre: iframe same-origin, ruta existente. -->
+<dialog id="hcClinicalDocumentDialog" class="hc-clinical-document-dialog"
+        aria-labelledby="hcClinicalDocumentTitle" aria-modal="true">
+  <div class="hc-clinical-document-shell">
+    <header class="hc-clinical-document-titlebar">
+      <div><span class="hc-clinical-document-eyebrow">HISTORIA CLÍNICA · DOCUMENTO</span>
+        <strong id="hcClinicalDocumentTitle">Documento médico</strong>
+      </div>
+      <button type="button" id="hcClinicalDocumentClose" class="hc-clinical-document-close"
+              aria-label="Cerrar documento">✕ Cerrar</button>
+    </header>
+    <iframe id="hcClinicalDocumentFrame" title="Editor clínico del paciente"
+            referrerpolicy="same-origin"></iframe>
+  </div>
+</dialog>
+<style>
+/* El diálogo pertenece a la misma ventana de WebView2; no crea procesos ni popups. */
+.hc-clinical-document-dialog:not([open]){display:none!important}
+.hc-clinical-document-dialog{
+  width:min(1580px,calc(100vw - 32px));height:min(95vh,1050px);height:min(95dvh,1050px);
+  max-width:none;max-height:none;box-sizing:border-box;border:1px solid #c0d5e8;
+  padding:0;background:#eef5fc;color:#133f68;border-radius:15px;
+  box-shadow:0 24px 90px rgba(4,22,48,.38);overflow:hidden;
+}
+.hc-clinical-document-dialog::backdrop{
+  background:rgba(10,28,51,.55);-webkit-backdrop-filter:blur(5px);
+  backdrop-filter:blur(5px);
+}
+.hc-clinical-document-shell{display:grid;grid-template-rows:auto minmax(0,1fr);
+  height:100%;min-width:0;overflow:hidden}
+.hc-clinical-document-titlebar{
+  display:flex;align-items:center;justify-content:space-between;gap:15px;
+  min-height:58px;box-sizing:border-box;padding:8px 18px;
+  background:#f8fbff;border-bottom:1px solid #d4e3f1
+}
+.hc-clinical-document-titlebar>div{display:grid;gap:2px;min-width:0}
+.hc-clinical-document-eyebrow{font-size:10px;font-weight:800;letter-spacing:.1em;color:#67819a}
+.hc-clinical-document-titlebar strong{font-size:17px;font-weight:850;color:#153c62}
+.hc-clinical-document-close{border:1px solid #c4d7e8;border-radius:8px;
+  background:white;color:#14466d;font:700 13px inherit;min-height:37px;
+  padding:8px 14px;cursor:pointer}
+.hc-clinical-document-close:hover{background:#e7f1fa}
+.hc-clinical-document-close:focus-visible{outline:3px solid #2d8cc5}
+#hcClinicalDocumentFrame{display:block;width:100%;height:100%;
+  border:0;background:#eef5fc}
+@media(max-width:700px){
+ .hc-clinical-document-dialog{width:calc(100vw - 14px);height:97dvh;border-radius:9px}
+ .hc-clinical-document-titlebar{padding:7px 11px}
+ .hc-clinical-document-titlebar strong{font-size:14px}
+}
+</style>
+<script>
+(()=>{
+  if(window.__hcClinicalDocumentOverlayInit)return;
+  window.__hcClinicalDocumentOverlayInit=true;
+  const dialog=document.getElementById('hcClinicalDocumentDialog');
+  const frame=document.getElementById('hcClinicalDocumentFrame');
+  const title=document.getElementById('hcClinicalDocumentTitle');
+  const closeButton=document.getElementById('hcClinicalDocumentClose');
+  if(!dialog||!frame||!title||!closeButton)return;
+  // Sólo rutas locales de documentos: jamás interceptar URLs externas, PDFs
+  // firmados, impresión o pestañas fuera del editor del paciente.
+  function candidate(value){
+    let url;
+    try{url=new URL(String(value||''),location.href)}catch(_){return null}
+    if(url.origin!==location.origin)return null;
+    const path=url.pathname;
+    const isEditor=path==='/recetas/nueva'||path==='/certificados/nuevo'||
+      path==='/certificados/reposo/nuevo'||path==='/informes/nuevo';
+    const isReports=path==='/informes'&&url.searchParams.has('patient_id');
+    if(!isEditor&&!isReports)return null;
+    // El identificador se conserva sólo en la URL interna del iframe.
+    if(!url.searchParams.get('patient_id'))return null;
+    return url;
+  }
+  function label(url){
+    if(url.pathname==='/recetas/nueva')return 'Receta médica';
+    if(url.pathname.startsWith('/certificados/reposo/'))return 'Certificado de reposo';
+    if(url.pathname.startsWith('/certificados/'))return 'Certificado médico';
+    return 'Informes médicos';
+  }
+  let previousFocus=null;
+  function childWindow(){
+    try{if(frame.contentWindow?.location?.origin===location.origin)return frame.contentWindow}
+    catch(_){}
+    return null;
+  }
+  function close(){
+    if(!dialog.open)return true;
+    const child=childWindow();
+    let unsaved=false;
+    try{unsaved=Boolean(child?.historiaEditorHasUnsaved?.())}catch(_){}
+    if(unsaved&&!window.confirm('Hay cambios sin guardar en este documento. ¿Cerrar y descartar esos cambios?'))return false;
+    try{child?.historiaEditorConfirmDiscard?.()}catch(_){}
+    dialog.close();
+    frame.removeAttribute('src'); // Libera la instancia del editor al cerrar.
+    document.body.classList.remove('hc-clinical-modal-open');
+    try{previousFocus?.focus()}catch(_){}
+    return true;
+  }
+  window.historiaCloseClinicalOverlay=close;
+  window.historiaOpenClinicalOverlay=(value)=>{
+    // Dentro de un editor se navega en el mismo iframe, no se crea un modal anidado.
+    if(window.parent!==window)return false;
+    const url=candidate(value);
+    if(!url||typeof dialog.showModal!=='function')return false;
+    if(dialog.open&&!close())return true;
+    previousFocus=document.activeElement;
+    title.textContent=label(url);
+    frame.src=url.href;
+    dialog.showModal();
+    document.body.classList.add('hc-clinical-modal-open');
+    closeButton.focus();
+    return true;
+  };
+  closeButton.addEventListener('click',close);
+  dialog.addEventListener('cancel',event=>{event.preventDefault();close()});
+  dialog.addEventListener('click',event=>{if(event.target===dialog)close()});
+  // Enlaces de ficha: preserva el comportamiento original para otros destinos.
+  document.addEventListener('click',event=>{
+    if(event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||
+       event.altKey||event.shiftKey)return;
+    const link=event.target?.closest?.('a[href]');
+    if(!link||link.target!=='_blank')return;
+    if(window.historiaOpenClinicalOverlay(link.href))event.preventDefault();
+  },true);
+  // El iframe no tiene window.opener. La notificación de guardado vuelve
+  // por parent.postMessage con el mismo origen; no contiene datos del paciente.
+  window.addEventListener('message',event=>{
+    if(event.origin!==location.origin||event.source!==frame.contentWindow)return;
+    if(event.data?.type==='clinical-document-saved'){
+      // Sólo aviso visual; el editor ya realiza la persistencia en el backend.
+      window.showAppToast?.('Documento guardado correctamente.','success');
+    }
+  });
+})();
+</script>
 """
 
 def base(title: str, body: str, active: str = "inicio", extra_head: str = "", extra_script: str = "") -> str:
@@ -5087,7 +5226,10 @@ def new_consultation_v135(patient_id: str, encounter_id: str = "", queue_id: str
       if(QUEUE_ID)qs.set('queue_id',QUEUE_ID);
       qs.set('encounter_date',document.getElementById('enc-date')?.value||'');
       qs.set('encounter_time',document.getElementById('enc-time')?.value||'');
-      window.open(route+'?'+qs.toString(),'_blank');
+      const documentUrl=route+'?'+qs.toString();
+      if(!(window.historiaOpenClinicalOverlay?.(documentUrl))){
+        window.open(documentUrl,'_blank');
+      }
       button.textContent=original;
       button.disabled=false;
     }catch(err){
