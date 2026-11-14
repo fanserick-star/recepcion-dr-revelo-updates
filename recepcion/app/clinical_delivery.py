@@ -101,6 +101,7 @@ def _linked_patient(pid):
     conn = identity._connect_public()
     try:
         cur = conn.cursor()
+        cur.execute("SET TRANSACTION READ ONLY")
         cur.execute("""
             SELECT l.clinical_patient_id
             FROM public.patient_links l
@@ -270,7 +271,7 @@ def _cloud_documents(conn, clinical_id: str, refresh: bool = False) -> list[dict
                 return [dict(item) for item in cached[1]]
     try:
         cur = conn.cursor()
-        cur.execute("SET TRANSACTION READ ONLY")
+        # _linked_patient already began the transaction as READ ONLY.
         cur.execute("""
             SELECT id::text AS id, issued_at::text AS issued_at, 'receta'::text AS kind
             FROM public.prescriptions
