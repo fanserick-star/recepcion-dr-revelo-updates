@@ -255,7 +255,7 @@ async function saveReport(){
   state.id=data.id;state.encounter_id=data.encounter_id||state.encounter_id;
   marker.textContent='Guardado';
   window.historiaEditorMarkSaved?.(revision);
-  try{if(window.opener&&!window.opener.closed)window.opener.postMessage({type:'clinical-document-saved',encounter_id:state.encounter_id||''},location.origin)}catch(_e){}
+  try{(window.opener&&!window.opener.closed?window.opener:(window.parent!==window?window.parent:null))?.postMessage({type:'clinical-document-saved',encounter_id:state.encounter_id||''},location.origin)}catch(_e){}
   return data;
 }
 async function act(mode){
