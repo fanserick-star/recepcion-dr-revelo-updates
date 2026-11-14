@@ -86,6 +86,7 @@ jobs:
           python tools/test_reception_clinical_neon_selector_48140.py
           python tools/test_reception_config_selector_visibility_48141.py
           python tools/test_reception_selector_navigation_48142.py
+          python tools/test_reception_selector_error_feedback_48143.py
           python tools/test_reception_latest_clinical_documents_48138.py
           python tools/test_clinical_unsigned_preview_1426_4865.py
           python tools/test_reception_unsigned_preview_4865.py
