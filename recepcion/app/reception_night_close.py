@@ -22,6 +22,9 @@ SETTINGS_PATH = Path(core.DATA_DIR) / "night_closing_4888.json"
 LOCK = threading.Lock()
 _STARTED = False
 MAX_GROUPS = 25
+# El cierre del consultorio se permite únicamente de miércoles a sábado.
+# Python: lunes=0, miércoles=2, sábado=5.
+WORKING_WEEKDAYS = frozenset((2, 3, 4, 5))
 CONFIRMATION = "FACTURAR AUTOMATICAMENTE"
 # Política del consultorio: el descanso nocturno NUNCA cierra Recepción,
 # Historia Clínica, WebView2, Windows ni el servidor LAN. Solo reduce
@@ -92,6 +95,7 @@ def night_close_status(user=core.Depends(core.current_user)):
         "last_result": cfg.get("last_result") or {},
         "requires_pc_on": True,
         "emits_only_current_day": True,
+        "working_days": ["miércoles", "jueves", "viernes", "sábado"],
         "auto_close_programs": NIGHT_REST_AUTO_CLOSE_PROGRAMS,
         "programs_remain_open": True,
     }
@@ -244,6 +248,8 @@ def _run_one(db, pid, fecha):
 def _execute(today):
     summary = {"date": today.isoformat(), "sent": 0, "skipped": 0,
                "uncertain": 0, "details": [], "status": "complete"}
+    if today.weekday() not in WORKING_WEEKDAYS:
+        return {**summary, "status": "closed", "reason": "Fuera de los días laborables (miércoles a sábado)"}
     if core.queue_count() > 0:
         return {**summary, "status": "deferred", "reason": "Hay cambios pendientes de sincronizar"}
     if _local_summary() == 0:
@@ -455,6 +461,8 @@ def night_close_financial_report(user=core.Depends(core.current_user)):
 
 def _tick():
     today_local = _now()
+    if today_local.weekday() not in WORKING_WEEKDAYS:
+        return
     if today_local.hour < 19 or today_local.hour > 23:
         return
     with LOCK:
