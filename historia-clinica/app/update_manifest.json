@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.99",
-  "app_version": "1.4.99",
-  "runtime_version": "1.4.99",
+  "version": "1.4.100",
+  "app_version": "1.4.100",
+  "runtime_version": "1.4.100",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.99: amplía el reproductor de videocistoscopías LAN aproximadamente al 72 % del diálogo y compacta las miniaturas de la lista. En la cronología, toda la tarjeta de la videocistoscopía se puede activar con clic, Enter o Espacio; abre el visor del mismo paciente e inicia la reproducción mediante el mecanismo existente. Elimina el botón redundante Ver grabación. Se preservan la historia cronológica, acceso HMAC LAN, carga del video solo al seleccionarlo, datos y firmas, SQLite/Neon, TV y actualizaciones con rollback. Pruebas sintéticas 1.4.99 integradas en la validación obligatoria del canal automático.",
-    "previous_version": "1.4.98",
+    "purpose": "Historia 1.4.100: corrige el desbordamiento y la compresión de los campos en las ventanas nativas de Receta médica, Certificado médico y Certificado de reposo. Ajusta las columnas, entradas, medicamentos y anchos con CSS adaptable para la ventana secundaria de WebView2. Desde la ficha o consulta, Informes médicos abre un listado enfocado en el paciente, sin duplicar la barra lateral de Historia; el acceso principal /informes conserva su navegación. No cambia ninguna ruta de escritura, PDF, PAdES, impresión, turno, TV, Neon ni SQLite. Protecciones de borradores e impresión anteriores intactas. Incluye prueba sintética de ventanas y seguridad.",
+    "previous_version": "1.4.99",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
