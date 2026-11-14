@@ -99,7 +99,7 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.100: corrige el desbordamiento y la compresión de los campos en las ventanas nativas de Receta médica, Certificado médico y Certificado de reposo. Ajusta las columnas, entradas, medicamentos y anchos con CSS adaptable para la ventana secundaria de WebView2. Desde la ficha o consulta, Informes médicos abre un listado enfocado en el paciente, sin duplicar la barra lateral de Historia; el acceso principal /informes conserva su navegación. No cambia ninguna ruta de escritura, PDF, PAdES, impresión, turno, TV, Neon ni SQLite. Protecciones de borradores e impresión anteriores intactas. Incluye prueba sintética de ventanas y seguridad; sin alterar registros históricos ni documentos firmados.",
+    "purpose": "Historia 1.4.100: corrige el desbordamiento y la compresión de los campos en las ventanas nativas de Receta médica, Certificado médico y Certificado de reposo. Ajusta las columnas, entradas, medicamentos y anchos con CSS adaptable para la ventana secundaria de WebView2. Desde la ficha o consulta, Informes médicos abre un listado enfocado en el paciente, sin duplicar la barra lateral de Historia; el acceso principal /informes conserva su navegación. No cambia ninguna ruta de escritura, PDF, PAdES, impresión, turno, TV, Neon ni SQLite. Protecciones de borradores e impresión anteriores intactas. Incluye prueba sintética de ventanas y seguridad, y regresión 1.4.49 compatible con el listado global de Informes y la ventana exclusiva del paciente. No altera historiales ni documentos firmados.",
     "previous_version": "1.4.99",
     "functional_changes": true,
     "database_schema_changes": false,
