@@ -139,11 +139,36 @@ def _lan_documents(rid: str, clinical_id: str) -> list[dict]:
     query = urllib.parse.urlencode({
         "reception_id": rid, "clinical_patient_id": clinical_id,
     })
-    hosts = lan._candidate_hosts()
-    for host in hosts:
+    # A green LAN monitor can know the current host even before its cache is
+    # flushed; an IP change can also be recovered through one UDP discovery
+    # after known addresses fail. No Neon queries and no patient data in UDP.
+    def candidates():
+        seen = set()
+        snapshot = getattr(lan, "_snapshot", None)
+        try:
+            live_host = str((snapshot() if callable(snapshot) else {}).get("lan_host") or "")
+        except Exception:
+            live_host = ""
+        for host in [live_host, *lan._candidate_hosts()]:
+            if host and host not in seen:
+                seen.add(host)
+                yield host
+        udp = getattr(lan, "_udp_discover", None)
+        if callable(udp):
+            try:
+                found = udp(timeout=0.35)
+            except Exception:
+                found = None
+            host = str((found or {}).get("host") or "")
+            if host and host not in seen:
+                yield host
+
+    contacted_historia = False
+    for host in candidates():
         challenge = lan._challenge(host, timeout=0.7)
         if not challenge:
             continue
+        contacted_historia = True
         url = f"http://{host}:{lan.LAN_HTTP_PORT}/delivery/list-documents?{query}"
         req = urllib.request.Request(url, headers={
             "X-Historia-LAN-Token": str(challenge["token"]),
@@ -197,14 +222,29 @@ def _lan_documents(rid: str, clinical_id: str) -> list[dict]:
                     409, "La vinculación local de Historia no coincide con la ficha "
                          "verificada en Recepción. No se mostrarán documentos incorrectos."
                 ) from exc
-            continue
+            if exc.code in (500, 502, 503, 504):
+                raise core.HTTPException(
+                    503, "La PC de Historia responde por LAN, pero su archivo clínico "
+                         "local no pudo consultarse. Comprueba Historia Clínica "
+                         "en la PC del doctor; no se modificó ningún documento."
+                ) from exc
+            raise core.HTTPException(
+                503, "Historia respondió por LAN, pero rechazó la consulta "
+                     "de documentos. No se ha modificado ningún archivo."
+            ) from exc
         except (urllib.error.URLError, TimeoutError, OSError):
             continue
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             raise core.HTTPException(502, "Historia devolvió una lista de documentos inválida") from exc
+    if contacted_historia:
+        raise core.HTTPException(
+            503, "La PC de Historia responde al diagnóstico LAN, pero la consulta "
+                 "de documentos no termina. Revisa el servicio clínico del doctor."
+        )
     raise core.HTTPException(
-        503, "No se pudo consultar la lista actual en la PC de Historia. "
-             "Comprueba la conexión LAN y que Historia esté abierto."
+        503, "No se encontró el servicio LAN de Historia en el puerto 8765. "
+             "Comprueba que Historia Clínica esté abierto en la PC del doctor "
+             "y que ambas PC estén en la misma red."
     )
 
 

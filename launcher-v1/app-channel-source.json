@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.143: la verificación y preparación del selector Neon Original/Emergencia muestran la causa del bloqueo 409, en vez de un error genérico. Las vinculaciones, envíos, credenciales privadas y reinicio siguen protegidos. No modifica bases ni historiales."
+  "notes": "Recepción 4.8.144: recupera el servicio de documentos clínicos cuando cambió la IP LAN del doctor, diferencia PC desconectada de error del archivo local, y permite reintentar sin marcar los documentos como inexistentes. Consulta en solo lectura; sin cambios de pacientes, Neon o envío de archivos."
 }

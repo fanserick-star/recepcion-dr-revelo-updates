@@ -27,5 +27,5 @@ secret="postgresql://sensitive:password@private-host/db"
 assert secret not in json.dumps(check(SafeError(secret)))
 assert "status_code=409" in src
 assert '_preflight(target)' in src and '_write_pending(target)' in src
-assert manifest["version"]=="4.8.143"
+assert tuple(map(int, manifest["version"].split("."))) >= (4, 8, 143)
 print("RECEPTION_48143_SAFE_409_DIAGNOSTICS_NO_SECRET_NO_BYPASS_OK")

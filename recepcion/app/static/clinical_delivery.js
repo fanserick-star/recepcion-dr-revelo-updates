@@ -245,10 +245,15 @@
       cell('h2',state.name||'Paciente'),cell('p','Archivos vinculados a esta ficha, organizados para consulta y entrega privada.','rp-clinical-help'));
     hero.append(heading);
     const metrics=document.createElement('div');metrics.className='rp-clinical-metrics';
-    metrics.append(cell('strong',docs.length+' documentos'),cell('strong',archived.length+' videos'));
+    metrics.append(cell('strong',data.ok?docs.length+' documentos':'— documentos'),cell('strong',data.ok?archived.length+' videos':'— videos'));
     hero.append(metrics);host.append(hero);
     if(!data.ok){
-      host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));return;
+      host.append(cell('p',data.error||'No se pudo consultar la ficha clínica.','rp-clinical-error'));
+      host.append(cell('p','El listado no se cargó; esto no significa que los documentos o videos se hayan borrado.','rp-clinical-help'));
+      const controls=cell('div','','rp-clinical-actions');
+      addButton(controls,'Reintentar consulta',()=>load(state.pid,state.phone,state.name));
+      host.append(controls);
+      return;
     }
     const status=cell('div',data.ready_document&&data.ready_video?
       '✓ Envíos clínicos habilitados · Confirma identidad y consentimiento antes de cada entrega.':
