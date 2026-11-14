@@ -116,7 +116,7 @@ def execute(today):
     assert state.get("last_date") == today.isoformat()  # write-ahead marker
     return {"date": today.isoformat(), "status": "complete", "sent": 0}
 
-scope = {"LOCK": threading.Lock(), "_load": load, "_save": save, "_now": lambda: simulated_now,
+scope = {"LOCK": threading.Lock(), "WORKING_WEEKDAYS": frozenset((2,3,4,5)), "_load": load, "_save": save, "_now": lambda: simulated_now,
          "_execute": execute, "core": fake_core, "time": time}
 exec(compile(ast.Module(body=[node], type_ignores=[]), "<night-test>", "exec"), scope)
 tick = scope["_tick"]
