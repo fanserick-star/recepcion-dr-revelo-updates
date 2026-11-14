@@ -99,7 +99,7 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.99: amplía el reproductor de videocistoscopías LAN aproximadamente al 72 % del diálogo y compacta las miniaturas de la lista. En la cronología, toda la tarjeta de la videocistoscopía se puede activar con clic, Enter o Espacio; abre el visor del mismo paciente e inicia la reproducción mediante el mecanismo existente. Elimina el botón redundante Ver grabación. Se preservan la historia cronológica, acceso HMAC LAN, carga del video solo al seleccionarlo, datos y firmas, SQLite/Neon, TV y actualizaciones con rollback. Pruebas sintéticas 1.4.99 incluidas.",
+    "purpose": "Historia 1.4.99: amplía el reproductor de videocistoscopías LAN aproximadamente al 72 % del diálogo y compacta las miniaturas de la lista. En la cronología, toda la tarjeta de la videocistoscopía se puede activar con clic, Enter o Espacio; abre el visor del mismo paciente e inicia la reproducción mediante el mecanismo existente. Elimina el botón redundante Ver grabación. Se preservan la historia cronológica, acceso HMAC LAN, carga del video solo al seleccionarlo, datos y firmas, SQLite/Neon, TV y actualizaciones con rollback. Pruebas sintéticas 1.4.99 integradas en la validación obligatoria del canal automático.",
     "previous_version": "1.4.98",
     "functional_changes": true,
     "database_schema_changes": false,
