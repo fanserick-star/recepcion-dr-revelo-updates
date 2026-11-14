@@ -68,7 +68,7 @@ const document={
  getElementById:id=>elements[id],addEventListener:(name,fn)=>docHandlers[name]=fn,
  activeElement:{focus(){}},body:{classList:{add(){},remove(){}}}};
 const location={href:'http://127.0.0.1:8787/paciente/1',origin:'http://127.0.0.1:8787'};
-const window={parent:null,confirm:()=>{confirmCalls++;return confirmed;},showAppToast(){}};
+const window={parent:null,confirm:()=>{confirmCalls++;return confirmed;},showAppToast(){},addEventListener(){}};
 window.parent=window;
 const sandbox={window,document,location,URL,console};
 vm.runInNewContext(source,sandbox);
