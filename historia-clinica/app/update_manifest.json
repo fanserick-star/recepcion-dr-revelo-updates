@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.97",
-  "app_version": "1.4.97",
-  "runtime_version": "1.4.97",
+  "version": "1.4.98",
+  "app_version": "1.4.98",
+  "runtime_version": "1.4.98",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -96,8 +96,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.97: las seis acciones de la consulta (Frases rápidas, Receta médica, Certificado médico, Consentimiento informado, Material e Informes médicos) comparten iconos SVG azules, bordes redondeados y disposición uniforme como en la ficha 1.4.96. Solo CSS; conservan sus ids, rutas, scripts, guardar antes de abrir documentos, firma y consulta. Sin migraciones, sin cambios clínicos, TV ni Neon.",
-    "previous_version": "1.4.96",
+    "purpose": "Historia 1.4.98: muestra dentro del historial una minigalería de hasta cuatro videocistoscopías confirmadas para el paciente, con fecha y acceso al visor grande seguro ya existente. No se muestra si no existen videos o falla el catálogo. Reutiliza una única consulta LAN HMAC ya existente, sin descargar MP4 hasta el clic ni pedir datos a Neon; botón Actualizar sigue disponible y continúa usando el mismo archivo en Recepción.",
+    "previous_version": "1.4.97",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -622,6 +622,12 @@
     "consentimiento_patient_button_preserved": true,
     "consultation_toolbar_icons_svg": true,
     "consultation_toolbar_approved_profile_style": true,
-    "consultation_toolbar_six_actions_preserved": true
+    "consultation_toolbar_six_actions_preserved": true,
+    "patient_history_video_strip": true,
+    "patient_history_video_strip_only_verified_patient": true,
+    "patient_history_video_strip_max_visible": 4,
+    "patient_history_video_strip_no_extra_catalog_calls": true,
+    "patient_history_video_strip_no_autoplay": true,
+    "patient_history_video_strip_no_mp4_preload": true
   }
 }
