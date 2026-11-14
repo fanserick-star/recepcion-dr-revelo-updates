@@ -83,6 +83,7 @@ jobs:
           python tools/test_historia_patient_profile_1496.py
           python tools/test_historia_consult_toolbar_icons_1497.py
           python tools/test_historia_video_timeline_1498.py
+          python tools/test_historia_video_player_1499.py
           python tools/test_historia_recetas_firma_informes_1443.py
           python tools/test_historia_recipe_row_alignment_1465.py
           python tools/test_historia_wait_turn_contrast_1469.py
