@@ -3372,7 +3372,7 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
       sexStatus.textContent='Guardando…';
       sexStatus.classList.remove('error');
       try{
-        const r=await fetch(location.pathname.replace(/\\/$/,'')+'/sexo', {
+        const r=await fetch((location.pathname.endsWith('/')?location.pathname.slice(0,-1):location.pathname)+'/sexo', {
           method:'POST', cache:'no-store',
           headers:{'Content-Type':'application/json','X-Historia-Quick-Sex':'1'},
           body:JSON.stringify({sex:selected}),
