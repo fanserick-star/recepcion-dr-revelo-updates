@@ -47,6 +47,7 @@ jobs:
           python tools/test_historia_global_remaster_1449.py
           python tools/test_historia_patient_profile_1496.py
           python tools/test_historia_consult_toolbar_icons_1497.py
+          python tools/test_historia_video_timeline_1498.py
           python tools/test_historia_queue_arrival_chime_1459.py
           python tools/test_historia_queue_expiry_sqlite_1446.py
           python tools/test_reception_clinical_delivery_4858.py
