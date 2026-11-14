@@ -370,6 +370,10 @@ def night_close_financial_report(user=core.Depends(core.current_user)):
         local_day = datetime.strptime(closing_date, "%Y-%m-%d").date()
     except ValueError:
         raise core.HTTPException(409, "La fecha del cierre nocturno no es válida")
+    # Disponible el día del cierre y el siguiente; nunca mostrar un informe obsoleto.
+    today = _now().date()
+    if local_day > today or (today - local_day).days > 1:
+        return {"ok": True, "available": False}
     local_start = datetime.combine(local_day, datetime.min.time(), tzinfo=ECUADOR)
     utc_start = local_start.astimezone(timezone.utc).replace(tzinfo=None)
     utc_end = (local_start + timedelta(days=1)).astimezone(timezone.utc).replace(tzinfo=None)
