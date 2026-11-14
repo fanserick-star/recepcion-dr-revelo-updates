@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.98: cada videocistoscopía aparece por fecha dentro del historial del paciente, junto con las consultas. Abrir grabación utiliza la galería LAN de Recepción existente; no copia videos, no reescribe historiales ni consulta Neon por la cronología."
+  "notes": "Historia Clínica 1.4.99: videocistoscopías de la cronología con clic en toda la tarjeta y reproducción en visor LAN. Lista izquierda reducida al 28 % y reproductor a cerca del 72 %; botón redundante eliminado. Sin cambios de base de datos, sincronización Neon, documentos clínicos ni TV."
 }
