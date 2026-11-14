@@ -17,7 +17,7 @@ manifest=json.loads((app/"update_manifest.json").read_text(encoding="utf-8"))
 assert version==manifest["version"]==manifest["app_version"]==manifest["runtime_version"]and (1, 4, 41) <= tuple(map(int, version.split("."))) < (2, 0, 0)
 assert manifest["mandatory"] and not manifest["notes"]["database_schema_changes"]
 assert "static/clinical_video_library.js" in manifest["copy"]
-assert "clinical_video_library.js?v=1.4.42" in panel
+assert "clinical_video_library.js?v=1.4.98" in panel
 ast.parse((app/"app.py").read_text(encoding="utf-8"))
 ast.parse(panel)
 ast.parse(backend)
