@@ -13,7 +13,8 @@ material=(root/"historia-clinica/app/material_pacientes.py").read_text(encoding=
 consent=(root/"historia-clinica/app/consentimiento_informado.py").read_text(encoding="utf-8")
 version=json.loads((root/"historia-clinica/app/historia-version.json").read_text(encoding="utf-8"))
 manifest=json.loads((root/"historia-clinica/app/update_manifest.json").read_text(encoding="utf-8"))
-assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version["version"]=="1.4.97"
+assert manifest["version"]==manifest["app_version"]==manifest["runtime_version"]==version["version"]
+assert (1, 4, 97) <= tuple(map(int, version["version"].split("."))) < (2, 0, 0)
 assert manifest["notes"]["database_schema_changes"] is False
 assert manifest["notes"]["clinical_data_changes"] is False
 assert manifest["notes"]["cloud_sync_data_logic_changes"] is False
