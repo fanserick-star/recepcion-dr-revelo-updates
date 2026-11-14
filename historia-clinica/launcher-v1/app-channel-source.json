@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.100: editores de receta, certificado y reposo sin campos superpuestos en ventanas secundarias. Informes desde ficha o consulta se muestra sin barra lateral duplicada; Informes principal permanece sin cambios. Sin migraciones ni cambios de datos, impresiones o sincronización."
+  "notes": "Historia Clínica 1.4.101: formularios médicos integrados en modal del mismo programa con fondo difuminado. Recetas, certificados e informes vuelven a dos columnas, sin desbordamiento, y mantienen impresión/firma, cierre protegido y mecanismos clínicos existentes."
 }
