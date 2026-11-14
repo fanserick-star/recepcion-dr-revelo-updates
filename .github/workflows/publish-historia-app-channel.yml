@@ -26,6 +26,7 @@ jobs:
 
       - name: Enforce canonical Historia source
         run: |
+          trap 'printf "%s\n" "$BASH_COMMAND" > "$GITHUB_WORKSPACE/.historia_ci_failed_command"' ERR
           python tools/test_historia_canonical_source.py
           python tools/test_historia_neon_sources_1475.py
           python tools/test_historia_neon_settings_actual_1476.py
@@ -141,3 +142,32 @@ jobs:
           done
           echo "Could not publish Historia channel after retries." >&2
           exit 1
+
+      # Safe release diagnostics: only the failed shell command and source SHA.
+      # No app secrets, patients, databases or patient records are touched.
+      - name: Report blocked historia release to repository
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        run: |
+          mkdir -p ci-diagnostics
+          {
+            echo "source_sha=$GITHUB_SHA"
+            echo "workflow=historia"
+            if test -s ".historia_ci_failed_command"; then
+              printf 'failed_command='
+              head -c 300 ".historia_ci_failed_command"
+              printf '\n'
+            else
+              echo "failed_command=non-canonical-step-or-prerequisite"
+            fi
+          } > "ci-diagnostics/historia-last-blocker.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "ci-diagnostics/historia-last-blocker.txt"
+          git commit -m "diagnostics: report blocked historia app channel" || exit 0
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 2))
+          done
+          echo "Could not persist safe release diagnostics." >&2
