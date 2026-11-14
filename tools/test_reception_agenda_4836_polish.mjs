@@ -12,7 +12,8 @@ const ctx={
  agendaWhatsappBadgeHtml:()=>({html:"",cls:""})
 };
 vm.runInNewContext(
- snippet("function agendaSlotOpenForDay(","function renderNativeAgenda(")
+ snippet("function agendaTime12(","function fmtDateTime(")
+ +snippet("function agendaSlotOpenForDay(","function renderNativeAgenda(")
  +"globalThis.allowed=agendaSlotOpenForDay;globalThis.cell=nativeAgendaRowCell;",ctx);
 assert.equal(ctx.allowed("2026-10-14","08:00"),false);
 assert.equal(ctx.allowed("2026-10-14","09:40"),false);
@@ -26,7 +27,7 @@ assert.match(closed,/class="native-slot closed"/);assert.match(closed,/Cerrado/)
 assert.doesNotMatch(closed,/openAgendaSlotPicker|Disponible/);
 let open=ctx.cell(null,"2026-10-15","08:00");
 assert.match(open,/class="native-slot free"/);assert.match(open,/openAgendaSlotPicker/);
-assert.match(open,/＋ 08:00/);assert.match(open,/aria-label="Agendar/);
+assert.match(open,/＋ 8:00 a\\. m\\./);assert.match(open,/aria-label="Agendar/);
 assert.doesNotMatch(open,/Disponible|08:00Disponible/);
 let historic=ctx.cell({appointment:{id:1,estado:"PENDIENTE"},patient:{id:5,nombre:"HISTÓRICO FICTICIO"}},"2026-10-14","09:00");
 assert.match(historic,/class="native-slot occupied/);assert.match(historic,/HISTÓRICO FICTICIO/);
