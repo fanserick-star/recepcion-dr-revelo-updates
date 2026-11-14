@@ -92,7 +92,7 @@ function parseISO(v){const [y,m,d]=String(v).slice(0,10).split('-').map(Number);
 function fmtDate(v){if(!v)return '';const [y,m,d]=String(v).slice(0,10).split('-');return d&&m&&y?`${d}/${m}/${y}`:esc(v)}
 function fmtTime(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);return `${pad(Number(m[1]))}:${m[2]}`}
 function fmtTimeCompact(v){const m=String(v||'').match(/^(\d{1,2}):(\d{2})/);if(!m)return esc(v);return `${pad(Number(m[1]))}:${m[2]}`}
-/* Recepción 4.8.149 · sólo formato visual. La agenda sigue guardando HH:mm
+/* Recepción 4.8.150 · sólo formato visual. La agenda sigue guardando HH:mm
    en 24 horas para no alterar orden, disponibilidad ni envíos de WhatsApp. */
 function agendaTime12(value){
   const match=/^(\d{1,2}):(\d{2})/.exec(String(value||'').trim());
