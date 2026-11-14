@@ -61,7 +61,10 @@ assert "'/api/night-close/status'" in fiscal
 assert "'/api/night-close/config'" in fiscal
 assert "FACTURAR AUTOMATICAMENTE" in fiscal
 assert "if(!window.confirm(" in fiscal
-assert '/static/night_closing_4888.js?v=4.8.147' in html
+# El cache-busting debe seguir la versión canónica publicada, no una fija.
+import json
+version = json.loads((ROOT / "recepcion-version.json").read_text(encoding="utf-8"))["version"]
+assert "/static/night_closing_4888.js?v=" + version in html
 
 # Core clinical/business routines remain present.
 assert 'id="todayTable"' in html
