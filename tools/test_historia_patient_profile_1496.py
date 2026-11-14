@@ -40,7 +40,7 @@ assert "cp-profile-actions .cp-reports::before" in style
 assert 'select id="cp-quick-sex"' in app
 assert "'X-Historia-Quick-Sex':'1'" in app
 assert 'sexPicker.value=committed;' in app
-assert "conn.execute(\\n            \"UPDATE patients SET sex=?,updated_at=? WHERE id=?" in ast.get_source_segment(app,route)
+assert "UPDATE patients SET sex=?,updated_at=? WHERE id=?" in ast.get_source_segment(app,route)
 assert "SYNC_SERVICE.mark_activity()" in ast.get_source_segment(app,route)
 assert "SYNC_SERVICE.wake()" in ast.get_source_segment(app,route)
 assert "UPDATE waiting_queue" not in ast.get_source_segment(app,route)
