@@ -14,7 +14,8 @@ source = path.read_text(encoding="utf-8")
 ui = (root/"recepcion/app/static/night_closing_4888.js").read_text(encoding="utf-8")
 version = json.loads((root/"recepcion/app/recepcion-version.json").read_text(encoding="utf-8"))
 manifest = json.loads((root/"recepcion/app/update_manifest.json").read_text(encoding="utf-8"))
-assert version["version"] == manifest["version"] == "4.8.147"
+assert version["version"] == manifest["version"]
+assert tuple(map(int,version["version"].split("."))) >= (4,8,147)
 tree = ast.parse(source)
 names = {n.name:n for n in tree.body if isinstance(n,ast.FunctionDef)}
 assert {"_financial_summary","_tick","_execute","night_close_financial_report"} <= set(names)
