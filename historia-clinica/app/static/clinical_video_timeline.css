@@ -1,4 +1,4 @@
-/* Historia 1.4.98 · videocistoscopías intercaladas por fecha en la historia.
+/* Historia 1.4.99 · ficha clicable y reproductor LAN ampliado.
    Sólo presentación: no se solicitan miniaturas ni archivos MP4 al listar. */
 .cp-history-window .cp-video-timeline-entry{
   border-left:4px solid #18628d!important;
@@ -57,25 +57,74 @@
   font-size:12px;
   color:#68798b;
 }
-.cp-history-window .cp-video-timeline-open{
-  align-self:center;
-  border:1px solid #1c618b;
-  border-radius:7px;
-  background:#0f4c78;
-  color:white;
-  font-weight:700;
-  font-size:13px;
-  padding:9px 13px;
-  cursor:pointer;
-  white-space:nowrap;
+/* La ficha completa abre el video; no requiere un botón adicional. */
+.cp-history-window .cp-video-timeline-entry[role="button"]{
+  cursor:pointer!important;
+  transition:border-color .14s ease,box-shadow .14s ease,background .14s ease;
 }
-.cp-history-window .cp-video-timeline-open:hover,
-.cp-history-window .cp-video-timeline-open:focus-visible{
-  background:#0b395b;
+.cp-history-window .cp-video-timeline-entry[role="button"]:hover{
+  border-color:#3c91bf!important;
+  background:#f1f8fd!important;
+  box-shadow:0 3px 13px rgba(28,103,149,.12)!important;
 }
+.cp-history-window .cp-video-timeline-entry[role="button"]:focus-visible{
+  outline:3px solid #2583c2!important;
+  outline-offset:3px!important;
+}
+/* La vista previa es ilustrativa; el video se carga únicamente tras el clic. */
+.cp-history-window .cp-video-timeline-entry[role="button"] .cp-video-timeline-thumb span{
+  pointer-events:none;
+}
+
 @media(max-width:650px){
   .cp-history-window .cp-video-timeline-body{flex-wrap:wrap;gap:9px;}
   .cp-history-window .cp-video-timeline-thumb{flex-basis:88px;width:88px;height:58px}
   .cp-history-window .cp-video-timeline-info{flex:1 1 calc(100% - 104px)}
-  .cp-history-window .cp-video-timeline-open{margin-left:auto}
+}
+
+/* 1.4.99: prioridad al área de reproducción, lista lateral más compacta.
+   Se mantiene object-fit:contain para no recortar contenido clínico. */
+@media(min-width:681px){
+  .cp-remaster-app .cp-videos-dialog-content .cp-clinical-videos{
+    grid-template-columns:minmax(245px,28%) minmax(0,1fr)!important;
+  }
+}
+.cp-remaster-app .cp-clinical-videos .cp-video-list{
+  grid-template-columns:minmax(0,1fr)!important;
+  gap:8px!important;
+  padding:10px!important;
+}
+.cp-remaster-app .cp-video-gallery-card{
+  display:grid!important;
+  grid-template-columns:110px minmax(0,1fr)!important;
+  align-items:center!important;
+  gap:9px!important;
+  padding:6px!important;
+}
+.cp-remaster-app .cp-video-gallery-card.is-selected{
+  padding:5px!important;
+}
+.cp-remaster-app .cp-video-card-info{
+  padding:4px 3px!important;
+}
+.cp-remaster-app .cp-video-card-play-icon{
+  height:32px!important;
+  width:32px!important;
+  font-size:15px!important;
+}
+.cp-remaster-app .cp-video-card-duration{
+  font-size:10px!important;
+  padding:2px 4px!important;
+}
+.cp-remaster-app .cp-video-gallery-stage{
+  margin-left:10px!important;
+  margin-right:10px!important;
+}
+@media(max-width:680px){
+  .cp-remaster-app .cp-clinical-videos .cp-video-list{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  .cp-remaster-app .cp-video-gallery-card{
+    grid-template-columns:100px minmax(0,1fr)!important;
+  }
 }
