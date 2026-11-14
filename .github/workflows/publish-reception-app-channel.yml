@@ -28,6 +28,7 @@ jobs:
 
       - name: Enforce canonical Reception source
         run: |
+          trap 'printf "%s\n" "$BASH_COMMAND" > "$GITHUB_WORKSPACE/.reception_ci_failed_command"' ERR
           python tools/test_reception_canonical_source.py
           python tools/test_reception_startup_routes_48120.py
           python tools/test_reception_home_tv_remaster_4886.py
@@ -217,3 +218,32 @@ jobs:
           done
           echo "Could not publish Reception channel after retries." >&2
           exit 1
+
+      # Safe release diagnostics: only the failed shell command and source SHA.
+      # No app secrets, patients, databases or patient records are touched.
+      - name: Report blocked reception release to repository
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        run: |
+          mkdir -p ci-diagnostics
+          {
+            echo "source_sha=$GITHUB_SHA"
+            echo "workflow=reception"
+            if test -s ".reception_ci_failed_command"; then
+              printf 'failed_command='
+              head -c 300 ".reception_ci_failed_command"
+              printf '\n'
+            else
+              echo "failed_command=non-canonical-step-or-prerequisite"
+            fi
+          } > "ci-diagnostics/reception-last-blocker.txt"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "ci-diagnostics/reception-last-blocker.txt"
+          git commit -m "diagnostics: report blocked reception app channel" || exit 0
+          for attempt in 1 2 3; do
+            git fetch origin main
+            if git rebase origin/main && git push origin HEAD:main; then exit 0; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((attempt * 2))
+          done
+          echo "Could not persist safe release diagnostics." >&2
