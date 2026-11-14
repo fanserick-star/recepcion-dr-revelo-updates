@@ -98,14 +98,16 @@ print("HISTORIA_REAL_RENDER_SIDEBAR_VISIBLE_1450_OK")
 report_tree=ast.parse(reports)
 report_install=next(n for n in report_tree.body if isinstance(n,ast.FunctionDef) and n.name=="install")
 list_node=next(n for n in report_install.body if isinstance(n,ast.FunctionDef) and n.name=="list_reports")
+# Desde 1.4.100 la ficha muestra Informes sin duplicar el menú;
+# el acceso global /informes debe seguir usando base y navegación lateral.
 returns=[n.value for n in ast.walk(list_node) if isinstance(n,ast.Return)]
-assert len(returns)==1
-outer=returns[0]
-assert isinstance(outer,ast.Call) and isinstance(outer.func,ast.Name) and outer.func.id=="HTMLResponse"
-assert len(outer.args)==1
-inner=outer.args[0]
-assert isinstance(inner,ast.Call) and isinstance(inner.func,ast.Name) and inner.func.id=="base", "Informes ocultó navegación izquierda"
-assert [x.value for x in inner.args[::2] if isinstance(x,ast.Constant)][:1]==["Informes médicos"]
+assert len(returns)==2, "Hay dos destinos explícitos: ficha y menú general"
+assert all(isinstance(x,ast.Call) and isinstance(x.func,ast.Name) and x.func.id=="HTMLResponse" and len(x.args)==1 for x in returns)
+renderers=[x.args[0] for x in returns]
+assert {x.func.id for x in renderers if isinstance(x,ast.Call) and isinstance(x.func,ast.Name)}=={"base","_report_patient_popup_shell"}, "Informes necesita listado global y ficha enfocada"
+global_render=next(x for x in renderers if isinstance(x,ast.Call) and isinstance(x.func,ast.Name) and x.func.id=="base")
+assert isinstance(global_render.args[0],ast.Constant) and global_render.args[0].value=="Informes médicos"
+assert "if patient_id:" in reports and "return HTMLResponse(_report_patient_popup_shell(base, body))" in reports
 assert 'return HTMLResponse(_document_editor_shell(base, "Informes médicos", body + script, "informes"))' in reports, "Editor de informes debe permanecer independiente"
 home_right=app.split('<div class="hc-b-shortcut-grid">',1)[1].split('</div>',1)[0]
 assert 'data-hc-create="receta"' in home_right
