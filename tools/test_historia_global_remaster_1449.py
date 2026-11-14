@@ -53,7 +53,13 @@ assert "report_cystoscopy" in reports and "report_ultrasound" in reports
 # aunque el CSS y el test estático anterior existían.
 tree = ast.parse(app)
 base_nodes = [node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=="base"]
-core_base = next(node for node in base_nodes if node.lineno < 1300)
+# No depender del número de línea: el modal de documentos amplió el
+# bloque de diálogos inicial, sin cambiar el comportamiento de base().
+core_base = next(
+    node for node in base_nodes
+    if any(isinstance(item, ast.Name) and item.id == "APP_DIALOG_HTML"
+           for item in ast.walk(node))
+)
 sidebar = next(node for node in tree.body if isinstance(node,ast.FunctionDef)
                and node.name=="_global_remaster_sidebar")
 # Selección por comportamiento, no número de línea (cambia con cada remaster).
