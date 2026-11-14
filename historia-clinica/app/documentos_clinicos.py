@@ -560,6 +560,45 @@ body.clinical-document-editor .docs-card textarea{font-size:16px;min-height:43px
 body.clinical-document-editor .doc-actions button{min-height:48px;font-size:15px}
 body.clinical-document-editor .doc-actions button:disabled{opacity:.58;cursor:wait}
 body.clinical-document-editor .docs-grid{grid-template-columns:minmax(280px,.88fr) minmax(0,1.45fr);gap:20px}
+
+/* v1.4.100 · controles sin desbordes en la ventana nativa WebView2.
+   Respeta las columnas en pantallas amplias y evita campos sobrepuestos. */
+body.clinical-document-editor .docs-wrap,
+body.clinical-document-editor .docs-grid,
+body.clinical-document-editor .docs-card,
+body.clinical-document-editor .docs-fields,
+body.clinical-document-editor .docs-fields > *,
+body.clinical-document-editor .docs-card label{min-width:0;max-width:100%;box-sizing:border-box}
+body.clinical-document-editor .docs-card input,
+body.clinical-document-editor .docs-card select,
+body.clinical-document-editor .docs-card textarea{
+  display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box
+}
+body.clinical-document-editor .docs-fields{
+  grid-template-columns:repeat(2,minmax(0,1fr))
+}
+body.clinical-document-editor .docs-fields .full{grid-column:1/-1}
+body.clinical-document-editor .docs-card .med-table{
+  width:100%;max-width:100%;table-layout:fixed;min-width:0
+}
+body.clinical-document-editor .docs-card .med-table th,
+body.clinical-document-editor .docs-card .med-table td{
+  min-width:0;overflow:hidden
+}
+body.clinical-document-editor .docs-card .med-table input{
+  width:100%;min-width:0;max-width:100%;box-sizing:border-box
+}
+/* La ventana secundaria del launcher mide aprox. 1220 px: damos
+   todo el ancho a cada panel para que recetas, certificados y reposos
+   no recorten nombres, fechas ni medicamentos. */
+@media(max-width:1260px){
+  body.clinical-document-editor .docs-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+}
+@media(max-width:560px){
+  body.clinical-document-editor .docs-fields{grid-template-columns:minmax(0,1fr)}
+  body.clinical-document-editor .docs-fields .full{grid-column:1/-1}
+}
+
 body.clinical-document-editor .docs-wrap>.doc-actions{
   position:sticky;bottom:0;z-index:20;align-items:center;padding:14px;
   background:rgba(246,250,253,.97);border:1px solid #d4e1ed;
