@@ -1,4 +1,4 @@
-source_sha=751b0c259d4d42bdf78ccb1ddad53904e4a9fe09
+source_sha=d661ea843ce23c2404ae1c29e96caa6a32d089f3
 workflow=reception
-failed_command=node tools/test_reception_agenda_full_day_48148.mjs
+failed_command=python tools/test_reception_canonical_source.py
 
