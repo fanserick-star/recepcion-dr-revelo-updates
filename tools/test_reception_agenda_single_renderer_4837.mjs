@@ -15,13 +15,13 @@ const ctx={
  fmtTime:s=>s,esc:s=>String(s).replaceAll("<","&lt;"),
  agendaWhatsappBadgeHtml:a=>({html:a?.__wa?'<small class="agenda-wa-chip confirmed">Confirmó WA</small>':"",cls:a?.__wa?'confirmed':''})
 };ctx.window=ctx;
-vm.runInNewContext(status+js+mid,ctx);
+vm.runInNewContext(status+cut(app,'function agendaTime12(','function fmtDateTime(')+js+mid,ctx);
 const row=(state="PENDIENTE",wa=false)=>({appointment:{id:1,estado:state,__wa:wa},patient:{id:5,nombre:"PACIENTE FICTICIO"}});
 const wed=ctx.nativeAgendaRowCell(null,'2026-10-14','08:00');
 assert.match(wed,/class="native-slot closed"/);assert.match(wed,/Cerrado/);
 assert.doesNotMatch(wed,/Disponible|openAgendaSlotPicker/);
 const th=ctx.nativeAgendaRowCell(null,'2026-10-15','08:00');
-assert.match(th,/＋ 08:00/);assert.match(th,/openAgendaSlotPicker/);assert.doesNotMatch(th,/Disponible/);
+assert.match(th,/＋ 8:00 a\\. m\\./);assert.match(th,/openAgendaSlotPicker/);assert.doesNotMatch(th,/Disponible/);
 const future=ctx.nativeAgendaRowCell(row('PENDIENTE',true),'2099-10-21','10:00');
 assert.match(future,/Agendada/);assert.match(future,/Confirmó WA/);
 assert.match(future,/native-status-label pending/);
