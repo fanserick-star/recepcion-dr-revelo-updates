@@ -2789,6 +2789,57 @@ async def edit_patient_save(patient_id: str, request: Request):
     return RedirectResponse(f"/paciente/{patient_id}", status_code=303)
 
 
+@app.post("/paciente/{patient_id}/sexo")
+async def patient_quick_sex(patient_id: str, request: Request):
+    """Actualiza exclusivamente el sexo de la ficha en SQLite local.
+
+    Usa la misma auditoría y sincronización que Editar datos. No cambia
+    identidad, vínculos, turnos, historias ni documentos clínicos.
+    """
+    if str(request.headers.get("X-Historia-Quick-Sex") or "") != "1":
+        raise HTTPException(403, "Acción no autorizada.")
+    if str(request.headers.get("sec-fetch-site") or "").lower() == "cross-site":
+        raise HTTPException(403, "Origen externo no autorizado.")
+    origin = str(request.headers.get("origin") or "").strip()
+    if origin:
+        from urllib.parse import urlsplit
+        a, b = urlsplit(origin), urlsplit(str(request.base_url))
+        if (a.scheme, a.netloc) != (b.scheme, b.netloc):
+            raise HTTPException(403, "Origen de la solicitud no autorizado.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", patient_id):
+        raise HTTPException(400, "Ficha inválida.")
+    try:
+        payload = await request.json()
+    except (ValueError, TypeError):
+        raise HTTPException(400, "Solicitud inválida.")
+    if not isinstance(payload, dict) or type(payload.get("sex")) is not str:
+        raise HTTPException(400, "Sexo inválido.")
+    sex = payload["sex"]
+    if sex not in {"", "M", "F"}:
+        raise HTTPException(400, "Seleccione Masculino, Femenino o No registrado.")
+    with db() as conn:
+        row = conn.execute(
+            "SELECT sex,merged_into_patient_id FROM patients WHERE id=? LIMIT 1",
+            (patient_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "Paciente no encontrado.")
+        if str(row["merged_into_patient_id"] or "").strip():
+            raise HTTPException(409, "Ficha fusionada. Abra la ficha vigente.")
+        current = str(row["sex"] or "").upper()
+        if current == sex:
+            return JSONResponse({"ok": True, "sex": sex, "changed": False})
+        conn.execute(
+            "UPDATE patients SET sex=?,updated_at=? WHERE id=?",
+            (sex or None, now_iso(), patient_id),
+        )
+        audit(conn, "update", "patient", patient_id, {"fields": ["sex"]})
+        conn.commit()
+    SYNC_SERVICE.mark_activity()
+    SYNC_SERVICE.wake()
+    return JSONResponse({"ok": True, "sex": sex, "changed": True})
+
+
 @app.get("/pacientes", response_class=HTMLResponse)
 def patients(q: str = Query(default="", max_length=120)):
     term = q.strip()
@@ -3174,8 +3225,9 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
         if active_edit else
         f'<a class="primary btn-link cp-new-consult" href="/paciente/{e(patient_id)}/nueva">+ Nueva consulta</a>'
     )
-    # Sólo la acción principal junto al identificador de ficha;
-    # herramientas secundarias una fila más abajo, a la DERECHA.
+    # Todas las acciones se conservan, pero se sitúan JUNTAS debajo de los
+    # datos del paciente. Los botones inyectados por consentimiento/llamado
+    # continúan reconociendo el mismo marcado que antes.
     secondary_actions = (
         f"<nav class='cp-patient-secondary-actions' aria-label='Otras acciones del paciente'>"
         f"<a class='secondary btn-link cp-edit-patient' href='/paciente/{e(patient_id)}/editar'>Editar datos</a>"
@@ -3194,16 +3246,21 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
     body = f"""
 <div class="legacy-remaster">
 <a class="back cp-back" href="/pacientes">← Volver a pacientes</a>
-<section class="cp-patient-card">
-  <div class="cp-box-caption">Identificación</div>
+<section class="cp-patient-card cp-profile-unified">
+  <div class="cp-box-caption cp-profile-caption">Información del paciente</div>
   <div class="cp-patient-topline">
-    <div class="cp-name-field"><label>Nombre:</label><div>{e(p['name'])}</div></div>
-    <div class="cp-short-field"><label>Sexo:</label><div>{e(sex_label(p['sex']) or '—')}</div></div>
-    <div class="cp-short-field age"><label>Edad:</label><div>{e(str(age) + ' años') if age else '—'}</div></div>
-    <div class="cp-id-field"><label>ID Num:</label><div>{value_or_empty(ident)}</div></div>
-    <div class="cp-patient-action cp-patient-primary-action">{consult_action}</div>
+    <div class="cp-name-field"><label>Nombre completo</label><div>{e(p['name'])}</div></div>
+    <div class="cp-id-field"><label>Cédula</label><div>{value_or_empty(ident)}</div></div>
+    <div class="cp-short-field age"><label>Edad</label><div>{e(str(age) + ' años') if age else '—'}</div></div>
+    <div class="cp-short-field cp-quick-sex-field"><label for="cp-quick-sex">Sexo</label>
+      <select id="cp-quick-sex" class="cp-quick-sex" aria-describedby="cp-quick-sex-state">
+        <option value="" {'selected' if str(p['sex'] or '').upper() not in ('M','F') else ''}>No registrado</option>
+        <option value="M" {'selected' if str(p['sex'] or '').upper() == 'M' else ''}>Masculino</option>
+        <option value="F" {'selected' if str(p['sex'] or '').upper() == 'F' else ''}>Femenino</option>
+      </select>
+      <small id="cp-quick-sex-state" class="cp-quick-sex-state" role="status" aria-live="polite"></small>
+    </div>
   </div>
-  {secondary_actions}
   <div class="cp-patient-grid">
     <div class="cp-data-field"><label>Fecha de nacimiento</label><div>{value_or_empty(human_date(p['birth_date']))}</div></div>
     <div class="cp-data-field"><label>Teléfono</label><div>{value_or_empty(p['phone'])}</div></div>
@@ -3214,6 +3271,10 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   </div>
   {f'<div class="cp-observations"><label>Otros datos / observaciones</label><div>{display_text(p["legacy_notes"])}</div></div>' if p['legacy_notes'] else ''}
 </section>
+<div class="cp-profile-actions" aria-label="Acciones del paciente">
+  <div class="cp-patient-action cp-patient-primary-action">{consult_action}</div>
+  {secondary_actions}
+</div>
 {alert_html}
 <section class="cp-history-window">
   <div class="cp-history-window-head">
@@ -3298,6 +3359,38 @@ def patient(patient_id: str, histq: str = Query(default="", max_length=100)):
   }
   bindPatientDialog('docs');
   bindPatientDialog('videos');
+  // Cambio rápido de sexo: escribe únicamente sex en SQLite local y despierta
+  // el sincronizador habitual. Nunca altera encuentros ni la cola de espera.
+  const sexPicker=document.getElementById('cp-quick-sex');
+  const sexStatus=document.getElementById('cp-quick-sex-state');
+  if(sexPicker&&sexStatus){
+    let committed=sexPicker.value;
+    sexPicker.addEventListener('change',async()=>{
+      const selected=sexPicker.value;
+      if(selected===committed)return;
+      sexPicker.disabled=true;
+      sexStatus.textContent='Guardando…';
+      sexStatus.classList.remove('error');
+      try{
+        const r=await fetch((location.pathname.endsWith('/')?location.pathname.slice(0,-1):location.pathname)+'/sexo', {
+          method:'POST', cache:'no-store',
+          headers:{'Content-Type':'application/json','X-Historia-Quick-Sex':'1'},
+          body:JSON.stringify({sex:selected}),
+        });
+        const d=await r.json().catch(()=>({}));
+        if(!r.ok||d.ok!==true)throw new Error(d.detail||'No se pudo guardar el sexo.');
+        committed=d.sex;
+        sexPicker.value=committed;
+        sexStatus.textContent='✓ Guardado';
+        if(window.showAppToast)window.showAppToast('Sexo actualizado en la ficha.','success');
+      }catch(err){
+        sexPicker.value=committed;
+        sexStatus.textContent='No guardado. Vuelve a intentarlo.';
+        sexStatus.classList.add('error');
+        if(window.showAppToast)window.showAppToast(err.message||'Error al actualizar el sexo.','error');
+      }finally{sexPicker.disabled=false;}
+    });
+  }
 })();
 document.querySelectorAll('.js-edit-history').forEach(btn=>btn.addEventListener('click',async()=>{
   if(!await window.appConfirm('Se abrirá esta historia para continuar editándola. Antes de modificarla se conservará una revisión interna del texto anterior.',{title:'Continuar edición',confirmText:'Continuar edición'}))return;

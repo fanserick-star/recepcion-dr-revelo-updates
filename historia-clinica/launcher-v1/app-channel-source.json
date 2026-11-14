@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.95: habilita listado seguro de recetas y documentos por LAN para Recepción desde la base SQLite activa del doctor, sin depender del Neon Oficial. Protege vinculaciones, no altera historias, firmas, turnos ni sincronización incremental 1.4.94."
+  "notes": "Historia Clínica 1.4.96: ficha de paciente con datos unificados y mejor organizados; Cédula en segundo lugar, Sexo editable en la propia ficha; accesos clínicos al pie con íconos. Actualiza únicamente el campo de sexo con auditoría y sincronización incremental ya existente. Conserva recetas, consentimiento, certificados, informes, llamados, LAN y configuración Neon."
 }

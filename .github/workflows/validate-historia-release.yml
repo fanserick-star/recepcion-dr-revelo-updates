@@ -80,6 +80,7 @@ jobs:
           python tools/test_historia_neon_oneclick_1490.py
           python tools/test_historia_neon_bidirectional_1491.py
           python tools/test_historia_global_remaster_1449.py
+          python tools/test_historia_patient_profile_1496.py
           python tools/test_historia_recetas_firma_informes_1443.py
           python tools/test_historia_recipe_row_alignment_1465.py
           python tools/test_historia_wait_turn_contrast_1469.py
