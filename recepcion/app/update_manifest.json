@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.147",
-  "app_version": "4.8.147",
-  "runtime_version": "4.8.147",
+  "version": "4.8.148",
+  "app_version": "4.8.148",
+  "runtime_version": "4.8.148",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,8 +217,8 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.147: cierre fiscal automático solamente miércoles a sábado desde las 19:00 de Ecuador; informe financiero al finalizar el cierre, disponible en Facturación hasta el día siguiente. Separa facturas manuales y automáticas, importe verificable de atenciones, autorizadas SRI y en proceso. Informe de solo lectura bajo demanda; no genera facturas ni modifica relaciones, configuración de Neon clínico, WhatsApp o LAN.",
-    "previous_version": "4.8.146",
+    "purpose": "Recepción 4.8.148: la Agenda muestra siempre la jornada completa, sin pestañas ni filtros separados de Mañana/Tarde. Conserva todos los horarios desde las 8:00 a. m. hasta las 5:00 p. m., miércoles desde las 10:00 a. m., indicando la pausa de 12:30 a 2:00 p. m. Horas, detalles, selector de espacios y citas visibles en formato de 12 horas (a. m./p. m.). Mantiene los valores internos de horarios HH:mm (24 h) para ordenamiento, escritura en Neon/SQLite, validación de espacios, Confirmafy y WhatsApp; solo se modifican presentación y caché de recursos. Sin cambios clínicos, fiscales, TV o en la sincronización.",
+    "previous_version": "4.8.147",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
