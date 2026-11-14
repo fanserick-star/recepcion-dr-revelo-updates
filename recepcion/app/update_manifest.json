@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "4.8.146",
-  "app_version": "4.8.146",
-  "runtime_version": "4.8.146",
+  "version": "4.8.147",
+  "app_version": "4.8.147",
+  "runtime_version": "4.8.147",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -217,8 +217,8 @@
     "reception_history_neon_selector.py"
   ],
   "notes": {
-    "purpose": "Recepción 4.8.146: recupera el listado de recetas, certificados e informes desde el Neon clínico seleccionado (Original/Emergencia) usando la conexión previamente vinculada y verificada, solo bajo demanda, caché breve de 8 s y Reintentar sin caché. PDFs firmados/vistas previas permanecen en LAN; videocistoscopías en sus rutas privadas y turnos por LAN. No realiza escrituras clínicas ni sincronización masiva.",
-    "previous_version": "4.8.144",
+    "purpose": "Recepción 4.8.147: informe financiero del cierre fiscal nocturno visible en Facturación desde las 19:00 hasta el día siguiente; separa manuales y automáticas, cantidades, importes de atenciones vinculadas y estados SRI. Consulta bajo demanda a Neon Recepción con lectura SQL de solo lectura, sin emitir facturas, reintentos ni modificar la automatización existente.",
+    "previous_version": "4.8.146",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -821,7 +821,11 @@
     "historia_neon_selector_navigation_visibility_fix": true,
     "historia_neon_selector_409_safe_diagnostics": true,
     "clinical_document_lan_host_fallback_and_503_diagnostics": true,
-    "selected_neon_document_metadata_on_demand": true
+    "selected_neon_document_metadata_on_demand": true,
+    "night_close_fiscal_report_19h_next_day": true,
+    "night_close_financial_manual_vs_auto": true,
+    "night_close_report_sri_authorized_only": true,
+    "night_close_report_readonly_no_issuance": true
   },
   "channel": "launcher-v1-stable"
 }
