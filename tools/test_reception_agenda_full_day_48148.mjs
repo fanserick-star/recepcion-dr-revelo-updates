@@ -57,7 +57,7 @@ assert.match(innerHTML,/>2:00 p\. m\.<\/div>/);
 assert.match(innerHTML,/>5:00 p\. m\.<\/div>/);
 assert.match(innerHTML,/PAUSA · 12:30–2:00 p\. m\./);
 assert.ok(innerHTML.indexOf('8:00 a. m.')<innerHTML.indexOf('PAUSA · 12:30'));
-assert.ok(innerHTML.indexOf('PAUSA · 12:30')<innerHTML.indexOf('2:00 p. m.'));
+assert.ok(innerHTML.indexOf('PAUSA · 12:30')<innerHTML.indexOf('<div class="native-time">2:00 p. m.</div>'));
 const free=nativeAgendaRowCell(null,'2026-11-19','14:00');
 assert.match(free,/Agendar a las 2:00 p\. m\./);
 assert.match(free,/openAgendaSlotPicker\('2026-11-19','14:00'\)/);
