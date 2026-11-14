@@ -15,6 +15,9 @@
   const list=host.querySelector('.cp-video-list');
   const refresh=host.querySelector('.cp-video-refresh');
   const label=host.querySelector('.cp-video-section-head strong');
+  // Place a lightweight strip *inside the medical history*, not in the document modal.
+  const historyTimeline=document.querySelector('.cp-history-window .cp-timeline');
+  let historyStrip=null;
   const url='/api/clinical-videos/patient/'+encodeURIComponent(id);
   const previewById=new Map(); // Session-only screenshots of a video *after* the doctor plays it.
   const durationById=new Map();
@@ -110,8 +113,13 @@
       ctx.drawImage(video,(320-w)/2,(180-h)/2,w,h);
       const image=canvas.toDataURL('image/jpeg',0.68);
       previewById.set(videoId,image);
-      const thumb=list.querySelector('[data-video-thumb="'+videoId+'"]');
-      if(thumb){thumb.style.backgroundImage='url('+JSON.stringify(image)+')';thumb.classList.add('has-preview');}
+      // A preview exists only after intentional playback. Reuse it in the
+      // compact history strip without reading the MP4 again.
+      document.querySelectorAll('[data-video-thumb]').forEach(thumb=>{
+        if(thumb.dataset.videoThumb!==videoId)return;
+        thumb.style.backgroundImage='url('+JSON.stringify(image)+')';
+        thumb.classList.add('has-preview');
+      });
     }catch(_ignored){
       // Canvas snapshot unsupported: leave the lightweight visual placeholder.
     }finally{activeCanvasCapture=false;}
@@ -192,6 +200,7 @@
     const button=document.createElement('button');
     button.type='button';
     button.className='cp-video-gallery-card';
+    button.dataset.videoId=item.id;
     button.setAttribute('aria-pressed','false');
     button.setAttribute('aria-label','Abrir videocistoscopía '+(when||'#'+(index+1)));
     const thumbnail=document.createElement('span');
@@ -216,6 +225,84 @@
     button.append(thumbnail,info);
     button.addEventListener('click',()=>selectVideo(item,button));
     return button;
+  }
+
+  function clearHistoryStrip(){
+    if(historyStrip){historyStrip.remove();historyStrip=null;}
+  }
+
+  function renderHistoryStrip(videos){
+    // Patient ownership is already checked by Historia's local, HMAC-backed
+    // catalog. No thumbnails or MP4 requests while rendering the strip.
+    if(!historyTimeline||!videos.length){
+      clearHistoryStrip();
+      return;
+    }
+    if(!historyStrip){
+      historyStrip=document.createElement('section');
+      historyStrip.className='cp-history-video-strip';
+      historyStrip.setAttribute('aria-label','Videocistoscopías guardadas en el historial del paciente');
+      historyTimeline.before(historyStrip);
+    }
+    const head=document.createElement('div');
+    head.className='cp-history-video-head';
+    const title=document.createElement('div');
+    const kicker=document.createElement('span');
+    kicker.className='cp-history-video-kicker';
+    kicker.textContent='ARCHIVO CLÍNICO · VIDEOS';
+    const name=document.createElement('strong');
+    name.textContent='Videocistoscopías guardadas';
+    const subtitle=document.createElement('small');
+    subtitle.textContent=videos.length+' grabación'+(videos.length===1?'':'es')+
+      ' · Selecciona una para abrir el visor';
+    title.append(kicker,name,subtitle);
+    const all=document.createElement('button');
+    all.type='button';
+    all.className='cp-history-video-all';
+    all.textContent='Ver todas ('+videos.length+')';
+    all.addEventListener('click',()=>open.click());
+    head.append(title,all);
+    const cards=document.createElement('div');
+    cards.className='cp-history-video-cards';
+    videos.slice(0,4).forEach((item,index)=>{
+      const when=String(item.recorded_at||'').slice(0,16).replace('T',' ');
+      const card=document.createElement('button');
+      card.type='button';
+      card.className='cp-history-video-card';
+      card.setAttribute('aria-haspopup','dialog');
+      card.setAttribute('aria-controls','patient-videos-dialog');
+      card.setAttribute('aria-label','Ver videocistoscopía '+(when||'#'+(index+1)));
+      const cover=document.createElement('span');
+      cover.className='cp-history-video-cover';
+      cover.dataset.videoThumb=item.id;
+      if(previewById.has(item.id)){
+        cover.style.backgroundImage='url('+JSON.stringify(previewById.get(item.id))+')';
+        cover.classList.add('has-preview');
+      }
+      const play=document.createElement('span');
+      play.className='cp-history-video-play';
+      play.textContent='▶';
+      cover.append(play);
+      const info=document.createElement('span');
+      info.className='cp-history-video-info';
+      const caption=document.createElement('strong');
+      caption.textContent='Cistoscopía '+(index+1);
+      const date=document.createElement('small');
+      date.textContent=when||'Fecha no disponible';
+      info.append(caption,date);
+      card.append(cover,info);
+      card.addEventListener('click',()=>{
+        // Open the existing authenticated gallery, then use its player.
+        // No second catalog request is necessary: both share the same list.
+        open.click();
+        const modalCard=Array.from(list.children).find(
+          node=>node.dataset.videoId===item.id
+        );
+        if(modalCard)selectVideo(item,modalCard);
+      });
+      cards.append(card);
+    });
+    historyStrip.replaceChildren(head,cards);
   }
 
   async function load(force=false){
@@ -244,6 +331,7 @@
       // Reception returns latest-first, but sort to keep visual order stable.
       videos.sort((a,b)=>String(b.recorded_at||'').localeCompare(String(a.recorded_at||'')));
       videos.forEach((item,index)=>list.append(makeCard(item,index)));
+      renderHistoryStrip(videos);
       status.textContent=videos.length?
         videos.length+' video'+(videos.length===1?'':'s')+' · Selecciona un cuadro para reproducir':
         'Este paciente aún no tiene videocistoscopías guardadas en Recepción.';
@@ -252,11 +340,14 @@
       status.textContent=(error&&error.message)||'No se pudo conectar con Recepción. Pulsa Actualizar para reintentar.';
       if(activeVideo)stopPlayer();
       list.replaceChildren();
+      clearHistoryStrip();
       loaded=false;
       setCount(null,true);
     }finally{busy=false;}
   }
-  open.addEventListener('click',()=>load(true));
+  // Entering the dialog reuses the one catalog query already made for the
+  // current patient. The explicit "Actualizar" control bypasses this cache.
+  open.addEventListener('click',()=>load(false));
   refresh?.addEventListener('click',()=>load(true));
   // Count read on entering a patient chart; no periodic catalogue or video polling.
   load();
