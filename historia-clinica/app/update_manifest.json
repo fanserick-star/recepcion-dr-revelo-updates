@@ -99,7 +99,7 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.101: recetas, certificados, reposos e informes desde ficha, consulta o selector de Inicio se abren en un modal integrado al mismo WebView2, con fondo difuminado y cierre protegido ante cambios sin guardar. Restaura el diseño compacto de dos columnas de los editores cuando hay ancho suficiente (mínimo 970 px) con controles sin desbordamiento; no crea ventanas nativas adicionales para editar. Conserva impresión nativa mediante el WebView padre, firma electrónica, vistas previas externas de PDF, notificación de guardado, rutas de pacientes, historia, TV, SQLite y Neon. Sin migración ni escrituras automáticas ni cambios en facturación. Pruebas sintéticas de modal interno y formularios obligatorias en CI.",
+    "purpose": "Historia 1.4.101: recetas, certificados, reposos e informes desde ficha, consulta o selector de Inicio se abren en un modal integrado al mismo WebView2, con fondo difuminado y cierre protegido ante cambios sin guardar. Restaura el diseño compacto de dos columnas de los editores cuando hay ancho suficiente (mínimo 970 px) con controles sin desbordamiento; no crea ventanas nativas adicionales para editar. Conserva impresión nativa mediante el WebView padre, firma electrónica, vistas previas externas de PDF, notificación de guardado, rutas de pacientes, historia, TV, SQLite y Neon. Sin migración ni escrituras automáticas ni cambios en facturación. Pruebas sintéticas de modal interno y formularios obligatorias en CI, con eventos de ventana, cierre protegido y rutas locales verificadas.",
     "previous_version": "1.4.100",
     "functional_changes": true,
     "database_schema_changes": false,
