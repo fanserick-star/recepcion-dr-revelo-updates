@@ -1,102 +1,140 @@
-"""Regression: recent prescriptions visible only through authenticated current Historia LAN.
+"""Offline regression: selected clinical Neon supplies document metadata on demand.
 
-No real credentials, Neon, patient data, production writes or network requests.
+No production database, private keys, real LAN, patient records, WhatsApp, or PDF bytes.
+The authenticated patient's mapped identity must always be checked before the cache.
 """
 from __future__ import annotations
+
 import ast
-import hashlib
-import hmac
 import json
-import sqlite3
-import sys
-import tempfile
+import re
+import threading
 import time
-import urllib.parse
-import urllib.request
-import urllib.error
 from pathlib import Path
 from types import SimpleNamespace
 
-BASE=Path(__file__).resolve().parents[1]
-sys.path.insert(0,str(BASE/"historia-clinica"/"app"))
-from lan_bridge import LanService
+ROOT = Path(__file__).resolve().parents[1]
+source = (ROOT / "recepcion/app/clinical_delivery.py").read_text(encoding="utf-8")
+bridge = (ROOT / "recepcion/app/historia_bridge.py").read_text(encoding="utf-8")
+identity_source = (ROOT / "recepcion/app/reception_history_identity_consolidated.py").read_text(encoding="utf-8")
+ui = (ROOT / "recepcion/app/static/clinical_delivery.js").read_text(encoding="utf-8")
+tree = ast.parse(source)
+chosen = {"_linked_patient", "_documents", "_cloud_documents"}
+nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in chosen]
+assert len(nodes) == 3
 
 class HTTPException(Exception):
-    def __init__(self, code, detail):
-        self.status_code=code
-        self.detail=detail
+    def __init__(self, status_code, detail):
+        self.status_code = status_code
+        self.detail = detail
         super().__init__(detail)
 
-with tempfile.TemporaryDirectory() as td:
-    root=Path(td)
-    db=root/"clinical.sqlite"
-    with sqlite3.connect(db) as con:
-        con.execute("CREATE TABLE patient_links(reception_patient_id TEXT,clinical_patient_id TEXT)")
-        con.execute("CREATE TABLE patients(id TEXT PRIMARY KEY,deleted_at TEXT)")
-        con.execute("CREATE TABLE prescriptions(id TEXT PRIMARY KEY,patient_id TEXT,issued_at TEXT,deleted_at TEXT)")
-        con.execute("CREATE TABLE certificates(id TEXT PRIMARY KEY,patient_id TEXT,issued_at TEXT,certificate_type TEXT,deleted_at TEXT)")
-        con.execute("INSERT INTO patients VALUES('clinical-A',NULL)")
-        con.execute("INSERT INTO patients VALUES('clinical-B',NULL)")
-        con.execute("INSERT INTO patient_links VALUES('received-42','clinical-A')")
-        con.execute("INSERT INTO prescriptions VALUES('rx-today','clinical-A','2026-11-13T15:12:00',NULL)")
-        con.execute("INSERT INTO prescriptions VALUES('rx-deleted','clinical-A','2026-11-13T15:11:00','2026-11-13')")
-        con.execute("INSERT INTO prescriptions VALUES('rx-other','clinical-B','2026-11-13T15:13:00',NULL)")
-        con.execute("INSERT INTO certificates VALUES('report-a','clinical-A','2026-11-13T15:10:00','report_ultrasound',NULL)")
-    svc=LanService(root,db,"1.4.95")
-    docs=svc.documents_for_reception("received-42","clinical-A")
-    assert [d["id"] for d in docs] == ["rx-today","report-a"],docs
-    assert [d["kind"] for d in docs] == ["receta","informe"],docs
-    for wrong in (("received-42","clinical-B"),("unknown","clinical-C")):
-        try:
-            svc.documents_for_reception(*wrong)
-        except (PermissionError,FileNotFoundError):
-            pass
+class LocalSession:
+    def __enter__(self): return self
+    def __exit__(self, *_): return False
+
+class FakeConnection:
+    def __init__(self, target):
+        self.target = target
+        self.calls = []
+        self.closed = False
+        self.fail_cloud = False
+        self.linked = True
+        self.patients = []
+    def cursor(self): return self
+    def execute(self, sql, params=None):
+        self.calls.append((sql, params))
+        if "FROM public.patient_links" in sql:
+            self.current = [("clinical-A",)] if self.linked else []
+        elif "FROM public.prescriptions" in sql:
+            if self.fail_cloud: raise RuntimeError("synthetic-private-postgres-error")
+            self.current = [
+                ("rx-current", "2026-11-13T14:10:00", "receta"),
+                ("report-current", "2026-11-13T13:10:00", "informe"),
+                ("rest-current", "2026-11-13T12:10:00", "reposo"),
+                ("medical-current", "2026-11-13T11:10:00", "certificado"),
+                ("malformed doc", "2026-11-13T10:00:00", "receta"),
+            ]
         else:
-            raise AssertionError("Identity conflict or missing patient must block")
-    with sqlite3.connect(db) as con:
-        assert con.execute("SELECT COUNT(*) FROM prescriptions").fetchone()[0]==3
-        assert con.execute("SELECT COUNT(*) FROM patient_links").fetchone()[0]==1
+            self.current = []
+    def fetchone(self): return self.current[0] if self.current else None
+    def fetchall(self): return self.current
+    def close(self): self.closed = True
 
-# Isolate the Reception function and verify HMAC and safe response handling.
-source=(BASE/"recepcion/app/clinical_delivery.py").read_text(encoding="utf-8")
-tree=ast.parse(source)
-fn=next(x for x in tree.body if isinstance(x,ast.FunctionDef) and x.name=="_lan_documents")
-mocksecret="SYNTHETIC-private-LAN-credential-not-a-live-secret-123"
-captured=[]
-class FakeResponse:
-    headers={"Content-Type":"application/json"}
-    def __enter__(self):return self
-    def __exit__(self,*args):return False
-    def read(self,n):return json.dumps({"ok":True,"source":"historia_local","documents":[{"id":"rx-today","date":"2026-11-13T15:12","kind":"receta"}]}).encode()
-def fake_urlopen(req,timeout=None):
-    captured.append(req)
-    return FakeResponse()
-def fake_challenge(host,timeout=None):
-    assert host=="doctor-lan"
-    return {"token":"fake-token"}
-ns={
-    "re":__import__("re"),"json":json,"hashlib":hashlib,"hmac":hmac,"time":time,
-    "urllib":SimpleNamespace(parse=urllib.parse,error=urllib.error,request=SimpleNamespace(Request=urllib.request.Request,urlopen=fake_urlopen)),
-    "core":SimpleNamespace(HTTPException=HTTPException),
-    "_clinical_setting":lambda k:mocksecret if k=="CLINICAL_DELIVERY_LAN_SECRET" else "",
-    "lan":SimpleNamespace(_candidate_hosts=lambda:["doctor-lan"],_challenge=fake_challenge,LAN_HTTP_PORT=8765),
-    "LABELS":{"receta":"Receta médica","informe":"Informe médico","certificado":"Certificado médico","reposo":"Reposo"},
+chosen_target = SimpleNamespace(value="emergency")
+instances = []
+def connect():
+    conn = FakeConnection(chosen_target.value)
+    instances.append(conn)
+    return conn
+identity = SimpleNamespace(_connect_public=connect,
+    historia_bridge=SimpleNamespace(_history_target=lambda: chosen_target.value))
+core = SimpleNamespace(HTTPException=HTTPException,
+    LocalSessionLocal=lambda: LocalSession())
+ns = {
+    "re": re, "time": time, "threading":threading, "core":core,
+    "identity":identity, "_patient":lambda db,pid:pid,
+    "_cloud_reception_id":lambda pid:str(pid),
+    "_CLOUD_DOCUMENTS_CACHE":{},
+    "_CLOUD_DOCUMENTS_CACHE_LOCK":threading.Lock(),
+    "_CLOUD_DOCUMENTS_TTL_SECONDS":8,
+    "_CLOUD_DOCUMENTS_CACHE_LIMIT":128,
+    "LABELS":{"receta":"Receta médica","informe":"Informe médico",
+              "reposo":"Certificado de reposo","certificado":"Certificado médico"}
 }
-exec(compile(ast.fix_missing_locations(ast.Module(body=[fn],type_ignores=[])),"reception_documents_test","exec"),ns)
-docs=ns["_lan_documents"]("received-42","clinical-A")
-assert docs==[{"id":"rx-today","date":"2026-11-13T15:12","kind":"receta","label":"Receta médica"}]
-assert len(captured)==1
-req=captured[0]
-qs=urllib.parse.parse_qs(urllib.parse.urlsplit(req.full_url).query)
-assert qs["reception_id"]==["received-42"]
-assert qs["clinical_patient_id"]==["clinical-A"]
-headers={k.lower():v for k,v in req.header_items()}
-stamp=headers["x-revelo-delivery-time"]
-signed=f"received-42|clinical-A|lista|documentos|{stamp}"
-assert hmac.compare_digest(headers["x-revelo-delivery-proof"],hmac.new(mocksecret.encode(),signed.encode(),hashlib.sha256).hexdigest())
-
-# Prove listing uses local DB and not the stale cloud inventory.
-assert "docs = _lan_documents(rid, clinical_id)" in source
-assert "SELECT id::text,issued_at::text,'receta' AS kind" not in source
-assert '"source": "historia_local"' in (BASE/"historia-clinica/app/lan_bridge.py").read_text(encoding="utf-8")
-print("RECEPTION_LATEST_CLINICAL_DOCUMENTS_LAN_48138_OK")
+exec(compile(ast.fix_missing_locations(ast.Module(body=nodes,type_ignores=[])), "selected_neon_docs", "exec"),ns)
+documents=ns["_documents"]
+docs,rid,cid = documents(42)
+assert rid=="42" and cid=="clinical-A"
+assert [d["id"] for d in docs]==["rx-current","report-current","rest-current","medical-current"]
+assert len(instances)==1 and instances[0].closed
+statements=[x[0] for x in instances[0].calls]
+assert statements[0]=="SET TRANSACTION READ ONLY"
+assert "FROM public.patient_links" in statements[1]
+assert "FROM public.prescriptions" in statements[2]
+assert "FROM public.certificates" in statements[2]
+assert "ORDER BY issued_at DESC LIMIT 100" in statements[2]
+assert "deleted_at IS NULL" in statements[2]
+assert instances[0].calls[1][1]==("42",)
+assert instances[0].calls[2][1]==("clinical-A","clinical-A")
+assert all("bytes" not in str(x).lower() for x in docs)
+# Same link must still be authorized on every request, while the list reuses cache.
+docs2,_,_=documents(42)
+assert docs2==docs
+assert len([x for x in instances[1].calls if "FROM public.prescriptions" in x[0]])==0
+assert len([x for x in instances[1].calls if "FROM public.patient_links" in x[0]])==1
+documents(42,refresh=True)
+assert len([x for x in instances[2].calls if "FROM public.prescriptions" in x[0]])==1
+# Selection of the other Neon must never consume the old project's cache.
+chosen_target.value="official"
+documents(42)
+assert len([x for x in instances[3].calls if "FROM public.prescriptions" in x[0]])==1
+# A missing verified mapping must refuse, even if the patient's documents are cached.
+def denied(): 
+    conn=FakeConnection(chosen_target.value);conn.linked=False;instances.append(conn);return conn
+identity._connect_public=denied
+try:documents(42)
+except HTTPException as ex:assert ex.status_code==409
+else:raise AssertionError("Cached data bypassed current verified link")
+# Fail closed on Neon failure: never silently read a previous Neon or LAN.
+identity._connect_public=connect
+ns["_CLOUD_DOCUMENTS_CACHE"].clear()
+def unavailable():
+    conn=FakeConnection(chosen_target.value);conn.fail_cloud=True;instances.append(conn);return conn
+identity._connect_public=unavailable
+try:documents(42)
+except HTTPException as ex:
+    assert ex.status_code==503
+    assert "Neon de Historia seleccionado" in ex.detail
+    assert "synthetic-private" not in ex.detail
+else:raise AssertionError("Cloud error must not silently fall back")
+assert "_cloud_documents(conn, clinical_id, refresh=refresh)" in source
+assert "_lan_documents(rid, clinical_id)" not in source.split("def _documents(",1)[1].split("def _lan_pdf_failure(",1)[0]
+assert "docs, rid, clinical_id = _documents(pid, refresh=True)" in source
+assert "def delivery_documents(pid:int,refresh:bool=False" in source
+assert "refresh?'?refresh=true':''" in ui
+assert "load(state.pid,state.phone,state.name,true)" in ui
+assert "_database_url_for_target(_history_target())" in bridge
+assert "selected = historia_bridge._history_target()" in identity_source
+assert '"HISTORIA_EMERGENCY_DATABASE_URL"' in bridge
+print("RECEPTION_LATEST_CLINICAL_DOCUMENTS_SELECTED_NEON_48146_OK")

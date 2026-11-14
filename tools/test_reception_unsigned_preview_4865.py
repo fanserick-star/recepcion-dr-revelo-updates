@@ -42,7 +42,7 @@ ns={
     "lan":SimpleNamespace(_candidate_hosts=lambda:["synthetic-host"],
                           _challenge=lambda h,timeout:{"token":"fake-challenge"},
                           LAN_HTTP_PORT=8765),
-    "_documents":lambda pid:([{"id":"doc-1","kind":"certificado"}],
+    "_documents":lambda pid,refresh=False:([{"id":"doc-1","kind":"certificado"}],
                             "reception-1","clinical-1") if pid==42 else ([],
                             "reception-2","clinical-2"),
 }

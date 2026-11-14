@@ -41,8 +41,8 @@ url=SimpleNamespace(
     request=SimpleNamespace(Request=urllib.request.Request,urlopen=fake_urlopen)
 )
 docs=[{"id":"document-1","kind":"certificado"}]
-def only_linked_document(pid):
-    assert pid==123
+def only_linked_document(pid,refresh=False):
+    assert pid==123 and refresh is True
     return docs,"reception-remote-id","clinical-verified-id"
 ns={"re":re,"hashlib":hashlib,"hmac":hmac,"urllib":url,"time":time,
     "core":SimpleNamespace(HTTPException=HTTPException),
@@ -75,7 +75,7 @@ for kind,doc_id in [("certificado","document-2"),("informe","document-1"),("vide
     except HTTPException as exc:assert exc.status_code in (400,404)
     else:raise AssertionError("Unexpected cross-document signed PDF retrieval")
 assert len(calls)==1
-assert "docs,_,clinical_id=_documents(pid)" in src
+assert "docs,_,clinical_id=_documents(pid,refresh=refresh)" in src
 assert "l.verified=1" in src
 assert 'p.deleted_at IS NULL' in src
 assert 'WHATSAPP_CLINICAL_TEMPLATES_APPROVED' in src

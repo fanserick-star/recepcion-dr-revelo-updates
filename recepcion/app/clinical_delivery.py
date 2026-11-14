@@ -101,6 +101,7 @@ def _linked_patient(pid):
     conn = identity._connect_public()
     try:
         cur = conn.cursor()
+        cur.execute("SET TRANSACTION READ ONLY")
         cur.execute("""
             SELECT l.clinical_patient_id
             FROM public.patient_links l
@@ -248,13 +249,72 @@ def _lan_documents(rid: str, clinical_id: str) -> list[dict]:
     )
 
 
-def _documents(pid):
+_CLOUD_DOCUMENTS_CACHE = {}
+_CLOUD_DOCUMENTS_CACHE_LOCK = threading.Lock()
+_CLOUD_DOCUMENTS_TTL_SECONDS = 8
+_CLOUD_DOCUMENTS_CACHE_LIMIT = 128
+
+
+def _cloud_documents(conn, clinical_id: str, refresh: bool = False) -> list[dict]:
+    """One on-demand metadata read from the selected clinical Neon.
+
+    Always called after _linked_patient verifies the current patient's mapping.
+    No document content, PDF bytes, videos, bulk reads or fallback project.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", str(clinical_id or "")):
+        raise core.HTTPException(409, "Identidad clínica verificada no válida")
+    key = (identity.historia_bridge._history_target(), clinical_id)
+    if not refresh:
+        with _CLOUD_DOCUMENTS_CACHE_LOCK:
+            cached = _CLOUD_DOCUMENTS_CACHE.get(key)
+            if cached and time.monotonic()-cached[0] < _CLOUD_DOCUMENTS_TTL_SECONDS:
+                return [dict(item) for item in cached[1]]
+    try:
+        cur = conn.cursor()
+        # _linked_patient already began the transaction as READ ONLY.
+        cur.execute("""
+            SELECT id::text AS id, issued_at::text AS issued_at, 'receta'::text AS kind
+            FROM public.prescriptions
+            WHERE patient_id=%s AND deleted_at IS NULL
+            UNION ALL
+            SELECT id::text AS id, issued_at::text AS issued_at,
+                   CASE
+                     WHEN certificate_type='rest_isolation' THEN 'reposo'
+                     WHEN certificate_type IN ('report_cystoscopy','report_ultrasound')
+                       THEN 'informe'
+                     ELSE 'certificado'
+                   END AS kind
+            FROM public.certificates
+            WHERE patient_id=%s AND deleted_at IS NULL
+            ORDER BY issued_at DESC LIMIT 100
+        """, (clinical_id, clinical_id))
+        rows = cur.fetchall() or []
+    except Exception as exc:
+        raise core.HTTPException(
+            503, "No se pudo consultar la lista en el Neon de Historia seleccionado. "
+                 "Comprueba la conexión clínica y vuelve a intentarlo."
+        ) from exc
+    docs = []
+    for doc_id, issued_at, kind in rows:
+        kind, doc_id = str(kind or ""), str(doc_id or "")
+        if (kind not in {"receta", "reposo", "informe", "certificado"}
+                or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", doc_id)):
+            continue
+        docs.append({"id":doc_id, "date":str(issued_at or "")[:16],
+                     "kind":kind, "label":LABELS[kind]})
+    with _CLOUD_DOCUMENTS_CACHE_LOCK:
+        if len(_CLOUD_DOCUMENTS_CACHE) >= _CLOUD_DOCUMENTS_CACHE_LIMIT:
+            _CLOUD_DOCUMENTS_CACHE.clear()
+        _CLOUD_DOCUMENTS_CACHE[key] = (time.monotonic(),tuple(dict(d) for d in docs))
+    return docs
+
+
+def _documents(pid, refresh=False):
     clinical_id, rid, conn = _linked_patient(pid)
     try:
-        # The Official clinical Neon remains the source for verified mappings.
-        # The actual document inventory MUST come from the CURRENT doctor PC:
-        # its local SQLite persists and syncs to the active Emergency Neon.
-        docs = _lan_documents(rid, clinical_id)
+        # Reuse the authenticated patient's selected Neon connection for metadata.
+        # Actual signed PDFs and video files remain on their secure LAN/R2 paths.
+        docs = _cloud_documents(conn, clinical_id, refresh=refresh)
         return docs, rid, clinical_id
     finally:
         conn.close()
@@ -293,7 +353,7 @@ def _lan_pdf_failure(exc):
 def _signed_pdf(pid, kind, doc_id):
     if kind not in LABELS or kind == "video" or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", doc_id):
         raise core.HTTPException(400, "Documento inválido")
-    docs, rid, clinical_id = _documents(pid)
+    docs, rid, clinical_id = _documents(pid, refresh=True)
     if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
         raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
     secret=_clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
@@ -340,7 +400,7 @@ def _unsigned_preview_html(pid, kind, doc_id):
     if kind not in {"receta", "certificado", "reposo", "informe"} or not re.fullmatch(
         r"[a-zA-Z0-9_-]{1,100}", doc_id):
         raise core.HTTPException(400, "Documento inválido")
-    docs, rid, clinical_id = _documents(pid)
+    docs, rid, clinical_id = _documents(pid, refresh=True)
     if not any(d["id"] == doc_id and d["kind"] == kind for d in docs):
         raise core.HTTPException(404, "Documento no pertenece al paciente vinculado")
     secret = _clinical_setting("CLINICAL_DELIVERY_LAN_SECRET")
@@ -1976,10 +2036,10 @@ def delivery_status(user=core.Depends(core.current_user)):
 
 
 @app.get("/api/clinical-delivery/patients/{pid}/documents")
-def delivery_documents(pid:int,db=core.Depends(core.get_db),user=core.Depends(core.current_user)):
+def delivery_documents(pid:int,refresh:bool=False,db=core.Depends(core.get_db),user=core.Depends(core.current_user)):
     _patient(db,pid)
     try:
-        docs,_,clinical_id=_documents(pid)
+        docs,_,clinical_id=_documents(pid,refresh=refresh)
         from clinical_video_library import _records
         return {"ok":True,"documents":docs,"videos":_records(clinical_id),**_setup(),"ffmpeg_available":bool(_faststart_ffmpeg_path())}
     except core.HTTPException:raise
