@@ -16,8 +16,8 @@ const elements={
  v504ActivityList:new FakeNode(),v504AgendaList:new FakeNode(),app:new FakeNode()
 };
 elements.app.states.add('hidden'); // Auth gate: no endpoints should run during isolated smoke.
-let originalCalled=0,networkCalls=0;
-const win={renderHomeDayPayload(){originalCalled+=1;return 'original-pass';}};
+let networkCalls=0;
+const win={};
 const visits=[];
 for(let n=1;n<=11;n++)visits.push({
  id:n, patient_id:n,patient:{id:n,nombre:'Paciente de prueba '+n},
@@ -48,9 +48,8 @@ const sandbox={window:win,document,MutationObserver:class{observe(){}},
  toISO:()=> '2026-11-14',agendaTime12:t=>t
 };
 vm.runInNewContext(source,sandbox,{filename:'reception_home_reference_504.js'});
-const result=win.renderHomeDayPayload('2026-11-14',{visits});
-assert.equal(result,'original-pass');
-assert.equal(originalCalled,1,'original business renderer should run exactly once');
+assert.equal(typeof win.__r504PaintHome,'function','native app.js should be able to invoke the 5.x renderer');
+win.__r504PaintHome('2026-11-14',{visits});
 const output=elements.todayTable.innerHTML;
 assert.equal((output.match(/<tr data-v504-patient=/g)||[]).length,11,'all 11 distinct patients must appear');
 assert.match(output,/Paciente de prueba 11/);
@@ -64,4 +63,7 @@ assert.doesNotMatch(output,/Finalizado|En consulta|En espera/,'must not invent c
 assert.match(elements.v504DayFooter.textContent,/Mostrando 11 de 11/);
 assert.equal(networkCalls,0,'no extra network calls while auth gate is hidden');
 assert.equal(elements.v504ActivityList.children.length,4,'recent activity limited to four real visit groups');
-console.log('RECEPTION_504_11_PATIENTS_RENDERED_REAL_ACTIONS_OK');
+const native=readFileSync(new URL('../recepcion/app/static/app.js',import.meta.url),'utf8');
+assert.match(native,/window\.__r504PaintHome\?\.\(iso,d\)/,'native day renderer connects to real 5.0.6 UI');
+assert.match(native,/window\.__r504HomeEnter\?\.\(\)/,'Inicio navigation reconnects agenda');
+console.log('RECEPTION_506_REAL_HOME_BRIDGE_11_PATIENTS_ACTIONS_OK');
