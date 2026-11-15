@@ -31,6 +31,7 @@
     }
   }
   function installHomeActions(){
+    if(byId('v504HomeDashboard'))return;
     const title=$('#inicio .page-heading h1');
     if(title)title.textContent='Bienvenido a Recepción 5.0';
     const subtitle=$('#inicio .page-heading p');
@@ -125,6 +126,7 @@
   }
 
   function installHomeRail(){
+    if(byId('v504HomeDashboard'))return;
     const focus=$('#inicio .r494-attentions-primary');
     if(!focus||byId('v50HomeRail'))return;
     const rail=make('div','v50-home-rail');
