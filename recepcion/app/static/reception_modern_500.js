@@ -210,6 +210,93 @@
     if(week)new MutationObserver(schedule).observe(week,{childList:true,subtree:true});
     schedule();
   }
+
+  function installAgendaRail(){
+    const page=byId('agenda');
+    const grid=byId('agendaNativeGrid');
+    if(!page||!grid||byId('v50AgendaRail'))return;
+    const rail=make('aside','v50-agenda-rail');
+    rail.id='v50AgendaRail';
+    const summary=make('div','v50-rail-card');
+    const head=make('div','v50-rail-head');
+    head.append(make('h3','','▦ Resumen de agenda'));
+    summary.append(head);
+    const counts=make('div','v50-agenda-stat-list');
+    counts.id='v50AgendaStats';
+    summary.append(counts);
+    const upcoming=make('div','v50-rail-card');
+    const upHead=make('div','v50-rail-head');
+    upHead.append(make('h3','','◷ Próximas citas'));
+    upcoming.append(upHead);
+    const listing=make('div','v50-agenda-upcoming');
+    listing.id='v50AgendaUpcoming';
+    upcoming.append(listing);
+    const tools=make('div','v50-agenda-tools');
+    const newBtn=make('button','','＋ Nueva cita');
+    newBtn.type='button';
+    newBtn.addEventListener('click',()=>{if(typeof openAgendaNewPicker==='function')openAgendaNewPicker();});
+    const todayBtn=make('button','','Esta semana');
+    todayBtn.type='button';
+    todayBtn.addEventListener('click',()=>{if(typeof nativeAgendaToday==='function')nativeAgendaToday();});
+    tools.append(newBtn,todayBtn);
+    upcoming.append(tools);
+    rail.append(summary,upcoming);
+    grid.insertAdjacentElement('afterend',rail);
+    let scheduled=false;
+    new MutationObserver(()=>{
+      if(scheduled)return;
+      scheduled=true;
+      requestAnimationFrame(()=>{scheduled=false;renderAgendaRail();});
+    }).observe(grid,{childList:true,subtree:false});
+    renderAgendaRail();
+  }
+  function renderAgendaRail(){
+    const stats=byId('v50AgendaStats'),list=byId('v50AgendaUpcoming');
+    if(!stats||!list)return;
+    const week=typeof agendaNativeWeek!=='undefined'?agendaNativeWeek:null;
+    const days=Array.isArray(week?.days)?week.days:[];
+    const today=typeof toISO==='function'?toISO(new Date()):'';
+    const day=days.find(x=>x.date===today)||days[0];
+    stats.replaceChildren();
+    list.replaceChildren();
+    if(!day){
+      stats.append(make('div','v50-rail-caption','Abre una semana para consultar sus citas.'));
+      return;
+    }
+    const all=Array.isArray(day.appointments)?day.appointments:[];
+    const counts={total:all.length,confirmed:0,pending:0,cancelled:0,rescheduled:0};
+    for(const row of all){
+      const state=String(row.appointment?.estado||row.staged?.estado||'PENDIENTE');
+      const status=typeof agendaStatusInfo==='function'?agendaStatusInfo(state):{cls:'pending'};
+      if(Object.hasOwn(counts,status.cls))counts[status.cls]+=1;
+    }
+    const rows=[
+      ['Total de citas',counts.total,''],
+      ['Confirmadas',counts.confirmed,'green'],
+      ['Pendientes',counts.pending,'amber'],
+      ['No asistirá',counts.cancelled,'red'],
+      ['Reagendadas',counts.rescheduled,'']
+    ];
+    for(const [label,n,tone] of rows){
+      const row=make('div','v50-agenda-stat-row');
+      if(tone)row.dataset.tone=tone;
+      row.append(make('span','',label),make('strong','',n));
+      stats.append(row);
+    }
+    const selectedDate=make('p','v50-rail-caption','Día seleccionado: '+String(day.label||day.date||''));
+    stats.prepend(selectedDate);
+    const ordered=all.slice().sort((a,b)=>String(a.appointment?.hora||a.staged?.hora||'').localeCompare(String(b.appointment?.hora||b.staged?.hora||'')));
+    for(const entry of ordered.slice(0,5)){
+      const row=make('div','v50-rail-item');
+      const name=String(entry.patient?.nombre||entry.staged?.nombre||'Paciente pendiente de vincular');
+      const time=String(entry.appointment?.hora||entry.staged?.hora||'');
+      const format=typeof agendaTime12==='function'?agendaTime12(time):time;
+      const state=String(entry.appointment?.estado||entry.staged?.estado||'Pendiente');
+      row.append(make('b','',name),make('span','',format+' · '+state));
+      list.append(row);
+    }
+    if(!ordered.length)list.append(make('div','v50-rail-caption','No hay citas registradas en este día.'));
+  }
   function watchModal(){
     const modal=byId('modal');
     if(!modal)return;
@@ -233,6 +320,7 @@
     installTopStatus();
     installPatientGuide();
     installHomeRail();
+    installAgendaRail();
     observeHomeRail();
     watchModal();
   }
