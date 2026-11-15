@@ -15,6 +15,9 @@
   };
 
   function installNavigation(){
+    const brand=$('#app>aside .brand-copy b');
+    if(brand)brand.textContent='Recepción 5.0';
+    document.title='Recepción 5.0 · Dr. Armando Revelo';
     const nav=$('#app>aside .side-nav');
     const home=nav?.querySelector('[data-section="inicio"]');
     if(nav&&home&&!nav.querySelector('.v50-nav-attention')){
