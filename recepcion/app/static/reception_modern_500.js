@@ -19,6 +19,27 @@
     if(brand)brand.textContent='Recepción 5.0';
     document.title='Recepción 5.0 · Dr. Armando Revelo';
     const nav=$('#app>aside .side-nav');
+    // 5.0.5: the old Activity shortcut is redundant. Keep the audit screen
+    // reachable under Configuración > Registro de actividad and leave
+    // the "Actividad reciente" card in Inicio untouched.
+    if(nav){
+      const removeSidebarActivity=()=>{
+        for(const button of [...nav.children]){
+          if(!button.classList?.contains('nav-btn'))continue;
+          const section=String(button.dataset.section||'').toLowerCase();
+          const action=String(button.getAttribute('onclick')||'');
+          const label=String(button.querySelector('span:last-child')?.textContent||'').trim().toLowerCase();
+          if(section==='actividad'||/show\\(['"]actividad['"]\\)/.test(action)||label==='actividad'||label==='actividades'){
+            button.remove();
+          }
+        }
+      };
+      removeSidebarActivity();
+      if(!nav.dataset.v505ActivityGuard){
+        nav.dataset.v505ActivityGuard='1';
+        new MutationObserver(removeSidebarActivity).observe(nav,{childList:true});
+      }
+    }
     const home=nav?.querySelector('[data-section="inicio"]');
     if(nav&&home&&!nav.querySelector('.v50-nav-attention')){
       const btn=make('button','nav-btn v50-nav-attention');
