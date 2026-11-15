@@ -16,7 +16,9 @@ assert.match(legacy,/body\.r486-ui:not\(\.v50-ui\) #inicio \.r494-attentions-pri
 assert.match(legacy,/@media\(max-width:900px\)\{\s*body\.r486-ui:not\(\.v50-ui\) #inicio \.r494-attentions-primary #todayTable/);
 assert.doesNotMatch(legacy,/body\.r486-ui #inicio \.r494-attentions-primary #todayTable\{/);
 assert.match(home,/body\.v50-ui\.r486-ui #inicio \.r494-attentions-primary #todayTable\{/);
-const fixed=home.slice(home.lastIndexOf('body.v50-ui.r486-ui #inicio .r494-attentions-primary #todayTable{'));
+const start=home.indexOf('body.v50-ui.r486-ui #inicio .r494-attentions-primary #todayTable{');
+assert.ok(start>=0);
+const fixed=home.slice(start,home.indexOf('}',start)+1);
 assert.match(fixed,/max-height:none!important/);
 assert.match(fixed,/overflow-y:visible!important/);
 assert.match(home,/tbody td\{\s*height:auto!important;min-height:0!important;\s*padding:6px 10px!important/);
