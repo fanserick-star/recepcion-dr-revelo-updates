@@ -6,6 +6,7 @@ No production API or Neon connectivity.
 """
 from __future__ import annotations
 import json
+import ast
 import threading
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -32,6 +33,17 @@ with sync_playwright() as p:
     page.on("pageerror",lambda exc:errors.append(str(exc)))
     page.goto(f"http://127.0.0.1:{srv.server_port}/static/index.html",wait_until="domcontentloaded",timeout=30000)
     page.wait_for_function("typeof newAttention==='function' && typeof attentionFor==='function' && typeof window.r507AttentionSelected==='function'")
+
+    # Execute actual payment/Bendo overlays, which production backend appends
+    # to HTML. Static screenshot alone does not exercise fiscal integration.
+    def overlay(source,begin,end):
+        start=source.index(begin)+len(begin)
+        stop=source.index(end,start)
+        return ast.literal_eval(source[start:stop].strip())
+    payment=(APP/"reception_payment_terminal.py").read_text(encoding="utf-8")
+    bendo=(APP/"reception_payment_terminal_panel.py").read_text(encoding="utf-8")
+    page.add_script_tag(content=overlay(payment,"    V4504_JS = ","\n    core.V460_OVERLAY_CSS"))
+    page.add_script_tag(content=overlay(bendo,"V4525_JS = ","\ncore.V460_OVERLAY_CSS"))
     page.evaluate(r"""() => {
       const day=toISO(new Date());
       const patient={id:1,nombre:'MARÍA FERNANDA CRUZ LÓPEZ',
@@ -71,6 +83,10 @@ with sync_playwright() as p:
     page.locator(".r507-services > summary").click()
     page.locator("#atencion .service-card[data-service='CONSULTA']").click()
     page.wait_for_function("document.querySelector('#r507BillingSummary')?.textContent.includes('40.00')",timeout=10000)
+    page.wait_for_selector("#v4504Payment .v4504-pay-option",timeout=10000)
+    assert page.locator("#v4504Payment .v4504-pay-option").count()==4,"Real fiscal payment choices missing"
+    page.locator("#v4504Payment [data-mode='EFECTIVO']").click()
+    page.wait_for_function("document.querySelector('#v4504Payment .v4504-pay-state')?.textContent.includes('Efectivo')",timeout=10000)
     page.locator(".r507-services > summary").click()
     page.wait_for_function("document.querySelector('#r507AgendaList')?.textContent.includes('MARÍA FERNANDA')",timeout=10000)
     page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('Control registrado')",timeout=10000)
@@ -93,6 +109,8 @@ with sync_playwright() as p:
         modalHidden:document.querySelector('#modal')?.classList.contains('hidden'),
         hasSave:!!document.querySelector('#atencion #saveAttentionBtn'),
         hasReview:!!document.querySelector('#atencion .exam-review-turn-btn'),
+        realPaymentOptions:document.querySelectorAll('#v4504Payment .v4504-pay-option').length,
+        selectedPayment:document.querySelector('#v4504Payment .v4504-pay-state')?.textContent,
         date:document.querySelector('#aFecha')?.value
       };
       return dom;
@@ -101,9 +119,10 @@ with sync_playwright() as p:
     assert layout["viewport"]==[1600,900]
     assert layout["modalHidden"] is True,"Patient selection opened detached dossier modal"
     assert layout["details"] is not None and layout["hasSave"] and layout["hasReview"]
+    assert layout["realPaymentOptions"]==4 and "Efectivo" in layout["selectedPayment"],layout
     assert layout["identity"]["x"]<layout["rail"]["x"],layout
     assert layout["details"]["x"]<layout["rail"]["x"],layout
-    assert layout["billing"]["h"]<250 and layout["history"]["h"]<300,layout
+    assert layout["billing"]["h"]<325 and layout["history"]["h"]<300,layout
     assert layout["clinical"]["h"]<200 and layout["agenda"]["h"]<300,layout
     assert layout["agenda"]["y"]+layout["agenda"]["h"]<=900, "Agenda should fit the 1600x900 viewport with the selected patient: "+str(layout)
     assert "MARÍA FERNANDA" in layout["patient"]
