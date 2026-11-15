@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.7: Nueva atención nativa 1600x900 como referencia, 2 columnas, buscador que selecciona directamente y no abre el expediente, historial real, facturación-resumen y estado Historia. Sin cambios en lógica clínica, Neon/SQLite, facturación, Agenda o TV."
+  "notes": "Recepción 5.0.8: corregida superposición de aviso de Historia que desplaza cuadrícula de Nueva atención. Dos columnas fijas con vínculo y pago reales; sin alteraciones a guardado, Neon, facturación ni TV."
 }
