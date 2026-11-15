@@ -85,6 +85,8 @@ body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(2) small{backg
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(5) small{background:#fff0f1!important;color:#a93d52!important}
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(5) .r486-metric-icon{background:#e9f4ff!important}
 
+/* The older operations summary repeats information already shown by the four KPI cards. */
+body.v50-ui #inicio.v504-home #homeDaySummary4816{display:none!important}
 /* Administrative alerts remain accessible, but do not push patient rows down. */
 body.v50-ui #inicio.v504-home .v504-alert-zone{
  display:flex!important;align-items:center!important;justify-content:flex-start!important;
