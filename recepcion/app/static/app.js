@@ -1421,7 +1421,7 @@ async function saveNewPatient(action=false){
 async function openHistoricalPatientProfile(hid){
   try{
     const p=await api(`/api/historical/${Number(hid)}/activate`,{method:'POST'});
-    return openPatient(Number(p.id),'attention-search');
+    return attentionFor(Number(p.id));
   }catch(e){alert(e.message||'No se pudo abrir el paciente histórico.')}
 }
 function setPatientProfileTab(tab){
@@ -1543,7 +1543,7 @@ function attentionSearch(immediate=false){
           return `<article class="v4413-attention-result historical-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openHistoricalPatientProfile(${Number(p.historical_id)})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openHistoricalPatientProfile(${Number(p.historical_id)})}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b><span class="historical-badge">HISTÓRICO ${esc(years)}</span>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last historical">${esc(lastText)}</strong></div><span class="v4413-result-chevron">›</span></article>`;
         }
         const lastText=p.ultima_atencion?`Última atención: ${fmtDate(p.ultima_atencion)}`:'Sin atención registrada desde 2026';
-        return `<article class="v4413-attention-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="openPatient(${Number(p.id)},'attention-search')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openPatient(${Number(p.id)},'attention-search')}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last ${p.ultima_atencion?'has-date':'empty'}">${esc(lastText)}</strong></div>${!missing.length?`<button type="button" class="rp48117-quick-attend" onclick="event.stopPropagation();attentionFor(${Number(p.id)}).catch(e=>alert(e.message||'No se pudo abrir la atención'))">Atender ahora</button>`:''}<span class="v4413-result-chevron">›</span></article>`;
+        return `<article class="v4413-attention-result" data-v4413-profile-card="1" role="button" tabindex="0" onclick="attentionFor(${Number(p.id)}).catch(e=>alert(e.message||'No se pudo abrir Nueva atención'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();attentionFor(${Number(p.id)}).catch(e=>alert(e.message||'No se pudo abrir Nueva atención'))}"><div class="v4413-result-main"><div class="v4413-result-name-row"><b>${esc(p.nombre||'')}</b>${warning}</div><span class="v4413-result-meta">${esc(p.cedula||'Sin cédula')} · ${esc(formatPhoneValue(p.celular||'')||'Sin celular')}${p.correo?` · ${esc(p.correo)}`:''}</span><strong class="v4413-result-last ${p.ultima_atencion?'has-date':'empty'}">${esc(lastText)}</strong></div>${!missing.length?`<button type="button" class="rp48117-quick-attend" onclick="event.stopPropagation();attentionFor(${Number(p.id)}).catch(e=>alert(e.message||'No se pudo abrir la atención'))">Atender ahora</button>`:''}<span class="v4413-result-chevron">›</span></article>`;
       }).join(''):'<div class="attention-search-hint">Sin coincidencias. Revisa nombres, identificación y celular antes de pulsar «Crear paciente nuevo».</div>';
     }catch(e){
       if(seq!==attentionSearchSeq)return;
@@ -1637,27 +1637,22 @@ async function loadAttentionWeek(force=false,anchorValue=null){
 /* 4.8.102 — Iniciar una atención con el paciente, no con la Agenda.
    Citas y Confirmafy conservan su ruta independiente desde Agenda. */
 function newAttention(){
-  currentPatientSource='general';
+  // 5.0.7: Native screen, not a detached mini modal and no intermediate
+  // patient dossier. Business/clinical save functions are unchanged.
+  closeModal();
+  attentionContext=null;
+  currentPatientSource='attention-search';
   attentionSearchSeq++;
   clearTimeout(attentionSearchTimer);
-  openModal(`<div class="new-attention-start-modal v477-attention-remaster attention-search-only">
-    <div class="v477-attention-top">
-      <div class="modal-form-heading">
-        <h2>Nueva atención</h2>
-        <p>Busca una ficha existente o registra al paciente para continuar con la atención.</p>
-      </div>
-      <button type="button" class="primary v477-new-patient-btn" onclick="newPatient(true)">＋ Crear paciente nuevo</button>
-    </div>
-    <div class="attention-start-search">
-      <label for="aSearch">Buscar paciente</label>
-      <input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Cédula, apellidos y nombres, celular o correo" oninput="upperSearchInput(this);attentionSearch()">
-      <small>Escribe al menos 2 caracteres. Revisa las coincidencias antes de crear una ficha nueva.</small>
-    </div>
-    <div id="aResults" class="results attention-results" aria-live="polite">
-      <div class="attention-search-hint">Busca al paciente para abrir su ficha y continuar a Consulta, Revisión o Procedimientos. La Agenda se gestiona por separado.</div>
-    </div>
-  </div>`);
-  setTimeout(()=>document.querySelector('#aSearch')?.focus(),0);
+  show('atencion');
+  $('#atencion')?.classList.remove('has-patient');
+  const search=$('#aSearch'),results=$('#aResults'),picked=$('#r507PickedPatient'),visit=$('#r507VisitSlot');
+  if(search){search.value='';search.placeholder='Cédula, apellidos y nombres, celular o correo';}
+  if(results){results.innerHTML='<div class="r507-search-intro">Busca por cédula, nombre o celular y selecciona un paciente. No se abrirá el expediente completo.</div>';results.classList.remove('hidden');}
+  if(picked){picked.innerHTML='';picked.classList.add('hidden');}
+  if(visit){visit.innerHTML='';visit.classList.add('hidden');}
+  try{window.r507AttentionReset?.()}catch(error){console.warn('Nueva atención: resumen no disponible',error)}
+  setTimeout(()=>search?.focus(),0);
 }
 function procedureByName(name){
   const key=serviceKey(name);
@@ -1703,6 +1698,7 @@ function renderSelectedServiceValues(){
     return `<div class="procedure-value-row"><label><span>Valor de <b>${esc(serviceLabel(name))}</b></span><div class="money-input"><span>$</span><input class="procedure-value-input" data-service="${esc(name)}" type="number" min="0" step="0.01" value="${esc(value)}" placeholder="Ingresa el valor"></div></label></div>`;
   }).join('')+`<small>Los valores se pueden cambiar para esta atención.</small>`;
   box.classList.remove('hidden');
+  try{window.r507AttentionPriceChanged?.()}catch(error){console.warn('Resumen de valores no disponible',error)}
 }
 function toggleService(name){
   const key=serviceKey(name);if(!key)return;
@@ -1715,6 +1711,7 @@ function toggleService(name){
     if(key!=='CONSULTA'&&(attentionServiceValues[key]===undefined||attentionServiceValues[key]===null))attentionServiceValues[key]=p?.valor_default??'';
   }
   renderSelectedServiceValues();
+  try{window.r507AttentionPriceChanged?.()}catch(error){console.warn('Resumen de valores no disponible',error)}
 }
 function captureAttentionDraft(){
   if(!attentionContext)return null;
@@ -1805,11 +1802,49 @@ async function attentionFor(id,draft=null){
   selectedServices=new Set(draftServices.map(serviceKey).filter(Boolean));
   attentionServiceValues={...(draft?.procedureValues||{})};
   if(draft?.selectedService&&draft?.valorProc!==undefined&&draft?.selectedService!=='CONSULTA')attentionServiceValues[serviceKey(draft.selectedService)]=draft.valorProc;
-  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,clinicalCheckedAt:0,stagedId:Number(draft?.stagedId||0)};
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
-  const cancelAction=Number(draft?.stagedId||0)?`attendConfirmafyStaged(${Number(draft.stagedId)},'${esc(fecha)}')`:`openPatient(${id},currentPatientSource)`;
-  openModal(`<div class="attention-form-modal"><div class="modal-form-heading attention-heading"><h2>Nueva atención</h2><p>Confirma el paciente y selecciona exactamente la atención realizada.</p></div><div class="attention-patient-card"><div class="attention-patient-main"><span>Paciente</span><b>${esc(p.nombre)}</b><small>${esc(p.cedula||'Sin cédula o identificación registrada')}</small></div>${attentionMissingActions(p,id)}</div><div id="attentionStatus"></div><div class="attention-date-card"><label for="aFecha">Fecha de atención</label><input id="aFecha" type="date" value="${fecha}"></div><div class="exam-review-turn-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Dar turno · Revisión de exámenes (gratis)</button><small>Obligatorio: ficha de Historia Clínica vinculada y confirmada. Sin cobro ni factura; se envía al doctor y a la TV.</small></div><div class="service-title enhanced"><div><b>Selecciona la atención</b><small>No hay ninguna opción marcada por defecto.</small></div><span id="serviceSelectionHint">0 seleccionadas</span></div><div class="service-groups">${serviceCardsHtml()}</div><div id="procedureValuesBox" class="procedure-values-box hidden"></div><div class="form-field attention-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional">${esc(draft?.observacion||'')}</textarea></div><div class="actions form-actions"><button class="cancel-btn" onclick="${cancelAction}">Cancelar</button><button id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">Guardar atención</button></div></div>`);
+  // Profile/registration dialogs are closed BEFORE assigning the new active
+  // attention, so their close helper cannot erase the new patient's context.
+  closeModal();
+  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,clinicalCheckedAt:0,stagedId:Number(draft?.stagedId||0)};
+  const picked=$('#r507PickedPatient'),finder=$('#aResults'),visit=$('#r507VisitSlot'),search=$('#aSearch');
+  if(!picked||!visit)throw Error('No se encontró la nueva pantalla de atención.');
+  show('atencion');
+  $('#atencion')?.classList.add('has-patient');
+  const initials=String(p.nombre||'P').trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w.slice(0,1)).join('').toUpperCase();
+  const phone=typeof formatPhoneValue==='function'?formatPhoneValue(p.celular||''):'';
+  const details=[p.cedula?'C.I. '+esc(p.cedula):'Sin identificación',phone?esc(phone):'',p.fecha_nacimiento?'Nac. '+fmtDate(p.fecha_nacimiento):''].filter(Boolean);
+  picked.classList.remove('hidden');
+  picked.innerHTML=`<div class="r507-patient-summary">
+    <span class="r507-avatar">${esc(initials||'P')}</span>
+    <div class="r507-person">
+      <strong>${esc(p.nombre||'Paciente')}</strong>
+      <small>${details.join('　·　')}</small>
+    </div>
+    <span class="r507-registered">✓ Paciente registrado</span>
+    <button type="button" class="r507-change" onclick="newAttention()">Cambiar paciente</button>
+  </div>${attentionMissingActions(p,id)}`;
+  if(search){search.value=p.nombre||'';search.placeholder='Paciente seleccionado';}
+  if(finder){finder.innerHTML='';finder.classList.add('hidden');}
+  visit.classList.remove('hidden');
+  visit.innerHTML=`<article class="r507-card r507-details">
+    <div class="r507-details-heading"><h2><span class="r507-heading-icon">♧</span> 2. Detalles de la atención</h2><div id="attentionStatus"></div></div>
+    <div class="r507-core-fields">
+      <label for="aFecha"><span>Fecha de atención</span><input id="aFecha" type="date" value="${esc(fecha)}"></label>
+      <div class="r507-doctor-label"><span>Doctor</span><strong>Dr. Armando Revelo</strong></div>
+    </div>
+    <div class="r507-service-heading"><b>Tipo de atención <span class="r507-required">*</span></b><span id="serviceSelectionHint">0 seleccionadas</span></div>
+    <details class="r507-services">
+      <summary>Seleccionar consulta o procedimientos</summary>
+      <div class="service-groups">${serviceCardsHtml()}</div>
+    </details>
+    <div id="procedureValuesBox" class="procedure-values-box hidden"></div>
+    <div class="form-field attention-observation r507-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional para esta atención">${esc(draft?.observacion||'')}</textarea></div>
+    <div class="r507-review-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Revisión de exámenes (sin cobro)</button><small>Solo para hoy y con Historia Clínica vinculada. Genera turno y ticket sin factura.</small></div>
+    <div class="r507-form-actions"><button type="button" class="r507-cancel" onclick="newAttention()">Cambiar paciente</button><button type="button" id="saveAttentionBtn" class="primary" onclick="saveAttention(${id})">▣ Guardar atención</button></div>
+  </article>`;
+  try{window.r507AttentionSelected?.(p,fecha)}catch(error){console.warn('Nueva atención: paneles informativos no disponibles',error)}
   renderAttentionStatus();
   renderSelectedServiceValues();
   void refreshAttentionClinicalHistory(id);
@@ -1824,6 +1859,7 @@ async function refreshAttentionClinicalHistory(id){
     attentionContext.clinicalCheckedAt=verified?Date.now():0;
     attentionContext.clinicalHistoryCount=Number(status.history_date_count||0);
     renderAttentionStatus();
+    try{window.r507ClinicalStatusChanged?.()}catch(error){console.warn('Nueva atención: estado de enlace no disponible',error)}
   }catch(_e){/* Recepción conserva sus visitas registradas cuando Neon está desconectado. */}
 }
 function currentDetectedStatus(){
@@ -1839,6 +1875,7 @@ function renderAttentionStatus(){
   }else{
     box.innerHTML=`<div class="detected-status ${kind==='S'?'subsequent':''}"><div><span>Tipo de paciente · automático</span><strong>${kind==='S'?'SUBSECUENTE':'NUEVO'}</strong>${last?'<small>Última atención en Recepción: '+fmtDate(last)+'</small>':''}</div></div>`;
   }
+  try{window.r507ClinicalStatusChanged?.()}catch(error){console.warn('Estado visual no disponible',error)}
 }
 function examReviewTicketMarkup(ticket){
   const number=String(ticket.turn||'--');

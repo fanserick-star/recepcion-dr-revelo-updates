@@ -1,0 +1,41 @@
+name: Reception Nueva atencion Chromium Visual 1600x900
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "recepcion/app/static/**"
+      - "tools/test_reception_new_attention_chromium_507.py"
+      - ".github/workflows/test-reception-new-attention-507.yml"
+  push:
+    branches: [main]
+    paths:
+      - "recepcion/app/static/**"
+      - "tools/test_reception_new_attention_chromium_507.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Chromium test tools
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Verify real Nueva atención patient selection and responsive 1600x900 layout
+        run: python tools/test_reception_new_attention_chromium_507.py
+      - name: Save synthetic visual screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reception-507-new-attention-1600x900-synthetic
+          path: reports/reception-507-new-attention-1600x900.png
+          if-no-files-found: ignore

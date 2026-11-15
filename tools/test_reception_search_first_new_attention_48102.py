@@ -17,14 +17,14 @@ assert '/static/home_remaster_4886.css?v='+v in html
 start=app.index("function newAttention(){")
 stop=app.index("function procedureByName(",start)
 flow=app[start:stop]
-assert 'new-attention-start-modal' in flow
-assert 'v477-attention-remaster attention-search-only' in flow
-assert 'id="aSearch"' in flow
-assert 'id="aResults"' in flow
-assert 'attentionSearch()' in flow
-assert 'newPatient(true)' in flow
-assert 'attentionSearchSeq++' in flow
-assert "document.querySelector('#aSearch')?.focus()" in flow
+assert "show('atencion')" in flow
+assert "closeModal()" in flow
+assert "attentionSearchSeq++" in flow
+assert "r507PickedPatient" in flow and "r507VisitSlot" in flow
+assert "openModal(" not in flow
+assert 'id="aSearch"' in html and 'id="aResults"' in html
+assert 'newPatient(true)' in html
+assert "search?.focus()" in flow
 for forbidden in ("attentionWeekBlock","attentionWeekCalendar","loadAttentionWeek(",
                   "/api/agenda/week","agenda-only","Agenda de hoy","moveAttentionWeek"):
     assert forbidden not in flow,forbidden
@@ -32,7 +32,7 @@ assert "function attentionSearch(immediate=false)" in app
 assert "const active=q.length>=2" in app
 assert "api('/api/patients?q='+encodeURIComponent(q)+'&limit=18')" in app
 assert "if(seq!==attentionSearchSeq)return" in app
-assert "openPatient(${Number(p.id)},'attention-search')" in app
+assert "attentionFor(${Number(p.id)})" in app
 assert "openHistoricalPatientProfile(${Number(p.historical_id)})" in app
 assert "Sin coincidencias. Revisa nombres" in app
 assert "function newPatient(continueToAttention=false,agendaSlot=null)" in app
@@ -74,8 +74,9 @@ subprocess.run(['node','tools/test_reception_new_attention_runtime_48106.mjs'],c
 # input mentions cedula/nombre/correo but is never a patient registration form.
 subprocess.run(['node','tools/test_reception_new_patient_remaster_scope_48110.mjs'],check=True)
 
-assert 'attention-search-only' in css
-assert 'attention-search-hint' in css
+assert 'attention-search-only' in css  # retained for older modal compatibility
+assert 'id="atencion"' in html and 'r507-new-attention' in html
+assert (ROOT/"static/reception_new_attention_507.css").exists()
 
 # Do not touch the main Agenda, Confirmafy handling, clinical linkage or fiscal flows.
 assert 'id="agendaNativeGrid"' in html

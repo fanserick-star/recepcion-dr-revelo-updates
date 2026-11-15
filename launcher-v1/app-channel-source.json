@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.6: Inicio corregido para 1600x900, conexión directa de datos reales al diseño aprobado, paneles derechos funcionales y zoom accidental bloqueado en la interfaz. Sin cambios clínicos, Neon, SQLite, facturas o TV."
+  "notes": "Recepción 5.0.7: Nueva atención nativa 1600x900 como referencia, 2 columnas, buscador que selecciona directamente y no abre el expediente, historial real, facturación-resumen y estado Historia. Sin cambios en lógica clínica, Neon/SQLite, facturación, Agenda o TV."
 }

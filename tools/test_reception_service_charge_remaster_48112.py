@@ -87,15 +87,21 @@ assert "const bendoPanel=q('#v4525Bendo',host);" in payment
 assert "options.insertAdjacentElement('afterend',bendoPanel)" in payment
 assert "if(state.active){invalidate();render()}" in bendo
 
-# Revisión gratuita se sitúa ANTES de la lista de servicios cobrables.
+# v5.0.7: Revisión gratuita remains a separate explicit action in native
+# Nueva atención, with the same original saveExamReviewTurn guard.
 app=(APP/"static/app.js").read_text(encoding="utf-8")
-begin=app.index('openModal(`<div class="attention-form-modal">')
-end=app.index('`);',begin)
+begin=app.index('async function attentionFor(')
+end=app.index('async function refreshAttentionClinicalHistory(',begin)
 form=app[begin:end]
-assert form.index('exam-review-turn-action') < form.index('service-title enhanced')
-assert form.count('exam-review-turn-action')==1
+assert 'r507-services' in form
+assert 'serviceCardsHtml()' in form
+assert form.count('r507-review-action')==1
 assert form.count('onclick="saveExamReviewTurn(')==1
-assert 'Sin cobro ni factura' in form
+assert 'sin cobro' in form.lower()
+assert 'id="saveAttentionBtn"' in form
+assert 'id="procedureValuesBox"' in form
+assert "async function saveExamReviewTurn(id)" in app
+assert "if(selectedServices.size)" in app
 
 style=(APP/"reception_payment_terminal_panel.py").read_text(encoding="utf-8")
 assert "v4.8.112 · Servicios y cobros" in style
