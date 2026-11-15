@@ -90,6 +90,29 @@ with sync_playwright() as p:
     page.locator(".r507-services > summary").click()
     page.wait_for_function("document.querySelector('#r507AgendaList')?.textContent.includes('MARÍA FERNANDA')",timeout=10000)
     page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('Control registrado')",timeout=10000)
+    # Production regression: the official v4613 overlay can prepend its
+    # warning to the native form. It must not become an extra grid item.
+    page.evaluate(r"""() => {
+      const grid=document.querySelector('#atencion .r507-page-grid.attention-form-modal');
+      const warning=document.createElement('div');
+      warning.className='v4613-history-card warn';
+      warning.textContent='⚠ Sin vincular con Historia Clínica';
+      grid.prepend(warning);
+    }""")
+    # The same clinical link action must remain visible in the right rail.
+    page.evaluate(r"""() => {
+      attentionContext.clinicalLink=false;
+      window.r507ClinicalStatusChanged();
+      window.__r508LinkParams=null;
+      window.openRegistrationHistoryLink=(pid,name,afterLink)=>{
+        window.__r508LinkParams={pid,name,hasCallback:typeof afterLink==='function'};
+        return Promise.resolve();
+      };
+    }""")
+    page.wait_for_selector("#r507ClinicalPanel .r507-link-chart",timeout=3000)
+    page.locator("#r507ClinicalPanel .r507-link-chart").click()
+    link=page.evaluate("window.__r508LinkParams")
+    assert link["pid"]==1 and link["hasCallback"],link
     layout=page.evaluate(r"""() => {
       const rect=s=>{
         const e=document.querySelector(s),r=e?.getBoundingClientRect();
@@ -111,6 +134,9 @@ with sync_playwright() as p:
         hasReview:!!document.querySelector('#atencion .exam-review-turn-btn'),
         realPaymentOptions:document.querySelectorAll('#v4504Payment .v4504-pay-option').length,
         selectedPayment:document.querySelector('#v4504Payment .v4504-pay-state')?.textContent,
+        misplacedWarningDisplay:getComputedStyle(document.querySelector('#atencion .r507-page-grid > .v4613-history-card')).display,
+        gridAreas:getComputedStyle(document.querySelector('#atencion .r507-page-grid')).gridTemplateAreas,
+        clinicalAction:!!document.querySelector('#r507ClinicalPanel .r507-link-chart'),
         date:document.querySelector('#aFecha')?.value
       };
       return dom;
@@ -118,6 +144,9 @@ with sync_playwright() as p:
     print("RECEPTION_507_VISUAL",json.dumps(layout,ensure_ascii=False))
     assert layout["viewport"]==[1600,900]
     assert layout["modalHidden"] is True,"Patient selection opened detached dossier modal"
+    assert layout["misplacedWarningDisplay"]=="none","Legacy clinical warning must not take the first grid cell"
+    assert layout["clinicalAction"],"Manual verified Historia linkage action must remain accessible"
+    assert 'r507-main' in layout["gridAreas"] and 'r507-rail' in layout["gridAreas"]
     assert layout["details"] is not None and layout["hasSave"] and layout["hasReview"]
     assert layout["realPaymentOptions"]==4 and "Efectivo" in layout["selectedPayment"],layout
     assert layout["identity"]["x"]<layout["rail"]["x"],layout
