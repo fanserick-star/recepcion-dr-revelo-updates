@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.2: Inicio centrado en tabla completa de pacientes del día, sin scroll interno; cabecera y avisos más compactos; se quitan paneles redundantes pero se preservan alertas y facturación. Sin cambios en datos, Historias, Neon, SQLite ni TV."
+  "notes": "Recepción 5.0.3: corrección definitiva de prioridades CSS heredadas que limitaban la tabla del Inicio al 59% de pantalla; filas compactas, lectura limpia y scroll normal de la página. Sin cambios en datos, facturación, Neon, historia, agenda o TV."
 }
