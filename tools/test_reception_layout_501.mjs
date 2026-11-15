@@ -17,7 +17,7 @@ for(const p of ['static/reception_layout_501.css','static/reception_layout_501.j
 }
 assert.ok(html.indexOf('reception_layout_501.css')>html.indexOf('reception_modern_500.css'),'CSS must override previous visual layer');
 assert.ok(html.indexOf('reception_layout_501.js')>html.indexOf('reception_modern_500.js'),'JS must load after previous visual layer');
-assert.match(html,/src="\/static\/app\.js\?v=5\.0\.1"/);
+assert.ok(html.includes('src="/static/app.js?v='+version+'"'));
 assert.match(html,/id="agendaNativeGrid"/);
 assert.match(html,/id="todayTable"/);
 assert.match(css,/#inicio:not\(\.hidden\)/);
