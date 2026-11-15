@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.4",
-  "app_version": "5.0.4",
-  "runtime_version": "5.0.4",
+  "version": "5.0.5",
+  "app_version": "5.0.5",
+  "runtime_version": "5.0.5",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -231,8 +231,8 @@
     "static/reception_home_reference_504.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.4: reconstrucción exclusivamente del Inicio, siguiendo el mockup aprobado: título Bienvenido a Recepción 5.0, cuatro KPI reales, tabla de atenciones en columna principal y Agenda de hoy/Actividad reciente a la derecha. Datos reales de /api/home/week y /api/agenda/week local-first. Las horas aparecen solo cuando existe cita vinculada; estado registrado nunca se presenta como finalizado/en consulta sin evidencia. Acciones originales de impresión/borrado/pacientes preservadas en menú. Resto de pantallas, Neon, SQLite, Historia, WhatsApp, TV, facturación y cola sin cambios.",
-    "previous_version": "5.0.3",
+    "purpose": "Recepción 5.0.5: únicamente compactación de las cuatro tarjetas KPI de Inicio (de 118px a 90px, números/iconos y pastillas más discretos), y ocultar/eliminar el botón redundante Actividad del menú lateral izquierdo. Se conserva el panel derecho Actividad reciente y el registro completo en Configuración > Registro de actividad. Sin cambios en pacientes, atenciones, agenda, impresión, Historia, TV, Neon ni SQLite.",
+    "previous_version": "5.0.4",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -853,7 +853,10 @@
     "legacy_css_cascade_fixed": true,
     "home_day_table_scroll_natural": true,
     "home_reference_504": true,
-    "agenda_booking_logic_changes": false
+    "agenda_booking_logic_changes": false,
+    "kpi_compact_height_px": 90,
+    "sidebar_activity_shortcut_removed": true,
+    "recent_activity_card_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

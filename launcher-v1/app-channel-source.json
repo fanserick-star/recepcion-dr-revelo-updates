@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.4 — solo Inicio reconstruido conforme al mockup B aprobado: cuatro tarjetas, tabla compacta central, agenda y actividad a la derecha. Horas/estados no inventados, acciones de recepción originales preservadas. Sin cambiar otras pantallas, datos ni sincronizaciones."
+  "notes": "Recepción 5.0.5: tarjetas de Inicio 24% más bajas e iconos/números más pequeños; se quita exclusivamente el acceso Actividad del menú lateral izquierdo. Actividad reciente, historial de Configuración y resto de funciones intactos. No se cambian datos ni operaciones."
 }

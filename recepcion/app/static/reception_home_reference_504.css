@@ -40,16 +40,16 @@ body.v50-ui #inicio.v504-home .home-actions .v504-hero-secondary{
 body.v50-ui #inicio.v504-home .v504-home-dashboard{display:block;width:100%;min-width:0}
 
 /* Four KPI cards, same grouping and scale as reference, backed by existing local data. */
-body.v50-ui #inicio.v504-home .v504-top-metrics{margin:0 0 13px!important}
+body.v50-ui #inicio.v504-home .v504-top-metrics{margin:0 0 10px!important}
 body.v50-ui #inicio.v504-home #r486Metrics.r486-metrics{
- display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important;
+ display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;
  margin:0!important;padding:0!important;max-width:none!important;min-width:0!important;align-items:stretch!important
 }
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{
  display:flex!important;flex-direction:column!important;justify-content:center!important;gap:0!important;
- position:relative!important;min-width:0!important;min-height:118px!important;
- margin:0!important;padding:16px 14px 14px 75px!important;
- border:1px solid #dce5f0!important;border-radius:16px!important;
+ position:relative!important;min-width:0!important;min-height:90px!important;
+ margin:0!important;padding:10px 12px 10px 60px!important;
+ border:1px solid #dce5f0!important;border-radius:13px!important;
  background:#fff!important;box-shadow:0 3px 12px rgba(36,68,103,.055)!important;
  text-align:left!important;overflow:hidden!important
 }
@@ -60,25 +60,25 @@ body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(4){order:2!imp
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(5){order:4!important}
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(6){display:none!important}
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric-head{
- display:block!important;min-height:0!important;font-size:12px!important;font-weight:720!important;
- line-height:1.25!important;color:#344861!important;margin:0 0 5px!important
+ display:block!important;min-height:0!important;font-size:11px!important;font-weight:720!important;
+ line-height:1.25!important;color:#344861!important;margin:0 0 3px!important
 }
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric-icon{
- position:absolute!important;left:15px!important;top:24px!important;
+ position:absolute!important;left:12px!important;top:25px!important;
  display:grid!important;place-items:center!important;
- width:46px!important;height:46px!important;
+ width:34px!important;height:34px!important;
  padding:0!important;margin:0!important;
- font-size:24px!important;font-weight:760!important;
- border-radius:14px!important;background:#e9f3ff!important;color:#1b66d0!important
+ font-size:18px!important;font-weight:760!important;
+ border-radius:10px!important;background:#e9f3ff!important;color:#1b66d0!important
 }
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric strong{
- display:block!important;font-size:29px!important;line-height:1.05!important;font-weight:820!important;
+ display:block!important;font-size:24px!important;line-height:1.05!important;font-weight:820!important;
  margin:0!important;color:#142844!important;letter-spacing:-.03em!important
 }
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric small{
  display:block!important;align-self:start!important;min-width:0!important;
- border-radius:99px!important;margin:7px 0 0!important;padding:4px 9px!important;
- background:#f1f5fa!important;color:#5c7189!important;font-size:10.5px!important;font-weight:660!important;
+ border-radius:99px!important;margin:4px 0 0!important;padding:3px 7px!important;
+ background:#f1f5fa!important;color:#5c7189!important;font-size:9.5px!important;font-weight:660!important;
  line-height:1.1!important;white-space:normal!important;text-align:center!important
 }
 body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(2) small{background:#e8f8ee!important;color:#287749!important}
@@ -338,14 +338,14 @@ body.v50-ui #inicio.v504-home button:focus-visible,
 body.v50-ui #inicio.v504-home summary:focus-visible{outline:2px solid #2779d9!important;outline-offset:2px!important}
 @media(max-width:1330px){
  body.v50-ui #inicio.v504-home .v504-content-grid{grid-template-columns:minmax(0,1.64fr) minmax(270px,.93fr)!important}
- body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{padding-left:66px!important}
- body.v50-ui #inicio.v504-home #r486Metrics .r486-metric-icon{width:39px!important;height:39px!important;left:14px!important;font-size:21px!important}
+ body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{padding-left:58px!important}
+ body.v50-ui #inicio.v504-home #r486Metrics .r486-metric-icon{width:32px!important;height:32px!important;left:11px!important;top:26px!important;font-size:17px!important}
 }
 @media(max-width:1100px){
  body.v50-ui #inicio.v504-home .v504-content-grid{grid-template-columns:1fr!important}
  body.v50-ui #inicio.v504-home .v504-side-panel{grid-template-columns:repeat(2,minmax(0,1fr))!important}
  body.v50-ui #inicio.v504-home>.v504-hero{flex-wrap:wrap!important}
- body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{padding-left:64px!important}
+ body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{padding-left:58px!important}
 }
 @media(max-width:760px){
  body.v50-ui #inicio.v504-home #r486Metrics.r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
@@ -358,3 +358,6 @@ body.v50-ui #inicio.v504-home summary:focus-visible{outline:2px solid #2779d9!im
 @media(prefers-reduced-motion:reduce){
  body.v50-ui #inicio.v504-home *{transition:none!important;animation:none!important}
 }
+
+/* 5.0.5: remove only the left navigation shortcut; activity history stays in Settings and the right dashboard. */
+body.v50-ui #app>aside .side-nav>.nav-btn[data-section="actividad"]{display:none!important}
