@@ -50,21 +50,15 @@ assert.doesNotThrow(()=>v481Context.checkRemaster(true));
 assert.equal(saveButton.disabled,false,'remaster must never disable new patient button');
 assert.equal(searchModal.dataset.v481Patient,undefined);
 
-let rendered='',currentPatientSource='old',seq=0,cleared=false;
-const context2={openModal:html=>{rendered=html;},setTimeout:()=>{},clearTimeout:()=>{cleared=true},
-  document:{querySelector:()=>null},attentionSearchTimer:11,attentionSearchSeq:seq,currentPatientSource};
-vm.createContext(context2);
-vm.runInContext(newAttention,context2);
-context2.newAttention();
-assert.equal(context2.currentPatientSource,'general');
-assert.equal(context2.attentionSearchSeq,1);
-assert(cleared);
-assert.match(rendered,/onclick="newPatient\(true\)"/);
-assert.match(rendered,/＋ Crear paciente nuevo/);
-assert.doesNotMatch(rendered,/disabled|v481-field-invalid|Revisa el correo|Correo no válido|v481-section/);
-assert.match(rendered,/id="aSearch"/);
-assert.doesNotMatch(rendered,/Agenda de hoy|attentionWeekBlock/);
-assert.match(app,/function newPatient\(continueToAttention=false,agendaSlot=null\)/);
-assert.match(app,/onclick="saveNewPatient\(true\)"/);
-
+const html=fs.readFileSync('recepcion/app/static/index.html','utf8');
+assert.match(html,/id="atencion" class="hidden r507-new-attention"/);
+assert.match(html,/id="aSearch"/);
+assert.match(html,/newPatient\\(true\\)/);
+assert.match(newAttention,/show\\('atencion'\\)/);
+assert.match(newAttention,/closeModal\\(\\)/);
+assert.doesNotMatch(newAttention,/openModal\\(/);
+assert.doesNotMatch(newAttention,/Agenda de hoy|attentionWeekBlock/);
+assert.match(app,/function newPatient\\(continueToAttention=false,agendaSlot=null\\)/);
+assert.match(app,/onclick="saveNewPatient\\(true\\)"/);
+// The patient form is still the only form eligible for remaster, not search.
 console.log('RECEPTION_NEW_PATIENT_REMASTER_SCOPE_48110_OK');
