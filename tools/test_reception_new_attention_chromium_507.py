@@ -105,6 +105,7 @@ with sync_playwright() as p:
     assert layout["details"]["x"]<layout["rail"]["x"],layout
     assert layout["billing"]["h"]<250 and layout["history"]["h"]<300,layout
     assert layout["clinical"]["h"]<200 and layout["agenda"]["h"]<300,layout
+    assert layout["agenda"]["y"]+layout["agenda"]["h"]<=900, "Agenda should fit the 1600x900 viewport with the selected patient: "+str(layout)
     assert "MARÍA FERNANDA" in layout["patient"]
     assert "40.00" in layout["bill"]
     page.screenshot(path=str(OUT),full_page=True)
