@@ -1,0 +1,41 @@
+name: Reception Inicio Chromium Visual 1600x900
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "recepcion/app/static/**"
+      - "tools/test_reception_home_chromium_506.py"
+      - ".github/workflows/test-reception-home-chromium-506.yml"
+  push:
+    branches: [main]
+    paths:
+      - "recepcion/app/static/**"
+      - "tools/test_reception_home_chromium_506.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test-only Chromium tooling
+        run: |
+          python -m pip install --disable-pip-version-check playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: Render the real Inicio scripts at 1600x900 using synthetic patients
+        run: python tools/test_reception_home_chromium_506.py
+      - name: Preserve synthetic-data screenshot for layout inspection
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recepcion-inicio-1600x900-synthetic-preview
+          path: reports/reception-506-1600x900.png
+          if-no-files-found: ignore
