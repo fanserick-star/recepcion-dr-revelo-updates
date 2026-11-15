@@ -1645,6 +1645,7 @@ function newAttention(){
   attentionSearchSeq++;
   clearTimeout(attentionSearchTimer);
   show('atencion');
+  $('#atencion')?.classList.remove('has-patient');
   const search=$('#aSearch'),results=$('#aResults'),picked=$('#r507PickedPatient'),visit=$('#r507VisitSlot');
   if(search){search.value='';search.placeholder='Cédula, apellidos y nombres, celular o correo';}
   if(results){results.innerHTML='<div class="r507-search-intro">Busca por cédula, nombre o celular y selecciona un paciente. No se abrirá el expediente completo.</div>';results.classList.remove('hidden');}
@@ -1810,6 +1811,7 @@ async function attentionFor(id,draft=null){
   const picked=$('#r507PickedPatient'),finder=$('#aResults'),visit=$('#r507VisitSlot'),search=$('#aSearch');
   if(!picked||!visit)throw Error('No se encontró la nueva pantalla de atención.');
   show('atencion');
+  $('#atencion')?.classList.add('has-patient');
   const initials=String(p.nombre||'P').trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w.slice(0,1)).join('').toUpperCase();
   const phone=typeof formatPhoneValue==='function'?formatPhoneValue(p.celular||''):'';
   const details=[p.cedula?'C.I. '+esc(p.cedula):'Sin identificación',phone?esc(phone):'',p.fecha_nacimiento?'Nac. '+fmtDate(p.fecha_nacimiento):''].filter(Boolean);
