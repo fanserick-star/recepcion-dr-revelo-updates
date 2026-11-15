@@ -399,3 +399,67 @@ body.v50-ui #atencion.r507-new-attention .r507-agenda-row b{
 body.v50-ui #atencion.r507-new-attention .r507-agenda-row small{
  font-size:9.2px!important;margin:2px 0 0!important;
 }
+
+
+/* Existing fiscal module remains authoritative: rehouse real payment controls
+   (cash, transfer, card/Bendo, mixed) inside the right-column quick billing.
+   The read-only quick total is separate; payment is required by the original
+   save wrapper, and never auto-selected. */
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal{
+  width:100%!important;max-width:none!important;min-height:0!important;height:auto!important;
+  padding:0!important;margin:0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;background-image:none!important;box-shadow:none!important;
+}
+body.v50-ui #atencion.r507-new-attention:not(.has-patient) #v4504Payment,
+body.v50-ui #atencion.r507-new-attention:not(.has-patient) #v4504Summary{
+  display:none!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment.r507-payment-integrated{
+  display:block!important;width:100%!important;max-width:100%!important;
+  padding:6px 0 0!important;margin:7px 0 0!important;
+  border:0!important;border-top:1px solid #e8eef6!important;
+  background:transparent!important;box-shadow:none!important;
+  border-radius:0!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-head{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  margin:0 0 5px!important;gap:7px!important
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-head b{
+  font-size:10.7px!important;color:#2e4b69!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-head small{display:none!important}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-state{
+  padding:3px 7px!important;font-size:9px!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-options{
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-option{
+  display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;
+  width:100%!important;min-width:0!important;height:auto!important;min-height:43px!important;
+  padding:4px 3px!important;margin:0!important;text-align:center!important;
+  border:1px solid #d6e3f1!important;border-radius:8px!important;box-shadow:none!important;
+  background:#fff!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-option.selected{
+  background:#edf9f1!important;border-color:#81c59d!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-option>span{
+  grid-row:auto!important;font-size:13px!important;line-height:1.0!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-option>b{
+  font-size:8.9px!important;line-height:1.14!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-pay-option>small{
+  display:none!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment .v4504-details{
+  margin:6px 0 0!important;padding:7px!important;
+}
+body.v50-ui #atencion.r507-new-attention #v4504Summary.r507-payment-summary{
+  display:none!important;/* duplicate of r507BillingSummary; fiscal plugin still updates it */
+}
+body.v50-ui #atencion.r507-new-attention #v4504Payment.required .v4504-pay-head{
+  color:#865f1c!important;
+}
