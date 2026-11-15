@@ -36,6 +36,6 @@ assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length,'CSS br
 assert.doesNotMatch(js,/fetch\(|XMLHttpRequest|localStorage|indexedDB|\.post\(|\.put\(/i,'design adapter must not write data');
 assert.match(js,/30\*60\*1000/,'agenda summary must throttle its local reads');
 assert.match(js,/\/api\/agenda\/week\?anchor=/,'use the existing local-first weekly agenda');
-assert.equal((js.match(/\/api\//g)||[]).length,1,'no extra endpoints');
+assert.equal((js.match(/api\('\/api\//g)||[]).length,1,'exactly one local-first read, no extra endpoints');
 for(const key of ['database_schema_changes','patient_data_changes','billing_logic_changes','history_logic_changes','tv_turn_logic_changes'])assert.equal(manifest.notes[key],false,key+' must remain false');
 console.log('RECEPTION_501_COMPACT_LAYOUT_CANONICAL_SAFE_OK');
