@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 4.8.152: corregir botones antiguos de Agenda que siguen mostrando 14:00 Disponible tras actualizar. Script independiente embebido en el index.html instalado, probado sobre DOM sintético con b.native-free-time y span Disponible separados, y sobre redibujado posterior. No altera los argumentos de cita, llamadas, datos ni bases. No depende del app.js anterior ni del inyector core_runtime."
+  "notes": "Recepción 5.0.0: interfaz Moderno Profesional (Inicio, Nueva atención, Pacientes, Agenda). Mantiene sin cambios el motor clínico, Neon, cola SQLite, facturación, TV, agenda unificada y formatos de 12 horas. Validar por CI antes de activar el launcher."
 }

@@ -6,7 +6,8 @@ import vm from 'node:vm';
 const html=readFileSync(new URL('../recepcion/app/static/index.html',import.meta.url),'utf8');
 const m=/<script id="rp48152-agenda-clock-guard">([\s\S]*?)<\/script>/.exec(html);
 assert.ok(m,'Missing standalone agenda guard in actual static HTML');
-assert.ok(html.indexOf('id="rp48152-agenda-clock-guard"')>html.indexOf('src="/static/app.js?v=4.8.152"'),'Guard must run after main scripts');
+const version=JSON.parse(readFileSync(new URL('../recepcion/app/recepcion-version.json',import.meta.url),'utf8')).version;
+assert.ok(html.indexOf('id="rp48152-agenda-clock-guard"')>html.indexOf('src="/static/app.js?v='+version+'"'),'Guard must run after current main scripts');
 new vm.Script(m[1]);
 
 const labels=[
