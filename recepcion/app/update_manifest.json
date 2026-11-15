@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.1",
-  "app_version": "5.0.1",
-  "runtime_version": "5.0.1",
+  "version": "5.0.2",
+  "app_version": "5.0.2",
+  "runtime_version": "5.0.2",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -110,7 +110,8 @@
     "static/reception_modern_500.css",
     "static/reception_modern_500.js",
     "static/reception_layout_501.css",
-    "static/reception_layout_501.js"
+    "static/reception_layout_501.js",
+    "static/reception_home_focus_502.css"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -222,11 +223,12 @@
     "static/reception_modern_500.css",
     "static/reception_modern_500.js",
     "static/reception_layout_501.css",
-    "static/reception_layout_501.js"
+    "static/reception_layout_501.js",
+    "static/reception_home_focus_502.css"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.1: rediseño visual más compacto y fiel a las referencias aprobadas. Inicio más denso, expediente acoplado al listado, Nueva atención a tamaño de página, agenda de filas compactas. Sin cambios de base de datos, facturación, sincronización, rutas, colas LAN, TV, lógica de citas o guardado.",
-    "previous_version": "5.0.0",
+    "purpose": "Recepción 5.0.2: Inicio profesional centrado en todas las atenciones; tabla de pacientes sin altura limitada ni desplazamiento interno, pantalla principal con scroll natural. Elimina tarjetas de métricas duplicadas y panel de actividad/agenda repetido; conserva avisos de factura y alertas manuales en una franja compacta. Mantiene intactos datos, facturación, sincronización, TV y agenda.",
+    "previous_version": "5.0.1",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -839,7 +841,11 @@
     "night_close_report_visible_following_day": true,
     "modern_ui_500": true,
     "ui_only_change": true,
-    "layout_501": true
+    "layout_501": true,
+    "home_patient_table_no_internal_scroll": true,
+    "home_redundant_cards_hidden": true,
+    "home_alert_actions_preserved": true,
+    "home_duplicate_agenda_polling_disabled": true
   },
   "channel": "launcher-v1-stable"
 }
