@@ -534,3 +534,22 @@ body.v50-ui #atencion.r507-new-attention .r507-link-chart:hover{
   grid-column:1!important;grid-row:2!important;
  }
 }
+
+
+/* Clinical link is an inline secondary action beside patient kind, rather
+   than another full-width row: all four rail cards must fit 1600×900. */
+@media(min-width:1100px) and (min-height:750px){
+ body.v50-ui #atencion.r507-new-attention .r507-clinical-kind{
+   display:inline-flex!important;align-items:center!important;
+   margin:7px 0 0!important;vertical-align:middle!important;
+   font-size:9.6px!important;line-height:1.2!important;
+ }
+ body.v50-ui #atencion.r507-new-attention .r507-link-chart{
+   display:inline-flex!important;align-items:center!important;justify-content:center!important;
+   float:right!important;width:auto!important;max-width:58%!important;
+   min-height:25px!important;height:25px!important;
+   margin:5px 0 0!important;padding:3px 8px!important;
+   font-size:9.6px!important;white-space:nowrap!important;
+ }
+ body.v50-ui #atencion.r507-new-attention .r507-rail{gap:8px!important}
+}
