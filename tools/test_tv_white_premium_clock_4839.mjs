@@ -4,7 +4,7 @@ import vm from "node:vm";
 const path="recepcion/app/tv_display.html";
 const s=readFileSync(path,"utf8"), v=JSON.parse(readFileSync("recepcion/app/recepcion-version.json","utf8"));
 const version=v.version.split(".").map(Number);
-assert.ok(version.length===3 && version[0]===4 && (version[1]>8 || (version[1]===8 && version[2]>=41)), "White clock must persist in Reception 4.8.41 and newer");
+assert.ok(version.length===3 && version.every(Number.isInteger) && (version[0]>4 || (version[0]===4 && (version[1]>8 || (version[1]===8 && version[2]>=41)))), "White clock must persist in Reception 4.8.41 and newer");
 const script=s.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert.ok(script);
 new vm.Script(script,{filename:path});
