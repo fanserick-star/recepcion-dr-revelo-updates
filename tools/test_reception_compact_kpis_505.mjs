@@ -13,11 +13,11 @@ assert.equal(manifest.version,version);
 assert.ok(html.includes('reception_home_reference_504.css?v='+version));
 assert.ok(html.includes('reception_modern_500.js?v='+version));
 const metricBlock=css.slice(css.indexOf('body.v50-ui #inicio.v504-home #r486Metrics .r486-metric{'),css.indexOf('body.v50-ui #inicio.v504-home #r486Metrics .r486-metric:nth-child(1)'));
-assert.match(metricBlock,/min-height:90px!important/,'compact metric height');
-assert.doesNotMatch(metricBlock,/min-height:118px!important/,'no old large height');
-assert.match(metricBlock,/padding:10px 12px 10px 60px!important/,'reduced internal padding');
-assert.match(css,/width:34px!important;height:34px!important/,'smaller icon');
-assert.match(css,/font-size:24px!important;line-height:1\.05!important/,'smaller numerical value');
+assert.match(metricBlock,/min-height:105px!important/,'compact metric height');
+assert.doesNotMatch(metricBlock,/min-height:118px!important/,'not as tall as the rejected 5.0.4 UI');
+assert.match(metricBlock,/padding:12px 13px 12px 68px!important/,'reduced internal padding');
+assert.match(css,/width:40px!important;height:40px!important/,'smaller icon');
+assert.match(css,/font-size:27px!important;line-height:1\.05!important/,'smaller numerical value');
 assert.match(css,/font-size:9\.5px!important;font-weight:660!important/,'compact caption');
 assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)!important/,'keep four-column KPI order');
 for(const caption of ['Atenciones del día','Agenda de hoy','Actividad reciente']){
