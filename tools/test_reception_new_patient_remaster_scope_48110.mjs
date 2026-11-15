@@ -53,12 +53,12 @@ assert.equal(searchModal.dataset.v481Patient,undefined);
 const html=fs.readFileSync('recepcion/app/static/index.html','utf8');
 assert.match(html,/id="atencion" class="hidden r507-new-attention"/);
 assert.match(html,/id="aSearch"/);
-assert.match(html,/newPatient\\(true\\)/);
-assert.match(newAttention,/show\\('atencion'\\)/);
-assert.match(newAttention,/closeModal\\(\\)/);
-assert.doesNotMatch(newAttention,/openModal\\(/);
+assert.match(html,/newPatient\(true\)/);
+assert.match(newAttention,/show\('atencion'\)/);
+assert.match(newAttention,/closeModal\(\)/);
+assert.doesNotMatch(newAttention,/openModal\(/);
 assert.doesNotMatch(newAttention,/Agenda de hoy|attentionWeekBlock/);
-assert.match(app,/function newPatient\\(continueToAttention=false,agendaSlot=null\\)/);
-assert.match(app,/onclick="saveNewPatient\\(true\\)"/);
+assert.match(app,/function newPatient\(continueToAttention=false,agendaSlot=null\)/);
+assert.match(app,/onclick="saveNewPatient\(true\)"/);
 // The patient form is still the only form eligible for remaster, not search.
 console.log('RECEPTION_NEW_PATIENT_REMASTER_SCOPE_48110_OK');
