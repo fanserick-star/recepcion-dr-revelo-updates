@@ -146,6 +146,19 @@
    chip.textContent='Ctrl + K';
    chip.title='Presiona Ctrl + K para buscar';
  }
+ function guardNavigation(){
+   for(const button of document.querySelectorAll('#app>aside .side-nav .nav-btn')){
+     button.addEventListener('click',event=>{
+       const modal=by('modal');
+       if(!modal||modal.classList.contains('hidden')||!modal.classList.contains('v501-workspace-open'))return;
+       if(!window.confirm('¿Salir de Nueva atención sin guardar los cambios?')){
+         event.preventDefault();event.stopImmediatePropagation();
+         return;
+       }
+       if(typeof window.closeModal==='function')window.closeModal();
+     },true);
+   }
+ }
  function observe(){
    const modal=by('modal');
    if(modal)new MutationObserver(update).observe(modal,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});
@@ -158,7 +171,7 @@
  }
  function boot(){
    addAttentionStage();moveAlerts();fixSearchHint();
-   observe();enhancePatientRows();enhanceHomeTable();update();watchHomeAgenda();
+   observe();enhancePatientRows();enhanceHomeTable();update();watchHomeAgenda();guardNavigation();
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
