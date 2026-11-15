@@ -123,3 +123,26 @@ body.v50-ui #modal.v50-dossier-open .v4100-dossier .v4413-profile-name h2{font-s
 body.v50-ui button:focus-visible,body.v50-ui input:focus-visible,body.v50-ui select:focus-visible{outline:2px solid #2b7ce6!important;outline-offset:2px!important}
 @media(max-width:1150px){body.v50-ui #inicio{grid-template-columns:minmax(0,1fr)!important}body.v50-ui .v50-home-rail{grid-column:1!important;grid-template-columns:repeat(2,minmax(0,1fr))}body.v50-ui #inicio .r494-attentions-primary{grid-column:1!important}body.v50-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}body.v50-ui .v50-top-status{gap:4px}body.v50-ui .v50-status-chip{font-size:10px;padding:6px}}
 @media(max-width:800px){body.v50-ui #app{grid-template-columns:1fr!important}body.v50-ui #app>aside{position:relative!important;height:auto!important;padding:8px!important;overflow:visible!important}body.v50-ui #app>aside .side-nav{display:flex!important;flex-direction:row!important;flex-wrap:wrap!important}body.v50-ui #app>aside .r497-status-hub{display:none!important}body.v50-ui #app>main{padding:0 12px 24px!important}body.v50-ui .v50-top-status{display:none!important}body.v50-ui #pacientes{grid-template-columns:1fr!important}body.v50-ui #pacientes>.v50-patient-guide{grid-column:1!important;min-height:130px}body.v50-ui #modal.v50-attention-open,body.v50-ui #modal.v50-dossier-open{padding:10px!important}body.v50-ui #modal.v50-dossier-open .v4100-dossier>.v4413-profile-head{grid-template-columns:1fr!important}body.v50-ui #modal.v50-dossier-open .v4100-dossier>.v4413-profile-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+
+/* Agenda: side information uses the appointment rows already loaded by the original renderer. */
+@media(min-width:1350px){
+  body.v50-ui #agenda:not(.hidden){display:grid!important;grid-template-columns:minmax(0,1fr) 242px;gap:12px!important;align-items:start}
+  body.v50-ui #agenda:not(.hidden)>.agenda-native-title-row,
+  body.v50-ui #agenda:not(.hidden)>.agenda-native-weekbar,
+  body.v50-ui #agenda:not(.hidden)>.agenda-focus-toolbar,
+  body.v50-ui #agenda:not(.hidden)>#agendaWhatsappReviewPanel:not(.hidden),
+  body.v50-ui #agenda:not(.hidden)>.agenda-native-footnote{grid-column:1/-1}
+  body.v50-ui #agenda:not(.hidden)>#agendaNativeGrid{grid-column:1;min-width:0;margin:0!important}
+  body.v50-ui #agenda:not(.hidden)>.v50-agenda-rail{grid-column:2;min-width:0}
+}
+body.v50-ui .v50-agenda-rail{display:grid;gap:12px;align-content:start}
+body.v50-ui .v50-agenda-stat-list{display:grid;gap:9px;margin:12px 0 2px}
+body.v50-ui .v50-agenda-stat-row{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#506982;font-size:11px}
+body.v50-ui .v50-agenda-stat-row strong{min-width:27px;text-align:center;padding:4px 7px;border-radius:999px;background:#eaf2fb;color:#1f609e;font-size:12px}
+body.v50-ui .v50-agenda-stat-row[data-tone="green"] strong{background:#e7f6ea;color:#277044}
+body.v50-ui .v50-agenda-stat-row[data-tone="amber"] strong{background:#fff1d8;color:#9a6317}
+body.v50-ui .v50-agenda-stat-row[data-tone="red"] strong{background:#ffedef;color:#b64350}
+body.v50-ui .v50-agenda-tools{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:12px}
+body.v50-ui .v50-agenda-tools button{font-size:11px!important;padding:10px 7px!important;border-radius:9px!important;background:#eef5ff!important;color:#1b61a9!important}
+@media(max-width:1349px){body.v50-ui .v50-agenda-rail{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:12px}}
+@media(max-width:700px){body.v50-ui .v50-agenda-rail{grid-template-columns:1fr}}
