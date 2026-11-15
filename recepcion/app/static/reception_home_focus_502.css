@@ -212,3 +212,142 @@ body.v50-ui #inicio #todayTable .row-number{font-size:11.5px!important}
   body.v50-ui #inicio #todayTable table.home-patient-table{min-width:730px!important}
   body.v50-ui #inicio>.home-title-row{flex-wrap:wrap!important}
 }
+
+
+/* 5.0.3: resolve actual cascade from the older 4.8.94 home renderer.
+   Identical runtime and real patient rows, with genuinely compact presentation. */
+body.v50-ui.r486-ui #inicio .r494-attentions-primary #todayTable{
+  height:auto!important;
+  max-height:none!important;
+  overflow-x:visible!important;
+  overflow-y:visible!important;
+  overscroll-behavior:auto!important;
+  scrollbar-width:auto!important;
+  border:1px solid #e4ebf3!important;
+  border-radius:9px!important;
+  box-shadow:none!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  table-layout:fixed!important;
+  border-collapse:collapse!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(1){width:4.5%!important}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(2){width:38%!important}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(3){width:19%!important}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(4){width:12%!important}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table th:nth-child(5){width:26.5%!important}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table thead th{
+  position:static!important;
+  font-size:10px!important;
+  padding:8px 10px!important;
+  background:#f1f5fb!important;
+  color:#556c87!important;
+  border-bottom:1px solid #dce6ef!important;
+  box-shadow:none!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table tbody td{
+  height:auto!important;min-height:0!important;
+  padding:6px 10px!important;
+  font-size:11px!important;
+  line-height:1.18!important;
+  color:#344b65!important;
+  border-bottom:1px solid #edf1f6!important;
+  vertical-align:middle!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-line{
+  min-height:0!important;margin:0!important;gap:5px!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .patient-name-button{
+  font-size:12px!important;
+  line-height:1.22!important;
+  font-weight:740!important;
+  color:#263d5c!important;
+  letter-spacing:0!important;
+  overflow-wrap:anywhere!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .patient-home-meta{
+  font-size:9.4px!important;
+  line-height:1.12!important;
+  margin:2px 0 0!important;
+  color:#7c8da0!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .row-number{
+  font-size:11px!important;
+  font-weight:750!important;
+  color:#47719b!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .service-badge{
+  padding:4px 7px!important;
+  font-size:9.2px!important;
+  font-weight:720!important;
+  line-height:1.15!important;
+  white-space:normal!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .money-pill{
+  font-size:10.5px!important;
+  font-weight:780!important;
+  padding:4px 7px!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions{
+  display:inline-flex!important;
+  align-items:center!important;
+  flex-wrap:nowrap!important;
+  gap:5px!important;
+  margin:0!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-receipt-actions button,
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-delete-visit{
+  min-height:25px!important;
+  height:25px!important;
+  padding:4px 8px!important;
+  font-size:9.7px!important;
+  border-radius:7px!important;
+}
+body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .sub-visit-row td{
+  padding-top:5px!important;
+  padding-bottom:5px!important;
+  background:#fbfcff!important;
+}
+body.v50-ui #inicio .r494-attentions-primary{
+  border:1px solid #e2eaf3!important;
+  border-radius:11px!important;
+  padding:9px!important;
+  box-shadow:0 2px 9px rgba(34,64,105,.035)!important;
+}
+body.v50-ui #inicio .selected-day-title{
+  min-height:39px!important;
+  padding:6px 10px!important;
+  border-left:3px solid #4687d0!important;
+  background:#f0f6fd!important;
+}
+body.v50-ui #inicio .page-heading h1{
+  font-size:21px!important;
+  font-weight:760!important;
+  color:#213b59!important;
+}
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card,
+body.v50-ui #inicio #v501AlertsLine #homeSmartAlertsButton{
+  height:29px!important;
+  min-height:29px!important;
+  max-height:29px!important;
+}
+body.v50-ui #inicio #homeWeekNav{
+  min-height:28px!important;
+}
+body.v50-ui #inicio #homeWeekNav button,
+body.v50-ui #inicio #homeWeekNav .tiny-week-label{
+  height:27px!important;
+  min-height:27px!important;
+}
+@media(max-width:1050px){
+  body.v50-ui.r486-ui #inicio .r494-attentions-primary #todayTable{
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+  }
+  body.v50-ui.r486-ui #inicio .r489-attentions-focus #todayTable .home-patient-table{
+    min-width:820px!important;
+  }
+}
