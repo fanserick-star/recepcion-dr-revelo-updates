@@ -61,8 +61,11 @@ function clinical(){
   }else if(linked===false){
     tone='warning';heading='Vinculación pendiente';text='Se requiere confirmar la ficha médica antes de entregar al doctor.';
   }
+  const linkAction=linked===false
+    ?'<button type="button" class="r507-link-chart" onclick="r507LinkClinical()">Vincular con Historia Clínica</button>'
+    :'';
   setHTML('r507ClinicalPanel','<div class="r507-clinical-state '+tone+'"><span class="r507-clinical-mark">'+(linked===true?'✓':linked===false?'!':'…')+'</span><div><b>'+escapeText(heading)+'</b><small>'+escapeText(text)+'</small></div></div>'+
-    '<div class="r507-clinical-kind">Paciente: <strong>'+(kind==='S'?'Subsecuente':'Nuevo / por confirmar')+'</strong></div>');
+    '<div class="r507-clinical-kind">Paciente: <strong>'+(kind==='S'?'Subsecuente':'Nuevo / por confirmar')+'</strong></div>'+linkAction);
 }
 async function history(patientId){
   const seq=++historyRequest;
@@ -110,6 +113,21 @@ async function agenda(date){
     if(seq===agendaRequest)setHTML('r507AgendaList','<div class="r507-empty-rail">Agenda temporalmente no disponible. Puedes abrir Agenda desde el menú.</div>');
   }
 }
+// Reuses the official v4613 manual linking/creation dialog. Never creates
+// a medical chart automatically on a visual click and never fakes verification.
+window.r507LinkClinical=()=>{
+  const pid=current();if(!pid)return;
+  const name=String(selected()?.patient?.nombre||'');
+  if(typeof window.openRegistrationHistoryLink!=='function'){
+    alert('No está disponible el módulo de vinculación. Cierra y abre Recepción para actualizarlo.');
+    return;
+  }
+  return window.openRegistrationHistoryLink(pid,name,()=>{
+    if(current()===pid&&typeof refreshAttentionClinicalHistory==='function'){
+      void refreshAttentionClinicalHistory(pid);
+    }
+  });
+};
 window.r507AttentionReset=clearPanels;
 window.r507AttentionPriceChanged=billing;
 window.r507ClinicalStatusChanged=clinical;
