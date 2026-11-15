@@ -56,12 +56,12 @@
       const head=card.querySelector('.r486-metric-head');
       if(head){
         const icon=head.querySelector('.r486-metric-icon');
-        if(icon)icon.textContent=values[2];
+        if(icon&&icon.textContent!==values[2])icon.textContent=values[2];
         const label=head.querySelector('span:not(.r486-metric-icon)');
-        if(label)label.textContent=values[0];
+        if(label&&label.textContent!==values[0])label.textContent=values[0];
       }
       const caption=card.querySelector('small');
-      if(caption)caption.textContent=values[1];
+      if(caption&&caption.textContent!==values[1])caption.textContent=values[1];
     }
     // "En espera" remains unavailable when Historia is not verified:
     // the original metric already shows a dash in that case.
@@ -243,17 +243,23 @@
       void ensureAgenda(date);
     }
   }
-  // Original render always executes first and owns the business flow.
-  const originalRender=window.renderHomeDayPayload;
-  if(typeof originalRender==='function'){
-    window.renderHomeDayPayload=function(date,payload){
-      const result=originalRender.apply(this,arguments);
-      try{paint(date,payload)}catch(error){
-        console.error('Inicio 5.0.4: se conserva la tabla original ante un error de presentación',error);
-      }
-      return result;
-    };
-  }
+  // 5.0.6: the ORIGINAL app.js calls this bridge after every real weekly/day
+  // render. No shadowing or monkey-patching of the original page function.
+  window.__r504PaintHome=(date,payload)=>{
+    try{paint(date,payload)}catch(error){
+      console.error('Inicio: se conserva la tabla de respaldo al fallar el diseño moderno',error);
+    }
+  };
+  window.__r504HomeEnter=()=>{
+    const chosen=lastDay?.date||(typeof selectedHomeDate==='string'?selectedHomeDate:localDate());
+    if(!chosen)return;
+    if(!lastDay&&typeof weeklyData!=='undefined'&&weeklyData[chosen]){
+      paint(chosen,weeklyData[chosen]);
+      return;
+    }
+    renderAgenda(chosen);
+    void ensureAgenda(chosen);
+  };
   const metrics=by('r486Metrics');
   if(metrics){
     let queued=false;
@@ -276,6 +282,22 @@
     });
   }
   if(!home.classList.contains('hidden')&&typeof selectedHomeDate==='string'&&typeof weeklyData!=='undefined'&&weeklyData[selectedHomeDate]){
-    paint(selectedHomeDate,weeklyData[selectedHomeDate]);
+    window.__r504PaintHome(selectedHomeDate,weeklyData[selectedHomeDate]);
   }else setMetricsText();
+  // 1600x900 operational viewport: disable accidental Ctrl+wheel/keyboard
+  // zoom in Edge fallback. The native WebView2 launcher separately locks
+  // its effective zoom to 100%; Windows DPI scaling remains untouched.
+  const preventZoom=event=>{
+    if(event.ctrlKey){
+      event.preventDefault();
+    }
+  };
+  document.addEventListener('wheel',preventZoom,{capture:true,passive:false});
+  document.addEventListener('keydown',event=>{
+    if(!event.ctrlKey||event.altKey||event.metaKey)return;
+    if(['+','=','-','Add','Subtract','NumpadAdd','NumpadSubtract'].includes(event.key)){
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  },true);
 })();

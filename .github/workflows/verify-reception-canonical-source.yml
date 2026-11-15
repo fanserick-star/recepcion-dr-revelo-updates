@@ -137,6 +137,7 @@ jobs:
           node tools/test_reception_home_reference_504.mjs
           node tools/test_reception_home_runtime_504.mjs
           node tools/test_reception_compact_kpis_505.mjs
+          node tools/test_reception_home_true_render_506.mjs
           node --check recepcion/app/static/billing_advanced.js
           node tools/test_reception_billing_issued_nonblocking_4843.mjs
           node tools/test_reception_billing_compact_4844.mjs

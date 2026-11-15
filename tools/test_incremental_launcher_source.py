@@ -8,7 +8,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = [
-    ("Recepción", ROOT / "launcher-v1/RecepcionLauncher/Program.cs", "1.0.13"),
+    ("Recepción", ROOT / "launcher-v1/RecepcionLauncher/Program.cs", "1.0.14"),
     ("Historia", ROOT / "historia-clinica/launcher-v1/HistoriaLauncher/Program.cs", "1.0.9"),
 ]
 
@@ -59,7 +59,7 @@ for product, path, expected in SOURCES:
 
 reception_workflow = (ROOT / ".github/workflows/build-reception-launcher-v1.yml").read_text(encoding="utf-8")
 historia_workflow = (ROOT / ".github/workflows/build-historia-launcher-v1.yml").read_text(encoding="utf-8")
-for text, name, version in [(reception_workflow, "Recepción", "1.0.13"), (historia_workflow, "Historia", "1.0.9")]:
+for text, name, version in [(reception_workflow, "Recepción", "1.0.14"), (historia_workflow, "Historia", "1.0.9")]:
     assert "if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'" in text
     assert "if: github.event_name == 'pull_request'" in text
     assert "dotnet build" in text

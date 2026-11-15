@@ -65,7 +65,7 @@ internal static class Program
 
 internal sealed class LauncherForm : Form
 {
-    const string LauncherVersion = "1.0.13";
+    const string LauncherVersion = "1.0.14";
     const string ChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/app-channel.json";
     const string LauncherChannelUrl = "https://raw.githubusercontent.com/fanserick-star/recepcion-dr-revelo-updates/main/launcher-v1/launcher-channel.json";
     const int Port = 8000;
@@ -1354,7 +1354,16 @@ internal sealed class ReceptionForm : Form
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
-            web.CoreWebView2.Settings.IsZoomControlEnabled = true;
+            // Stable, readable 1600x900 interface: prevent Ctrl+wheel/Ctrl+plus
+            // from changing the embedded document's browser zoom.
+            // Windows DPI scaling and accessibility font settings remain intact.
+            web.CoreWebView2.Settings.IsZoomControlEnabled = false;
+            web.ZoomFactor = 1.0;
+            web.ZoomFactorChanged += (_, _) =>
+            {
+                if (Math.Abs(web.ZoomFactor - 1.0) > 0.001)
+                    web.ZoomFactor = 1.0;
+            };
             web.CoreWebView2.NewWindowRequested += (_, e) =>
             {
                 try

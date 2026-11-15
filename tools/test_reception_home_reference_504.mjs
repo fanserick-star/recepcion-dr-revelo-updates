@@ -1,4 +1,4 @@
-// Recepción v5.0.5: only Inicio may change; screenshot layout/data-integrity contract.
+// Recepción v5.0.6: only Inicio may change; screenshot layout/data-integrity contract.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -11,7 +11,7 @@ const old500=read('recepcion/app/static/reception_modern_500.js');
 const old501=read('recepcion/app/static/reception_layout_501.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.5');
+assert.equal(version,'5.0.6');
 assert.equal(manifest.version,version);
 assert.equal(manifest.runtime_version,version);
 for(const path of ['static/reception_home_reference_504.css','static/reception_home_reference_504.js']){
@@ -37,12 +37,13 @@ assert.match(home,/onclick="newPatient\(\)"/);
 assert.match(home,/onclick="show\('agenda'\)"/);
 // Real source remains the only controller of deletes, prints, agenda and patients.
 for(const fn of ['homeReceiptButtons','homeDeleteButton','groupHomeVisits','renderHomeDayPayload']){
- assert.ok(js.includes(fn),fn+' must bind to existing app.js');
+ if(fn!=='renderHomeDayPayload')assert.ok(js.includes(fn),fn+' must bind to existing app.js');
  assert.ok(oldJs.includes('function '+fn+'('),fn+' missing from original controller');
 }
-assert.match(js,/window\.renderHomeDayPayload=function\(date,payload\)/);
+assert.match(js,/window\.__r504PaintHome=\(date,payload\)=>/);
+assert.match(oldJs,/window\.__r504PaintHome\?\.\(iso,d\)/);
 assert.match(js,/home\.classList\.add\('v504-home'\)/);
-assert.match(js,/originalRender\.apply\(this,arguments\)/);
+assert.match(oldJs,/window\.__r504HomeEnter\?\.\(\)/);
 assert.match(js,/homeReceiptButtons\(g,dateIso,dayTurn\)/);
 assert.match(js,/homeDeleteButton\(v\)/);
 assert.match(js,/openPatient\(/);

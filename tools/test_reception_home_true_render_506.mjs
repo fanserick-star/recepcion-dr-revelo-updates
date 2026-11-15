@@ -1,0 +1,60 @@
+// Reception 5.0.6: 1600x900 native home and safe zoom/agenda UI contract.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const html=read('recepcion/app/static/index.html');
+const home=read('recepcion/app/static/reception_home_reference_504.js');
+const app=read('recepcion/app/static/app.js');
+const css=read('recepcion/app/static/reception_home_reference_504.css');
+const launcher=read('launcher-v1/RecepcionLauncher/Program.cs');
+const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
+const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
+assert.equal(version,'5.0.6');
+assert.equal(manifest.version,version);
+assert.equal(manifest.notes.home_real_data_render_bridge,true);
+assert.equal(manifest.notes.home_1600x900_reference,true);
+assert.equal(manifest.notes.prevent_accidental_browser_zoom,true);
+assert.ok(html.includes('reception_home_reference_504.js?v='+version));
+assert.ok(html.includes('reception_home_reference_504.css?v='+version));
+// The original app calls the new renderer after its own safe fallback table.
+const start=app.indexOf('function renderHomeDayPayload(iso,d){');
+const end=app.indexOf('function renderHomeDayFromCache(iso){',start);
+assert.ok(start>=0&&end>start);
+const nativeRender=app.slice(start,end);
+assert.match(nativeRender,/#todayTable'\)\.innerHTML=table\(d\.visits\|\|\[\],\{home:true\}\)/);
+assert.match(nativeRender,/window\.__r504PaintHome\?\.\(iso,d\)/);
+assert.ok(nativeRender.indexOf('window.__r504PaintHome')>nativeRender.indexOf("const tableBox="));
+assert.match(home,/window\.__r504PaintHome=\(date,payload\)=>/);
+assert.match(home,/try\{paint\(date,payload\)\}/);
+assert.match(app,/window\.__r504HomeEnter\?\.\(\)/);
+assert.match(home,/window\.__r504HomeEnter=\(\)=>/);
+assert.doesNotMatch(home,/window\.renderHomeDayPayload=function/,'never shadow original renderer');
+assert.match(home,/const CACHE_MS=120000/);
+assert.match(home,/const week=await request/);
+assert.match(home,/Sin una hora de cita vinculada/);
+assert.match(home,/renderActivity\(date,payload\)/);
+assert.match(home,/const labels=\{/,'home KPI names must be present');
+// No runaway observer mutation feedback: update text only on actual difference.
+assert.match(home,/if\(caption&&caption\.textContent!==values\[1\]\)/);
+// Exact target monitor scale, with narrow desktop fallback:
+assert.match(css,/1600×900/);
+assert.match(css,/@media \(min-width:1200px\) and \(min-height:720px\)/);
+assert.match(css,/grid-template-columns:minmax\(0,1\.85fr\) minmax\(320px,\.98fr\)/);
+assert.match(css,/grid-template-rows:max-content max-content!important/);
+assert.match(css,/height:max-content!important;min-height:0!important/);
+assert.match(css,/#v504AgendaList\.v504-rail-list/);
+assert.match(css,/#v504ActivityList\.v504-rail-list/);
+assert.match(css,/\.v504-actions/);
+assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length);
+assert.match(home,/document\.addEventListener\('wheel',preventZoom,\{capture:true,passive:false\}\)/);
+assert.match(home,/document\.addEventListener\('keydown',event=>/);
+assert.match(launcher,/web\.CoreWebView2\.Settings\.IsZoomControlEnabled = false;/);
+assert.match(launcher,/web\.ZoomFactor = 1\.0;/);
+assert.match(launcher,/web\.ZoomFactorChanged/);
+assert.match(launcher,/const string LauncherVersion = "1\.0\.14"/);
+assert.equal((home.match(/api\('\/api\//g)||[]).length,1);
+new vm.Script(home);
+for(const k of ['patient_data_changes','database_schema_changes','billing_logic_changes','history_logic_changes','tv_turn_logic_changes'])
+ assert.equal(manifest.notes[k],false,k);
+console.log('RECEPTION_506_REAL_HOME_1600X900_ZOOM_LOCK_SAFE_OK');

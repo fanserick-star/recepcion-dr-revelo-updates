@@ -146,7 +146,7 @@ jobs:
         run: |
           $out = "launcher-v1/package"
           New-Item -ItemType Directory -Force $out | Out-Null
-          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe" $out -Force
+          Copy-Item "launcher-v1/installer/output/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/RecepcionLauncher.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/Desinstalar_Recepcion_Dr_Revelo.exe" $out -Force
           Copy-Item "launcher-v1/installer/build/LauncherUpdater.exe" $out -Force
@@ -157,7 +157,7 @@ jobs:
             $hashLines += "$h  $($_.Name)"
           }
           $hashLines | Set-Content "$out/SHA256SUMS.txt" -Encoding ascii
-          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_13_COMPLETO.zip" -Force
+          Compress-Archive -Path "$out/*" -DestinationPath "LAUNCHER_RECEPCION_DR_REVELO_V1_0_14_COMPLETO.zip" -Force
           Write-Host "=== PACKAGE CONTENTS ==="
           Get-ChildItem $out | Format-Table Name,Length
           Get-Content "$out/SHA256SUMS.txt"
@@ -167,16 +167,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "launcher-v1.0.13"
-          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe"
-          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_13_COMPLETO.zip"
+          $tag = "launcher-v1.0.14"
+          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe"
+          $zip = "LAUNCHER_RECEPCION_DR_REVELO_V1_0_14_COMPLETO.zip"
           $launcher = "launcher-v1/package/RecepcionLauncher.exe"
           $uninstaller = "launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe"
           $updater = "launcher-v1/package/LauncherUpdater.exe"
           $sums = "launcher-v1/package/SHA256SUMS.txt"
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Launcher Recepción v1.0.13" --notes "Launcher nativo v1.0.13: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
+            gh release create $tag --title "Launcher Recepción v1.0.14" --notes "Launcher nativo v1.0.14: ventana WebView2 propia con icono del consultorio, instancia única y autoactualización segura."
           }
           gh release upload $tag $installer $zip $launcher $uninstaller $updater $sums --clobber
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -184,19 +184,19 @@ jobs:
       - name: Publish Reception launcher channel with verified release hashes
         shell: pwsh
         run: |
-          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe"
+          $installer = "launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe"
           $updater = "launcher-v1/package/LauncherUpdater.exe"
           $installerHash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
           $updaterHash = (Get-FileHash $updater -Algorithm SHA256).Hash.ToLowerInvariant()
           $channel = [ordered]@{
             schema = 2
             product = "recepcion-launcher-dr-revelo"
-            latestVersion = "1.0.13"
+            latestVersion = "1.0.14"
             mandatory = $true
-            notes = "Launcher Recepción 1.0.13: solo descarga archivos nuevos o con SHA-256 diferente; preprueba completa, respaldo selectivo y rollback verificado."
-            installerUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.13/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe"
+            notes = "Launcher Recepción 1.0.14: solo descarga archivos nuevos o con SHA-256 diferente; preprueba completa, respaldo selectivo y rollback verificado."
+            installerUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.14/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe"
             installerSha256 = $installerHash
-            updaterUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.13/LauncherUpdater.exe"
+            updaterUrl = "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.14/LauncherUpdater.exe"
             updaterSha256 = $updaterHash
           }
           $channel | ConvertTo-Json -Depth 4 | Set-Content "launcher-v1/launcher-channel.json" -Encoding utf8
@@ -205,7 +205,7 @@ jobs:
           git add launcher-v1/launcher-channel.json
           git diff --cached --quiet
           if ($LASTEXITCODE -ne 0) {
-            git commit -m "Publicar canal Launcher Recepción 1.0.13"
+            git commit -m "Publicar canal Launcher Recepción 1.0.14"
             if ($LASTEXITCODE -ne 0) { throw "No se pudo guardar el canal" }
             $published = $false
             foreach ($attempt in 1..4) {
@@ -225,8 +225,8 @@ jobs:
         with:
           name: launcher-recepcion-v1-completo
           path: |
-            LAUNCHER_RECEPCION_DR_REVELO_V1_0_13_COMPLETO.zip
-            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe
+            LAUNCHER_RECEPCION_DR_REVELO_V1_0_14_COMPLETO.zip
+            launcher-v1/package/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe
             launcher-v1/package/RecepcionLauncher.exe
             launcher-v1/package/Desinstalar_Recepcion_Dr_Revelo.exe
             launcher-v1/package/LauncherUpdater.exe

@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.5",
-  "app_version": "5.0.5",
-  "runtime_version": "5.0.5",
+  "version": "5.0.6",
+  "app_version": "5.0.6",
+  "runtime_version": "5.0.6",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -231,8 +231,8 @@
     "static/reception_home_reference_504.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.5: únicamente compactación de las cuatro tarjetas KPI de Inicio (de 118px a 90px, números/iconos y pastillas más discretos), y ocultar/eliminar el botón redundante Actividad del menú lateral izquierdo. Se conserva el panel derecho Actividad reciente y el registro completo en Configuración > Registro de actividad. Sin cambios en pacientes, atenciones, agenda, impresión, Historia, TV, Neon ni SQLite.",
-    "previous_version": "5.0.4",
+    "purpose": "Recepción 5.0.6: restauración fiel de Inicio a la maqueta aprobada para monitor 1600x900, con enlace nativo del render de atenciones reales al tablero, Agenda y Actividad reciente cargadas realmente, 4 KPI y menú compacto, sin inventar horas ni estados. Prevención de zoom accidental mediante atajos en la vista y control nativo actualizado por separado en el launcher. No cambia datos, Neon, SQLite, TV, facturación ni otras pantallas.",
+    "previous_version": "5.0.5",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -856,7 +856,10 @@
     "agenda_booking_logic_changes": false,
     "kpi_compact_height_px": 90,
     "sidebar_activity_shortcut_removed": true,
-    "recent_activity_card_preserved": true
+    "recent_activity_card_preserved": true,
+    "home_real_data_render_bridge": true,
+    "home_1600x900_reference": true,
+    "prevent_accidental_browser_zoom": true
   },
   "channel": "launcher-v1-stable"
 }
