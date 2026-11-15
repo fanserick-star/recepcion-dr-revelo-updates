@@ -324,3 +324,78 @@ body.v50-ui #atencion.r507-new-attention .r507-agenda-more{font-size:10px!import
  body.v50-ui #atencion.r507-new-attention .r507-core-fields{grid-template-columns:1fr!important}
  body.v50-ui #atencion.r507-new-attention .r507-services .service-grid{grid-template-columns:1fr 1fr!important}
 }
+
+
+/* 1600×900 vertical-fit corrections. The generic legacy \`aside\` styles
+   apply globally, so the new right rail must explicitly reset them. */
+body.v50-ui #atencion.r507-new-attention .r507-rail{
+ padding:0!important;margin:0!important;
+ background:transparent!important;background-image:none!important;
+ box-shadow:none!important;color:#253750!important;
+ border:0!important;position:static!important;
+ overflow:visible!important;gap:9px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-rail .r507-card{
+ padding:10px 12px!important;min-height:0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-rail>.r507-card>h2,
+body.v50-ui #atencion.r507-new-attention .r507-rail-title{
+ margin:0 0 6px!important;padding:0 0 7px!important;
+ border-bottom:1px solid #eef2f7!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-rail .r507-card h2{
+ font-size:13.8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-rail .r507-heading-icon{
+ min-width:19px!important;font-size:17px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing-caption{
+ margin:0 0 4px!important;font-size:10px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing-item{
+ padding:4px 0!important;font-size:11px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing-total{
+ margin:5px 0 3px!important;padding:5px 9px!important;font-size:11px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing-total b{
+ font-size:18px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing small{
+ font-size:9px!important;line-height:1.2!important;margin:3px 0 0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-history-row{
+ padding:4px 0!important;gap:5px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-history-row b{font-size:10.6px!important}
+body.v50-ui #atencion.r507-new-attention .r507-history-row small{
+ margin:2px 0 0!important;font-size:9.3px!important;line-height:1.23!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-clinical-state{
+ padding:8px!important;gap:7px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-clinical-mark{
+ flex-basis:27px!important;width:27px!important;height:27px!important;font-size:15px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-clinical-state b{
+ font-size:10.7px!important;margin-bottom:2px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-clinical-state small{
+ font-size:9.5px!important;line-height:1.24!important;margin:2px 0 0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-clinical-kind{
+ margin:5px 0 0!important;font-size:9.8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-agenda-row{
+ min-height:34px!important;padding:4px 0!important;
+ grid-template-columns:81px minmax(0,1fr)!important;gap:6px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-time{
+ padding:4px 2px!important;font-size:9.8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-agenda-row b{
+ font-size:10.5px!important;line-height:1.17!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-agenda-row small{
+ font-size:9.2px!important;margin:2px 0 0!important;
+}
