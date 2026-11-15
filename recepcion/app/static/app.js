@@ -511,7 +511,10 @@ function show(id,configTab=null){
   document.querySelectorAll('.nav-btn[data-section]').forEach(x=>x.classList.toggle('active',x.dataset.section===id));
   const gs=$('#globalSearch');if(gs)gs.placeholder='Buscar paciente por nombre, cédula, celular o correo…';
   closeGlobalSearchResults();
-  if(id==='inicio')loadDashboard();
+  if(id==='inicio'){
+    loadDashboard();
+    try{window.__r504HomeEnter?.()}catch(error){console.error('Agenda Inicio: no se pudo refrescar',error)}
+  }
   if(id==='pacientes')resetPatientsView();
   if(id==='agenda'){loadAgenda();mountAgendaWaitlistShortcut()}
   if(id==='facturacion')loadBilling();
@@ -923,6 +926,13 @@ function renderHomeDayPayload(iso,d){
   }
   const tableBox=$('#todayTable');
   if(tableBox){tableBox.scrollLeft=0;tableBox.scrollTop=0;}
+  // 5.0.6: the original day renderer must hand the SAME trusted patient data
+  // directly to the modern Inicio renderer. A window-function wrapper alone
+  // does not reliably intercept calls from the original module.
+  // Fail closed: existing day table remains usable if the visual hook fails.
+  try{window.__r504PaintHome?.(iso,d)}catch(error){
+    console.error('Inicio: no se pudo aplicar la vista moderna',error);
+  }
 }
 function renderHomeDayFromCache(iso){
   selectedHomeDate=iso;
