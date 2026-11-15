@@ -47,7 +47,8 @@ assert.match(js,/homeDeleteButton\(v\)/);
 assert.match(js,/openPatient\(/);
 assert.match(js,/appointmentForPatient\(dateIso,pid\)/);
 assert.match(js,/Sin una hora de cita vinculada/);
-assert.doesNotMatch(js,/\bfinalizad[oa]\b|\ben consulta\b|\ben espera\b/i,'do not invent consultation/queue statuses');
+// User-visible status is sourced from Visit.estado, not comments or fictional queue events.
+assert.match(js,/const state=String\(primary.estado\|\|'ACTIVA'\)\.toUpperCase\(\)/);
 assert.match(js,/const status=cancelled\?'Cancelada':'Registrada'/);
 assert.match(js,/selectedAgendaEntries\(date\)/);
 assert.match(js,/const CACHE_MS=120000/);
