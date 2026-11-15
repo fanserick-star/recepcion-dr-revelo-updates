@@ -22,7 +22,7 @@ for(const path of ['static/reception_home_reference_504.css','static/reception_h
 assert.ok(html.indexOf('reception_home_reference_504.css')>html.indexOf('reception_home_focus_502.css'));
 assert.ok(html.indexOf('reception_home_reference_504.js')>html.indexOf('reception_layout_501.js'));
 // Real DOM, not a large legacy table re-skinned.
-const start=html.indexOf('<section id="inicio" class="v504-home"'),end=html.indexOf('<section id="tv"',start);
+const start=html.indexOf('<section id="inicio">'),end=html.indexOf('<section id="tv"',start);
 assert.ok(start>=0&&end>start);
 const home=html.slice(start,end);
 for(const id of ['r486Metrics','homePendingStrip','homeWhatsappReviewStrip','homeWeekNav','selectedDayTitle','todayTable','weekCards','weekSummary','v504HomeRail','v504AgendaList','v504ActivityList','v504DayFooter']){
@@ -41,6 +41,7 @@ for(const fn of ['homeReceiptButtons','homeDeleteButton','groupHomeVisits','rend
  assert.ok(oldJs.includes('function '+fn+'('),fn+' missing from original controller');
 }
 assert.match(js,/window\.renderHomeDayPayload=function\(date,payload\)/);
+assert.match(js,/home\.classList\.add\('v504-home'\)/);
 assert.match(js,/originalRender\.apply\(this,arguments\)/);
 assert.match(js,/homeReceiptButtons\(g,dateIso,dayTurn\)/);
 assert.match(js,/homeDeleteButton\(v\)/);
