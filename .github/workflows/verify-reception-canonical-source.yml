@@ -128,6 +128,9 @@ jobs:
           python tools/test_reception_day_waitlist_4816.py
           python tools/test_reception_backup_integrity_4817.py
           node --check recepcion/app/static/app.js
+          node --check recepcion/app/static/reception_modern_500.js
+          node --check recepcion/app/static/reception_layout_501.js
+          node tools/test_reception_layout_501.mjs
           node --check recepcion/app/static/billing_advanced.js
           node tools/test_reception_billing_issued_nonblocking_4843.mjs
           node tools/test_reception_billing_compact_4844.mjs
