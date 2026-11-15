@@ -134,6 +134,7 @@
    const oldShow=window.show;
    if(typeof oldShow==='function')window.show=function(id){
      const result=oldShow.apply(this,arguments);
+     if(id==='agenda')homeAgendaFetchedAt=0;
      if(id==='inicio')void showHomeAgenda();
      return result;
    };
