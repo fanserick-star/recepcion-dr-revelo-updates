@@ -7,7 +7,7 @@ const home=src('recepcion/app/static/reception_home_focus_502.css');
 const html=src('recepcion/app/static/index.html');
 const manifest=JSON.parse(src('recepcion/app/update_manifest.json'));
 const v=JSON.parse(src('recepcion/app/recepcion-version.json')).version;
-assert.equal(v,'5.0.3');
+assert.equal(v,'5.0.4');
 assert.ok(html.includes('reception_home_focus_502.css?v='+v));
 assert.ok(html.includes('home_remaster_4886.css?v='+v));
 // Regression observed in the user's actual screenshot: older CSS was MORE SPECIFIC,

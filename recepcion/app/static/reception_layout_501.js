@@ -70,6 +70,7 @@
    }
  }
  function moveAlerts(){
+   if(by('v504HomeDashboard'))return;
    const home=by('inicio');
    if(!home||by('v501AlertsLine'))return;
    const alertLine=document.createElement('div');alertLine.id='v501AlertsLine';
@@ -175,7 +176,7 @@
    // v5.0.2 — Visitas are the first-class content of Inicio.
    // Sidebar repeats the agenda and atenciones; turn it off without touching any data.
    const heading=$('#inicio .page-heading h1');
-   if(heading)heading.textContent='Atenciones del día';
+   if(heading&&!by('v504HomeDashboard'))heading.textContent='Atenciones del día';
    const redundantRail=by('v50HomeRail');
    if(redundantRail)redundantRail.hidden=true;
    // No agenda API read from Inicio when the duplicate rail is not displayed.

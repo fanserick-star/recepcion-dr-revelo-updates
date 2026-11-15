@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.3: corrección definitiva de prioridades CSS heredadas que limitaban la tabla del Inicio al 59% de pantalla; filas compactas, lectura limpia y scroll normal de la página. Sin cambios en datos, facturación, Neon, historia, agenda o TV."
+  "notes": "Recepción 5.0.4 — solo Inicio reconstruido conforme al mockup B aprobado: cuatro tarjetas, tabla compacta central, agenda y actividad a la derecha. Horas/estados no inventados, acciones de recepción originales preservadas. Sin cambiar otras pantallas, datos ni sincronizaciones."
 }
