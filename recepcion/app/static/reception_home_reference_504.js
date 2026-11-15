@@ -13,7 +13,8 @@
   const $=s=>document.querySelector(s);
   const by=id=>document.getElementById(id);
   const home=by('inicio');
-  if(!home||!home.classList.contains('v504-home'))return;
+  if(!home)return;
+  home.classList.add('v504-home');
   const escapeText=value=>String(value??'').replace(/[&<>"']/g,ch=>({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
   }[ch]));
