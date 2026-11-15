@@ -1801,7 +1801,6 @@ async function attentionFor(id,draft=null){
   selectedServices=new Set(draftServices.map(serviceKey).filter(Boolean));
   attentionServiceValues={...(draft?.procedureValues||{})};
   if(draft?.selectedService&&draft?.valorProc!==undefined&&draft?.selectedService!=='CONSULTA')attentionServiceValues[serviceKey(draft.selectedService)]=draft.valorProc;
-  attentionContext={patient:p,clinicalHistoryCount:null,clinicalLink:null,clinicalCheckedAt:0,stagedId:Number(draft?.stagedId||0)};
   attentionSaveInFlight=false;
   const fecha=draft?.fecha||toISO(new Date());
   // Profile/registration dialogs are closed BEFORE assigning the new active
@@ -1811,7 +1810,7 @@ async function attentionFor(id,draft=null){
   const picked=$('#r507PickedPatient'),finder=$('#aResults'),visit=$('#r507VisitSlot'),search=$('#aSearch');
   if(!picked||!visit)throw Error('No se encontró la nueva pantalla de atención.');
   show('atencion');
-  const initials=String(p.nombre||'P').trim().split(/\\s+/).filter(Boolean).slice(0,2).map(w=>w.slice(0,1)).join('').toUpperCase();
+  const initials=String(p.nombre||'P').trim().split(/\s+/).filter(Boolean).slice(0,2).map(w=>w.slice(0,1)).join('').toUpperCase();
   const phone=typeof formatPhoneValue==='function'?formatPhoneValue(p.celular||''):'';
   const details=[p.cedula?'C.I. '+esc(p.cedula):'Sin identificación',phone?esc(phone):'',p.fecha_nacimiento?'Nac. '+fmtDate(p.fecha_nacimiento):''].filter(Boolean);
   picked.classList.remove('hidden');
