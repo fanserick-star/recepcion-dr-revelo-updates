@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.2",
-  "app_version": "5.0.2",
-  "runtime_version": "5.0.2",
+  "version": "5.0.3",
+  "app_version": "5.0.3",
+  "runtime_version": "5.0.3",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -227,8 +227,8 @@
     "static/reception_home_focus_502.css"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.2: Inicio profesional centrado en todas las atenciones; tabla de pacientes sin altura limitada ni desplazamiento interno, pantalla principal con scroll natural. Elimina tarjetas de métricas duplicadas y panel de actividad/agenda repetido; conserva avisos de factura y alertas manuales en una franja compacta. Mantiene intactos datos, facturación, sincronización, TV y agenda.",
-    "previous_version": "5.0.1",
+    "purpose": "Recepción 5.0.3: corrige de raíz incompatibilidad de estilos heredados de Recepción 4.8.94 que imponían un límite de 59vh y scroll interno en Atenciones del día. Mantiene scroll natural de página, filas y tipografía compactas, preserva las 11 atenciones y todos los botones. No cambia pacientes ni operaciones.",
+    "previous_version": "5.0.2",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -845,7 +845,9 @@
     "home_patient_table_no_internal_scroll": true,
     "home_redundant_cards_hidden": true,
     "home_alert_actions_preserved": true,
-    "home_duplicate_agenda_polling_disabled": true
+    "home_duplicate_agenda_polling_disabled": true,
+    "legacy_css_cascade_fixed": true,
+    "home_day_table_scroll_natural": true
   },
   "channel": "launcher-v1-stable"
 }

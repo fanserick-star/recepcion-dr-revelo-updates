@@ -99,7 +99,7 @@ body.r486-ui #inicio .r489-attentions-focus .selected-day-title{
 }
 body.r486-ui #inicio .r489-attentions-focus .selected-day-title h2{font-size:22px!important;color:#193657!important;font-weight:900!important}
 body.r486-ui #inicio .r489-attentions-focus .selected-day-title span{font-size:12px!important;color:#486581!important}
-body.r486-ui #inicio .r489-attentions-focus #todayTable{
+body.r486-ui:not(.v50-ui) #inicio .r489-attentions-focus #todayTable{
   border:1px solid #d8e4f0!important;border-radius:14px!important;background:white!important;
   box-shadow:0 6px 22px rgba(31,63,102,.07)!important;overflow-x:auto!important;overflow-y:visible!important
 }
@@ -255,7 +255,7 @@ body.r486-ui aside .r495-sidebar-status #sidebarRealVersion{
    crece hasta la altura visible y después desplaza SOLO sus filas. */
 body.r486-ui #inicio .r494-attentions-primary{margin:5px 0 12px!important;min-width:0}
 body.r486-ui #inicio .r494-attentions-primary .selected-day-title{margin:0 0 8px!important;padding:10px 13px!important;background:#eaf3ff!important;border-left:4px solid #2572c5!important}
-body.r486-ui #inicio .r494-attentions-primary #todayTable{
+body.r486-ui:not(.v50-ui) #inicio .r494-attentions-primary #todayTable{
   width:100%!important;max-width:100%!important;min-width:0!important;
   max-height:min(59vh,640px)!important;
   overflow-x:auto!important;overflow-y:auto!important;
@@ -293,7 +293,7 @@ body.r486-ui #inicio .r494-weekly-secondary .week-card{min-height:73px!important
 body.r486-ui #inicio .r494-weekly-secondary .week-card strong{font-size:22px!important}
 body.r486-ui #inicio .home-week-nav{margin:3px 0 7px!important}
 @media(max-width:900px){
-  body.r486-ui #inicio .r494-attentions-primary #todayTable{max-height:54vh!important}
+  body.r486-ui:not(.v50-ui) #inicio .r494-attentions-primary #todayTable{max-height:54vh!important}
   body.r486-ui #inicio .r494-weekly-secondary{padding:9px 7px 1px}
 }
 

@@ -116,6 +116,7 @@ jobs:
           node --check recepcion/app/static/reception_layout_501.js
           node tools/test_reception_layout_501.mjs
           node tools/test_reception_home_focus_502.mjs
+          node tools/test_reception_home_overflow_503.mjs
           node --check recepcion/app/static/billing_advanced.js
           node tools/test_reception_billing_issued_nonblocking_4843.mjs
           node tools/test_reception_billing_compact_4844.mjs
