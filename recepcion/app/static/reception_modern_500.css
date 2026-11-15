@@ -28,7 +28,7 @@ body.v50-ui .v50-status-chip[data-state="online"]{background:#e8f8ef;color:#1673
 body.v50-ui .v50-status-chip[data-state="offline"]{background:#fff1ed;color:#a34e32;border-color:#f4d6cc}
 body.v50-ui .v50-status-chip.v50-version{background:#e9eff8;color:#5b718b}
 body.v50-ui #inicio,body.v50-ui #pacientes,body.v50-ui #agenda{padding-top:22px}
-body.v50-ui #inicio{display:grid!important;grid-template-columns:minmax(0,1fr) 314px;gap:15px 16px;align-items:start}
+body.v50-ui #inicio:not(.hidden){display:grid!important;grid-template-columns:minmax(0,1fr) 314px;gap:15px 16px;align-items:start}
 body.v50-ui #inicio>.home-title-row,body.v50-ui #inicio>#r486Metrics,body.v50-ui #inicio>#homeWeekNav,body.v50-ui #inicio>.r494-weekly-secondary,body.v50-ui #inicio>#homeWhatsappReviewStrip:not(.hidden),body.v50-ui #inicio>#homePendingStrip:not(.hidden){grid-column:1/-1}
 body.v50-ui #inicio>.home-title-row{display:flex!important;justify-content:space-between!important;align-items:center!important;flex-wrap:wrap;gap:12px;margin:0 0 5px!important}
 body.v50-ui #inicio .page-eyebrow{font-size:10px!important;letter-spacing:.12em!important;font-weight:850!important;color:#6690ba!important}
@@ -69,7 +69,7 @@ body.v50-ui .v50-rail-item span{font-size:10px;color:#71849c;overflow-wrap:anywh
 body.v50-ui .v50-rail-caption{font-size:11px;color:#6b7e94;padding-top:10px;line-height:1.5}
 body.v50-ui .v50-rail-extras{display:flex;gap:9px;flex-wrap:wrap;padding-top:12px}
 body.v50-ui .v50-rail-extra{background:#eff5fd;border-radius:9px;padding:7px 10px;font-size:11px;color:#28547e;font-weight:720}
-body.v50-ui #pacientes{display:grid!important;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:12px 16px;align-items:start}
+body.v50-ui #pacientes:not(.hidden){display:grid!important;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:12px 16px;align-items:start}
 body.v50-ui #pacientes>.patients-page-head,body.v50-ui #pacientes>.patient-search-bar,body.v50-ui #pacientes>.patient-quick-filters{grid-column:1/-1}
 body.v50-ui #pacientes .patients-page-head h1,body.v50-ui #agenda h1{font-size:29px!important;font-weight:850!important;letter-spacing:-.035em!important;color:#172e4e!important}
 body.v50-ui #pacientes .patients-page-head p{font-size:12px!important;color:#71849c!important}
