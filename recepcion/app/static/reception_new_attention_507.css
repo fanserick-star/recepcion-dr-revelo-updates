@@ -475,3 +475,81 @@ body.v50-ui #atencion.r507-new-attention #v4504Payment.required .v4504-pay-head{
    min-height:54px!important;margin-bottom:8px!important;
  }
 }
+
+
+/* v5.0.8 CRITICAL: the legacy v4613 identity overlay dynamically adds
+   .v4613-history-card directly to the native .attention-form-modal. Without
+   explicit placement it occupies column 1, shifts the patient and visit to
+   column 2, and pushes the rail into a second grid row (real Windows bug).
+   The existing r507ClinicalPanel shows the same verified state plus its
+   link/create action. Hide ONLY this duplicated grid child, never the
+   patient profile version of the identity card. */
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal{
+  display:grid!important;
+  grid-template-columns:minmax(0,1.75fr) minmax(335px,.97fr)!important;
+  grid-template-areas:"r507-main r507-rail"!important;
+  grid-template-rows:auto!important;
+  grid-auto-rows:min-content!important;
+  grid-auto-flow:row!important;
+  gap:14px!important;
+  align-items:start!important;
+  justify-items:stretch!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal > .r507-main-column{
+  grid-area:r507-main!important;
+  grid-column:1!important;
+  grid-row:1!important;
+  min-width:0!important;
+  width:100%!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal > .r507-rail{
+  grid-area:r507-rail!important;
+  grid-column:2!important;
+  grid-row:1!important;
+  min-width:0!important;
+  width:100%!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal > .v4613-history-card{
+  display:none!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-link-chart{
+  display:block!important;width:100%!important;height:30px!important;
+  min-height:30px!important;margin:8px 0 0!important;
+  padding:5px 9px!important;
+  background:#fff!important;border:1px solid #dfbd78!important;
+  color:#875e17!important;border-radius:8px!important;
+  font-size:10.5px!important;font-weight:780!important;
+  box-shadow:none!important;white-space:normal!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-link-chart:hover{
+  background:#fff9eb!important;border-color:#c99c4f!important;
+}
+@media (max-width:890px){
+ body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-areas:"r507-main" "r507-rail"!important;
+  grid-template-rows:auto auto!important;
+ }
+ body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal > .r507-rail{
+  grid-column:1!important;grid-row:2!important;
+ }
+}
+
+
+/* Clinical link is an inline secondary action beside patient kind, rather
+   than another full-width row: all four rail cards must fit 1600×900. */
+@media(min-width:1100px) and (min-height:750px){
+ body.v50-ui #atencion.r507-new-attention .r507-clinical-kind{
+   display:inline-flex!important;align-items:center!important;
+   margin:7px 0 0!important;vertical-align:middle!important;
+   font-size:9.6px!important;line-height:1.2!important;
+ }
+ body.v50-ui #atencion.r507-new-attention .r507-link-chart{
+   display:inline-flex!important;align-items:center!important;justify-content:center!important;
+   float:right!important;width:auto!important;max-width:58%!important;
+   min-height:25px!important;height:25px!important;
+   margin:5px 0 0!important;padding:3px 8px!important;
+   font-size:9.6px!important;white-space:nowrap!important;
+ }
+ body.v50-ui #atencion.r507-new-attention .r507-rail{gap:8px!important}
+}

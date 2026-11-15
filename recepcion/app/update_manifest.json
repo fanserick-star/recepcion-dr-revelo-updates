@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.7",
-  "app_version": "5.0.7",
-  "runtime_version": "5.0.7",
+  "version": "5.0.8",
+  "app_version": "5.0.8",
+  "runtime_version": "5.0.8",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.7: Nueva atención como pantalla completa nativa en 2 columnas según la imagen aprobada para 1600x900. Seleccionar paciente del buscador abre directamente Nueva atención, no expediente; ficha y edición disponibles por separado. Se reutilizan exactamente saveAttention, saveExamReviewTurn, opciones de servicios, detección/vinculación de Historia y recibos. Resumen de valores, historial, vínculo y Agenda basados en datos reales, nunca estados inventados. Sin cambios a otras pantallas, Neon, SQLite, API, fiscal o TV.",
-    "previous_version": "5.0.6",
+    "purpose": "Recepción 5.0.8: reparación exclusiva de la distribución en Nueva atención. El módulo oficial de vinculación insertaba un aviso como hijo de la cuadrícula y desplazaba los paneles a columnas/filas separadas en producción. Se fija explícitamente la ubicación izquierda de Identificación/Detalles y derecha de Facturación, Historial, Historia y Agenda; aviso clínico duplicado oculto solo en cuadrícula, mientras el estado y botón manual de vínculo permanecen visibles en el panel derecho con función oficial. Sin cambios a guardado, historial, Neon/SQLite, facturación o TV.",
+    "previous_version": "5.0.7",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -865,7 +865,9 @@
     "home_1600x900_reference": true,
     "prevent_accidental_browser_zoom": true,
     "attention_selection_direct": true,
-    "reference_resolution": "1600x900"
+    "reference_resolution": "1600x900",
+    "fix_runtime_overlay_grid": true,
+    "original_history_link_action_preserved": true
   },
   "channel": "launcher-v1-stable"
 }
