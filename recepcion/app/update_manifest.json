@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.3",
-  "app_version": "5.0.3",
-  "runtime_version": "5.0.3",
+  "version": "5.0.4",
+  "app_version": "5.0.4",
+  "runtime_version": "5.0.4",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -111,7 +111,9 @@
     "static/reception_modern_500.js",
     "static/reception_layout_501.css",
     "static/reception_layout_501.js",
-    "static/reception_home_focus_502.css"
+    "static/reception_home_focus_502.css",
+    "static/reception_home_reference_504.css",
+    "static/reception_home_reference_504.js"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -224,11 +226,13 @@
     "static/reception_modern_500.js",
     "static/reception_layout_501.css",
     "static/reception_layout_501.js",
-    "static/reception_home_focus_502.css"
+    "static/reception_home_focus_502.css",
+    "static/reception_home_reference_504.css",
+    "static/reception_home_reference_504.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.3: corrige de raíz incompatibilidad de estilos heredados de Recepción 4.8.94 que imponían un límite de 59vh y scroll interno en Atenciones del día. Mantiene scroll natural de página, filas y tipografía compactas, preserva las 11 atenciones y todos los botones. No cambia pacientes ni operaciones.",
-    "previous_version": "5.0.2",
+    "purpose": "Recepción 5.0.4: reconstrucción exclusivamente del Inicio, siguiendo el mockup aprobado: título Bienvenido a Recepción 5.0, cuatro KPI reales, tabla de atenciones en columna principal y Agenda de hoy/Actividad reciente a la derecha. Datos reales de /api/home/week y /api/agenda/week local-first. Las horas aparecen solo cuando existe cita vinculada; estado registrado nunca se presenta como finalizado/en consulta sin evidencia. Acciones originales de impresión/borrado/pacientes preservadas en menú. Resto de pantallas, Neon, SQLite, Historia, WhatsApp, TV, facturación y cola sin cambios.",
+    "previous_version": "5.0.3",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -847,7 +851,9 @@
     "home_alert_actions_preserved": true,
     "home_duplicate_agenda_polling_disabled": true,
     "legacy_css_cascade_fixed": true,
-    "home_day_table_scroll_natural": true
+    "home_day_table_scroll_natural": true,
+    "home_reference_504": true,
+    "agenda_booking_logic_changes": false
   },
   "channel": "launcher-v1-stable"
 }
