@@ -295,7 +295,7 @@
   document.addEventListener('wheel',preventZoom,{capture:true,passive:false});
   document.addEventListener('keydown',event=>{
     if(!event.ctrlKey||event.altKey||event.metaKey)return;
-    if(['+','=','-','0','Add','Subtract','NumpadAdd','NumpadSubtract'].includes(event.key)){
+    if(['+','=','-','Add','Subtract','NumpadAdd','NumpadSubtract'].includes(event.key)){
       event.preventDefault();
       event.stopPropagation();
     }
