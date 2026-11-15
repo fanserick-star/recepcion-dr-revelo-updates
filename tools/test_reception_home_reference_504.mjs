@@ -37,12 +37,13 @@ assert.match(home,/onclick="newPatient\(\)"/);
 assert.match(home,/onclick="show\('agenda'\)"/);
 // Real source remains the only controller of deletes, prints, agenda and patients.
 for(const fn of ['homeReceiptButtons','homeDeleteButton','groupHomeVisits','renderHomeDayPayload']){
- assert.ok(js.includes(fn),fn+' must bind to existing app.js');
+ if(fn!=='renderHomeDayPayload')assert.ok(js.includes(fn),fn+' must bind to existing app.js');
  assert.ok(oldJs.includes('function '+fn+'('),fn+' missing from original controller');
 }
-assert.match(js,/window\.renderHomeDayPayload=function\(date,payload\)/);
+assert.match(js,/window\.__r504PaintHome=\(date,payload\)=>/);
+assert.match(oldJs,/window\.__r504PaintHome\?\.\(iso,d\)/);
 assert.match(js,/home\.classList\.add\('v504-home'\)/);
-assert.match(js,/originalRender\.apply\(this,arguments\)/);
+assert.match(oldJs,/window\.__r504HomeEnter\?\.\(\)/);
 assert.match(js,/homeReceiptButtons\(g,dateIso,dayTurn\)/);
 assert.match(js,/homeDeleteButton\(v\)/);
 assert.match(js,/openPatient\(/);
