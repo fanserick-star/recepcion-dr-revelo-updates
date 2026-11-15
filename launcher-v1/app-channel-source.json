@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.0: interfaz Moderno Profesional (Inicio, Nueva atención, Pacientes, Agenda). Mantiene sin cambios el motor clínico, Neon, cola SQLite, facturación, TV, agenda unificada y formatos de 12 horas. Validar por CI antes de activar el launcher."
+  "notes": "Recepción 5.0.1: corrección visual profunda y compacta para fiel distribución de Inicio, Pacientes/Expediente, Nueva atención integrada y Agenda semanal; mismas operaciones y bases de datos. Mantiene los controles originales y formato de 12 horas."
 }

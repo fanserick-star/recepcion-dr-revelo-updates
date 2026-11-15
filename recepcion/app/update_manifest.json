@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.0",
-  "app_version": "5.0.0",
-  "runtime_version": "5.0.0",
+  "version": "5.0.1",
+  "app_version": "5.0.1",
+  "runtime_version": "5.0.1",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -108,7 +108,9 @@
     "static/reception_attention_cleanup_48123.css",
     "reception_history_neon_selector.py",
     "static/reception_modern_500.css",
-    "static/reception_modern_500.js"
+    "static/reception_modern_500.js",
+    "static/reception_layout_501.css",
+    "static/reception_layout_501.js"
   ],
   "installation_prerequisites": [],
   "copy": [
@@ -218,11 +220,13 @@
     "static/reception_attention_cleanup_48123.css",
     "reception_history_neon_selector.py",
     "static/reception_modern_500.css",
-    "static/reception_modern_500.js"
+    "static/reception_modern_500.js",
+    "static/reception_layout_501.css",
+    "static/reception_layout_501.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.0: remasterización visual Moderno Profesional de Inicio, Nueva atención, Pacientes y Agenda; capa exclusiva CSS/JS. No altera transacciones, Neon, SQLite, agenda, facturación, Historia LAN, TV, cola clínica, impresión ni datos. Conserva el formato de 12 horas, los controles originales y el launcher.",
-    "previous_version": "4.8.152",
+    "purpose": "Recepción 5.0.1: rediseño visual más compacto y fiel a las referencias aprobadas. Inicio más denso, expediente acoplado al listado, Nueva atención a tamaño de página, agenda de filas compactas. Sin cambios de base de datos, facturación, sincronización, rutas, colas LAN, TV, lógica de citas o guardado.",
+    "previous_version": "5.0.0",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -834,7 +838,8 @@
     "night_close_no_issuance_sunday_monday_tuesday": true,
     "night_close_report_visible_following_day": true,
     "modern_ui_500": true,
-    "ui_only_change": true
+    "ui_only_change": true,
+    "layout_501": true
   },
   "channel": "launcher-v1-stable"
 }
