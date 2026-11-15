@@ -29,7 +29,7 @@
           const section=String(button.dataset.section||'').toLowerCase();
           const action=String(button.getAttribute('onclick')||'');
           const label=String(button.querySelector('span:last-child')?.textContent||'').trim().toLowerCase();
-          if(section==='actividad'||/show\\(['"]actividad['"]\\)/.test(action)||label==='actividad'||label==='actividades'){
+          if(section==='actividad'||/show\(['"]actividad['"]\)/.test(action)||label==='actividad'||label==='actividades'){
             button.remove();
           }
         }
