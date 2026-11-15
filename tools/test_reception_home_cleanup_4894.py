@@ -11,7 +11,7 @@ css = (APP / "static/home_remaster_4886.css").read_text(encoding="utf-8")
 js = (APP / "static/home_remaster_4886.js").read_text(encoding="utf-8")
 tv = (APP / "reception_tv_turns.py").read_text(encoding="utf-8")
 
-start = html.index('<section id="inicio">')
+start = html.index('<section id="inicio"')
 finish = html.index('<section id="tv"')
 home = html[start:finish]
 assert home.index('id="r486Metrics"') < home.index('id="todayTable"'), "Mantener métricas compactas"
