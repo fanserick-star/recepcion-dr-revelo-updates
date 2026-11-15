@@ -77,6 +77,68 @@
    for(const node of [billing,wa])if(node)alertLine.append(node);
    home.insertBefore(alertLine,by('r486Metrics')||home.firstChild);
  }
+
+ let homeAgendaCache=null,homeAgendaFetchedAt=0,homeAgendaRequest=null;
+ async function showHomeAgenda(){
+   const home=by('inicio'),root=by('v50AgendaHint'),app=by('app');
+   if(!home||home.classList.contains('hidden')||!root||!app||app.classList.contains('hidden'))return;
+   const date=typeof toISO==='function'?toISO(new Date()):'';
+   if(!date||typeof api!=='function')return;
+   const age=Date.now()-homeAgendaFetchedAt;
+   if(homeAgendaCache?.date===date&&age<30*60*1000){renderHomeAgenda(homeAgendaCache.week,date);return;}
+   if(homeAgendaRequest)return;
+   homeAgendaFetchedAt=Date.now();
+   // Reception's /api/agenda/week is local-first (SQLite); 30-minute cache and no polling.
+   homeAgendaRequest=api('/api/agenda/week?anchor='+encodeURIComponent(date));
+   try{
+     const week=await homeAgendaRequest;
+     homeAgendaCache={date,week};
+     if(!home.classList.contains('hidden'))renderHomeAgenda(week,date);
+   }catch(error){
+     console.warn('No se pudo mostrar la agenda resumida',error);
+     root.textContent='Consulta las citas y horarios reales desde Agenda.';
+   }finally{homeAgendaRequest=null}
+ }
+ function renderHomeAgenda(week,date){
+   const root=by('v50AgendaHint');if(!root)return;
+   const day=(week?.days||[]).find(d=>d.date===date);
+   root.replaceChildren();
+   if(!day){
+     root.textContent='La agenda del día no está disponible en la semana consultada.';
+     return;
+   }
+   const appointments=(day.appointments||[]).slice().sort((a,b)=>
+     String(a.appointment?.hora||a.staged?.hora||'').localeCompare(String(b.appointment?.hora||b.staged?.hora||'')));
+   if(!appointments.length){root.textContent='Sin citas programadas para hoy.';return;}
+   for(const row of appointments.slice(0,5)){
+     const item=document.createElement('div');item.className='v50-rail-item';
+     const time=String(row.appointment?.hora||row.staged?.hora||'').slice(0,5);
+     const label=typeof agendaTime12==='function'?agendaTime12(time):time;
+     const name=String(row.patient?.nombre||row.staged?.nombre||'Paciente sin vincular');
+     const state=String(row.appointment?.estado||row.staged?.estado||'PENDIENTE');
+     const when=document.createElement('span');when.textContent=label+' · '+state;
+     const who=document.createElement('b');who.textContent=name;
+     item.append(who,when);root.append(item);
+   }
+   if(appointments.length>5){
+     const extra=document.createElement('span');extra.className='v50-rail-caption';
+     extra.textContent='Y '+(appointments.length-5)+' cita(s) más · Ver agenda';
+     root.append(extra);
+   }
+ }
+ function watchHomeAgenda(){
+   const home=by('inicio'),app=by('app');
+   if(home)new MutationObserver(showHomeAgenda).observe(home,{attributes:true,attributeFilter:['class']});
+   if(app)new MutationObserver(showHomeAgenda).observe(app,{attributes:true,attributeFilter:['class']});
+   // UI loads before login; the first successful show('inicio') refreshes home.
+   const oldShow=window.show;
+   if(typeof oldShow==='function')window.show=function(id){
+     const result=oldShow.apply(this,arguments);
+     if(id==='inicio')void showHomeAgenda();
+     return result;
+   };
+   void showHomeAgenda();
+ }
  function fixSearchHint(){
    const input=by('globalSearch');const chip=by('v50SearchHelp');
    if(!chip||!input)return;
@@ -95,7 +157,7 @@
  }
  function boot(){
    addAttentionStage();moveAlerts();fixSearchHint();
-   observe();enhancePatientRows();enhanceHomeTable();update();
+   observe();enhancePatientRows();enhanceHomeTable();update();watchHomeAgenda();
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();
