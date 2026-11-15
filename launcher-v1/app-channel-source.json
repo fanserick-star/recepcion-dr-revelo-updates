@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.1: corrección visual profunda y compacta para fiel distribución de Inicio, Pacientes/Expediente, Nueva atención integrada y Agenda semanal; mismas operaciones y bases de datos. Mantiene los controles originales y formato de 12 horas."
+  "notes": "Recepción 5.0.2: Inicio centrado en tabla completa de pacientes del día, sin scroll interno; cabecera y avisos más compactos; se quitan paneles redundantes pero se preservan alertas y facturación. Sin cambios en datos, Historias, Neon, SQLite ni TV."
 }

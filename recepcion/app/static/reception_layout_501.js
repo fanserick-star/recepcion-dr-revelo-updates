@@ -171,7 +171,14 @@
  }
  function boot(){
    addAttentionStage();moveAlerts();fixSearchHint();
-   observe();enhancePatientRows();enhanceHomeTable();update();watchHomeAgenda();guardNavigation();
+   observe();enhancePatientRows();enhanceHomeTable();update();guardNavigation();
+   // v5.0.2 — Visitas are the first-class content of Inicio.
+   // Sidebar repeats the agenda and atenciones; turn it off without touching any data.
+   const heading=$('#inicio .page-heading h1');
+   if(heading)heading.textContent='Atenciones del día';
+   const redundantRail=by('v50HomeRail');
+   if(redundantRail)redundantRail.hidden=true;
+   // No agenda API read from Inicio when the duplicate rail is not displayed.
  }
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 })();

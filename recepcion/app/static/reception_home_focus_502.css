@@ -1,0 +1,214 @@
+/* Recepción 5.0.2 · Inicio centrado en la tabla de atenciones.
+   Solo presentación. No altera consultas, pacientes, agenda ni facturación. */
+
+/* La pantalla completa debe hacer scroll naturalmente, NO encerrar a los pacientes
+   en un cuadro de 4 filas con scrollbar independiente. */
+body.v50-ui #inicio:not(.hidden){
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-rows:auto!important;
+  align-content:start!important;
+  gap:8px!important;
+  overflow:visible!important;
+  min-height:0!important;
+}
+body.v50-ui #inicio>.home-title-row,
+body.v50-ui #inicio>#v501AlertsLine,
+body.v50-ui #inicio>#homeWeekNav,
+body.v50-ui #inicio>.r494-attentions-primary,
+body.v50-ui #inicio>.r494-weekly-secondary{
+  grid-column:1/-1!important;
+  grid-row:auto!important;
+  min-width:0!important;
+}
+
+/* "Bienvenido a Recepción 5.0" repetía el nombre de la barra lateral.
+   El encabezado ahora dice simplemente "Atenciones del día". */
+body.v50-ui #inicio>.home-title-row{
+  min-height:36px!important;
+  margin:0!important;
+  padding:0!important;
+  align-items:center!important;
+  gap:10px!important;
+}
+body.v50-ui #inicio .page-heading{margin:0!important;padding:0!important}
+body.v50-ui #inicio .page-heading .page-eyebrow,
+body.v50-ui #inicio .page-heading p{display:none!important}
+body.v50-ui #inicio .page-heading h1{
+  font-size:23px!important;
+  line-height:1.15!important;
+  margin:0!important;
+  letter-spacing:-.035em!important;
+}
+body.v50-ui #inicio .home-actions{gap:6px!important}
+body.v50-ui #inicio .home-actions button,
+body.v50-ui #inicio .home-actions .new-attention-main{
+  min-height:34px!important;height:34px!important;
+  min-width:0!important;padding:6px 11px!important;
+  font-size:11px!important;border-radius:8px!important;
+}
+
+/* Las cifras de cuatro tarjetas ya están en fecha, cobros, factura y agenda.
+   Las dejamos actualizándose internamente por compatibilidad, pero no ocupan sitio. */
+body.v50-ui #inicio #r486Metrics{display:none!important}
+body.v50-ui #inicio .v50-home-rail{display:none!important}
+/* "Atenciones registradas" repetía exactamente los nombres de la tabla.
+   "Agenda de hoy" tiene su propia pantalla y acceso directo arriba. */
+body.v50-ui #inicio>.r494-weekly-secondary{margin:1px 0 0!important}
+
+/* Avisos importantes conservados como UNA franja delgada, con acceso a su acción.
+   Nunca ocultar facturas pendientes ni alertas que requieran revisión. */
+body.v50-ui #inicio #v501AlertsLine{
+  display:flex!important;align-items:stretch!important;
+  flex-wrap:wrap!important;gap:6px!important;
+  min-height:0!important;max-height:none!important;
+  margin:0!important;padding:0!important;
+}
+body.v50-ui #inicio #v501AlertsLine>.hidden{display:none!important}
+body.v50-ui #inicio #v501AlertsLine>#homePendingStrip:not(.hidden){
+  flex:0 1 auto!important;
+  display:flex!important;flex-wrap:wrap!important;
+  align-items:center!important;gap:6px!important;
+  width:auto!important;min-width:0!important;
+  max-width:100%!important;
+  margin:0!important;padding:0!important;
+}
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card{
+  display:flex!important;align-items:center!important;
+  gap:7px!important;width:auto!important;
+  min-height:32px!important;height:32px!important;
+  padding:5px 11px!important;margin:0!important;
+  border:1px solid #e8d8af!important;
+  border-radius:8px!important;
+  box-shadow:none!important;
+  background:#fff9eb!important;
+  font-size:11px!important;line-height:1.15!important;
+}
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card .home-reminder-icon,
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card .home-reminder-arrow,
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card small,
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card em{display:none!important}
+body.v50-ui #inicio #v501AlertsLine .home-reminder-card b{
+  display:block!important;white-space:nowrap!important;
+  margin:0!important;padding:0!important;font-size:11px!important;
+  color:#8d5b1b!important;
+}
+body.v50-ui #inicio #v501AlertsLine #homeSmartAlertsButton{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  flex:0 0 auto!important;width:auto!important;
+  margin:0!important;padding:5px 11px!important;
+  height:32px!important;min-height:32px!important;
+  max-height:32px!important;
+  background:#f8fbff!important;border:1px solid #dbe6f1!important;
+  color:#456583!important;font-size:11px!important;font-weight:650!important;
+  border-radius:8px!important;text-align:center!important;
+  box-shadow:none!important;
+}
+body.v50-ui #inicio #v501AlertsLine:empty{display:none!important}
+
+/* Navegación semanal discreta: una sola fila, sin espacio vacío grande. */
+body.v50-ui #inicio #homeWeekNav{
+  display:flex!important;align-items:center!important;
+  gap:5px!important;min-height:31px!important;height:auto!important;
+  margin:0!important;padding:0!important;
+}
+body.v50-ui #inicio #homeWeekNav button,
+body.v50-ui #inicio #homeWeekNav .tiny-week-label{
+  margin:0!important;min-height:29px!important;height:29px!important;
+  padding:5px 8px!important;font-size:10.5px!important;
+  border-radius:7px!important;
+}
+
+/* Atenciones ocupa ahora TODO el ancho útil. */
+body.v50-ui #inicio .r494-attentions-primary{
+  display:block!important;
+  width:100%!important;max-width:none!important;
+  min-height:0!important;max-height:none!important;
+  overflow:visible!important;
+  padding:10px!important;margin:0!important;
+  border-radius:12px!important;
+}
+body.v50-ui #inicio #selectedDayTitle{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  gap:8px!important;
+  min-height:42px!important;
+  margin:0 0 6px!important;
+  padding:7px 11px!important;
+  border-radius:9px!important;
+}
+body.v50-ui #inicio #selectedDayTitle h2{font-size:16px!important;margin:0!important;line-height:1.1!important}
+body.v50-ui #inicio #selectedDayTitle span{font-size:10.5px!important}
+body.v50-ui #inicio .home-day-payment-strip,
+body.v50-ui #inicio .home-collections-summary{
+  min-height:27px!important;
+  padding:4px 8px!important;margin:0 0 5px!important;
+  gap:5px!important;
+}
+body.v50-ui #inicio #todayTable{
+  display:block!important;
+  width:100%!important;max-width:none!important;
+  height:auto!important;min-height:0!important;
+  max-height:none!important;
+  overflow:visible!important;
+  margin:0!important;padding:0!important;
+  scrollbar-width:auto!important;
+}
+body.v50-ui #inicio #todayTable table.home-patient-table{
+  width:100%!important;
+  height:auto!important;
+  table-layout:auto!important;
+  border-spacing:0!important;
+  margin:0!important;
+}
+body.v50-ui #inicio #todayTable table.home-patient-table thead th{
+  position:static!important;
+  padding:8px 12px!important;
+  font-size:10.5px!important;
+  vertical-align:middle!important;
+}
+body.v50-ui #inicio #todayTable table.home-patient-table tbody tr{
+  height:auto!important;
+  min-height:0!important;
+}
+body.v50-ui #inicio #todayTable table.home-patient-table tbody td{
+  height:auto!important;min-height:0!important;
+  padding:7px 12px!important;
+  font-size:11.5px!important;
+  vertical-align:middle!important;
+  line-height:1.25!important;
+}
+body.v50-ui #inicio #todayTable .patient-name-button{
+  white-space:normal!important;
+  text-align:left!important;
+  font-size:11.5px!important;
+  line-height:1.25!important;
+  font-weight:750!important;
+}
+body.v50-ui #inicio #todayTable .patient-identity,
+body.v50-ui #inicio #todayTable .patient-home-meta{
+  margin:2px 0 0!important;font-size:9.5px!important;line-height:1.15!important;
+}
+body.v50-ui #inicio #todayTable .home-receipt-actions{display:flex!important;gap:4px!important;flex-wrap:nowrap!important}
+body.v50-ui #inicio #todayTable .home-action-cell{white-space:nowrap!important}
+body.v50-ui #inicio #todayTable .home-action-cell button{
+  min-height:26px!important;height:26px!important;
+  padding:4px 8px!important;
+  font-size:10px!important;border-radius:7px!important;
+}
+body.v50-ui #inicio #todayTable .money-pill,
+body.v50-ui #inicio #todayTable .service-badge{
+  white-space:nowrap!important;
+  padding:5px 8px!important;
+  font-size:10px!important;
+}
+body.v50-ui #inicio #todayTable .number-col{width:42px!important}
+body.v50-ui #inicio #todayTable .home-actions-col{width:170px!important}
+body.v50-ui #inicio #todayTable .row-number{font-size:11.5px!important}
+@media(max-width:1000px){
+  body.v50-ui #inicio #todayTable{
+    overflow-x:auto!important;
+    overflow-y:visible!important;
+  }
+  body.v50-ui #inicio #todayTable table.home-patient-table{min-width:730px!important}
+  body.v50-ui #inicio>.home-title-row{flex-wrap:wrap!important}
+}

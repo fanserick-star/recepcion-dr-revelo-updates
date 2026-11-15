@@ -9,7 +9,7 @@ const css=read('recepcion/app/static/reception_layout_501.css');
 const js=read('recepcion/app/static/reception_layout_501.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.1');
+assert.equal(version,'5.0.2');
 for(const p of ['static/reception_layout_501.css','static/reception_layout_501.js']){
  assert.ok(manifest.copy.includes(p),p+' missing from installer payload');
  assert.ok(manifest.required_dependencies.includes(p),p+' missing from mandatory payload');
@@ -17,7 +17,7 @@ for(const p of ['static/reception_layout_501.css','static/reception_layout_501.j
 }
 assert.ok(html.indexOf('reception_layout_501.css')>html.indexOf('reception_modern_500.css'),'CSS must override previous visual layer');
 assert.ok(html.indexOf('reception_layout_501.js')>html.indexOf('reception_modern_500.js'),'JS must load after previous visual layer');
-assert.match(html,/src="\/static\/app\.js\?v=5\.0\.1"/);
+assert.ok(html.includes('src="/static/app.js?v='+version+'"'));
 assert.match(html,/id="agendaNativeGrid"/);
 assert.match(html,/id="todayTable"/);
 assert.match(css,/#inicio:not\(\.hidden\)/);
