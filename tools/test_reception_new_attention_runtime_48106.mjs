@@ -24,7 +24,7 @@ const elements={aSearch:{value:'OLD',placeholder:'',focus:()=>focus++},
  r507PickedPatient:{innerHTML:'',classList:{add(){} }},
  r507VisitSlot:{innerHTML:'',classList:{add(){} }}};
 const document={querySelector:s=>s==='#modal .modalbox'?null:elements[s.slice(1)]||null};
-const sandbox={window:{},document,console,currentPatientSource:'general',
+const sandbox={window:{},document,console,$:q=>document.querySelector(q),attentionContext:null,currentPatientSource:'general',
  attentionSearchSeq:0,attentionSearchTimer:1,
  clearTimeout:()=>{},setTimeout:fn=>fn(),closeModal:()=>closed++,
  show:id=>{shown=id}};
