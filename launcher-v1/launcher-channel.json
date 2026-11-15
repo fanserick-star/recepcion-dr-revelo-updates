@@ -1,11 +1,11 @@
 {
   "schema": 2,
   "product": "recepcion-launcher-dr-revelo",
-  "latestVersion": "1.0.13",
+  "latestVersion": "1.0.14",
   "mandatory": true,
-  "notes": "Launcher Recepción 1.0.13: solo descarga archivos nuevos o con SHA-256 diferente; preprueba completa, respaldo selectivo y rollback verificado.",
-  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.13/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_13.exe",
-  "installerSha256": "44c99d617fd0f6e4f5d6a72fa3bf78959199d788c77387652a539e630ec967a5",
-  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.13/LauncherUpdater.exe",
-  "updaterSha256": "2a7dda9bcf315da15fd2879fe0976ba70f33cd4c2109a460106a009ea4bdcae3"
+  "notes": "Launcher Recepción 1.0.14: solo descarga archivos nuevos o con SHA-256 diferente; preprueba completa, respaldo selectivo y rollback verificado.",
+  "installerUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.14/INSTALAR_LAUNCHER_RECEPCION_DR_REVELO_V1_0_14.exe",
+  "installerSha256": "d57700a36a99d14d4cbbb7b73d83e9c8e8cd39cbf4c2347bccb6057d6dd42a2d",
+  "updaterUrl": "https://github.com/fanserick-star/recepcion-dr-revelo-updates/releases/download/launcher-v1.0.14/LauncherUpdater.exe",
+  "updaterSha256": "a131af33d716d2d918a4c903a457bb15be35cabfb2e8907548dac60fe080705e"
 }
