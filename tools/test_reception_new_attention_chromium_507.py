@@ -88,8 +88,7 @@ with sync_playwright() as p:
     page.locator("#v4504Payment [data-mode='EFECTIVO']").click()
     page.wait_for_function("document.querySelector('#v4504Payment .v4504-pay-state')?.textContent.includes('Efectivo')",timeout=10000)
     page.locator(".r507-services > summary").click()
-    page.wait_for_function("document.querySelector('#r507AgendaList')?.textContent.includes('MARÍA FERNANDA')",timeout=10000)
-    page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('Control registrado')",timeout=10000)
+    page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('10/11/2026')",timeout=10000)
     # Production regression: the official v4613 overlay can prepend its
     # warning to the native form. It must not become an extra grid item.
     page.evaluate(r"""() => {
@@ -99,7 +98,7 @@ with sync_playwright() as p:
       warning.textContent='⚠ Sin vincular con Historia Clínica';
       grid.prepend(warning);
     }""")
-    # The same clinical link action must remain visible in the right rail.
+    # The clinical link action remains visible in the compact identity strip.
     page.evaluate(r"""() => {
       attentionContext.clinicalLink=false;
       window.r507ClinicalStatusChanged();
@@ -122,11 +121,10 @@ with sync_playwright() as p:
         page:rect('#atencion'),
         identity:rect('#atencion .r507-identity'),
         details:rect('#atencion .r507-details'),
-        rail:rect('#atencion .r507-rail'),
+        workspace:rect('#atencion .r509-attention-workspace'),
         billing:rect('#atencion .r507-billing'),
-        history:rect('#atencion .r507-history'),
-        clinical:rect('#atencion .r507-clinical'),
-        agenda:rect('#atencion .r507-agenda'),
+        last:rect('#atencion .r509-last'),
+        clinical:rect('#atencion .r509-link'),
         patient:document.querySelector('#r507PickedPatient')?.textContent,
         bill:document.querySelector('#r507BillingSummary')?.textContent,
         modalHidden:document.querySelector('#modal')?.classList.contains('hidden'),
@@ -137,7 +135,11 @@ with sync_playwright() as p:
         misplacedWarningDisplay:getComputedStyle(document.querySelector('#atencion .r507-page-grid > .v4613-history-card')).display,
         gridAreas:getComputedStyle(document.querySelector('#atencion .r507-page-grid')).gridTemplateAreas,
         clinicalAction:!!document.querySelector('#r507ClinicalPanel .r507-link-chart'),
-        date:document.querySelector('#aFecha')?.value
+        date:document.querySelector('#aFecha')?.value,
+        dateHidden:getComputedStyle(document.querySelector('#atencion .r507-core-fields')).display,
+        observationHidden:getComputedStyle(document.querySelector('#atencion .r507-observation')).display,
+        latestText:document.querySelector('#r507HistoryList')?.textContent,
+        agendaRemoved:!document.querySelector('#atencion #r507AgendaList')
       };
       return dom;
     }""")
@@ -146,14 +148,15 @@ with sync_playwright() as p:
     assert layout["modalHidden"] is True,"Patient selection opened detached dossier modal"
     assert layout["misplacedWarningDisplay"]=="none","Legacy clinical warning must not take the first grid cell"
     assert layout["clinicalAction"],"Manual verified Historia linkage action must remain accessible"
-    assert 'r507-main' in layout["gridAreas"] and 'r507-rail' in layout["gridAreas"]
+    assert 'r507-main' in layout["gridAreas"] and 'r507-rail' not in layout["gridAreas"]
     assert layout["details"] is not None and layout["hasSave"] and layout["hasReview"]
     assert layout["realPaymentOptions"]==4 and "Efectivo" in layout["selectedPayment"],layout
-    assert layout["identity"]["x"]<layout["rail"]["x"],layout
-    assert layout["details"]["x"]<layout["rail"]["x"],layout
-    assert layout["billing"]["h"]<325 and layout["history"]["h"]<300,layout
-    assert layout["clinical"]["h"]<200 and layout["agenda"]["h"]<300,layout
-    assert layout["agenda"]["y"]+layout["agenda"]["h"]<=900, "Agenda should fit the 1600x900 viewport with the selected patient: "+str(layout)
+    assert layout["details"]["x"]<layout["billing"]["x"],layout
+    assert layout["last"]["y"]<layout["details"]["y"],layout
+    assert layout["clinical"]["h"]<130,layout
+    assert layout["agendaRemoved"] and layout["dateHidden"]=="none" and layout["observationHidden"]=="none",layout
+    assert "10/11/2026" in layout["latestText"],layout
+    assert layout["workspace"]["y"]+layout["workspace"]["h"]<=900, "Attention + billing should fit the 1600x900 viewport: "+str(layout)
     assert "MARÍA FERNANDA" in layout["patient"]
     assert "40.00" in layout["bill"]
     page.screenshot(path=str(OUT),full_page=True)

@@ -7,22 +7,14 @@ if(window.__r507NativeAttention)return;window.__r507NativeAttention=true;
 const by=id=>document.getElementById(id);
 const escapeText=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const selected=()=>typeof attentionContext==='undefined'?null:attentionContext;
-const iso=()=>typeof toISO==='function'?toISO(new Date()):'';
-const time12=value=>{
-  if(typeof agendaTime12==='function')return agendaTime12(value);
-  const m=/^(\d{1,2}):([0-5]\d)/.exec(String(value||''));
-  if(!m||Number(m[1])>23)return '—';
-  const h=Number(m[1]);return(h%12||12)+':'+m[2]+' '+(h<12?'a. m.':'p. m.');
-};
 const setHTML=(id,html)=>{const el=by(id);if(el)el.innerHTML=html};
 const current=()=>Number(selected()?.patient?.id||0);
-let lastPatientId=0,lastAgendaDate='',agendaRequest=0,historyRequest=0;
+let historyRequest=0;
 function clearPanels(){
-  lastPatientId=0;lastAgendaDate='';agendaRequest++;historyRequest++;
+  historyRequest++;
   setHTML('r507BillingSummary','<div class="r507-empty-rail">Selecciona un servicio para consultar su valor.</div>');
   setHTML('r507HistoryList','<div class="r507-empty-rail">Selecciona un paciente para consultar su historial.</div>');
   setHTML('r507ClinicalPanel','<div class="r507-empty-rail">La vinculación se comprobará al seleccionar el paciente.</div>');
-  setHTML('r507AgendaList','<div class="r507-empty-rail">Se mostrarán las citas reales del día seleccionado.</div>');
 }
 function billing(){
   if(!current())return;
@@ -69,48 +61,26 @@ function clinical(){
 }
 async function history(patientId){
   const seq=++historyRequest;
-  setHTML('r507HistoryList','<div class="r507-empty-rail">Consultando historial de recepción…</div>');
+  setHTML('r507HistoryList','<span class="r509-last-text">Consultando última atención…</span>');
   try{
     const result=await api('/api/patients/'+Number(patientId)+'/profile');
     if(seq!==historyRequest||current()!==patientId)return;
-    const rows=Array.isArray(result?.visits)?result.visits.slice(0,4):[];
-    if(!rows.length){
-      setHTML('r507HistoryList','<div class="r507-empty-rail">No hay atenciones anteriores registradas en Recepción.</div>');
+    const visits=Array.isArray(result?.visits)?result.visits:[];
+    const sorted=[...visits].sort((a,b)=>{
+      const byDate=String(b.fecha||'').localeCompare(String(a.fecha||''));
+      return byDate||Number(b.id||0)-Number(a.id||0);
+    });
+    const v=sorted[0];
+    if(!v){
+      setHTML('r507HistoryList','<span class="r509-last-text">Sin atenciones anteriores.</span>');
       return;
     }
-    setHTML('r507HistoryList','<div class="r507-history-list">'+rows.map(v=>{
-      const name=v.exam_review_no_charge?'Revisión de exámenes':
-        (v.procedimiento?(typeof serviceLabel==='function'?serviceLabel(v.procedimiento):v.procedimiento):'Consulta');
-      const date=typeof fmtDate==='function'?fmtDate(v.fecha):String(v.fecha||'');
-      return '<div class="r507-history-row"><span class="r507-history-dot"></span><div><b>'+escapeText(date)+' · '+escapeText(name)+'</b><small>'+(v.observacion?escapeText(String(v.observacion).slice(0,95)):'Atención registrada')+'</small></div></div>';
-    }).join('')+'</div>');
+    const type=v.exam_review_no_charge?'Revisión de exámenes':
+      (v.procedimiento?(typeof serviceLabel==='function'?serviceLabel(v.procedimiento):v.procedimiento):'Consulta');
+    const date=typeof fmtDate==='function'?fmtDate(v.fecha):String(v.fecha||'');
+    setHTML('r507HistoryList','<span class="r509-last-date">'+escapeText(date)+'</span><span class="r509-last-type">'+escapeText(type)+'</span>');
   }catch(error){
-    if(seq===historyRequest)setHTML('r507HistoryList','<div class="r507-empty-rail">Historial temporalmente no disponible.</div>');
-  }
-}
-async function agenda(date){
-  const wanted=String(date||iso()).slice(0,10);
-  if(!wanted)return;
-  lastAgendaDate=wanted;
-  const seq=++agendaRequest;
-  setHTML('r507AgendaList','<div class="r507-empty-rail">Consultando agenda del día…</div>');
-  try{
-    const data=await api('/api/agenda/week?anchor='+encodeURIComponent(wanted));
-    if(seq!==agendaRequest||!current()||lastAgendaDate!==wanted)return;
-    const rows=Array.isArray(data?.days)?data.days.find(d=>String(d.date||'').slice(0,10)===wanted)?.appointments||[]:[];
-    if(!rows.length){
-      setHTML('r507AgendaList','<div class="r507-empty-rail">No hay citas registradas para la fecha seleccionada.</div>');return;
-    }
-    rows.sort((a,b)=>String(a.appointment?.hora||a.staged?.hora||'').localeCompare(String(b.appointment?.hora||b.staged?.hora||'')));
-    setHTML('r507AgendaList',rows.slice(0,4).map(row=>{
-      const a=row.appointment||row.staged||{};
-      const name=row.patient?.nombre||row.staged?.nombre||'Paciente sin vincular';
-      const state=String(a.estado||'PENDIENTE').toUpperCase();
-      const label=state==='CONFIRMADA'?'Confirmada':state==='PENDIENTE'?'Pendiente':state==='NO_ASISTIRA'?'No asistirá':state==='REAGENDADA'?'Reagendada':state==='CANCELADA'?'Cancelada':state==='EXPORTADO'?'Pendiente':'Registrada';
-      return '<div class="r507-agenda-row"><span class="r507-time">'+escapeText(time12(a.hora))+'</span><div><b>'+escapeText(name)+'</b><small>'+escapeText(label)+'</small></div></div>';
-    }).join('')+(rows.length>4?'<small class="r507-agenda-more">Y '+(rows.length-4)+' cita(s) más en Agenda</small>':''));
-  }catch(error){
-    if(seq===agendaRequest)setHTML('r507AgendaList','<div class="r507-empty-rail">Agenda temporalmente no disponible. Puedes abrir Agenda desde el menú.</div>');
+    if(seq===historyRequest)setHTML('r507HistoryList','<span class="r509-last-text">No disponible temporalmente.</span>');
   }
 }
 // Reuses the official v4613 manual linking/creation dialog. Never creates
@@ -131,14 +101,12 @@ window.r507LinkClinical=()=>{
 window.r507AttentionReset=clearPanels;
 window.r507AttentionPriceChanged=billing;
 window.r507ClinicalStatusChanged=clinical;
-window.r507AttentionSelected=(patient,date)=>{
+window.r507AttentionSelected=(patient)=>{
   const id=Number(patient?.id||0);
   if(!id)return;
-  lastPatientId=id;
   billing();
   clinical();
   void history(id);
-  void agenda(date);
 };
 // Updates the amount as prices are edited: no automatic saves / billing changes.
 const page=by('atencion');
@@ -146,8 +114,6 @@ if(page){
   page.addEventListener('input',event=>{
     if(event.target?.matches?.('.procedure-value-input'))billing();
   });
-  page.addEventListener('change',event=>{
-    if(event.target?.id==='aFecha')void agenda(event.target.value);
-  });
+
 }
 })();

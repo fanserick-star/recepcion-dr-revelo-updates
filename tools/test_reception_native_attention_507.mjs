@@ -1,4 +1,4 @@
-// Recepción 5.0.8 - full page Nueva atención regression contract.
+// Recepción 5.0.9 - full page Nueva atención regression contract.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -9,22 +9,22 @@ const ui=read('recepcion/app/static/reception_new_attention_507.js');
 const css=read('recepcion/app/static/reception_new_attention_507.css');
 const m=JSON.parse(read('recepcion/app/update_manifest.json'));
 const v=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(v,'5.0.8');assert.equal(m.version,v);
+assert.equal(v,'5.0.9');assert.equal(m.version,v);
 for(const x of ['static/reception_new_attention_507.js','static/reception_new_attention_507.css']){
  assert.ok(m.copy.includes(x)&&m.required_dependencies.includes(x),x+' required for launcher');
- assert.ok(html.includes('/'+x+'?v=5.0.8'),x+' cache-busted reference');
+ assert.ok(html.includes('/'+x+'?v=5.0.9'),x+' cache-busted reference');
 }
 const start=html.indexOf('<section id="atencion"'),end=html.indexOf('<section id="tv"',start);
 assert.ok(start>=0&&end>start,'native page must exist separately from tv and other modules');
 const page=html.slice(start,end);
-for(const id of ['aSearch','aResults','r507PickedPatient','r507VisitSlot','r507BillingSummary','r507HistoryList','r507ClinicalPanel','r507AgendaList']){
+for(const id of ['aSearch','aResults','r507PickedPatient','r507VisitSlot','r507BillingSummary','r507HistoryList','r507ClinicalPanel','v4504Payment']){
  assert.ok(page.includes('id="'+id+'"'),id);
 }
 assert.match(page,/Identificación del paciente/);
-assert.match(page,/Facturación rápida/);
-assert.match(page,/Historial breve/);
-assert.match(page,/Estado de envío a Historia/);
-assert.match(page,/Agenda del día/);
+assert.match(page,/Facturación y pago/);
+assert.match(page,/Última atención/);
+assert.match(page,/Historia Clínica/);
+assert.doesNotMatch(page,/Agenda del día|Historial breve/);
 assert.match(page,/newPatient\(true\)/);
 const first=app.slice(app.indexOf('function newAttention(){'),app.indexOf('\nfunction procedureByName('));
 assert.match(first,/show\('atencion'\)/);
@@ -56,9 +56,9 @@ assert.match(ui,/r507ClinicalStatusChanged/);
 assert.match(ui,/r507AttentionPriceChanged/);
 assert.match(ui,/r507AttentionReset/);
 assert.match(ui,/\/api\/patients\/'?\+Number\(patientId\)\+'?\/profile/);
-assert.match(ui,/\/api\/agenda\/week/);
+assert.doesNotMatch(ui,/\/api\/agenda\/week/);
 assert.doesNotMatch(ui,/method:\s*['"](?:POST|PUT|DELETE)['"]|setInterval\s*\(/);
-assert.match(css,/grid-template-columns:minmax\(0,1\.75fr\) minmax\(335px,\.97fr\)/);
+assert.match(css,/grid-template-columns:minmax\(0,1\.55fr\) minmax\(390px,\.95fr\)/);
 assert.match(css,/#atencion\.r507-new-attention/);
 assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length);
 new vm.Script(ui,{filename:'reception_new_attention_507.js'});
