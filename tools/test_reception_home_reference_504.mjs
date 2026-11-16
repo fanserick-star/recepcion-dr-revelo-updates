@@ -1,4 +1,4 @@
-// Recepción v5.0.8: only Inicio may change; screenshot layout/data-integrity contract.
+// Recepción v5.0.9: only Inicio may change; screenshot layout/data-integrity contract.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -11,7 +11,7 @@ const old500=read('recepcion/app/static/reception_modern_500.js');
 const old501=read('recepcion/app/static/reception_layout_501.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.8');
+assert.equal(version,'5.0.9');
 assert.equal(manifest.version,version);
 assert.equal(manifest.runtime_version,version);
 for(const path of ['static/reception_home_reference_504.css','static/reception_home_reference_504.js']){
