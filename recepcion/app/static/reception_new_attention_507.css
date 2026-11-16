@@ -553,3 +553,141 @@ body.v50-ui #atencion.r507-new-attention .r507-link-chart:hover{
  }
  body.v50-ui #atencion.r507-new-attention .r507-rail{gap:8px!important}
 }
+
+
+/* v5.0.9: registration screen compact, target 1600 x 900 at 100% zoom.
+   The hidden date/observation inputs stay in DOM for existing save/draft APIs;
+   official fiscal payment DOM is retained permanently for overlay initialization. */
+body.v50-ui #atencion.r507-new-attention:not(.hidden){
+  padding-top:9px!important;padding-bottom:10px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-head{
+  min-height:44px!important;margin-bottom:8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal{
+  grid-template-columns:minmax(0,1fr)!important;
+  grid-template-areas:"r507-main"!important;
+  gap:0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-page-grid.attention-form-modal>.r507-main-column{
+  grid-area:r507-main!important;grid-column:1!important;grid-row:1!important;
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  gap:9px!important;align-content:start!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-identity{
+  padding:12px 16px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-identity h2{
+  font-size:14px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-patient-finder{
+  margin-top:8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-patient-finder>small{display:none!important}
+body.v50-ui #atencion.r507-new-attention .r507-search-wrap{height:35px!important;min-height:35px!important}
+body.v50-ui #atencion.r507-new-attention .r507-search-wrap #aSearch{height:32px!important;min-height:32px!important}
+body.v50-ui #atencion.r507-new-attention .r507-patient-summary{
+  padding:8px 10px!important;min-height:54px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-context-strip{
+  display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)!important;
+  gap:9px!important;
+}
+body.v50-ui #atencion.r507-new-attention:not(.has-patient) .r509-context-strip,
+body.v50-ui #atencion.r507-new-attention:not(.has-patient) .r509-attention-workspace{
+  display:none!important
+}
+body.v50-ui #atencion.r507-new-attention .r509-mini-card{
+  display:flex!important;align-items:center!important;gap:12px!important;
+  min-width:0!important;min-height:50px!important;
+  padding:7px 13px!important;border:1px solid #dce6f2!important;
+  border-radius:11px!important;background:#fff!important;
+  box-shadow:0 2px 7px rgba(34,67,107,.04)!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-mini-card>strong{
+  flex:0 0 auto!important;font-size:11px!important;color:#4f6784!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-mini-card .r507-empty-rail{
+  padding:0!important;min-width:0!important;font-size:10px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-last #r507HistoryList{
+  display:flex!important;align-items:center!important;gap:10px!important;
+  flex-wrap:wrap!important;min-width:0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-last-date{
+  font-size:12px!important;font-weight:800!important;color:#214c7b!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-last-type{
+  font-size:11px!important;color:#526b88!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-link #r507ClinicalPanel{
+  flex:1 1 auto!important;min-width:0!important;
+  display:flex!important;align-items:center!important;gap:10px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-link .r507-clinical-state{
+  flex:1 1 auto!important;min-width:0!important;
+  padding:5px 8px!important;gap:7px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-link .r507-clinical-state.ready small{display:none!important}
+body.v50-ui #atencion.r507-new-attention .r509-link .r507-clinical-mark{
+  flex:0 0 23px!important;width:23px!important;height:23px!important;font-size:13px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-link .r507-clinical-kind{display:none!important}
+body.v50-ui #atencion.r507-new-attention .r509-link .r507-link-chart{
+  flex:0 0 auto!important;float:none!important;
+  display:inline-flex!important;width:auto!important;max-width:none!important;
+  margin:0!important;min-height:30px!important;height:auto!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-attention-workspace{
+  display:grid!important;grid-template-columns:minmax(0,1.55fr) minmax(390px,.95fr)!important;
+  align-items:stretch!important;gap:9px!important;min-width:0!important;
+}
+body.v50-ui #atencion.r507-new-attention #r507VisitSlot{display:block!important;min-width:0!important}
+body.v50-ui #atencion.r507-new-attention #r507VisitSlot.hidden{display:none!important}
+body.v50-ui #atencion.r507-new-attention .r509-attention-workspace>.r507-billing{
+  padding:13px 15px!important;margin:0!important;min-height:0!important;
+}
+body.v50-ui #atencion.r507-new-attention .r509-attention-workspace>.r507-billing>h2{
+  font-size:14px!important;margin-bottom:9px!important;padding-bottom:9px!important;
+  border-bottom:1px solid #edf1f6!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-details{
+  padding:13px 15px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-details-heading{
+  margin-bottom:10px!important;padding-bottom:8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-details h2{font-size:14px!important}
+body.v50-ui #atencion.r507-new-attention .r507-core-fields,
+body.v50-ui #atencion.r507-new-attention .r507-observation{
+  display:none!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-services{margin-bottom:6px!important}
+body.v50-ui #atencion.r507-new-attention .r507-services[open] .service-groups{
+  max-height:190px!important;overflow-y:auto!important;overscroll-behavior:contain!important
+}
+body.v50-ui #atencion.r507-new-attention .r507-review-action{
+  margin:7px 0!important;padding:6px 8px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-review-action small{
+  max-width:50%!important;text-align:right!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-form-actions{
+  margin-top:7px!important;padding-top:9px!important;
+}
+body.v50-ui #atencion.r507-new-attention .r507-billing .r507-billing-total{
+  padding:7px 10px!important;
+}
+@media(max-width:1100px){
+  body.v50-ui #atencion.r507-new-attention .r509-attention-workspace{
+    grid-template-columns:minmax(0,1fr)!important
+  }
+}
+@media(max-width:750px){
+  body.v50-ui #atencion.r507-new-attention .r509-context-strip{
+    grid-template-columns:minmax(0,1fr)!important
+  }
+  body.v50-ui #atencion.r507-new-attention .r509-link #r507ClinicalPanel{
+    flex-wrap:wrap!important
+  }
+}
