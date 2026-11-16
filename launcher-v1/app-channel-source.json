@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.8: corregida superposición de aviso de Historia que desplaza cuadrícula de Nueva atención. Dos columnas fijas con vínculo y pago reales; sin alteraciones a guardado, Neon, facturación ni TV."
+  "notes": "Recepción 5.0.9: Nueva atención compacta 1600x900, última visita y vínculo en línea, facturación y pago junto a detalles. Fecha y observación ocultas en pantalla pero preservadas en guardado; sin cambios a motor clínico, Neon ni facturación."
 }
