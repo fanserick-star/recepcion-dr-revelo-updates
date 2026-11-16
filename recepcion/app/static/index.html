@@ -145,7 +145,7 @@
 
     <section id="atencion" class="hidden r507-new-attention" aria-label="Nueva atención">
       <header class="r507-page-head">
-        <div><h1>Nueva atención</h1><p>Selecciona al paciente, registra la atención y prepara su entrega a Historia Clínica.</p></div>
+        <div><h1>Nueva atención</h1><p>Selecciona al paciente, elige la atención y registra el pago en un solo lugar.</p></div>
         <button type="button" class="r507-back" onclick="show('inicio')">← Volver a Inicio</button>
       </header>
       <div class="r507-page-grid attention-form-modal">
@@ -158,19 +158,19 @@
                 <div class="r507-search-wrap"><span aria-hidden="true">⌕</span><input id="aSearch" class="search uppercase-search" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Buscar paciente para atender..." oninput="upperSearchInput(this);attentionSearch()"></div>
                 <button type="button" class="r507-soft-action" onclick="newPatient(true)">＋ Nuevo paciente</button>
               </div>
-              <small>Elige al paciente y continúa aquí mismo, sin abrir el expediente completo.</small>
             </div>
             <div id="aResults" class="results attention-results" aria-live="polite">Busca un paciente para comenzar.</div>
             <div id="r507PickedPatient" class="hidden"></div>
           </article>
-          <div id="r507VisitSlot" class="hidden"></div>
+          <div class="r509-context-strip" aria-label="Última atención y vinculación clínica">
+            <div class="r509-mini-card r509-last"><strong>Última atención</strong><div id="r507HistoryList" class="r507-empty-rail">Selecciona un paciente.</div></div>
+            <div class="r509-mini-card r509-link"><strong>Historia Clínica</strong><div id="r507ClinicalPanel" class="r507-empty-rail">Se comprobará la vinculación al elegir paciente.</div></div>
+          </div>
+          <div class="r509-attention-workspace">
+            <div id="r507VisitSlot" class="hidden"></div>
+            <article class="r507-card r507-billing"><h2><span class="r507-heading-icon">▤</span> 3. Facturación y pago</h2><div id="r507BillingSummary" class="r507-empty-rail">Selecciona una consulta o procedimiento para ver su valor.</div><div id="v4504Payment" class="v4504-pay r507-payment-integrated"></div><div id="v4504Summary" class="v4504-summary r507-payment-summary"></div></article>
+          </div>
         </div>
-        <aside class="r507-rail">
-          <article class="r507-card r507-billing"><h2><span class="r507-heading-icon">▤</span> Facturación rápida</h2><div id="r507BillingSummary" class="r507-empty-rail">Selecciona un paciente y una atención para ver los valores.</div><div id="v4504Payment" class="v4504-pay r507-payment-integrated"></div><div id="v4504Summary" class="v4504-summary r507-payment-summary"></div></article>
-          <article class="r507-card r507-history"><div class="r507-rail-title"><h2><span class="r507-heading-icon">▣</span> Historial breve</h2><button type="button" id="r507OpenHistoryBtn" class="r507-text-link hidden">Ver expediente →</button></div><div id="r507HistoryList" class="r507-empty-rail">Selecciona un paciente para consultar sus atenciones anteriores.</div></article>
-          <article class="r507-card r507-clinical"><h2><span class="r507-heading-icon">☁</span> Estado de envío a Historia</h2><div id="r507ClinicalPanel" class="r507-empty-rail">La vinculación se comprobará al seleccionar el paciente.</div></article>
-          <article class="r507-card r507-agenda"><div class="r507-rail-title"><h2><span class="r507-heading-icon">▦</span> Agenda del día</h2><button type="button" onclick="show('agenda')" class="r507-text-link">Ver agenda →</button></div><div id="r507AgendaList" class="r507-empty-rail">Selecciona un paciente para consultar las citas del día.</div></article>
-        </aside>
       </div>
     </section>
 
