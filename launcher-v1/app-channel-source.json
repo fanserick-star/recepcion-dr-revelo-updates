@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.12: Nueva atención incorpora popup de Servicios con Consulta y Procedimientos diferenciados y precios editables de procedimientos; Aplicar y Cancelar protegen la selección. El formulario sigue en una sola pantalla. Sin cambios a guardado, facturación, Neon ni Agenda."
+  "notes": "Recepción 5.0.13: consulta de confirmaciones WhatsApp en Agenda protegida contra errores HTTP 500; muestra estado no verificable y desactiva reenvío manual si falla. Las citas, el servicio de mensajería, la facturación y Neon no se modifican."
 }
