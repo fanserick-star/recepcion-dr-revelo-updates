@@ -116,7 +116,6 @@ if(page){
   });
 
 }
-}
  // 5.0.12: independent native modal for choosing services and editing their values.
  // All selections remain a *draft* until the original saveAttention API executes.
  // Cancelling restores the original selection and prices; there are no writes here.
