@@ -116,7 +116,17 @@ with sync_playwright() as p:
     assert page.locator("#r512ServiceOverlay").count()==0
     assert "Todavía no hay" in page.locator("#r512SelectionPreview").inner_text()
     assert "Selecciona una consulta" in page.locator("#r507BillingSummary").inner_text()
+    print("R512_REOPEN_BEFORE",page.evaluate(r"""() => ({
+        button:!!document.getElementById('r512ServiceButton'),
+        patientId:attentionContext?.patient?.id,
+        openFn:typeof window.r512OpenServicePicker
+    })"""),errors)
     page.locator("#r512ServiceButton").click()
+    print("R512_REOPEN_AFTER",page.evaluate(r"""() => ({
+        overlay:!!document.getElementById('r512ServiceOverlay'),
+        cards:document.querySelectorAll('#r512ServiceOverlay .service-card').length,
+        button:!!document.getElementById('r512ServiceButton')
+    })"""),errors)
     page.locator("#r512ServiceOverlay .service-card[data-service='CONSULTA']").click()
     page.locator("#r512ServiceOverlay .service-card[data-service='CISTOSCOPIA']").click()
     page.locator("#r512ServiceOverlay .r512-price-input[data-service='CISTOSCOPIA']").fill("215.50")
