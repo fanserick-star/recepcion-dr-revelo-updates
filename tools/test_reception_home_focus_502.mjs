@@ -9,7 +9,7 @@ const app=read('recepcion/app/static/app.js');
 const html=read('recepcion/app/static/index.html');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.11');
+assert.equal(version,'5.0.12');
 const path='static/reception_home_focus_502.css';
 assert.ok(manifest.copy.includes(path));
 assert.ok(manifest.required_dependencies.includes(path));
