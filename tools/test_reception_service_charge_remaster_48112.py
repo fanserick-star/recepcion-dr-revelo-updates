@@ -93,8 +93,11 @@ app=(APP/"static/app.js").read_text(encoding="utf-8")
 begin=app.index('async function attentionFor(')
 end=app.index('async function refreshAttentionClinicalHistory(',begin)
 form=app[begin:end]
-assert 'r507-services' in form
-assert 'serviceCardsHtml()' in form
+assert 'r512ServiceButton' in form
+assert 'r512OpenServicePicker' in form
+ui=(APP/'static/reception_new_attention_507.js').read_text(encoding='utf-8')
+assert 'serviceCardsHtml()' in ui
+assert 'r512DismissServicePicker' in ui
 assert form.count('r507-review-action')==1
 assert form.count('onclick="saveExamReviewTurn(')==1
 assert 'sin cobro' in form.lower()

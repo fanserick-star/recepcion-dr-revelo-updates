@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.11: Agenda compacta 1600x900 con navegación de una sola fila, miércoles a sábado en una tabla continua, horas 12 h y sin panel lateral redundante. Se conservan reservas, estados de citas, WhatsApp, guardado, facturación y Neon sin cambios."
+  "notes": "Recepción 5.0.12: Nueva atención incorpora popup de Servicios con Consulta y Procedimientos diferenciados y precios editables de procedimientos; Aplicar y Cancelar protegen la selección. El formulario sigue en una sola pantalla. Sin cambios a guardado, facturación, Neon ni Agenda."
 }
