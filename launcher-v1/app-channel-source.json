@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.13: consulta de confirmaciones WhatsApp en Agenda protegida contra errores HTTP 500; muestra estado no verificable y desactiva reenvío manual si falla. Las citas, el servicio de mensajería, la facturación y Neon no se modifican."
+  "notes": "Recepción 5.0.14: Pacientes 1600×900 sin recorte derecho; expediente acoplado respeta límites de pantalla, observaciones y controles completos. Solo CSS y prueba visual; sin cambios a datos, Neon, cobros, Historia o mensajes."
 }

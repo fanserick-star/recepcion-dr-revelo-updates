@@ -372,3 +372,75 @@ body.v50-ui #agenda .v50-agenda-tools{margin-top:7px!important}
     font-size:9px!important;line-height:9px!important;
   }
 }
+
+
+/* v5.0.14 — Pacientes: el expediente acoplado NO es un modal fullscreen.
+   El estilo heredado .v50-dossier-open .modalbox.v4413-profile-shell
+   aplicaba width:100%!important pese a tener left+right y sobrepasaba
+   el borde derecho a 1600x900. Sobrescribir con la misma especificidad
+   del selector original y dejar que los dos anclajes definan el ancho. */
+@media (min-width:1201px){
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .modalbox.v4413-profile-shell{
+    position:fixed!important;
+    box-sizing:border-box!important;
+    left:calc(208px + 20px + 320px + 12px)!important;
+    right:20px!important;
+    top:235px!important;
+    bottom:18px!important;
+    width:auto!important;
+    max-width:none!important;
+    min-width:0!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    margin:0!important;
+    padding:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    transform:none!important;
+  }
+}
+/* Preservar el dossier cuando disminuye el ancho del escritorio. */
+@media (min-width:801px) and (max-width:1200px){
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .modalbox.v4413-profile-shell{
+    left:calc(208px + 20px)!important;
+    right:20px!important;
+    top:46vh!important;
+    bottom:12px!important;
+    width:auto!important;
+    max-width:none!important;
+    min-width:0!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+    margin:0!important;
+    padding:0!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    transform:none!important;
+  }
+}
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile #modalBody,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4413-profile-panels,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v499-profile-dashboard,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v499-personal-panel,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v499-profile-side{
+  box-sizing:border-box!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:100%!important;
+}
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier .v4413-profile-name{
+  min-width:0!important;
+  max-width:100%!important;
+}
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier .v4413-profile-name h2,
+body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier .v4413-profile-identity{
+  overflow-wrap:anywhere!important;
+}
+@media (min-width:801px) and (max-width:1450px){
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier .v499-profile-dashboard{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
