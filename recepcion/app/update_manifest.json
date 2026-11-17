@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.12",
-  "app_version": "5.0.12",
-  "runtime_version": "5.0.12",
+  "version": "5.0.13",
+  "app_version": "5.0.13",
+  "runtime_version": "5.0.13",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,7 +235,7 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.12: Servicios de Nueva atención en popup nativo con Consulta y Procedimientos separados, precios editables de procedimientos y Aplicar/Cancelar con reversión; mantiene Agenda compacta 1600x900 y conserva agenda/WhatsApp/cobros/Neon sin cambios lógicos. Se eliminan visualmente fecha, doctor y observación, conservando los campos de fecha/observación para el contrato original de guardado; historial reducido a la última atención real (fecha y tipo), agenda retirada de la vista y facturación con cuatro medios de pago junto a detalles. Se conserva vinculación oficial con Historia, revisión gratuita, validación clínica, SQLite/Neon y lógica fiscal intacta.",
+    "purpose": "Recepción 5.0.13: la lectura opcional de confirmación de WhatsApp en Agenda no puede bloquear la cita ante un error; sin cambios a envío de mensajes, estado real de las citas, Neon ni facturación.",
     "previous_version": "5.0.8",
     "production_status": "stable",
     "consolidated_runtime": true,

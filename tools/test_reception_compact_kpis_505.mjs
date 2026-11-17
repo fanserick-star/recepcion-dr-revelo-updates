@@ -1,4 +1,4 @@
-// v5.0.12: visual-only regression guard for compact KPIs + left Activity shortcut.
+// v5.0.13: visual-only regression guard for compact KPIs + left Activity shortcut.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -8,7 +8,7 @@ const js=read('recepcion/app/static/reception_modern_500.js');
 const html=read('recepcion/app/static/index.html');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.12');
+assert.equal(version,'5.0.13');
 assert.equal(manifest.version,version);
 assert.ok(html.includes('reception_home_reference_504.css?v='+version));
 assert.ok(html.includes('reception_modern_500.js?v='+version));
