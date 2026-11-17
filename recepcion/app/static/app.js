@@ -1637,6 +1637,7 @@ async function loadAttentionWeek(force=false,anchorValue=null){
 /* 4.8.102 — Iniciar una atención con el paciente, no con la Agenda.
    Citas y Confirmafy conservan su ruta independiente desde Agenda. */
 function newAttention(){
+  try{window.r512DismissServicePicker?.(true)}catch{}
   // 5.0.7: Native screen, not a detached mini modal and no intermediate
   // patient dossier. Business/clinical save functions are unchanged.
   closeModal();
@@ -1690,7 +1691,7 @@ function renderSelectedServiceValues(){
     const active=selectedServices.has(key);
     card.classList.toggle('selected',active);card.setAttribute('aria-pressed',String(active));
   });
-  if(!names.length){box.classList.add('hidden');box.innerHTML='';return}
+  if(!names.length){box.classList.add('hidden');box.innerHTML='';try{window.r512AttentionSummaryChanged?.()}catch{};return}
   box.innerHTML=names.map(name=>{
     const p=procedureByName(name);
     if(attentionServiceValues[name]===undefined||attentionServiceValues[name]===null)attentionServiceValues[name]=p?.valor_default??'';
@@ -1698,6 +1699,7 @@ function renderSelectedServiceValues(){
     return `<div class="procedure-value-row"><label><span>Valor de <b>${esc(serviceLabel(name))}</b></span><div class="money-input"><span>$</span><input class="procedure-value-input" data-service="${esc(name)}" type="number" min="0" step="0.01" value="${esc(value)}" placeholder="Ingresa el valor"></div></label></div>`;
   }).join('')+`<small>Los valores se pueden cambiar para esta atención.</small>`;
   box.classList.remove('hidden');
+  try{window.r512AttentionSummaryChanged?.()}catch{}
   try{window.r507AttentionPriceChanged?.()}catch(error){console.warn('Resumen de valores no disponible',error)}
 }
 function toggleService(name){
@@ -1795,6 +1797,7 @@ async function returnToAttention(id){
   await attentionFor(id,draft);
 }
 async function attentionFor(id,draft=null){
+  try{window.r512DismissServicePicker?.(true)}catch{}
   const p=await api('/api/patients/'+id);
   // No imponer número de apellidos/nombres para permitir el registro legítimo.
   if(!procedures.length)procedures=await api('/api/procedures');
@@ -1835,10 +1838,11 @@ async function attentionFor(id,draft=null){
       <div class="r507-doctor-label"><span>Doctor</span><strong>Dr. Armando Revelo</strong></div>
     </div>
     <div class="r507-service-heading"><b>Tipo de atención <span class="r507-required">*</span></b><span id="serviceSelectionHint">0 seleccionadas</span></div>
-    <details class="r507-services">
-      <summary>Seleccionar consulta o procedimientos</summary>
-      <div class="service-groups">${serviceCardsHtml()}</div>
-    </details>
+    <button type="button" id="r512ServiceButton" class="r512-service-launch" onclick="window.r512OpenServicePicker?.()" aria-haspopup="dialog">
+      <span class="r512-launch-main"><span class="r512-launch-icon">✚</span><span><b>Seleccionar servicios</b><small>Consulta o procedimientos · editar valores</small></span></span>
+      <span class="r512-launch-arrow">Abrir ▸</span>
+    </button>
+    <div id="r512SelectionPreview" class="r512-selection-preview" aria-live="polite">Sin servicios seleccionados.</div>
     <div id="procedureValuesBox" class="procedure-values-box hidden"></div>
     <div class="form-field attention-observation r507-observation"><label for="aObs">Observación</label><textarea id="aObs" placeholder="Observación opcional para esta atención">${esc(draft?.observacion||'')}</textarea></div>
     <div class="r507-review-action"><button type="button" class="exam-review-turn-btn" onclick="saveExamReviewTurn(${id})">🎫 Revisión de exámenes (sin cobro)</button><small>Solo para hoy y con Historia Clínica vinculada. Genera turno y ticket sin factura.</small></div>
