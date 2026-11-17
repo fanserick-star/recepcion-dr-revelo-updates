@@ -180,7 +180,6 @@ if(page){
  window.r512DismissServicePicker=dismissPicker;
  window.r512AttentionSummaryChanged=pickerPreview;
  window.r512OpenServicePicker=()=>{
-   window.__r512TestOpenAttempt={active:!!servicePicker,attached:!!servicePicker?.overlay?.isConnected,patient:current(),button:!!by('r512ServiceButton')};
    if(servicePicker||!current()||!by('r512ServiceButton'))return;
    if(typeof captureProcedureValues==='function')captureProcedureValues();
    const originalServices=[...selectedServices],originalValues={...attentionServiceValues};
