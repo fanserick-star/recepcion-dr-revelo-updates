@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.10: el selector Servicios abre como menú flotante y no aumenta la altura de Nueva atención en 1600x900. Se preservan selección múltiple, valores, pagos, guardado y vínculo clínico; sin cambios en Neon ni datos."
+  "notes": "Recepción 5.0.11: Agenda compacta 1600x900 con navegación de una sola fila, miércoles a sábado en una tabla continua, horas 12 h y sin panel lateral redundante. Se conservan reservas, estados de citas, WhatsApp, guardado, facturación y Neon sin cambios."
 }

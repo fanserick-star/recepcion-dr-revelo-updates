@@ -1,4 +1,4 @@
-// Recepción 5.0.10 - full page Nueva atención regression contract.
+// Recepción 5.0.11 - full page Nueva atención regression contract.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -9,10 +9,10 @@ const ui=read('recepcion/app/static/reception_new_attention_507.js');
 const css=read('recepcion/app/static/reception_new_attention_507.css');
 const m=JSON.parse(read('recepcion/app/update_manifest.json'));
 const v=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(v,'5.0.10');assert.equal(m.version,v);
+assert.equal(v,'5.0.11');assert.equal(m.version,v);
 for(const x of ['static/reception_new_attention_507.js','static/reception_new_attention_507.css']){
  assert.ok(m.copy.includes(x)&&m.required_dependencies.includes(x),x+' required for launcher');
- assert.ok(html.includes('/'+x+'?v=5.0.10'),x+' cache-busted reference');
+ assert.ok(html.includes('/'+x+'?v=5.0.11'),x+' cache-busted reference');
 }
 const start=html.indexOf('<section id="atencion"'),end=html.indexOf('<section id="tv"',start);
 assert.ok(start>=0&&end>start,'native page must exist separately from tv and other modules');

@@ -210,3 +210,165 @@ body.v50-ui #agenda .v50-agenda-tools{margin-top:7px!important}
  body.v50-ui #modal.v501-docked-profile .modalbox{left:12px!important;right:12px!important}
  body.v50-ui #inicio .r486-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 }
+
+
+/* 5.0.11 · Agenda semanal 1600x900. Un solo encabezado compacto y jornada
+   íntegra a 12 h. Sólo presentación: no tocar slots, citas, LAN, WA ni Neon.
+   Mantener el rail en DOM para los lectores existentes, pero no consumir área. */
+@media (min-width:1400px) and (min-height:800px){
+  body.v50-ui #agenda.agenda-remaster-dark:not(.hidden){
+    position:relative!important;
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) max-content!important;
+    grid-template-rows:38px auto!important;
+    align-items:start!important;
+    gap:5px 12px!important;
+    padding:2px 0 0!important;
+    margin:0!important;
+    min-height:0!important;
+    overflow:visible!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row{
+    grid-column:1!important;grid-row:1!important;
+    display:flex!important;align-items:center!important;
+    min-height:36px!important;height:36px!important;
+    margin:0!important;padding:0!important;gap:8px!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row h1{
+    font-size:22px!important;line-height:1.1!important;margin:0!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row .section-title-with-brand p,
+  body.v50-ui #agenda .agenda-native-title-row .section-brand-chip{
+    display:none!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row .agenda-wa-toolbar{
+    margin:0 0 0 8px!important;gap:4px!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row .agenda-wa-pill{
+    min-height:29px!important;height:29px!important;padding:4px 8px!important;
+    font-size:10px!important;white-space:nowrap!important;
+  }
+  body.v50-ui #agenda .agenda-native-title-row .agenda-wa-extra{
+    display:none!important;
+  }
+  body.v50-ui #agenda .agenda-native-weekbar{
+    grid-column:2!important;grid-row:1!important;
+    display:flex!important;align-items:center!important;justify-content:flex-end!important;
+    min-height:36px!important;height:36px!important;
+    margin:0!important;padding:2px 5px!important;
+    border-radius:9px!important;gap:5px!important;
+    white-space:nowrap!important;overflow:visible!important;
+  }
+  body.v50-ui #agenda .agenda-browser-stack{
+    display:flex!important;align-items:center!important;gap:5px!important;width:auto!important;
+  }
+  body.v50-ui #agenda .agenda-week-row{
+    display:flex!important;align-items:center!important;flex-wrap:nowrap!important;
+    width:auto!important;gap:5px!important;
+  }
+  body.v50-ui #agenda .agenda-week-jump{
+    width:123px!important;flex:0 0 123px!important;height:30px!important;
+    min-height:30px!important;padding:2px 6px!important;border-radius:7px!important;
+  }
+  body.v50-ui #agenda .agenda-week-jump span,
+  body.v50-ui #agenda .agenda-week-current span{font-size:7px!important;letter-spacing:0!important}
+  body.v50-ui #agenda .agenda-week-current{
+    flex:0 0 173px!important;min-width:173px!important;max-width:173px!important;
+  }
+  body.v50-ui #agenda .agenda-week-current b{font-size:10px!important}
+  body.v50-ui #agenda .agenda-week-row>button{
+    height:30px!important;min-height:30px!important;min-width:0!important;
+    padding:0 7px!important;border-radius:7px!important;font-size:10px!important;
+  }
+  body.v50-ui #agenda .agenda-more-navigation{
+    position:relative!important;z-index:8!important;
+    font-size:10px!important;margin:0!important;
+  }
+  body.v50-ui #agenda .agenda-more-navigation>summary{
+    padding:5px 6px!important;white-space:nowrap!important;
+  }
+  body.v50-ui #agenda .agenda-more-navigation[open] .agenda-month-row{
+    position:absolute!important;right:0!important;top:30px!important;
+    display:flex!important;width:max-content!important;z-index:12!important;
+    padding:8px!important;margin:0!important;border:1px solid #cbd8e6!important;
+    border-radius:9px!important;background:#fff!important;
+    box-shadow:0 12px 24px #172f4e22!important;
+  }
+  body.v50-ui #agenda .agenda-state-details,
+  body.v50-ui #agenda .agenda-focus-toolbar,
+  body.v50-ui #agenda .agenda-native-footnote,
+  body.v50-ui #agenda .v50-agenda-rail{
+    display:none!important;
+  }
+  body.v50-ui #agenda #agendaWhatsappReviewPanel:not(.hidden){
+    grid-column:1/-1!important;grid-row:2!important;
+    position:absolute!important;top:40px!important;right:4px!important;
+    width:min(410px,92%)!important;max-height:65vh!important;overflow-y:auto!important;
+    z-index:20!important;box-shadow:0 18px 38px #1e375033!important;
+  }
+  body.v50-ui #agenda #agendaNativeGrid{
+    grid-column:1/-1!important;grid-row:2!important;
+    width:100%!important;min-width:0!important;
+    min-height:0!important;height:auto!important;
+    max-height:calc(100dvh - 148px)!important;
+    padding:3px!important;margin:0!important;border-radius:10px!important;
+    overflow:auto!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-schedule{
+    min-width:0!important;
+    grid-template-columns:92px repeat(4,minmax(0,1fr))!important;
+    grid-template-rows:33px!important;
+    grid-auto-rows:26px!important;
+    gap:0!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-corner,
+  body.v50-ui #agenda .agenda-native-grid .native-day-head{
+    min-height:0!important;height:33px!important;
+    padding:2px 5px!important;overflow:hidden!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-day-head b{
+    font-size:10px!important;line-height:1.1!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-day-head span{
+    font-size:9px!important;line-height:1.1!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-day-head small{display:none!important}
+  body.v50-ui #agenda .agenda-native-grid .native-time,
+  body.v50-ui #agenda .agenda-native-grid .native-time.lunch,
+  body.v50-ui #agenda .agenda-native-grid .native-cell,
+  body.v50-ui #agenda .agenda-native-grid .native-lunch{
+    box-sizing:border-box!important;min-height:0!important;height:26px!important;
+    padding:1px 3px!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-time{
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    font-size:9.5px!important;letter-spacing:-.02em!important;white-space:nowrap!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-lunch{
+    display:flex!important;justify-content:center!important;align-items:center!important;
+    font-size:10px!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot{
+    box-sizing:border-box!important;width:100%!important;
+    min-height:0!important;height:23px!important;max-height:23px!important;
+    padding:1px 5px!important;border-radius:5px!important;
+    font-size:9.5px!important;line-height:1.05!important;overflow:hidden!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot.occupied{
+    grid-template-rows:11px 9px!important;gap:0 3px!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot.occupied>b{
+    font-size:9.6px!important;line-height:11px!important;max-width:100%!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot.occupied .native-status-label,
+  body.v50-ui #agenda .agenda-native-grid .native-slot .agenda-wa-chip{
+    font-size:8px!important;line-height:9px!important;white-space:nowrap!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot.free .native-free-time{
+    font-size:9.5px!important;line-height:1!important;
+  }
+  body.v50-ui #agenda .agenda-native-grid .native-slot.closed b,
+  body.v50-ui #agenda .agenda-native-grid .native-slot.closed span{
+    font-size:9px!important;line-height:9px!important;
+  }
+}
