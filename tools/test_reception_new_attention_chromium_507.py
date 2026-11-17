@@ -80,34 +80,57 @@ with sync_playwright() as p:
     page.locator("#aResults .v4413-attention-result").first.click()
     page.wait_for_selector("#r507VisitSlot:not(.hidden) #saveAttentionBtn",timeout=10000)
     page.wait_for_function("document.querySelector('#r507ClinicalPanel')?.textContent.includes('Ficha de Historia vinculada')",timeout=10000)
-    # 5.0.10: opening Servicios must not lengthen Nueva atención or move
-    # the save/payment controls below the 1600x900 viewport.
+    # 5.0.12: native service popup must keep the actual attention form
+    # unchanged, let prices be edited, and safely rollback on Cancel.
     service_layout=lambda: page.evaluate(r"""() => {
       const rect=s=>document.querySelector(s)?.getBoundingClientRect();
       const details=rect('#atencion .r507-details');
       const workspace=rect('#atencion .r509-attention-workspace');
       const save=rect('#saveAttentionBtn');
       const bill=rect('#atencion .r507-billing');
-      const menu=document.querySelector('#atencion .r507-services .service-groups');
-      const panel=menu?.getBoundingClientRect();
       return {detailsHeight:details?.height,workspaceHeight:workspace?.height,
-        saveY:save?.y,billY:bill?.y,menuPosition:getComputedStyle(menu).position,
-        panelBottom:panel?.bottom,documentHeight:document.documentElement.scrollHeight};
+        saveY:save?.y,billY:bill?.y,documentHeight:document.documentElement.scrollHeight};
     }""")
     collapsed=service_layout()
-    page.locator(".r507-services > summary").click()
+    page.locator("#r512ServiceButton").click()
+    page.wait_for_selector("#r512ServiceOverlay [role='dialog']")
+    assert page.locator("#r512ServiceOverlay .consultation-service-section").count()==1
+    assert page.locator("#r512ServiceOverlay .procedures-service-section").count()==1
+    assert page.locator("#r512ServiceOverlay .consultation-card .service-price").inner_text()=="$40.00"
+    # Clicking consultation and procedures only changes the local draft.
+    page.locator("#r512ServiceOverlay .service-card[data-service='CONSULTA']").click()
+    page.locator("#r512ServiceOverlay .service-card[data-service='CISTOSCOPIA']").click()
+    page.locator("#r512ServiceOverlay .r512-price-input[data-service='CISTOSCOPIA']").fill("215.50")
+    assert page.locator("#r512PickerTotal").inner_text()=="$ 255.50"
     expanded=service_layout()
-    assert expanded["menuPosition"]=="absolute",expanded
-    assert expanded["panelBottom"]<=900,"Service list exits the viewport: "+str(expanded)
     for key in ("detailsHeight","workspaceHeight","saveY","billY","documentHeight"):
-        assert abs(expanded[key]-collapsed[key])<=2,"Service menu reflows "+key+": "+str((collapsed,expanded))
-    page.locator("#atencion .service-card[data-service='CONSULTA']").click()
-    page.wait_for_function("document.querySelector('#r507BillingSummary')?.textContent.includes('40.00')",timeout=10000)
+        assert abs(expanded[key]-collapsed[key])<=2,"Service popup reflows "+key+": "+str((collapsed,expanded))
+    assert page.locator("#r512ServiceOverlay").bounding_box()["height"]==900
+    # Cancel restores selection and prices, and never saves or charges.
+    page.locator("#r512ServiceOverlay .r512-cancel").click()
+    assert page.locator("#r512ServiceOverlay").count()==0
+    assert "Todavía no hay" in page.locator("#r512SelectionPreview").inner_text()
+    assert "Selecciona una consulta" in page.locator("#r507BillingSummary").inner_text()
+    page.locator("#r512ServiceButton").click()
+    page.locator("#r512ServiceOverlay .service-card[data-service='CONSULTA']").click()
+    page.locator("#r512ServiceOverlay .service-card[data-service='CISTOSCOPIA']").click()
+    page.locator("#r512ServiceOverlay .r512-price-input[data-service='CISTOSCOPIA']").fill("215.50")
+    OUT_MODAL=ROOT/"reports"/"reception-512-service-modal-1600x900.png"
+    page.screenshot(path=str(OUT_MODAL),full_page=False)
+    page.locator("#r512Apply").click()
+    assert page.locator("#r512ServiceOverlay").count()==0
+    assert "CISTOSCOPIA" in page.locator("#r512SelectionPreview").inner_text()
+    assert "$255.50" in page.locator("#r507BillingSummary").inner_text()
+    assert page.locator("#procedureValuesBox .procedure-value-input[data-service='CISTOSCOPIA']").input_value()=="215.50"
     page.wait_for_selector("#v4504Payment .v4504-pay-option",timeout=10000)
     assert page.locator("#v4504Payment .v4504-pay-option").count()==4,"Real fiscal payment choices missing"
     page.locator("#v4504Payment [data-mode='EFECTIVO']").click()
     page.wait_for_function("document.querySelector('#v4504Payment .v4504-pay-state')?.textContent.includes('Efectivo')",timeout=10000)
-    page.locator(".r507-services > summary").click()
+    # Escape closes a reopened popup and preserves committed values.
+    page.locator("#r512ServiceButton").click()
+    page.keyboard.press("Escape")
+    assert page.locator("#r512ServiceOverlay").count()==0
+    assert "$255.50" in page.locator("#r507BillingSummary").inner_text()
     page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('10/11/2026')",timeout=10000)
     # Production regression: the official v4613 overlay can prepend its
     # warning to the native form. It must not become an extra grid item.
