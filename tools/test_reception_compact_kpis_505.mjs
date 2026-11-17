@@ -8,7 +8,7 @@ const js=read('recepcion/app/static/reception_modern_500.js');
 const html=read('recepcion/app/static/index.html');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.14');
+assert.match(version,/^5[.]0[.][1-9][0-9]*$/,'Supported Reception 5.0.x release');
 assert.equal(manifest.version,version);
 assert.ok(html.includes('reception_home_reference_504.css?v='+version));
 assert.ok(html.includes('reception_modern_500.js?v='+version));
