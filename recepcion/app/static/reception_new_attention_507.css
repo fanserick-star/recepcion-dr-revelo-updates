@@ -691,3 +691,36 @@ body.v50-ui #atencion.r507-new-attention .r507-billing .r507-billing-total{
     flex-wrap:wrap!important
   }
 }
+
+/* 5.0.10: Servicios es un selector flotante, nunca una fila adicional de
+   Nueva atencion. Mantener la ficha, el boton Guardar y el pago inmoviles
+   al desplegar el catalogo en la pantalla de recepcion 1600 x 900. */
+@media (min-width:1100px) and (min-height:700px){
+  body.v50-ui #atencion.r507-new-attention .r507-details{
+    position:relative!important;
+    z-index:5!important;
+    overflow:visible!important;
+  }
+  body.v50-ui #atencion.r507-new-attention .r507-services{
+    position:relative!important;
+    overflow:visible!important;
+  }
+  body.v50-ui #atencion.r507-new-attention .r507-services[open]{
+    z-index:20!important;
+  }
+  body.v50-ui #atencion.r507-new-attention .r507-services[open]>.service-groups{
+    position:absolute!important;
+    top:calc(100% + 5px)!important;
+    left:0!important;
+    right:0!important;
+    width:100%!important;
+    box-sizing:border-box!important;
+    z-index:30!important;
+    max-height:220px!important;
+    overflow-y:auto!important;
+    overflow-x:hidden!important;
+    border:1px solid #cbd9ee!important;
+    border-radius:10px!important;
+    box-shadow:0 16px 34px rgba(28,58,100,.18)!important;
+  }
+}
