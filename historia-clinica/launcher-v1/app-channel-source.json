@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "historia-clinica/app",
-  "notes": "Historia Clínica 1.4.101: formularios médicos integrados en modal del mismo programa con fondo difuminado. Recetas, certificados e informes vuelven a dos columnas, sin desbordamiento, y mantienen impresión/firma, cierre protegido y mecanismos clínicos existentes."
+  "notes": "Historia Clínica 1.4.102: protección de fichas nuevas y sincronización SQLite por indicador legacy_no_depurable. Sin cambios destructivos, sin alteraciones de datos históricos ni cobros."
 }
