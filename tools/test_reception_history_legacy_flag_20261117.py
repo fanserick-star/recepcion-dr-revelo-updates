@@ -30,7 +30,7 @@ def check_reception_insert() -> None:
 
     assert len(candidates) == 1, "Expected one canonical patient INSERT"
     sql, params = candidates[0]
-    match = re.search(r"INSERT INTO public\.patients\s*\((.*?)\)\s*VALUES\s*\((.*?)\)", sql, re.S)
+    match = re.search(r"INSERT INTO public\.patients\s*\((.*?)\)\s*VALUES\s*\((.*)\)\s*$", sql, re.S)
     assert match, "Cannot inspect clinical patient INSERT"
     cols = [c.strip() for c in match.group(1).split(",")]
     exprs = [v.strip() for v in match.group(2).split(",")]
