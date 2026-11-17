@@ -9,7 +9,7 @@ const css=read('recepcion/app/static/reception_layout_501.css');
 const js=read('recepcion/app/static/reception_layout_501.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.10');
+assert.equal(version,'5.0.11');
 for(const p of ['static/reception_layout_501.css','static/reception_layout_501.js']){
  assert.ok(manifest.copy.includes(p),p+' missing from installer payload');
  assert.ok(manifest.required_dependencies.includes(p),p+' missing from mandatory payload');
