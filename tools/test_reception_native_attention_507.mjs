@@ -9,10 +9,10 @@ const ui=read('recepcion/app/static/reception_new_attention_507.js');
 const css=read('recepcion/app/static/reception_new_attention_507.css');
 const m=JSON.parse(read('recepcion/app/update_manifest.json'));
 const v=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(v,'5.0.14');assert.equal(m.version,v);
+assert.match(v,/^5[.]0[.][1-9][0-9]*$/,'Supported Reception 5.0.x release');assert.equal(m.version,v);
 for(const x of ['static/reception_new_attention_507.js','static/reception_new_attention_507.css']){
  assert.ok(m.copy.includes(x)&&m.required_dependencies.includes(x),x+' required for launcher');
- assert.ok(html.includes('/'+x+'?v=5.0.14'),x+' cache-busted reference');
+ assert.ok(html.includes('/'+x+'?v='+v),x+' cache-busted reference');
 }
 const start=html.indexOf('<section id="atencion"'),end=html.indexOf('<section id="tv"',start);
 assert.ok(start>=0&&end>start,'native page must exist separately from tv and other modules');

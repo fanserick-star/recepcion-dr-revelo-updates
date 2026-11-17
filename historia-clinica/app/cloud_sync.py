@@ -291,6 +291,28 @@ def _normalize_remote_value(value):
     return value
 
 
+def _map_remote_row_to_local(table: str, remote: dict, local_cols: set[str]) -> dict:
+    """Normalize inbound rows without changing protected legacy-patient flags.
+
+    Reception-created charts are non-legacy. Older emergency schemas may store
+    their omitted flag as NULL; SQLite installations can reject that NULL and
+    block the entire incremental pull. Only coalesce these known new charts.
+    """
+    data = {
+        k: _normalize_remote_value(v)
+        for k, v in remote.items()
+        if k in local_cols
+    }
+    if (
+        table == "patients"
+        and "legacy_no_depurable" in local_cols
+        and data.get("legacy_no_depurable") is None
+        and str(remote.get("source") or "").strip() == "reception_new"
+    ):
+        data["legacy_no_depurable"] = 0
+    return data
+
+
 # 2026-11-07: la sincronizacion conserva el envio inmediato de cambios,
 # pero deja de sondear Neon cuando no hay actividad ni filas pendientes.
 HISTORIA_NEON_ECO_MODE = True
@@ -1661,11 +1683,7 @@ class CloudSyncService:
                                 )
                             continue
 
-                        data = {
-                            k: _normalize_remote_value(v)
-                            for k, v in remote.items()
-                            if k in local_cols
-                        }
+                        data = _map_remote_row_to_local(table, remote, local_cols)
                         cols = list(data.keys())
                         if not cols:
                             continue

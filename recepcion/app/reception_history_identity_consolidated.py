@@ -830,9 +830,9 @@ def historia_identity_create_from_reception(
             """
             INSERT INTO public.patients(
               id,name,name_search,birth_date,address,phone,email,
-              national_id,national_id_search,source,source_record_hash,
+              national_id,national_id_search,legacy_no_depurable,source,source_record_hash,
               created_at,updated_at,cloud_updated_at,deleted_at
-            ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),NULL)
+            ) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,now(),NULL)
             """,
             (
                 clinical_id, name, _norm_text(name),
@@ -842,6 +842,7 @@ def historia_identity_create_from_reception(
                 demo.get("email") or None,
                 demo.get("national_id") or None,
                 identification,
+                0,  # Ficha creada por Recepción: no es un legado protegido.
                 "reception_new",
                 uuid.uuid5(uuid.NAMESPACE_URL, "historia-reception-patient:" + str(patient.id)).hex,
                 stamp, stamp,

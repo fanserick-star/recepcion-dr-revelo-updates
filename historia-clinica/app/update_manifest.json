@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.101",
-  "app_version": "1.4.101",
-  "runtime_version": "1.4.101",
+  "version": "1.4.102",
+  "app_version": "1.4.102",
+  "runtime_version": "1.4.102",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia 1.4.101: recetas, certificados, reposos e informes desde ficha, consulta o selector de Inicio se abren en un modal integrado al mismo WebView2, con fondo difuminado y cierre protegido ante cambios sin guardar. Restaura el diseño compacto de dos columnas de los editores cuando hay ancho suficiente (mínimo 970 px) con controles sin desbordamiento; no crea ventanas nativas adicionales para editar. Conserva impresión nativa mediante el WebView padre, firma electrónica, vistas previas externas de PDF, notificación de guardado, rutas de pacientes, historia, TV, SQLite y Neon. Sin migración ni escrituras automáticas ni cambios en facturación. Pruebas sintéticas de modal interno y formularios obligatorias en CI, con eventos de ventana, cierre protegido y rutas locales verificadas. Regresión del shell 1.4.49 selecciona la función por su AST y no por la posición del archivo; prueba histórica 1.4.43 verifica el modal integrado y su fallback sin alterar firma y QR.",
-    "previous_version": "1.4.100",
+    "purpose": "Historia Clínica 1.4.102: evitar que la creación de pacientes nuevos o su descarga en Historia fallen por legacy_no_depurable vacío. No modifica fichas históricas ni facturación.",
+    "previous_version": "1.4.101",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
