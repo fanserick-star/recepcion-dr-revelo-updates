@@ -14,7 +14,7 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[1]
 source = (ROOT / "recepcion/app/reception_messaging_runtime_guard.py").read_text(encoding="utf-8")
 tree = ast.parse(source)
-install = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_install_routes")
+install = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "install_guard")
 handler = next(n for n in ast.walk(install) if isinstance(n, ast.FunctionDef) and n.name == "appointment_message_history")
 route = copy.deepcopy(handler)
 route.decorator_list = []
