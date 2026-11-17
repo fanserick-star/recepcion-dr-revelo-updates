@@ -11,7 +11,7 @@ const old500=read('recepcion/app/static/reception_modern_500.js');
 const old501=read('recepcion/app/static/reception_layout_501.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
-assert.equal(version,'5.0.14');
+assert.match(version,/^5[.]0[.][1-9][0-9]*$/,'Supported Reception 5.0.x release');
 assert.equal(manifest.version,version);
 assert.equal(manifest.runtime_version,version);
 for(const path of ['static/reception_home_reference_504.css','static/reception_home_reference_504.js']){
