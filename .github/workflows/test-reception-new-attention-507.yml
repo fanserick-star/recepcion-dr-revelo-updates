@@ -41,5 +41,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: reception-507-new-attention-1600x900-synthetic
-          path: reports/reception-507-new-attention-1600x900.png
+          path: |
+            reports/reception-507-new-attention-1600x900.png
+            reports/reception-512-service-modal-1600x900.png
           if-no-files-found: ignore
