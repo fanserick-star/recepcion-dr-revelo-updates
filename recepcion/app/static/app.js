@@ -1838,7 +1838,7 @@ async function attentionFor(id,draft=null){
       <div class="r507-doctor-label"><span>Doctor</span><strong>Dr. Armando Revelo</strong></div>
     </div>
     <div class="r507-service-heading"><b>Tipo de atención <span class="r507-required">*</span></b><span id="serviceSelectionHint">0 seleccionadas</span></div>
-    <button type="button" id="r512ServiceButton" class="r512-service-launch" onclick="window.r512OpenServicePicker?.()" aria-haspopup="dialog">
+    <button type="button" id="r512ServiceButton" class="r512-service-launch" data-allow-rapid-clicks="true" onclick="window.r512OpenServicePicker?.()" aria-haspopup="dialog">
       <span class="r512-launch-main"><span class="r512-launch-icon">✚</span><span><b>Seleccionar servicios</b><small>Consulta o procedimientos · editar valores</small></span></span>
       <span class="r512-launch-arrow">Abrir ▸</span>
     </button>
