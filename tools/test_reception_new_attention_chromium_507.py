@@ -80,7 +80,27 @@ with sync_playwright() as p:
     page.locator("#aResults .v4413-attention-result").first.click()
     page.wait_for_selector("#r507VisitSlot:not(.hidden) #saveAttentionBtn",timeout=10000)
     page.wait_for_function("document.querySelector('#r507ClinicalPanel')?.textContent.includes('Ficha de Historia vinculada')",timeout=10000)
+    # 5.0.10: opening Servicios must not lengthen Nueva atención or move
+    # the save/payment controls below the 1600x900 viewport.
+    service_layout=lambda: page.evaluate(r"""() => {
+      const rect=s=>document.querySelector(s)?.getBoundingClientRect();
+      const details=rect('#atencion .r507-details');
+      const workspace=rect('#atencion .r509-attention-workspace');
+      const save=rect('#saveAttentionBtn');
+      const bill=rect('#atencion .r507-billing');
+      const menu=document.querySelector('#atencion .r507-services .service-groups');
+      const panel=menu?.getBoundingClientRect();
+      return {detailsHeight:details?.height,workspaceHeight:workspace?.height,
+        saveY:save?.y,billY:bill?.y,menuPosition:getComputedStyle(menu).position,
+        panelBottom:panel?.bottom,documentHeight:document.documentElement.scrollHeight};
+    }""")
+    collapsed=service_layout()
     page.locator(".r507-services > summary").click()
+    expanded=service_layout()
+    assert expanded["menuPosition"]=="absolute",expanded
+    assert expanded["panelBottom"]<=900,"Service list exits the viewport: "+str(expanded)
+    for key in ("detailsHeight","workspaceHeight","saveY","billY","documentHeight"):
+        assert abs(expanded[key]-collapsed[key])<=2,"Service menu reflows "+key+": "+str((collapsed,expanded))
     page.locator("#atencion .service-card[data-service='CONSULTA']").click()
     page.wait_for_function("document.querySelector('#r507BillingSummary')?.textContent.includes('40.00')",timeout=10000)
     page.wait_for_selector("#v4504Payment .v4504-pay-option",timeout=10000)
