@@ -125,8 +125,10 @@ with sync_playwright() as p:
     print("R512_REOPEN_AFTER",page.evaluate(r"""() => ({
         overlay:!!document.getElementById('r512ServiceOverlay'),
         cards:document.querySelectorAll('#r512ServiceOverlay .service-card').length,
-        button:!!document.getElementById('r512ServiceButton')
+        button:!!document.getElementById('r512ServiceButton'),
+        attempt:window.__r512TestOpenAttempt
     })"""),errors)
+    assert page.locator('#r512ServiceOverlay [role="dialog"]').count()==1,"Reopen did not show modal"
     page.locator("#r512ServiceOverlay .service-card[data-service='CONSULTA']").click()
     page.locator("#r512ServiceOverlay .service-card[data-service='CISTOSCOPIA']").click()
     page.locator("#r512ServiceOverlay .r512-price-input[data-service='CISTOSCOPIA']").fill("215.50")
