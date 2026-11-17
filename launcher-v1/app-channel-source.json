@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.9: Nueva atención compacta 1600x900, última visita y vínculo en línea, facturación y pago junto a detalles. Fecha y observación ocultas en pantalla pero preservadas en guardado; sin cambios a motor clínico, Neon ni facturación."
+  "notes": "Recepción 5.0.10: el selector Servicios abre como menú flotante y no aumenta la altura de Nueva atención en 1600x900. Se preservan selección múltiple, valores, pagos, guardado y vínculo clínico; sin cambios en Neon ni datos."
 }
