@@ -462,37 +462,65 @@ def install_guard() -> None:
         if not row:
             raise core.HTTPException(404, "Cita no encontrada")
         appointment, patient = row
-        result = _history_payload(
-            source_type="appointment",
-            source_id=int(appointment.id),
-            fecha=appointment.fecha,
-            hora=str(appointment.hora or "")[:5],
-            patient_name=str(patient.nombre or ""),
-        )
-        # No hay consulta adicional: reutilizar el resultado ya recibido de
-        # Cloud en este modal. El Worker revalida todo antes de enviar.
-        confirmed_initial = any(
-            item.get("direction") == "outbound"
-            and str(item.get("template") or "") == str(core.WHATSAPP_TEMPLATE_CITA_AGENDADA)
-            and str(item.get("source") or "") != "local_schedule_only"
-            for item in result.get("events") or []
-        )
-        registered_at = getattr(appointment, "created_at", None)
-        old_enough = bool(
-            registered_at and
-            (datetime.utcnow() - registered_at.replace(tzinfo=None)).total_seconds() >= 180
-        )
-        result["can_manual_resend"] = bool(
-            old_enough
-            and not result.get("cloud_error")
-            and not confirmed_initial
-            and not core.is_offline_db(db)
-            and appointment.fecha >= date.today()
-            and str(appointment.estado or "").upper()
-            not in {"CANCELADA", "CANCELADO", "NO_ASISTIRA", "NO_ASISTIRÁ"}
-            and core.WHATSAPP_CLOUD_MODE and not core.FORCE_OFFLINE
-        )
-        return result
+        # La carga de confirmaciones es opcional: una excepción del historial
+        # o un timestamp antiguo no debe romper el detalle de una cita.
+        # Fail-closed: jamás inventar envíos, confirmaciones ni ofrecer reenvíos.
+        try:
+            result = _history_payload(
+                source_type="appointment",
+                source_id=int(appointment.id),
+                fecha=appointment.fecha,
+                hora=str(appointment.hora or "")[:5],
+                patient_name=str(patient.nombre or ""),
+            )
+            confirmed_initial = any(
+                item.get("direction") == "outbound"
+                and str(item.get("template") or "") == str(core.WHATSAPP_TEMPLATE_CITA_AGENDADA)
+                and str(item.get("source") or "") != "local_schedule_only"
+                for item in result.get("events") or []
+            )
+            registered_at = getattr(appointment, "created_at", None)
+            try:
+                old_enough = bool(
+                    isinstance(registered_at, datetime)
+                    and (datetime.utcnow() - registered_at.replace(tzinfo=None)).total_seconds() >= 180
+                )
+                future_appointment = bool(isinstance(appointment.fecha, date) and appointment.fecha >= date.today())
+            except (TypeError, ValueError, OverflowError):
+                old_enough = False
+                future_appointment = False
+            result["can_manual_resend"] = bool(
+                old_enough
+                and future_appointment
+                and not result.get("cloud_error")
+                and not confirmed_initial
+                and not core.is_offline_db(db)
+                and str(appointment.estado or "").upper()
+                not in {"CANCELADA", "CANCELADO", "NO_ASISTIRA", "NO_ASISTIRÁ"}
+                and core.WHATSAPP_CLOUD_MODE and not core.FORCE_OFFLINE
+            )
+            return result
+        except Exception as exc:
+            # Diagnóstico técnico sin identidad, teléfono ni credenciales.
+            # NO hay consulta adicional a Neon ni cambios en SQLite.
+            try:
+                core._state["last_agenda_confirmation_read_error"] = type(exc).__name__
+            except Exception:
+                pass
+            return {
+                "available": False,
+                "cloud_available": False,
+                "cloud_error": "No se pudo verificar el historial de confirmación. La cita no ha cambiado.",
+                "source_type": "appointment",
+                "source_id": int(appointment.id),
+                "patient_name": "",
+                "outbound_count": 0,
+                "inbound_count": 0,
+                "events": [],
+                "can_manual_resend": False,
+                "confirmation_unverified": True,
+                "active_messaging_panel": "4.8.22",
+            }
 
     @app.get("/api/messaging/unlinked/{item_id}")
     def unlinked_message_history(
