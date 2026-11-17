@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.9",
-  "app_version": "5.0.9",
-  "runtime_version": "5.0.9",
+  "version": "5.0.10",
+  "app_version": "5.0.10",
+  "runtime_version": "5.0.10",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,7 +235,7 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.9: Nueva atención compacta para 1600x900. Se eliminan visualmente fecha, doctor y observación, conservando los campos de fecha/observación para el contrato original de guardado; historial reducido a la última atención real (fecha y tipo), agenda retirada de la vista y facturación con cuatro medios de pago junto a detalles. Se conserva vinculación oficial con Historia, revisión gratuita, validación clínica, SQLite/Neon y lógica fiscal intacta.",
+    "purpose": "Recepción 5.0.10: Servicios flotantes sin desplazamiento de Nueva atención 1600x900; conserva el formulario y los controles fiscales. Se eliminan visualmente fecha, doctor y observación, conservando los campos de fecha/observación para el contrato original de guardado; historial reducido a la última atención real (fecha y tipo), agenda retirada de la vista y facturación con cuatro medios de pago junto a detalles. Se conserva vinculación oficial con Historia, revisión gratuita, validación clínica, SQLite/Neon y lógica fiscal intacta.",
     "previous_version": "5.0.8",
     "production_status": "stable",
     "consolidated_runtime": true,
