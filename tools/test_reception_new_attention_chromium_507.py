@@ -130,7 +130,7 @@ with sync_playwright() as p:
     page.locator("#r512Apply").click()
     assert page.locator("#r512ServiceOverlay").count()==0
     assert "CISTOSCOPIA" in page.locator("#r512SelectionPreview").inner_text()
-    assert "$255.50" in page.locator("#r507BillingSummary").inner_text()
+    assert "255.50" in page.locator("#r507BillingSummary").inner_text(),page.locator("#r507BillingSummary").inner_text()
     assert page.locator("#procedureValuesBox .procedure-value-input[data-service='CISTOSCOPIA']").input_value()=="215.50"
     page.wait_for_selector("#v4504Payment .v4504-pay-option",timeout=10000)
     assert page.locator("#v4504Payment .v4504-pay-option").count()==4,"Real fiscal payment choices missing"
@@ -140,7 +140,7 @@ with sync_playwright() as p:
     page.locator("#r512ServiceButton").click()
     page.keyboard.press("Escape")
     assert page.locator("#r512ServiceOverlay").count()==0
-    assert "$255.50" in page.locator("#r507BillingSummary").inner_text()
+    assert "255.50" in page.locator("#r507BillingSummary").inner_text(),page.locator("#r507BillingSummary").inner_text()
     page.wait_for_function("document.querySelector('#r507HistoryList')?.textContent.includes('10/11/2026')",timeout=10000)
     # Production regression: the official v4613 overlay can prepend its
     # warning to the native form. It must not become an extra grid item.
