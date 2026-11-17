@@ -7,6 +7,7 @@ on:
       - "recepcion/app/static/**"
       - "tools/test_reception_new_attention_chromium_507.py"
       - "tools/test_reception_agenda_compact_5011.py"
+      - "tools/test_reception_patient_dock_chromium_5014.py"
       - ".github/workflows/test-reception-new-attention-507.yml"
   push:
     branches: [main]
@@ -36,6 +37,8 @@ jobs:
        
       - name: Verify full-day Agenda fits 1600x900 without scrolling
         run: python tools/test_reception_agenda_compact_5011.py
+      - name: Verify Pacientes dossier and observations stay inside 1600x900 viewport
+        run: python tools/test_reception_patient_dock_chromium_5014.py
       - name: Save synthetic visual screenshot
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,4 +47,5 @@ jobs:
           path: |
             reports/reception-507-new-attention-1600x900.png
             reports/reception-512-service-modal-1600x900.png
+            reports/reception-514-patients-dossier-1600x900.png
           if-no-files-found: ignore
