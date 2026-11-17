@@ -1,4 +1,4 @@
-// Reception 5.0.9: 1600x900 native home and safe zoom/agenda UI contract.
+// Reception 5.0.10: 1600x900 native home and safe zoom/agenda UI contract.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
@@ -10,7 +10,7 @@ const css=read('recepcion/app/static/reception_home_reference_504.css');
 const launcher=read('launcher-v1/RecepcionLauncher/Program.cs');
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
-assert.equal(version,'5.0.9');
+assert.equal(version,'5.0.10');
 assert.equal(manifest.version,version);
 assert.equal(manifest.notes.home_real_data_render_bridge,true);
 assert.equal(manifest.notes.home_1600x900_reference,true);
