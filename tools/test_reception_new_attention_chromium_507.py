@@ -94,6 +94,9 @@ with sync_playwright() as p:
     collapsed=service_layout()
     page.locator("#r512ServiceButton").click()
     page.wait_for_selector("#r512ServiceOverlay [role='dialog']")
+    opened=service_layout()
+    for key in ("detailsHeight","workspaceHeight","saveY","billY","documentHeight"):
+        assert abs(opened[key]-collapsed[key])<=2,"Opening the popup reflows "+key+": "+str((collapsed,opened))
     assert page.locator("#r512ServiceOverlay .consultation-service-section").count()==1
     assert page.locator("#r512ServiceOverlay .procedures-service-section").count()==1
     assert page.locator("#r512ServiceOverlay .consultation-card .service-price").inner_text()=="$40.00"
@@ -103,8 +106,10 @@ with sync_playwright() as p:
     page.locator("#r512ServiceOverlay .r512-price-input[data-service='CISTOSCOPIA']").fill("215.50")
     assert page.locator("#r512PickerTotal").inner_text()=="$ 255.50"
     expanded=service_layout()
-    for key in ("detailsHeight","workspaceHeight","saveY","billY","documentHeight"):
-        assert abs(expanded[key]-collapsed[key])<=2,"Service popup reflows "+key+": "+str((collapsed,expanded))
+    # Choosing two services can naturally add a billing line, but must never
+    # push the form, its Save button or the document below 900 px.
+    for key in ("detailsHeight","saveY","billY","documentHeight"):
+        assert abs(expanded[key]-collapsed[key])<=2,"Service selection moves native controls "+key+": "+str((collapsed,expanded))
     assert page.locator("#r512ServiceOverlay").bounding_box()["height"]==900
     # Cancel restores selection and prices, and never saves or charges.
     page.locator("#r512ServiceOverlay .r512-cancel").click()
