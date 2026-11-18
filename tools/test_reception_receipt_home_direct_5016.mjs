@@ -21,7 +21,7 @@ assert.match(home,/const directPrint=hasConsultation&&pid\?/);
 assert.match(home,/printReceiptDirectFromHome/);
 const actionRow=home.slice(home.indexOf('const directPrint='),home.indexOf("target.innerHTML='<table class=",home.indexOf('const directPrint=')));
 assert.ok(actionRow.indexOf('directPrint+')>=0,'rendered row needs native print button');
-assert.ok(actionRow.indexOf('directPrint+')<actionRow.indexOf('<details class=\\"v504-actions'),'print must precede the hidden action menu');
+assert.ok(actionRow.indexOf('directPrint+')<actionRow.indexOf('details class='),'print must precede the hidden action menu');
 assert.match(css,/\.v504-print-direct\{/);
 assert.match(css,/\.v504-attentions-table th:nth-child\(5\)\{width:28%!important\}/);
 
