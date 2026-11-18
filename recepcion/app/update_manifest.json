@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.15",
-  "app_version": "5.0.15",
-  "runtime_version": "5.0.15",
+  "version": "5.0.16",
+  "app_version": "5.0.16",
+  "runtime_version": "5.0.16",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.15: evitar que la creación de pacientes nuevos o su descarga en Historia fallen por legacy_no_depurable vacío. No modifica fichas históricas ni facturación.",
-    "previous_version": "5.0.14",
+    "purpose": "Recepción 5.0.16: restaurar impresión de recibos en Inicio con botón visible y envío térmico directo. Tras guardar una consulta, imprime automáticamente solo en modo DIRECT; informa errores sin duplicar atenciones.",
+    "previous_version": "5.0.15",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -264,7 +264,7 @@
     "agenda_legacy_linked_treated_as_native": true,
     "agenda_unlinked_confirmation_visible": true,
     "agenda_unlinked_no_show_visible": true,
-    "printing_changes": false,
+    "printing_changes": true,
     "procedure_logic_changes": false,
     "procedure_turn_consumption": false,
     "waiting_queue_transport": "lan_only",
@@ -867,7 +867,13 @@
     "attention_selection_direct": true,
     "reference_resolution": "1600x900",
     "fix_runtime_overlay_grid": true,
-    "original_history_link_action_preserved": true
+    "original_history_link_action_preserved": true,
+    "home_receipt_print_visible": true,
+    "receipt_direct_windows_from_home": true,
+    "receipt_auto_print_only_when_direct": true,
+    "receipt_print_failure_never_rolls_back_attention": true,
+    "receipt_preview_remains_available": true,
+    "receipt_no_fiscal_changes": true
   },
   "channel": "launcher-v1-stable"
 }
