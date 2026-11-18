@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.18: reversión de cambios de recibos de v5.0.16; se restaura impresión original porque la impresora estaba apagada. Se conserva la corrección de Guardar atención y pagos de v5.0.17. Sin cambios en datos ni facturación."
+  "notes": "Recepción 5.0.19: Inicio distingue el contador de pacientes de hoy de la lista de la fecha seleccionada, muestra la fecha y un botón Ver hoy. Conserva impresión restaurada v5.0.18 y corrección de Guardar v5.0.17; sin cambios en datos."
 }
