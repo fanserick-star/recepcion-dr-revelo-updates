@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.15: protección de fichas nuevas y sincronización SQLite por indicador legacy_no_depurable. Sin cambios destructivos, sin alteraciones de datos históricos ni cobros."
+  "notes": "Recepción 5.0.16: impresión de recibos desde Inicio en un clic y autoimpresión directa al guardar consulta. Modifica solo interfaz y envío a Windows; no altera atenciones, pacientes ni facturación."
 }
