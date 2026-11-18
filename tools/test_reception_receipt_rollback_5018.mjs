@@ -11,7 +11,7 @@ const html=read('recepcion/app/static/index.html');
 const payment=read('recepcion/app/reception_payment_terminal.py');
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
-assert.equal(version,'5.0.18');
+assert.ok(/^5\.0\.\d+$/.test(version)&&Number(version.split('.')[2])>=18,'Rollback must remain active in newer versions');
 assert.equal(manifest.version,version);
 assert.equal(manifest.app_version,version);
 assert.equal(manifest.runtime_version,version);

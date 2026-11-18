@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.18",
-  "app_version": "5.0.18",
-  "runtime_version": "5.0.18",
+  "version": "5.0.19",
+  "app_version": "5.0.19",
+  "runtime_version": "5.0.19",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.18: revertir únicamente los cambios de impresión de 5.0.16 porque la impresora física estaba apagada. Restaurar botones, vista previa e impresión originales; conservar reparación de Guardar atención de 5.0.17.",
-    "previous_version": "5.0.17",
+    "purpose": "Recepción 5.0.19: distinguir atenciones de hoy del día seleccionado en Inicio. Restaurar la fecha del listado que estaba oculta y permitir volver a Hoy, sin filtros, límites, escrituras ni cambios en pacientes, facturación, Historia o impresión.",
+    "previous_version": "5.0.18",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -872,7 +872,11 @@
     "payment_total_requires_valid_procedure_values": true,
     "payment_legacy_modal_fallback_preserved": true,
     "receipt_reverted_to_pre_5016": true,
-    "native_payment_save_fix_preserved": true
+    "native_payment_save_fix_preserved": true,
+    "home_selected_date_visible": true,
+    "home_today_kpi_label_explicit": true,
+    "home_return_to_today_button": true,
+    "home_no_data_filter_or_limit": true
   },
   "channel": "launcher-v1-stable"
 }
