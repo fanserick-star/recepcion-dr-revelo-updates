@@ -267,25 +267,6 @@ body.v50-ui #inicio.v504-home #todayTable .v504-action-menu .home-receipt-action
  display:grid!important;width:100%!important;gap:4px!important;margin:0!important;white-space:normal!important
 }
 body.v50-ui #inicio.v504-home #todayTable .v504-action-menu .danger{color:#a74145!important}
-/* Recibo térmico visible: se mantiene dentro del ancho del tablero 1600x900. */
-body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table th:nth-child(1){width:10%!important}
-body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table th:nth-child(2){width:32%!important}
-body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table th:nth-child(3){width:18%!important}
-body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table th:nth-child(4){width:12%!important}
-body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table th:nth-child(5){width:28%!important}
-body.v50-ui #inicio.v504-home #todayTable .v504-print-direct{
- display:inline-flex!important;align-items:center!important;justify-content:center!important;
- min-height:27px!important;height:27px!important;min-width:0!important;
- padding:4px 7px!important;margin-left:5px!important;
- border:1px solid #bad8f6!important;border-radius:7px!important;
- background:#eaf4ff!important;color:#165f9e!important;font-size:10px!important;
- line-height:1.1!important;font-weight:750!important;white-space:nowrap!important;
- vertical-align:middle!important;cursor:pointer!important;
-}
-body.v50-ui #inicio.v504-home #todayTable .v504-print-direct:disabled{
- opacity:.65!important;cursor:wait!important;
-}
-
 body.v50-ui #inicio.v504-home .v504-day-footer{
  padding:10px 3px 0!important;font-size:10.5px!important;color:#708197!important;line-height:1.3!important
 }

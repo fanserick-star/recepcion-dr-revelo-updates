@@ -123,9 +123,6 @@
       const timeLabel=hour?label12(hour):'—';
       const timeTitle=hour?'Hora de cita registrada en Agenda':'Sin una hora de cita vinculada; no se muestra una hora inventada';
       const receipt=typeof homeReceiptButtons==='function'?homeReceiptButtons(g,dateIso,dayTurn):'';
-      // La impresión de la consulta debe estar visible SIN abrir el menú de puntos.
-      const directPrint=hasConsultation&&pid?
-        '<button type="button" class="v504-print-direct" onclick="printReceiptDirectFromHome('+pid+',\''+escapeText(dateIso)+'\',this)" title="Enviar recibo a impresora térmica de Windows">🖨 Recibo</button>':'';
       const deletes=(g.visits||[]).map(v=>
         typeof homeDeleteButton==='function'?homeDeleteButton(v):''
       ).join('');
@@ -141,7 +138,6 @@
           '<div class="v504-type-sub">'+escapeText(moneyLabel)+(extras?' · '+extras+' servicio(s) adicional(es)':'')+'</div></td>'+
         '<td><span class="v504-attention-time" title="'+escapeText(timeTitle)+'">'+escapeText(timeLabel)+'</span></td>'+
         '<td><span class="v504-state" data-tone="'+tone+'">'+status+'</span>'+
-        directPrint+
         '<details class="v504-actions"><summary title="Acciones del paciente" aria-label="Acciones de '+escapeText(name)+'">···</summary>'+
         '<div class="v504-action-menu">'+open+receipt+deletes+'</div></details></td>'+
         '</tr>';

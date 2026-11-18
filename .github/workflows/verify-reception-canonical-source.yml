@@ -139,7 +139,7 @@ jobs:
           node tools/test_reception_home_runtime_504.mjs
           node tools/test_reception_compact_kpis_505.mjs
           node tools/test_reception_home_true_render_506.mjs
-          node tools/test_reception_receipt_home_direct_5016.mjs
+          node tools/test_reception_receipt_rollback_5018.mjs
           python tools/test_reception_native_payment_total_5017.py
           node --check recepcion/app/static/reception_new_attention_507.js
           node tools/test_reception_native_attention_507.mjs

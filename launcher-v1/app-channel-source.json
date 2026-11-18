@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.17: reparación de Guardar atención en pantalla nueva; el pago calcula el valor desde Consulta y procedimientos realmente seleccionados ($40 en Consulta). Conserva método de pago, facturación, datos y base sin cambios."
+  "notes": "Recepción 5.0.18: reversión de cambios de recibos de v5.0.16; se restaura impresión original porque la impresora estaba apagada. Se conserva la corrección de Guardar atención y pagos de v5.0.17. Sin cambios en datos ni facturación."
 }
