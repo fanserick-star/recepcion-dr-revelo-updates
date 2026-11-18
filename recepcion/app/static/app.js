@@ -2289,10 +2289,24 @@ async function saveAttention(id){
     show('inicio');
     if(serviceNames.includes('CONSULTA')){
       const receipt=receiptDataFromHome(id,fecha);
-      if(receipt)showAttentionSlip(receipt.visit,receipt.patient,receipt.dayNumber,true);
-      else{
+      const savedReceipt=receipt||(()=>{
         const consultationSaved=(saved?.items||[]).find(x=>!String(x?.procedimiento||'').trim())||saved?.items?.[0]||saved;
-        showAttentionSlip(consultationSaved,patient,patientDayNumber(fecha,id),true);
+        return {visit:consultationSaved,patient,dayNumber:patientDayNumber(fecha,id)};
+      })();
+      showAttentionSlip(savedReceipt.visit,savedReceipt.patient,savedReceipt.dayNumber,true);
+      // Imprimir una sola vez tras el guardado confirmado, solo en modo DIRECT.
+      // Fallar en Windows nunca revierte ni duplica la atención clínica.
+      if(String(appPreferences.print_mode||'PREVIEW').toUpperCase()==='DIRECT'){
+        void directPrintAttentionSlip(savedReceipt.visit,savedReceipt.patient,savedReceipt.dayNumber)
+          .then(result=>{
+            const status=document.getElementById('receiptPrintStatus');
+            if(status)status.textContent='✓ Recibo enviado a Windows'+(result?.printer?' · '+result.printer:'');
+          })
+          .catch(err=>{
+            const status=document.getElementById('receiptPrintStatus');
+            if(status)status.textContent='⚠ No se pudo enviar a la impresora: '+String(err?.message||err);
+            alert('Atención guardada correctamente, pero el recibo no se imprimió.\n\n'+String(err?.message||err)+'\n\nPuedes reimprimirlo desde Inicio.');
+          });
       }
     }
   }catch(e){alert(e.message)}
@@ -2340,7 +2354,7 @@ function showAttentionSlip(visit,patient,dayNumber=null,justSaved=false){
   const html=attentionSlipHtml(visit,patient,dayNumber);
   const title=justSaved?'Atención guardada ✓':'Recibo de consulta médica';
   const note=justSaved?'Ficha lista para pasar al papelito o imprimir en térmica de 80 mm.':'Este es el mismo recibo de esa atención; puedes reimprimirlo cuando lo necesites.';
-  openModal(`<div class="attention-slip-modal"><h2>${title}</h2><p class="muted">${note}</p>${html}<div class="actions attention-slip-actions"><button onclick="closeModal()">Cerrar</button><button class="primary" onclick="printAttentionSlip()">🖨 Imprimir 80 mm</button></div></div>`);
+  openModal(`<div class="attention-slip-modal"><h2>${title}</h2><p class="muted">${note}</p>${html}<p id="receiptPrintStatus" class="muted" role="status" aria-live="polite"></p><div class="actions attention-slip-actions"><button onclick="closeModal()">Cerrar</button><button onclick="printAttentionSlipData(lastAttentionSlipData.visit,lastAttentionSlipData.patient,lastAttentionSlipData.dayNumber)">Vista previa</button><button type="button" class="primary" onclick="printAttentionSlipDirect(this)">🖨 Imprimir en térmica</button></div></div>`);
 }
 function printAttentionSlipData(visit,patient,dayNumber=null){
   const card=attentionSlipHtml(visit,patient,dayNumber);
@@ -2404,6 +2418,36 @@ function receiptPrintPayload(visit,patient,dayNumber=null){
 }
 async function directPrintAttentionSlip(visit,patient,dayNumber=null){
   return await api('/api/printing/receipt',{method:'POST',body:JSON.stringify(receiptPrintPayload(visit,patient,dayNumber))});
+}
+// Acción explícita: enviar a la impresora Windows aunque la preferencia global
+// sea PREVIEW. La vista previa continúa disponible como opción separada.
+async function printAttentionSlipDirect(button){
+  if(!lastAttentionSlipData)return;
+  const original=button?.textContent||'🖨 Imprimir en térmica';
+  if(button){if(button.disabled)return;button.disabled=true;button.textContent='Enviando…';}
+  const status=document.getElementById('receiptPrintStatus');
+  try{
+    const data=lastAttentionSlipData;
+    const result=await directPrintAttentionSlip(data.visit,data.patient,data.dayNumber);
+    if(status)status.textContent='✓ Recibo enviado a Windows'+(result?.printer?' · '+result.printer:'');
+  }catch(err){
+    if(status)status.textContent='⚠ No se pudo enviar el recibo: '+String(err?.message||err);
+    alert('No se pudo imprimir directamente.\n\n'+String(err?.message||err)+'\n\nRevisa Configuración → Recibos e impresora, o usa Vista previa.');
+  }finally{if(button){button.disabled=false;button.textContent=original;}}
+}
+async function printReceiptDirectFromHome(patientId,fecha,button){
+  const data=receiptDataFromHome(patientId,fecha);
+  if(!data){alert('No se encontró una consulta para imprimir el recibo.');return;}
+  const original=button?.textContent||'🖨 Recibo';
+  if(button){if(button.disabled)return;button.disabled=true;button.textContent='Enviando…';}
+  try{
+    const result=await directPrintAttentionSlip(data.visit,data.patient,data.dayNumber);
+    if(button)button.textContent='✓ Enviado';
+    if(typeof window.rpNotice==='function')window.rpNotice('Recibo enviado a Windows'+(result?.printer?' · '+result.printer:''));
+  }catch(err){
+    alert('No se pudo enviar el recibo a la impresora.\n\n'+String(err?.message||err)+'\n\nPuedes abrir la ficha y usar Vista previa.');
+    showAttentionSlip(data.visit,data.patient,data.dayNumber,false);
+  }finally{if(button){button.disabled=false;setTimeout(()=>{if(button.isConnected)button.textContent=original;},1700);}}
 }
 async function printAttentionSlipByPreference(visit,patient,dayNumber=null){
   if(String(appPreferences.print_mode||'PREVIEW').toUpperCase()!=='DIRECT'){
