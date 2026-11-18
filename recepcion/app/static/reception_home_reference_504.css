@@ -448,8 +448,28 @@ body.v50-ui #inicio.v504-home #homeWeekNav .tiny-week-label{
   width:auto!important;min-width:169px!important;max-width:196px!important;
   font-size:10.4px!important;
 }
+/* La fecha seleccionada debe verse: el KPI superior cuenta HOY,
+   mientras que la tabla puede consultar otro día de la semana. */
 body.v50-ui #inicio.v504-home #selectedDayTitle{
-  display:none!important;
+  display:block!important;
+  margin:0 0 7px!important;
+  padding:5px 8px!important;
+  border:1px solid #dbeafa!important;
+  border-radius:8px!important;
+  background:#f5faff!important;
+}
+body.v50-ui #inicio.v504-home #selectedDayTitle h2{
+  font-size:11.4px!important;font-weight:800!important;color:#285f9c!important;
+}
+body.v50-ui #inicio.v504-home #selectedDayTitle span{
+  font-size:10px!important;color:#3e6689!important;
+}
+body.v50-ui #inicio.v504-home #selectedDayTitle .v504-back-today{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;
+  min-height:27px!important;height:27px!important;padding:3px 8px!important;
+  border:1px solid #a7c9ef!important;border-radius:7px!important;
+  background:#e8f3ff!important;color:#1765b4!important;font-size:10px!important;
+  font-weight:800!important;cursor:pointer!important;white-space:nowrap!important;
 }
 body.v50-ui #inicio.v504-home #todayTable .v504-attentions-table thead th{
   height:36px!important;font-size:11px!important;
