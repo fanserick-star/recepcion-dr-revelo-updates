@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.16",
-  "app_version": "5.0.16",
-  "runtime_version": "5.0.16",
+  "version": "5.0.17",
+  "app_version": "5.0.17",
+  "runtime_version": "5.0.17",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.16: restaurar impresión de recibos en Inicio con botón visible y envío térmico directo. Tras guardar una consulta, imprime automáticamente solo en modo DIRECT; informa errores sin duplicar atenciones.",
-    "previous_version": "5.0.15",
+    "purpose": "Recepción 5.0.17: corregir bloqueo de Guardar atención por suma incorrecta en pagos; lee la selección real de servicios en Nueva atención 5.0, manteniendo el cálculo anterior para formularios legacy. No modifica pacientes ni reglas fiscales.",
+    "previous_version": "5.0.16",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -873,7 +873,10 @@
     "receipt_auto_print_only_when_direct": true,
     "receipt_print_failure_never_rolls_back_attention": true,
     "receipt_preview_remains_available": true,
-    "receipt_no_fiscal_changes": true
+    "receipt_no_fiscal_changes": true,
+    "payment_total_from_native_selection": true,
+    "payment_total_requires_valid_procedure_values": true,
+    "payment_legacy_modal_fallback_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

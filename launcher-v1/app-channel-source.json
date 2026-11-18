@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.16: impresión de recibos desde Inicio en un clic y autoimpresión directa al guardar consulta. Modifica solo interfaz y envío a Windows; no altera atenciones, pacientes ni facturación."
+  "notes": "Recepción 5.0.17: reparación de Guardar atención en pantalla nueva; el pago calcula el valor desde Consulta y procedimientos realmente seleccionados ($40 en Consulta). Conserva método de pago, facturación, datos y base sin cambios."
 }
