@@ -45,7 +45,7 @@
     if(!cards)return;
     const labels={
       0:['En espera','Consultas en Historia','♧'],
-      1:['Atenciones del día','Pacientes registrados','♧'],
+      1:['Atenciones de hoy','Pacientes registrados hoy','♧'],
       3:['Agendados','Citas programadas hoy','▦'],
       4:['Facturas pendientes','Por revisar o emitir','▤']
     };
@@ -234,9 +234,30 @@
       console.warn('Recepción Inicio: la agenda local no está disponible',error);
     }finally{agendaRequest=null;agendaRequestKey='';}
   }
+  // El indicador superior cuenta siempre HOY. La tabla puede mostrar otro
+  // día elegido en el calendario semanal: nunca ocultar esa diferencia.
+  function clarifySelectedDate(date){
+    const caption=by('selectedDayTitle');
+    if(!caption)return;
+    const row=caption.querySelector('div');
+    const title=caption.querySelector('h2');
+    if(!row||!title)return;
+    const selected=String(date||'').slice(0,10);
+    const today=localDate();
+    title.textContent=(selected===today?'HOY · ':'FECHA SELECCIONADA · ')+title.textContent;
+    if(selected!==today){
+      const button=node('button','v504-back-today','Ver hoy');
+      button.type='button';
+      button.addEventListener('click',()=>{
+        if(typeof homeThisWeek==='function')void homeThisWeek();
+      });
+      row.append(button);
+    }
+  }
   function paint(date,payload){
     lastDay={date,payload};
     setMetricsText();
+    clarifySelectedDate(date);
     renderModernTable(date,payload);
     renderAgenda(date);
     if(!home.classList.contains('hidden')&&!by('app')?.classList.contains('hidden')){
