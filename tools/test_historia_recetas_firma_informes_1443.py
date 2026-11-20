@@ -79,9 +79,16 @@ assert 'if not any(values.get(key) for key in allowed if kind != "cistoscopia" o
 
 # An unsigned print must remain explicit; signing never depends on an async popup.
 assert "Guardar y firmar PDF" in reports
-assert "Imprimir sin firma" in reports
+assert "Guardar e imprimir" in reports
 assert "window.open('/api/firma/documento/informe/'" not in reports
 assert "const response=await fetch('/api/firma/documento/informe/'" in reports
+assert "async function signSavedReport(id){" in reports
+assert "signed=await signSavedReport(data.id);" in reports
+assert "if(ss.configured&&ss.unlocked){" in reports
+assert "return await window.historiaNativePrint(data.preview_url,'certificate');" in reports
+assert "if(signed)window.location.assign('/informes/'" in reports
+assert "Guardado sin firma electrónica" in reports
+assert "Firma electrónica bloqueada" in reports
 assert "if(!response.ok){" in reports
 assert "await pdf.slice(0,5).text()" in reports
 assert "window.location.assign('/informes/'" in reports
