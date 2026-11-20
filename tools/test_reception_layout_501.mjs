@@ -33,6 +33,29 @@ assert.match(js,/document\.querySelectorAll\('#app>main>section'\)/);
 assert.match(js,/previousAttention=attention/);
 new vm.Script(js,{filename:'reception_layout_501.js'});
 assert.equal((css.match(/\{/g)||[]).length,(css.match(/\}/g)||[]).length,'CSS braces');
+
+const dossierJS=read('recepcion/app/static/app.js');
+const modernSection=css.slice(css.indexOf('Recepción 5.0.21 — Expediente Moderno Profesional'));
+assert.ok(modernSection.length>5000,'approved dossier design override was not installed');
+assert.match(modernSection,/#pacientes:not\(\.hidden\)/,'patient workspace layout');
+assert.match(modernSection,/\.patient-compact-row\.v5021-selected/,'active patient highlighted');
+assert.match(modernSection,/\.v501-avatar\s*\{\s*display:none!important/,'approved design has no initials avatar');
+assert.match(modernSection,/\.v4413-profile-kpis/,'compact visible indicators');
+assert.match(modernSection,/\.v4413-profile-tabs/,'five original tabs stay visible');
+assert.match(modernSection,/#modal\.v50-dossier-open:not\(\.v501-docked-profile\):not\(\.hidden\)/,'Home uses a special centered modal');
+assert.match(modernSection,/place-items:center!important/,'Home modal must be vertically and horizontally centered');
+assert.match(modernSection,/backdrop-filter:blur\(3px\)/,'Home dims the background');
+assert.match(modernSection,/#modal\.v50-dossier-open\.v501-docked-profile/,'Patients retains a right-side dossier at 1600');
+assert.match(modernSection,/@media\(max-width:1259px\)/,'narrow screens keep a readable modal');
+assert.match(dossierJS,/v5021-dossier/,'original patient profile markup is retained');
+assert.match(dossierJS,/data-patient-id="\$\{Number\(p.id\)\}"/,'patient selection is purely visual');
+assert.match(dossierJS,/row\.classList\.toggle\('v5021-selected'/,'selected row indicator');
+assert.match(dossierJS,/v5021-more-menu/,'destructive action is kept in More menu');
+for(const tab of ['resumen','atenciones','agenda','facturacion','documentos'])
+ assert.ok(dossierJS.includes('data-profile-tab="'+tab+'"'),'missing patient tab: '+tab);
+assert.match(dossierJS,/window\.loadClinicalDelivery/,'clinical LAN panel unchanged');
+assert.match(dossierJS,/deletePatient/,'patient deletion handler must still exist');
+
 assert.doesNotMatch(js,/fetch\(|XMLHttpRequest|localStorage|indexedDB|\.post\(|\.put\(/i,'design adapter must not write data');
 assert.match(js,/30\*60\*1000/,'agenda summary must throttle its local reads');
 assert.match(js,/\/api\/agenda\/week\?anchor=/,'use the existing local-first weekly agenda');
