@@ -83,6 +83,36 @@ try:
     assert "QUEVEDO" in coords["summary"],coords
     assert not errors,errors
     page.screenshot(path=str(OUT),full_page=False)
+    # Inicio: reutiliza la MISMA ficha, pero en el centro; no abre panel lateral.
+    page.evaluate(r"""async () => {
+      closeModal();
+      document.querySelector('#pacientes').classList.add('hidden');
+      document.querySelector('#inicio').classList.remove('hidden');
+      await openPatient(21,'home');
+    }""")
+    page.wait_for_function(
+      "document.querySelector('#modal.v50-dossier-open:not(.v501-docked-profile) .v5021-dossier')!==null",
+      timeout=12000
+    )
+    page.wait_for_timeout(50)
+    home=page.evaluate(r"""() => {
+      const m=document.querySelector('#modal'), box=m.querySelector('.modalbox');
+      const b=box.getBoundingClientRect();
+      return {x:b.x,y:b.y,width:b.width,height:b.height,
+        centerX:b.x+b.width/2,centerY:b.y+b.height/2,
+        overlay:getComputedStyle(m).display,
+        backdrop:getComputedStyle(m).backgroundColor,
+        fixed:getComputedStyle(m).position,
+        documentWidth:document.documentElement.scrollWidth,
+        docked:m.classList.contains('v501-docked-profile')};
+    }""")
+    print("HOME_PATIENT_MODAL_1600X900",json.dumps(home,ensure_ascii=False))
+    assert not home["docked"],home
+    assert home["overlay"]=="grid" and home["fixed"]=="fixed",home
+    assert abs(home["centerX"]-800)<24 and abs(home["centerY"]-450)<24,home
+    assert home["width"]<=1000 and home["height"]<=860,home
+    assert home["documentWidth"]<=1602,home
+    assert not errors,errors
     browser.close()
 finally:
   server.shutdown()
