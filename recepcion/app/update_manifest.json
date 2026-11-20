@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.19",
-  "app_version": "5.0.19",
-  "runtime_version": "5.0.19",
+  "version": "5.0.20",
+  "app_version": "5.0.20",
+  "runtime_version": "5.0.20",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.19: distinguir atenciones de hoy del día seleccionado en Inicio. Restaurar la fecha del listado que estaba oculta y permitir volver a Hoy, sin filtros, límites, escrituras ni cambios en pacientes, facturación, Historia o impresión.",
-    "previous_version": "5.0.18",
+    "purpose": "Recepción 5.0.20: Inicio estable con tabla N.º, Paciente, Atención, Valor y Acciones, igual al diseño elegido. Mostrar todas las atenciones del día sin límite de cuatro, conservar día seleccionado tras navegar y avisar cuando lleguen menos pacientes que el total. Sin cambios de datos, facturación, impresión, Neon, Historia ni agenda.",
+    "previous_version": "5.0.19",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
