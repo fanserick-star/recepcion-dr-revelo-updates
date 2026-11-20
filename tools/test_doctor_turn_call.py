@@ -80,6 +80,10 @@ def test_local_event():
         assert "dialog.showModal();" in home_js and home_js.index("dialog.showModal();") < home_js.index("refreshCloud(); refreshQueue(); refreshLan();")
         # 8 segundos: expirar equivale a "Ahora no" y NUNCA a llamar.
         assert 'id="hc-next-call-countdown"' in app_source
+        # El modal vive en un f-string: llaves CSS escapadas, sin romper Inicio.
+        assert ".hc-next-call-dialog{{max-width:480px" in app_source
+        assert ".hc-next-call-countdown{{display:block" in app_source
+        assert ".hc-next-call-dialog::backdrop{{background:" in app_source
         assert "const AUTO_DISMISS_MS=8000;" in home_js
         assert "dismissTimer=setTimeout(()=>{if(dialog.open)dialog.close();},AUTO_DISMISS_MS);" in home_js
         assert "countdownTimer=setInterval(paintCountdown,250);" in home_js
