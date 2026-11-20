@@ -2345,17 +2345,17 @@ def home():
     </aside>
   </div>
   <style>
-  .hc-next-call-dialog{max-width:480px!important;width:min(480px,calc(100vw - 28px))!important;
+  .hc-next-call-dialog{{max-width:480px!important;width:min(480px,calc(100vw - 28px))!important;
     border:1px solid #b9d5e5!important;border-radius:17px!important;padding:22px!important;
-    box-shadow:0 24px 75px rgba(12,37,65,.23)!important;color:#183853}
-  .hc-next-call-dialog::backdrop{background:rgba(14,34,58,.62)}
-  .hc-next-call-dialog h2{font-size:22px;margin:6px 0 10px;line-height:1.22}
-  .hc-next-call-dialog p{font-size:15px;line-height:1.55;color:#51657a;margin:0 0 18px}
-  .hc-next-call-countdown{display:block;margin:-8px 0 16px;font-size:12px;font-weight:650;color:#60788d;text-align:center}
-  .hc-next-call-buttons{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
-  .hc-next-call-buttons button{padding:11px 15px;border-radius:9px;font-weight:750;cursor:pointer}
-  .hc-next-call-buttons #hc-next-call-yes{background:#116e98;color:#fff;border:1px solid #116e98}
-  .hc-next-call-buttons #hc-next-call-no{background:#f0f5f9;color:#29435b;border:1px solid #cad9e5}
+    box-shadow:0 24px 75px rgba(12,37,65,.23)!important;color:#183853}}
+  .hc-next-call-dialog::backdrop{{background:rgba(14,34,58,.62)}}
+  .hc-next-call-dialog h2{{font-size:22px;margin:6px 0 10px;line-height:1.22}}
+  .hc-next-call-dialog p{{font-size:15px;line-height:1.55;color:#51657a;margin:0 0 18px}}
+  .hc-next-call-countdown{{display:block;margin:-8px 0 16px;font-size:12px;font-weight:650;color:#60788d;text-align:center}}
+  .hc-next-call-buttons{{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}}
+  .hc-next-call-buttons button{{padding:11px 15px;border-radius:9px;font-weight:750;cursor:pointer}}
+  .hc-next-call-buttons #hc-next-call-yes{{background:#116e98;color:#fff;border:1px solid #116e98}}
+  .hc-next-call-buttons #hc-next-call-no{{background:#f0f5f9;color:#29435b;border:1px solid #cad9e5}}
   </style>
   <dialog id="hc-next-call-dialog" class="hc-next-call-dialog" aria-labelledby="hc-next-call-title"
     aria-describedby="hc-next-call-description">
