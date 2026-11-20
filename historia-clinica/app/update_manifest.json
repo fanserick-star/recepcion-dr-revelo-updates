@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.104",
-  "app_version": "1.4.104",
-  "runtime_version": "1.4.104",
+  "version": "1.4.105",
+  "app_version": "1.4.105",
+  "runtime_version": "1.4.105",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.104: al usar Guardar e imprimir en un informe de cistoscopia o ecografía, generar automáticamente el PDF firmado cuando la firma electrónica del médico esté activa, igual que recetas. Mantener impresión con aviso claro si no se pudo firmar, proteger originales y conservar equipo editable predefinido.",
-    "previous_version": "1.4.103",
+    "purpose": "Historia Clínica 1.4.105: mostrar confirmación opcional para llamar al siguiente turno válido en espera al terminar una consulta (incluida atención sin historia). Nunca llama automáticamente, sólo reutiliza el botón manual de voz y TV con bloqueo de repetición. No cambia la cola, Neon, pacientes, firma ni impresión.",
+    "previous_version": "1.4.104",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -642,6 +642,14 @@
     "report_print_sign_before_native_print": true,
     "report_print_no_silent_unsigned_fallback": true,
     "report_print_signed_report_readonly_after_print": true,
-    "report_print_offline_neon_schema_unchanged": true
+    "report_print_offline_neon_schema_unchanged": true,
+    "next_call_offer_on_successful_finalize": true,
+    "next_call_offer_both_finalization_paths": true,
+    "next_call_offer_no_automatic_voice": true,
+    "next_call_offer_waiting_only": true,
+    "next_call_offer_existing_manual_endpoint": true,
+    "next_call_offer_revalidates_live_ui": true,
+    "next_call_offer_once_no_reprompt_on_refresh": true,
+    "next_call_offer_no_database_writes": true
   }
 }

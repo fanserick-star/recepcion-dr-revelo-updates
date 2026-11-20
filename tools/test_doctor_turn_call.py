@@ -60,6 +60,24 @@ def test_local_event():
         assert "const sending=Object.create(null)" in call.CALL_SCRIPT
         assert "b.disabled=true" in call.CALL_SCRIPT
         assert "Repetir llamado" in call.CALL_SCRIPT
+        # Prompt post-consulta: nunca llama por sí solo ni altera la cola.
+        # Ambas rutas (vacía/con contenido) se activan sólo tras HTTP 2xx.
+        app_source=(Path(__file__).resolve().parents[1]/"historia-clinica/app/app.py").read_text(encoding="utf-8")
+        assert app_source.count("leavingAfterFinalize=true;location.href='/?offer_next_call=1'")==2
+        assert "id=\"hc-next-call-dialog\"" in app_source
+        assert "¿Llamar al siguiente paciente?" in app_source
+        assert 'id="hc-next-call-no"' in app_source
+        assert 'id="hc-next-call-yes"' in app_source
+        home_js=app_source.split('home_script = r"""',1)[1].split('"""',1)[0]
+        assert "searchParams.get('offer_next_call')==='1'" in home_js
+        assert "history.replaceState(" in home_js, "El aviso no debe reaparecer por actualizar Inicio"
+        assert ".hc-b-queue-list .queue-row-waiting .js-doctor-call" in home_js
+        assert "document.getElementById('hc-next-call-no')" in home_js
+        assert "no.addEventListener('click',()=>dialog.close()" in home_js
+        assert "dialog.showModal()" in home_js
+        assert "if(active)active.click();" in home_js, "Reutilizar el botón manual con antirrepetición"
+        assert "fetch('/api/doctor-turn-call/" not in home_js, "No duplicar transporte ni guardias de voz"
+        assert "dialog.showModal();" in home_js and home_js.index("dialog.showModal();") < home_js.index("refreshCloud(); refreshQueue(); refreshLan();")
         ok=response(endpoint("q1",FakeRequest()))
         assert ok["ok"] and ok["turn"]==8
         event=call.latest(root)
