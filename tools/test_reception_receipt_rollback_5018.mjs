@@ -29,7 +29,9 @@ const save=app.slice(app.indexOf('async function saveAttention(id){'),app.indexO
 assert.ok(save.includes("serviceNames.includes('CONSULTA')"));
 assert.ok(save.includes("if(receipt)showAttentionSlip("));
 assert.doesNotMatch(save,/void directPrintAttentionSlip/,'no duplicate automatic direct printing');
-assert.match(home,/homeReceiptButtons\(/);
+assert.match(app,/function homeReceiptButtons\(/);
+assert.match(app,/homeReceiptButtons\(g,fecha,descendingNumber\)/);
+assert.match(home,/target\.innerHTML=homeTable\(all\)/);
 assert.doesNotMatch(home,/v504-print-direct|printReceiptDirectFromHome|directPrint\+/);
 assert.doesNotMatch(css,/\.v504-print-direct/);
 

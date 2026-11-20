@@ -11,7 +11,7 @@ const oldMetrics=read('recepcion/app/static/home_remaster_4886.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
 const index=read('recepcion/app/static/index.html');
-assert.equal(version,'5.0.19');
+assert.match(version,/^5\.0\.(?:19|2[0-9]|[3-9][0-9])$/);
 assert.equal(manifest.version,version);
 for(const path of ['reception_home_reference_504.css','reception_home_reference_504.js'])
  assert.ok(index.includes(path+'?v='+version));
@@ -46,13 +46,15 @@ let backToToday=0;
 const win={};let calls=0;
 vm.runInNewContext(source,{window:win,document,MutationObserver:class{observe(){}},
  queueMicrotask:cb=>cb(),toISO:()=> '2026-11-18',homeThisWeek:()=>{backToToday++;},
- groupHomeVisits,homeReceiptButtons:()=>'',homeDeleteButton:()=>'',money:x=>'$'+Number(x||0).toFixed(2),
+ groupHomeVisits,homeTable:rows=>'<table class="home-patient-table"><tbody>'+rows.map(v=>
+ '<tr class="patient-main-row"><td>'+v.patient.nombre+'</td></tr>').join('')+'</tbody></table>',
+ homeReceiptButtons:()=>'',homeDeleteButton:()=>'',money:x=>'$'+Number(x||0).toFixed(2),
  serviceLabel:x=>x,api:()=>{calls++;throw Error('Unexpected API call');},console}, {filename:'home-reference.js'});
 caption.title.textContent='Sábado 14/11/2026';
 win.__r504PaintHome('2026-11-14',{count:4,visits:visits(4,'2026-11-14')});
 assert.match(caption.title.textContent,/FECHA SELECCIONADA · Sábado 14\/11\/2026/);
 assert.match(all.todayTable.innerHTML,/Paciente sintético 4/);
-assert.equal((all.todayTable.innerHTML.match(/data-v504-patient=/g)||[]).length,4);
+assert.equal((all.todayTable.innerHTML.match(/class="patient-main-row"/g)||[]).length,4);
 assert.equal(caption.row.children.length,1);
 assert.equal(caption.row.children[0].textContent,'Ver hoy');
 caption.row.children[0].listeners.click();
@@ -61,7 +63,7 @@ assert.equal(calls,0);
 caption.title.textContent='Miércoles 18/11/2026';caption.row.children=[];
 win.__r504PaintHome('2026-11-18',{count:8,visits:visits(8,'2026-11-18')});
 assert.match(caption.title.textContent,/HOY · Miércoles 18\/11\/2026/);
-assert.equal((all.todayTable.innerHTML.match(/data-v504-patient=/g)||[]).length,8);
+assert.equal((all.todayTable.innerHTML.match(/class="patient-main-row"/g)||[]).length,8);
 assert.equal(caption.row.children.length,0);
 assert.equal(calls,0);
 console.log('RECEPTION_5019_TODAY_VS_SELECTED_4_TO_8_PATIENTS_OK');

@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.19: Inicio distingue el contador de pacientes de hoy de la lista de la fecha seleccionada, muestra la fecha y un botón Ver hoy. Conserva impresión restaurada v5.0.18 y corrección de Guardar v5.0.17; sin cambios en datos."
+  "notes": "Recepción 5.0.20: Inicio conserva la tabla N.º / Paciente / Atención / Valor y lista TODOS los pacientes al navegar, sin corte de cuatro filas. Avisa si el total declarado y las filas disponibles difieren. Sin cambios en pacientes, Neon, Historia, facturación o impresión."
 }

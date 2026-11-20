@@ -40,9 +40,24 @@ const document={
  createElement:tag=>new FakeNode(tag),
  addEventListener(){}
 };
+// The reference UI delegates to the original homeTable controller.
+// A spy verifies that all visits reach it in this isolated VM smoke.
+let homeTableCallCount=0;
+let homeTableVisitCount=0;
+const homeTable=rows=>{
+ homeTableCallCount++;
+ homeTableVisitCount=rows.length;
+ const grouped=groups(rows);
+ const body=grouped.map((g,index)=>'<tr class="patient-main-row"><td>'+String(grouped.length-index)+'</td>'+
+   '<td><button onclick="openPatient('+g.patient.id+')">'+g.patient.nombre+'</button></td>'+
+   '<td>Consulta'+(g.visits.length>1?' + procedimiento adicional':'')+'</td>'+
+   '<td>$40.00</td><td><button onclick="reprintReceiptFromHome(1)">Reimprimir</button>'+
+   '<button onclick="deleteVisitFromHome('+g.visits[0].id+')">Borrar</button></td></tr>').join('');
+ return '<table class="home-patient-table"><thead><tr><th>N.º</th><th>Paciente</th><th>Atención</th><th>Valor</th><th>Acciones</th></tr></thead><tbody>'+body+'</tbody></table>';
+};
 const sandbox={window:win,document,MutationObserver:class{observe(){}},
  queueMicrotask:cb=>cb(),
- console,groupHomeVisits:groups,homeReceiptButtons:()=>'<button class="home-print-receipt" onclick="reprintReceiptFromHome(1)">Reimprimir</button>',
+ console,groupHomeVisits:groups,homeTable,homeReceiptButtons:()=>'<button class="home-print-receipt" onclick="reprintReceiptFromHome(1)">Reimprimir</button>',
  homeDeleteButton:v=>'<button class="home-delete-visit" onclick="deleteVisitFromHome('+v.id+')">Borrar</button>',
  money:n=>'$'+Number(n).toFixed(2),serviceLabel:s=>s,api:()=>{networkCalls++;throw Error('No expected network calls');},
  toISO:()=> '2026-11-14',agendaTime12:t=>t
@@ -51,16 +66,20 @@ vm.runInNewContext(source,sandbox,{filename:'reception_home_reference_504.js'});
 assert.equal(typeof win.__r504PaintHome,'function','native app.js should be able to invoke the 5.x renderer');
 win.__r504PaintHome('2026-11-14',{visits});
 const output=elements.todayTable.innerHTML;
-assert.equal((output.match(/<tr data-v504-patient=/g)||[]).length,11,'all 11 distinct patients must appear');
+assert.equal((output.match(/<tr class="patient-main-row">/g)||[]).length,11,'all 11 distinct patients must appear');
+assert.equal(homeTableCallCount,1,'delegate to the original day table once');
+assert.equal(homeTableVisitCount,12,'all 11 patients and their additional procedure must reach homeTable');
+assert.match(output,/N.º/);
+assert.match(output,/Acciones/);
 assert.match(output,/Paciente de prueba 11/);
 assert.match(output,/Paciente de prueba 1/);
-assert.match(output,/servicio\(s\) adicional\(es\)/);
+assert.match(output,/procedimiento adicional/);
 assert.match(output,/Reimprimir/,'receipt action preserved');
 assert.match(output,/Borrar/,'delete action preserved');
 assert.match(output,/openPatient\(/,'open patient preserved');
-assert.match(output,/Registrada/);
+assert.doesNotMatch(output,/Registrada|Cancelada/,'the original table must not invent a status column');
 assert.doesNotMatch(output,/Finalizado|En consulta|En espera/,'must not invent clinical state');
-assert.match(elements.v504DayFooter.textContent,/Mostrando 11 de 11/);
+assert.match(elements.v504DayFooter.children[0]?.textContent||'',/Mostrando 11 de 11/);
 assert.equal(networkCalls,0,'no extra network calls while auth gate is hidden');
 assert.equal(elements.v504ActivityList.children.length,4,'recent activity limited to four real visit groups');
 const native=readFileSync(new URL('../recepcion/app/static/app.js',import.meta.url),'utf8');

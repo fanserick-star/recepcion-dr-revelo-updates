@@ -82,71 +82,40 @@
     return rows.find(row=>String(row.appointment?.patient_id||'')===String(patientId))||null;
   }
 
+  // Reference of the SECOND screenshot: retain the real reception day table
+  // (N.º, Paciente, Atención, Valor, Acciones), not the alternate 5.0 preview.
+  // homeTable groups all visits by patient and never slices to four rows.
   function renderModernTable(date,payload){
     const target=by('todayTable'),footer=by('v504DayFooter');
-    if(!target||!payload)return;
+    if(!target||!payload||typeof homeTable!=='function')return false;
     const all=Array.isArray(payload.visits)?payload.visits:[];
-    if(!all.length){
-      target.replaceChildren(node('div','v504-empty-state','No hay atenciones registradas para el día seleccionado.'));
-      if(footer)footer.textContent='0 atenciones registradas';
-      renderActivity(date,payload);
-      return;
-    }
-    // This function is the same grouping used by the original day table.
-    // The source controller remains untouched.
     const groups=typeof groupHomeVisits==='function'?groupHomeVisits(all):[];
-    if(!groups.length)return; // retain the working legacy table on unexpected data
-    const head='<thead><tr><th>Turno</th><th>Paciente</th><th>Tipo</th><th>Hora</th><th>Estado y acciones</th></tr></thead>';
-    const rows=groups.map((g,index)=>{
-      const consultation=(g.visits||[]).filter(v=>!String(v.procedimiento||'').trim());
-      const procedures=(g.visits||[]).filter(v=>String(v.procedimiento||'').trim());
-      const primary=consultation[0]||procedures[0];
-      if(!primary)return '';
-      const pid=Number(g.patient?.id||primary.patient_id||0);
-      const dateIso=String(primary.fecha||date).slice(0,10);
-      const dayTurn=groups.length-index;
-      const hasConsultation=consultation.some(v=>!v.exam_review_no_charge);
-      const name=String(g.patient?.nombre||'Paciente sin nombre');
-      const extras=Math.max(0,(g.visits||[]).length-1);
-      const label=primary.exam_review_no_charge?'Revisión de exámenes':
-        String(primary.procedimiento||'').trim()?
-          (typeof serviceLabel==='function'?serviceLabel(primary.procedimiento):String(primary.procedimiento)):
-          'Consulta';
-      const total=(g.visits||[]).reduce((sum,v)=>sum+Number(v.valor||0),0);
-      const moneyLabel=typeof money==='function'?money(total):'$'+total.toFixed(2);
-      const state=String(primary.estado||'ACTIVA').toUpperCase();
-      const cancelled=/CANCEL|ANUL|ELIMIN/.test(state);
-      const status=cancelled?'Cancelada':'Registrada';
-      const tone=cancelled?'red':'blue';
-      const hourMatch=appointmentForPatient(dateIso,pid);
-      const hour=hourMatch?.appointment?.hora||'';
-      const timeLabel=hour?label12(hour):'—';
-      const timeTitle=hour?'Hora de cita registrada en Agenda':'Sin una hora de cita vinculada; no se muestra una hora inventada';
-      const receipt=typeof homeReceiptButtons==='function'?homeReceiptButtons(g,dateIso,dayTurn):'';
-      const deletes=(g.visits||[]).map(v=>
-        typeof homeDeleteButton==='function'?homeDeleteButton(v):''
-      ).join('');
-      const patient=pid?
-        '<button type="button" class="v504-patient-button" onclick="openPatient('+pid+',\'home\')">'+escapeText(name)+'</button>':
-        '<span class="v504-patient-button">'+escapeText(name)+'</span>';
-      const open=pid?'<button type="button" onclick="openPatient('+pid+',\'home\')">◉ Abrir expediente</button>':'';
-      return '<tr data-v504-patient="'+pid+'">'+
-        '<td><span class="v504-turn" title="Posición del paciente en el día">'+String(dayTurn).padStart(2,'0')+'</span></td>'+
-        '<td>'+patient+(g.isNew?'<div class="v504-patient-meta">Paciente nuevo</div>':'')+'</td>'+
-        '<td><div class="v504-type-cell"><span class="v504-type-icon" aria-hidden="true">'+
-          (primary.exam_review_no_charge?'♧':label==='Consulta'?'♧':'⌘')+'</span><span class="v504-type-label">'+escapeText(label)+'</span></div>'+
-          '<div class="v504-type-sub">'+escapeText(moneyLabel)+(extras?' · '+extras+' servicio(s) adicional(es)':'')+'</div></td>'+
-        '<td><span class="v504-attention-time" title="'+escapeText(timeTitle)+'">'+escapeText(timeLabel)+'</span></td>'+
-        '<td><span class="v504-state" data-tone="'+tone+'">'+status+'</span>'+
-        '<details class="v504-actions"><summary title="Acciones del paciente" aria-label="Acciones de '+escapeText(name)+'">···</summary>'+
-        '<div class="v504-action-menu">'+open+receipt+deletes+'</div></details></td>'+
-        '</tr>';
-    }).join('');
-    target.innerHTML='<table class="v504-attentions-table" aria-label="Pacientes del día seleccionado">'+head+'<tbody>'+rows+'</tbody></table>';
+    const shown=groups.length;
+    const declared=Number(payload.count);
+    const expected=Number.isFinite(declared)&&declared>=0?Math.max(shown,declared):shown;
+    try{
+      target.innerHTML=homeTable(all);
+    }catch(error){
+      console.error('Inicio: no se pudo dibujar la tabla completa',error);
+      return false; // original controller's safe table fallback
+    }
     if(footer){
-      footer.textContent='Mostrando '+groups.length+' de '+groups.length+' pacientes registrados. Las horas aparecen solo si existe una cita vinculada.';
+      footer.replaceChildren();
+      footer.append(node('span','', 'Mostrando '+shown+' de '+expected+' pacientes registrados.'));
+      if(expected>shown){
+        const warning=node('span','v504-day-count-warning',
+          ' ⚠ El resumen indica '+expected+' pacientes, pero llegaron '+shown+' a esta vista.');
+        const reload=node('button','v504-day-reload','Recargar atenciones');
+        reload.type='button';
+        reload.addEventListener('click',()=>{
+          if(typeof loadWeek==='function')
+            void loadWeek(typeof currentHomeAnchor==='string'&&currentHomeAnchor?currentHomeAnchor:date,date);
+        });
+        footer.append(warning,reload);
+      }
     }
     renderActivity(date,payload);
+    return true;
   }
   function renderActivity(date,payload){
     const host=by('v504ActivityList');
@@ -244,7 +213,11 @@
     if(!row||!title)return;
     const selected=String(date||'').slice(0,10);
     const today=localDate();
-    title.textContent=(selected===today?'HOY · ':'FECHA SELECCIONADA · ')+title.textContent;
+    // Returning from the sidebar can repaint without replacing the title.
+    // Keep the prefix and the "Ver hoy" control idempotent.
+    const baseTitle=title.textContent.replace(/^(?:HOY|FECHA SELECCIONADA)\s*·\s*/i,'');
+    title.textContent=(selected===today?'HOY · ':'FECHA SELECCIONADA · ')+baseTitle;
+    row.querySelector('.v504-back-today')?.remove();
     if(selected!==today){
       const button=node('button','v504-back-today','Ver hoy');
       button.type='button';
@@ -258,26 +231,33 @@
     lastDay={date,payload};
     setMetricsText();
     clarifySelectedDate(date);
-    renderModernTable(date,payload);
+    const painted=renderModernTable(date,payload);
     renderAgenda(date);
     if(!home.classList.contains('hidden')&&!by('app')?.classList.contains('hidden')){
       void ensureAgenda(date);
     }
+    return painted;
   }
   // 5.0.6: the ORIGINAL app.js calls this bridge after every real weekly/day
   // render. No shadowing or monkey-patching of the original page function.
   window.__r504PaintHome=(date,payload)=>{
-    try{paint(date,payload)}catch(error){
+    try{return paint(date,payload)===true}catch(error){
       console.error('Inicio: se conserva la tabla de respaldo al fallar el diseño moderno',error);
+      return false;
     }
   };
   window.__r504HomeEnter=()=>{
-    const chosen=lastDay?.date||(typeof selectedHomeDate==='string'?selectedHomeDate:localDate());
+    const chosen=(typeof selectedHomeDate==='string'&&selectedHomeDate)||lastDay?.date||localDate();
     if(!chosen)return;
-    if(!lastDay&&typeof weeklyData!=='undefined'&&weeklyData[chosen]){
-      paint(chosen,weeklyData[chosen]);
+    // Returning through the left menu must restore the same reference table
+    // as selecting a day from "Ver resumen de los cuatro días de consulta".
+    // Reuse weeklyData: never trigger a Neon fetch just to restore the view.
+    if(typeof weeklyData!=='undefined'&&weeklyData[chosen]){
+      if(typeof renderHomeDayFromCache==='function')renderHomeDayFromCache(chosen);
+      else paint(chosen,weeklyData[chosen]);
       return;
     }
+    if(lastDay?.date===chosen){paint(chosen,lastDay.payload);return;}
     renderAgenda(chosen);
     void ensureAgenda(chosen);
   };

@@ -21,7 +21,7 @@ for(const path of ['static/reception_home_reference_504.css','static/reception_h
 }
 assert.ok(html.indexOf('reception_home_reference_504.css')>html.indexOf('reception_home_focus_502.css'));
 assert.ok(html.indexOf('reception_home_reference_504.js')>html.indexOf('reception_layout_501.js'));
-// Real DOM, not a large legacy table re-skinned.
+// Keep the existing Inicio DOM and trust the original complete patient table.
 const start=html.indexOf('<section id="inicio">'),end=html.indexOf('<section id="tv"',start);
 assert.ok(start>=0&&end>start);
 const home=html.slice(start,end);
@@ -37,21 +37,25 @@ assert.match(home,/onclick="newPatient\(\)"/);
 assert.match(home,/onclick="show\('agenda'\)"/);
 // Real source remains the only controller of deletes, prints, agenda and patients.
 for(const fn of ['homeReceiptButtons','homeDeleteButton','groupHomeVisits','renderHomeDayPayload']){
- if(fn!=='renderHomeDayPayload')assert.ok(js.includes(fn),fn+' must bind to existing app.js');
+ // The reference renderer delegates the patient table to homeTable, which
+ // already binds receipts, deletes and grouping in app.js.
  assert.ok(oldJs.includes('function '+fn+'('),fn+' missing from original controller');
 }
 assert.match(js,/window\.__r504PaintHome=\(date,payload\)=>/);
 assert.match(oldJs,/window\.__r504PaintHome\?\.\(iso,d\)/);
 assert.match(js,/home\.classList\.add\('v504-home'\)/);
 assert.match(oldJs,/window\.__r504HomeEnter\?\.\(\)/);
-assert.match(js,/homeReceiptButtons\(g,dateIso,dayTurn\)/);
-assert.match(js,/homeDeleteButton\(v\)/);
-assert.match(js,/openPatient\(/);
-assert.match(js,/appointmentForPatient\(dateIso,pid\)/);
-assert.match(js,/Sin una hora de cita vinculada/);
-// User-visible status is sourced from Visit.estado, not comments or fictional queue events.
-assert.match(js,/const state=String\(primary.estado\|\|'ACTIVA'\)\.toUpperCase\(\)/);
-assert.match(js,/const status=cancelled\?'Cancelada':'Registrada'/);
+// The screenshot-two table must use ALL visits, without rendering a preview
+// capped at four; original action handlers remain bound to their true data.
+assert.match(js,/target\.innerHTML=homeTable\(all\)/);
+assert.match(js,/const groups=typeof groupHomeVisits/);
+assert.match(js,/Mostrando /);
+assert.match(js,/v504-day-count-warning/);
+assert.match(oldJs,/homeReceiptButtons\(g,fecha,descendingNumber\)/);
+assert.match(oldJs,/homeDeleteButton\(primary\)/);
+assert.match(oldJs,/function homeTable\(rows\)/);
+assert.match(oldJs,/patientNameCell\(primary,true,g.isNew\)/);
+assert.doesNotMatch(js,/rows\.slice\(0,4\)/);
 assert.match(js,/selectedAgendaEntries\(date\)/);
 assert.match(js,/const CACHE_MS=120000/);
 assert.equal((js.match(/api\('\/api\//g)||[]).length,1,'only one local-first agenda endpoint allowed');

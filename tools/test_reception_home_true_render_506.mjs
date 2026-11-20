@@ -17,22 +17,26 @@ assert.equal(manifest.notes.home_1600x900_reference,true);
 assert.equal(manifest.notes.prevent_accidental_browser_zoom,true);
 assert.ok(html.includes('reception_home_reference_504.js?v='+version));
 assert.ok(html.includes('reception_home_reference_504.css?v='+version));
-// The original app calls the new renderer after its own safe fallback table.
+// The original app calls the reference renderer first; the legacy table remains a fail-safe fallback.
 const start=app.indexOf('function renderHomeDayPayload(iso,d){');
 const end=app.indexOf('function renderHomeDayFromCache(iso){',start);
 assert.ok(start>=0&&end>start);
 const nativeRender=app.slice(start,end);
 assert.match(nativeRender,/#todayTable'\)\.innerHTML=table\(d\.visits\|\|\[\],\{home:true\}\)/);
 assert.match(nativeRender,/window\.__r504PaintHome\?\.\(iso,d\)/);
-assert.ok(nativeRender.indexOf('window.__r504PaintHome')>nativeRender.indexOf("const tableBox="));
+assert.ok(nativeRender.indexOf('window.__r504PaintHome')<nativeRender.indexOf("const tableBox="));
+assert.match(nativeRender,/if\(!referencePainted\)\{/);
 assert.match(home,/window\.__r504PaintHome=\(date,payload\)=>/);
-assert.match(home,/try\{paint\(date,payload\)\}/);
+assert.match(home,/try\{return paint\(date,payload\)===true\}/);
 assert.match(app,/window\.__r504HomeEnter\?\.\(\)/);
 assert.match(home,/window\.__r504HomeEnter=\(\)=>/);
+assert.match(home,/renderHomeDayFromCache\(chosen\)/);
 assert.doesNotMatch(home,/window\.renderHomeDayPayload=function/,'never shadow original renderer');
 assert.match(home,/const CACHE_MS=120000/);
 assert.match(home,/const week=await request/);
-assert.match(home,/Sin una hora de cita vinculada/);
+// The chosen screenshot-two table shows actual attention/charge data, not the old time column.
+assert.match(home,/target\.innerHTML=homeTable\(all\)/);
+assert.match(app,/function homeTable\(rows\)/);
 assert.match(home,/renderActivity\(date,payload\)/);
 assert.match(home,/const labels=\{/,'home KPI names must be present');
 // No runaway observer mutation feedback: update text only on actual difference.

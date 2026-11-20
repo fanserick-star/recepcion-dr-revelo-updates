@@ -918,21 +918,25 @@ function renderHomeDayPayload(iso,d){
   const label=d.label||weeklyData[iso]?.label||(['3','4','5','6'].includes(String(parseISO(iso).getDay()))?['','','','Miércoles','Jueves','Viernes','Sábado'][parseISO(iso).getDay()]:'Día');
   const count=Number(d.count||0);
   $('#selectedDayTitle').innerHTML=`<div><h2>${esc(label)} ${fmtDate(iso)}</h2><span>${count} ${count===1?'paciente':'pacientes'}</span></div>`;
+  // Keep one canonical table renderer for every entry route (sidebar, week
+  // cards, return from patient screens). The legacy table is a fallback only;
+  // painting it first can leave the old table visible after navigation.
+  let referencePainted=false;
   try{
-    $('#todayTable').innerHTML=table(d.visits||[],{home:true});
-  }catch(err){
-    console.error('Error dibujando el día '+iso,err);
-    $('#todayTable').innerHTML='<div class="panel home-render-error">No se pudo dibujar este día. Reinicia Recepción o instala la actualización más reciente.</div>';
+    referencePainted=window.__r504PaintHome?.(iso,d)===true;
+  }catch(error){
+    console.error('Inicio: no se pudo aplicar la vista moderna',error);
+  }
+  if(!referencePainted){
+    try{
+      $('#todayTable').innerHTML=table(d.visits||[],{home:true});
+    }catch(err){
+      console.error('Error dibujando el día '+iso,err);
+      $('#todayTable').innerHTML='<div class="panel home-render-error">No se pudo dibujar este día. Reinicia Recepción o instala la actualización más reciente.</div>';
+    }
   }
   const tableBox=$('#todayTable');
   if(tableBox){tableBox.scrollLeft=0;tableBox.scrollTop=0;}
-  // 5.0.6: the original day renderer must hand the SAME trusted patient data
-  // directly to the modern Inicio renderer. A window-function wrapper alone
-  // does not reliably intercept calls from the original module.
-  // Fail closed: existing day table remains usable if the visual hook fails.
-  try{window.__r504PaintHome?.(iso,d)}catch(error){
-    console.error('Inicio: no se pudo aplicar la vista moderna',error);
-  }
 }
 function renderHomeDayFromCache(iso){
   selectedHomeDate=iso;
