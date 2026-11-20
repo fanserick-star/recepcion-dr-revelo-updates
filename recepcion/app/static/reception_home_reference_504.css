@@ -495,3 +495,36 @@ body.v50-ui #inicio.v504-home .v504-alert-zone:empty{display:none!important}
     grid-template-columns:minmax(0,1.55fr) minmax(260px,.9fr)!important;
   }
 }
+
+/* Recepción 5.0: segunda referencia visual (tabla N.º/Paciente/Atención/Valor).
+   Sin límite de cuatro pacientes: la página crece naturalmente con el total.
+   Estilos solo de Inicio, sin afectar Nueva atención ni otras pantallas. */
+body.v50-ui.r486-ui #inicio.v504-home .v504-day-card{
+  height:auto!important;min-height:0!important;max-height:none!important;
+  overflow:visible!important;
+}
+body.v50-ui.r486-ui #inicio.v504-home .v504-day-card #todayTable{
+  display:block!important;height:auto!important;min-height:0!important;
+  max-height:none!important;overflow:visible!important;
+}
+body.v50-ui.r486-ui #inicio.v504-home #todayTable table.home-patient-table{
+  width:100%!important;height:auto!important;
+  border-collapse:collapse!important;
+}
+body.v50-ui.r486-ui #inicio.v504-home #todayTable .home-patient-table tbody tr{
+  display:table-row!important;height:auto!important;max-height:none!important;
+}
+body.v50-ui.r486-ui #inicio.v504-home .v504-day-footer .v504-day-count-warning{
+  display:inline!important;color:#a44a14!important;font-weight:750!important;
+}
+body.v50-ui.r486-ui #inicio.v504-home .v504-day-footer .v504-day-reload{
+  margin-left:9px!important;padding:4px 9px!important;min-height:26px!important;
+  font-size:10px!important;border-radius:7px!important;
+  background:#fff4df!important;border:1px solid #efcb88!important;
+  color:#92510c!important;cursor:pointer!important;
+}
+@media (max-width:1050px){
+  body.v50-ui.r486-ui #inicio.v504-home .v504-day-card #todayTable{
+    overflow-x:auto!important;max-height:none!important;
+  }
+}
