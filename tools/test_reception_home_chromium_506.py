@@ -126,7 +126,7 @@ with sync_playwright() as p:
     )
     assert not page.locator('#todayTable .home-patient-table').count(),\
       "Returning from sidebar left the legacy table visible"
-    page.evaluate("selectHomeDay('2026-11-13');selectHomeDay('2026-11-14')")
+    page.evaluate("() => {selectHomeDay('2026-11-13');selectHomeDay('2026-11-14');}")
     assert page.locator('#todayTable tr[data-v504-patient]').count()==11,\
       "Weekly navigation switched table renderers"
     assert not page.locator('#todayTable .home-patient-table').count(),\
