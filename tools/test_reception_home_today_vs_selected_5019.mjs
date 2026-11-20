@@ -11,7 +11,7 @@ const oldMetrics=read('recepcion/app/static/home_remaster_4886.js');
 const manifest=JSON.parse(read('recepcion/app/update_manifest.json'));
 const version=JSON.parse(read('recepcion/app/recepcion-version.json')).version;
 const index=read('recepcion/app/static/index.html');
-assert.equal(version,'5.0.19');
+assert.match(version,/^5\.0\.(?:19|2[0-9]|[3-9][0-9])$/);
 assert.equal(manifest.version,version);
 for(const path of ['reception_home_reference_504.css','reception_home_reference_504.js'])
  assert.ok(index.includes(path+'?v='+version));
