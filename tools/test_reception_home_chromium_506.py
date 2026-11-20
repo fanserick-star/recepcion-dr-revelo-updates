@@ -74,7 +74,7 @@ with sync_playwright() as p:
        window.__r504HomeEnter?.();
     }""")
     page.wait_for_function(
-       "document.querySelectorAll('#todayTable tr[data-v504-patient]').length===11",
+       "document.querySelectorAll('#todayTable .home-patient-table tr.patient-main-row').length===11",
        timeout=12000
     )
     page.wait_for_function(
@@ -93,7 +93,10 @@ with sync_playwright() as p:
          sidebar:bound('.v504-side-panel'),
          agenda:bound('#v504AgendaCard'),
          recent:bound('#v504ActivityCard'),
-         patients:document.querySelectorAll('#todayTable tr[data-v504-patient]').length,
+         patients:document.querySelectorAll('#todayTable .home-patient-table tr.patient-main-row').length,
+         procedures:document.querySelectorAll('#todayTable .home-patient-table tr.sub-visit-row').length,
+         footer:(document.querySelector('#v504DayFooter')?.textContent||''),
+         unclipped:getComputedStyle(document.getElementById('todayTable')).maxHeight==='none',
          agendaNames:(document.querySelector('#v504AgendaList')?.textContent||''),
          activityRows:document.querySelectorAll('#v504ActivityList .v504-activity-entry').length,
          legacyTable:!!document.querySelector('#todayTable .home-patient-table')
@@ -104,15 +107,18 @@ with sync_playwright() as p:
     assert len(layout["kpis"])==4,layout
     assert all(85<=x["h"]<=145 for x in layout["kpis"]),layout["kpis"]
     assert layout["patients"]==11,layout
-    assert not layout["legacyTable"],"Native original table still won the render"
+    assert layout["legacyTable"],"The second screenshot's original patient table is missing"
+    assert layout["procedures"]==1,"Grouped procedures should remain under the patient"
+    assert "Mostrando 11 de 11 pacientes" in layout["footer"],layout["footer"]
+    assert layout["unclipped"],"Day table must not have a four-row height cap"
     assert layout["sidebar"]["x"]>=layout["left"]["x"]+layout["left"]["width"]-4,layout
     assert layout["agenda"]["height"]<430,layout["agenda"]
     assert layout["recent"]["height"]<450,layout["recent"]
     assert layout["recent"]["y"]>=layout["agenda"]["y"]+layout["agenda"]["height"]-2,layout
     assert layout["activityRows"]==4,layout
 
-    # Regression: a legacy repaint or a return through the sidebar must not
-    # change the canonical Inicio table. The weekly selector must agree.
+    # Regression: the sidebar and weekly selector must always show the full
+    # original table from screenshot two, not the alternate preview.
     page.evaluate("""() => {
       document.getElementById('todayTable').innerHTML =
         table(weeklyData['2026-11-14'].visits, {home:true});
@@ -121,18 +127,44 @@ with sync_playwright() as p:
       show('inicio');
     }""")
     page.wait_for_function(
-      "document.querySelectorAll('#todayTable tr[data-v504-patient]').length===11",
+      "document.querySelectorAll('#todayTable .home-patient-table tr.patient-main-row').length===11",
       timeout=12000
     )
-    assert not page.locator('#todayTable .home-patient-table').count(),\
-      "Returning from sidebar left the legacy table visible"
+    assert page.locator('#todayTable .home-patient-table').count()==1,\
+      "Returning from sidebar changed the original table"
     page.evaluate("() => {selectHomeDay('2026-11-13');selectHomeDay('2026-11-14');}")
-    assert page.locator('#todayTable tr[data-v504-patient]').count()==11,\
-      "Weekly navigation switched table renderers"
-    assert not page.locator('#todayTable .home-patient-table').count(),\
-      "Weekly navigation restored the legacy table"
+    assert page.locator('#todayTable .home-patient-table tr.patient-main-row').count()==11,\
+      "Weekly navigation lost patients from the day"
+    assert page.locator('#todayTable .home-patient-table').count()==1,\
+      "Weekly navigation switched away from screenshot-two table"
     assert page.locator('#selectedDayTitle .v504-back-today').count()<=1,\
       "Date shortcut was duplicated after navigation"
+
+    # Explicitly reproduce the previously reported 8-patient case.
+    page.evaluate("""() => {
+      window.__testOriginalVisits=weeklyData['2026-11-14'].visits.slice();
+      weeklyData['2026-11-14'].visits=window.__testOriginalVisits.slice(0,8);
+      weeklyData['2026-11-14'].count=8;
+      renderHomeDayFromCache('2026-11-14');
+    }""")
+    assert page.locator('#todayTable tr.patient-main-row').count()==8,\
+      "Only part of the 8 patients is visible"
+    assert "Mostrando 8 de 8 pacientes" in page.locator('#v504DayFooter').inner_text()
+    assert not page.locator('#v504DayFooter .v504-day-count-warning').count()
+    page.evaluate("""() => {
+      weeklyData['2026-11-14'].visits=window.__testOriginalVisits.slice(0,4);
+      weeklyData['2026-11-14'].count=8;
+      renderHomeDayFromCache('2026-11-14');
+    }""")
+    assert page.locator('#v504DayFooter .v504-day-count-warning').count()==1,\
+      "Incomplete 4/8 response must not silently look complete"
+    assert "Mostrando 4 de 8 pacientes" in page.locator('#v504DayFooter').inner_text()
+    page.evaluate("""() => {
+      weeklyData['2026-11-14'].visits=window.__testOriginalVisits;
+      weeklyData['2026-11-14'].count=11;
+      renderHomeDayFromCache('2026-11-14');
+    }""")
+    assert page.locator('#todayTable tr.patient-main-row').count()==11
     page.screenshot(path=str(OUT), full_page=True)
     browser.close()
 
