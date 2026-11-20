@@ -84,18 +84,18 @@
 
   function renderModernTable(date,payload){
     const target=by('todayTable'),footer=by('v504DayFooter');
-    if(!target||!payload)return;
+    if(!target||!payload)return false;
     const all=Array.isArray(payload.visits)?payload.visits:[];
     if(!all.length){
       target.replaceChildren(node('div','v504-empty-state','No hay atenciones registradas para el día seleccionado.'));
       if(footer)footer.textContent='0 atenciones registradas';
       renderActivity(date,payload);
-      return;
+      return true;
     }
     // This function is the same grouping used by the original day table.
     // The source controller remains untouched.
     const groups=typeof groupHomeVisits==='function'?groupHomeVisits(all):[];
-    if(!groups.length)return; // retain the working legacy table on unexpected data
+    if(!groups.length)return false; // retain the working legacy table on unexpected data
     const head='<thead><tr><th>Turno</th><th>Paciente</th><th>Tipo</th><th>Hora</th><th>Estado y acciones</th></tr></thead>';
     const rows=groups.map((g,index)=>{
       const consultation=(g.visits||[]).filter(v=>!String(v.procedimiento||'').trim());
@@ -147,6 +147,7 @@
       footer.textContent='Mostrando '+groups.length+' de '+groups.length+' pacientes registrados. Las horas aparecen solo si existe una cita vinculada.';
     }
     renderActivity(date,payload);
+    return true;
   }
   function renderActivity(date,payload){
     const host=by('v504ActivityList');
@@ -244,7 +245,11 @@
     if(!row||!title)return;
     const selected=String(date||'').slice(0,10);
     const today=localDate();
-    title.textContent=(selected===today?'HOY · ':'FECHA SELECCIONADA · ')+title.textContent;
+    // Returning from the sidebar can repaint without replacing the title.
+    // Keep the prefix and the "Ver hoy" control idempotent.
+    const baseTitle=title.textContent.replace(/^(?:HOY|FECHA SELECCIONADA)\s*·\s*/i,'');
+    title.textContent=(selected===today?'HOY · ':'FECHA SELECCIONADA · ')+baseTitle;
+    row.querySelector('.v504-back-today')?.remove();
     if(selected!==today){
       const button=node('button','v504-back-today','Ver hoy');
       button.type='button';
@@ -258,26 +263,33 @@
     lastDay={date,payload};
     setMetricsText();
     clarifySelectedDate(date);
-    renderModernTable(date,payload);
+    const painted=renderModernTable(date,payload);
     renderAgenda(date);
     if(!home.classList.contains('hidden')&&!by('app')?.classList.contains('hidden')){
       void ensureAgenda(date);
     }
+    return painted;
   }
   // 5.0.6: the ORIGINAL app.js calls this bridge after every real weekly/day
   // render. No shadowing or monkey-patching of the original page function.
   window.__r504PaintHome=(date,payload)=>{
-    try{paint(date,payload)}catch(error){
+    try{return paint(date,payload)===true}catch(error){
       console.error('Inicio: se conserva la tabla de respaldo al fallar el diseño moderno',error);
+      return false;
     }
   };
   window.__r504HomeEnter=()=>{
-    const chosen=lastDay?.date||(typeof selectedHomeDate==='string'?selectedHomeDate:localDate());
+    const chosen=(typeof selectedHomeDate==='string'&&selectedHomeDate)||lastDay?.date||localDate();
     if(!chosen)return;
-    if(!lastDay&&typeof weeklyData!=='undefined'&&weeklyData[chosen]){
-      paint(chosen,weeklyData[chosen]);
+    // Returning through the left menu must restore the same reference table
+    // as selecting a day from "Ver resumen de los cuatro días de consulta".
+    // Reuse weeklyData: never trigger a Neon fetch just to restore the view.
+    if(typeof weeklyData!=='undefined'&&weeklyData[chosen]){
+      if(typeof renderHomeDayFromCache==='function')renderHomeDayFromCache(chosen);
+      else paint(chosen,weeklyData[chosen]);
       return;
     }
+    if(lastDay?.date===chosen){paint(chosen,lastDay.payload);return;}
     renderAgenda(chosen);
     void ensureAgenda(chosen);
   };
