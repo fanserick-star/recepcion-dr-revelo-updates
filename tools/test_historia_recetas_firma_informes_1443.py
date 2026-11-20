@@ -70,4 +70,23 @@ assert 'body.clinical-document-editor > main{width:100%' in doc
 # Editor en modal del mismo programa, conservando fallback del launcher.
 assert "window.historiaOpenClinicalOverlay?.(documentUrl)" in app
 assert "window.open(documentUrl,'_blank')" in app
+# Cistoscopia 1.4.103: prefill is editable, only for new reports.
+assert 'CYSTOSCOPY_EQUIPMENT_DEFAULT = "STORTZ GOKART 9601F"' in reports
+assert 'if row is None and kind == "cistoscopia":' in reports
+assert 'stored["equipo"] = CYSTOSCOPY_EQUIPMENT_DEFAULT' in reports
+assert 'class=\'report-input\' data-field=' in reports
+assert 'if not any(values.get(key) for key in allowed if kind != "cistoscopia" or key != "equipo"):' in reports
+
+# An unsigned print must remain explicit; signing never depends on an async popup.
+assert "Guardar y firmar PDF" in reports
+assert "Imprimir sin firma" in reports
+assert "window.open('/api/firma/documento/informe/'" not in reports
+assert "const response=await fetch('/api/firma/documento/informe/'" in reports
+assert "if(!response.ok){" in reports
+assert "await pdf.slice(0,5).text()" in reports
+assert "window.location.assign('/informes/'" in reports
+assert 'return HTMLResponse(_document_editor_shell(base, "Informe médico firmado", body, "informes"))' in reports
+assert "WHERE document_type='informe' AND document_id=?" in reports
+assert 'def signed_document_for_reception(' in (root/"lan_bridge.py").read_text(encoding="utf-8")
+
 print("HISTORIA_1443_RECETAS_AMBAS_COLUMNAS_FIRMA_QR_INFORMES_VENTANA_OK")
