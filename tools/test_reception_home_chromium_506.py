@@ -110,6 +110,29 @@ with sync_playwright() as p:
     assert layout["recent"]["height"]<450,layout["recent"]
     assert layout["recent"]["y"]>=layout["agenda"]["y"]+layout["agenda"]["height"]-2,layout
     assert layout["activityRows"]==4,layout
+
+    # Regression: a legacy repaint or a return through the sidebar must not
+    # change the canonical Inicio table. The weekly selector must agree.
+    page.evaluate("""() => {
+      document.getElementById('todayTable').innerHTML =
+        table(weeklyData['2026-11-14'].visits, {home:true});
+      document.getElementById('inicio').classList.add('hidden');
+      document.getElementById('pacientes').classList.remove('hidden');
+      show('inicio');
+    }""")
+    page.wait_for_function(
+      "document.querySelectorAll('#todayTable tr[data-v504-patient]').length===11",
+      timeout=12000
+    )
+    assert not page.locator('#todayTable .home-patient-table').count(),\
+      "Returning from sidebar left the legacy table visible"
+    page.evaluate("selectHomeDay('2026-11-13');selectHomeDay('2026-11-14')")
+    assert page.locator('#todayTable tr[data-v504-patient]').count()==11,\
+      "Weekly navigation switched table renderers"
+    assert not page.locator('#todayTable .home-patient-table').count(),\
+      "Weekly navigation restored the legacy table"
+    assert page.locator('#selectedDayTitle .v504-back-today').count()<=1,\
+      "Date shortcut was duplicated after navigation"
     page.screenshot(path=str(OUT), full_page=True)
     browser.close()
 
