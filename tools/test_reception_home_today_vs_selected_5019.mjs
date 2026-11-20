@@ -48,26 +48,7 @@ vm.runInNewContext(source,{window:win,document,MutationObserver:class{observe(){
  queueMicrotask:cb=>cb(),toISO:()=> '2026-11-18',homeThisWeek:()=>{backToToday++;},
  groupHomeVisits,homeTable:rows=>'<table class="home-patient-table"><tbody>'+rows.map(v=>
  '<tr class="patient-main-row"><td>'+v.patient.nombre+'</td></tr>').join('')+'</tbody></table>',
- homeReceiptButtons:()=>'',homeDeleteButton:()=>'',money:x=>'
- serviceLabel:x=>x,api:()=>{calls++;throw Error('Unexpected API call');},console}, {filename:'home-reference.js'});
-caption.title.textContent='Sábado 14/11/2026';
-win.__r504PaintHome('2026-11-14',{count:4,visits:visits(4,'2026-11-14')});
-assert.match(caption.title.textContent,/FECHA SELECCIONADA · Sábado 14\/11\/2026/);
-assert.match(all.todayTable.innerHTML,/Paciente sintético 4/);
-assert.equal((all.todayTable.innerHTML.match(/class="patient-main-row"/g)||[]).length,4);
-assert.equal(caption.row.children.length,1);
-assert.equal(caption.row.children[0].textContent,'Ver hoy');
-caption.row.children[0].listeners.click();
-assert.equal(backToToday,1);
-assert.equal(calls,0);
-caption.title.textContent='Miércoles 18/11/2026';caption.row.children=[];
-win.__r504PaintHome('2026-11-18',{count:8,visits:visits(8,'2026-11-18')});
-assert.match(caption.title.textContent,/HOY · Miércoles 18\/11\/2026/);
-assert.equal((all.todayTable.innerHTML.match(/class="patient-main-row"/g)||[]).length,8);
-assert.equal(caption.row.children.length,0);
-assert.equal(calls,0);
-console.log('RECEPTION_5019_TODAY_VS_SELECTED_4_TO_8_PATIENTS_OK');
-+Number(x||0).toFixed(2),
+ homeReceiptButtons:()=>'',homeDeleteButton:()=>'',money:x=>'$'+Number(x||0).toFixed(2),
  serviceLabel:x=>x,api:()=>{calls++;throw Error('Unexpected API call');},console}, {filename:'home-reference.js'});
 caption.title.textContent='Sábado 14/11/2026';
 win.__r504PaintHome('2026-11-14',{count:4,visits:visits(4,'2026-11-14')});
