@@ -444,3 +444,502 @@ body.v50-ui #modal.v50-dossier-open.v501-docked-profile .v4100-dossier .v4413-pr
     grid-template-columns:minmax(0,1fr)!important;
   }
 }
+
+
+
+/* Recepción 5.0.21 — Expediente Moderno Profesional aprobado (1600 × 900).
+   ÚLTIMA capa visual del dossier. Sin alterar el modelo, la cola, la agenda,
+   la facturación, el vínculo clínico ni los callbacks existentes.
+   Desde Pacientes se acopla al panel derecho; desde Inicio es modal centrado. */
+body.v50-ui #pacientes:not(.hidden){
+  grid-template-columns:minmax(290px,355px) minmax(0,1fr)!important;
+  grid-template-rows:auto auto auto minmax(0,1fr)!important;
+  align-content:start!important;align-items:start!important;
+  gap:7px 14px!important;padding-top:5px!important;
+}
+body.v50-ui #pacientes>.patients-page-head{
+  grid-column:1/-1!important;grid-row:1!important;
+  display:flex!important;align-items:center!important;
+  min-height:54px!important;margin:0 0 3px!important;
+}
+body.v50-ui #pacientes>.patients-page-head h1{
+  margin:0!important;font-size:27px!important;font-weight:850!important;
+  line-height:1.12!important;color:#132849!important;
+}
+body.v50-ui #pacientes>.patients-page-head p{
+  margin:3px 0 0!important;font-size:11px!important;
+  color:#7890aa!important;
+}
+body.v50-ui #pacientes>.patients-page-head>.primary{
+  min-height:35px!important;padding:7px 12px!important;border-radius:9px!important;
+  font-size:11.5px!important;background:#0e62ca!important;
+}
+body.v50-ui #pacientes>.patient-search-bar{
+  grid-column:1!important;grid-row:2!important;min-width:0!important;
+  margin:0!important;padding:9px!important;border-radius:13px!important;
+  border:1px solid #dbe6f3!important;background:#fff!important;
+  box-shadow:0 2px 12px rgba(29,66,110,.035)!important;
+}
+body.v50-ui #pacientes>.patient-search-bar input{
+  box-sizing:border-box!important;width:100%!important;
+  min-height:39px!important;height:39px!important;margin:0!important;
+  padding:8px 12px!important;border:1px solid #d8e2ef!important;
+  background:#f9fbfe!important;color:#17314f!important;
+  font-size:12px!important;font-weight:600!important;letter-spacing:0!important;
+  text-overflow:ellipsis!important;
+}
+body.v50-ui #pacientes>.patient-search-bar input::placeholder{
+  color:#8295ac!important;font-weight:550!important;font-size:10.5px!important;
+}
+body.v50-ui #pacientes>.patient-quick-filters{
+  grid-column:1!important;grid-row:3!important;
+  display:flex!important;flex-wrap:nowrap!important;
+  gap:5px!important;overflow-x:auto!important;min-width:0!important;
+  padding:1px 2px 4px!important;margin:0!important;scrollbar-width:thin;
+}
+body.v50-ui #pacientes>.patient-quick-filters button{
+  flex:0 0 auto!important;min-height:32px!important;height:32px!important;
+  padding:6px 10px!important;margin:0!important;font-size:11px!important;
+  font-weight:740!important;white-space:nowrap!important;border:1px solid #e2e9f2!important;
+  border-radius:999px!important;background:#f1f5fa!important;
+  color:#3f536e!important;box-shadow:none!important;
+}
+body.v50-ui #pacientes>.patient-quick-filters button.active{
+  background:#0c61cf!important;border-color:#0c61cf!important;
+  color:#fff!important;
+}
+body.v50-ui #pacientes #patientResults{
+  grid-column:1!important;grid-row:4!important;
+  box-sizing:border-box!important;width:100%!important;min-width:0!important;
+  min-height:360px!important;max-height:calc(100dvh - 262px)!important;
+  margin:0!important;padding:5px 7px!important;overflow-y:auto!important;overflow-x:hidden!important;
+  background:#fff!important;border:1px solid #dbe6f3!important;
+  border-radius:13px!important;box-shadow:0 2px 12px rgba(27,69,109,.045)!important;
+}
+body.v50-ui #pacientes .patient-results-heading{
+  padding:8px 9px!important;font-size:10.5px!important;color:#607c98!important;
+}
+body.v50-ui #pacientes .patient-compact-list{
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  gap:2px!important;min-width:0!important;
+}
+body.v50-ui #pacientes .patient-compact-row{
+  display:flex!important;align-items:center!important;gap:8px!important;
+  box-sizing:border-box!important;position:relative!important;min-height:68px!important;
+  width:100%!important;min-width:0!important;
+  margin:0!important;padding:9px 12px!important;
+  border:1px solid transparent!important;border-bottom-color:#ecf1f7!important;
+  border-radius:9px!important;background:#fff!important;box-shadow:none!important;
+  cursor:pointer!important;transition:background .13s ease,border-color .13s ease!important;
+}
+body.v50-ui #pacientes .patient-compact-row:hover,
+body.v50-ui #pacientes .patient-compact-row:focus-visible{
+  background:#f1f7ff!important;border-color:#d0e3fa!important;outline:0!important;
+}
+body.v50-ui #pacientes .patient-compact-row.v5021-selected{
+  background:linear-gradient(90deg,#dceaff,#ecf5ff)!important;
+  border-color:#d1e4fd!important;
+}
+body.v50-ui #pacientes .patient-compact-row.v5021-selected:before{
+  content:"";position:absolute;top:0;bottom:0;left:0;width:4px;
+  background:#1268d9;border-radius:8px 0 0 8px;
+}
+body.v50-ui #pacientes .patient-compact-main{
+  flex:1!important;display:flex!important;flex-direction:column!important;
+  align-items:stretch!important;justify-content:center!important;
+  min-width:0!important;gap:4px!important;
+}
+body.v50-ui #pacientes .patient-compact-name{
+  display:block!important;font-size:12.6px!important;line-height:1.25!important;
+  font-weight:830!important;color:#132d4f!important;white-space:normal!important;
+  overflow-wrap:break-word!important;text-overflow:clip!important;
+}
+body.v50-ui #pacientes .patient-compact-meta{
+  display:block!important;font-size:10.3px!important;line-height:1.25!important;
+  color:#66819e!important;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;
+}
+body.v50-ui #pacientes .patient-compact-last{
+  display:block!important;font-size:10.8px!important;line-height:1.3!important;
+  color:#3d658c!important;white-space:nowrap!important;overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+body.v50-ui #pacientes .patient-compact-warning{
+  flex:none!important;margin-left:auto!important;font-size:12px!important;
+}
+body.v50-ui #pacientes .v501-avatar{
+  display:none!important; /* El ejemplo aprobado no tiene avatares de iniciales. */
+}
+body.v50-ui #pacientes>.v50-patient-guide{
+  grid-column:2!important;grid-row:2/5!important;
+  align-self:stretch!important;min-height:calc(100dvh - 155px)!important;
+  background:#fff!important;border:1px solid #dbe6f3!important;
+  border-radius:15px!important;box-shadow:0 2px 12px rgba(27,69,109,.035)!important;
+}
+
+/* BASE VISUAL DEL EXPEDIENTE: los mismos 5 tabs y mismas acciones de antes. */
+body.v50-ui #modal.v50-dossier-open .v5021-dossier{
+  display:flex!important;flex-direction:column!important;gap:0!important;
+  box-sizing:border-box!important;width:100%!important;min-width:0!important;
+  min-height:100%!important;margin:0!important;padding:18px 20px 20px!important;
+  background:#fff!important;color:#173554!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v499-profile-eyebrow{
+  order:0!important;display:flex!important;align-items:center!important;gap:8px!important;
+  min-height:27px!important;margin:0 32px 6px 0!important;padding:0!important;
+  background:transparent!important;border:0!important;
+  color:#63768f!important;font-size:12px!important;font-weight:820!important;
+  letter-spacing:.04em!important;text-transform:uppercase!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v499-profile-eyebrow span{
+  width:26px!important;height:26px!important;border-radius:7px!important;
+  background:#eef4fc!important;color:#235d9e!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-head{
+  order:1!important;display:flex!important;flex-direction:column!important;
+  align-items:stretch!important;gap:13px!important;
+  grid-template-columns:none!important;box-sizing:border-box!important;
+  min-width:0!important;margin:0!important;padding:8px 1px 8px!important;
+  background:#fff!important;border:0!important;border-radius:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-name h2{
+  margin:0 0 10px!important;font-size:clamp(20px,2.1vw,28px)!important;
+  font-weight:900!important;letter-spacing:-.035em!important;line-height:1.13!important;
+  color:#0c2242!important;word-break:normal!important;overflow-wrap:break-word!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-identity{
+  display:flex!important;gap:7px 12px!important;flex-wrap:wrap!important;
+  font-size:11.5px!important;line-height:1.2!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-identity>*{
+  min-height:27px!important;margin:0!important;padding:6px 9px!important;
+  border:0!important;border-radius:999px!important;background:#f0f4f9!important;
+  color:#3a536f!important;font-size:11.2px!important;max-width:100%!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-flags{
+  margin:8px 0 0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-flag{
+  min-height:27px!important;padding:5px 10px!important;
+  border:0!important;border-radius:999px!important;
+  font-size:10.7px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions{
+  display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;
+  justify-content:flex-start!important;align-items:center!important;
+  width:auto!important;min-width:0!important;gap:8px!important;margin:0!important;
+  padding:0!important;position:relative!important;grid-template-columns:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions>button{
+  flex:0 1 auto!important;width:auto!important;min-width:0!important;
+  min-height:40px!important;height:40px!important;
+  margin:0!important;padding:9px 13px!important;
+  border:1px solid #d3dfed!important;border-radius:9px!important;
+  background:#f9fbfe!important;color:#294462!important;
+  box-shadow:none!important;font-size:12px!important;font-weight:780!important;
+  white-space:nowrap!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions>button.primary{
+  background:#0e62cd!important;border-color:#0e62cd!important;
+  color:#fff!important;box-shadow:0 3px 8px rgba(13,83,180,.13)!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions>button:hover{
+  filter:brightness(.97)!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-more{
+  position:relative!important;flex:0 0 auto!important;display:block!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-more>summary{
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  min-height:40px!important;padding:9px 13px!important;cursor:pointer!important;
+  border:1px solid #d3dfed!important;border-radius:9px!important;
+  background:#f9fbfe!important;color:#304d6e!important;font-size:12px!important;
+  font-weight:760!important;list-style:none!important;white-space:nowrap!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-more>summary::-webkit-details-marker{display:none!important}
+body.v50-ui #modal.v50-dossier-open .v5021-more-menu{
+  position:absolute!important;top:calc(100% + 5px)!important;right:0!important;
+  min-width:178px!important;padding:7px!important;z-index:150!important;
+  border:1px solid #d8e2ef!important;border-radius:10px!important;
+  background:#fff!important;box-shadow:0 12px 26px rgba(28,51,82,.2)!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-more-menu button{
+  display:block!important;width:100%!important;min-height:35px!important;
+  margin:0!important;padding:7px 10px!important;font-size:11px!important;
+  border-radius:7px!important;white-space:nowrap!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-warning,
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-complete{
+  order:2!important;margin:6px 1px!important;padding:8px 12px!important;
+  min-height:0!important;border-radius:9px!important;font-size:11px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4613-history-card{
+  order:2!important;position:relative!important;
+  display:flex!important;width:auto!important;min-width:0!important;
+  margin:8px 1px!important;padding:8px 12px!important;
+  border-radius:10px!important;background:#e8f3ff!important;
+  box-shadow:none!important;font-size:11px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis{
+  order:3!important;display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:0!important;align-self:stretch!important;
+  min-height:0!important;margin:10px 0 15px!important;
+  padding:8px 0!important;background:#fff!important;
+  border:0!important;border-top:1px solid #e7edf5!important;
+  border-bottom:1px solid #e7edf5!important;border-radius:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div{
+  box-sizing:border-box!important;position:relative!important;display:flex!important;
+  flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;
+  gap:4px!important;min-height:56px!important;height:auto!important;
+  min-width:0!important;flex:none!important;margin:0!important;
+  padding:4px 8px 4px 48px!important;
+  background:transparent!important;border:0!important;border-radius:0!important;
+  box-shadow:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div+div{
+  border-left:1px solid #e0e8f2!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div:before{
+  display:grid!important;position:absolute!important;left:8px!important;top:11px!important;
+  width:32px!important;height:32px!important;place-items:center!important;
+  border:0!important;border-radius:8px!important;background:#eaf3ff!important;
+  color:#1266c7!important;font-size:19px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div:nth-child(1):before{content:"◷"!important}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div:nth-child(2):before{content:"✚"!important}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div:nth-child(3):before{content:"▦"!important}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis>div:nth-child(4):before{content:"▤"!important}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-kpis span{
+  margin:0!important;font-size:10.8px!important;line-height:1.15!important;
+  color:#647b95!important;font-weight:630!important;text-transform:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-kpis b{
+  margin:0!important;font-size:15px!important;line-height:1.17!important;
+  color:#142a4c!important;font-weight:850!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs{
+  order:4!important;position:static!important;
+  display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;
+  align-items:stretch!important;justify-content:space-between!important;
+  gap:2px!important;width:auto!important;min-width:0!important;min-height:48px!important;
+  margin:0 0 13px!important;padding:4px!important;
+  background:#f1f5fa!important;border:1px solid #e4ebf4!important;
+  border-radius:9px!important;overflow-x:auto!important;scrollbar-width:thin!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs:before{
+  display:none!important;content:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs>button{
+  flex:1 0 auto!important;width:auto!important;min-width:0!important;
+  min-height:38px!important;height:38px!important;max-height:none!important;
+  align-self:center!important;margin:0!important;padding:8px 9px!important;
+  border:0!important;border-bottom:3px solid transparent!important;border-radius:7px!important;
+  background:transparent!important;color:#4d6076!important;
+  box-shadow:none!important;font-size:11.5px!important;font-weight:740!important;
+  line-height:1.15!important;white-space:nowrap!important;
+  text-align:center!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs>button.active{
+  background:#e2edfb!important;color:#0b60c8!important;
+  border-bottom-color:#0b60c8!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs>button>span{
+  padding:2px 5px!important;min-height:16px!important;border-radius:6px!important;
+  font-size:9px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-panels{
+  order:5!important;box-sizing:border-box!important;flex:1!important;
+  align-self:stretch!important;width:auto!important;max-width:100%!important;
+  min-width:0!important;min-height:0!important;
+  margin:0!important;padding:0!important;background:transparent!important;
+  border:0!important;border-radius:0!important;box-shadow:none!important;
+  overflow:visible!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-panels>section{
+  min-width:0!important;margin:0!important;padding:0!important;
+  background:transparent!important;border:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-dashboard{
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+  align-items:start!important;gap:12px!important;min-width:0!important;
+  width:100%!important;margin:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-personal-panel{
+  margin:0!important;padding:2px 0 0!important;
+  border:0!important;background:#fff!important;box-shadow:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-section-heading{
+  margin:0 0 8px!important;color:#172e51!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-section-heading h3{
+  font-size:16px!important;font-weight:850!important;color:#172e51!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid{
+  display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-template-rows:repeat(3,minmax(47px,auto))!important;
+  grid-auto-flow:column!important;gap:0 24px!important;min-width:0!important;
+  margin:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid>div{
+  display:grid!important;grid-template-columns:minmax(100px,135px) minmax(0,1fr)!important;
+  align-items:center!important;gap:6px!important;min-height:47px!important;
+  margin:0!important;padding:6px 2px!important;
+  background:transparent!important;border:0!important;
+  border-bottom:1px solid #e6edf5!important;border-radius:0!important;
+  box-shadow:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid>div>span{
+  font-size:11px!important;font-weight:690!important;color:#4d6782!important;
+  line-height:1.3!important;letter-spacing:0!important;text-transform:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid>div>b{
+  display:block!important;min-width:0!important;margin:0!important;
+  font-size:12.5px!important;line-height:1.35!important;
+  font-weight:730!important;color:#192f4d!important;
+  overflow-wrap:anywhere!important;word-break:normal!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-side{
+  display:block!important;min-width:0!important;margin:0!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-note-panel{
+  padding:12px 14px!important;margin:0!important;
+  border:1px solid #e0e9f5!important;border-radius:11px!important;
+  background:#f5f8fd!important;box-shadow:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-note-panel .v499-section-heading{
+  margin:0 0 5px!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-note-text{
+  min-height:0!important;max-height:110px!important;margin:0!important;
+  padding:4px 0!important;border:0!important;border-radius:0!important;
+  background:transparent!important;color:#475b76!important;
+  font-size:11.8px!important;line-height:1.5!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-note-edit{
+  min-height:25px!important;margin:3px 0 0 auto!important;padding:4px 8px!important;
+  background:transparent!important;border:0!important;font-size:10px!important;
+  box-shadow:none!important;
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v499-profile-help{
+  display:none!important; /* El texto repetía la vinculación mostrada arriba. */
+}
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-timeline,
+body.v50-ui #modal.v50-dossier-open .v5021-dossier .patient-history-wrap{
+  max-width:100%!important;min-width:0!important;overflow-x:auto!important;
+}
+body.v50-ui #modal.v50-dossier-open .modalbox.v4413-profile-shell>.x{
+  position:absolute!important;right:12px!important;top:12px!important;
+  z-index:80!important;width:34px!important;height:34px!important;
+  border:1px solid #dce5f0!important;border-radius:9px!important;
+  background:#f3f7fc!important;color:#355473!important;
+}
+
+/* PACIENTES (>=1260): expediente integrado y cómodo a la derecha. */
+@media(min-width:1260px){
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile:not(.hidden){
+    position:fixed!important;inset:0!important;display:block!important;
+    padding:0!important;margin:0!important;background:transparent!important;
+    backdrop-filter:none!important;pointer-events:none!important;z-index:40!important;
+  }
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .modalbox.v4413-profile-shell{
+    position:fixed!important;box-sizing:border-box!important;display:block!important;
+    left:calc(208px + 20px + 355px + 14px)!important;right:18px!important;
+    top:135px!important;bottom:15px!important;
+    width:auto!important;max-width:none!important;min-width:0!important;
+    height:auto!important;max-height:none!important;min-height:0!important;
+    padding:0!important;margin:0!important;transform:none!important;
+    overflow-x:hidden!important;overflow-y:auto!important;pointer-events:auto!important;
+    border:1px solid #d8e5f2!important;border-radius:14px!important;
+    background:#fff!important;box-shadow:0 2px 13px rgba(24,65,110,.06)!important;
+  }
+  body.v50-ui:has(#modal.v501-docked-profile:not(.hidden)) #pacientes>.v50-patient-guide{
+    visibility:hidden!important;
+  }
+}
+/* INICIO: nunca acoplado. Pantalla atenuada y ficha perfectamente centrada. */
+body.v50-ui #modal.v50-dossier-open:not(.v501-docked-profile):not(.hidden){
+  position:fixed!important;inset:0!important;display:grid!important;
+  place-items:center!important;align-items:center!important;justify-items:center!important;
+  width:100vw!important;height:100dvh!important;padding:24px!important;margin:0!important;
+  background:rgba(12,29,54,.51)!important;backdrop-filter:blur(3px)!important;
+  pointer-events:auto!important;z-index:60!important;
+}
+body.v50-ui #modal.v50-dossier-open:not(.v501-docked-profile) .modalbox.v4413-profile-shell{
+  position:relative!important;box-sizing:border-box!important;
+  left:auto!important;right:auto!important;top:auto!important;bottom:auto!important;
+  width:min(970px,calc(100vw - 56px))!important;max-width:970px!important;
+  height:auto!important;min-height:0!important;
+  max-height:calc(100dvh - 70px)!important;overflow-y:auto!important;overflow-x:hidden!important;
+  padding:0!important;margin:0 auto!important;transform:none!important;
+  background:#fff!important;border:1px solid #d9e6f2!important;border-radius:18px!important;
+  box-shadow:0 30px 85px rgba(8,26,53,.34)!important;pointer-events:auto!important;
+}
+body.v50-ui #modal.v50-dossier-open:not(.v501-docked-profile) .v5021-dossier{
+  padding:20px 25px 22px!important;
+}
+@media(min-width:1260px) and (max-width:1450px){
+  body.v50-ui #pacientes:not(.hidden){
+    grid-template-columns:minmax(280px,320px) minmax(0,1fr)!important;
+  }
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .modalbox.v4413-profile-shell{
+    left:calc(208px + 20px + 320px + 14px)!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-tabs>button{
+    font-size:10.7px!important;padding:7px 7px!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid>div{
+    grid-template-columns:minmax(80px,110px) minmax(0,1fr)!important;
+  }
+}
+/* 1259 o menos: respetar botones y legibilidad, usar el modal centrado. */
+@media(max-width:1259px){
+  body.v50-ui #pacientes:not(.hidden){
+    grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto auto auto auto!important;
+  }
+  body.v50-ui #pacientes>.patient-search-bar,
+  body.v50-ui #pacientes>.patient-quick-filters,
+  body.v50-ui #pacientes #patientResults{
+    grid-column:1!important;
+  }
+  body.v50-ui #pacientes>.v50-patient-guide{display:none!important}
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile:not(.hidden){
+    display:grid!important;place-items:center!important;pointer-events:auto!important;
+    background:rgba(12,29,54,.49)!important;backdrop-filter:blur(3px)!important;
+    padding:18px!important;
+  }
+  body.v50-ui #modal.v50-dossier-open.v501-docked-profile .modalbox.v4413-profile-shell{
+    position:relative!important;left:auto!important;right:auto!important;
+    top:auto!important;bottom:auto!important;transform:none!important;
+    width:min(940px,calc(100vw - 42px))!important;max-width:940px!important;
+    height:auto!important;max-height:calc(100dvh - 46px)!important;min-height:0!important;
+    margin:0 auto!important;padding:0!important;pointer-events:auto!important;
+    overflow-y:auto!important;overflow-x:hidden!important;
+    background:#fff!important;border-radius:16px!important;
+  }
+}
+@media(max-width:750px){
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier{
+    padding:18px 14px 20px!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions{
+    gap:6px!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-profile-actions>button{
+    flex:1 1 145px!important;white-space:normal!important;height:auto!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier>.v4413-profile-kpis{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:5px!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid{
+    grid-template-columns:minmax(0,1fr)!important;grid-template-rows:none!important;
+    grid-auto-flow:row!important;
+  }
+  body.v50-ui #modal.v50-dossier-open .v5021-dossier .v4413-data-grid>div{
+    grid-template-columns:minmax(85px,135px) minmax(0,1fr)!important;
+  }
+  body.v50-ui #modal.v50-dossier-open:not(.v501-docked-profile) .modalbox.v4413-profile-shell{
+    width:calc(100vw - 24px)!important;max-height:calc(100dvh - 30px)!important;
+  }
+}

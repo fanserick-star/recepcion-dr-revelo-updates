@@ -1,8 +1,8 @@
 {
   "product": "recepcion-pacientes",
-  "version": "5.0.20",
-  "app_version": "5.0.20",
-  "runtime_version": "5.0.20",
+  "version": "5.0.21",
+  "app_version": "5.0.21",
+  "runtime_version": "5.0.21",
   "mandatory": true,
   "version_source": "recepcion-version.json",
   "compatibility_version_aliases": true,
@@ -235,8 +235,8 @@
     "static/reception_new_attention_507.js"
   ],
   "notes": {
-    "purpose": "Recepción 5.0.20: Inicio estable con tabla N.º, Paciente, Atención, Valor y Acciones, igual al diseño elegido. Mostrar todas las atenciones del día sin límite de cuatro, conservar día seleccionado tras navegar y avisar cuando lleguen menos pacientes que el total. Sin cambios de datos, facturación, impresión, Neon, Historia ni agenda.",
-    "previous_version": "5.0.19",
+    "purpose": "Recepción 5.0.21: ficha de Pacientes fiel a diseño Moderno Profesional aprobado a 1600×900, expediente a la derecha con jerarquía legible, botones y cinco pestañas originales intactos. Al abrir paciente desde Inicio, modal centrado con fondo atenuado y sin acoplamiento lateral. Solo presentación y selección visual; no cambia datos, Historia, agenda, facturación, WhatsApp, Neon ni impresión.",
+    "previous_version": "5.0.20",
     "production_status": "stable",
     "consolidated_runtime": true,
     "external_patch_chain_required": false,
@@ -876,7 +876,16 @@
     "home_selected_date_visible": true,
     "home_today_kpi_label_explicit": true,
     "home_return_to_today_button": true,
-    "home_no_data_filter_or_limit": true
+    "home_no_data_filter_or_limit": true,
+    "patient_dossier_modern_5021": true,
+    "patient_dossier_1600x900_reference": true,
+    "patient_dossier_tabs_preserved": true,
+    "patient_dossier_actions_preserved": true,
+    "patient_dossier_selected_row_ui_only": true,
+    "home_patient_modal_centered": true,
+    "home_patient_modal_blurred_backdrop": true,
+    "home_patient_card_not_docked": true,
+    "patient_profile_existing_clinical_link_preserved": true
   },
   "channel": "launcher-v1-stable"
 }

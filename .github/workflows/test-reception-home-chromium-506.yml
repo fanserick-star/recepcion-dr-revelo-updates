@@ -32,10 +32,14 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Render the real Inicio scripts at 1600x900 using synthetic patients
         run: python tools/test_reception_home_chromium_506.py
+      - name: Verify Pacientes dossier and centered Inicio patient card at 1600x900
+        run: python tools/test_reception_patient_dock_chromium_5014.py
       - name: Preserve synthetic-data screenshot for layout inspection
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: recepcion-inicio-1600x900-synthetic-preview
-          path: reports/reception-506-1600x900.png
+          path: |
+            reports/reception-506-1600x900.png
+            reports/reception-514-patients-dossier-1600x900.png
           if-no-files-found: ignore
