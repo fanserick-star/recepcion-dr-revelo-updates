@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.103",
-  "app_version": "1.4.103",
-  "runtime_version": "1.4.103",
+  "version": "1.4.104",
+  "app_version": "1.4.104",
+  "runtime_version": "1.4.104",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.103: equipo STORTZ GOKART 9601F sugerido y editable solo en cistoscopias nuevas; firma del informe confirmada mediante respuesta PDF antes de mostrarlo en Recepción. Conserva íntegros los documentos ya firmados y sin cambios de datos clínicos.",
-    "previous_version": "1.4.102",
+    "purpose": "Historia Clínica 1.4.104: al usar Guardar e imprimir en un informe de cistoscopia o ecografía, generar automáticamente el PDF firmado cuando la firma electrónica del médico esté activa, igual que recetas. Mantener impresión con aviso claro si no se pudo firmar, proteger originales y conservar equipo editable predefinido.",
+    "previous_version": "1.4.103",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -631,10 +631,17 @@
     "cystoscopy_default_new_reports_only": true,
     "cystoscopy_existing_saved_values_unchanged": true,
     "cystoscopy_required_findings_exclude_equipment": true,
-    "report_signature_created_by_explicit_button_only": true,
+    "report_signature_created_by_explicit_button_only": false,
     "report_signature_waits_for_verified_pdf": true,
     "report_signature_async_popup_dependency_removed": true,
     "report_signed_pdf_reception_original_unchanged": true,
-    "report_unsigned_print_requires_explicit_selection": true
+    "report_unsigned_print_requires_explicit_selection": true,
+    "report_print_auto_sign_when_unlocked": true,
+    "report_print_same_flow_as_prescriptions": true,
+    "report_print_no_duplicate_popup": true,
+    "report_print_sign_before_native_print": true,
+    "report_print_no_silent_unsigned_fallback": true,
+    "report_print_signed_report_readonly_after_print": true,
+    "report_print_offline_neon_schema_unchanged": true
   }
 }
