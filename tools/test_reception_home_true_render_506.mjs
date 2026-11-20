@@ -35,8 +35,8 @@ assert.doesNotMatch(home,/window\.renderHomeDayPayload=function/,'never shadow o
 assert.match(home,/const CACHE_MS=120000/);
 assert.match(home,/const week=await request/);
 // The chosen screenshot-two table shows actual attention/charge data, not the old time column.
-assert.match(home,/target\\.innerHTML=homeTable\\(all\\)/);
-assert.match(app,/function homeTable\\(rows\\)/);
+assert.match(home,/target\.innerHTML=homeTable\(all\)/);
+assert.match(app,/function homeTable\(rows\)/);
 assert.match(home,/renderActivity\(date,payload\)/);
 assert.match(home,/const labels=\{/,'home KPI names must be present');
 // No runaway observer mutation feedback: update text only on actual difference.
