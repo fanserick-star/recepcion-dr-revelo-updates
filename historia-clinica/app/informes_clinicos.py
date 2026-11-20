@@ -213,7 +213,7 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
   <button id='report-save' class='doc-primary' type='button'>Guardar informe</button>
   <button id='report-preview' class='doc-light' type='button'>Vista previa</button>
   <button id='report-sign' class='doc-primary' type='button'>Guardar y firmar PDF</button>
-  <button id='report-print' class='doc-light' type='button'>Imprimir sin firma</button>
+  <button id='report-print' class='doc-light' title='Imprimir sin firma' type='button'>Guardar e imprimir sin firma</button>
   <span class='report-state' id='report-state'>{_e(status_text)}</span>
  </div>
 </section>
