@@ -2344,6 +2344,28 @@ def home():
       </section>
     </aside>
   </div>
+  <style>
+  .hc-next-call-dialog{max-width:480px!important;width:min(480px,calc(100vw - 28px))!important;
+    border:1px solid #b9d5e5!important;border-radius:17px!important;padding:22px!important;
+    box-shadow:0 24px 75px rgba(12,37,65,.23)!important;color:#183853}
+  .hc-next-call-dialog::backdrop{background:rgba(14,34,58,.62)}
+  .hc-next-call-dialog h2{font-size:22px;margin:6px 0 10px;line-height:1.22}
+  .hc-next-call-dialog p{font-size:15px;line-height:1.55;color:#51657a;margin:0 0 18px}
+  .hc-next-call-buttons{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+  .hc-next-call-buttons button{padding:11px 15px;border-radius:9px;font-weight:750;cursor:pointer}
+  .hc-next-call-buttons #hc-next-call-yes{background:#116e98;color:#fff;border:1px solid #116e98}
+  .hc-next-call-buttons #hc-next-call-no{background:#f0f5f9;color:#29435b;border:1px solid #cad9e5}
+  </style>
+  <dialog id="hc-next-call-dialog" class="hc-next-call-dialog" aria-labelledby="hc-next-call-title"
+    aria-describedby="hc-next-call-description">
+    <span class="section-kicker">CONSULTA FINALIZADA</span>
+    <h2 id="hc-next-call-title">¿Llamar al siguiente paciente?</h2>
+    <p id="hc-next-call-description">Hay un turno en espera. ¿Desea anunciarlo ahora en la televisión?</p>
+    <div class="hc-next-call-buttons">
+      <button type="button" id="hc-next-call-no">Ahora no</button>
+      <button type="button" id="hc-next-call-yes">🔊 Llamar al siguiente</button>
+    </div>
+  </dialog>
   <dialog class="hc-b-create-dialog" id="hc-b-create-dialog" aria-labelledby="hc-b-create-title">
     <div class="hc-b-dialog-head"><h2 id="hc-b-create-title">Seleccionar paciente</h2>
       <button type="button" id="hc-b-create-close" aria-label="Cerrar">✕</button></div>
@@ -2577,6 +2599,40 @@ def home():
     },180);
   });
   picker?.addEventListener('close',()=>{clearTimeout(pickerTimer);pickerRequest?.abort()});
+  // Una sola pregunta tras finalizar realmente la consulta (incluida atención vacía).
+  // No hace llamadas por sí misma, no adelanta la cola ni altera pacientes.
+  // Se usa el botón manual existente con su verificación LAN y antirrepetición.
+  const afterFinalize=new URL(location.href);
+  if(afterFinalize.searchParams.get('offer_next_call')==='1'){
+    afterFinalize.searchParams.delete('offer_next_call');
+    try{
+      history.replaceState(history.state,'',afterFinalize.pathname+afterFinalize.search+afterFinalize.hash);
+    }catch(_e){}
+    const currentNext=document.querySelector('.hc-b-queue-list .queue-row-waiting .js-doctor-call');
+    const dialog=document.getElementById('hc-next-call-dialog');
+    const yes=document.getElementById('hc-next-call-yes');
+    const no=document.getElementById('hc-next-call-no');
+    if(currentNext && dialog && yes && no && typeof dialog.showModal==='function'){
+      const queueId=String(currentNext.dataset.queueId||'');
+      const turnMatch=String(currentNext.textContent||'').match(/#\s*(\d+)/);
+      const validId=/^[a-zA-Z0-9_-]{1,100}$/.test(queueId);
+      if(validId && turnMatch){
+        const description=document.getElementById('hc-next-call-description');
+        if(description)description.textContent='Hay un paciente en espera (turno #'+turnMatch[1]+'). ¿Desea anunciarlo en la televisión?';
+        no.addEventListener('click',()=>dialog.close(),{once:true});
+        yes.addEventListener('click',()=>{
+          // Revalidar en la cola actual: podría cambiar por Recepción mientras se decide.
+          const active=[...document.querySelectorAll('.hc-b-queue-list .queue-row-waiting .js-doctor-call')]
+            .find(button=>String(button.dataset.queueId||'')===queueId && !button.disabled);
+          dialog.close();
+          if(active)active.click();
+          else if(window.showAppToast)window.showAppToast('El turno en espera cambió. Revise la lista antes de llamar.','info');
+        },{once:true});
+        dialog.showModal();
+        no.focus();
+      }
+    }
+  }
   refreshCloud(); refreshQueue(); refreshLan();
   setInterval(refreshCloud,2000); setInterval(refreshQueue,2000); setInterval(refreshLan,3000);
 })();
@@ -4069,7 +4125,7 @@ async function finalizeAndHome(button){
         try{const j=await r.json();if(j.detail)msg+=' '+j.detail}catch(_e){}
         throw new Error(msg);
       }
-      encounterId=null;dirty=false;leavingAfterFinalize=true;location.href='/';return;
+      encounterId=null;dirty=false;leavingAfterFinalize=true;location.href='/?offer_next_call=1';return;
     }
 
     let id=encounterId;
@@ -4084,7 +4140,7 @@ async function finalizeAndHome(button){
       try{const j=await r.json();if(j.detail)msg+=' '+j.detail}catch(_e){}
       throw new Error(msg);
     }
-    dirty=false;leavingAfterFinalize=true;location.href='/';
+    dirty=false;leavingAfterFinalize=true;location.href='/?offer_next_call=1';
   }catch(err){
     if(button){button.disabled=false;button.textContent=original}
     signBtn.disabled=false;finalizeModal.hidden=true;leaveModal.hidden=true;
