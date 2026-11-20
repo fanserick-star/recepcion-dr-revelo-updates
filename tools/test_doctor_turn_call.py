@@ -78,6 +78,22 @@ def test_local_event():
         assert "if(active)active.click();" in home_js, "Reutilizar el botón manual con antirrepetición"
         assert "fetch('/api/doctor-turn-call/" not in home_js, "No duplicar transporte ni guardias de voz"
         assert "dialog.showModal();" in home_js and home_js.index("dialog.showModal();") < home_js.index("refreshCloud(); refreshQueue(); refreshLan();")
+        # 8 segundos: expirar equivale a "Ahora no" y NUNCA a llamar.
+        assert 'id="hc-next-call-countdown"' in app_source
+        # El modal vive en un f-string: llaves CSS escapadas, sin romper Inicio.
+        assert ".hc-next-call-dialog{{max-width:480px" in app_source
+        assert ".hc-next-call-countdown{{display:block" in app_source
+        assert ".hc-next-call-dialog::backdrop{{background:" in app_source
+        assert "const AUTO_DISMISS_MS=8000;" in home_js
+        assert "dismissTimer=setTimeout(()=>{if(dialog.open)dialog.close();},AUTO_DISMISS_MS);" in home_js
+        assert "countdownTimer=setInterval(paintCountdown,250);" in home_js
+        assert "clearTimeout(dismissTimer);" in home_js
+        assert "clearInterval(countdownTimer);" in home_js
+        assert "dialog.addEventListener('close',()=>{" in home_js
+        assert "if(!dialog.open)return;" in home_js
+        assert "if(active)active.click();" in home_js
+        assert "setTimeout(()=>active.click()" not in home_js
+        assert "setTimeout(()=>yes.click()" not in home_js
         ok=response(endpoint("q1",FakeRequest()))
         assert ok["ok"] and ok["turn"]==8
         event=call.latest(root)

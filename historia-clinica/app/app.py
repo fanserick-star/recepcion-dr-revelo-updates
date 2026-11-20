@@ -2345,22 +2345,24 @@ def home():
     </aside>
   </div>
   <style>
-  .hc-next-call-dialog{max-width:480px!important;width:min(480px,calc(100vw - 28px))!important;
+  .hc-next-call-dialog{{max-width:480px!important;width:min(480px,calc(100vw - 28px))!important;
     border:1px solid #b9d5e5!important;border-radius:17px!important;padding:22px!important;
-    box-shadow:0 24px 75px rgba(12,37,65,.23)!important;color:#183853}
-  .hc-next-call-dialog::backdrop{background:rgba(14,34,58,.62)}
-  .hc-next-call-dialog h2{font-size:22px;margin:6px 0 10px;line-height:1.22}
-  .hc-next-call-dialog p{font-size:15px;line-height:1.55;color:#51657a;margin:0 0 18px}
-  .hc-next-call-buttons{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
-  .hc-next-call-buttons button{padding:11px 15px;border-radius:9px;font-weight:750;cursor:pointer}
-  .hc-next-call-buttons #hc-next-call-yes{background:#116e98;color:#fff;border:1px solid #116e98}
-  .hc-next-call-buttons #hc-next-call-no{background:#f0f5f9;color:#29435b;border:1px solid #cad9e5}
+    box-shadow:0 24px 75px rgba(12,37,65,.23)!important;color:#183853}}
+  .hc-next-call-dialog::backdrop{{background:rgba(14,34,58,.62)}}
+  .hc-next-call-dialog h2{{font-size:22px;margin:6px 0 10px;line-height:1.22}}
+  .hc-next-call-dialog p{{font-size:15px;line-height:1.55;color:#51657a;margin:0 0 18px}}
+  .hc-next-call-countdown{{display:block;margin:-8px 0 16px;font-size:12px;font-weight:650;color:#60788d;text-align:center}}
+  .hc-next-call-buttons{{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}}
+  .hc-next-call-buttons button{{padding:11px 15px;border-radius:9px;font-weight:750;cursor:pointer}}
+  .hc-next-call-buttons #hc-next-call-yes{{background:#116e98;color:#fff;border:1px solid #116e98}}
+  .hc-next-call-buttons #hc-next-call-no{{background:#f0f5f9;color:#29435b;border:1px solid #cad9e5}}
   </style>
   <dialog id="hc-next-call-dialog" class="hc-next-call-dialog" aria-labelledby="hc-next-call-title"
     aria-describedby="hc-next-call-description">
     <span class="section-kicker">CONSULTA FINALIZADA</span>
     <h2 id="hc-next-call-title">¿Llamar al siguiente paciente?</h2>
     <p id="hc-next-call-description">Hay un turno en espera. ¿Desea anunciarlo ahora en la televisión?</p>
+    <small id="hc-next-call-countdown" class="hc-next-call-countdown" role="status" aria-live="off">Se cerrará automáticamente en 8 segundos si no elige una opción.</small>
     <div class="hc-next-call-buttons">
       <button type="button" id="hc-next-call-no">Ahora no</button>
       <button type="button" id="hc-next-call-yes">🔊 Llamar al siguiente</button>
@@ -2619,8 +2621,18 @@ def home():
       if(validId && turnMatch){
         const description=document.getElementById('hc-next-call-description');
         if(description)description.textContent='Hay un paciente en espera (turno #'+turnMatch[1]+'). ¿Desea anunciarlo en la televisión?';
+        // Ocho segundos son suficientes para decidir, sin dejar la ventana
+        // bloqueando el inicio. Un timeout NUNCA equivale a un clic en Llamar.
+        const AUTO_DISMISS_MS=8000;
+        const countdown=document.getElementById('hc-next-call-countdown');
+        let dismissTimer=null, countdownTimer=null;
+        dialog.addEventListener('close',()=>{
+          clearTimeout(dismissTimer);
+          clearInterval(countdownTimer);
+        },{once:true});
         no.addEventListener('click',()=>dialog.close(),{once:true});
         yes.addEventListener('click',()=>{
+          if(!dialog.open)return; // La ventana ya expiró o fue cerrada.
           // Revalidar en la cola actual: podría cambiar por Recepción mientras se decide.
           const active=[...document.querySelectorAll('.hc-b-queue-list .queue-row-waiting .js-doctor-call')]
             .find(button=>String(button.dataset.queueId||'')===queueId && !button.disabled);
@@ -2630,6 +2642,14 @@ def home():
         },{once:true});
         dialog.showModal();
         no.focus();
+        const deadline=Date.now()+AUTO_DISMISS_MS;
+        const paintCountdown=()=>{
+          const seconds=Math.max(0,Math.ceil((deadline-Date.now())/1000));
+          if(countdown)countdown.textContent='Se cerrará automáticamente en '+seconds+' s si no elige ninguna opción.';
+        };
+        paintCountdown();
+        countdownTimer=setInterval(paintCountdown,250);
+        dismissTimer=setTimeout(()=>{if(dialog.open)dialog.close();},AUTO_DISMISS_MS);
       }
     }
   }

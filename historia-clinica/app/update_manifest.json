@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.105",
-  "app_version": "1.4.105",
-  "runtime_version": "1.4.105",
+  "version": "1.4.106",
+  "app_version": "1.4.106",
+  "runtime_version": "1.4.106",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.105: mostrar confirmación opcional para llamar al siguiente turno válido en espera al terminar una consulta (incluida atención sin historia). Nunca llama automáticamente, sólo reutiliza el botón manual de voz y TV con bloqueo de repetición. No cambia la cola, Neon, pacientes, firma ni impresión.",
-    "previous_version": "1.4.104",
+    "purpose": "Historia Clínica 1.4.106: el aviso opcional de llamar al siguiente paciente se cierra automáticamente tras 8 segundos sin respuesta, con cuenta regresiva visible. Cancelar o llamar detiene los temporizadores; el vencimiento nunca dispara voz ni cambia turnos.",
+    "previous_version": "1.4.105",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -650,6 +650,10 @@
     "next_call_offer_existing_manual_endpoint": true,
     "next_call_offer_revalidates_live_ui": true,
     "next_call_offer_once_no_reprompt_on_refresh": true,
-    "next_call_offer_no_database_writes": true
+    "next_call_offer_no_database_writes": true,
+    "next_call_offer_timeout_seconds": 8,
+    "next_call_offer_countdown_visible": true,
+    "next_call_offer_timeout_never_calls": true,
+    "next_call_offer_timeout_cancelled_on_manual_choice": true
   }
 }
