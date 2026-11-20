@@ -212,8 +212,8 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
  <div class='doc-actions report-actions'>
   <button id='report-save' class='doc-primary' type='button'>Guardar informe</button>
   <button id='report-preview' class='doc-light' type='button'>Vista previa</button>
-  <button id='report-sign' class='doc-primary' type='button'>Guardar y firmar PDF</button>
-  <button id='report-print' class='doc-light' title='Imprimir sin firma' type='button'>Guardar e imprimir sin firma</button>
+  <button id='report-print' class='doc-primary' type='button'>Guardar e imprimir</button>
+  <button id='report-sign' class='doc-light' type='button'>Guardar y firmar PDF</button>
   <span class='report-state' id='report-state'>{_e(status_text)}</span>
  </div>
 </section>
@@ -264,29 +264,63 @@ async function saveReport(){
   try{(window.opener&&!window.opener.closed?window.opener:(window.parent!==window?window.parent:null))?.postMessage({type:'clinical-document-saved',encounter_id:state.encounter_id||''},location.origin)}catch(_e){}
   return data;
 }
+// El mismo archivo firmado se conserva para Recepción; no se genera una
+// segunda copia ni se modifica ninguna firma ya emitida.
+async function signSavedReport(id){
+  const response=await fetch('/api/firma/documento/informe/'+encodeURIComponent(id),
+    {cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
+  if(!response.ok){
+    const problem=await response.json().catch(()=>({}));
+    throw Error(problem.error||problem.detail||'No se pudo generar el PDF firmado. El informe quedó guardado sin firma.');
+  }
+  const mime=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
+  if(mime!=='application/pdf')throw Error('Historia no devolvió un PDF firmado válido.');
+  const pdf=await response.blob();
+  if(pdf.size<100||pdf.size>20*1024*1024||(await pdf.slice(0,5).text())!=='%PDF-')
+    throw Error('La respuesta de firma no es un PDF válido. Revise el informe antes de imprimir.');
+  marker.textContent='Firmado electrónicamente · Disponible en Recepción';
+  return true;
+}
+function signatureNotice(message,type='info'){
+  if(typeof window.showAppToast==='function')window.showAppToast(message,type);
+  else window.alert(message);
+}
 async function act(mode){
   buttons.forEach(x=>x.disabled=true);
   try{
     if(mode==='sign'&&window.historiaEnsureSignatureReady && !(await window.historiaEnsureSignatureReady()))return false;
     const data=await saveReport();
     if(mode==='print'){
-      if(!window.historiaNativePrint)throw Error('Reabra Historia Clínica para habilitar la impresión directa.');
-      return await window.historiaNativePrint(data.preview_url,'certificate');
-    }else if(mode==='sign'){
-      // La firma debe completarse de verdad antes de ofrecerla en Recepción.
-      // window.open() después del await de guardar podía quedar bloqueado.
-      const response=await fetch('/api/firma/documento/informe/'+encodeURIComponent(data.id),
-        {cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
-      if(!response.ok){
-        const problem=await response.json().catch(()=>({}));
-        throw Error(problem.error||problem.detail||'No se pudo generar el PDF firmado. El informe quedó guardado sin firma.');
+      // Igual que recetas y certificados: al imprimir con la firma activa,
+      // firmar/archivar el original primero, sin depender de ventanas emergentes.
+      // Si la firma está bloqueada o falla, NO aparentar que el PDF está firmado.
+      let signed=false;
+      try{
+        const sr=await fetch('/api/firma/status?t='+Date.now(),{cache:'no-store'});
+        if(!sr.ok)throw Error('No se pudo comprobar el estado de la firma.');
+        const ss=await sr.json().catch(()=>({}));
+        if(ss.configured&&ss.unlocked){
+          signed=await signSavedReport(data.id);
+        }else{
+          marker.textContent='Guardado sin firma electrónica';
+          signatureNotice(ss.configured
+            ? 'Firma electrónica bloqueada: el informe se imprimirá sin PDF firmado para Recepción.'
+            : 'Firma electrónica sin configurar: el informe se imprimirá sin PDF firmado para Recepción.');
+        }
+      }catch(error){
+        marker.textContent='Guardado sin firma electrónica';
+        signatureNotice('No se pudo crear el PDF firmado: '+(error.message||String(error))+'. La impresión continuará sin firma.','error');
       }
-      const mime=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
-      if(mime!=='application/pdf')throw Error('Historia no devolvió un PDF firmado válido.');
-      const pdf=await response.blob();
-      if(pdf.size<100||pdf.size>20*1024*1024||(await pdf.slice(0,5).text())!=='%PDF-')
-        throw Error('La respuesta de firma no es un PDF válido. Revise el informe antes de imprimir.');
-      marker.textContent='Firmado electrónicamente · Disponible en Recepción';
+      if(!window.historiaNativePrint)throw Error('Reabra Historia Clínica para habilitar la impresión directa.');
+      try{
+        return await window.historiaNativePrint(data.preview_url,'certificate');
+      }finally{
+        // Tras firmar el documento pasa a solo lectura; incluso si la
+        // impresora falla el original firmado queda intacto y consultable.
+        if(signed)window.location.assign('/informes/'+encodeURIComponent(data.id)+'/editar');
+      }
+    }else if(mode==='sign'){
+      await signSavedReport(data.id);
       window.location.assign('/informes/'+encodeURIComponent(data.id)+'/editar');
       return true;
     }else if(mode==='preview'){
