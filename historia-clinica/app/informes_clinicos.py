@@ -57,6 +57,10 @@ REPORT_TYPES = {
 }
 TYPE_BY_STORAGE = {v["storage"]: k for k, v in REPORT_TYPES.items()}
 
+# Equipo habitual de cistoscopia: sugerido solo al crear un informe nuevo.
+# Permanece editable y nunca reemplaza el valor de informes ya guardados.
+CYSTOSCOPY_EQUIPMENT_DEFAULT = "STORTZ GOKART 9601F"
+
 
 def _report_row(conn, report_id: str):
     return conn.execute(
@@ -141,6 +145,8 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
     if row:
         encounter_id = str(row["encounter_id"] or "")
     stored = _report_fields(row, kind)
+    if row is None and kind == "cistoscopia":
+        stored["equipo"] = CYSTOSCOPY_EQUIPMENT_DEFAULT
     issued = str(row["issued_at"] or "")[:10] if row else date.today().isoformat()
     if not _valid_date(issued):
         issued = date.today().isoformat()
@@ -206,8 +212,8 @@ def _form(base, conn, patient, kind: str, row=None, encounter_id="", queue_id=""
  <div class='doc-actions report-actions'>
   <button id='report-save' class='doc-primary' type='button'>Guardar informe</button>
   <button id='report-preview' class='doc-light' type='button'>Vista previa</button>
-  <button id='report-print' class='doc-primary' type='button'>Guardar e imprimir sin firma</button>
-  <button id='report-sign' class='doc-light' type='button'>PDF firmado</button>
+  <button id='report-sign' class='doc-primary' type='button'>Guardar y firmar PDF</button>
+  <button id='report-print' class='doc-light' title='Imprimir sin firma' type='button'>Guardar e imprimir sin firma</button>
   <span class='report-state' id='report-state'>{_e(status_text)}</span>
  </div>
 </section>
@@ -261,13 +267,28 @@ async function saveReport(){
 async function act(mode){
   buttons.forEach(x=>x.disabled=true);
   try{
-    if(mode==='sign'&&window.historiaEnsureSignatureReady && !(await window.historiaEnsureSignatureReady()))return;
+    if(mode==='sign'&&window.historiaEnsureSignatureReady && !(await window.historiaEnsureSignatureReady()))return false;
     const data=await saveReport();
     if(mode==='print'){
       if(!window.historiaNativePrint)throw Error('Reabra Historia Clínica para habilitar la impresión directa.');
       return await window.historiaNativePrint(data.preview_url,'certificate');
     }else if(mode==='sign'){
-      window.open('/api/firma/documento/informe/'+encodeURIComponent(data.id),'_blank');
+      // La firma debe completarse de verdad antes de ofrecerla en Recepción.
+      // window.open() después del await de guardar podía quedar bloqueado.
+      const response=await fetch('/api/firma/documento/informe/'+encodeURIComponent(data.id),
+        {cache:'no-store',credentials:'same-origin',headers:{Accept:'application/pdf'}});
+      if(!response.ok){
+        const problem=await response.json().catch(()=>({}));
+        throw Error(problem.error||problem.detail||'No se pudo generar el PDF firmado. El informe quedó guardado sin firma.');
+      }
+      const mime=(response.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase();
+      if(mime!=='application/pdf')throw Error('Historia no devolvió un PDF firmado válido.');
+      const pdf=await response.blob();
+      if(pdf.size<100||pdf.size>20*1024*1024||(await pdf.slice(0,5).text())!=='%PDF-')
+        throw Error('La respuesta de firma no es un PDF válido. Revise el informe antes de imprimir.');
+      marker.textContent='Firmado electrónicamente · Disponible en Recepción';
+      window.location.assign('/informes/'+encodeURIComponent(data.id)+'/editar');
+      return true;
     }else if(mode==='preview'){
       window.open(data.preview_url,'_blank');
     }
@@ -637,7 +658,7 @@ def install(app, context: dict) -> None:
         values = {k: str(fields.get(k) or "").strip() for k in allowed}
         if any(len(v) > 12000 for v in values.values()):
             return JSONResponse({"ok":False,"error":"Un campo del informe es demasiado extenso."}, status_code=400)
-        if not any(values.values()):
+        if not any(values.get(key) for key in allowed if kind != "cistoscopia" or key != "equipo"):
             return JSONResponse({"ok":False,"error":"Escriba al menos un hallazgo o conclusión."}, status_code=400)
         patient_id = str(payload.get("patient_id") or "").strip()
         report_id = str(payload.get("report_id") or "").strip() or _id()
