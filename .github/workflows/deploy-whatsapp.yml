@@ -48,12 +48,12 @@ jobs:
           assert re.fullmatch(r'[0-9a-fA-F]{32}', account), 'account id inválido'
           assert s.count('__CF_ACCOUNT_ID__') == 1, 'placeholder de cuenta inesperado'
           required=[
-            'worker_version: "2.6.31"',
+            'worker_version: "2.6.32"',
             'alarm_mode: "durable_object_event_driven"',
             'alarm_delivery_policy: "preserve_24x7"',
             'booking_confirmation: "three_sources_same_alarm_v1"',
             'async function registerUnifiedAgendaAlarm(env, origin)',
-            'booking_schedule: "wed_10_17_break_1230_1400_v1"',
+            'booking_schedule: "wed_08_17_break_1230_1400_v2"',
             '[3, 4, 5, 6].includes(d2.getUTCDay())',
             'bookingTimeAllowed(date, time)',
             'bookingTimeWithinSchedule(date, time)',
@@ -150,11 +150,11 @@ jobs:
           import json
           d=json.load(open('/tmp/health.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
-          assert d.get('worker_version') == '2.6.31', d
+          assert d.get('worker_version') == '2.6.32', d
           assert d.get('alarm_mode') == 'durable_object_event_driven', d
           assert d.get('alarm_delivery_policy') == 'preserve_24x7', d
           assert d.get('booking_confirmation') == 'three_sources_same_alarm_v1', d
-          assert d.get('booking_schedule') == 'wed_10_17_break_1230_1400_v1', d
+          assert d.get('booking_schedule') == 'wed_08_17_break_1230_1400_v2', d
           assert d.get('scheduler_created_at_timezone') == 'utc_storage_v1', d
           assert d.get('scheduler_booking_grace') == '12h_v1', d
           assert d.get('autoagenda_recovery') == 'one_time_reclaim_v1', d
@@ -238,13 +238,14 @@ jobs:
           d=json.load(open('/tmp/availability.json','r',encoding='utf-8'))
           assert d.get('ok') is True, d
           assert d.get('days') == [3,4,5,6], d
-          assert d.get('schedule') == 'wed_10_17_break_1230_1400_v1', d
+          assert d.get('schedule') == 'wed_08_17_break_1230_1400_v2', d
           assert isinstance(d.get('times'), list), d
           assert isinstance(d.get('occupied'), list), d
           by=d.get('times_by_day') or {}
           wed=by.get('3') or []
-          assert wed and wed[0] == '10:00', wed
-          assert all(str(t) >= '10:00' for t in wed), wed
+          assert wed and wed[0] == '08:00', wed
+          assert all(t in wed for t in ['08:00','08:20','08:40','09:00','09:20','09:40','10:00']), wed
+          assert all(wed == by.get(str(day)) for day in [4,5,6]), by
           assert '12:20' not in wed and '12:40' not in wed and '13:00' not in wed and '13:20' not in wed and '13:40' not in wed, wed
           assert '14:00' in wed and '17:00' in wed, wed
           print('BOOKING_AVAILABILITY_PRODUCTION_OK', len(d.get('occupied', [])))
