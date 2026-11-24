@@ -1,4 +1,4 @@
-source_sha=aedb5a90c72c023e6526355627cd26daf8387747
+source_sha=62a0a4c9aa6dd2a885ab1740df75a9b31ecc8d89
 workflow=reception
-failed_command=python tools/test_reception_canonical_source.py
+failed_command=python tools/test_reception_agenda_graphite_remaster.py
 
