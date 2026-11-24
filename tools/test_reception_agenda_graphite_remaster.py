@@ -14,7 +14,12 @@ assert "return AGENDA_SLOT_TIMES;" in js
 assert "function agendaVisibleSlotTimes()" in js
 assert "for(const time of agendaVisibleSlotTimes())" in js
 assert "if(!lunch&&time==='14:00')" in js
-assert "if(dateObj.getDay()===3&&minute<10*60)return false" in js
+assert "if(dateObj.getDay()===3&&minute<10*60)return false" not in js
+assert "minute>17*60||minute<8*60" in js
+assert "return !(minute<14*60&&minute+20>12*60+30)" in js
+backend=(ROOT/"recepcion/app/core_runtime.py").read_text(encoding="utf-8")
+assert "start_minute = 8 * 60" in backend
+assert "Los miércoles las citas comienzan a las 10:00" not in backend
 assert "grid-template-columns:62px repeat(4,minmax(205px,1fr))" in css
 assert "#agenda.agenda-remaster-dark" in css
 assert "agenda-more-navigation" in html and "agenda-state-details" in html
