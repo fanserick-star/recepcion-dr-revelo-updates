@@ -96,7 +96,7 @@ async function load(){const btn=$('#refresh');btn.classList.add('spin');try{cons
 function applyAgendaView(){state.dayIndex=Math.max(0,Math.min(3,Number(state.dayIndex)||0));const day=state.view==='day';document.body.classList.toggle('day-view',day);$('#viewWeek')?.classList.toggle('active',!day);$('#viewDay')?.classList.toggle('active',day);if($('#dayPicker'))$('#dayPicker').style.display=day?'flex':'none';document.querySelectorAll('[data-pick-day]').forEach(b=>b.classList.toggle('active',Number(b.dataset.pickDay)===state.dayIndex));document.querySelectorAll('[data-day]').forEach(el=>el.classList.toggle('hidden-day',day&&Number(el.dataset.day)!==state.dayIndex));localStorage.setItem('revelo_agenda_view',state.view);localStorage.setItem('revelo_agenda_day',String(state.dayIndex))}
 function setAgendaView(view){state.view=view==='day'?'day':'week';applyAgendaView()}
 function pickAgendaDay(i){state.dayIndex=Math.max(0,Math.min(3,Number(i)||0));applyAgendaView()}
-function slotAllowed(d,t){const dow=new Date(d+'T12:00:00').getDay();return dow!==3||String(t)>='10:00'}
+function slotAllowed(d,t){const dow=new Date(d+'T12:00:00').getDay();return [3,4,5,6].includes(dow)}
 function minuteOf(t){const m=/^(\d{1,2}):(\d{2})$/.exec(String(t||''));if(!m)return NaN;return Number(m[1])*60+Number(m[2])}
 function overlaps(a,durA,b,durB=20){const x=minuteOf(a),y=minuteOf(b);if(!Number.isFinite(x)||!Number.isFinite(y))return false;return x<y+Math.max(1,Number(durB)||20)&&y<x+Math.max(1,Number(durA)||20)}
 function rowAt(d,t){return state.rows.find(r=>String(r.fecha).slice(0,10)===d&&String(r.hora).slice(0,5)===t)}
