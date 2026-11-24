@@ -4,5 +4,5 @@
   "status": "stable",
   "mandatory": true,
   "sourceRoot": "recepcion/app",
-  "notes": "Recepción 5.0.20: Inicio conserva la tabla N.º / Paciente / Atención / Valor y lista TODOS los pacientes al navegar, sin corte de cuatro filas. Avisa si el total declarado y las filas disponibles difieren. Sin cambios en pacientes, Neon, Historia, facturación o impresión."
+  "notes": "Miércoles habilitados desde las 8:00 a. m. en Recepción, agenda web y autoagendamiento; se mantienen almuerzo, cierre, citas existentes y protección de solapamientos."
 }
