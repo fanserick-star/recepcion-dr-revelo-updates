@@ -3402,11 +3402,6 @@ def normalize_appointment_payload(data) -> dict:
     # y la última cita disponible comienza a las 17:00.
     if minutes < 8 * 60 or minutes > 17 * 60:
         raise HTTPException(400, "La cita debe estar entre las 08:00 y las 17:00")
-    # El selector ya bloqueaba 08:00–09:40 los miércoles; validar también
-    # en el servidor para que guardar o reagendar no admita ese hueco.
-    appointment_date = values.get("fecha")
-    if isinstance(appointment_date, date) and appointment_date.weekday() == 2 and minutes < 10 * 60:
-        raise HTTPException(400, "Los miércoles las citas comienzan a las 10:00")
     if minutes < 14 * 60 and end > 12 * 60 + 30:
         raise HTTPException(400, "De 12:30 a 14:00 es horario de almuerzo")
     values["hora"] = raw_time
@@ -8174,9 +8169,8 @@ def agenda_slots(
     # Todas las citas son de 20 minutos. Se respeta el almuerzo 12:30–14:00
     # (por eso 12:20 tampoco se ofrece, porque terminaría dentro del almuerzo)
     # y la última cita comienza a las 17:00.
-    # Miércoles el doctor inicia a las 10:00; jueves, viernes y sábado
-    # conservan el horario que ya tenían. Todos mantienen 12:30–14:00.
-    start_minute = 10 * 60 if fecha.weekday() == 2 else 8 * 60
+    # Miércoles a sábado: 08:00, con el mismo almuerzo y cierre.
+    start_minute = 8 * 60
     for minute in range(start_minute, 17 * 60 + 1, 20):
         end_minute = minute + 20
         if minute < 14 * 60 and end_minute > 12 * 60 + 30:
@@ -11082,7 +11076,7 @@ V473_HOTFIX_JS = r""";(()=>{
 
   // La Agenda canónica dibuja franjas cerradas, tarjetas, etiquetas y respuestas
   // de WhatsApp. El viejo hotfix reemplazaba TODO el renderer y reintroducía
-  // "08:00Disponible" e incluso mostraba el miércoles 08:00 como disponible.
+  // "08:00Disponible" y podía ignorar las reglas de horario.
   // Conservar únicamente el texto histórico "Agendada" antes del recordatorio,
   // delegando siempre a la única implementación de app.js.
   const nativeAgendaRowCellWithTimeRules=window.nativeAgendaRowCell;
