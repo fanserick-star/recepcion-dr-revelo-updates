@@ -1,4 +1,4 @@
-source_sha=62a0a4c9aa6dd2a885ab1740df75a9b31ecc8d89
+source_sha=aab793aa092c7a49c7fb097e9571bbc2c63ee5c1
 workflow=reception
-failed_command=python tools/test_reception_agenda_graphite_remaster.py
+failed_command=node tools/test_reception_agenda_4836_polish.mjs
 
