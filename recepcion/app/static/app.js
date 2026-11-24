@@ -2651,8 +2651,6 @@ function agendaSlotOpenForDay(date,time){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(iso)||!parts)return false;
   const dateObj=parseISO(iso),minute=Number(parts[1])*60+Number(parts[2]);
   if(Number.isNaN(dateObj.getTime())||minute>17*60||minute<8*60)return false;
-  // Miércoles inicia 10:00. La pantalla no ofrece crear huecos cerrados.
-  if(dateObj.getDay()===3&&minute<10*60)return false;
   return !(minute<14*60&&minute+20>12*60+30);
 }
 function nativeAgendaRowCell(row,date,time){
