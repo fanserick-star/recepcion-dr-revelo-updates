@@ -7,6 +7,7 @@ on:
       - 'cloudflare/whatsapp_worker.js'
       - 'cloudflare/whatsapp_alarm_time.mjs'
       - 'cloudflare/wrangler.whatsapp.jsonc'
+      - 'tools/test_whatsapp_single_confirmation_policy.mjs'
       - '.github/workflows/deploy-whatsapp.yml'
   workflow_dispatch:
 
