@@ -37,7 +37,9 @@ jobs:
           doctor=Path('agenda/index.html').read_text(encoding='utf-8')
           public=Path('agenda/agendar.html').read_text(encoding='utf-8')
           assert "['MIÉRCOLES','JUEVES','VIERNES','SÁBADO']" in doctor
-          assert "dow!==3||String(t)>='10:00'" in doctor
+          assert "function slotAllowed(d,t){const dow=new Date(d+'T12:00:00').getDay();return [3,4,5,6].includes(dow)}" in doctor
+          assert 'for(let m=480;m<=1020;m+=20){if(m<840&&m+20>750)continue;' in doctor
+          assert "dow!==3||String(t)>='10:00'" not in doctor
           assert 'ALMUERZO · 12:30 – 14:00' in doctor
           assert 'function overlaps(a,durA,b,durB=20)' in doctor
           assert 'const blocking=overlappingRow(d,time)' in doctor
@@ -45,7 +47,9 @@ jobs:
           assert 'Cita ${z.t}' in doctor
           assert '[3,4,5,6].includes(day)' in public
           assert 'timesForDate' in public
-          assert 'Los miércoles desde las 10:00' in public
+          assert 'Desde las 8:00 a. m.' in public
+          assert 'Los miércoles desde las 10:00' not in public
+          assert 'if(Array.isArray(specific))return specific' in public
           assert "HISTORY_API='https://ep-sweet-mud-arlsk7qa.apirest.c-4.us-west-2.aws.neon.tech/neondb/rest/v1'" in doctor
           assert "historyRpc('search'" in doctor
           assert "historyRpc('patient'" in doctor
