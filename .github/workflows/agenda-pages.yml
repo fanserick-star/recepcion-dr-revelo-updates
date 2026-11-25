@@ -94,14 +94,16 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: agenda
+          name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Confirmar artefacto disponible para Pages
         env:
           GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
         shell: bash
         run: |
           set -euo pipefail
           for i in $(seq 1 12); do
-            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[] | select(.name=="github-pages" and .expired==false) | .id' | grep -q '[0-9]'; then
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq ".artifacts[] | select(.name==\"$ARTIFACT_NAME\" and .expired==false) | .id" | grep -q '[0-9]'; then
               echo 'PAGES_ARTIFACT_VISIBLE'
               exit 0
             fi
@@ -112,6 +114,8 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Verificar HTML público después de publicar
         env:
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
