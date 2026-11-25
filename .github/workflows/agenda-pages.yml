@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -93,6 +94,39 @@ jobs:
         uses: actions/upload-pages-artifact@v4
         with:
           path: agenda
+      - name: Confirmar artefacto disponible para Pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            if gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '.artifacts[] | select(.name=="github-pages" and .expired==false) | .id' | grep -q '[0-9]'; then
+              echo 'PAGES_ARTIFACT_VISIBLE'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::El artefacto de Pages no está visible"
+          exit 1
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verificar HTML público después de publicar
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PAGE_URL"
+          for i in $(seq 1 12); do
+            if curl -fsSL --max-time 15 -H 'Cache-Control: no-cache' "${PAGE_URL%/}/index.html?_agenda_refresh=$(date +%s%N)" -o /tmp/agenda-live.html &&
+              grep -Fq "function slotAllowed(d,t){const dow=new Date(d+'T12:00:00').getDay();return [3,4,5,6].includes(dow)}" /tmp/agenda-live.html &&
+              grep -Fq 'function refreshAgendaDocument()' /tmp/agenda-live.html; then
+              echo 'AGENDA_PUBLIC_HTML_WEDNESDAY_0800_REFRESH_OK'
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::La agenda pública todavía no entrega el HTML actualizado"
+          exit 1
