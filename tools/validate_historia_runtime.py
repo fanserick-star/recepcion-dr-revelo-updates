@@ -76,6 +76,32 @@ def validate_runtime(root: Path) -> str:
         assert text.count("/*") == text.count("*/")
         assert text.count("{") == text.count("}")
 
+    # Guard against application canvas colors leaking into these blank forms.
+    if (manifest.get("notes") or {}).get("hospitalization_materials_white_print_margins"):
+        import ast
+        import html
+        source = (root / "material_pacientes.py").read_text(encoding="utf-8-sig")
+        module = ast.parse(source)
+        chosen = [node for node in module.body if (
+            isinstance(node, ast.FunctionDef) and node.name == "_hospital_form_html"
+        ) or (
+            isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "_HOSPITAL_FORMS" for target in node.targets)
+        )]
+        namespace = {"_e": lambda value: html.escape(str(value))}
+        exec(compile(ast.Module(body=chosen, type_ignores=[]), "hospital_forms", "exec"), namespace)
+        for kind in ("hospitalizacion", "kardex"):
+            rendered = namespace["_hospital_form_html"](kind, True)
+            assert "size:A4 portrait;margin:0;background:#fff" in rendered
+            assert "padding:10mm 10mm 8mm!important" in rendered
+            assert "background:#fff!important;background-image:none!important" in rendered
+            assert "box-shadow:none!important" in rendered
+            assert "/static/doctor_logo.png" in rendered
+            assert "filter:grayscale(1)" in rendered
+            assert "#eef2f6" not in rendered
+            assert "window.print()" in rendered
+            assert "if(true)" in rendered
+        print("HOSPITAL_MATERIALS_WHITE_PRINT_OK")
+
     notes = manifest.get("notes") or {}
     assert notes.get("runtime_consolidated") is True
     assert notes.get("self_contained_update") is True

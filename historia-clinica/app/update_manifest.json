@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.107",
-  "app_version": "1.4.107",
-  "runtime_version": "1.4.107",
+  "version": "1.4.108",
+  "app_version": "1.4.108",
+  "runtime_version": "1.4.108",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.107: hoja diaria de hospitalización y kárdex de enfermería separados, imprimibles en blanco desde Material con el isotipo oficial y sin cambios clínicos o de nube.",
-    "previous_version": "1.4.106",
+    "purpose": "Historia Clínica 1.4.108: impresión A4 de hospitalización y kárdex con fondo y márgenes blancos, sin sombras ni fondos de interfaz; marca de agua original neutra. Sin cambios clínicos ni de nube.",
+    "previous_version": "1.4.107",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -657,6 +657,7 @@
     "next_call_offer_timeout_cancelled_on_manual_choice": true,
     "hospitalization_materials_printable": true,
     "hospitalization_materials_official_watermark": true,
-    "hospitalization_materials_blank_a4": true
+    "hospitalization_materials_blank_a4": true,
+    "hospitalization_materials_white_print_margins": true
   }
 }
