@@ -1,8 +1,8 @@
 {
   "product": "historia-clinica-dr-revelo",
-  "version": "1.4.106",
-  "app_version": "1.4.106",
-  "runtime_version": "1.4.106",
+  "version": "1.4.107",
+  "app_version": "1.4.107",
+  "runtime_version": "1.4.107",
   "mandatory": true,
   "launcher_version": "historia-launcher-v1.0.8",
   "updater_version": "historia-launcher-v1",
@@ -99,8 +99,8 @@
     "neon_return_settings.py"
   ],
   "notes": {
-    "purpose": "Historia Clínica 1.4.106: el aviso opcional de llamar al siguiente paciente se cierra automáticamente tras 8 segundos sin respuesta, con cuenta regresiva visible. Cancelar o llamar detiene los temporizadores; el vencimiento nunca dispara voz ni cambia turnos.",
-    "previous_version": "1.4.105",
+    "purpose": "Historia Clínica 1.4.107: hoja diaria de hospitalización y kárdex de enfermería separados, imprimibles en blanco desde Material con el isotipo oficial y sin cambios clínicos o de nube.",
+    "previous_version": "1.4.106",
     "functional_changes": true,
     "database_schema_changes": false,
     "patient_data_destructive_changes": false,
@@ -654,6 +654,9 @@
     "next_call_offer_timeout_seconds": 8,
     "next_call_offer_countdown_visible": true,
     "next_call_offer_timeout_never_calls": true,
-    "next_call_offer_timeout_cancelled_on_manual_choice": true
+    "next_call_offer_timeout_cancelled_on_manual_choice": true,
+    "hospitalization_materials_printable": true,
+    "hospitalization_materials_official_watermark": true,
+    "hospitalization_materials_blank_a4": true
   }
 }

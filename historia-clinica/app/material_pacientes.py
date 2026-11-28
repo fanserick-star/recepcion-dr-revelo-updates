@@ -336,6 +336,117 @@ section{{margin:0 0 8mm}}h2{{font-family:Georgia,serif;font-size:13pt;margin:0 0
 </main>{auto}</body></html>"""
 
 
+
+_HOSPITAL_FORMS = {
+    "hospitalizacion": ("Hoja diaria de hospitalización", "Evolución, indicaciones y controles diarios"),
+    "kardex": ("Kárdex de enfermería", "Medicación, administración y cuidados"),
+}
+
+
+def _hospital_cards() -> str:
+    return "".join(
+        f"<article class='material-card featured'><div class='material-icon'>A4</div>"
+        f"<h3>{_e(title)}</h3><div class='material-meta'>{_e(description)} · formato en blanco</div>"
+        f"<div class='row'><a class='mat-btn primary' href='/material/{key}'>Ver</a>"
+        f"<a class='mat-btn' href='/material/{key}?print_now=1'>Imprimir</a></div></article>"
+        for key, (title, description) in _HOSPITAL_FORMS.items()
+    )
+
+
+def _hospital_form_html(kind: str, print_now: bool = False) -> str:
+    title = _HOSPITAL_FORMS[kind][0].upper()
+
+    def section(number, heading, content):
+        return f"<section><h2>{number:02d}&nbsp; {_e(heading)}</h2>{content}</section>"
+
+    def fields(*items, height=8):
+        cols = "".join(f"<div class='field' style='flex:{weight};height:{height}mm'><b>{_e(label)}</b></div>" for label, weight in items)
+        return f"<div class='fields'>{cols}</div>"
+
+    def grid(columns, count, height=5.5):
+        cg = "".join(f"<col style='width:{width}%'>" for label, width in columns)
+        th = "".join(f"<th>{_e(label)}</th>" for label, width in columns)
+        row = "<tr>" + "".join("<td></td>" for _ in columns) + "</tr>"
+        return f"<table style='--row-h:{height}mm'><colgroup>{cg}</colgroup><thead><tr>{th}</tr></thead><tbody>{row * count}</tbody></table>"
+
+    def lines(count, height=5.3):
+        return f"<div class='lines' style='--line-h:{height}mm'>" + "<div></div>" * count + "</div>"
+
+    identification = fields(("Fecha", 1), ("N.º historia clínica", 1), ("Habitación / cama", 1))
+    if kind == "hospitalizacion":
+        patient = (
+            fields(("Apellidos y nombres", 2), ("Cédula", 1))
+            + fields(("Edad", .6), ("Sexo", .6), ("Fecha y hora de ingreso", 1.8))
+            + fields(("Diagnóstico de ingreso", 1.6), ("Alergias", 1.4))
+            + fields(("Procedimiento / cirugía", 1))
+        )
+        vital = grid([("Hora", 13), ("PA (mmHg)", 17), ("FC (lpm)", 12), ("FR (rpm)", 12), ("Temp. (°C)", 13), ("SpO₂ (%)", 12), ("Dolor 0–10", 12), ("Iniciales", 9)], 5, 5)
+        treatment = grid([("Medicamento / indicación", 42), ("Dosis", 18), ("Vía", 15), ("Frecuencia / horario", 25)], 4, 5)
+        balance = fields(("Ingresos (mL)", 1), ("Diuresis (mL)", 1), ("Otros egresos (mL)", 1), ("Balance (mL)", 1), height=9)
+        status = "<div class='status'><span>□ Estable</span><span>□ Observación</span><span>□ Alta</span><span>□ Traslado</span><span>Hora: __________</span></div>"
+        body = (
+            section(1, "Identificación del registro", identification)
+            + section(2, "Datos del paciente", patient)
+            + section(3, "Control de signos vitales", vital)
+            + section(4, "Evolución médica / examen clínico", lines(4))
+            + section(5, "Indicaciones médicas / plan terapéutico", lines(3))
+            + section(6, "Tratamiento / medicación indicada", treatment)
+            + section(7, "Observaciones de enfermería", lines(3))
+            + section(8, "Balance hídrico", balance)
+            + section(9, "Estado al final del día", status)
+        )
+        signatures = ("Firma y sello del médico", "Firma de enfermería / responsable")
+    else:
+        patient = fields(("Apellidos y nombres", 2.2), ("Cédula", 1), ("Edad", .5)) + fields(("Diagnóstico", 1.5), ("Alergias", 1.5))
+        orders = fields(("Dieta", 1), ("Actividad", 1), ("Vía venosa", 1)) + fields(("Oxígeno", 1), ("Sonda vesical", 1), ("Cuidados especiales", 1.5))
+        meds = grid([("Medicamento / solución", 24), ("Dosis", 11), ("Vía", 8), ("Frecuencia", 11), ("Hora prog.", 10), ("Hora real", 10), ("Firma / iniciales", 12), ("Observaciones", 14)], 10, 6.4)
+        care = grid([("Procedimiento / cuidado", 36), ("Hora", 13), ("Responsable", 22), ("Observaciones", 29)], 4, 6)
+        tracking = fields(("Diuresis (mL)", 1), ("Evacuaciones", 1), ("Dolor (0–10)", 1), ("Respuesta al tratamiento", 2), height=12)
+        body = (
+            section(1, "Identificación", identification)
+            + section(2, "Datos del paciente", patient)
+            + section(3, "Resumen de indicaciones", orders)
+            + section(4, "Medicamentos y administración", meds + "<p class='hint'>Una fila por administración. Registrar hora real, iniciales y motivo si se omite o difiere una dosis.</p>")
+            + section(5, "Procedimientos y cuidados de enfermería", care)
+            + section(6, "Novedades / incidentes", lines(4, 6))
+            + section(7, "Control y seguimiento", tracking)
+        )
+        signatures = ("Firma de enfermería / responsable", "Firma del médico tratante")
+    auto = "true" if print_now else "false"
+    return f"""<!doctype html><html lang='es'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width,initial-scale=1'><title>{_e(title)}</title>
+<style>
+*{{box-sizing:border-box}}html,body{{margin:0;background:#eef2f6;color:#203446;font-family:Arial,Helvetica,sans-serif}}
+.toolbar{{width:190mm;max-width:100%;margin:10px auto;display:flex;align-items:center;gap:8px}}
+.toolbar a,.toolbar button{{font:700 14px Arial;background:#173b66;color:white;border:0;border-radius:8px;padding:10px 15px;text-decoration:none;cursor:pointer}}
+.sheet{{position:relative;width:190mm;min-height:275mm;margin:0 auto 12px;padding:0;background:white;box-shadow:0 5px 20px #172b4d20}}
+.paper-content{{position:relative;z-index:1}}.watermark{{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);width:105mm;height:auto;opacity:.075;filter:saturate(.85);pointer-events:none;z-index:0}}
+header{{padding:0 0 2mm;border-bottom:.35mm solid #9aabb7;margin-bottom:2mm}}header h1{{font-size:17pt;line-height:1.15;margin:0 0 1mm}}header p{{font-size:10pt;margin:0}}
+section{{margin-bottom:1.8mm;break-inside:avoid;page-break-inside:avoid}}
+h2{{margin:0;padding:1.1mm 2mm;background:#e7edf2;font-size:9pt;line-height:1.15;font-weight:700;border-bottom:.2mm solid #aebac5}}
+.fields{{display:flex;border-left:.2mm solid #9eacb8;border-bottom:.2mm solid #9eacb8}}.field{{border-right:.2mm solid #9eacb8;min-width:0;padding:1mm 1.4mm;font-size:7.2pt}}.field b{{text-transform:uppercase}}
+table{{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.4pt}}th,td{{border:.2mm solid #9eacb8;text-align:left;padding:.8mm 1mm}}th{{font-weight:700;background:#edf1f4;height:5.3mm;line-height:1.15}}td{{height:var(--row-h)}}
+.lines>div{{height:var(--line-h);border-bottom:.2mm solid #9eacb8}}
+.status{{display:flex;justify-content:space-between;padding:2mm 1mm;border-bottom:.2mm solid #9eacb8;font-size:8pt}}
+.hint{{font-size:7pt;margin:1mm 0 0;color:#455969}}
+.signatures{{display:flex;gap:15mm;margin:5mm 7mm 0;text-align:center;font-size:8pt;font-weight:bold}}.signatures div{{flex:1;border-top:.2mm solid #8393a0;padding-top:1.2mm}}
+footer{{margin-top:2mm;text-align:right;font-size:6.5pt;color:#586979}}
+@page{{size:A4 portrait;margin:10mm}}@media print{{html,body{{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}}.toolbar{{display:none!important}}.sheet{{width:100%;min-height:0;margin:0;box-shadow:none}}}}
+@media screen{{.sheet{{padding-top:4mm;padding-bottom:4mm}}}}
+</style></head><body>
+<div class='toolbar'><button id='print-form' type='button'>Imprimir</button><a href='/material'>Volver a Material</a></div>
+<main class='sheet'><img id='doctor-watermark' class='watermark' src='/static/doctor_logo.png' alt=''>
+<div class='paper-content'><header><h1>{_e(title)}</h1><p>Consultorio Dr. Armando Revelo · Urología</p></header>
+{body}<div class='signatures'><div>{_e(signatures[0])}</div><div>{_e(signatures[1])}</div></div>
+<footer>Formato interno complementario · Una hoja por paciente y por día</footer></div></main>
+<script>
+const logo=document.getElementById('doctor-watermark');
+function printForm(){{if(!logo.complete || !logo.naturalWidth){{alert('No se pudo cargar el logo original del consultorio. Vuelva a abrir el formato antes de imprimir.');return;}}window.print();}}
+document.getElementById('print-form').addEventListener('click',printForm);
+if({auto})window.addEventListener('load',()=>setTimeout(printForm,350),{{once:true}});
+</script></body></html>"""
+
+
 def _material_page(message: str = "") -> str:
     rows = _scan()
     cards = []
@@ -363,6 +474,7 @@ def _material_page(message: str = "") -> str:
   <div class='material-search'><input id='material-q' placeholder='Buscar material…'><select id='material-kind'><option value=''>Todo</option><option value='documentos'>Documentos</option><option value='videos'>Videos / audio</option><option value='imagenes'>Imágenes</option></select><button class='mat-btn' onclick='location.reload()'>Actualizar</button></div>
   <section class='material-section'><h2>Acceso rápido</h2><div class='material-grid'>
     <article class='material-card featured'><div class='material-icon'>A4</div><h3>{_DIET_TITLE}</h3><div class='material-meta'>Indicaciones frecuentes · lista del consultorio</div><div class='row'><a class='mat-btn primary' href='/material/dieta-calculos'>Ver</a><a class='mat-btn' href='/material/dieta-calculos?print_now=1'>Imprimir</a></div></article>
+    {_hospital_cards()}
   </div></section>
   <section class='material-section'><h2>Archivos de esta PC</h2><div class='material-grid' id='material-grid'>{files_html}</div></section>
   <div class='material-note'><b>Privacidad y rendimiento:</b> estos archivos quedan únicamente en esta PC dentro de la carpeta local de Historia Clínica. No se suben a Neon ni se incluyen en la base de pacientes.</div>
@@ -512,6 +624,14 @@ def _install_on_app(app: FastAPI) -> None:
     @app.get("/material/dieta-calculos", response_class=HTMLResponse)
     def material_diet(print_now: int = Query(default=0)):
         return HTMLResponse(_diet_html(bool(print_now)))
+
+    @app.get("/material/hospitalizacion", response_class=HTMLResponse)
+    def material_hospitalizacion(print_now: int = Query(default=0)):
+        return HTMLResponse(_hospital_form_html("hospitalizacion", bool(print_now)))
+
+    @app.get("/material/kardex", response_class=HTMLResponse)
+    def material_kardex(print_now: int = Query(default=0)):
+        return HTMLResponse(_hospital_form_html("kardex", bool(print_now)))
 
     @app.get("/material/ver/{rel_path:path}", response_class=HTMLResponse)
     def material_view(rel_path: str):
