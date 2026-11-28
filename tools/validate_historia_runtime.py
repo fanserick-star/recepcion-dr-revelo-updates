@@ -100,6 +100,12 @@ def validate_runtime(root: Path) -> str:
             assert "#eef2f6" not in rendered
             assert "window.print()" in rendered
             assert "if(true)" in rendered
+            if (manifest.get("notes") or {}).get("hospitalization_materials_native_print"):
+                assert "historia-print-url" in rendered
+                assert "url:location.pathname" in rendered
+                assert "image-rendering:auto" in rendered
+                assert "blur(.32mm)" in rendered
+                assert "await logo.decode()" in rendered
         print("HOSPITAL_MATERIALS_WHITE_PRINT_OK")
 
     notes = manifest.get("notes") or {}

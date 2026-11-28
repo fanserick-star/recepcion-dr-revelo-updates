@@ -420,7 +420,7 @@ def _hospital_form_html(kind: str, print_now: bool = False) -> str:
 .toolbar{{width:190mm;max-width:100%;margin:10px auto;display:flex;align-items:center;gap:8px}}
 .toolbar a,.toolbar button{{font:700 14px Arial;background:#173b66;color:white;border:0;border-radius:8px;padding:10px 15px;text-decoration:none;cursor:pointer}}
 .sheet{{position:relative;box-sizing:border-box;width:210mm;max-width:100%;min-height:0;margin:0 auto;padding:10mm 10mm 8mm;background:#fff!important;background-image:none!important;box-shadow:none!important;border:0!important}}
-.paper-content{{position:relative;z-index:1}}.watermark{{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);width:105mm;height:auto;opacity:.075;filter:grayscale(1);pointer-events:none;z-index:0}}
+.paper-content{{position:relative;z-index:1}}.watermark{{position:absolute;left:50%;top:53%;transform:translate(-50%,-50%);width:105mm;height:auto;opacity:.075;filter:grayscale(1) blur(.32mm);image-rendering:auto;pointer-events:none;z-index:0}}
 header{{padding:0 0 2mm;border-bottom:.35mm solid #9aabb7;margin-bottom:2mm}}header h1{{font-size:17pt;line-height:1.15;margin:0 0 1mm}}header p{{font-size:10pt;margin:0}}
 section{{margin-bottom:1.8mm;break-inside:avoid;page-break-inside:avoid}}
 h2{{margin:0;padding:1.1mm 2mm;background:#edf0f2;font-size:9pt;line-height:1.15;font-weight:700;border-bottom:.2mm solid #aebac5}}
@@ -442,7 +442,32 @@ footer{{margin-top:2mm;text-align:right;font-size:6.5pt;color:#586979}}
 <footer>Formato interno complementario · Una hoja por paciente y por día</footer></div></main>
 <script>
 const logo=document.getElementById('doctor-watermark');
-function printForm(){{if(!logo.complete || !logo.naturalWidth){{alert('No se pudo cargar el logo original del consultorio. Vuelva a abrir el formato antes de imprimir.');return;}}window.print();}}
+let printing=false;
+async function printForm(){{
+  if(printing)return;
+  printing=true;
+  const button=document.getElementById('print-form');
+  button.disabled=true;
+  try{{
+    if(logo.decode)await logo.decode();
+    if(!logo.complete || !logo.naturalWidth)throw new Error('No se pudo cargar el logo original del consultorio. Vuelva a abrir el formato antes de imprimir.');
+    // Usar el mismo motor nativo que recetas y certificados: HTML vectorial,
+    // sin captura de pantalla, con fondos habilitados y sin encabezados del navegador.
+    if(window.chrome&&window.chrome.webview&&typeof window.chrome.webview.postMessage==='function'){{
+      let printer='';
+      try{{
+        const r=await fetch('/api/documentos/impresora?kind=certificate',{{cache:'no-store'}});
+        if(r.ok){{const d=await r.json();printer=String(d.printer||'');}}
+      }}catch(_e){{}}
+      // La ventana nativa recibe solo la ruta de vista previa (sin print_now)
+      // para no disparar otra impresión de forma recursiva.
+      window.chrome.webview.postMessage({{type:'historia-print-url',url:location.pathname,printer}});
+    }}else{{
+      window.print();
+    }}
+  }}catch(err){{alert(err.message||'No se pudo preparar la impresión.');}}
+  finally{{setTimeout(()=>{{printing=false;button.disabled=false;}},1200);}}
+}}
 document.getElementById('print-form').addEventListener('click',printForm);
 if({auto})window.addEventListener('load',()=>setTimeout(printForm,350),{{once:true}});
 </script></body></html>"""
